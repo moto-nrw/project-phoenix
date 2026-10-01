@@ -19,7 +19,6 @@ var (
 	ErrParentAnnouncementNothingDue      = errors.New("announcement: nothing is outstanding for this announcement")
 	ErrParentAnnouncementNotPoll         = errors.New("announcement: not a poll")
 	ErrParentAnnouncementPollClosed      = errors.New("announcement: poll is not open for answers")
-	ErrCareCancellationDisabled          = errors.New("announcement: cancellation notice is disabled for this school")
 	// ErrParentAnnouncementReminderSent: the scheduled reminder already went
 	// out; its moment and wording can no longer be changed or removed (#3162).
 	ErrParentAnnouncementReminderSent = errors.New("announcement: the reminder has already been sent")
@@ -219,8 +218,6 @@ type CareCancellationResult struct {
 }
 
 type CareCancellationReach struct {
-	Enabled     bool
-	DefaultOn   bool
 	FamilyCount int
 }
 

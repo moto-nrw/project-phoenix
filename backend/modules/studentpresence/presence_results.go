@@ -79,6 +79,9 @@ type DailyAttendanceStatus struct {
 	YardSince    *time.Time `json:"yard_since,omitempty"`
 	CheckedInBy  string     `json:"checked_in_by"`  // Formatted as "FirstName LastName"
 	CheckedOutBy string     `json:"checked_out_by"` // Formatted as "FirstName LastName"
+	// CheckOutNote is the optional reason recorded when the child went home
+	// earlier than planned (#3324). Only set on a checked-out status.
+	CheckOutNote *string `json:"check_out_note,omitempty"`
 }
 
 // IsCurrentlyPresent reports whether the attendance row represents a child

@@ -3,6 +3,7 @@ import {
   areStudentDayTimesResolved,
   combineTimeNotes,
   comesOnlyIfLessonCancelled,
+  earlyCheckoutMinutes,
   getStudentAbsence,
   getStudentDayTimes,
   getStudentTimeStatus,
@@ -658,5 +659,103 @@ describe("comesOnlyIfLessonCancelled", () => {
         actualPickup: "13:25",
       }),
     ).toBe(false);
+  });
+});
+
+describe("earlyCheckoutMinutes (#3324)", () => {
+  const now = new Date("2025-01-15T13:40:00");
+
+  it("reports the minutes before the pickup time beyond the tolerance", () => {
+    expect(
+      earlyCheckoutMinutes({
+        plannedPickup: "15:00",
+        now,
+        toleranceMinutes: 15,
+      }),
+    ).toBe(80);
+  });
+
+  it("treats a checkout inside the tolerance as ordinary", () => {
+    expect(
+      earlyCheckoutMinutes({
+        plannedPickup: "13:55",
+        now,
+        toleranceMinutes: 15,
+      }),
+    ).toBeNull();
+    expect(
+      earlyCheckoutMinutes({
+        plannedPickup: "13:56",
+        now,
+        toleranceMinutes: 15,
+      }),
+    ).toBe(16);
+  });
+
+  it("asks when the checkout exceeds the tolerance by seconds", () => {
+    expect(
+      earlyCheckoutMinutes({
+        plannedPickup: "13:55",
+        now: new Date("2025-01-15T13:39:30"),
+        toleranceMinutes: 15,
+      }),
+    ).toBe(15);
+  });
+
+  it("uses the school's Berlin wall clock outside the browser timezone", () => {
+    const originalTimeZone = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+
+    try {
+      expect(
+        earlyCheckoutMinutes({
+          plannedPickup: "14:14",
+          now: new Date("2026-06-01T12:00:00Z"), // 14:00 in Berlin
+          toleranceMinutes: 15,
+        }),
+      ).toBeNull();
+    } finally {
+      process.env.TZ = originalTimeZone;
+    }
+  });
+
+  it("never asks after the pickup time", () => {
+    expect(
+      earlyCheckoutMinutes({
+        plannedPickup: "13:00",
+        now,
+        toleranceMinutes: 0,
+      }),
+    ).toBeNull();
+  });
+
+  it("stays silent without a pickup time or with the question off", () => {
+    expect(
+      earlyCheckoutMinutes({
+        plannedPickup: undefined,
+        now,
+        toleranceMinutes: 15,
+      }),
+    ).toBeNull();
+    expect(
+      earlyCheckoutMinutes({
+        plannedPickup: "15:00",
+        now,
+        toleranceMinutes: null,
+      }),
+    ).toBeNull();
+    expect(
+      earlyCheckoutMinutes({ plannedPickup: "abc", now, toleranceMinutes: 15 }),
+    ).toBeNull();
+  });
+
+  it("reads HH:MM:SS pickup times", () => {
+    expect(
+      earlyCheckoutMinutes({
+        plannedPickup: "15:00:00",
+        now,
+        toleranceMinutes: 15,
+      }),
+    ).toBe(80);
   });
 });

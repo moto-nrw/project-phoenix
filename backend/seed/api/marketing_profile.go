@@ -71,7 +71,7 @@ func marketingProfileDefinition() demoProfileDefinition {
 	settings := fullOperationSettings()
 	settings[profileSettingPresenceMode] = SeedSetting{Value: json.RawMessage(`"` + profilePresenceBinary + `"`), ManagedBy: SettingManagedByOperator}
 	settings[profileSettingAttendanceNFC] = SeedSetting{Value: json.RawMessage(`false`), ManagedBy: SettingManagedByOperator}
-	settings[profileSettingCareConcept] = SeedSetting{Value: json.RawMessage(`"` + profileCareConceptOpenRooms + `"`), ManagedBy: SettingManagedByTenant}
+	settings[profileSettingWebSpontaneous] = SeedSetting{Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant}
 	settings[profileSettingEnrollmentEnabled] = SeedSetting{Value: json.RawMessage(`false`), ManagedBy: SettingManagedByTenant}
 	settings[profileSettingCareOfferingsEnabled] = SeedSetting{Value: json.RawMessage(`false`), ManagedBy: SettingManagedByTenant}
 	return demoProfileDefinition{
@@ -423,11 +423,11 @@ func seedMarketingAttendance(rt *Runtime, students map[string]SeedStudent) error
 			if source.presence == marketingNotArrived {
 				continue
 			}
-			if err := postSchoolAttendance(rt, student.ID, "in", "checked_in"); err != nil {
+			if err := postSchoolAttendance(rt, student.ID, "in", "checked_in", ""); err != nil {
 				return err
 			}
 			if source.presence == marketingPickedUp {
-				if err := postSchoolAttendance(rt, student.ID, "out", "checked_out"); err != nil {
+				if err := postSchoolAttendance(rt, student.ID, "out", "checked_out", ""); err != nil {
 					return err
 				}
 			}

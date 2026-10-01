@@ -143,6 +143,13 @@ func dayLogExportUntil(student dayLogStudent) string {
 }
 
 func dayLogExportDetails(student dayLogStudent) string {
+	if student.CheckOutNote != "" {
+		note := "Früher gegangen: " + student.CheckOutNote
+		if student.Hint != "" {
+			return student.Hint + " · " + note
+		}
+		return note
+	}
 	if student.Hint != "" {
 		return student.Hint
 	}

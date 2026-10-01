@@ -3,7 +3,9 @@ package studentpresence
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // Presence modes resolved from the tenant's presence_mode setting.
@@ -11,6 +13,20 @@ const (
 	PresenceModeDetailed = "detailed"
 	PresenceModeBinary   = "binary"
 )
+
+// MaxCheckoutNoteLength bounds the reason staff may leave when a child goes
+// home earlier than planned (#3324). It matches the column's CHECK constraint.
+const MaxCheckoutNoteLength = 500
+
+// NormalizeCheckoutNote trims a checkout note and enforces its length. An
+// empty or blank note means "no note".
+func NormalizeCheckoutNote(note string) (string, error) {
+	note = strings.TrimSpace(note)
+	if utf8.RuneCountInString(note) > MaxCheckoutNoteLength {
+		return "", ErrCheckoutNoteTooLong
+	}
+	return note, nil
+}
 
 // Operation errors shared by the presence commands and their consumers. The
 // messages are wire contracts: the web routes render them verbatim and the
@@ -47,6 +63,9 @@ var (
 	// sense because the student was never checked in. The message is a cross-repo
 	// contract mapped to German UI text in PyrePortal; do not change it.
 	ErrNoAttendanceRecordForCheckout = errors.New("student has no attendance record for today")
+	// ErrCheckoutNoteTooLong rejects an early-checkout note over
+	// MaxCheckoutNoteLength characters (#3324).
+	ErrCheckoutNoteTooLong = errors.New("checkout note is too long")
 	// Kiosk session errors. ErrDeviceAlreadyActive and ErrNoActiveSession are
 	// PyrePortal contract strings; do not change them.
 	ErrDeviceAlreadyActive    = errors.New("device is already running an activity session")

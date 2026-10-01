@@ -90,6 +90,9 @@ type StudentResponse struct {
 	ArrivalNotes       string               `json:"arrival_notes,omitempty"`        // Exception reason or schedule notes
 	ActualArrivalTime  *string              `json:"actual_arrival_time,omitempty"`  // Today's actual arrival time from attendance (HH:MM)
 	ActualPickupTime   *string              `json:"actual_pickup_time,omitempty"`   // Today's actual pickup time from attendance (HH:MM)
+	// ActualPickupNote is why the child went home earlier than planned today
+	// (#3324). Only the detail view shows it; the list projection drops it.
+	ActualPickupNote *string `json:"actual_pickup_note,omitempty"`
 	// DepartureDays is the authoritative per-weekday departure mode
 	// (alone/bus/pickup). Bus, BusDays and PickupDays are derived from it and
 	// kept for backward compatibility with clients not yet on departure_days.

@@ -590,6 +590,9 @@ func applyActualTimesFromAttendance(response *StudentResponse, status *studentpr
 
 	response.ActualArrivalTime = timezone.FormatBerlinClock(status.CheckInTime)
 	response.ActualPickupTime = timezone.FormatBerlinClock(status.CheckOutTime)
+	if status.CheckOutTime != nil {
+		response.ActualPickupNote = status.CheckOutNote
+	}
 }
 
 func applyActualTimesFromSnapshot(response *StudentResponse, snapshot *studentDataSnapshot) {

@@ -1,0 +1,110 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2729"
+  ],
+  "owner_and_capability": "Legacy composition — bounded Contract step of #2729 for models/users (#3756): the retained user models stop importing github.com/uptrace/bun, database/sql and models/documents. No capability behavior moves; the models keep their persisted columns and JSON.",
+  "affected_packages": [
+    "models/users",
+    "database/repositories",
+    "database/repositories/users",
+    "services",
+    "modules/emergencysnapshot/legacy"
+  ],
+  "affected_tables": [
+    "users.parent_announcement_targets",
+    "users.parent_announcement_options",
+    "users.parent_announcement_responses",
+    "users.parent_announcement_reads",
+    "users.parent_message_reads",
+    "users.staff_message_participants",
+    "users.staff_message_reads",
+    "users.staff_notice_acks",
+    "users.student_documents",
+    "users.student_document_file_cleanup"
+  ],
+  "exact_ratchet_keys": [
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/models/users|database/sql",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/models/users|github.com/moto-nrw/project-phoenix/models/documents",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/models/users|github.com/uptrace/bun"
+  ],
+  "atomic_cutover": "One code-only change. The eight tag-only models drop their bun.BaseModel embed and carry the table tag on base.TenantModel as documentation; they are DTOs, persistence uses module-owned row types with ModelTableExpr. StudentDocument and StudentDocumentFileCleanup inline the columns of documents.File and documents.FileCleanup with identical bun and JSON tags. GuardianEmergencyContactRow scans its nullable columns into *string, and its three consumers read NULL as an empty string as before. RowMissing matches the translated not-found sentinels only, which every caller path already carries. MissingStudentError takes the driver's no-rows sentinel from its callers: database/repositories through the new database/repositories/users.MissingStudentError, services directly under its existing database/sql key, so the six retained consumers that match sql.ErrNoRows keep their behavior and the error text is unchanged.",
+  "tests": [
+    "models/users: TestRowMissing and TestMissingStudentErrorKeepsTheCallerSentinels; models/documents unit tests; modules/emergencysnapshot/legacy: TestExportRendersTheRetainedNotfallliste with the *string rows.",
+    "The retained sql.ErrNoRows consumers against the local PostgreSQL test database: services/users (LinkStudentToRFIDCard not-found), modules/communication/internal/parentmessages (TestMessaging_MissingStudentIsForbidden), api/enrollment (decision export missing student), modules/peopledirectory, database/repositories/..., modules/identityaccess/behavior and compose (lifecycle seams over RowMissing).",
+    "golangci-lint on the affected packages; scripts/test-changed.sh origin/development without --fast.",
+    "scripts/backend-architecture.sh check with exactly the listed keys absent from legacy.jsonl and none added; scripts/backend-architecture.sh validate-ticket --all."
+  ],
+  "runtime_evidence": {
+    "source": "Local runs on the #3756 branch on 2026-09-30 against the local postgres-test server.",
+    "sources": [
+      "backend/models/users/row_missing.go",
+      "backend/models/users/student.go",
+      "backend/models/users/student_document.go",
+      "backend/database/repositories/users/legacy_composition_support.go",
+      "backend/services/care_plan_request_people.go"
+    ],
+    "workload": "No load run. Go suites through scripts/run-go-toolchain.sh and scripts/test-changed.sh against origin/development, local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "Code-only contract: every affected suite passes with the same assertions, and scripts/backend-architecture.sh check passes with exactly the listed keys removed, no key added and a composition surface that does not grow.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "No statement changed; the models are DTOs or projection rows whose repositories issue the same queries."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "No statement was added or removed; only model types and error construction changed."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #2729 names zero old callers and zero listed keys as the gate for a code-only Contract, and the statements are unchanged."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #2729 names zero old callers and zero listed keys as the gate for a code-only Contract, and the statements are unchanged."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed with 378 remaining keys (381 at origin/development) and a composition surface of 603 -> 603; golangci-lint reported 0 issues on the affected packages; scripts/test-changed.sh origin/development exited 0 with 143 packages ok and no failure."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection acquisition, pool setting or transaction boundary changed."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No row lock or transaction boundary changed."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No statement or transaction boundary changed, so no lock ordering can differ."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The change touches no worker or scheduler path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The change touches no worker or scheduler path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The change touches no worker or scheduler path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "A missing child still wraps base.ErrNotFound, sql.ErrNoRows and ErrStudentRowMissing with the same text: the RFID link returns ErrStudentNotFound, parent messaging answers forbidden and the decision export keeps its not-found mapping, each asserted by the existing suites."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data write path or schema change. Reverting the change restores the imports and the baseline entries."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "go build ./... passed and the affected packages ran through scripts/test-changed.sh. No manual application start was made."
+    }
+  },
+  "rollback_and_cleanup": "Revert the code-only change if a hidden caller appears. No table, migration or configuration is touched, and nothing remains to clean up.",
+  "exit_criterion": "models/users imports none of github.com/uptrace/bun, database/sql and models/documents in production code, and every listed key is absent from legacy.jsonl; scripts/backend-architecture.sh check passes with no key added, no temporary policy rule added and no ownership of a data object changed."
+}

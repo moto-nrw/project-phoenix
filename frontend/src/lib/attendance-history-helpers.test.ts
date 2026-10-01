@@ -210,3 +210,55 @@ describe("formatAttendanceSlotStatus", () => {
     expect(formatAttendanceSlotStatus(status, substatus)).toBe(expected);
   });
 });
+
+describe("mapAttendanceHistoryResponse checkout note (#3324)", () => {
+  it("joins the early-checkout notes of the day's stays", () => {
+    const mapped = mapAttendanceHistoryResponse({
+      student_id: "42",
+      days: [
+        {
+          date: "2026-04-07",
+          attendance: {
+            check_in_time: "2026-04-07T06:00:00Z",
+            check_out_time: "2026-04-07T14:00:00Z",
+            checked_in_by: 11,
+            device_id: 3,
+            sessions: [
+              {
+                check_in_time: "2026-04-07T06:00:00Z",
+                check_out_time: "2026-04-07T09:00:00Z",
+                check_out_note: "Arzttermin",
+              },
+              {
+                check_in_time: "2026-04-07T11:00:00Z",
+                check_out_time: "2026-04-07T14:00:00Z",
+              },
+            ],
+          },
+          room_detail_available: false,
+          visits: [],
+        },
+        {
+          date: "2026-04-08",
+          attendance: {
+            check_in_time: "2026-04-08T06:00:00Z",
+            check_out_time: "2026-04-08T14:00:00Z",
+            checked_in_by: 11,
+            device_id: 3,
+          },
+          room_detail_available: false,
+          visits: [],
+        },
+      ],
+      range: { start: "2026-04-01T00:00:00Z", end: "2026-04-08T00:00:00Z" },
+      clamped: false,
+      caps: { attendance_days: 30, room_detail_days: 7 },
+    });
+
+    const [noted, plain] = mapped.days;
+    expect(noted?.attendance?.checkOutNote).toBe("Arzttermin");
+    expect(noted?.attendance?.sessions[0]?.checkOutNote).toBe("Arzttermin");
+    expect(noted?.attendance?.sessions[1]?.checkOutNote).toBeNull();
+    expect(plain?.attendance?.checkOutNote).toBeNull();
+  });
+});

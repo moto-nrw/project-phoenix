@@ -424,18 +424,19 @@ func validPollSelection(responseType string, options []*usersModels.ParentAnnoun
 
 // announcementVisibleForTenant is the per-announcement feature gate shared by
 // read, acknowledge and poll answer. Hand-written announcements need the news
-// flag; a system-authored row (cancellation notice, #2601) needs its own gate
-// instead, so a school that keeps news off still lets families confirm the
-// notice. Runs OUTSIDE the admin tx because ResolveBoolForTenant opens its own
-// tenant tx. Fails CLOSED on an unwired settings service or a resolve error.
+// flag. A system-authored row (cancellation notice, #2601) is always visible:
+// the person cancelling decided to send it (#3731), and a school that keeps
+// news off still lets families confirm the notice. Runs OUTSIDE the admin tx
+// because ResolveBoolForTenant opens its own tenant tx. Fails CLOSED on an
+// unwired settings service or a resolve error.
 func (s *Service) announcementVisibleForTenant(ctx context.Context, tenantID, announcementID int64, systemKind *string) bool {
+	if systemKind != nil && *systemKind != "" {
+		return true
+	}
 	if s.Settings == nil {
 		return false
 	}
 	key := configModel.KeyParentNewsEnabled
-	if systemKind != nil && *systemKind != "" {
-		key = configModel.KeyNotificationsCareCancelledEnabled
-	}
 	on, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, key)
 	if err != nil {
 		s.Logger.Warn("parent: resolve announcement feature flag failed, hiding announcement",
@@ -450,9 +451,9 @@ func (s *Service) announcementVisibleForTenant(ctx context.Context, tenantID, an
 }
 
 // announcementFeedScope splits the guardian's schools into those whose whole
-// feed is visible (news on) and those that only contribute system-authored
-// rows (news off, cancellation notice on). See newsEnabledTenants for how the
-// candidate set is derived.
+// feed is visible (news on) and those that contribute system-authored rows
+// (every school). See newsEnabledTenants for how the candidate set is
+// derived.
 func (s *Service) announcementFeedScope(ctx context.Context, accountID int64) (usersModels.AnnouncementFeedScope, error) {
 	var scope usersModels.AnnouncementFeedScope
 	allTenantIDs, err := s.announcementTenants(ctx, accountID)
@@ -466,9 +467,7 @@ func (s *Service) announcementFeedScope(ctx context.Context, accountID int64) (u
 		if s.tenantFlag(ctx, tenantID, configModel.KeyParentNewsEnabled) {
 			scope.TenantIDs = append(scope.TenantIDs, tenantID)
 		}
-		if s.tenantFlag(ctx, tenantID, configModel.KeyNotificationsCareCancelledEnabled) {
-			scope.SystemOnlyTenantIDs = append(scope.SystemOnlyTenantIDs, tenantID)
-		}
+		scope.SystemOnlyTenantIDs = append(scope.SystemOnlyTenantIDs, tenantID)
 	}
 	return scope, nil
 }

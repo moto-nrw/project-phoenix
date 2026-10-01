@@ -12,13 +12,11 @@ package legacy
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -65,11 +63,6 @@ type RoomSource interface {
 	ListRoomsByID(ctx context.Context, ids []int64) ([]facilities.Room, error)
 }
 
-// SettingsSource is the one tenant setting the projection reads.
-type SettingsSource interface {
-	ResolveBool(ctx context.Context, key string) (bool, error)
-}
-
 // RendererSource is the Document Rendering renderer.
 type RendererSource interface {
 	Render(doc listexport.Document, format listexport.Format, filenameBase string) (listexport.File, error)
@@ -84,7 +77,6 @@ type Sources struct {
 	Persons      PersonSource
 	Contacts     ContactSource
 	Rooms        RoomSource
-	Settings     SettingsSource
 	Renderer     RendererSource
 	// Now is optional and defaults to time.Now.
 	Now func() time.Time
@@ -100,7 +92,7 @@ var ErrIncompleteSources = errors.New("emergency snapshot adapters are not fully
 func New(sources Sources) (emergencysnapshot.Query, error) {
 	if sources.Presence == nil || sources.PresenceMode == nil || sources.Students == nil ||
 		sources.Persons == nil || sources.Contacts == nil || sources.Rooms == nil ||
-		sources.Settings == nil || sources.Renderer == nil {
+		sources.Renderer == nil {
 		return nil, ErrIncompleteSources
 	}
 	projection, err := emergencysnapshot.New(emergencysnapshot.Dependencies{
@@ -109,7 +101,6 @@ func New(sources Sources) (emergencysnapshot.Query, error) {
 		Students: students{repo: sources.Students},
 		Persons:  persons{facade: sources.Persons},
 		Contacts: contacts{repo: sources.Contacts},
-		Settings: settings{settings: sources.Settings},
 		Calendar: calendar{},
 		Renderer: renderer{renderer: sources.Renderer},
 		Collate:  collation.CompareGerman,
@@ -245,24 +236,12 @@ func (c contacts) EmergencyContacts(ctx context.Context, studentIDs []int64) ([]
 	for _, row := range rows {
 		result = append(result, emergencysnapshot.Contact{
 			StudentID: row.StudentID,
-			FirstName: row.FirstName.String,
-			LastName:  row.LastName.String,
-			Phone:     row.PhoneNumber.String,
+			FirstName: deref(row.FirstName),
+			LastName:  deref(row.LastName),
+			Phone:     deref(row.PhoneNumber),
 		})
 	}
 	return result, nil
-}
-
-type settings struct {
-	settings SettingsSource
-}
-
-func (s settings) HealthInfoEnabled(ctx context.Context) (bool, error) {
-	enabled, err := s.settings.ResolveBool(ctx, configModel.KeyEmergencyListHealthInfo)
-	if err != nil {
-		return false, fmt.Errorf("resolve %s: %w", configModel.KeyEmergencyListHealthInfo, err)
-	}
-	return enabled, nil
 }
 
 type calendar struct{}

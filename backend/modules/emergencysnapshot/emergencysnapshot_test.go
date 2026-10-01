@@ -99,15 +99,6 @@ func (f fakeContacts) EmergencyContacts(_ context.Context, _ []int64) ([]Contact
 	return f.rows, f.err
 }
 
-type fakeSettings struct {
-	enabled bool
-	err     error
-}
-
-func (f fakeSettings) HealthInfoEnabled(_ context.Context) (bool, error) {
-	return f.enabled, f.err
-}
-
 type fakeCalendar struct{}
 
 func (fakeCalendar) DayOf(at time.Time) Date { return Date(at.Format("2006-01-02")) }
@@ -141,7 +132,6 @@ func fullDeps() Dependencies {
 		Students: fakeStudents{},
 		Persons:  &fakePersons{},
 		Contacts: fakeContacts{},
-		Settings: fakeSettings{},
 		Calendar: fakeCalendar{},
 		Renderer: &fakeRenderer{},
 		Collate:  collateASCIIFold,
@@ -205,7 +195,6 @@ func TestSnapshotProjectsCurrentRows(t *testing.T) {
 
 	assert.Equal(t, generatedAt, snapshot.GeneratedAt)
 	assert.Equal(t, Date("2026-05-27"), snapshot.Date)
-	assert.False(t, snapshot.IncludeHealthInfo)
 	require.Equal(t, []Row{
 		{StudentID: 101, Name: "Mila Albrecht", SchoolClass: "Klasse 3b", Location: "Kreativraum",
 			ContactName: "Lea Albrecht; Noah Albrecht", ContactPhone: "02551 111; 02551 222; 02551 333"},
@@ -235,10 +224,11 @@ func TestDocumentMatchesRetainedLayout(t *testing.T) {
 			{ID: "current_location", Label: "Ort / Raum"},
 			{ID: "contact_phone", Label: "Telefonnummer"},
 			{ID: "contact_name", Label: "Kontakt"},
+			{ID: "health_info", Label: "Gesundheit / Allergien"},
 		},
 		Rows: []map[ColumnID]string{
-			{"name": "Mila Albrecht", "school_class": "Klasse 3b", "current_location": "Kreativraum", "contact_phone": "02551 111; 02551 222; 02551 333", "contact_name": "Lea Albrecht; Noah Albrecht"},
-			{"name": "Max Schmitt", "school_class": "Klasse 2a", "current_location": "Unterwegs", "contact_phone": "02551 444", "contact_name": "Familie Schmitt"},
+			{"name": "Mila Albrecht", "school_class": "Klasse 3b", "current_location": "Kreativraum", "contact_phone": "02551 111; 02551 222; 02551 333", "contact_name": "Lea Albrecht; Noah Albrecht", "health_info": "Nicht hinterlegt"},
+			{"name": "Max Schmitt", "school_class": "Klasse 2a", "current_location": "Unterwegs", "contact_phone": "02551 444", "contact_name": "Familie Schmitt", "health_info": "Nicht hinterlegt"},
 		},
 	}, doc)
 }
@@ -405,15 +395,14 @@ func TestJoinUnique(t *testing.T) {
 	assert.Empty(t, joinUnique("", " "))
 }
 
-// --- Gesundheitsinfos auf der Notfallliste (#2609) ---
+// --- Gesundheitsinfos auf der Notfallliste (#2609, always printed since #3732) ---
 
-func healthDeps(settings Settings, health map[int64]string) Dependencies {
+func healthDeps(health map[int64]string) Dependencies {
 	deps := twoChildren()
 	deps.Students = fakeStudents{students: map[int64]Student{
 		101: {ID: 101, PersonID: 301, SchoolClass: "Klasse 3b", HealthInfo: health[101]},
 		202: {ID: 202, PersonID: 302, SchoolClass: "Klasse 2a", HealthInfo: health[202]},
 	}}
-	deps.Settings = settings
 	return deps
 }
 
@@ -436,13 +425,12 @@ func columnIDs(doc Document) []ColumnID {
 	return ids
 }
 
-// With the setting on, every present child carries its stored health note,
-// and a child WITHOUT one says so rather than leaving a blank that reads as
-// "no allergies".
-func TestDocumentIncludesHealthInfoWhenEnabled(t *testing.T) {
+// Every present child carries its stored health note, and a child WITHOUT
+// one says so rather than leaving a blank that reads as "no allergies".
+func TestDocumentIncludesHealthInfo(t *testing.T) {
 	t.Parallel()
 	note := "Nussallergie, Epipen im Gruppenraum"
-	projection := newProjection(t, healthDeps(fakeSettings{enabled: true}, map[int64]string{101: note}))
+	projection := newProjection(t, healthDeps(map[int64]string{101: note}))
 
 	doc, err := projection.Document(context.Background(), generatedAt)
 	require.NoError(t, err)
@@ -459,43 +447,12 @@ func TestDocumentIncludesHealthInfoWhenEnabled(t *testing.T) {
 // blank, and both must be spelled out.
 func TestDocumentTreatsBlankHealthInfoAsMissing(t *testing.T) {
 	t.Parallel()
-	projection := newProjection(t, healthDeps(fakeSettings{enabled: true}, map[int64]string{101: "   \n\t "}))
+	projection := newProjection(t, healthDeps(map[int64]string{101: "   \n\t "}))
 
 	doc, err := projection.Document(context.Background(), time.Time{})
 	require.NoError(t, err)
 	require.Len(t, doc.Rows, 2)
 	assert.Equal(t, "Nicht hinterlegt", healthByName(doc)["Mila Albrecht"])
-}
-
-// A school that switched the setting off gets the old five-column list: no
-// health column at all, not an empty one.
-func TestDocumentOmitsHealthInfoWhenDisabled(t *testing.T) {
-	t.Parallel()
-	projection := newProjection(t, healthDeps(fakeSettings{enabled: false}, map[int64]string{101: "Asthma, Spray in der Tasche"}))
-
-	doc, err := projection.Document(context.Background(), time.Time{})
-	require.NoError(t, err)
-
-	assert.NotContains(t, columnIDs(doc), ColumnHealthInfo)
-	require.Len(t, doc.Rows, 2)
-	for _, row := range doc.Rows {
-		assert.NotContains(t, row, ColumnHealthInfo)
-	}
-	assert.Contains(t, healthByName(doc), "Mila Albrecht")
-}
-
-// An unreadable setting must not print health data a school may have
-// switched off: the column stays out and the remaining columns still render.
-func TestDocumentOmitsHealthInfoWhenSettingUnreadable(t *testing.T) {
-	t.Parallel()
-	projection := newProjection(t, healthDeps(fakeSettings{enabled: true, err: assert.AnError}, map[int64]string{101: "Diabetes Typ 1"}))
-
-	doc, err := projection.Document(context.Background(), time.Time{})
-	require.NoError(t, err)
-
-	assert.NotContains(t, columnIDs(doc), ColumnHealthInfo)
-	require.Len(t, doc.Rows, 2)
-	assert.Contains(t, healthByName(doc), "Mila Albrecht")
 }
 
 func TestHealthInfoCell(t *testing.T) {

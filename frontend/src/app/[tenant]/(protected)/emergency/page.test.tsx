@@ -1,6 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useEmergencyHealthInfoEnabled } from "~/lib/tenant-context";
 import EmergencyPage from "./page";
 
 const mockUseSession = vi.fn();
@@ -58,7 +57,6 @@ vi.mock("lucide-react", async (importOriginal) => {
 beforeEach(() => {
   mockUseSession.mockReturnValue({ status: "authenticated" });
   mockExportEmergencySnapshot.mockResolvedValue(undefined);
-  vi.mocked(useEmergencyHealthInfoEnabled).mockReturnValue(true);
 });
 
 describe("EmergencyPage", () => {
@@ -124,25 +122,10 @@ describe("EmergencyPage", () => {
     render(<EmergencyPage />);
 
     expect(
-      screen.getByText(/und die hinterlegten Gesundheitsinfos/),
+      screen.getByText(/die\s+hinterlegten Gesundheitsinfos/),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/Das heißt nicht, dass das Kind keine Allergie hat/),
-    ).toBeInTheDocument();
-  });
-
-  // A school that switched the column off must not be promised health data
-  // the PDF does not carry.
-  it("omits the health info copy when the school switched the column off", () => {
-    vi.mocked(useEmergencyHealthInfoEnabled).mockReturnValue(false);
-
-    render(<EmergencyPage />);
-
-    expect(screen.queryByText(/Gesundheitsinfos/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Nicht hinterlegt/)).not.toBeInTheDocument();
-    // The list itself is still offered.
-    expect(
-      screen.getByRole("button", { name: /Notfallliste drucken/ }),
     ).toBeInTheDocument();
   });
 

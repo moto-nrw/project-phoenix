@@ -4209,6 +4209,10 @@
       "write_owner": "communication"
     },
     {
+      "name": "users.parent_message_count_preferences",
+      "write_owner": "communication"
+    },
+    {
       "name": "users.parent_message_reads",
       "write_owner": "communication"
     },
@@ -18989,17 +18993,6 @@
       "source_owner": "emergency-snapshot",
       "source_role": "adapter",
       "target_owner": "people-directory",
-      "target_role": "domain"
-    },
-    {
-      "id": "emergency-snapshot.adapter.settings-platform-domain",
-      "description": "Compatibility binding (#2704): the adapter names the health-info setting key of the retained settings service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "emergency-snapshot",
-      "source_role": "adapter",
-      "target_owner": "settings-platform",
       "target_role": "domain"
     },
     {

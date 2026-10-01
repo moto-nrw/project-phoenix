@@ -16,6 +16,7 @@ vi.mock("./session-cache", () => ({
 }));
 
 import {
+  normalizeEarlyCheckoutTolerance,
   resolveTenant,
   listAvailableTenants,
   switchTenant,
@@ -167,14 +168,14 @@ describe("tenant-api", () => {
         // (#2383): an older backend must not hide the Tagesplan entry.
         timetableEnabled: true,
         waitlistEnabled: true,
-        // Older backends omit the health-column flag (#2609). Absent means
-        // disabled because those backends do not print the health column.
-        emergencyHealthInfoEnabled: false,
         gradeLevelMax: 13,
         // Older backends omit the Analyse-Freigabe (#3603): off, and nothing
         // is recorded.
         analyticsFreigabe: false,
         analyticsRecordingSamplePercent: 0,
+        // Older backends omit the early-checkout question (#3324): no note
+        // field, so the dialog never guesses a window.
+        earlyCheckoutNoteToleranceMinutes: null,
       });
     });
 
@@ -202,7 +203,6 @@ describe("tenant-api", () => {
                 attendance_edit_scope: "all_staff",
                 show_timetable_counts: true,
                 waitlist_enabled: true,
-                emergency_list_health_info_enabled: true,
               },
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
@@ -221,7 +221,6 @@ describe("tenant-api", () => {
                 attendance_edit_scope: "admins",
                 show_timetable_counts: false,
                 waitlist_enabled: false,
-                emergency_list_health_info_enabled: false,
               },
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
@@ -236,7 +235,6 @@ describe("tenant-api", () => {
         attendanceEditScope: "all_staff",
         showTimetableCounts: true,
         waitlistEnabled: true,
-        emergencyHealthInfoEnabled: true,
       });
       await expect(resolveTenant("settings-school")).resolves.toMatchObject({
         careOfferingsEnabled: false,
@@ -248,7 +246,6 @@ describe("tenant-api", () => {
         attendanceEditScope: "own",
         showTimetableCounts: false,
         waitlistEnabled: false,
-        emergencyHealthInfoEnabled: false,
       });
     });
 
@@ -908,5 +905,21 @@ describe("staffReasonRequired", () => {
     // Ein älteres Backend ohne dieses Feld darf die Pflicht nicht
     // stillschweigend abschalten (#2267).
     expect(staffReasonRequired(undefined)).toBe(true);
+  });
+});
+
+describe("normalizeEarlyCheckoutTolerance (#3324)", () => {
+  it("keeps the tolerance while the question is on", () => {
+    expect(normalizeEarlyCheckoutTolerance(true, 15)).toBe(15);
+    expect(normalizeEarlyCheckoutTolerance(true, 0)).toBe(0);
+  });
+
+  it("switches the question off for anything else", () => {
+    expect(normalizeEarlyCheckoutTolerance(false, 15)).toBeNull();
+    expect(normalizeEarlyCheckoutTolerance(undefined, 15)).toBeNull();
+    expect(normalizeEarlyCheckoutTolerance(true, undefined)).toBeNull();
+    expect(normalizeEarlyCheckoutTolerance(true, -5)).toBeNull();
+    expect(normalizeEarlyCheckoutTolerance(true, 7.5)).toBeNull();
+    expect(normalizeEarlyCheckoutTolerance(true, "15")).toBeNull();
   });
 });

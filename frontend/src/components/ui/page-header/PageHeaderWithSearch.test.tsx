@@ -456,6 +456,23 @@ describe("PageHeaderWithSearch", () => {
       expect(screen.getByTestId("overflow-menu")).toBeInTheDocument();
       expect(screen.getByText("Gruppe übergeben")).toBeInTheDocument();
     });
+
+    // The embedded TenantPage header has neither a title row nor tabs. The
+    // kebab then sits in the mobile search row as well as the desktop one;
+    // before, phones had no way to reach the menu at all.
+    it("offers the kebab in the mobile search row without title and tabs", () => {
+      render(
+        <PageHeaderWithSearch
+          title=""
+          embedded
+          search={{ value: "", onChange: vi.fn() }}
+          overflowMenu={[
+            { label: "Alle als gelesen markieren", onClick: vi.fn() },
+          ]}
+        />,
+      );
+      expect(screen.getAllByTestId("overflow-menu")).toHaveLength(2);
+    });
   });
 
   describe("primaryAction + kebab row placement", () => {
