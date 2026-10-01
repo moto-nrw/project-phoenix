@@ -469,7 +469,8 @@ func buildNoteResponse(
 		// over from the master-data field — that one has no author to stand
 		// behind the new wording.
 		response.CanEdit = *note.AuthorAccountID == readerAccountID &&
-			note.Origin == peopleModule.StudentNoteOriginStaff
+			note.Origin == peopleModule.StudentNoteOriginStaff &&
+			noteCanBeEdited(note)
 	}
 	if note.Subject.Date != nil {
 		response.SubjectDate = note.Subject.Date.String()
@@ -481,6 +482,14 @@ func buildNoteResponse(
 		response.EducationGroupID = strconv.FormatInt(*note.Subject.EducationGroupID, 10)
 	}
 	return response
+}
+
+// noteCanBeEdited keeps a retained leadership note read-only after its group
+// was deleted. Its narrow audience must remain intact, and an update without a
+// group reference would be rejected by the owner.
+func noteCanBeEdited(note peopleModule.StudentNote) bool {
+	return note.Visibility != peopleModule.StudentNoteVisibilityGroupLeads ||
+		note.Subject.ActivityGroupID != nil || note.Subject.EducationGroupID != nil
 }
 
 var studentNoteErrorRenderer = common.RulesRenderer([]common.ErrorRule{

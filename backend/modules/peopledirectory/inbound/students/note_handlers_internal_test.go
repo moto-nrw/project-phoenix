@@ -153,4 +153,20 @@ func TestValidateNoteSubjectForChild(t *testing.T) {
 	}
 }
 
+func TestBuildNoteResponseDoesNotOfferEditingForOrphanedLeadershipNote(t *testing.T) {
+	t.Parallel()
+
+	author := int64(17)
+	date := timezone.TodayDate()
+	note := peopleModule.StudentNote{
+		ID: 1, StudentID: 2, AuthorAccountID: &author, Origin: peopleModule.StudentNoteOriginStaff,
+		Kind: peopleModule.StudentNoteKindJournal, Visibility: peopleModule.StudentNoteVisibilityGroupLeads,
+		Body: "Der Bezug wurde gelöscht.", Subject: peopleModule.StudentNoteSubject{Date: &date},
+	}
+
+	response := buildNoteResponse(note, securityruntime.StudentNoteAudience{}, &Student{}, author)
+	assert.False(t, response.CanEdit,
+		"the response must not offer an edit that the owner rejects without a group reference")
+}
+
 func int64Pointer(value int64) *int64 { return &value }

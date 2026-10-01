@@ -181,8 +181,8 @@ func studentNotesUp(ctx context.Context, db *bun.DB) error {
 // The text lives in Care Plan's users.student_care_profiles since the student
 // split (#2717); the join walks care profile → membership → child because the
 // note belongs to the child, not to one enrollment of it. DISTINCT ON picks the
-// newest membership for a child that has more than one, so a re-enrolled child
-// gets one hint and not two.
+// newest live membership for a child that has more than one, so a re-enrolled
+// child gets one hint and not two.
 //
 // author_account_id stays NULL: the column held a text, not an authorship, and
 // inventing one would put a name under words that person may never have
@@ -203,6 +203,7 @@ func studentNotesBackfill(ctx context.Context, db bun.IDB) error {
 			FROM users.student_school_memberships AS membership
 			JOIN users.student_profiles AS profile
 				ON profile.tenant_id = membership.tenant_id AND profile.id = membership.student_profile_id
+			WHERE membership.deleted_at IS NULL
 			ORDER BY profile.tenant_id, profile.id, membership.id DESC
 		)
 		INSERT INTO users.student_notes (

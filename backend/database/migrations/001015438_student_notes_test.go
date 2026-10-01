@@ -138,6 +138,7 @@ func TestStudentNotesBackfill(t *testing.T) {
 	withNotes := testpkg.CreateTestStudent(t, db, "Jonas", "MitNotiz", "3a")
 	without := testpkg.CreateTestStudent(t, db, "Lea", "OhneNotiz", "3a")
 	reenrolled := testpkg.CreateTestStudent(t, db, "Nora", "NeuEingeschult", "4a")
+	retiredLatest := testpkg.CreateTestStudent(t, db, "Emil", "Ausgeschieden", "5a")
 
 	_, err := db.ExecContext(ctx, `
 		UPDATE users.student_care_profiles AS care
@@ -198,6 +199,39 @@ func TestStudentNotesBackfill(t *testing.T) {
 	require.NoError(t, studentNotesBackfill(ctx, db))
 	assert.Zero(t, countStudentNotes(t, db, tenantID, reenrolled.ID),
 		"a retired membership's note must not outlive a newer empty membership")
+
+	// A later, already retired membership may have a higher ID than the live
+	// one. It must never win merely because it was created last.
+	_, err = db.ExecContext(ctx, `UPDATE users.student_school_memberships
+		SET deleted_at = NOW() WHERE tenant_id = ? AND student_profile_id = ?`, tenantID, retiredLatest.ID)
+	require.NoError(t, err)
+	var liveMembershipID int64
+	require.NoError(t, db.NewRaw(`INSERT INTO users.student_school_memberships
+		(tenant_id, student_profile_id, school_class) VALUES (?, ?, '5b') RETURNING id`,
+		tenantID, retiredLatest.ID).Scan(ctx, &liveMembershipID))
+	_, err = db.ExecContext(ctx, `INSERT INTO users.student_care_profiles (tenant_id, membership_id)
+		VALUES (?, ?)`, tenantID, liveMembershipID)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `UPDATE users.student_school_memberships
+		SET deleted_at = NOW() WHERE id = ?`, liveMembershipID)
+	require.NoError(t, err)
+	var retiredMembershipID int64
+	require.NoError(t, db.NewRaw(`INSERT INTO users.student_school_memberships
+		(tenant_id, student_profile_id, school_class) VALUES (?, ?, '5c') RETURNING id`,
+		tenantID, retiredLatest.ID).Scan(ctx, &retiredMembershipID))
+	_, err = db.ExecContext(ctx, `INSERT INTO users.student_care_profiles
+		(tenant_id, membership_id, supervisor_notes) VALUES (?, ?, 'Hinweis aus ausgeschiedener Mitgliedschaft')`,
+		tenantID, retiredMembershipID)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `UPDATE users.student_school_memberships
+		SET deleted_at = NOW() WHERE id = ?`, retiredMembershipID)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `UPDATE users.student_school_memberships
+		SET deleted_at = NULL WHERE id = ?`, liveMembershipID)
+	require.NoError(t, err)
+	require.NoError(t, studentNotesBackfill(ctx, db))
+	assert.Zero(t, countStudentNotes(t, db, tenantID, retiredLatest.ID),
+		"a soft-deleted membership must never supply a carried-over hint")
 
 	// Replay: the predicate, not a unique constraint, is what keeps this safe.
 	require.NoError(t, studentNotesBackfill(ctx, db))
