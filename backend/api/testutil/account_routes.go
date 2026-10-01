@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -128,26 +127,26 @@ func SettingsRequestCacheMiddleware(next http.Handler) http.Handler {
 
 // ClaimsFromContext returns the claims the auth middleware put on ctx.
 func ClaimsFromContext(ctx context.Context) Claims {
-	return jwt.ClaimsFromCtx(ctx)
+	return testpkg.ClaimsFromCtx(ctx)
 }
 
 // MFAEnrollmentClaims is the enrollment-only token's claims.
-type MFAEnrollmentClaims = jwt.MFAEnrollmentClaims
+type MFAEnrollmentClaims = testpkg.MFAEnrollmentClaims
 
 // Enrollment token scopes.
 const (
-	MFAEnrollmentScopeTenant   = jwt.MFAEnrollmentScopeTenant
-	MFAEnrollmentScopePlatform = jwt.MFAEnrollmentScopePlatform
+	MFAEnrollmentScopeTenant   = testpkg.MFAEnrollmentScopeTenant
+	MFAEnrollmentScopePlatform = testpkg.MFAEnrollmentScopePlatform
 )
 
 // WithEnrollmentClaims puts enrollment-only claims on ctx the way the
 // enrollment authenticator does.
 func WithEnrollmentClaims(ctx context.Context, claims MFAEnrollmentClaims) context.Context {
-	return context.WithValue(ctx, jwt.CtxEnrollmentClaims, claims)
+	return context.WithValue(ctx, testpkg.CtxEnrollmentClaims, claims)
 }
 
 // OpaqueCapabilityFingerprint returns the stored fingerprint of an opaque
 // capability token.
 func OpaqueCapabilityFingerprint(token string) string {
-	return jwt.OpaqueCapabilityFingerprint(token)
+	return testpkg.OpaqueCapabilityFingerprint(token)
 }
