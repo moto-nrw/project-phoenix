@@ -30,6 +30,7 @@ through `devbox run` when the current process has not loaded the project environ
 | Changed-code tests | `scripts/test-changed.sh origin/development` |
 | Fast inner loop | `scripts/test-changed.sh --fast origin/development` (run without `--fast` before push) |
 | Generate route docs | `scripts/dev-native.sh backend go run . gendoc --routes` |
+| Standalone background jobs | `scripts/dev-native.sh backend go run . worker` with a free `PORT`; it waits in standby while `serve` leads (lease, cutover and rollback: [worker lease runbook](../operations/worker-lease-2726.md)) |
 
 ### Native dev loop
 

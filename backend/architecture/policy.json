@@ -2544,6 +2544,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/schedulerruntime/workerlease",
+      "owner": "scheduler-runtime",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/classday",
       "owner": "class-day-view",
       "role": "public",
@@ -4057,6 +4064,10 @@
     {
       "name": "platform.storage_backfill_checkpoints",
       "write_owner": "migrations"
+    },
+    {
+      "name": "platform.worker_leases",
+      "write_owner": "scheduler-runtime"
     },
     {
       "name": "schedule.activity_exceptions",
@@ -21702,6 +21713,28 @@
       "source_role": "module-internal-test",
       "target_owner": "timetable-activities",
       "target_role": "public"
+    },
+    {
+      "id": "scheduler-runtime.postgres.tenant-runtime-public",
+      "description": "The Worker lease store opens its administrative transaction and joins the job transaction through the tenant runtime (#2726).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.compose.scheduler-runtime-postgres",
+      "description": "The Serve root binds the Worker lease store to the scheduler's lease port (#2726).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "scheduler-runtime",
+      "target_role": "postgres"
     },
     {
       "id": "timetable-planning-cutover.test-support.e2e-test.timetable-activities.public",

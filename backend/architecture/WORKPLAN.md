@@ -77,8 +77,8 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Worker und Scheduler · 27 Keys
 
-- [ ] [#2726](https://github.com/moto-nrw/project-phoenix/issues/2726) Worker hinter erneuerbarem DB-Lease
-- [ ] [#2746](https://github.com/moto-nrw/project-phoenix/issues/2746) services/scheduler — 27, blockiert durch #2726
+- [x] [#2726](https://github.com/moto-nrw/project-phoenix/issues/2726) Worker hinter erneuerbarem DB-Lease — Migration 1.15.437 (`platform.worker_leases`, `platform.assert_worker_lease`), Store in `modules/schedulerruntime/workerlease`, jeder Job-Lauf und jeder Commit hängt am Lease-Term; eigenständiger Prozess `worker`, `serve --embedded-worker=false`; 0 Keys (Ratchet 378 → 378), Composition 603 → 603; Runbook `docs/operations/worker-lease-2726.md`
+- [ ] [#2746](https://github.com/moto-nrw/project-phoenix/issues/2746) services/scheduler — 27
 
 ## Laufzeit
 

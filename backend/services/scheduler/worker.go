@@ -67,6 +67,9 @@ type WorkerDependencies struct {
 	OutboxWorker              OutboxWorkerRunner
 	RolloverDeadlineRunner    RolloverDeadlineRunner
 	ReminderNotifications     ReminderNotificationDeps
+	// Lease elects the single Worker that runs jobs (#2726). Every Worker
+	// process, embedded in Serve or standalone, runs under it.
+	Lease WorkerLease
 	// AppointmentReminders is the established reminder capability consumed by
 	// the scheduler. It also exposes scheduled parent-announcement delivery,
 	// avoiding a second dependency in this shrink-only worker composition.
@@ -110,7 +113,7 @@ func validateWorkerDependencies(deps WorkerDependencies) error {
 			return fmt.Errorf("worker dependency %s is required", dependency.name)
 		}
 	}
-	return nil
+	return deps.Lease.validate()
 }
 
 func requiredWorkerJobIDs() []JobID {
