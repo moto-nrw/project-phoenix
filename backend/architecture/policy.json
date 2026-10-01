@@ -1053,6 +1053,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "api/testutil/routetest",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "api/work-time-models",
       "owner": "inbound-work-time-models",
       "role": "http",
@@ -1653,6 +1660,13 @@
       "role": "cli",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
+    },
+    {
+      "path": "seed/avatar",
+      "owner": "dev-tools",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     },
     {
       "path": "services",
@@ -4942,6 +4956,10 @@
       "class": "utility"
     },
     {
+      "path": "golang.org/x/image/vector",
+      "class": "utility"
+    },
+    {
       "path": "golang.org/x/sync/singleflight",
       "class": "concurrency"
     },
@@ -4994,7 +5012,15 @@
       "class": "standard"
     },
     {
+      "path": "image/draw",
+      "class": "standard"
+    },
+    {
       "path": "image/jpeg",
+      "class": "standard"
+    },
+    {
+      "path": "image/png",
       "class": "standard"
     },
     {

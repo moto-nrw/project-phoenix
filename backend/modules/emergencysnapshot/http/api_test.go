@@ -13,14 +13,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func TestMain(m *testing.M) {
-	testutil.SeedTestJWTConfig()
+	routetest.SeedTestJWTConfig()
 	testpkg.PerTestTenants()
 	testpkg.Run(m)
 }
@@ -76,16 +76,16 @@ func TestSnapshotRouteAuthorization(t *testing.T) {
 			foreignID := strconv.FormatInt(foreign.TenantID, 10)
 			req := httptest.NewRequest(http.MethodPost, "/snapshot/export?tenant_id="+foreignID, strings.NewReader(`{"tenant_id":`+foreignID+`}`))
 			if tc.authenticated {
-				claims := testutil.DefaultTestClaims()
+				claims := routetest.DefaultTestClaims()
 				claims.ID = int(account.ID)
 				claims.TenantID = testpkg.Tenant(t)
 				claims.Roles = []string{"staff"}
 				claims.IsAdmin = false
 				claims.Scope = tc.scope
 				claims.Permissions = tc.permissions
-				req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
+				req.Header.Set("Authorization", "Bearer "+routetest.MintTestJWT(t, claims))
 			}
-			rr := testutil.ExecuteRequestForTest(t, rs.Router(), req)
+			rr := routetest.ExecuteRequestForTest(t, rs.Router(), req)
 			require.Equal(t, tc.status, rr.Code, rr.Body.String())
 			if tc.status == 200 {
 				require.Equal(t, 1, calls)

@@ -153,17 +153,23 @@ The `marketing` profile is the product-screenshot school `OGS Sonnenhang` in
 its own organization `Demo-Träger Marketing` / `demo-traeger-marketing`. Its
 school-admin login is `marketing-admin@example.test` / `Marketing1234%`; this
 account is `accounts.admin[0]` of `profiles["marketing"]`, followed by the
-developer admin. The profile uses binary web attendance without NFC, fixed
-groups, and disabled enrollment. Two groups, two caregivers, and twelve
-children with contacts have weekly plans for all five weekdays, derived from
-the 10:15 reference clock (`marketingReferenceClock`): seven children are
-present, two were picked up early, and three are expected after 10:15. The
-presence itself is recorded through the web-attendance API at seed time. Product
-screenshots using this profile therefore require a seed from the capture day
-(Berlin time). Four parent accounts (`ParentSeed1234%` unless
-`--staff-password` is set, one with
-two children) are listed under
-`credentials.parents`.
+developer admin. The profile uses detailed web attendance without NFC (rooms
+record where the children are), fixed groups, and disabled enrollment. Two
+groups, two caregivers, four rooms, and twelve children with contacts have
+weekly plans for all five weekdays, derived from the 10:15 reference clock
+(`marketingReferenceClock`): seven children are present, two were picked up
+early, and three are expected after 10:15. The present children sit in two
+running blocks (`Bauecke` in the Bauraum, `Fußball` in the Turnhalle,
+09:30–11:30). The admin finds an unread team message and an unread parent
+message, the team has one notice for the day, and the families see one news
+item and a staff reply. Eight children have a logo-figure picture
+(`backend/seed/avatar`) uploaded with parental consent, the other four show
+initials; the admin and both caregivers upload theirs while signed in. No two
+people share a picture. Presence and the running blocks are recorded through
+the web API at seed time. Product screenshots using this profile therefore
+require a seed from the capture day (Berlin time), on a weekday. Four parent
+accounts (`ParentSeed1234%` unless `--staff-password` is set, one with two
+children) are listed under `credentials.parents`.
 
 The normal seed always creates and checks all five profiles through production
 HTTP endpoints against the local server. The shared developer admin can switch

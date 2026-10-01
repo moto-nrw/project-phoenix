@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 )
@@ -492,7 +492,7 @@ func TestRefreshToken_Success(t *testing.T) {
 	req.Header.Set(recoveryProofHeader, "independent-recovery-secret")
 
 	// Set CtxRefreshToken in context
-	ctx := testutil.WithRefreshToken(req.Context(), tokenString)
+	ctx := routetest.WithRefreshToken(req.Context(), tokenString)
 
 	// Set jwtauth context with parsed token
 	token, _ := jwtauth.VerifyToken(tokenAuth, tokenString)
@@ -536,7 +536,7 @@ func TestRefreshToken_InvalidClaims(t *testing.T) {
 	resource := newIdentityResource(mockService)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
-	ctx := testutil.WithRefreshToken(req.Context(), "some-token-string")
+	ctx := routetest.WithRefreshToken(req.Context(), "some-token-string")
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -566,7 +566,7 @@ func TestRefreshToken_RejectsNonPlatformScope(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
-	ctx := testutil.WithRefreshToken(req.Context(), tokenString)
+	ctx := routetest.WithRefreshToken(req.Context(), tokenString)
 	token, _ := jwtauth.VerifyToken(tokenAuth, tokenString)
 	ctx = jwtauth.NewContext(ctx, token, nil)
 	req = req.WithContext(ctx)
@@ -597,7 +597,7 @@ func TestRefreshToken_RejectsLegacyDeterministicOperatorToken(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
-	ctx := testutil.WithRefreshToken(req.Context(), tokenString)
+	ctx := routetest.WithRefreshToken(req.Context(), tokenString)
 	token, _ := jwtauth.VerifyToken(tokenAuth, tokenString)
 	ctx = jwtauth.NewContext(ctx, token, nil)
 	req = req.WithContext(ctx)
@@ -628,7 +628,7 @@ func TestRefreshToken_ServiceError(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
-	ctx := testutil.WithRefreshToken(req.Context(), tokenString)
+	ctx := routetest.WithRefreshToken(req.Context(), tokenString)
 
 	token, _ := jwtauth.VerifyToken(tokenAuth, tokenString)
 	ctx = jwtauth.NewContext(ctx, token, nil)
@@ -660,7 +660,7 @@ func TestRefreshToken_InvalidRefreshSessionMapsToUnauthorized(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
-	ctx := testutil.WithRefreshToken(req.Context(), tokenString)
+	ctx := routetest.WithRefreshToken(req.Context(), tokenString)
 	token, _ := jwtauth.VerifyToken(tokenAuth, tokenString)
 	ctx = jwtauth.NewContext(ctx, token, nil)
 	req = req.WithContext(ctx)
