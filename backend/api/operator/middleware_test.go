@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
@@ -50,11 +50,11 @@ func TestRequiresOperatorScope_ValidOperatorToken(t *testing.T) {
 
 	// Create request with operator scope claims
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	claims := testutil.Claims{
+	claims := routetest.Claims{
 		ID:    1,
 		Scope: "platform",
 	}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
@@ -77,11 +77,11 @@ func TestRequiresOperatorScope_TenantToken(t *testing.T) {
 
 	// Create request with tenant scope claims
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	claims := testutil.Claims{
+	claims := routetest.Claims{
 		ID:    1,
 		Scope: "tenant",
 	}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
@@ -265,7 +265,7 @@ func TestRequiresActiveOperator_MissingOperatorID(t *testing.T) {
 
 func requestWithOperatorClaims(operatorID int) *http.Request {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	claims := testutil.Claims{ID: operatorID, Scope: "platform"}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: operatorID, Scope: "platform"}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	return req.WithContext(ctx)
 }

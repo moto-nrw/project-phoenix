@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 )
 
 // invitationMockService implements OperatorAccess —
@@ -165,8 +165,8 @@ func invitationReqWithClaims(method, path string, body []byte, operatorID int) *
 	} else {
 		req = httptest.NewRequest(method, path, nil)
 	}
-	claims := testutil.Claims{ID: operatorID, Scope: "platform"}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: operatorID, Scope: "platform"}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	return req.WithContext(ctx)
 }
 

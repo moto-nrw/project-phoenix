@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -43,13 +43,13 @@ func TestMain(m *testing.M) {
 // protected tenant group. CI runs without a .env, so AUTH_JWT_SECRET is unset;
 // without a secret jwx refuses HMAC signing.
 func init() {
-	testutil.SeedTestJWTConfig()
+	routetest.SeedTestJWTConfig()
 }
 
 // noticeAccountID reads the acting account off the request the signed token
 // injected, the way the composition root derives it from the session claims.
 func noticeAccountID(ctx context.Context) int64 {
-	claims, _ := testutil.AuthenticationContext(ctx)
+	claims, _ := routetest.AuthenticationContext(ctx)
 	return int64(claims.ID)
 }
 
@@ -143,7 +143,7 @@ func setupStaffNoticeRoutes(t *testing.T) *staffNoticeRouteFixture {
 // schickt sie durch den Router samt Produktions-Middleware.
 func (f *staffNoticeRouteFixture) execute(t *testing.T, router chi.Router, req *http.Request, who noticePrincipal, permissions []string) *httptest.ResponseRecorder {
 	t.Helper()
-	claims := testutil.DefaultTestClaims()
+	claims := routetest.DefaultTestClaims()
 	claims.ID = int(who.accountID)
 	claims.Sub = who.email
 	claims.Username = who.email
@@ -153,7 +153,7 @@ func (f *staffNoticeRouteFixture) execute(t *testing.T, router chi.Router, req *
 	claims.IsAdmin = false
 	claims.TenantID = f.tenantID
 	claims.Scope = who.scope
-	return testutil.ExecuteWithAuthPermissions(t, router, req, claims, permissions)
+	return routetest.ExecuteWithAuthPermissions(t, router, req, claims, permissions)
 }
 
 func (f *staffNoticeRouteFixture) call(t *testing.T, router chi.Router, method, path string, who noticePrincipal, permissions []string) *httptest.ResponseRecorder {
