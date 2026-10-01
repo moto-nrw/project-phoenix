@@ -103,6 +103,15 @@ func (s parentRequestsSeedStep) Run(ctx context.Context, rt *Runtime) error {
 		}
 	}
 
+	// After the seeded requests, so they send no mail: the admin receives
+	// "Neue Anmeldung" by e-mail from now on (#3780), and the Anmeldungen
+	// menu shows the check on every dev machine.
+	if _, err := rt.Client.PutWithAuth(adminAuth, "/api/notifications/email-subscriptions/enrollment_submitted", map[string]any{
+		"enabled": true,
+	}); err != nil {
+		return fmt.Errorf("seed enrollment e-mail subscription: %w", err)
+	}
+
 	rt.Enrollment = enrollmentState
 	rt.SetTenantAuth(adminAuth)
 	fmt.Printf("Seeded %d enrollment requests\n", len(rt.Enrollment.Requests))

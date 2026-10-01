@@ -30,6 +30,17 @@ const (
 	PortalSchool = "school"
 )
 
+// Channels a notification type is delivered over.
+const (
+	// ChannelPush is the default: push and in-app hints, decided on the
+	// profile page. An empty Channel means push.
+	ChannelPush = "push"
+	// ChannelEmail is an opt-in e-mail to staff (#3780). It never appears in
+	// a portal catalogue: the person decides it where its event happens, and
+	// only while holding the type's Permission.
+	ChannelEmail = "email"
+)
+
 // Groups the profile page renders as headings, in this order.
 const (
 	GroupPickup       = "abholung"
@@ -79,6 +90,10 @@ const (
 	// children was booked into has been cancelled (#2601). The feed entry is
 	// a system-authored parent announcement; this type only governs the push.
 	TypeParentCareCancelled = "parent_care_cancelled"
+
+	// TypeEnrollmentSubmitted is the e-mail "Neue Anmeldung" (#3780) to the
+	// enrollment managers who switched it on in the Anmeldungen overview.
+	TypeEnrollmentSubmitted = "enrollment_submitted"
 )
 
 // TypeDefinition describes one notification a person can agree to.
@@ -98,6 +113,11 @@ type TypeDefinition struct {
 	// (#2208). Only types a Lehrkraft can actually receive belong here; the
 	// OGS supervision reminders never address a school-only account.
 	SchoolPortal bool
+	// Channel is ChannelPush (or empty) or ChannelEmail.
+	Channel string
+	// Permission is the right an e-mail type's recipient must hold when the
+	// mail is sent. Losing it stops the mail although the decision stays on.
+	Permission string
 }
 
 var (
@@ -109,14 +129,26 @@ var (
 // key or an incomplete definition: both are programming errors that must not
 // survive process start.
 func RegisterType(def TypeDefinition) {
-	if def.Key == "" || def.Label == "" || def.Group == "" || def.Portal == "" {
+	if def.Key == "" || def.Label == "" || def.Portal == "" {
 		panic("notifications: incomplete type definition for key " + def.Key)
 	}
 	if def.Portal != PortalStaff && def.Portal != PortalParent {
 		panic("notifications: unknown portal " + def.Portal + " for key " + def.Key)
 	}
-	if _, ok := groupOrder[def.Group]; !ok {
-		panic("notifications: unknown group " + def.Group + " for key " + def.Key)
+	switch def.Channel {
+	case "", ChannelPush:
+		if _, ok := groupOrder[def.Group]; !ok {
+			panic("notifications: unknown group " + def.Group + " for key " + def.Key)
+		}
+	case ChannelEmail:
+		// An e-mail type is addressed by permission, not by a relation to a
+		// child or a room, so it cannot exist without one. It has no profile
+		// heading and no school-wide gate: EmailSubscriptions applies neither.
+		if def.Portal != PortalStaff || def.Permission == "" || def.TenantGate != "" || def.SchoolPortal {
+			panic("notifications: e-mail type " + def.Key + " needs the staff portal, a permission and no gate")
+		}
+	default:
+		panic("notifications: unknown channel " + def.Channel + " for key " + def.Key)
 	}
 
 	typeMu.Lock()
@@ -130,6 +162,9 @@ func RegisterType(def TypeDefinition) {
 // OfferedInPortal reports whether a person using the given portal may see
 // and decide this type. The school portal borrows from the staff catalogue.
 func OfferedInPortal(def TypeDefinition, portal string) bool {
+	if def.Channel == ChannelEmail {
+		return false
+	}
 	if portal == PortalSchool {
 		return def.Portal == PortalStaff && def.SchoolPortal
 	}
@@ -142,6 +177,16 @@ func GetType(key string) (TypeDefinition, bool) {
 	defer typeMu.RUnlock()
 	def, ok := typeRegistry[key]
 	return def, ok
+}
+
+// EmailType returns the definition of an e-mail type. It reports false for
+// unknown keys and for push types.
+func EmailType(key string) (TypeDefinition, bool) {
+	def, ok := GetType(key)
+	if !ok || def.Channel != ChannelEmail {
+		return TypeDefinition{}, false
+	}
+	return def, true
 }
 
 // TypesForPortal returns the catalogue of one portal, ordered by group and

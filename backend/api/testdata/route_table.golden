@@ -294,6 +294,7 @@ GET /api/messages/students/{studentId}/guardians
 GET /api/messages/students/{studentId}/threads
 GET /api/messages/threads/{threadId}
 GET /api/messages/unread-count
+GET /api/notifications/email-subscriptions/{type}
 GET /api/notifications/preferences/
 GET /api/notifications/push/public-key
 GET /api/parent-announcements/
@@ -1014,6 +1015,7 @@ PUT /api/iot/session/{sessionId}/supervisors
 PUT /api/me/profile
 PUT /api/meal-plan/{date}
 PUT /api/messages/count-scope
+PUT /api/notifications/email-subscriptions/{type}
 PUT /api/notifications/preferences/{type}
 PUT /api/parent-announcements/{announcementId}
 PUT /api/parent-announcements/{announcementId}/reminder
