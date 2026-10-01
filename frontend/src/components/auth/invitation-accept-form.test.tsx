@@ -2,7 +2,13 @@
  * Tests for InvitationAcceptForm Component
  * Tests the rendering and basic functionality of invitation acceptance form
  */
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InvitationAcceptForm } from "./invitation-accept-form";
 import type { InvitationValidation } from "~/lib/invitation-helpers";
@@ -428,6 +434,7 @@ describe("InvitationAcceptForm", () => {
       configurable: true,
     });
 
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       render(
         <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
@@ -442,7 +449,9 @@ describe("InvitationAcceptForm", () => {
         screen.getByRole("button", { name: /Einladung akzeptieren/i }),
       );
 
-      // Wait for redirect to happen (1.5s timeout + buffer)
+      await waitFor(() => expect(mockAcceptInvitation).toHaveBeenCalled());
+      // The redirect fires 1.5 s after the accept; skip the wait.
+      await act(() => vi.advanceTimersByTimeAsync(1600));
       await waitFor(
         () => {
           expect(mockLocation.href).toBe("http://burbach.localhost:3000/");
@@ -461,6 +470,7 @@ describe("InvitationAcceptForm", () => {
 
   it("falls back to router.push when no tenant subdomain", async () => {
     mockAcceptInvitation.mockResolvedValueOnce({ tenantSubdomain: undefined });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
 
     render(
       <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
@@ -475,6 +485,8 @@ describe("InvitationAcceptForm", () => {
       screen.getByRole("button", { name: /Einladung akzeptieren/i }),
     );
 
+    await waitFor(() => expect(mockAcceptInvitation).toHaveBeenCalled());
+    await act(() => vi.advanceTimersByTimeAsync(1600));
     await waitFor(
       () => {
         expect(mockPush).toHaveBeenCalledWith("/");

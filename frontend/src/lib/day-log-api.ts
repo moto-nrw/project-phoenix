@@ -27,6 +27,8 @@ export interface DayLogStudent {
   label: string;
   check_in_time?: string;
   check_out_time?: string;
+  /** Why the child went home early (#3324). */
+  check_out_note?: string;
   reported_at?: string;
   source?: string;
   hint?: string;

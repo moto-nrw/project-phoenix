@@ -36,7 +36,7 @@ func isCanonicalDateAlias(root, source, spelling string) bool {
 		if strings.HasSuffix(file, "_test.go") {
 			continue
 		}
-		decls, err := parser.ParseFile(token.NewFileSet(), file, nil, 0)
+		_, decls, err := parseGoSourceCached(file, nil)
 		if err != nil {
 			return false
 		}

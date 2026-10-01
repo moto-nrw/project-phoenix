@@ -48,6 +48,7 @@ func TestSessionEndPreservesAttendanceAndStaffAcrossTenants(t *testing.T) {
 	})
 	tables := []string{
 		"schedule.activity_instances", "schedule.instance_staff", "schedule.instance_students",
+		"active.activity_sessions", "active.activity_session_attendance",
 		"active.attendance", "active.visits", "active.groups", "active.group_supervisors",
 	}
 	snapshot := func(tenantID int64) map[string][]string {
@@ -81,7 +82,7 @@ func TestSessionEndPreservesAttendanceAndStaffAcrossTenants(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 1, result.StudentsCheckedOut)
 		var status string
-		require.NoError(t, tx.NewRaw("SELECT status FROM schedule.activity_instances WHERE id = ?", own.instanceID).Scan(txCtx, &status))
+		require.NoError(t, tx.NewRaw("SELECT status FROM active.activity_sessions WHERE schedule_instance_id = ?", own.instanceID).Scan(txCtx, &status))
 		require.Equal(t, "completed", status, "real Timetable mutation must happen before injected failure")
 		return abort
 	})

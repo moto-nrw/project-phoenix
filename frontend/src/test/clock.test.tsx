@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 import { DatePicker } from "~/components/ui/date-picker";
+import { preloadDayPicker } from "~/components/ui/lazy-day-picker";
 import {
   berlinTodayISO,
   isoWeekNumber,
@@ -41,6 +42,10 @@ function ClockProbe() {
   );
 }
 
+// The kit loads the calendar grid lazily; load it once up front so a cold
+// import on a busy machine does not race the findBy timeout.
+beforeAll(() => preloadDayPicker());
+
 describe("deterministic test clock", () => {
   it("freezes Date for the rendered component tree, not only for the mocked hook", () => {
     render(<ClockProbe />);
@@ -55,16 +60,17 @@ describe("deterministic test clock", () => {
     expect(berlinTodayISO()).toBe(TEST_CLOCK_TODAY);
   });
 
-  it("keeps the calendar library on the test clock whatever the host date is", () => {
+  it("keeps the calendar library on the test clock whatever the host date is", async () => {
     render(<ClockProbe />);
     fireEvent.click(screen.getByRole("button", { name: "08.09.2026" }));
 
     // react-day-picker derives "today" from its own `new Date()`. On the frozen
     // clock the selected day (the hook's "today") is a plain day and the
     // frozen day carries the today label — independent of when CI runs, even
-    // when the host date coincides with either of them.
+    // when the host date coincides with either of them. The kit loads the
+    // calendar lazily, so wait for its grid.
     expect(
-      screen.getByRole("button", {
+      await screen.findByRole("button", {
         name: "Dienstag, 8. September 2026, selected",
       }),
     ).toBeInTheDocument();

@@ -622,11 +622,15 @@ function webAttendanceTopic(presenceMode: HelpPresenceMode): HelpTopic {
     notes: [
       "Möchten Sie mehrere Kinder ändern? Wählen Sie `Mehrere`.",
       // Live geprueft: in `Direkt` schreibt jeder Tipp sofort, ohne Rueckfrage.
+      // Ausnahme seit #3324: frühes Gehen öffnet vorher ein Fenster.
       "In `Direkt` meldet jeder Tipp sofort an oder ab. Auf der Karte steht `Tippen zum Anmelden`.",
+      "Geht ein Kind früher als seine Abholzeit, fragt moto nach dem Grund. Der Grund ist freiwillig.",
+      "Den Grund sehen Sie danach beim Kind unter `Heutige Abholung`. Mit Anwesenheitsprotokoll steht er auch in der `Tagesauswertung` und im Verlauf.",
     ],
     differences: [
       "moto zeigt nur die Aktion, die zum aktuellen Status passt.",
       "Fehlt `Anmelden` oder `Abmelden`? Fragen Sie Ihre Leitung nach dem Recht zum An- und Abmelden.",
+      "moto fragt nie nach einem Grund? Dann hat Ihre Schule die Frage ausgeschaltet oder das Kind hat heute keine Abholzeit.",
     ],
     troubleshooting: HELP_TOPICS.attendanceProblem,
     related: [
@@ -861,6 +865,9 @@ function dayLogTopic(groupMode: HelpGroupMode): HelpTopic {
       "Fehlt `Tagesauswertung`? Bitten Sie Ihre Leitung, das `Anwesenheitsprotokoll` unter `Einstellungen` und `Datenschutz` einzuschalten.",
       "Steht dort `Anwesenheitsprotokoll ist ausgeschaltet`? Dann ist es für Ihre Schule nicht eingeschaltet.",
     ],
+    notes: [
+      "Ist ein Kind früher gegangen, steht der Grund hinter `gegangen`. Er steht auch im `PDF` und in `Excel`.",
+    ],
     related: [
       HELP_TOPICS.absences,
       HELP_TOPICS.emergency,
@@ -913,7 +920,7 @@ function emergencyTopic(presenceMode: HelpPresenceMode): HelpTopic {
     result: [
       "Die Liste enthält alle Kinder, die beim Erstellen anwesend sind, mit ihrer Klasse und wichtigen Kontakten.",
       locationDescription,
-      "Je nach Einstellung enthält die Liste auch `Gesundheitsinfos`.",
+      "Die Liste enthält auch die hinterlegten `Gesundheitsinfos`.",
       "`Nicht hinterlegt` bedeutet: Es fehlen Gesundheitsinfos, eine Allergie ist trotzdem möglich.",
     ].join(" "),
     notes: [
@@ -1418,6 +1425,7 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Fehlt `Beenden`? Dann dürfen hier nur eingeplante Kräfte beenden. Ihre OGS kann das Beenden für das ganze Team freigeben.",
       "Auf dem Handy stehen die offenen Räume nicht in der Seitenleiste, sondern oben auf der Seite `Aufsicht` als Reiter.",
       "Welche Räume offen sind, legt Ihre OGS fest.",
+      "Fehlt `Spontane Aktivität starten`? Dann hat Ihre OGS in den `Einstellungen` unter `Betrieb` den Schalter `Spontane Aktivitäten erlauben` ausgeschaltet.",
     ],
     troubleshooting: HELP_TOPICS.attendanceProblem,
     related: [HELP_TOPICS.rooms, HELP_TOPICS.ownGroups],
@@ -1545,11 +1553,22 @@ function parentMessageTopic(): HelpTopic {
       {
         title: "Alle Nachrichten für sich als gelesen markieren",
         description:
-          "Ihre Zahl bei `Nachrichten` kann bleiben. Vom Team als ungelesen markierte Unterhaltungen bleiben ungelesen. Für Ihr Team ändert sich nichts.",
+          "Ihre Zahl bei `Nachrichten` kann bleiben. Vom Team als ungelesen markierte Unterhaltungen bleiben ungelesen. Für Ihr Team und die Eltern ändert sich nichts.",
         steps: [
           "Öffnen Sie den Posteingang unter `Nachrichten`.",
           "Öffnen Sie oben das Menü mit den drei Punkten.",
           "Wählen Sie `Alle als gelesen markieren`.",
+        ],
+      },
+      {
+        title: "Festlegen, was Ihre Zahl bei Nachrichten zählt",
+        description:
+          "Beantworten andere die Elternnachrichten? Dann können Sie die Zahl für sich ändern. Für Ihr Team ändert sich nichts.",
+        steps: [
+          "Öffnen Sie oben rechts Ihr `Profil`.",
+          "Gehen Sie zu `Zahl bei Nachrichten`.",
+          "Wählen Sie `Alle Nachrichten`, `Nur Kinder aus meinen Gruppen` oder `Keine Zahl anzeigen`.",
+          "moto speichert Ihre Wahl sofort.",
         ],
       },
     ],
@@ -1563,7 +1582,8 @@ function parentMessageTopic(): HelpTopic {
       "Schreiben Sie persönliche Angaben nur in die Unterhaltung der richtigen Bezugsperson.",
       "Mit `Nur ungelesen` sehen Sie nur neue Unterhaltungen.",
       "Eine als ungelesen markierte Unterhaltung bleibt für alle ungelesen, bis jemand aus dem Team sie öffnet oder antwortet.",
-      "Nach `Alle als gelesen markieren` sehen die Eltern: Die OGS hat ihre Nachrichten gelesen.",
+      "Die Eltern sehen `Gelesen` erst, wenn jemand aus dem Team die Unterhaltung öffnet.",
+      "Die Nachrichten stehen immer im Posteingang, auch wenn Ihre Zahl sie nicht zählt.",
       "Über `Zum Kinderprofil` wechseln Sie direkt zu den Angaben des Kindes.",
     ],
     related: [HELP_TOPICS.parentRequests, HELP_TOPICS.studentSearch],
@@ -4082,6 +4102,12 @@ function enrollmentReviewTopic(): HelpTopic {
       "Sie entscheiden je Kind. Eine Anmeldung kann mehrere Kinder enthalten.",
       "Mit `Statusseite öffnen` sehen Sie, was die Eltern sehen.",
       "Offene Rückfragen der Eltern stehen im Bereich `Anfragen`.",
+      "Die Zahl an `Anmeldungen` zeigt, wie viele neue Anmeldungen Sie noch nicht gelesen haben.",
+      "Gelesen gilt nur für Sie. Ihr Team hat eine eigene Zahl.",
+      "Wenn Sie eine Anmeldung öffnen, gilt sie als gelesen.",
+      "Offene Anmeldungen in aktiven Phasen markieren Sie im Menü `⋮` als gelesen oder ungelesen.",
+      "Im Menü `⋮` oben im `Überblick` wählen Sie `Alle als gelesen markieren`.",
+      "Ändern Eltern ihre Anmeldung, ist sie wieder ungelesen.",
     ],
     differences: [
       "Der Überblick zählt je Phase, wie viele Eingänge offen, bestätigt und abgelehnt sind.",
@@ -4326,7 +4352,8 @@ function staffRecordTopic(): HelpTopic {
  * `/staff/[id]`, Reiter `Arbeitszeitmodell`, Abschnitt `Sonderarbeitszeiten`
  * (#3259). Der Fall aus der Praxis: die Herbstferien sind ein Schließtag,
  * einige arbeiten trotzdem in der Ferienbetreuung. Ohne Sonderarbeitszeit
- * bekämen sie Plusstunden.
+ * bekämen sie Plusstunden. Teilzeitkräfte mit ungleich verteilten Stunden
+ * tragen sie je Wochentag ein (#3745).
  */
 function targetOverrideTopic(): HelpTopic {
   return {
@@ -4347,7 +4374,10 @@ function targetOverrideTopic(): HelpTopic {
       "Wählen Sie die Person.",
       "Wählen Sie oben `Arbeitszeitmodell`.",
       "Wählen Sie `Sonderarbeitszeit anlegen`.",
-      "Tragen Sie `Erster Tag`, `Letzter Tag` und `Stunden pro Tag` ein, zum Beispiel `8,5`.",
+      "Tragen Sie `Erster Tag` und `Letzter Tag` ein.",
+      "Tragen Sie bei `Stunden pro Tag` die Stunden ein, zum Beispiel `8,5`.",
+      "Wählen Sie `Je Wochentag`, wenn die Stunden unterschiedlich sind.",
+      "Tragen Sie die Stunden für Montag bis Freitag ein.",
       "Wählen Sie `Speichern`.",
     ],
     result:
@@ -4355,6 +4385,7 @@ function targetOverrideTopic(): HelpTopic {
     notes: [
       "Die Stunden gelten Montag bis Freitag, auch an Schließtagen. Gesetzliche Feiertage bleiben frei.",
       "Mit `0` Stunden muss die Person an diesen Tagen nicht arbeiten.",
+      "Bei `Je Wochentag` zeigt moto unter den Feldern die Summe für die Woche.",
       "Ändern geht nicht. Löschen Sie den Eintrag über die drei Punkte und legen Sie ihn neu an.",
     ],
     troubleshootingDetails: [
@@ -4692,6 +4723,44 @@ function leadCarePlanTopic(): HelpTopic {
       HELP_TOPICS.leadSubstitutionPlan,
       HELP_TOPICS.leadDayLists,
     ],
+  };
+}
+
+/**
+ * Einen einzelnen Termin im Betreuungsplan absagen (#2601, #3731). Ob die
+ * Eltern Bescheid bekommen, entscheidet die absagende Person im Dialog; es
+ * gibt dafür keine Schuleinstellungen mehr. Beschriftungen live geprüft.
+ */
+function leadCancelBlockTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadCancelBlock,
+    title: "Einen Termin absagen",
+    question: "Wie sage ich einen Termin ab und informiere die Eltern?",
+    summary:
+      "Ein abgesagter Termin bleibt im Plan sichtbar. Die Eltern der eingetragenen Kinder können Sie dabei gleich informieren.",
+    group: "planung",
+    audience: "lead",
+    icon: "CalendarCheck",
+    requirements: ["Sie dürfen den Betreuungsplan bearbeiten."],
+    steps: [
+      "Klappen Sie in der Seitenleiste `Planung` auf.",
+      "Öffnen Sie `Betreuungsplan` und wählen Sie den Termin.",
+      "Wählen Sie `Absagen`.",
+      "Lassen Sie den Haken bei `Eltern per App und E-Mail informieren` gesetzt, wenn die Familien Bescheid bekommen sollen.",
+      "Prüfen Sie `Betreff` und `Text an die Eltern`. moto schlägt beides vor.",
+      "Wählen Sie `Absagen`.",
+    ],
+    result:
+      "Der Termin ist als abgesagt markiert. Mit Haken bekommen die Familien eine Mitteilung im Elternportal und eine E-Mail.",
+    notes: [
+      "Der interne Grund der Absage geht nicht an die Eltern. Sie sehen nur Ihren Text.",
+      "Ohne Haken bekommen die Eltern keine Nachricht.",
+    ],
+    differences: [
+      "Fehlt der Haken? Dann sind für diesen Termin keine Kinder eingetragen, oder der Termin liegt in der Vergangenheit.",
+      "Einzelne Familien haben E-Mails oder Hinweise in ihrem Konto abgeschaltet. Diese Familien sehen die Mitteilung nur im Elternportal.",
+    ],
+    related: [HELP_TOPICS.leadCarePlan, HELP_TOPICS.leadCalendarPeriods],
   };
 }
 
@@ -5244,12 +5313,12 @@ function nfcSettingsTopic(presenceMode: HelpPresenceMode): HelpTopic {
             "Die Knöpfe zum Auschecken und die `Tägliche Abmeldezeit` ändern bei Ihnen nichts.",
           ]
         : []),
-      "Arbeitet Ihre OGS ohne NFC, bleibt `Geräte` in den `Einstellungen` leer.",
+      "Arbeitet Ihre OGS ohne NFC, gibt es den Bereich `Geräte` in den `Einstellungen` nicht.",
       "Die `OGS Geräte-PIN` darf nur ändern, wer die OGS verwaltet.",
     ],
     troubleshootingDetails: [
       "Die neue PIN klappt am Tablet nicht? Starten Sie das Tablet neu.",
-      "Der Bereich bleibt leer? Dann arbeitet Ihre OGS ohne NFC.",
+      "Sie finden den Bereich `Geräte` nicht? Dann arbeitet Ihre OGS ohne NFC.",
     ],
     related: [
       HELP_TOPICS.nfcCheckIn,
@@ -5318,6 +5387,43 @@ function devicesTopic(): HelpTopic {
       HELP_TOPICS.nfcProblem,
       HELP_TOPICS.leadInfoDisplays,
     ],
+  };
+}
+
+/**
+ * Die beiden Geburtstags-Schalter der Schule (#1542) stehen seit #3737 in
+ * `Einstellungen` unter `Startseite für alle`, direkt an der Karte
+ * `Geburtstage`. Beschriftungen live geprüft.
+ */
+function leadBirthdaysTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadBirthdays,
+    title: "Geburtstage auf der Startseite zeigen",
+    question: "Wie zeige ich Geburtstage auf der Startseite?",
+    summary:
+      "Die Startseite zeigt, wer in dieser Woche Geburtstag hat. Sie legen fest, ob auch das Team dabei ist.",
+    group: "konfiguration",
+    audience: "lead",
+    icon: "Sparkles",
+    steps: [
+      "Öffnen Sie unten in der Seitenleiste `Einstellungen`.",
+      "Wählen Sie oben `Startseite für alle`.",
+      "Gehen Sie zur Karte `Geburtstage`.",
+      "Schalten Sie `Geburtstage auf der Startseite` ein oder aus.",
+      "Sollen auch Mitarbeitende erscheinen? Schalten Sie `Geburtstage von Mitarbeitenden mitanzeigen` ein.",
+      "Wählen Sie `Speichern`.",
+    ],
+    result:
+      "Die Karte `Geburtstage` zeigt die Geburtstage der Woche. Mitarbeitende erscheinen ohne Geburtsjahr.",
+    notes: [
+      "Jede Person kann sich im eigenen Profil von der Anzeige abmelden.",
+      "Kinder ohne hinterlegtes Geburtsdatum erscheinen nicht.",
+    ],
+    differences: [
+      "Sind die Geburtstage ausgeschaltet, fehlen die Vorgabe für die Karte und der Schalter für Mitarbeitende.",
+      "Sie sehen `Startseite für alle` nicht? Dann fehlt Ihnen das Recht, Einstellungen zu ändern.",
+    ],
+    related: [HELP_TOPICS.leadParentVisibility],
   };
 }
 
@@ -5467,6 +5573,7 @@ function leadTopics(
     // --- Betreuung und Team planen ---
     calendarPeriodsTopic(),
     leadCarePlanTopic(),
+    leadCancelBlockTopic(),
     dutyRosterTopic(),
     substitutionPlanTopic(),
     dayListsTopic(),
@@ -5481,6 +5588,7 @@ function leadTopics(
     settingsTopic(),
     parentVisibilityTopic(),
     infoDisplaysTopic(),
+    leadBirthdaysTopic(),
 
     // --- Wenn etwas nicht klappt ---
     leadMissingMenuTopic(),

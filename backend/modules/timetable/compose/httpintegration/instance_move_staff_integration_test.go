@@ -53,9 +53,18 @@ func createMoveInstance(t *testing.T, s *moveSetup, title, startHHMM, endHHMM, s
 		Status:    status,
 	}
 	row.SetTenantID(s.tenantID)
-	_, err := s.db.NewInsert().Model(row).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, row)
 	return row
+}
+
+// runMoveBlock starts one block on a live group: its Student Presence session
+// is active and bridged to the group.
+func runMoveBlock(t *testing.T, s *moveSetup, instanceID, groupID int64) {
+	t.Helper()
+	row := &scheduleModels.ActivityInstance{Status: scheduleModels.InstanceStatusActive, ActiveGroupID: &groupID}
+	row.ID = instanceID
+	row.SetTenantID(s.tenantID)
+	testpkg.UpsertActivitySession(t, s.ctx, s.db, row)
 }
 
 func createMoveStaffRow(t *testing.T, s *moveSetup, instanceID, staffID int64, mutate func(*scheduleModels.InstanceStaff)) *scheduleModels.InstanceStaff {
@@ -335,10 +344,9 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 			Status:    scheduleModels.InstanceStatusPlanned,
 		}
 		otherDay.SetTenantID(s.tenantID)
-		_, err := s.db.NewInsert().Model(otherDay).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
-		require.NoError(t, err)
+		testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, otherDay)
 
-		_, err = s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, otherDay.ID, timetable.MoveStaffInput{
+		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, otherDay.ID, timetable.MoveStaffInput{
 			StaffID:          s.staffID,
 			SourceInstanceID: &s.source.ID,
 		})
@@ -398,9 +406,8 @@ func TestMoveStaffBetweenBlocks_TargetAckClearedSourceAckKept(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var target, source scheduleModels.ActivityInstance
-	require.NoError(t, s.db.NewSelect().Model(&target).ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).Where("id = ?", s.target.ID).Scan(s.ctx))
-	require.NoError(t, s.db.NewSelect().Model(&source).ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).Where("id = ?", s.source.ID).Scan(s.ctx))
+	target := testpkg.ActivityInstanceByID(t, s.ctx, s.db, s.target.ID)
+	source := testpkg.ActivityInstanceByID(t, s.ctx, s.db, s.source.ID)
 	assert.False(t, target.UnderstaffedAck, "a now-staffed target drops its stale acknowledgement")
 	assert.True(t, source.UnderstaffedAck, "the source stays deliberately understaffed")
 }
@@ -411,22 +418,8 @@ func TestMoveStaffBetweenBlocks_ActiveBlocksSyncSupervisionAndAllowRoundTrip(t *
 	s := makeMoveSetup(t)
 	sourceGroup := testpkg.CreateTestActiveGroupForTenant(t, s.db, s.tenantID)
 	targetGroup := testpkg.CreateTestActiveGroupForTenant(t, s.db, s.tenantID)
-	_, err := s.db.NewUpdate().
-		Model((*scheduleModels.ActivityInstance)(nil)).
-		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
-		Set("status = ?", scheduleModels.InstanceStatusActive).
-		Set("active_group_id = ?", sourceGroup.ID).
-		Where(`"activity_instance".id = ?`, s.source.ID).
-		Exec(s.ctx)
-	require.NoError(t, err)
-	_, err = s.db.NewUpdate().
-		Model((*scheduleModels.ActivityInstance)(nil)).
-		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
-		Set("status = ?", scheduleModels.InstanceStatusActive).
-		Set("active_group_id = ?", targetGroup.ID).
-		Where(`"activity_instance".id = ?`, s.target.ID).
-		Exec(s.ctx)
-	require.NoError(t, err)
+	runMoveBlock(t, s, s.source.ID, sourceGroup.ID)
+	runMoveBlock(t, s, s.target.ID, targetGroup.ID)
 
 	createMoveStaffRow(t, s, s.source.ID, s.staffID, nil)
 	sup := &groupSupervisorRow{
@@ -436,7 +429,7 @@ func TestMoveStaffBetweenBlocks_ActiveBlocksSyncSupervisionAndAllowRoundTrip(t *
 		StartDate: calendar.TodayDate(),
 	}
 	sup.TenantID = s.tenantID
-	_, err = s.db.NewInsert().Model(sup).ModelTableExpr(`active.group_supervisors`).Exec(s.ctx)
+	_, err := s.db.NewInsert().Model(sup).ModelTableExpr(`active.group_supervisors`).Exec(s.ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		var supIDs []int64
@@ -515,14 +508,7 @@ func TestMoveStaffBetweenBlocks_ExistingOpenSupervisionIsReused(t *testing.T) {
 
 	s := makeMoveSetup(t)
 	targetGroup := testpkg.CreateTestActiveGroupForTenant(t, s.db, s.tenantID)
-	_, err := s.db.NewUpdate().
-		Model((*scheduleModels.ActivityInstance)(nil)).
-		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
-		Set("status = ?", scheduleModels.InstanceStatusActive).
-		Set("active_group_id = ?", targetGroup.ID).
-		Where(`"activity_instance".id = ?`, s.target.ID).
-		Exec(s.ctx)
-	require.NoError(t, err)
+	runMoveBlock(t, s, s.target.ID, targetGroup.ID)
 
 	existing := &groupSupervisorRow{
 		StaffID:   s.otherID,
@@ -531,7 +517,7 @@ func TestMoveStaffBetweenBlocks_ExistingOpenSupervisionIsReused(t *testing.T) {
 		StartDate: calendar.TodayDate(),
 	}
 	existing.TenantID = s.tenantID
-	_, err = s.db.NewInsert().Model(existing).ModelTableExpr(`active.group_supervisors`).Exec(s.ctx)
+	_, err := s.db.NewInsert().Model(existing).ModelTableExpr(`active.group_supervisors`).Exec(s.ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		var supIDs []int64
@@ -575,10 +561,9 @@ func TestMoveStaffBetweenBlocks_PastDateRejected(t *testing.T) {
 		Status:    scheduleModels.InstanceStatusPlanned,
 	}
 	past.SetTenantID(s.tenantID)
-	_, err := s.db.NewInsert().Model(past).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, past)
 
-	_, err = s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, past.ID, timetable.MoveStaffInput{StaffID: s.staffID})
+	_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, past.ID, timetable.MoveStaffInput{StaffID: s.staffID})
 	var de *timetable.DeviationError
 	require.True(t, errors.As(err, &de))
 	assert.Equal(t, http.StatusBadRequest, de.Status)

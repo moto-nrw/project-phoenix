@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import type { SchoolSetupState } from "~/lib/school-setup-api";
 
@@ -354,6 +360,7 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("shows how to enter a parent, and skips that when one is already there", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     setupState = newSchool();
     setupState.steps[3] = {
       key: "students",
@@ -387,7 +394,7 @@ describe("SchoolSetupWizard", () => {
     await waitForHighlight();
     fireEvent.click(link);
     // Erst auf der Kindakte geht es weiter, nicht auf der noch sichtbaren Liste.
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await act(() => vi.advanceTimersByTimeAsync(600));
     expect(
       screen.queryByRole("dialog", { name: "Erziehungsberechtigte" }),
     ).not.toBeInTheDocument();
@@ -549,6 +556,7 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("goes back into the sidebar to show the way again, without jumping forward", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     setupState = newSchool();
     pathname = "/database/personal";
     render(<SchoolSetupWizard />);
@@ -572,7 +580,7 @@ describe("SchoolSetupWizard", () => {
     const database = await screen.findByRole("dialog", {
       name: "Datenverwaltung öffnen",
     });
-    await new Promise((resolve) => setTimeout(resolve, 450));
+    await act(() => vi.advanceTimersByTimeAsync(450));
     expect(database).toBeInTheDocument();
     expect(database).toHaveTextContent("Station 2 von 6");
   });
@@ -605,6 +613,7 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("waits for the new page instead of highlighting a button of the old one", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     setupState = newSchool();
     pathname = "/database/groups";
     const { rerender } = render(<SchoolSetupWizard />);
@@ -620,7 +629,7 @@ describe("SchoolSetupWizard", () => {
     await waitForHighlight();
     fireEvent.click(personal);
 
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await act(() => vi.advanceTimersByTimeAsync(600));
     expect(
       screen.queryByRole("dialog", { name: "Personal einladen" }),
     ).not.toBeInTheDocument();
@@ -692,6 +701,7 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("continues with the import when the person chooses Importieren", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     setupState = studentsNext();
     pathname = "/database/students";
     const { rerender } = render(<SchoolSetupWizard />);
@@ -719,7 +729,7 @@ describe("SchoolSetupWizard", () => {
       screen.queryByRole("button", { name: "Zurück" }),
     ).not.toBeInTheDocument();
     // Der Wechsel ist kein Verlassen der Tour.
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await act(() => vi.advanceTimersByTimeAsync(1000));
     expect(screen.queryByText(/Die Tour ist beendet/)).not.toBeInTheDocument();
   });
 

@@ -2,7 +2,6 @@ package test
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"io/fs"
 	"path/filepath"
@@ -172,7 +171,7 @@ func (state *routeBuilderParseState) parse(path string, entry fs.DirEntry, walkE
 		return err
 	}
 	relPath = filepath.ToSlash(relPath)
-	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	_, file, err := parseGoSourceCached(path, nil)
 	if err != nil {
 		return err
 	}

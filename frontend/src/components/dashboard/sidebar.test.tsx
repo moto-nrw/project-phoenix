@@ -117,6 +117,14 @@ vi.mock("~/lib/hooks/use-enrollment-requests-pending", () => ({
   })),
 }));
 
+vi.mock("~/lib/hooks/use-enrollments-unread", () => ({
+  useEnrollmentsUnread: vi.fn(() => ({
+    unreadCount: 0,
+    isLoading: false,
+    refresh: vi.fn(),
+  })),
+}));
+
 vi.mock("~/lib/hooks/use-care-withdrawals-pending", () => ({
   useCareWithdrawalsPending: vi.fn(() => ({
     unreadCount: 0,
@@ -140,6 +148,7 @@ import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending"
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
+import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import {
   useNFCEnabled,
@@ -168,6 +177,7 @@ const mockUseStaffAbsencesPending = vi.mocked(useStaffAbsencesPending);
 const mockUseChangeRequestsPending = vi.mocked(useChangeRequestsPending);
 const mockUseChangeRequestAccess = vi.mocked(useChangeRequestAccess);
 const mockUseCareWithdrawalsPending = vi.mocked(useCareWithdrawalsPending);
+const mockUseEnrollmentsUnread = vi.mocked(useEnrollmentsUnread);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
 const mockUseOpenCareGroupMode = vi.mocked(useOpenCareGroupMode);
@@ -3126,6 +3136,73 @@ describe("Sidebar", () => {
       const header = screen.getByRole("button", { name: "Eltern" });
       const body = header.nextElementSibling?.firstElementChild;
       expect(body).toHaveAttribute("inert");
+    });
+  });
+
+  // Ungelesene Anmeldungen (#3778): eigener Zähler am Bereich, nicht in
+  // „Anfragen".
+  describe("ungelesene Anmeldungen (#3778)", () => {
+    beforeEach(() => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          permission === "config:manage" ||
+          permission === "config:read" ||
+          permission === "users:update",
+      );
+      mockUseChangeRequestAccess.mockReturnValue({
+        canOpenRequestsPage: true,
+      } as ReturnType<typeof useChangeRequestAccess>);
+      mockUseEnrollmentsUnread.mockReturnValue({
+        unreadCount: 3,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+    });
+
+    afterEach(() => {
+      mockUseEnrollmentsUnread.mockReturnValue({
+        unreadCount: 0,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+    });
+
+    it("zählt am Bereich Anmeldungen, nicht bei Anfragen", () => {
+      mockUsePathname.mockReturnValue("/admin/enrollments");
+
+      render(<Sidebar />);
+
+      expect(
+        screen.getAllByLabelText("3 ungelesene Anmeldungen").length,
+      ).toBeGreaterThan(0);
+      expect(
+        screen.queryByLabelText(/offene Anfragen?$/),
+      ).not.toBeInTheDocument();
+    });
+
+    it("zeigt den Zähler am zugeklappten Bereich", () => {
+      render(<Sidebar />);
+
+      // Die Gruppe summiert den Zähler auf ihre Kopfzeile.
+      fireEvent.click(screen.getByRole("button", { name: /^Eltern/ }));
+
+      expect(
+        screen.getAllByLabelText("3 ungelesene Anmeldungen").length,
+      ).toBeGreaterThan(0);
+    });
+
+    it("zeigt ohne config:manage keinen Zähler", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) => permission === "users:read",
+      );
+
+      render(<Sidebar />);
+
+      expect(
+        screen.queryByLabelText(/ungelesene Anmeldungen/),
+      ).not.toBeInTheDocument();
     });
   });
 

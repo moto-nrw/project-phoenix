@@ -1,35 +1,11 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
+import { lintSource, removeProbeDirectories } from "./oxlint-probe";
 
 // bauart/no-autosave (BAUARTEN-SPEC, Bauart 2 Regel 4, #3112). Same harness
 // as oxlint-plugin-bauart.test.ts: a probe file goes through the real oxlint
 // with the repo config.
 
-const temporaryDirectories: string[] = [];
-
-function lintSource(source: string, relativePath = "src/components/probe.tsx") {
-  const directory = mkdtempSync(join(tmpdir(), "bauart-autosave-"));
-  temporaryDirectories.push(directory);
-  const sourcePath = join(directory, relativePath);
-  mkdirSync(dirname(sourcePath), { recursive: true });
-  writeFileSync(sourcePath, source);
-
-  const result = spawnSync(
-    resolve("node_modules/.bin/oxlint"),
-    ["-c", resolve(".oxlintrc.json"), sourcePath],
-    { encoding: "utf8" },
-  );
-  return { status: result.status, output: `${result.stdout}${result.stderr}` };
-}
-
-afterEach(() => {
-  for (const directory of temporaryDirectories.splice(0)) {
-    rmSync(directory, { recursive: true, force: true });
-  }
-});
+afterAll(removeProbeDirectories);
 
 const BLUR_SAVE = `import { Input } from "~/components/ui/input";
 export function Probe({ save, value }: { save: (v: string) => Promise<void>; value: string }) {
@@ -46,17 +22,17 @@ export function Probe({ save, value }: { save: (v: string) => Promise<void>; val
   );
 }`;
 
-describe("bauart/no-autosave", () => {
-  it("rejects a write fired straight out of onBlur", () => {
-    const { status, output } = lintSource(BLUR_SAVE);
+describe.concurrent("bauart/no-autosave", () => {
+  it("rejects a write fired straight out of onBlur", async () => {
+    const { status, output } = await lintSource(BLUR_SAVE);
 
     expect(status).toBe(1);
     expect(output).toContain("bauart(no-autosave)");
     expect(output).toContain("onBlur schreibt sofort (save)");
   });
 
-  it("rejects a direct write out of onBlur", () => {
-    const { status, output } = lintSource(
+  it("rejects a direct write out of onBlur", async () => {
+    const { status, output } = await lintSource(
       `import { Input } from "~/components/ui/input";
       export function Probe({ save, value }: { save: (v: string) => Promise<void>; value: string }) {
         return <Input value={value} onChange={() => {}} onBlur={() => save(value)} />;
@@ -67,8 +43,8 @@ describe("bauart/no-autosave", () => {
     expect(output).toContain("onBlur schreibt sofort (save)");
   });
 
-  it("rejects a direct Promise-returning save prop in an arrow component", () => {
-    const { status, output } = lintSource(
+  it("rejects a direct Promise-returning save prop in an arrow component", async () => {
+    const { status, output } = await lintSource(
       `import { Input } from "~/components/ui/input";
       const Probe = ({ save, value }: { save: (v: string) => Promise<void>; value: string }) => (
         <Input value={value} onChange={() => {}} onBlur={() => save(value)} />
@@ -80,8 +56,8 @@ describe("bauart/no-autosave", () => {
     expect(output).toContain("onBlur schreibt sofort (save)");
   });
 
-  it("rejects a direct imported write out of onBlur", () => {
-    const { status, output } = lintSource(
+  it("rejects a direct imported write out of onBlur", async () => {
+    const { status, output } = await lintSource(
       `import { Input } from "~/components/ui/input";
       import { updateMasterDataField as savePayment } from "~/lib/parent-api";
       export function Probe({ value }: { value: string }) {
@@ -93,8 +69,8 @@ describe("bauart/no-autosave", () => {
     expect(output).toContain("onBlur schreibt sofort (savePayment)");
   });
 
-  it("lets validation from onBlur pass", () => {
-    const { status, output } = lintSource(
+  it("lets validation from onBlur pass", async () => {
+    const { status, output } = await lintSource(
       `import { Input } from "~/components/ui/input";
       export function Probe({ validate, value }: { validate: (v: string) => Promise<void>; value: string }) {
         return <Input value={value} onChange={() => {}} onBlur={() => void validate(value)} />;
@@ -105,8 +81,8 @@ describe("bauart/no-autosave", () => {
     expect(status).toBe(0);
   });
 
-  it("rejects a kit select whose change handler writes", () => {
-    const { status, output } = lintSource(
+  it("rejects a kit select whose change handler writes", async () => {
+    const { status, output } = await lintSource(
       `import { CustomSelect } from "~/components/ui/custom-select";
       export function Probe({ studentId }: { studentId: string }) {
         const setStudentPayer = async (_id: string, _v: string) => {};
@@ -125,8 +101,8 @@ describe("bauart/no-autosave", () => {
     expect(output).toContain("setStudentPayer");
   });
 
-  it("rejects a direct write from a kit field change handler", () => {
-    const { status, output } = lintSource(
+  it("rejects a direct write from a kit field change handler", async () => {
+    const { status, output } = await lintSource(
       `import { Input } from "~/components/ui/input";
       export function Probe({ update }: { update: (v: string) => Promise<void> }) {
         return <Input value="" onChange={(event) => update(event.target.value)} />;
@@ -137,8 +113,8 @@ describe("bauart/no-autosave", () => {
     expect(output).toContain("Input speichert im onChange sofort (update)");
   });
 
-  it("rejects a direct imported write from a kit field change handler", () => {
-    const { status, output } = lintSource(
+  it("rejects a direct imported write from a kit field change handler", async () => {
+    const { status, output } = await lintSource(
       `import { CustomSelect } from "~/components/ui/custom-select";
       import { updateMasterDataField as updatePayment } from "~/lib/parent-api";
       export function Probe() {
@@ -152,8 +128,8 @@ describe("bauart/no-autosave", () => {
     );
   });
 
-  it("sees a promise chain as a fired write", () => {
-    const { status, output } = lintSource(
+  it("sees a promise chain as a fired write", async () => {
+    const { status, output } = await lintSource(
       `import { Checkbox } from "~/components/ui/checkbox";
       export function Probe({ update }: { update: (v: boolean) => Promise<void> }) {
         return (
@@ -169,8 +145,8 @@ describe("bauart/no-autosave", () => {
     expect(output).toContain("bauart(no-autosave)");
   });
 
-  it("lets a change handler that only edits a draft pass", () => {
-    const { status, output } = lintSource(
+  it("lets a change handler that only edits a draft pass", async () => {
+    const { status, output } = await lintSource(
       `import { useState } from "react";
       import { Input } from "~/components/ui/input";
       export function Probe() {
@@ -183,8 +159,8 @@ describe("bauart/no-autosave", () => {
     expect(status).toBe(0);
   });
 
-  it("lets a synchronous write-named draft helper pass", () => {
-    const { status, output } = lintSource(
+  it("lets a synchronous write-named draft helper pass", async () => {
+    const { status, output } = await lintSource(
       `import { useState } from "react";
       import { Input } from "~/components/ui/input";
       export function Probe() {
@@ -198,8 +174,8 @@ describe("bauart/no-autosave", () => {
     expect(status).toBe(0);
   });
 
-  it("lets a read out of a change handler pass (search is not a save)", () => {
-    const { status, output } = lintSource(
+  it("lets a read out of a change handler pass (search is not a save)", async () => {
+    const { status, output } = await lintSource(
       `import { Input } from "~/components/ui/input";
       export function Probe({ search }: { search: (q: string) => Promise<void> }) {
         return <Input value="" onChange={(e) => void search(e.target.value)} />;
@@ -210,8 +186,8 @@ describe("bauart/no-autosave", () => {
     expect(status).toBe(0);
   });
 
-  it("lets a handler passed by name through (review covers it)", () => {
-    const { status, output } = lintSource(
+  it("lets a handler passed by name through (review covers it)", async () => {
+    const { status, output } = await lintSource(
       `import { Input } from "~/components/ui/input";
       export function Probe({ onBlur }: { onBlur: () => void }) {
         return <Input value="" onChange={() => {}} onBlur={onBlur} />;
@@ -222,8 +198,8 @@ describe("bauart/no-autosave", () => {
     expect(status).toBe(0);
   });
 
-  it("exempts the settings page, the only Bauart that auto-saves", () => {
-    const { status, output } = lintSource(
+  it("exempts the settings page, the only Bauart that auto-saves", async () => {
+    const { status, output } = await lintSource(
       BLUR_SAVE,
       "src/components/settings/probe-field.tsx",
     );
@@ -232,8 +208,8 @@ describe("bauart/no-autosave", () => {
     expect(status).toBe(0);
   });
 
-  it("exempts the operator portal, which the spec does not cover", () => {
-    const { status, output } = lintSource(
+  it("exempts the operator portal, which the spec does not cover", async () => {
+    const { status, output } = await lintSource(
       BLUR_SAVE,
       "src/app/operator/probe/page.tsx",
     );
@@ -242,8 +218,8 @@ describe("bauart/no-autosave", () => {
     expect(status).toBe(0);
   });
 
-  it("exempts the named baseline entries", () => {
-    const { status, output } = lintSource(
+  it("exempts the named baseline entries", async () => {
+    const { status, output } = await lintSource(
       BLUR_SAVE,
       "src/app/[tenant]/(protected)/payroll/page.tsx",
     );

@@ -1134,53 +1134,6 @@ describe("Form error handling", () => {
   });
 });
 
-describe("Login URL error handling", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(useSession).mockReturnValue({
-      data: null,
-      status: "unauthenticated",
-      update: vi.fn(),
-    });
-    Element.prototype.animate = mockAnimate;
-  });
-
-  it("validates session error message format", () => {
-    // Test the error message that would be displayed
-    const urlError = "SessionExpired" as string;
-    const expectedMessage =
-      urlError === "SessionRequired" || urlError === "SessionExpired"
-        ? "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an."
-        : null;
-
-    expect(expectedMessage).toBe(
-      "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
-    );
-  });
-
-  it("validates SessionRequired error triggers message", () => {
-    const urlError = "SessionRequired" as string;
-    const expectedMessage =
-      urlError === "SessionRequired" || urlError === "SessionExpired"
-        ? "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an."
-        : null;
-
-    expect(expectedMessage).toBe(
-      "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
-    );
-  });
-
-  it("validates unknown error does not trigger message", () => {
-    const urlError = "UnknownError" as string;
-    const expectedMessage =
-      urlError === "SessionRequired" || urlError === "SessionExpired"
-        ? "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an."
-        : null;
-
-    expect(expectedMessage).toBeNull();
-  });
-});
-
 describe("Deliberate logout suppression", () => {
   const replaceStateSpy = vi.fn();
 
@@ -1219,18 +1172,33 @@ describe("Deliberate logout suppression", () => {
     expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
   });
 
-  it("shows error when deliberateLogout flag is not set", async () => {
+  it.each(["SessionRequired", "SessionExpired"])(
+    "shows the session-expired error for %s when deliberateLogout flag is not set",
+    async (urlError) => {
+      mockSearchParamsGet.mockImplementation((key: string) =>
+        key === "error" ? urlError : null,
+      );
+
+      await act(async () => {
+        render(<HomePage />);
+      });
+
+      expect(screen.getByTestId("alert-error")).toHaveTextContent(
+        "Ihre Sitzung ist abgelaufen",
+      );
+    },
+  );
+
+  it("shows no session error for an unrelated error param", async () => {
     mockSearchParamsGet.mockImplementation((key: string) =>
-      key === "error" ? "SessionRequired" : null,
+      key === "error" ? "UnknownError" : null,
     );
 
     await act(async () => {
       render(<HomePage />);
     });
 
-    expect(screen.getByTestId("alert-error")).toHaveTextContent(
-      "Ihre Sitzung ist abgelaufen",
-    );
+    expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
   });
 
   it("consumes the deliberateLogout flag after reading it", async () => {

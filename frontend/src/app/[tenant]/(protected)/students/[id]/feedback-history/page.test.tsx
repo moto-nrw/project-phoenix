@@ -311,17 +311,3 @@ describe("StudentFeedbackHistoryPage", () => {
     );
   });
 });
-
-describe("Feedback type labels", () => {
-  it("maps feedback types to German labels", () => {
-    const feedbackTypeLabels: Record<string, string> = {
-      positive: "Positives Feedback",
-      neutral: "Neutrales Feedback",
-      negative: "Negatives Feedback",
-    };
-
-    expect(feedbackTypeLabels.positive).toBe("Positives Feedback");
-    expect(feedbackTypeLabels.neutral).toBe("Neutrales Feedback");
-    expect(feedbackTypeLabels.negative).toBe("Negatives Feedback");
-  });
-});

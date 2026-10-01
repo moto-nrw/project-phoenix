@@ -44,7 +44,8 @@ savepoint that holds the relationship row lock. `TestGuardianStorageCallerInvent
 fails the build when a provider names the mirror or the counter again. Keep the
 mirror, the triggers and the counter for the
 [rollback window](../agents/operations.md#rollback-window-of-a-storage-cutover);
-#2757 removes them once its three conditions hold. There is no waiting period.
+[Contract #2757](guardian-owner-storage-contract.md) (migration `1.15.429`)
+removes them once its three conditions hold. There is no waiting period.
 
 ## Release and rollback
 
@@ -136,7 +137,7 @@ Disposable PostgreSQL clones, 2026-09-23, PR branch:
 | Measurement | Result |
 | --- | --- |
 | Migration tests | `TestGuardianOwnerCutover*` and `TestGuardianCompatibility*` in `backend/database/migrations`: contract golden, final delta (edit, delete, newcomer, moved primary, new account binding, target-only edit), refusals (no pass, uncopyable row, second switch), rollback with a failing switch and a clean retry, routing of previous-image inserts including `ON CONFLICT`, updates, promotions and deletes, mirroring of owner writes, student deletion without counted hits, RESTRICT on a linked guardian, the push audience, two-school isolation. The Expand and Backfill contracts run against a restored pre-cutover clone. |
-| Unit of work | `TestGuardianRelationship*` in `backend/database/repositories/users` and `TestGuardianPortalLinkRollsBackAfterEveryOwnerCommand` in `backend/modules/peopledirectory/compose`: a failure injected after each owner command leaves no half of the link, also when the caller commits; the retry writes the link once; promotion demotes the previous primary; another school sees and changes nothing. |
+| Unit of work | `TestGuardianRelationship*` in `backend/modules/peopledirectory` and `TestGuardianPortalLinkRollsBackAfterEveryOwnerCommand` in `backend/modules/peopledirectory/compose`: a failure injected after each owner command leaves no half of the link, also when the caller commits; the retry writes the link once; promotion demotes the previous primary; another school sees and changes nothing. |
 | Owner commands | `TestGuardianPickupPermissionsWriteOnlyTheirSchool` (Care Plan) and `TestGuardianStudentAccessWritesOnlyItsSchool` (Identity & Access): two-school isolation, refusal of a command naming another school, account binding following the profile. |
 | Caller inventory | `TestGuardianStorageCallerInventory`: zero application literals name the mirror or the counter. |
 | Architecture ratchet | `scripts/backend-architecture.sh check` passes with the 568 baseline violations unchanged (no key removed or added) and no policy loosening. |

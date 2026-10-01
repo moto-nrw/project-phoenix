@@ -26,22 +26,27 @@ func (e *TargetOverrideError) Unwrap() error { return e.Kind }
 
 // StaffTargetOverride is a Sonderarbeitszeit (#3259): on every Monday to
 // Friday in [StartDate, EndDate] the staff member's daily target is
-// DailyMinutes. It wins over closure days and the work-time schedule;
-// statutory holidays stay at zero. Dates use DateLayout, EndDate is inclusive.
+// DailyMinutes, or with WeekdayMinutes (#3745, Monday to Friday) the target of
+// that weekday; exactly one of the two is set. It wins over closure days and
+// the work-time schedule; statutory holidays stay at zero. Dates use
+// DateLayout, EndDate is inclusive.
 type StaffTargetOverride struct {
-	ID           int64  `json:"id"`
-	StaffID      int64  `json:"staff_id"`
-	StartDate    string `json:"start_date"`
-	EndDate      string `json:"end_date"`
-	DailyMinutes int    `json:"daily_minutes"`
-	CreatedBy    *int64 `json:"created_by,omitempty"`
+	ID             int64  `json:"id"`
+	StaffID        int64  `json:"staff_id"`
+	StartDate      string `json:"start_date"`
+	EndDate        string `json:"end_date"`
+	DailyMinutes   *int   `json:"daily_minutes"`
+	WeekdayMinutes []int  `json:"weekday_minutes"`
+	CreatedBy      *int64 `json:"created_by,omitempty"`
 }
 
 // StaffTargetOverrideFields is the writable part of a Sonderarbeitszeit.
+// WeekdayMinutes, when set, holds Monday to Friday and replaces DailyMinutes.
 type StaffTargetOverrideFields struct {
-	StartDate    string
-	EndDate      string
-	DailyMinutes int
+	StartDate      string
+	EndDate        string
+	DailyMinutes   int
+	WeekdayMinutes []int
 }
 
 // TargetSourceOverride is the DailyProjection.TargetSource of a day whose

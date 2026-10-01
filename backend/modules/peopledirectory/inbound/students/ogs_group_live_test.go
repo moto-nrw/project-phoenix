@@ -288,9 +288,13 @@ func TestOGSGroupLive_AggregatesGroupData(t *testing.T) {
 	settingsCtx := testpkg.Ctx(t)
 	require.NoError(t, tc.settings().SetValue(settingsCtx, settings.KeyTrackingIndicatorsEnabled, true, nil, nil))
 	require.NoError(t, tc.settings().SetValue(settingsCtx, settings.KeyTrackingIndicator1, "Hausaufgaben", nil, nil))
+	// Slot 2 defaults to "Hausaufgaben" since #3738; an explicit empty slot
+	// is skipped.
+	require.NoError(t, tc.settings().SetValue(settingsCtx, settings.KeyTrackingIndicator2, "", nil, nil))
 	t.Cleanup(func() {
 		_ = tc.settings().ResetValue(settingsCtx, settings.KeyTrackingIndicatorsEnabled, nil, nil)
 		_ = tc.settings().ResetValue(settingsCtx, settings.KeyTrackingIndicator1, nil, nil)
+		_ = tc.settings().ResetValue(settingsCtx, settings.KeyTrackingIndicator2, nil, nil)
 	})
 
 	req := testutil.NewRequest("GET", "/ogs-group-live", nil)

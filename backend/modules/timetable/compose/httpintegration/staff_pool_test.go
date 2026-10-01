@@ -55,8 +55,7 @@ func createPoolInstance(t *testing.T, s *poolSetup, title, startHHMM, endHHMM, s
 		Status:    status,
 	}
 	row.SetTenantID(s.tenantID)
-	_, err := s.db.NewInsert().Model(row).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, row)
 	return row
 }
 

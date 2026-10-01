@@ -1356,12 +1356,9 @@
       "declaration": "TestCompleteTimetableInstancesForEndedSessions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        49
+        44
       ],
-      "tables": [
-        "schedule.activity_instances",
-        "schedule.instance_students"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -1469,9 +1466,8 @@
       "tables": [
         "auth.guardian_invitations",
         "users.guardian_profiles",
-        "users.student_profiles",
-        "users.students",
-        "users.students_guardians"
+        "users.student_guardian_relationships",
+        "users.student_profiles"
       ]
     },
     {

@@ -36,6 +36,13 @@ const InstanceStudentNoteMaxLength = 500
 //   - Status    — system-controlled (expected / present / absent)
 //   - Substatus — optional human/auto-set context (late / excused / ...)
 //   - Note      — optional freetext up to 500 characters
+//
+// It is a composed legacy DTO. schedule.instance_students stores the planned
+// participant (InstanceID, StudentID, RoomID); Student Presence stores the
+// attendance fields in active.activity_session_attendance, where a missing
+// row means expected attendance (#2762). Since the Contract (#2763) the plan
+// table has no attendance columns: write and read those fields only through
+// the owner commands or the presence projection.
 type InstanceStudent struct {
 	Model `bun:"schema:schedule,table:instance_students"`
 	TenantModel

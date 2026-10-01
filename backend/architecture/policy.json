@@ -479,13 +479,6 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "database/repositories/staffintegration",
-      "owner": "legacy-composition",
-      "role": "compose",
-      "internal_test_role": "workflow-integration-test",
-      "external_test_role": "workflow-integration-test"
-    },
-    {
       "path": "modules/studentdirectoryview",
       "owner": "student-directory-view",
       "role": "postgres",
@@ -1054,6 +1047,13 @@
     },
     {
       "path": "api/testutil",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "api/testutil/routetest",
       "owner": "test-support",
       "role": "test-support",
       "internal_test_role": "module-internal-test",
@@ -1660,6 +1660,13 @@
       "role": "cli",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
+    },
+    {
+      "path": "seed/avatar",
+      "owner": "dev-tools",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     },
     {
       "path": "services",
@@ -3940,6 +3947,10 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "enrollment.request_reads",
+      "write_owner": "enrollment"
+    },
+    {
       "name": "enrollment.requests",
       "write_owner": "enrollment"
     },
@@ -4209,6 +4220,10 @@
     },
     {
       "name": "users.parent_announcements",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_message_count_preferences",
       "write_owner": "communication"
     },
     {
@@ -4934,6 +4949,10 @@
       "class": "utility"
     },
     {
+      "path": "golang.org/x/image/vector",
+      "class": "utility"
+    },
+    {
       "path": "golang.org/x/sync/singleflight",
       "class": "concurrency"
     },
@@ -4986,7 +5005,15 @@
       "class": "standard"
     },
     {
+      "path": "image/draw",
+      "class": "standard"
+    },
+    {
       "path": "image/jpeg",
+      "class": "standard"
+    },
+    {
+      "path": "image/png",
       "class": "standard"
     },
     {
@@ -18996,17 +19023,6 @@
       "source_owner": "emergency-snapshot",
       "source_role": "adapter",
       "target_owner": "people-directory",
-      "target_role": "domain"
-    },
-    {
-      "id": "emergency-snapshot.adapter.settings-platform-domain",
-      "description": "Compatibility binding (#2704): the adapter names the health-info setting key of the retained settings service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "emergency-snapshot",
-      "source_role": "adapter",
-      "target_owner": "settings-platform",
       "target_role": "domain"
     },
     {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useFormError } from "~/components/ui/form-error";
-import { format } from "date-fns";
+import { format } from "date-fns/format";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";

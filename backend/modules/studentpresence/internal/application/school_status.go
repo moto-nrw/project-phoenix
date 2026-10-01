@@ -14,6 +14,7 @@ type SchoolStatus struct {
 	CheckedOutBy                         *int64
 	Date, Status                         string
 	CheckInTime, CheckOutTime, YardSince *time.Time
+	CheckOutNote                         *string
 }
 
 func (s *Service) ListSchoolStatuses(ctx context.Context, ids []int64, date string) (result []SchoolStatus, err error) {
@@ -42,6 +43,7 @@ func (s *Service) ListSchoolStatuses(ctx context.Context, ids []int64, date stri
 			if row := latest[id]; row != nil {
 				status.CheckedInBy, status.CheckedOutBy = row.CheckedInBy, row.CheckedOutBy
 				status.CheckInTime, status.CheckOutTime, status.YardSince = &row.CheckInTime, row.CheckOutTime, row.YardSince
+				status.CheckOutNote = row.CheckOutNote
 				switch {
 				case row.CheckOutTime != nil:
 					status.Status = "checked_out"

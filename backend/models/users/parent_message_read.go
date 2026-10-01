@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // ParentMessageRead is a reader's read cursor in a thread. The reader is an
@@ -13,11 +12,11 @@ import (
 // in the thread after the cursor (LastReadAt, LastReadMessageID) that the reader
 // did not send.
 type ParentMessageRead struct {
-	bun.BaseModel `bun:"table:users.parent_message_reads,alias:pmr"`
-	base.TenantModel
-	ThreadID   int64     `bun:"thread_id,pk" json:"thread_id"`
-	AccountID  int64     `bun:"account_id,pk" json:"account_id"`
-	LastReadAt time.Time `bun:"last_read_at,notnull" json:"last_read_at"`
+	// Documents the source table; bun reads table tags only from bun.BaseModel.
+	base.TenantModel `bun:"table:users.parent_message_reads,alias:pmr"`
+	ThreadID         int64     `bun:"thread_id,pk" json:"thread_id"`
+	AccountID        int64     `bun:"account_id,pk" json:"account_id"`
+	LastReadAt       time.Time `bun:"last_read_at,notnull" json:"last_read_at"`
 	// LastReadMessageID is the id tie-breaker for LastReadAt: the cursor is the
 	// composite (LastReadAt, LastReadMessageID). Two messages in a thread can
 	// share a created_at, and the message list orders ties by id DESC, so unread
@@ -115,10 +114,12 @@ type ParentMessageReadRepository interface {
 	// advanced, so the read-receipt SSE push can fire only on a real move and not
 	// ping-pong with the refetch it triggers on the counterpart.
 	MarkReadUpTo(ctx context.Context, tenantID, threadID, accountID int64, readAt time.Time, readMessageID int64) (bool, error)
-	// MarkThreadsReadForStaff advances each cursor only to the counterpart
-	// message selected with the inbox snapshot, in one statement. The cursor
-	// never moves backward. It returns threads whose cursor actually advanced.
-	MarkThreadsReadForStaff(ctx context.Context, tenantID, accountID int64, bounds []ReadCursorBound) ([]int64, error)
+	// ClearUnreadForStaff moves the staff reader's personal clear boundary only
+	// to the counterpart message selected with the inbox snapshot, in one
+	// statement (#3673). It leaves the read cursor, and with it the parent-facing
+	// receipt, alone. The boundary never moves backward. It returns threads whose
+	// boundary actually moved.
+	ClearUnreadForStaff(ctx context.Context, tenantID, accountID int64, bounds []ReadCursorBound) ([]int64, error)
 	// MarkStaffHandledUpTo advances the team-wide handled boundary to the newest
 	// guardian activity covered by a staff reply. It never moves backward.
 	MarkStaffHandledUpTo(ctx context.Context, tenantID, threadID int64, handledAt time.Time, handledMessageID int64) error
@@ -135,6 +136,9 @@ type ParentMessageReadRepository interface {
 	// messages, not threads, so the badge matches the per-thread unread pills.
 	// allStudents = whole tenant (admin / verified staff); false = nothing.
 	UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error)
+	// UnreadMessageCountForStaffInGroups is UnreadMessageCountForStaff limited
+	// to children of the given OGS groups; no group counts nothing (#3673).
+	UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error)
 	// ListInboxForStaff returns the staff member's readable threads,
 	// newest-activity first; unread counts guardian messages.
 	ListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, onlyUnread bool) ([]*InboxThread, error)

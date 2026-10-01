@@ -1,8 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { isoDatePickerMock } from "~/test/mocks/date-picker";
-
 import { PlanExportModal } from "./plan-export-modal";
 
 const { mockExportPlan, mockToastError, mockToastSuccess } = vi.hoisted(() => ({
@@ -70,10 +68,9 @@ vi.mock("~/contexts/ToastContext", () => ({
 
 // The range rule is the subject here, not the calendar overlay, so the
 // picker renders as the native input it replaced (src/test/mocks).
-vi.mock("~/components/ui/date-picker", async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  ...isoDatePickerMock(),
-}));
+vi.mock("~/components/ui/date-picker", async () =>
+  (await import("~/test/mocks/date-picker")).datePickerModuleMock(),
+);
 
 function renderModal(
   props: Partial<React.ComponentProps<typeof PlanExportModal>> = {},

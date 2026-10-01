@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -37,10 +36,14 @@ type StudentLifecycleAuditor interface {
 	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after userModels.StudentStatus) error
 }
 
+// activateStudentsInterval is how often the activate-students tick runs. It
+// used to be a school setting that was never read per school (#3733). Date
+// transitions only happen on day boundaries; the cadence is a safety-net for
+// restarts and clock drift, not a precision dial.
+const activateStudentsInterval = 60 * time.Minute
+
 // scheduleActivateStudentsTask registers the per-tenant activate-students
-// poll. The interval is settings-driven (operations.student_activation_interval_minutes,
-// default 60). Date transitions only happen on day boundaries; the polling
-// cadence is a safety-net for restarts and clock drift, not a precision dial.
+// poll, every activateStudentsInterval.
 func (s *Scheduler) scheduleActivateStudentsTask() {
 	if s.studentLifecycleRepo == nil {
 		s.getLogger().Info("activate-students task not configured (no StudentLifecycleRepository)")
@@ -50,27 +53,11 @@ func (s *Scheduler) scheduleActivateStudentsTask() {
 	s.registerTask("activate-students", "interval-poll", s.runActivateStudentsTaskPolling)
 }
 
-// runActivateStudentsTaskPolling ticks at the configured per-tenant interval.
-// The interval is read on each tick from a representative tenant so admins
-// can shorten the cadence without restart. Tenants without an override get
-// the registry default (60 minutes).
+// runActivateStudentsTaskPolling ticks every activateStudentsInterval.
 func (s *Scheduler) runActivateStudentsTaskPolling(task *ScheduledTask) {
 	s.runIntervalPolling(task, "panic in activate-students task",
 		"activate-students using interval polling for per-tenant scheduling",
-		20*time.Second, s.resolveActivateStudentsInterval, s.checkAndRunActivateStudents)
-}
-
-// resolveActivateStudentsInterval reads the interval setting from a non-tenant
-// context (registry default if no override). Per-tenant interval differences
-// are not honored — the polling loop is global. This is acceptable because
-// the tick is itself idempotent and tolerant of running more often than any
-// individual tenant requested.
-func (s *Scheduler) resolveActivateStudentsInterval() time.Duration {
-	minutes := s.resolveIntSetting(context.Background(), configModel.KeyStudentActivationIntervalMin, "", 60)
-	if minutes < 1 {
-		minutes = 60
-	}
-	return time.Duration(minutes) * time.Minute
+		20*time.Second, func() time.Duration { return activateStudentsInterval }, s.checkAndRunActivateStudents)
 }
 
 // checkAndRunActivateStudents iterates active tenants and runs activation +

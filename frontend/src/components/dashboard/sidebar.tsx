@@ -52,6 +52,7 @@ import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";
 import { useStaffNoticesPending } from "~/lib/hooks/use-staff-notices-pending";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import { useEnrollmentRequestsPending } from "~/lib/hooks/use-enrollment-requests-pending";
+import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useHelpHref } from "~/lib/hooks/use-help-href";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
@@ -429,6 +430,9 @@ const TENANT_SCOPED_HREFS = new Set<string>([
 ]);
 
 // Rows that carry a counter, with the wording a screen reader gets.
+// Vorlesetext des Anmeldungen-Zählers (#3778).
+const ENROLLMENTS_UNREAD_NOUN = "ungelesene Anmeldungen";
+
 const ROW_BADGE_LABELS: Readonly<
   Record<string, { readonly tone: "staff" | "parents"; readonly noun: string }>
 > = {
@@ -609,6 +613,9 @@ function SidebarContent({
     useEnrollmentRequestsPending();
   const { unreadCount: careWithdrawalsPendingCount } =
     useCareWithdrawalsPending();
+  // Ungelesene Anmeldungen (#3778): eigener Zähler am Bereich „Anmeldungen",
+  // keine Anfrage und deshalb nicht im Anfragen-Zähler.
+  const { unreadCount: enrollmentsUnreadCount } = useEnrollmentsUnread();
   const requestsPendingCount =
     changeRequestsPendingCount +
     staffAbsencesPendingCount +
@@ -1778,6 +1785,9 @@ function SidebarContent({
         isActive={isOnEnrollmentsPage}
         isIconActive={isOnEnrollmentsPage}
         hasChildren={ENROLLMENT_SUB_PAGES.length > 0}
+        badgeCount={enrollmentsUnreadCount}
+        badgeTone="staff"
+        badgeNoun={ENROLLMENTS_UNREAD_NOUN}
       >
         {ENROLLMENT_SUB_PAGES.map((page) => (
           <SidebarSubItem
@@ -1785,6 +1795,13 @@ function SidebarContent({
             href={page.href}
             label={page.label}
             isActive={activeEnrollmentSubPageHref === page.href}
+            {...(page.href === ENROLLMENT_SECTION.href
+              ? {
+                  badgeCount: enrollmentsUnreadCount,
+                  badgeTone: "staff" as const,
+                  badgeNoun: ENROLLMENTS_UNREAD_NOUN,
+                }
+              : {})}
           />
         ))}
       </SidebarAccordionSection>
@@ -1833,10 +1850,16 @@ function SidebarContent({
     }
   };
 
-  const entryBadgeCount = (entry: StaffNavEntry) =>
-    entry.kind === "page" && visibleItemsByHref.has(entry.href)
-      ? (rowBadgeCounts[entry.href] ?? 0)
+  const entryBadgeCount = (entry: StaffNavEntry) => {
+    if (entry.kind === "page") {
+      return visibleItemsByHref.has(entry.href)
+        ? (rowBadgeCounts[entry.href] ?? 0)
+        : 0;
+    }
+    return entry.section === "enrollments" && userLeadsSchool
+      ? enrollmentsUnreadCount
       : 0;
+  };
 
   return (
     <aside className={asideClasses(collapsed, className)}>

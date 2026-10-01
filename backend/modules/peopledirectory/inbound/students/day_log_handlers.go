@@ -65,6 +65,9 @@ type dayLogStudent struct {
 	// departure; a present child without CheckOutTime is still checked in.
 	CheckInTime  *time.Time `json:"check_in_time,omitempty"`
 	CheckOutTime *time.Time `json:"check_out_time,omitempty"`
+	// CheckOutNote carries the reasons staff left when the child went home
+	// earlier than planned (#3324), in the order of the day's stays.
+	CheckOutNote string `json:"check_out_note,omitempty"`
 	// ReportedAt/Source describe the sign-off behind an absence verdict.
 	ReportedAt *time.Time `json:"reported_at,omitempty"`
 	Source     string     `json:"source,omitempty"`
@@ -497,6 +500,7 @@ func classifyDayLogStudent(row *dayLogStudent, attendance []*studentpresence.Att
 		checkIn, checkOut := mergeDayLogAttendance(attendance)
 		row.CheckInTime = &checkIn
 		row.CheckOutTime = checkOut
+		row.CheckOutNote = dayLogCheckOutNote(attendance)
 		row.Hint = dayLogPresentHint(eff)
 		return
 	}
@@ -574,6 +578,26 @@ func mergeDayLogAttendance(rows []*studentpresence.Attendance) (time.Time, *time
 		return checkIn, nil
 	}
 	return checkIn, checkOut
+}
+
+// dayLogCheckOutNote joins the checkout notes of a day's stays in arrival
+// order. A child who left early, came back and left again keeps the early
+// note even though the day's departure is the later one.
+func dayLogCheckOutNote(rows []*studentpresence.Attendance) string {
+	ordered := make([]*studentpresence.Attendance, 0, len(rows))
+	for _, row := range rows {
+		if row.CheckOutNote != nil && *row.CheckOutNote != "" {
+			ordered = append(ordered, row)
+		}
+	}
+	sort.SliceStable(ordered, func(i, j int) bool {
+		return ordered[i].CheckInTime.Before(ordered[j].CheckInTime)
+	})
+	notes := make([]string, 0, len(ordered))
+	for _, row := range ordered {
+		notes = append(notes, *row.CheckOutNote)
+	}
+	return strings.Join(notes, " · ")
 }
 
 func dayLogPresentHint(eff studentpresence.EffectiveStatus) string {

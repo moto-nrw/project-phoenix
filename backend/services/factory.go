@@ -2090,6 +2090,7 @@ func newFactory(
 	enrollmentOfferingCapacity := NewEnrollmentOfferingCapacity(enrollmentCareOfferings, repos.Enrollment(), settingsService)
 	enrollmentRequestService := NewEnrollmentIntake(EnrollmentIntakeSources{
 		Requests:           repos.Enrollment(),
+		ParentChanges:      repos.Enrollment(),
 		Children:           repos.Enrollment(),
 		Bookings:           enrollmentCareBookingCommands{owner: repos.CarePlan()},
 		Guardians:          repos.Enrollment(),
@@ -2358,7 +2359,7 @@ func newFactory(
 		MessageRepo: repos.ParentMessage,
 		ReadRepo:    repos.ParentMessageRead,
 		Persons:     usersService,
-		UserContext: userContextService,
+		UserContext: callerContext,
 		Settings:    settingsService,
 		Broadcaster: realtimeHub,
 		DB:          db,
@@ -2588,7 +2589,6 @@ func newFactory(
 		Persons:      persons,
 		Contacts:     repos.StudentGuardian,
 		Rooms:        rooms,
-		Settings:     settingsService,
 		Renderer:     listExportService,
 		Now:          now,
 		Logger:       logger.With("module", "emergency-snapshot"),

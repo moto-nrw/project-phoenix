@@ -33,7 +33,7 @@
   "atomic_cutover": "Migration 1.15.417 takes the backfill's advisory lock, locks the four guardian tables and users.guardian_profiles, drops target rows whose source changed a unique claim, applies the final delta per school, compares counts, checksums, rows and account bindings, and installs the compatibility shape in one transaction: owner updated_at triggers, the grant invalidation on the Identity permissions, the account-binding trigger on the guardian profile, the grant foreign keys on the relationship, the push-audience view, RESTRICT on the guardian key, the mirror and routing triggers and the counter. The old name stays a base table as a rollback-only mirror because the previous image links guardians with INSERT ... ON CONFLICT, which a view cannot serve. The same release switches every caller: the retained StudentGuardianRepository seam is People Directory's relationship store, which writes the relationship and then the Care Plan and Identity halves inside one savepoint under the relationship row lock and reads through the projection; the People Directory parents-portal link writes, the guardian profile, message recipient and portal-contact reads, and the Communication audience and inbox projections read and write the owners. The old provider database/repositories/users/student_guardian.go is deleted. No application dual write and no fallback read chain remain.",
   "tests": [
     "backend/database/migrations: TestGuardianOwnerCutover* (contract golden, final delta, refusals, preflight, rollback with a failing switch) and TestGuardianCompatibility* (routing of previous-image writes, mirroring of owner writes, tenant isolation, push audience); the Expand and Backfill contracts run against a restored pre-cutover clone.",
-    "backend/database/repositories/users/guardian_relationships_unit_of_work_test.go: a failure injected after each owner command leaves no half of the link even when the caller commits, the retry is idempotent, promotion demotes the previous primary, another school sees and changes nothing.",
+    "backend/modules/peopledirectory/guardian_relationships_unit_of_work_test.go: a failure injected after each owner command leaves no half of the link even when the caller commits, the retry is idempotent, promotion demotes the previous primary, another school sees and changes nothing.",
     "backend/modules/peopledirectory/compose/guardian_link_owners_test.go: the parents-portal link and pickup patch roll back after every owner command.",
     "backend/modules/careplan/compose/guardian_pickup_test.go and backend/modules/identityaccess/compose/guardian_student_access_test.go: two-school isolation and refusal of a command naming another school.",
     "backend/test/guardian_storage_caller_inventory_test.go: zero application literals name the mirror or the counter.",
@@ -46,7 +46,7 @@
       "docs/operations/guardian-owner-storage-cutover.md",
       "docs/operations/guardian-owner-storage-cutover.sql",
       "backend/database/migrations/guardian_owner_cutover_test.go",
-      "backend/database/repositories/users/guardian_relationships_unit_of_work_test.go",
+      "backend/modules/peopledirectory/guardian_relationships_unit_of_work_test.go",
       "backend/modules/peopledirectory/compose/guardian_link_owners_test.go",
       "backend/test/guardian_storage_caller_inventory_test.go",
       "backend/test/query_budgets.go"

@@ -57,3 +57,29 @@ export function isoDatePickerMock() {
     ),
   };
 }
+
+function notStubbed(name: string) {
+  return () => {
+    throw new Error(
+      `${name} is not stubbed by datePickerModuleMock(); spread importOriginal() instead.`,
+    );
+  };
+}
+
+/**
+ * Whole-module replacement for `~/components/ui/date-picker` when the code
+ * under test renders only `ISODatePicker`. It skips `importOriginal`, so the
+ * test never loads react-day-picker, Radix FocusScope and the date-fns locale.
+ * The other exports throw if rendered, which makes a wrong choice fail loudly:
+ *
+ *   vi.mock("~/components/ui/date-picker", async () =>
+ *     (await import("~/test/mocks/date-picker")).datePickerModuleMock(),
+ *   );
+ */
+export function datePickerModuleMock() {
+  return {
+    ...isoDatePickerMock(),
+    DatePicker: notStubbed("DatePicker"),
+    ISODateInput: notStubbed("ISODateInput"),
+  };
+}

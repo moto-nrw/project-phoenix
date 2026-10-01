@@ -345,9 +345,9 @@ func TestRateLimiter_Middleware_EmptyCustomKeyFallsBackToIP(t *testing.T) {
 func TestRateLimiter_Middleware_RateRecovery(t *testing.T) {
 	t.Parallel()
 
-	// 60 requests per minute = 1 per second
+	// 600 requests per minute = 1 token per 100ms
 	// With burst of 2, we can make 2 immediate requests
-	rl := customMiddleware.NewRateLimiter(60, 2)
+	rl := customMiddleware.NewRateLimiter(600, 2)
 
 	r := chi.NewRouter()
 	r.Use(rl.Middleware())
@@ -371,8 +371,8 @@ func TestRateLimiter_Middleware_RateRecovery(t *testing.T) {
 	r.ServeHTTP(rr1, req1)
 	assert.Equal(t, http.StatusTooManyRequests, rr1.Code)
 
-	// Wait for rate to recover (slightly more than 1 second for 1 token)
-	time.Sleep(1100 * time.Millisecond)
+	// Wait for rate to recover (slightly more than 100ms for 1 token)
+	time.Sleep(150 * time.Millisecond)
 
 	// Should now be allowed
 	req2 := httptest.NewRequest(http.MethodGet, "/test", nil)

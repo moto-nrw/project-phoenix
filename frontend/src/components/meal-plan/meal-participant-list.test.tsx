@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
+import { preloadDayPicker } from "~/components/ui/lazy-day-picker";
 import "@testing-library/jest-dom/vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -24,6 +25,10 @@ vi.mock("~/contexts/ToastContext", () => ({
 }));
 
 import { MealParticipantList } from "./meal-participant-list";
+
+// The kit loads the calendar grid lazily; load it once up front so a cold
+// import on a busy machine does not race the findBy timeout.
+beforeAll(() => preloadDayPicker());
 
 describe("MealParticipantList", () => {
   beforeEach(() => {
@@ -58,8 +63,11 @@ describe("MealParticipantList", () => {
     });
     fireEvent.click(datePicker);
 
+    // The kit loads the calendar grid lazily.
     expect(
-      screen.getByRole("button", { name: "Samstag, 12. September 2026" }),
+      await screen.findByRole("button", {
+        name: "Samstag, 12. September 2026",
+      }),
     ).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Sonntag, 13. September 2026" }),
@@ -91,7 +99,9 @@ describe("MealParticipantList", () => {
     await screen.findByText("Mittagessen am 07.09.2026");
     fireEvent.click(screen.getByRole("button", { name: "Datum: 07.09.2026" }));
     fireEvent.click(
-      screen.getByRole("button", { name: "Mittwoch, 9. September 2026" }),
+      await screen.findByRole("button", {
+        name: "Mittwoch, 9. September 2026",
+      }),
     );
     await waitFor(() => {
       expect(mocks.getDailyMealParticipants).toHaveBeenCalledWith("2026-09-09");
@@ -134,7 +144,9 @@ describe("MealParticipantList", () => {
 
     fireEvent.click(datePicker);
     fireEvent.click(
-      screen.getByRole("button", { name: "Dienstag, 8. September 2026" }),
+      await screen.findByRole("button", {
+        name: "Dienstag, 8. September 2026",
+      }),
     );
     await waitFor(() => {
       expect(mocks.getDailyMealParticipants).toHaveBeenCalledWith("2026-09-08");

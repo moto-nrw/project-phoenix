@@ -8,7 +8,6 @@ package test
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"os"
 	pathpkg "path"
@@ -74,7 +73,7 @@ func examples() {
 }
 
 func findRawActivityInstanceWallClocks(backendRoot string) ([]string, error) {
-	fset := token.NewFileSet()
+	fset := sharedGoFileSet
 	var violations []string
 	err := filepath.Walk(backendRoot, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") {
@@ -92,7 +91,7 @@ func findRawActivityInstanceWallClocks(backendRoot string) ([]string, error) {
 }
 
 func findRawActivityInstanceWallClocksInFile(path, rel string, fset *token.FileSet) ([]string, error) {
-	file, err := parser.ParseFile(fset, path, nil, 0)
+	_, file, err := parseGoSourceCached(path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("parse %s: %w", rel, err)
 	}

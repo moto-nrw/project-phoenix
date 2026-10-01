@@ -365,15 +365,19 @@ still read one row per block or participant, so the tenant-safe projection
 with the owner rows in one statement each (`ListLegacyInstances`,
 `ListLegacyParticipants`, the partial-absence, parallel-presence, course and
 manual-planning reads), and `timetable/compose.PresenceReads` wraps it for
-the legacy composition. The old execution and attendance columns stay as a
+the legacy composition. The old execution and attendance columns stayed as a
 trigger-kept rollback mirror with the `active.presence_compatibility_writes`
-counter until #2763; `TestPresenceStorageCallerInventory` keeps every
-provider off them. The later-pickup decision that writes to both owners is
+counter until the Contract #2763 (migration 1.15.432) removed them and
+narrowed the planning status to planned and cancelled;
+`TestPresenceStorageCallerInventory` keeps application code, fixtures and
+behavior tests off the retired names. The later-pickup decision that writes to both owners is
 bound at the composition root (`api/pickup_extensions.go`) rather than as a
 new workflow owner. `database/repositories/student_presence.go`, the old
 provider, is gone. The evidence lives in
 [presence-cutover-2762.json](presence-cutover-2762.json) and the runbook in
-[docs/operations/presence-storage-cutover-2762.md](../../docs/operations/presence-storage-cutover-2762.md).
+[docs/operations/presence-storage-cutover-2762.md](../../docs/operations/presence-storage-cutover-2762.md),
+the Contract in
+[docs/operations/presence-storage-contract-2763.md](../../docs/operations/presence-storage-contract-2763.md).
 
 #2756 cut the student-guardian relationship over to its three owners
 (migration 1.15.417, one release with the caller switch). People Directory

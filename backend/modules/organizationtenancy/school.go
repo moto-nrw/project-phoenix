@@ -39,7 +39,6 @@ type School struct {
 	Zip            string     `json:"zip,omitempty"`
 	Phone          string     `json:"phone,omitempty"`
 	Email          string     `json:"email,omitempty"`
-	DevicePinHash  string     `json:"-"`
 	// ChildQuotaBundles and ChildQuotaBundleSize are the contracted
 	// Kinderkontingent (#3567); no bundles means no limit.
 	ChildQuotaBundles    *int          `json:"child_quota_bundles"`
@@ -70,7 +69,6 @@ type CreateSchool struct {
 	Zip            string
 	Phone          string
 	Email          string
-	DevicePinHash  string
 }
 
 type UpdateSchool struct {
@@ -87,7 +85,6 @@ type UpdateSchool struct {
 	Zip            string
 	Phone          string
 	Email          string
-	DevicePinHash  string
 }
 
 func (m *Module) CreateSchool(ctx context.Context, input CreateSchool) (School, error) {

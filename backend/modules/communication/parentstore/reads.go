@@ -36,14 +36,14 @@ func (r *ParentMessageReads) MarkReadUpTo(ctx context.Context, tenantID, threadI
 	return r.cursors.MarkReadUpTo(ctx, tenantID, threadID, accountID, readAt, readMessageID)
 }
 
-func (r *ParentMessageReads) MarkThreadsReadForStaff(ctx context.Context, tenantID, accountID int64, bounds []usersModels.ReadCursorBound) ([]int64, error) {
+func (r *ParentMessageReads) ClearUnreadForStaff(ctx context.Context, tenantID, accountID int64, bounds []usersModels.ReadCursorBound) ([]int64, error) {
 	selected := make([]domain.ReadCursorBound, 0, len(bounds))
 	for _, bound := range bounds {
 		selected = append(selected, domain.ReadCursorBound{
 			ThreadID: bound.ThreadID, ReadAt: bound.ReadAt, MessageID: bound.MessageID,
 		})
 	}
-	return r.cursors.MarkThreadsReadForStaff(ctx, tenantID, accountID, selected)
+	return r.cursors.ClearUnreadForStaff(ctx, tenantID, accountID, selected)
 }
 
 func (r *ParentMessageReads) MarkStaffHandledUpTo(ctx context.Context, tenantID, threadID int64, handledAt time.Time, handledMessageID int64) error {
@@ -60,6 +60,10 @@ func (r *ParentMessageReads) ClearStaffUnreadMark(ctx context.Context, tenantID,
 
 func (r *ParentMessageReads) UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error) {
 	return r.inbox.UnreadMessageCountForStaff(ctx, accountID, allStudents)
+}
+
+func (r *ParentMessageReads) UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error) {
+	return r.inbox.UnreadMessageCountForStaffInGroups(ctx, accountID, allStudents, groupIDs)
 }
 
 func (r *ParentMessageReads) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*usersModels.InboxThread, error) {

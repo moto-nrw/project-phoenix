@@ -979,9 +979,7 @@ func TestOffboardStaff_RemovesSameDayPlannedInstanceAssignments(t *testing.T) {
 	}
 	plannedInst := makeInstance(fmt.Sprintf("offb-planned-%d", time.Now().UnixNano()))
 	completedInst := makeInstance(fmt.Sprintf("offb-completed-%d", time.Now().UnixNano()))
-	_, err := sc.db.ExecContext(context.Background(),
-		`UPDATE schedule.activity_instances SET status = 'completed' WHERE id = ?`, completedInst.ID)
-	require.NoError(t, err)
+	testpkg.SetActivityInstanceLifecycle(t, context.Background(), sc.db, completedInst.ID, scheduleModels.InstanceStatusCompleted)
 
 	makeAssignment := func(instanceID int64) *scheduleModels.InstanceStaff {
 		row := &scheduleModels.InstanceStaff{InstanceID: instanceID, StaffID: staff.ID}

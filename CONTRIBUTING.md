@@ -31,7 +31,7 @@ cd project-phoenix
 direnv allow              # activates the devbox environment
 devbox run bootstrap      # installs frontend and browser dependencies
 ./scripts/setup-dev.sh    # creates config files, SSL certs, and credentials
-docker compose up -d      # starts everything; migrations run automatically
+scripts/dev-native.sh up  # postgres+mailpit in Docker, backend+frontend native; migrates first
 ```
 
 See [docs/getting-started.md](docs/getting-started.md) for seeding demo data and troubleshooting.

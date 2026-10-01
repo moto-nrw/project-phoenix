@@ -19,9 +19,6 @@ type AccountFixture struct {
 	PasswordHash      *string    `bun:"password_hash" json:"-"`
 	IsPasswordOTP     bool       `bun:"is_password_otp,default:false" json:"is_password_otp"`
 	LastLogin         *time.Time `bun:"last_login" json:"last_login,omitempty"`
-	PINHash           *string    `bun:"pin_hash" json:"-"`
-	PINAttempts       int        `bun:"pin_attempts,default:0" json:"-"`
-	PINLockedUntil    *time.Time `bun:"pin_locked_until" json:"-"`
 	MFAAttempts       int        `bun:"mfa_attempts,default:0" json:"-"`
 	MFALockedUntil    *time.Time `bun:"mfa_locked_until" json:"-"`
 	CalendarFeedToken *string    `bun:"calendar_feed_token" json:"-"`

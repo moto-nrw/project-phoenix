@@ -786,11 +786,15 @@ func ResetGuardianOwnerBackfill(ctx context.Context, db *bun.DB) error {
 // Cutover (#2756) users.students_guardians is only a rollback mirror of the
 // targets, which are authoritative and must not be overwritten from the old
 // shape. The mirror stays a base table, so the installed compatibility
-// triggers are what mark the switch.
+// triggers are what mark the switch. The Contract (#2757) removed the mirror.
 func assertGuardianSourceIsBaseTable(ctx context.Context, db bun.IDB) error {
 	var kind string
-	if err := db.NewRaw(`SELECT relkind::text FROM pg_class WHERE oid = 'users.students_guardians'::regclass`).Scan(ctx, &kind); err != nil {
+	if err := db.NewRaw(`SELECT coalesce((SELECT relkind::text FROM pg_class
+		WHERE oid = to_regclass('users.students_guardians')), '')`).Scan(ctx, &kind); err != nil {
 		return fmt.Errorf("guardian owner backfill: inspect users.students_guardians: %w", err)
+	}
+	if kind == "" {
+		return errors.New("guardian owner backfill: users.students_guardians no longer exists (#2757); the targets are authoritative")
 	}
 	if kind != "r" {
 		return fmt.Errorf("guardian owner backfill: users.students_guardians is not a base table (relkind %q); the targets are authoritative after Cutover", kind)

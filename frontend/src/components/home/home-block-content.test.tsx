@@ -43,6 +43,20 @@ vi.mock("~/components/home/staff-today-block", () => ({
     />
   ),
 }));
+vi.mock("~/components/home/birthdays-block", () => ({
+  BirthdaysBlock: ({
+    current,
+  }: {
+    current: { celebrations: { name: string }[] } | undefined;
+  }) => (
+    <div data-testid="birthdays-block">
+      Geburtstage
+      {current?.celebrations.map((entry) => (
+        <span key={entry.name}>{entry.name}</span>
+      ))}
+    </div>
+  ),
+}));
 vi.mock("~/components/home/my-day-block", () => ({
   MyDayBlock: () => <div data-testid="my-day-block">Mein Tag</div>,
 }));
@@ -97,6 +111,7 @@ function data(overrides: Partial<HomeBlockData> = {}): HomeBlockData {
     analyticsLoading: false,
     birthdays: undefined,
     birthdaysLoading: false,
+    birthdaysError: undefined,
     canOpenStudentSearch: true,
     tenantPath: (path: string) => `/test-tenant${path}`,
     ...overrides,

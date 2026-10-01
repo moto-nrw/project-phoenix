@@ -138,6 +138,7 @@ export const HELP_TOPICS = {
   leadStaffNotices: "tagesinformationen-schreiben",
   leadCalendarPeriods: "schuljahr-und-ferien-eintragen",
   leadCarePlan: "betreuungsplan-erstellen",
+  leadCancelBlock: "termin-absagen",
   leadDutyRoster: "dienstplan-erstellen",
   leadSubstitutionPlan: "vertretung-planen",
   leadDayLists: "tageslisten-erstellen",
@@ -151,6 +152,7 @@ export const HELP_TOPICS = {
   leadNfcSettings: "einstellen-was-das-tablet-anzeigt",
   leadDevices: "nfc-geraete-verwalten",
   leadInfoDisplays: "info-display-verwalten",
+  leadBirthdays: "geburtstage-auf-der-startseite",
   leadMissingMenu: "person-sieht-einen-menuepunkt-nicht",
 
   // Eltern-Portal. Das Gerüst folgt der echten Navigation der Eltern-App

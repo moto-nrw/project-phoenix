@@ -39,10 +39,9 @@ vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
 }));
 
-vi.mock("~/components/ui/date-picker", async (importOriginal) => {
-  const { isoDatePickerMock } = await import("~/test/mocks/date-picker");
-  return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
-});
+vi.mock("~/components/ui/date-picker", async () =>
+  (await import("~/test/mocks/date-picker")).datePickerModuleMock(),
+);
 
 vi.mock("~/components/import/upload-section", () => ({
   UploadSection: ({

@@ -48,14 +48,14 @@ func (v GuardianOwnerVerification) Describe() string {
 		v.SourceCount, v.SourceChecksum, v.TargetCount, v.TargetChecksum, v.MismatchCount, v.AccessMismatchCount, v.RejectedRows)
 }
 
-// guardianCompatibilityInstalled reports whether the rollback-only mirror is
-// in place: the switch has run when the routing trigger on the old table
-// exists.
+// guardianCompatibilityInstalled reports whether the switch has run: the
+// routing trigger on the old table exists, or the Contract (#2757) has already
+// removed the old table with it.
 func guardianCompatibilityInstalled(ctx context.Context, db bun.IDB) (bool, error) {
 	var installed bool
-	if err := db.NewRaw(`SELECT EXISTS (
+	if err := db.NewRaw(`SELECT to_regclass('users.students_guardians') IS NULL OR EXISTS (
 		SELECT 1 FROM pg_trigger WHERE tgname = 'students_guardians_route_compatibility'
-		  AND tgrelid = 'users.students_guardians'::regclass AND NOT tgisinternal)`).Scan(ctx, &installed); err != nil {
+		  AND tgrelid = to_regclass('users.students_guardians') AND NOT tgisinternal)`).Scan(ctx, &installed); err != nil {
 		return false, fmt.Errorf("guardian owner cutover: inspect compatibility triggers: %w", err)
 	}
 	return installed, nil

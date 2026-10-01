@@ -1,16 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { DayPicker, type DateRange, type Matcher } from "react-day-picker";
-import { addDays, addMonths, format, subMonths } from "date-fns";
-import { de } from "date-fns/locale";
+import type { DateRange, Matcher } from "react-day-picker";
+import { addDays } from "date-fns/addDays";
+import { addMonths } from "date-fns/addMonths";
+import { format } from "date-fns/format";
+import { subMonths } from "date-fns/subMonths";
+import { de } from "date-fns/locale/de";
 import "react-day-picker/style.css";
 import {
   CALENDAR_PANEL_MARGIN,
   computeCalendarPanelPosition,
   type PanelGeometry,
 } from "~/components/ui/calendar-panel-position";
+import {
+  DayPickerSkeleton,
+  LazyDayPicker,
+  preloadDayPicker,
+} from "~/components/ui/lazy-day-picker";
 
 interface Preset {
   readonly label: string;
@@ -72,6 +80,10 @@ export function DateRangePicker({
         ref={triggerRef}
         type="button"
         onClick={() => setIsOpen((v) => !v)}
+        // Fetch the calendar module before the click, so opening does not
+        // wait for it.
+        onPointerEnter={preloadDayPicker}
+        onFocus={preloadDayPicker}
         // Gleiche Geometrie wie jedes andere Bedienelement im Seitenkopf:
         // 36 px hoch, 12 px Radius, 14 px Schrift. Die frühere Pille (32 px,
         // rounded-full, 12 px Schrift) stand neben 36-px-Knöpfen und las sich
@@ -392,73 +404,95 @@ export function RangeCalendarInline({
             </svg>
           </button>
         </div>
-        <DayPicker
-          mode="single"
-          selected={undefined}
-          onDayClick={handleDayClick}
-          month={month}
-          onMonthChange={setMonth}
-          numberOfMonths={isSingleMonth ? 1 : 2}
-          locale={de}
-          weekStartsOn={1}
-          showOutsideDays={false}
-          hideNavigation
-          disabled={[
-            ...(fromMin ? [{ before: fromMin }] : []),
-            ...(toMax ? [{ after: toMax }] : []),
-          ]}
-          modifiers={{
-            ...extraModifiers,
-            // Range start/end only fire when there's an actual span (from !==
-            // to). A single-day or in-progress selection is handled by
-            // `singlePick` so it gets a standalone rounded pill instead of a
-            // half-band that points nowhere.
-            rangeStart:
-              draftFrom && draftTo && draftFrom.getTime() !== draftTo.getTime()
-                ? [draftFrom]
-                : [],
-            rangeEnd:
-              draftTo && draftFrom && draftFrom.getTime() !== draftTo.getTime()
-                ? [draftTo]
-                : [],
-            rangeMiddle:
-              draftFrom && draftTo ? { after: draftFrom, before: draftTo } : [],
-            singlePick:
-              draftFrom &&
-              (!draftTo || draftFrom.getTime() === draftTo.getTime())
-                ? [draftFrom]
-                : [],
-          }}
-          modifiersClassNames={{
-            ...extraModifiersClassNames,
-            // Half-cell gradient on the cell (light-green band only on the
-            // inner half) + dark rounded pill on the button. This keeps the
-            // band continuous from start to end without "tails" outside.
-            rangeStart:
-              "!bg-[linear-gradient(to_right,transparent_50%,var(--color-moto-green-soft)_50%)] [&>button]:!bg-moto-green [&>button]:!text-gray-950 [&>button]:!rounded-lg",
-            rangeEnd:
-              "!bg-[linear-gradient(to_right,var(--color-moto-green-soft)_50%,transparent_50%)] [&>button]:!bg-moto-green [&>button]:!text-gray-950 [&>button]:!rounded-lg",
-            rangeMiddle: "!bg-moto-green/15 [&>button]:!text-moto-green-strong",
-            singlePick:
-              "[&>button]:!bg-moto-green [&>button]:!text-gray-950 [&>button]:!rounded-lg",
-          }}
-          classNames={{
-            root: "text-sm",
-            months: "flex flex-col gap-4 sm:flex-row",
-            month: "",
-            month_caption: "hidden",
-            month_grid: "border-collapse",
-            weekdays: "flex",
-            weekday: "text-gray-500 w-8 font-normal text-xs text-center",
-            week: "flex w-full mt-1",
-            day: "w-8 h-8 text-center text-sm p-0 relative",
-            day_button:
-              "w-8 h-8 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
-            today: "font-bold text-[#70b525]",
-            outside: "text-gray-300",
-            disabled: "text-gray-200 cursor-not-allowed",
-          }}
-        />
+        {/* The skeleton keeps the panel's measured size: RangeCalendar places
+            the panel from its width on mount. */}
+        <Suspense
+          fallback={
+            <DayPickerSkeleton
+              month={month}
+              numberOfMonths={isSingleMonth ? 1 : 2}
+              monthsClassName="flex flex-col gap-4 sm:flex-row"
+              monthClassName="w-56"
+              weekdaysClassName="h-4"
+              weekClassName="mt-1 h-8 rounded-lg"
+            />
+          }
+        >
+          <LazyDayPicker
+            mode="single"
+            selected={undefined}
+            onDayClick={handleDayClick}
+            month={month}
+            onMonthChange={setMonth}
+            numberOfMonths={isSingleMonth ? 1 : 2}
+            locale={de}
+            weekStartsOn={1}
+            showOutsideDays={false}
+            hideNavigation
+            disabled={[
+              ...(fromMin ? [{ before: fromMin }] : []),
+              ...(toMax ? [{ after: toMax }] : []),
+            ]}
+            modifiers={{
+              ...extraModifiers,
+              // Range start/end only fire when there's an actual span (from !==
+              // to). A single-day or in-progress selection is handled by
+              // `singlePick` so it gets a standalone rounded pill instead of a
+              // half-band that points nowhere.
+              rangeStart:
+                draftFrom &&
+                draftTo &&
+                draftFrom.getTime() !== draftTo.getTime()
+                  ? [draftFrom]
+                  : [],
+              rangeEnd:
+                draftTo &&
+                draftFrom &&
+                draftFrom.getTime() !== draftTo.getTime()
+                  ? [draftTo]
+                  : [],
+              rangeMiddle:
+                draftFrom && draftTo
+                  ? { after: draftFrom, before: draftTo }
+                  : [],
+              singlePick:
+                draftFrom &&
+                (!draftTo || draftFrom.getTime() === draftTo.getTime())
+                  ? [draftFrom]
+                  : [],
+            }}
+            modifiersClassNames={{
+              ...extraModifiersClassNames,
+              // Half-cell gradient on the cell (light-green band only on the
+              // inner half) + dark rounded pill on the button. This keeps the
+              // band continuous from start to end without "tails" outside.
+              rangeStart:
+                "!bg-[linear-gradient(to_right,transparent_50%,var(--color-moto-green-soft)_50%)] [&>button]:!bg-moto-green [&>button]:!text-gray-950 [&>button]:!rounded-lg",
+              rangeEnd:
+                "!bg-[linear-gradient(to_right,var(--color-moto-green-soft)_50%,transparent_50%)] [&>button]:!bg-moto-green [&>button]:!text-gray-950 [&>button]:!rounded-lg",
+              rangeMiddle:
+                "!bg-moto-green/15 [&>button]:!text-moto-green-strong",
+              singlePick:
+                "[&>button]:!bg-moto-green [&>button]:!text-gray-950 [&>button]:!rounded-lg",
+            }}
+            classNames={{
+              root: "text-sm",
+              months: "flex flex-col gap-4 sm:flex-row",
+              month: "",
+              month_caption: "hidden",
+              month_grid: "border-collapse",
+              weekdays: "flex",
+              weekday: "text-gray-500 w-8 font-normal text-xs text-center",
+              week: "flex w-full mt-1",
+              day: "w-8 h-8 text-center text-sm p-0 relative",
+              day_button:
+                "w-8 h-8 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
+              today: "font-bold text-[#70b525]",
+              outside: "text-gray-300",
+              disabled: "text-gray-200 cursor-not-allowed",
+            }}
+          />
+        </Suspense>
       </div>
     </div>
   );

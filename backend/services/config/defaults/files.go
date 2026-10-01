@@ -34,5 +34,7 @@ func init() {
 		Category:        "dateien",
 		SortOrder:       2,
 		Validation:      config.Range(100, 51200),
+		// The moto team sets the storage limit (#3734); schools ask for more.
+		AccessPolicy: config.AccessOperatorOnly,
 	})
 }

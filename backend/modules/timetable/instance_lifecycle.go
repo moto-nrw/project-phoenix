@@ -65,8 +65,6 @@ var (
 	// anything is written: empty text, no actor, or a block in the past
 	// (#2601).
 	ErrGuardianNoticeInvalid = errors.New("guardian notice: invalid request")
-	// ErrGuardianNoticeDisabled surfaces the school-wide switch.
-	ErrGuardianNoticeDisabled = errors.New("guardian notice: disabled for this school")
 )
 
 // LifecycleInstance is one block as a lifecycle write leaves it.
@@ -154,8 +152,6 @@ type ReplanWeekResult struct {
 
 // GuardianNoticeReach is the preview the cancel dialog shows before sending.
 type GuardianNoticeReach struct {
-	Enabled     bool
-	DefaultOn   bool
 	ChildCount  int
 	FamilyCount int
 }

@@ -1,7 +1,9 @@
 package contracttest_test
 
 import (
+	"cmp"
 	"context"
+	"slices"
 
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
@@ -1629,14 +1631,7 @@ func TestResyncTemplateOfferingRoster_ReconcilesMaterializedInstances(t *testing
 	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, input))
 
 	loadInstanceStudents := func(instanceID int64) []scheduleModels.InstanceStudent {
-		var rows []scheduleModels.InstanceStudent
-		require.NoError(t, env.db.NewSelect().
-			Model(&rows).
-			ModelTableExpr(`schedule.instance_students AS "instance_student"`).
-			Where(`"instance_student".instance_id = ?`, instanceID).
-			Order("student_id ASC").
-			Scan(ctx))
-		return rows
+		return loadSourcedInstanceStudents(t, env, instanceID)
 	}
 
 	plannedRows := loadInstanceStudents(planned.ID)
@@ -1708,13 +1703,12 @@ func TestResyncTemplateOfferingRoster_PreservesManualOccurrenceRemoval(t *testin
 // by student id.
 func loadSourcedInstanceStudents(t *testing.T, env *decisionTestEnv, instanceID int64) []scheduleModels.InstanceStudent {
 	t.Helper()
-	var rows []scheduleModels.InstanceStudent
-	require.NoError(t, env.db.NewSelect().
-		Model(&rows).
-		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
-		Where(`"instance_student".instance_id = ?`, instanceID).
-		Order("student_id ASC").
-		Scan(testpkg.Ctx(t)))
+	composed := testpkg.InstanceStudentsWhere(t, testpkg.Ctx(t), env.db, `"instance_student".instance_id = ?`, instanceID)
+	slices.SortFunc(composed, func(a, b *scheduleModels.InstanceStudent) int { return cmp.Compare(a.StudentID, b.StudentID) })
+	rows := make([]scheduleModels.InstanceStudent, 0, len(composed))
+	for _, row := range composed {
+		rows = append(rows, *row)
+	}
 	return rows
 }
 

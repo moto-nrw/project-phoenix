@@ -298,21 +298,19 @@ func seedInstance(t *testing.T, s *lifecycleSetup, withStaff bool, withStudents 
 		IsSpontaneous:   false,
 	}
 	ai.SetTenantID(testpkg.Tenant(t))
-	_, err := s.db.NewInsert().Model(ai).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, ai)
 
 	if withStaff {
 		row := &scheduleModels.InstanceStaff{InstanceID: ai.ID, StaffID: s.staffID, IsPrimary: true}
 		row.SetTenantID(testpkg.Tenant(t))
-		_, err = s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
+		_, err := s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 		require.NoError(t, err)
 	}
 	if withStudents {
 		for _, sid := range []int64{s.student1, s.student2} {
 			row := &scheduleModels.InstanceStudent{InstanceID: ai.ID, StudentID: sid, Status: scheduleModels.AttendanceStatusExpected}
 			row.SetTenantID(testpkg.Tenant(t))
-			_, err = s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_students`).Exec(s.ctx)
-			require.NoError(t, err)
+			testpkg.InsertInstanceStudentRow(t, s.ctx, s.db, row)
 		}
 	}
 	return ai
@@ -330,30 +328,23 @@ func seedSpontaneousInstance(t *testing.T, s *lifecycleSetup, withStaff bool) *s
 		IsSpontaneous: true,
 	}
 	ai.SetTenantID(testpkg.Tenant(t))
-	_, err := s.db.NewInsert().Model(ai).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, ai)
 	if withStaff {
 		row := &scheduleModels.InstanceStaff{InstanceID: ai.ID, StaffID: s.staffID, IsPrimary: true}
 		row.SetTenantID(testpkg.Tenant(t))
-		_, err = s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
+		_, err := s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 		require.NoError(t, err)
 	}
 	return ai
 }
 
-// forceSetInstanceStatus rewrites the status column directly. Used by 409-path
-// tests to move an instance into a state that can't be reached via the public
-// API (e.g. cancelled-from-scratch).
+// forceSetInstanceStatus moves an instance into a lifecycle state directly,
+// through the plan and its Student Presence session. Used by 409-path tests
+// to reach a state that can't be reached via the public API (e.g.
+// cancelled-from-scratch).
 func forceSetInstanceStatus(t *testing.T, s *lifecycleSetup, id int64, status string) {
 	t.Helper()
-	_, err := s.db.NewUpdate().
-		Model((*scheduleModels.ActivityInstance)(nil)).
-		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
-		Set("status = ?", status).
-		Where(`"activity_instance".id = ?`, id).
-		Where("tenant_id = ?", testpkg.Tenant(t)).
-		Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.SetActivityInstanceLifecycle(t, s.ctx, s.db, id, status)
 }
 
 // reloadInstance reads the stored row of a block, for the columns the
@@ -387,8 +378,7 @@ func insertInstanceAt(t *testing.T, s *lifecycleSetup, date calendar.Date, statu
 		row.ActivityGroupID = &s.tmplID
 	}
 	row.SetTenantID(testpkg.Tenant(t))
-	_, err := s.db.NewInsert().Model(row).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, row)
 	return row.ID
 }
 
@@ -431,20 +421,15 @@ func loadLifecycleExceptions(t *testing.T, s *lifecycleSetup) []*scheduleModels.
 	return rows
 }
 
-// fetchAttendance loads an instance_student row by (instance_id, student_id).
-// The tests use it to assert status after lifecycle transitions.
+// fetchAttendance loads a participant with its attendance by (instance_id,
+// student_id). The tests use it to assert status after lifecycle transitions.
 func fetchAttendance(t *testing.T, s *lifecycleSetup, instanceID, studentID int64) *scheduleModels.InstanceStudent {
 	t.Helper()
-	var row scheduleModels.InstanceStudent
-	err := s.db.NewSelect().
-		Model(&row).
-		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
-		Where(`"instance_student".instance_id = ?`, instanceID).
-		Where(`"instance_student".student_id = ?`, studentID).
-		Where(`"instance_student".tenant_id = ?`, testpkg.Tenant(t)).
-		Scan(s.ctx)
-	require.NoError(t, err)
-	return &row
+	rows := testpkg.InstanceStudentsWhere(t, s.ctx, s.db,
+		`"instance_student".instance_id = ? AND "instance_student".student_id = ? AND "instance_student".tenant_id = ?`,
+		instanceID, studentID, testpkg.Tenant(t))
+	require.Len(t, rows, 1)
+	return rows[0]
 }
 
 // deviationEventRow is one stored audit.deviation_events row, read back

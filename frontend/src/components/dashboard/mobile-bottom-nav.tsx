@@ -24,6 +24,8 @@ import {
 import { canReviewGuardianApprovals } from "~/lib/guardian-approval-access";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { useHelpHref } from "~/lib/hooks/use-help-href";
+import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
+import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -608,6 +610,8 @@ interface MobileBottomNavProps {
 }
 
 export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
+  // Ungelesene Anmeldungen (#3778) an der Zeile „Anmeldungen" im Menü.
+  const { unreadCount: enrollmentsUnreadCount } = useEnrollmentsUnread();
   const rawPathname = usePathname();
   const tenantSlug = useTenantSlugSafe();
   const routingMode = useTenantRoutingModeSafe();
@@ -1160,6 +1164,14 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                           <span className="text-base font-medium">
                             {item.label}
                           </span>
+                          {item.href === ENROLLMENT_SECTION.href ? (
+                            <UnreadBadge
+                              count={enrollmentsUnreadCount}
+                              tone="staff"
+                              noun="ungelesene Anmeldungen"
+                              className="ml-auto"
+                            />
+                          ) : null}
                         </NavLink>
                       );
                     })}
