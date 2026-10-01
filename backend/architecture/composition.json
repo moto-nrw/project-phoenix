@@ -46,7 +46,8 @@
     "phoenix simulate",
     "phoenix simulate full-day",
     "phoenix simulate live",
-    "phoenix simulate status"
+    "phoenix simulate status",
+    "phoenix worker"
   ],
   "constructor_calls": [
     {
@@ -65,7 +66,7 @@
       "declaration": "newRuntime",
       "target": "api.New",
       "lines": [
-        110
+        133
       ],
       "tables": []
     },
@@ -75,7 +76,7 @@
       "declaration": "newWorker",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        181
+        214
       ],
       "tables": []
     },
@@ -92,10 +93,10 @@
     {
       "scope": "production",
       "file": "cmd/serve.go",
-      "declaration": "var serveCmd",
+      "declaration": "runServeRoot",
       "target": "api.WithRuntime",
       "lines": [
-        55
+        72
       ],
       "tables": []
     },
@@ -1379,7 +1380,7 @@
       "declaration": "TestNewWorkerRejectsMissingJobs",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        61
+        66
       ],
       "tables": []
     },
@@ -1389,7 +1390,7 @@
       "declaration": "TestNewWorkerRejectsMissingRuntimeDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        53
+        58
       ],
       "tables": []
     },
@@ -1399,7 +1400,7 @@
       "declaration": "TestNewWorkerRejectsMissingTokenCleanupDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        84
+        89
       ],
       "tables": []
     },
@@ -1409,8 +1410,8 @@
       "declaration": "TestNewWorkerRejectsTypedNilDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        100,
-        111
+        105,
+        116
       ],
       "tables": []
     },

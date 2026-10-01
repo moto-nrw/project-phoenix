@@ -1885,7 +1885,7 @@ func TestWaitUntilNextMinute_ShutdownDuringWait(t *testing.T) {
 			close(s.done)
 		}()
 
-		result := s.waitUntilNextMinute()
+		_, result := s.waitUntilNextMinute(nil, nil)
 		assert.False(t, result, "should return false when shutdown signal fires during wait")
 	})
 }
