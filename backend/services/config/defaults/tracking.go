@@ -85,8 +85,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyTrackingAutoCheckoutEnabled,
-		Label:           "Automatische Ausstempelung",
-		Description:     "Stempelt Mitarbeitende automatisch zum geplanten Dienstende aus, wenn sie vergessen haben, sich abzumelden. Gilt nur für Mitarbeitende mit geplanter Schicht im Dienstplan.",
+		Label:           "Automatisch ausstempeln",
+		Description:     "Wer das Ausstempeln vergisst, wird zum geplanten Dienstende ausgestempelt. Gilt nur bei einer geplanten Schicht im Dienstplan.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -98,8 +98,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyTrackingAutoCheckoutGraceMinutes,
-		Label:           "Karenzzeit (Minuten)",
-		Description:     "Wartezeit nach dem geplanten Dienstende, bevor automatisch ausgestempelt wird",
+		Label:           "Wartezeit nach Dienstende (Minuten)",
+		Description:     "So lange wartet moto nach dem geplanten Dienstende, bevor es automatisch ausstempelt.",
 		Type:            config.FieldNumber,
 		Default:         15,
 		ReadPermission:  "config:read",

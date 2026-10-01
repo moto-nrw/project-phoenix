@@ -12,7 +12,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyFilesStaffUploadEnabled,
 		Label:           "Team darf Dateien hochladen",
-		Description:     "Wenn diese Einstellung eingeschaltet ist, darf auch das Team Dateien hochladen. Mitarbeitende können eigene Dateien wieder löschen. Ordner verwaltet weiterhin die Leitung.",
+		Description:     "Eingeschaltet darf auch das Team Dateien hochladen. Mitarbeitende können eigene Dateien wieder löschen. Ordner verwaltet weiterhin die Leitung.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",

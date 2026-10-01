@@ -4,21 +4,59 @@ import type {
   SchemaTab,
 } from "~/lib/settings-api";
 
-// Override labels for category keys that don't capitalize cleanly via CSS
-// (acronyms read wrong when only the first letter is uppercased).
-const categoryLabelOverrides: Record<string, string> = {
-  "anwesenheit-erfassen": "Anwesenheit erfassen",
-  "sehen-und-bearbeiten": "Sehen und bearbeiten",
-  elternmeldungen: "Elternmeldungen",
-  mfa: "Zwei-Faktor-Authentifizierung",
-  pin: "PIN",
+// German headings for the backend category keys. The schema sends the raw
+// key as label; a key without an entry here falls back to it and gets
+// capitalized via CSS.
+const categoryLabels: Record<string, string> = {
+  abholung: "Abholung",
+  abwesenheit: "Krank und entschuldigt",
+  aktivierung: "Nach der Genehmigung",
   aktivitaeten: "Aktivitäten",
+  allgemein: "Allgemein",
+  anwesenheit: "Aktivitäten am Computer und Handy",
+  "anwesenheit-erfassen": "Anwesenheit erfassen",
+  aufsicht: "Ankunftszeit für ganze Klassen",
+  benachrichtigung: "E-Mails zur Anmeldung",
+  benachrichtigungen: "Benachrichtigungen",
+  betreuungsangebote: "Betreuungsangebote",
+  betreuungszeiten: "Ankunfts- und Abholzeiten",
+  bewegungsdaten: "Anwesenheit und Aufbewahrung",
+  checkout: "Knöpfe beim Auschecken",
+  dateien: "Dateien",
+  datenbereinigung: "Automatisch löschen",
+  "e-mail": "E-Mail",
+  elternmeldungen: "Meldungen von Eltern",
+  elternportal: "Elternportal",
+  feedback: "Feedback der Kinder",
+  formular: "Anmeldeformular",
+  "frueh-abgeholt": "Früh abgeholt",
+  "info-displays": "Info-Displays",
+  kalender: "Kalender",
+  kapazität: "Volle Räume und Aktivitäten",
+  kinder: "Kinderkarte und Fotos",
+  lockout: "Sperre nach Fehlversuchen",
+  mfa: "Zwei-Faktor-Authentifizierung",
+  "nach-hause": "„Nach Hause“ am Tablet",
+  organisation: "Organisation",
+  pin: "Zugang zum Tablet",
+  rechtstexte: "Rechtstexte",
+  schulstunden: "Schulstunden",
+  schülerdaten: "Kinderdaten",
+  "sehen-und-bearbeiten": "Sehen und bearbeiten",
+  sicherheit: "Prüfung der Anmeldungen",
   stundenplan: "Betreuungsplan",
-  schnittstellen: "Schnittstellen",
+  team: "Team-Chat",
+  termine: "Termine",
+  zeiterfassung: "Zeiterfassung",
+  "zeitkonten-export": "Zeitkonten übertragen",
 };
 
+export function hasCategoryLabel(category: SchemaCategory): boolean {
+  return category.key in categoryLabels;
+}
+
 export function displayCategoryLabel(category: SchemaCategory): string {
-  return categoryLabelOverrides[category.key] ?? category.label;
+  return categoryLabels[category.key] ?? category.label;
 }
 
 const ENROLLMENT_LEGAL_TEXT_TO_TOGGLE_KEY: Record<string, string> = {

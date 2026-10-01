@@ -42,8 +42,8 @@ func init() {
 func registerEnrollmentMaster() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentEnabled,
-		Label:           "Online-Anmeldung aktivieren",
-		Description:     "Schaltet das öffentliche Anmeldeformular für Eltern frei. Solange deaktiviert, ist die Anmeldeseite nicht erreichbar.",
+		Label:           "Online-Anmeldung",
+		Description:     "Eltern melden ihr Kind über ein Formular im Internet an. Ausgeschaltet ist die Anmeldeseite nicht erreichbar.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -214,8 +214,8 @@ func registerEnrollmentNotifications() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentNotificationEmails,
-		Label:           "Benachrichtigungs-Empfänger",
-		Description:     "Komma-getrennte Liste der E-Mail-Adressen, die bei jeder neuen Anmeldung benachrichtigt werden sollen.",
+		Label:           "Empfänger für neue Anmeldungen",
+		Description:     "Diese Adressen bekommen bei jeder neuen Anmeldung eine E-Mail. Mehrere Adressen trennen Sie mit einem Komma. Mitarbeitende können die E-Mail auch selbst unter Anmeldungen einschalten.",
 		Type:            config.FieldText,
 		Default:         "",
 		ReadPermission:  "config:read",
@@ -228,8 +228,8 @@ func registerEnrollmentNotifications() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentNotifyPerDecision,
-		Label:           "Benachrichtigung pro Entscheidung",
-		Description:     "Eine Sammel-E-Mail nach Abschluss aller Entscheidungen oder eine eigene E-Mail pro Kind.",
+		Label:           "E-Mail an Eltern zur Entscheidung",
+		Description:     "Gilt, wenn eine Anmeldung mehrere Kinder enthält: eine E-Mail, wenn über alle entschieden ist, oder sofort eine E-Mail je Entscheidung.",
 		Type:            config.FieldSelect,
 		Default:         config.EnrollmentNotifyPerDecisionDigest,
 		ReadPermission:  "config:read",
@@ -270,8 +270,8 @@ func registerEnrollmentSafety() {
 
 	config.Register(config.Definition{
 		Key:         config.KeyEnrollmentRequireCaptcha,
-		Label:       "Captcha verpflichtend",
-		Description: "Schützt das öffentliche Formular vor automatisierten Einreichungen über einen Bot-Schutz (z. B. Cloudflare Turnstile). Erfordert konfigurierte Site- und Secret-Keys.",
+		Label:       "Spam-Schutz im Anmeldeformular",
+		Description: "Hält Programme ab, die das Formular massenhaft abschicken (Cloudflare Turnstile). Schalten Sie das erst ein, wenn das moto-Team den Schutz für Ihre Schule vorbereitet hat. Sonst kann niemand das Formular abschicken.",
 		Type:        config.FieldBoolean,
 		// Default off: a fresh tenant has no Turnstile keys configured,
 		// and turning the gate on without keys breaks every public
@@ -287,8 +287,8 @@ func registerEnrollmentSafety() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentDuplicateHandling,
-		Label:           "Doppelt-Einreichung",
-		Description:     "Verhalten, wenn ein Kind bereits einmal angemeldet wurde: Annahme blockieren, Hinweis anzeigen oder ohne Warnung akzeptieren.",
+		Label:           "Doppelte Anmeldung eines Kindes",
+		Description:     "Legt fest, was passiert, wenn für ein Kind schon eine Anmeldung vorliegt.",
 		Type:            config.FieldSelect,
 		Default:         config.EnrollmentDuplicateHandlingWarn,
 		ReadPermission:  "config:read",
@@ -299,17 +299,17 @@ func registerEnrollmentSafety() {
 		DependsOn:       dependsOnEnabled,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
-				{Label: "Blockieren", Value: config.EnrollmentDuplicateHandlingBlock},
-				{Label: "Hinweis anzeigen, Einreichung erlauben", Value: config.EnrollmentDuplicateHandlingWarn},
-				{Label: "Ohne Warnung akzeptieren", Value: config.EnrollmentDuplicateHandlingIgnore},
+				{Label: "Anmeldung nicht annehmen", Value: config.EnrollmentDuplicateHandlingBlock},
+				{Label: "Hinweis zeigen, Anmeldung annehmen", Value: config.EnrollmentDuplicateHandlingWarn},
+				{Label: "Ohne Hinweis annehmen", Value: config.EnrollmentDuplicateHandlingIgnore},
 			},
 		},
 	})
 
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentRejectedRetentionDays,
-		Label:           "Aufbewahrung abgelehnter Anmeldungen (Tage)",
-		Description:     "Abgelehnte Anmeldungen werden nach Ablauf dieser Frist automatisch gelöscht (DSGVO-Konformität).",
+		Label:           "Abgelehnte Anmeldungen aufbewahren (Tage)",
+		Description:     "Danach löscht moto abgelehnte Anmeldungen. So verlangt es der Datenschutz.",
 		Type:            config.FieldNumber,
 		Default:         90,
 		ReadPermission:  "config:read",
@@ -323,8 +323,8 @@ func registerEnrollmentSafety() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentWaitlistEnabled,
-		Label:           "Warteliste aktivieren",
-		Description:     "Verwaltung kann Anmeldungen auf eine Warteliste setzen statt sofort abzulehnen oder zu genehmigen.",
+		Label:           "Warteliste",
+		Description:     "Die Verwaltung kann Anmeldungen auf eine Warteliste setzen, statt sie gleich zu genehmigen oder abzulehnen.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -341,8 +341,8 @@ func registerEnrollmentLifecycle() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentDefaultActivationMode,
-		Label:           "Aktivierung neuer Kinder",
-		Description:     "Genehmigte Kinder werden sofort aktiv geschaltet oder erst zum eingetragenen Anmeldedatum (z. B. Schuljahresbeginn).",
+		Label:           "Start neuer Kinder nach Genehmigung",
+		Description:     "Genehmigte Kinder gehören sofort zur OGS oder erst ab dem eingetragenen Anmeldedatum, zum Beispiel ab Schuljahresbeginn.",
 		Type:            config.FieldSelect,
 		Default:         config.EnrollmentActivationModeScheduled,
 		ReadPermission:  "config:read",
@@ -353,7 +353,7 @@ func registerEnrollmentLifecycle() {
 		DependsOn:       dependsOnEnabled,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
-				{Label: "Sofort aktiv", Value: config.EnrollmentActivationModeImmediate},
+				{Label: "Sofort", Value: config.EnrollmentActivationModeImmediate},
 				{Label: "Zum geplanten Anmeldedatum", Value: config.EnrollmentActivationModeScheduled},
 			},
 		},
@@ -362,7 +362,7 @@ func registerEnrollmentLifecycle() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentAutoInviteGuardianOnApprove,
 		Label:           "Eltern automatisch einladen",
-		Description:     "Bei der Genehmigung einer Anmeldung wird automatisch eine Einladung an den Erziehungsberechtigten verschickt. Wenn deaktiviert, muss die Verwaltung die Einladung manuell anstoßen.",
+		Description:     "Wird eine Anmeldung genehmigt, bekommen die Eltern sofort eine Einladung ins Elternportal. Ausgeschaltet verschickt die Verwaltung die Einladung selbst.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -431,8 +431,8 @@ func registerEnrollmentPublicForm() {
 	// public form HTML so the parent's browser can challenge.
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentCaptchaSiteKey,
-		Label:           "Captcha Site-Key (Cloudflare Turnstile)",
-		Description:     "Öffentlicher Schlüssel des Bot-Schutz-Anbieters (Cloudflare Turnstile). Wird in das Anmeldeformular eingebettet.",
+		Label:           "Spam-Schutz: öffentlicher Schlüssel",
+		Description:     "Diesen Schlüssel bekommen Sie von Cloudflare Turnstile. Er steht sichtbar im Anmeldeformular.",
 		Type:            config.FieldText,
 		Default:         "",
 		ReadPermission:  "config:read",
@@ -497,7 +497,7 @@ func registerEnrollmentLegalTexts() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalTermsEnabled,
 		Label:           "AGB / Teilnahmebedingungen im Anmeldeformular anzeigen",
-		Description:     "Blendet im Anmeldeformular eine verpflichtende Zustimmung zu den AGB, Teilnahmebedingungen oder dem Ganztag Info-Brief ein. Nur aktivieren, wenn Ihr Träger tatsächlich Vertragsbedingungen einbezieht.",
+		Description:     "Eltern müssen im Anmeldeformular den AGB, Teilnahmebedingungen oder dem Ganztag Info-Brief zustimmen. Nur einschalten, wenn Ihr Träger wirklich Vertragsbedingungen verwendet.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -511,7 +511,7 @@ func registerEnrollmentLegalTexts() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalAGBText,
 		Label:           "AGB-Text (Anmeldeformular)",
-		Description:     "Lege fest, ob Eltern die AGB als Text im Formular lesen oder als PDF öffnen. Über „AGB überarbeiten“ kannst du die Quelle wechseln, den Text bearbeiten oder die PDF-Datei austauschen. Wenn „Text eingeben“ gewählt ist, wird dieser Text im Formular angezeigt.",
+		Description:     "Legen Sie fest, ob Eltern die AGB als Text im Formular lesen oder als PDF öffnen. Über „AGB überarbeiten“ wechseln Sie die Quelle, bearbeiten den Text oder tauschen die PDF-Datei aus.",
 		Type:            config.FieldTextarea,
 		Default:         "",
 		ReadPermission:  "config:read",
@@ -559,7 +559,7 @@ func registerEnrollmentLegalTexts() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalDSGVOEnabled,
 		Label:           "Datenschutzinformation im Anmeldeformular anzeigen",
-		Description:     "Blendet im Anmeldeformular eine verpflichtende Kenntnisnahme der Datenschutzinformation ein.",
+		Description:     "Eltern bestätigen im Anmeldeformular, dass sie die Datenschutzinformation gelesen haben.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -578,7 +578,7 @@ func registerEnrollmentLegalTexts() {
 		// parents to ACKNOWLEDGE (Kenntnisnahme) this information, it does
 		// not collect a DSGVO "Einwilligung". Keep this description aligned
 		// with the acknowledgement label rendered on the public form.
-		Description:     "Datenschutzinformation gemäß Art. 13 DSGVO, die Eltern bei der Anmeldung zur Kenntnis nehmen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Wird nur angezeigt, wenn der Schalter aktiv ist und hier ein Text steht.",
+		Description:     "Datenschutzinformation nach Art. 13 DSGVO, die Eltern bei der Anmeldung lesen. Markdown ist möglich, zum Beispiel für Überschriften, Fettdruck, Listen und Links. Erscheint nur, wenn der Schalter an ist und hier ein Text steht.",
 		Type:            config.FieldTextarea,
 		Default:         "",
 		ReadPermission:  "config:read",
@@ -592,7 +592,7 @@ func registerEnrollmentLegalTexts() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalPhotoEnabled,
 		Label:           "Fotoeinwilligung im Anmeldeformular anzeigen",
-		Description:     "Blendet im Anmeldeformular eine freiwillige Fotoeinwilligung ein.",
+		Description:     "Eltern können im Anmeldeformular freiwillig in Fotos einwilligen.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -606,7 +606,7 @@ func registerEnrollmentLegalTexts() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalPhotoText,
 		Label:           "Hinweis zur Fotoeinwilligung (Anmeldeformular)",
-		Description:     "Erläuterung zur optionalen und jederzeit widerrufbaren Fotoeinwilligung, zum Beispiel wo und wie Fotos verwendet werden. Markdown wird unterstützt. Wird nur angezeigt, wenn der Schalter aktiv ist und hier ein Text steht.",
+		Description:     "Erklärung zur freiwilligen Fotoeinwilligung, die Eltern jederzeit widerrufen können. Zum Beispiel, wo und wie Sie Fotos verwenden. Markdown ist möglich. Erscheint nur, wenn der Schalter an ist und hier ein Text steht.",
 		Type:            config.FieldTextarea,
 		Default:         "",
 		ReadPermission:  "config:read",
@@ -620,7 +620,7 @@ func registerEnrollmentLegalTexts() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalEmailContactEnabled,
 		Label:           "E-Mail-Kontakt im Anmeldeformular anzeigen",
-		Description:     "Blendet im Anmeldeformular einen Hinweis zur Nutzung der E-Mail-Adresse ein.",
+		Description:     "Zeigt im Anmeldeformular einen Hinweis, wofür Sie die E-Mail-Adresse nutzen.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -634,7 +634,7 @@ func registerEnrollmentLegalTexts() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalEmailContactText,
 		Label:           "Hinweis zum E-Mail-Kontakt (Anmeldeformular)",
-		Description:     "Erläuterung, wozu die Schule die E-Mail-Adresse nutzt, zum Beispiel Rückfragen und Status-Benachrichtigungen. Markdown wird unterstützt. Wird nur angezeigt, wenn der Schalter aktiv ist und hier ein Text steht.",
+		Description:     "Wofür die Schule die E-Mail-Adresse nutzt, zum Beispiel für Rückfragen und Nachrichten zum Stand der Anmeldung. Markdown ist möglich. Erscheint nur, wenn der Schalter an ist und hier ein Text steht.",
 		Type:            config.FieldTextarea,
 		Default:         "",
 		ReadPermission:  "config:read",

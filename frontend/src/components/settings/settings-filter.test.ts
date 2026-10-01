@@ -3,7 +3,9 @@ import type { ResolvedSetting, SchemaTab } from "~/lib/settings-api";
 import {
   categorySummary,
   changedCount,
+  displayCategoryLabel,
   filterCategoryItems,
+  hasCategoryLabel,
   normalizeQuery,
   searchTabs,
 } from "./settings-filter";
@@ -82,6 +84,25 @@ const tabs: SchemaTab[] = [
     ],
   },
 ];
+
+describe("displayCategoryLabel", () => {
+  it("shows a German heading instead of the raw category key", () => {
+    const category = { key: "lockout", label: "lockout", items: [] };
+    expect(displayCategoryLabel(category)).toBe("Sperre nach Fehlversuchen");
+    expect(hasCategoryLabel(category)).toBe(true);
+  });
+
+  it("names the block that decides when „Nach Hause“ appears", () => {
+    const category = { key: "nach-hause", label: "nach-hause", items: [] };
+    expect(displayCategoryLabel(category)).toBe("„Nach Hause“ am Tablet");
+  });
+
+  it("falls back to the key for an unknown category", () => {
+    const category = { key: "neu", label: "neu", items: [] };
+    expect(displayCategoryLabel(category)).toBe("neu");
+    expect(hasCategoryLabel(category)).toBe(false);
+  });
+});
 
 describe("normalizeQuery", () => {
   it("trims and lower-cases", () => {
