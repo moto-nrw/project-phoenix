@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ResolvedSetting, SchemaTab } from "~/lib/settings-api";
 import {
+  categoryLabels,
   categorySummary,
   changedCount,
   displayCategoryLabel,
@@ -86,6 +87,64 @@ const tabs: SchemaTab[] = [
 ];
 
 describe("displayCategoryLabel", () => {
+  it("covers every category emitted by the tenant and operator schemas", () => {
+    expect(Object.keys(categoryLabels).sort()).toEqual(
+      [
+        "abholung",
+        "abwesenheit",
+        "aktivierung",
+        "aktivitaeten",
+        "allgemein",
+        "anmeldung",
+        "anwesenheit",
+        "anwesenheit-erfassen",
+        "aufsicht",
+        "benachrichtigung",
+        "benachrichtigungen",
+        "betreuungsangebote",
+        "betreuungszeiten",
+        "bewegungsdaten",
+        "checkout",
+        "dateien",
+        "datenbereinigung",
+        "datev_mandant",
+        "e-mail",
+        "einladungen",
+        "elternmeldungen",
+        "elternportal",
+        "feedback",
+        "formular",
+        "frueh-abgeholt",
+        "geburtstage",
+        "info-displays",
+        "kalender",
+        "kapazität",
+        "kinder",
+        "lockout",
+        "lohnarten",
+        "mfa",
+        "monitoring",
+        "nach-hause",
+        "nutzungsanalyse",
+        "organisation",
+        "pin",
+        "rechtstexte",
+        "schulstunden",
+        "schülerdaten",
+        "sehen-und-bearbeiten",
+        "sicherheit",
+        "sitzungsbereinigung",
+        "sitzungsende",
+        "standort",
+        "stundenplan",
+        "team",
+        "termine",
+        "zeiterfassung",
+        "zeitkonten-export",
+      ].sort(),
+    );
+  });
+
   it("shows a German heading instead of the raw category key", () => {
     const category = { key: "lockout", label: "lockout", items: [] };
     expect(displayCategoryLabel(category)).toBe("Sperre nach Fehlversuchen");

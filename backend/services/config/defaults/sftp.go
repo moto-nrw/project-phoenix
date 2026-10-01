@@ -7,11 +7,10 @@ import (
 // SFTP target for the manual transfer of Zeitwirtschafts-/DATEV exports
 // (#3050). Exactly ONE target per school.
 //
-// It lives under Einstellungen → System in the "Schnittstellen" category: a
-// connection to an outside system is infrastructure, not payroll bookkeeping,
-// and the next such connection belongs beside it rather than in whatever
-// screen happens to use it first. The switch is the gate — with it off, the
-// export dialog offers no transfer at all.
+// It lives under Einstellungen → Kalender und Export in the
+// "Zeitkonten übertragen" category: the destination belongs next to the
+// export it receives. The switch is the gate — with it off, the export dialog
+// offers no transfer at all.
 //
 // Host, username, password, directory and fingerprint default to the EMPTY
 // STRING: a school without a target has no target, and an invented preset

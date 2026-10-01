@@ -5123,7 +5123,7 @@ function parentVisibilityTopic(): HelpTopic {
     ],
     differences: [
       "Ist ein Schalter aus, sehen Eltern den Bereich gar nicht. Er wird nicht ausgegraut.",
-      "`Weitere Bezugspersonen einladen (Eltern)` ist kein Schalter, sondern eine Auswahl: `Deaktiviert`, `Direkt` oder `Mit Freigabe durch das Team`.",
+      "`Weitere Bezugspersonen einladen (Eltern)` ist kein Schalter, sondern eine Auswahl: `Nicht erlaubt`, `Ohne Freigabe` oder `Mit Freigabe durch das Team`.",
       "Bei `Mit Freigabe durch das Team` landen die Einladungen unter `Elternzugänge`.",
     ],
     troubleshootingDetails: [
