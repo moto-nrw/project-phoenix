@@ -124,29 +124,3 @@ func SettingsRequestCacheMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r.WithContext(services.WithSettingsRequestCacheForTests(r.Context())))
 	})
 }
-
-// ClaimsFromContext returns the claims the auth middleware put on ctx.
-func ClaimsFromContext(ctx context.Context) Claims {
-	return testpkg.ClaimsFromContext(ctx)
-}
-
-// MFAEnrollmentClaims is the enrollment-only token's claims.
-type MFAEnrollmentClaims = testpkg.MFAEnrollmentClaims
-
-// Enrollment token scopes.
-const (
-	MFAEnrollmentScopeTenant   = testpkg.MFAEnrollmentScopeTenant
-	MFAEnrollmentScopePlatform = testpkg.MFAEnrollmentScopePlatform
-)
-
-// WithEnrollmentClaims puts enrollment-only claims on ctx the way the
-// enrollment authenticator does.
-func WithEnrollmentClaims(ctx context.Context, claims MFAEnrollmentClaims) context.Context {
-	return testpkg.WithEnrollmentClaims(ctx, claims)
-}
-
-// OpaqueCapabilityFingerprint returns the stored fingerprint of an opaque
-// capability token.
-func OpaqueCapabilityFingerprint(token string) string {
-	return testpkg.OpaqueCapabilityFingerprint(token)
-}

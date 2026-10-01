@@ -12,8 +12,9 @@ import (
 
 // The claims, token and identity-context helpers of route tests. They live
 // beside ConfiguredTokenAuth and RebaseTenantID because they need the token
-// package, which this fixture catalog already links; api/testutil re-exports
-// them for route tests.
+// package, which this fixture catalog already links; api/testutil/routetest
+// re-exports them so a route test that composes no services does not link
+// api/testutil.
 
 // Claims is the authenticated caller as the router sees it. Aliased here so a
 // route test names the claims through the test boundary that mints them,
@@ -21,7 +22,7 @@ import (
 type Claims = jwt.AppClaims
 
 // WithAuthenticatedContext puts the claims and permissions on a context the
-// way the auth middleware does. It is the context-level twin of testutil.WithClaims,
+// way the auth middleware does. It is the context-level twin of routetest.WithClaims,
 // for a handler exercised directly instead of through a request.
 func WithAuthenticatedContext(ctx context.Context, claims Claims, permissions []string) context.Context {
 	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
@@ -39,11 +40,11 @@ func WithPermissionsContext(ctx context.Context, permissions []string) context.C
 
 // MintTestJWT signs a JWT for the given claims using the same configuration as
 // production (jwt.NewTokenAuth reads the JWT secret from viper / env). Pair it
-// with testutil.WithJWTBearer when calling handlers through Resource.Router() so the
+// with routetest.WithJWTBearer when calling handlers through Resource.Router() so the
 // production auth middleware accepts the request.
 //
 // Callers must arrange for a non-empty auth_jwt_secret to be present before the
-// Resource is constructed (typically via testutil.SeedTestJWTConfig in init() or
+// Resource is constructed (typically via routetest.SeedTestJWTConfig in init() or
 // TestMain). Without a secret, jwx refuses to HMAC-sign and this helper fails.
 //
 // Claims carrying the bootstrap tenant are rebased onto the tenant the test

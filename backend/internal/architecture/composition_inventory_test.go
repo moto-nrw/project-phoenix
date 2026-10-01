@@ -29,6 +29,7 @@ type compositionLegacyInventory struct {
 
 func TestCompositionLegacyCallerInventory(t *testing.T) {
 	t.Parallel()
+	holdRepositoryGraphLoad(t)
 
 	backendRoot := architectureBackendRoot(t)
 	policy, err := LoadPolicy(filepath.Join(backendRoot, "architecture", "policy.json"))

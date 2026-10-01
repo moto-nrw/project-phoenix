@@ -1,0 +1,105 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2580",
+    "#2748"
+  ],
+  "owner_and_capability": "Test support — the request, response, router and claims helpers of HTTP adapter tests leave api/testutil for api/testutil/routetest (test-support) and the shared fixture catalog test, so a route suite that composes no services no longer links the legacy service graph; a further #2748 step for api/testutil.",
+  "affected_packages": [
+    "api/testutil",
+    "api/testutil/routetest",
+    "test",
+    "api/absence-types",
+    "api/operator",
+    "modules/communication/http/parentannouncements",
+    "modules/delivery/http/notifications",
+    "modules/emergencysnapshot/http",
+    "modules/mealplan/http",
+    "modules/timetable/compose/httpadapter",
+    "modules/workforce/compose/httpadapter"
+  ],
+  "affected_tables": [
+    "No table: the change moves test helpers only; the switched suites read and write the same rows through the same fixtures."
+  ],
+  "exact_ratchet_keys": [
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/testutil|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+  ],
+  "atomic_cutover": "One test-support-only change. The request, response and router helpers move unchanged from api/testutil/helpers.go to api/testutil/routetest, classified test-support in policy.json. The claims, token and identity-context helpers (Claims, MintTestJWT, the *TestClaims builders, TestTokenAuth, AuthenticationContext, WithAuthenticatedContext, ClaimsFromContext, the MFA enrollment claims, OpaqueCapabilityFingerprint, WithRefreshToken) move unchanged to test/route_claims.go, which uses the test package's existing legacy/jwt edge; routetest re-exports them and adds WithClaims, WithPermissions and ExecuteWithAuth*. api/testutil re-exports every moved name, keeps the device and staff principal helpers and the module builders, and no longer imports legacy/jwt. Eight suites that use only these helpers import routetest instead of api/testutil by changing the import and selector only.",
+  "tests": [
+    "The eight switched suites (api/absence-types, api/operator, modules/communication/http/parentannouncements, modules/delivery/http/notifications, modules/emergencysnapshot/http, modules/mealplan/http, modules/timetable/compose/httpadapter, modules/workforce/compose/httpadapter) with assertions unchanged: the diff of every switched test file is identical after replacing the testutil/routetest selector.",
+    "scripts/test-changed.sh origin/development without --fast over the 131 affected packages, including ./test (ratchets) and every remaining api/testutil importer.",
+    "golangci-lint on the 131 affected packages; scripts/check-deadcode.sh.",
+    "scripts/backend-architecture.sh check --base-ref <base SHA> with exactly the listed key absent from legacy.jsonl and none added; scripts/backend-architecture.sh validate-ticket --all --base-ref <base SHA>."
+  ],
+  "runtime_evidence": {
+    "source": "Local runs on the change on 2026-10-01 against the local postgres-test server, base 5d6e6697843ee3ddd577d434d6030643a1561a83.",
+    "sources": [
+      "backend/api/testutil/routetest/routetest.go",
+      "backend/api/testutil/routetest/auth.go",
+      "backend/api/testutil/route_helpers.go",
+      "backend/test/route_claims.go"
+    ],
+    "workload": "No load run. Go suites through scripts/run-go-toolchain.sh and scripts/test-changed.sh against the base, local postgres-test server, per-test tenants, default package parallelism; test binary builds measured with go test -c and /usr/bin/time -l.",
+    "thresholds": "Test-support-only contract: every affected suite passes with the same assertions, scripts/backend-architecture.sh check passes with exactly the listed key removed and none added, and the composition surface does not grow.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "No production code path changes; the suites insert the same rows through the same fixtures."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "No production query changes."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No production code path changes."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No production code path changes."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/test-changed.sh origin/development ran 131 affected packages: 129 ok, api/testutil/routetest has no test files, and modules/schoolcalendar/portal/compose failed TestCalendarServiceIntegration_SubscriptionFeed and TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone, which fail identically on the unchanged base tree against the same test database; golangci-lint reported 0 issues on the 131 packages; scripts/check-deadcode.sh found no unexpected dead code."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No production code path changes."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No production code path changes."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No production code path changes."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The affected packages have no worker path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The affected packages have no worker path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The affected packages have no worker path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The switched suites keep their failure paths unchanged (unauthenticated, forbidden, invalid-request and not-found assertions in api/operator and the module route suites) and pass."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No production write path changes. Reverting the change restores the helpers in api/testutil and the baseline entry."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "go list -deps -test: the eight switched suites drop from 842-847 to 535-560 packages (timetable/compose/httpadapter 842 -> 751); go test -c of modules/mealplan/http peaks at 708/718 MB before and 468/472 MB after (two interleaved rounds, load average about 60)."
+    }
+  },
+  "rollback_and_cleanup": "Revert the change; the helpers return to api/testutil, the routetest package entry leaves policy.json and the baseline entry returns. No table, migration or configuration is touched, and nothing remains to clean up.",
+  "exit_criterion": "api/testutil no longer imports modules/identityaccess/legacy/jwt, the listed key is absent from legacy.jsonl, no key is introduced, and scripts/backend-architecture.sh check passes with the composition surface unchanged."
+}
