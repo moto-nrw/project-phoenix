@@ -25,6 +25,9 @@ var (
 	// They can be deleted or replaced, never rewritten under a name that was
 	// never on them.
 	ErrStudentNoteImmutable = errors.New("a carried-over note has no author and cannot be edited")
+	// ErrStudentNoteDeleteForbidden reports a removal without the leadership or
+	// administration fact the caller resolved for this child.
+	ErrStudentNoteDeleteForbidden = errors.New("deleting a student note requires group leadership or administration")
 )
 
 // MaxStudentNoteRunes bounds one note.
@@ -105,8 +108,8 @@ type CreateStudentNote struct {
 	Subject         StudentNoteSubject
 }
 
-// UpdateStudentNote corrects an entry. The subject is not part of it: an entry
-// that moves to another day or another activity is a different entry.
+// UpdateStudentNote corrects an entry. Its group reference stays fixed, but an
+// author may correct the described day or convert between entry and hint.
 type UpdateStudentNote struct {
 	ID int64
 	// StudentID is the child the caller authorized against; the owner
@@ -117,6 +120,7 @@ type UpdateStudentNote struct {
 	Visibility     string
 	Category       string
 	Body           string
+	SubjectDate    *calendar.Date
 }
 
 // DeleteStudentNote removes one entry from every timeline while keeping the
@@ -124,10 +128,21 @@ type UpdateStudentNote struct {
 type DeleteStudentNote struct {
 	ID int64
 	// StudentID is the child the caller authorized against; the owner
-	// re-checks it under the row lock, so a note that moved between the
-	// authorization read and this write is not deleted on the old answer.
+	// re-checks it under the row lock alongside the caller's authorization
+	// facts, so a different note cannot be removed on the earlier read.
 	StudentID      int64
 	ActorAccountID int64
+	Authorization  StudentNoteDeleteAuthorization
+}
+
+// StudentNoteDeleteAuthorization contains the caller-resolved facts that are
+// evaluated again while the note row is locked. The People Directory owns the
+// note and its reference, while callers own the current group assignments.
+type StudentNoteDeleteAuthorization struct {
+	Admin                 bool
+	LedActivityGroupIDs   []int64
+	LedEducationGroupIDs  []int64
+	ChildEducationGroupID *int64
 }
 
 // StudentNoteAudience is the reader, resolved by the caller. This owner cannot

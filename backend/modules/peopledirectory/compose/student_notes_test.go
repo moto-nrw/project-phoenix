@@ -83,7 +83,7 @@ func TestStudentNotesRoundTrip(t *testing.T) {
 		ID: created.ID, StudentID: child.ID, ActorAccountID: author,
 		Kind:       peopledirectory.StudentNoteKindJournal,
 		Visibility: peopledirectory.StudentNoteVisibilityCareTeam,
-		Body:       "Hat heute zweimal vorgelesen.",
+		Body:       "Hat heute zweimal vorgelesen.", SubjectDate: &date,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "Hat heute zweimal vorgelesen.", updated.Body)
@@ -91,8 +91,34 @@ func TestStudentNotesRoundTrip(t *testing.T) {
 	assert.True(t, updated.Edited(), "the trigger moves updated_at past created_at")
 	require.NotNil(t, updated.Subject.Date, "a correction keeps the day it was written for")
 
+	permanent, err := module.UpdateStudentNote(ctx, peopledirectory.UpdateStudentNote{
+		ID: created.ID, StudentID: child.ID, ActorAccountID: author,
+		Kind:       peopledirectory.StudentNoteKindPermanent,
+		Visibility: peopledirectory.StudentNoteVisibilityCareTeam,
+		Body:       "Gilt weiterhin.",
+	})
+	require.NoError(t, err)
+	assert.Nil(t, permanent.Subject.Date, "a durable hint has no calendar day")
+
+	journal, err := module.UpdateStudentNote(ctx, peopledirectory.UpdateStudentNote{
+		ID: created.ID, StudentID: child.ID, ActorAccountID: author,
+		Kind:       peopledirectory.StudentNoteKindJournal,
+		Visibility: peopledirectory.StudentNoteVisibilityCareTeam,
+		Body:       "Gilt wieder für diesen Tag.", SubjectDate: &date,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, journal.Subject.Date)
+	assert.Equal(t, date, *journal.Subject.Date, "converting back restores the requested day")
+
+	err = module.DeleteStudentNote(ctx, peopledirectory.DeleteStudentNote{
+		ID: created.ID, StudentID: child.ID, ActorAccountID: author,
+	})
+	require.ErrorIs(t, err, peopledirectory.ErrStudentNoteDeleteForbidden,
+		"the locked note is never removed based on a handler-only authorization check")
+
 	require.NoError(t, module.DeleteStudentNote(ctx, peopledirectory.DeleteStudentNote{
 		ID: created.ID, StudentID: child.ID, ActorAccountID: author,
+		Authorization: peopledirectory.StudentNoteDeleteAuthorization{Admin: true},
 	}))
 
 	notes, err = module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
@@ -207,7 +233,7 @@ func TestStudentNotesOnlyTheAuthorCorrects(t *testing.T) {
 		ID: note.ID, StudentID: child.ID, ActorAccountID: colleague,
 		Kind:       peopledirectory.StudentNoteKindJournal,
 		Visibility: peopledirectory.StudentNoteVisibilityAllStaff,
-		Body:       "Umgeschrieben.",
+		Body:       "Umgeschrieben.", SubjectDate: &date,
 	}
 	_, err = module.UpdateStudentNote(ctx, correction)
 	require.ErrorIs(t, err, peopledirectory.ErrStudentNoteNotAuthor)

@@ -327,6 +327,8 @@ func mapError(err error) error {
 		return peopledirectory.ErrStudentNoteNotAuthor
 	case errors.Is(err, domain.ErrStudentNoteImmutable):
 		return peopledirectory.ErrStudentNoteImmutable
+	case errors.Is(err, domain.ErrStudentNoteDeleteForbidden):
+		return peopledirectory.ErrStudentNoteDeleteForbidden
 	case errors.Is(err, domain.ErrStudentNoteInvalid):
 		return peopledirectory.ErrStudentNoteInvalid
 	default:

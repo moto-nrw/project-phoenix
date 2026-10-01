@@ -35,6 +35,7 @@ func (e engine) UpdateStudentNote(ctx context.Context, input peopledirectory.Upd
 	note, err := e.studentNotes.Update(ctx, domain.UpdateStudentNote{
 		ID: input.ID, StudentID: input.StudentID, ActorAccountID: input.ActorAccountID,
 		Kind: input.Kind, Visibility: input.Visibility, Category: input.Category, Body: input.Body,
+		SubjectDate: input.SubjectDate,
 	})
 	if err != nil {
 		return peopledirectory.StudentNote{}, mapError(err)
@@ -45,6 +46,12 @@ func (e engine) UpdateStudentNote(ctx context.Context, input peopledirectory.Upd
 func (e engine) DeleteStudentNote(ctx context.Context, input peopledirectory.DeleteStudentNote) error {
 	return mapError(e.studentNotes.Delete(ctx, domain.DeleteStudentNote{
 		ID: input.ID, StudentID: input.StudentID, ActorAccountID: input.ActorAccountID,
+		Authorization: domain.StudentNoteDeleteAuthorization{
+			Admin:                 input.Authorization.Admin,
+			LedActivityGroupIDs:   input.Authorization.LedActivityGroupIDs,
+			LedEducationGroupIDs:  input.Authorization.LedEducationGroupIDs,
+			ChildEducationGroupID: input.Authorization.ChildEducationGroupID,
+		},
 	}))
 }
 

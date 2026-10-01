@@ -193,9 +193,9 @@ func (s *StudentNoteStore) Insert(ctx context.Context, create domain.CreateStude
 	return row.toDomain(), stats, nil
 }
 
-// Update rewrites the editable columns of one note. The subject stays as
-// stored: an entry that moves to another day or another activity is a
-// different entry, not a correction of this one.
+// Update rewrites the editable columns and the described day of one note. Its
+// group reference stays fixed, so a correction cannot move a note to another
+// activity or group.
 func (s *StudentNoteStore) Update(ctx context.Context, update domain.UpdateStudentNote) (domain.StudentNote, domain.OperationStats, error) {
 	db, tenantID, err := s.tenantDatabase(ctx)
 	if err != nil {
@@ -211,6 +211,7 @@ func (s *StudentNoteStore) Update(ctx context.Context, update domain.UpdateStude
 		Set("visibility = ?", update.Visibility).
 		Set("category = ?", optionalText(update.Category)).
 		Set("body = ?", update.Body).
+		Set("subject_date = ?", update.SubjectDate).
 		Where(`"note".tenant_id = ?`, tenantID).
 		Where(`"note".id = ?`, update.ID).
 		Where(`"note".deleted_at IS NULL`).

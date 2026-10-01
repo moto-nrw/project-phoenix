@@ -121,9 +121,14 @@ func (rs *Resource) updateStudentNote(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	subject, err := parseNoteSubject(studentNoteRequestBody{SubjectDate: body.SubjectDate})
+	if err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	note, err := rs.StudentNotes.UpdateStudentNote(r.Context(), peopleModule.UpdateStudentNote{
 		ID: noteID, StudentID: student.ID, ActorAccountID: callerAccountID(r), Kind: body.Kind,
-		Visibility: body.Visibility, Category: body.Category, Body: body.Body,
+		Visibility: body.Visibility, Category: body.Category, Body: body.Body, SubjectDate: subject.Date,
 	})
 	if err != nil {
 		renderError(w, r, studentNoteErrorRenderer(err))
@@ -134,7 +139,7 @@ func (rs *Resource) updateStudentNote(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) deleteStudentNote(w http.ResponseWriter, r *http.Request) {
-	student, _, audience, ok := rs.resolveNoteReader(w, r)
+	student, child, audience, ok := rs.resolveNoteReader(w, r)
 	if !ok {
 		return
 	}
@@ -156,14 +161,14 @@ func (rs *Resource) deleteStudentNote(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorNotFound(errors.New("note not found")))
 		return
 	}
-	note := found[0]
-	if !canDeleteNote(audience, note, student) {
-		renderError(w, r, common.ErrorForbidden(
-			errors.New("deleting a note requires leading the group it belongs to")))
-		return
-	}
 	if err := rs.StudentNotes.DeleteStudentNote(r.Context(), peopleModule.DeleteStudentNote{
 		ID: noteID, StudentID: student.ID, ActorAccountID: callerAccountID(r),
+		Authorization: peopleModule.StudentNoteDeleteAuthorization{
+			Admin:                 audience.Admin,
+			LedActivityGroupIDs:   audience.LedActivityGroupIDs,
+			LedEducationGroupIDs:  audience.LedEducationGroupIDs,
+			ChildEducationGroupID: child.GroupID,
+		},
 	}); err != nil {
 		renderError(w, r, studentNoteErrorRenderer(err))
 		return
@@ -357,16 +362,6 @@ func toModuleAudience(audience securityruntime.StudentNoteAudience, accountID in
 	}
 }
 
-func canDeleteNote(
-	audience securityruntime.StudentNoteAudience,
-	note peopleModule.StudentNote,
-	student *Student,
-) bool {
-	return securityruntime.CanDeleteStudentNote(
-		audience, note.Subject.ActivityGroupID, note.Subject.EducationGroupID, student.GroupID,
-	)
-}
-
 func (rs *Resource) renderNotes(
 	r *http.Request,
 	notes []peopleModule.StudentNote,
@@ -430,4 +425,5 @@ var studentNoteErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: peopleModule.ErrStudentNoteNotFound, Render: common.ErrorNotFound},
 	{Target: peopleModule.ErrStudentNoteNotAuthor, Render: common.ErrorForbidden},
 	{Target: peopleModule.ErrStudentNoteImmutable, Render: common.ErrorForbidden},
+	{Target: peopleModule.ErrStudentNoteDeleteForbidden, Render: common.ErrorForbidden},
 }, common.ErrorInternalServer)

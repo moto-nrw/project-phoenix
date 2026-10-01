@@ -2,6 +2,7 @@ package domain
 
 import (
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -23,6 +24,9 @@ var (
 	// field. They may be deleted or replaced, never silently rewritten under a
 	// name that was never on them.
 	ErrStudentNoteImmutable = errors.New("a carried-over note has no author and cannot be edited")
+	// ErrStudentNoteDeleteForbidden reports a removal without leadership of the
+	// referenced group or the child group, or without administration rights.
+	ErrStudentNoteDeleteForbidden = errors.New("deleting a student note requires group leadership or administration")
 )
 
 // MaxStudentNoteRunes bounds one note. The column is TEXT; the bound keeps a
@@ -161,8 +165,8 @@ type CreateStudentNote struct {
 }
 
 // UpdateStudentNote rewrites the parts of an entry its author may correct.
-// The subject stays fixed: an entry that moves to another day or another
-// course is a different entry.
+// Its group reference stays fixed; its day changes with a correction or a
+// conversion between a dated entry and an undated durable hint.
 type UpdateStudentNote struct {
 	ID int64
 	// StudentID is the child the caller believes the note belongs to; the
@@ -173,6 +177,7 @@ type UpdateStudentNote struct {
 	Visibility     string
 	Category       string
 	Body           string
+	SubjectDate    *calendar.Date
 }
 
 // DeleteStudentNote soft-deletes one entry. Who may ask is the caller's
@@ -186,6 +191,17 @@ type DeleteStudentNote struct {
 	// strength of the old answer.
 	StudentID      int64
 	ActorAccountID int64
+	Authorization  StudentNoteDeleteAuthorization
+}
+
+// StudentNoteDeleteAuthorization is the caller-resolved leadership data that
+// the owner evaluates with the locked note. It names facts rather than another
+// module's policy types to keep the ownership boundary one-way.
+type StudentNoteDeleteAuthorization struct {
+	Admin                 bool
+	LedActivityGroupIDs   []int64
+	LedEducationGroupIDs  []int64
+	ChildEducationGroupID *int64
 }
 
 // StudentNoteFilter is the audience-resolved read. The caller resolves WHO the
@@ -241,10 +257,9 @@ func (c CreateStudentNote) Validate() error {
 	return nil
 }
 
-// Validate checks a correction. It repeats the create rules that the edit can
-// still break; the subject is not editable, so its own constraints hold by
-// construction — except the two that couple the subject to fields the edit
-// does change, which the service re-checks against the stored row.
+// Validate checks a correction. It repeats the ordinary request rules; the
+// service checks the requested day and the stored, immutable group reference
+// together because those constraints span both versions of the note.
 func (u UpdateStudentNote) Validate() error {
 	if u.ID <= 0 || u.ActorAccountID <= 0 {
 		return ErrStudentNoteInvalid
@@ -260,9 +275,9 @@ func (u UpdateStudentNote) Validate() error {
 }
 
 // AllowsUpdate reports whether the stored note may take this correction. It
-// re-checks the two coupled constraints: a note promoted to a durable hint
-// must not keep a day, and a note narrowed to the leadership must refer to a
-// group.
+// re-checks the coupled constraints against the requested day: a durable hint
+// has no day, every entry has one, and a note narrowed to leadership refers to
+// a group.
 func (n StudentNote) AllowsUpdate(update UpdateStudentNote) error {
 	if n.AuthorAccountID == nil {
 		return ErrStudentNoteImmutable
@@ -270,14 +285,36 @@ func (n StudentNote) AllowsUpdate(update UpdateStudentNote) error {
 	if *n.AuthorAccountID != update.ActorAccountID {
 		return ErrStudentNoteNotAuthor
 	}
-	if update.Kind == StudentNoteKindPermanent && n.Subject.Date != nil {
+	if update.Kind == StudentNoteKindPermanent && update.SubjectDate != nil {
 		return ErrStudentNoteInvalid
 	}
-	if update.Kind == StudentNoteKindJournal && n.Subject.Date == nil {
+	if update.Kind == StudentNoteKindJournal && update.SubjectDate == nil {
 		return ErrStudentNoteInvalid
 	}
 	if update.Visibility == StudentNoteVisibilityGroupLeads && !n.Subject.HasReference() {
 		return ErrStudentNoteInvalid
+	}
+	return nil
+}
+
+// AllowsDelete evaluates the caller-provided administration and leadership
+// facts only after the note itself is row-locked. A general note belongs to
+// the child's current OGS group; a referenced note belongs to that reference.
+func (n StudentNote) AllowsDelete(authorization StudentNoteDeleteAuthorization) error {
+	if authorization.Admin {
+		return nil
+	}
+	if n.Subject.ActivityGroupID != nil &&
+		slices.Contains(authorization.LedActivityGroupIDs, *n.Subject.ActivityGroupID) {
+		return nil
+	}
+	if n.Subject.EducationGroupID != nil &&
+		slices.Contains(authorization.LedEducationGroupIDs, *n.Subject.EducationGroupID) {
+		return nil
+	}
+	if n.Subject.HasReference() || authorization.ChildEducationGroupID == nil ||
+		!slices.Contains(authorization.LedEducationGroupIDs, *authorization.ChildEducationGroupID) {
+		return ErrStudentNoteDeleteForbidden
 	}
 	return nil
 }

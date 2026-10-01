@@ -120,9 +120,8 @@ func (s *StudentNoteService) Update(ctx context.Context, input domain.UpdateStud
 	return result, err
 }
 
-// Delete hides one note. Who may ask is the caller's decision — the school's
-// leadership, not the author — so this service only re-checks that the note is
-// the one the caller authorized against and records who removed it.
+// Delete hides one note. The caller resolves leadership facts, and this owner
+// evaluates them against the locked note before recording who removed it.
 func (s *StudentNoteService) Delete(ctx context.Context, input domain.DeleteStudentNote) error {
 	if input.ID <= 0 || input.StudentID <= 0 || input.ActorAccountID <= 0 {
 		return domain.ErrStudentNoteInvalid
@@ -135,6 +134,9 @@ func (s *StudentNoteService) Delete(ctx context.Context, input domain.DeleteStud
 		}
 		if !found || stored.StudentID != input.StudentID {
 			return domain.ErrStudentNoteNotFound
+		}
+		if allowErr := stored.AllowsDelete(input.Authorization); allowErr != nil {
+			return allowErr
 		}
 		deleteStats, err := s.store.SoftDelete(txCtx, input)
 		stats.Add(deleteStats)

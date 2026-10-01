@@ -149,7 +149,7 @@ func TestStudentNoteAllowsUpdate(t *testing.T) {
 	update := UpdateStudentNote{
 		ID: 1, StudentID: 7, ActorAccountID: author,
 		Kind: StudentNoteKindJournal, Visibility: StudentNoteVisibilityAllStaff,
-		Body: "Korrigiert.",
+		Body: "Korrigiert.", SubjectDate: &date,
 	}
 
 	t.Run("the author corrects", func(t *testing.T) {
@@ -172,30 +172,20 @@ func TestStudentNoteAllowsUpdate(t *testing.T) {
 		require.ErrorIs(t, carried.AllowsUpdate(update), ErrStudentNoteImmutable)
 	})
 
-	t.Run("a dated entry cannot become a durable hint", func(t *testing.T) {
+	t.Run("a dated entry can become a durable hint", func(t *testing.T) {
 		t.Parallel()
-		dated := base
-		dated.Subject.Date = &date
 		promote := update
 		promote.Kind = StudentNoteKindPermanent
-		require.ErrorIs(t, dated.AllowsUpdate(promote), ErrStudentNoteInvalid)
+		promote.SubjectDate = nil
+		require.NoError(t, base.AllowsUpdate(promote))
 	})
 
-	t.Run("an undated legacy entry can become a durable hint", func(t *testing.T) {
-		t.Parallel()
-		undated := base
-		undated.Subject.Date = nil
-		promote := update
-		promote.Kind = StudentNoteKindPermanent
-		require.NoError(t, undated.AllowsUpdate(promote))
-	})
-
-	t.Run("an undated durable hint cannot become a journal entry", func(t *testing.T) {
+	t.Run("a durable hint can become a dated entry", func(t *testing.T) {
 		t.Parallel()
 		undatedHint := base
 		undatedHint.Kind = StudentNoteKindPermanent
 		undatedHint.Subject.Date = nil
-		require.ErrorIs(t, undatedHint.AllowsUpdate(update), ErrStudentNoteInvalid)
+		require.NoError(t, undatedHint.AllowsUpdate(update))
 	})
 
 	t.Run("narrowing to the leadership needs a group", func(t *testing.T) {
@@ -208,6 +198,32 @@ func TestStudentNoteAllowsUpdate(t *testing.T) {
 		withGroup.Subject.EducationGroupID = &groupID
 		require.NoError(t, withGroup.AllowsUpdate(narrow))
 	})
+}
+
+func TestStudentNoteAllowsDelete(t *testing.T) {
+	t.Parallel()
+
+	groupID, activityID := int64(12), int64(13)
+	note := StudentNote{Subject: StudentNoteSubject{EducationGroupID: &groupID}}
+
+	assert.ErrorIs(t, note.AllowsDelete(StudentNoteDeleteAuthorization{}), ErrStudentNoteDeleteForbidden)
+	assert.NoError(t, note.AllowsDelete(StudentNoteDeleteAuthorization{
+		LedEducationGroupIDs: []int64{groupID},
+	}))
+	assert.NoError(t, note.AllowsDelete(StudentNoteDeleteAuthorization{Admin: true}))
+
+	note.Subject = StudentNoteSubject{ActivityGroupID: &activityID}
+	assert.ErrorIs(t, note.AllowsDelete(StudentNoteDeleteAuthorization{
+		LedEducationGroupIDs: []int64{groupID},
+	}), ErrStudentNoteDeleteForbidden)
+	assert.NoError(t, note.AllowsDelete(StudentNoteDeleteAuthorization{
+		LedActivityGroupIDs: []int64{activityID},
+	}))
+
+	note.Subject = StudentNoteSubject{}
+	assert.NoError(t, note.AllowsDelete(StudentNoteDeleteAuthorization{
+		LedEducationGroupIDs: []int64{groupID}, ChildEducationGroupID: &groupID,
+	}))
 }
 
 func TestStudentNoteEdited(t *testing.T) {

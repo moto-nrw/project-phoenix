@@ -165,7 +165,6 @@ const FULL_ACCESS_BASE_TABS: StudentTabId[] = [
 ];
 const LIMITED_ACCESS_BASE_TABS: StudentTabId[] = [
   "stammdaten",
-  "notizen",
   "erziehungsberechtigte",
   "aenderungsprotokoll",
   "historie",
@@ -184,7 +183,6 @@ const FULL_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
 ];
 const LIMITED_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
   "stammdaten",
-  "notizen",
   "erziehungsberechtigte",
   "anmeldungen",
   "aenderungsprotokoll",
@@ -1690,11 +1688,6 @@ function LimitedAccessView({
   useEffect(() => {
     if (activeTab === "aenderungsprotokoll") setProtocolTabSeen(true);
   }, [activeTab]);
-  // Siehe FullAccessView: die Kartei lädt erst beim ersten Öffnen.
-  const [notesTabSeen, setNotesTabSeen] = useState(activeTab === "notizen");
-  useEffect(() => {
-    if (activeTab === "notizen") setNotesTabSeen(true);
-  }, [activeTab]);
   return (
     <>
       <StudentTabPanel
@@ -1704,20 +1697,6 @@ function LimitedAccessView({
       >
         <SupervisorsCard supervisors={supervisors} studentName={student.name} />
         <PersonalInfoReadOnly student={student} />
-        <StudentPermanentNotesCard studentId={student.id} />
-      </StudentTabPanel>
-
-      <StudentTabPanel
-        value="notizen"
-        activeTab={activeTab}
-        className={TAB_CONTENT_CLASS}
-      >
-        {notesTabSeen ? (
-          <StudentNotizenTab
-            studentId={student.id}
-            educationGroupId={student.group_id ?? ""}
-          />
-        ) : null}
       </StudentTabPanel>
 
       <StudentTabPanel

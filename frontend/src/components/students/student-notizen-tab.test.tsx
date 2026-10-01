@@ -138,6 +138,48 @@ describe("StudentNotizenTab", () => {
     expect(screen.queryByText("Löschen")).not.toBeInTheDocument();
   });
 
+  it("clears the day when an entry becomes a permanent hint", async () => {
+    updateMock.mockResolvedValue(undefined);
+    renderTab([note({ canEdit: true })]);
+    fireEvent.click(screen.getByRole("button", { name: "Aktionen zur Notiz" }));
+    fireEvent.click(screen.getByText("Bearbeiten"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dauerhafter Hinweis" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalledWith(
+        "7",
+        "1",
+        expect.objectContaining({ kind: "permanent", subjectDate: undefined }),
+      );
+    });
+  });
+
+  it("sets a day when a permanent hint becomes an entry", async () => {
+    updateMock.mockResolvedValue(undefined);
+    renderTab([
+      note({
+        kind: "permanent",
+        subjectDate: "",
+        canEdit: true,
+      }),
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "Aktionen zur Notiz" }));
+    fireEvent.click(screen.getByText("Bearbeiten"));
+    fireEvent.click(screen.getByRole("button", { name: "Eintrag" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalledWith(
+        "7",
+        "1",
+        expect.objectContaining({ kind: "journal", subjectDate: "2026-09-09" }),
+      );
+    });
+  });
+
   it("offers only Löschen to the group lead", () => {
     renderTab([note({ canDelete: true })]);
     fireEvent.click(screen.getByRole("button", { name: "Aktionen zur Notiz" }));

@@ -82,6 +82,21 @@ func TestStudentNotesConstraints(t *testing.T) {
 			", visibility, subject_date, education_group_id", "group_leads", "2026-09-09", group.ID))
 	})
 
+	t.Run("deleting a referenced group removes its leadership note", func(t *testing.T) {
+		var noteID int64
+		require.NoError(t, db.NewRaw(`
+			INSERT INTO users.student_notes (tenant_id, student_id, visibility, body, subject_date, activity_group_id)
+			VALUES (?, ?, 'group_leads', 'Kursnotiz.', '2026-09-09', ?) RETURNING id`,
+			tenantID, student.ID, activity.ID).Scan(ctx, &noteID))
+		_, err := db.NewRaw(`DELETE FROM activities.groups WHERE id = ?`, activity.ID).Exec(ctx)
+		require.NoError(t, err)
+		var exists bool
+		require.NoError(t, db.NewRaw(`SELECT EXISTS (
+			SELECT 1 FROM users.student_notes WHERE id = ?
+		)`, noteID).Scan(ctx, &exists))
+		assert.False(t, exists)
+	})
+
 	t.Run("a durable hint with a day is rejected", func(t *testing.T) {
 		err := insertStudentNote(t, db, tenantID, student.ID,
 			", kind, subject_date", "permanent", "2026-09-09")
@@ -131,6 +146,14 @@ func TestStudentNotesBackfill(t *testing.T) {
 		  AND membership.student_profile_id = ?`,
 		"  Braucht morgens etwas Zeit.  ", withNotes.ID)
 	require.NoError(t, err)
+	// The compatibility trigger has already mirrored this ordinary write. Remove
+	// that mirror so this test exercises the migration's replayable backfill
+	// statement itself, rather than merely asserting the trigger result.
+	_, err = db.NewRaw(`
+		DELETE FROM users.student_notes
+		WHERE tenant_id = ? AND student_id = ? AND origin = 'master_data'`,
+		tenantID, withNotes.ID).Exec(ctx)
+	require.NoError(t, err)
 
 	require.NoError(t, studentNotesBackfill(ctx, db))
 
@@ -177,6 +200,46 @@ func TestStudentNotesBackfill(t *testing.T) {
 		WHERE tenant_id = ? AND student_id = ? AND deleted_at IS NULL`,
 		tenantID, withNotes.ID).Scan(ctx, &live))
 	assert.Zero(t, live, "a deliberately removed hint must not come back")
+}
+
+func TestStudentNotesStayInSyncWithLegacySupervisorNotes(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	student := testpkg.CreateTestStudent(t, db, "Mira", "Altwert", "3a")
+
+	setNotes := func(value *string) {
+		t.Helper()
+		_, err := db.NewRaw(`
+			UPDATE users.student_care_profiles AS care
+			SET supervisor_notes = ?
+			FROM users.student_school_memberships AS membership
+			WHERE membership.id = care.membership_id
+				AND membership.tenant_id = care.tenant_id
+				AND membership.student_profile_id = ?`, value, student.ID).Exec(ctx)
+		require.NoError(t, err)
+	}
+	readNotes := func() []string {
+		t.Helper()
+		var notes []string
+		require.NoError(t, db.NewRaw(`
+			SELECT body FROM users.student_notes
+			WHERE tenant_id = ? AND student_id = ? AND origin = 'master_data'
+				AND deleted_at IS NULL ORDER BY id`, tenantID, student.ID).Scan(ctx, &notes))
+		return notes
+	}
+
+	first := "  Braucht Zeit zum Ankommen.  "
+	setNotes(&first)
+	assert.Equal(t, []string{"Braucht Zeit zum Ankommen."}, readNotes())
+
+	updated := "Morgens bitte in Ruhe ankommen lassen."
+	setNotes(&updated)
+	assert.Equal(t, []string{updated}, readNotes())
+
+	setNotes(nil)
+	assert.Empty(t, readNotes())
 }
 
 func countStudentNotes(t *testing.T, db *testpkg.DB, tenantID, studentID int64) int {
