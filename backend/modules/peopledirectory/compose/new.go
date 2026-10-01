@@ -38,6 +38,10 @@ type Dependencies struct {
 	// reports that it is not configured, which is what graphs that never
 	// touch it (CLI roots, repository tests) need.
 	StudentFieldAudit StudentFieldAuditLog
+	// StudentNoteDeletionAudit records every hidden note in Audit's
+	// append-only deletion ledger. It is optional only for compositions that
+	// do not serve note deletion; that operation fails closed without it.
+	StudentNoteDeletionAudit StudentNoteDeletionAudit
 	// StudentConsentHistory is the Audit Platform seam behind the shared
 	// consent projection. Optional on the same terms; a child without a live
 	// photo consent then reports that the trail is not configured rather than
@@ -102,7 +106,12 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		companions = studentCompanions{seam: dependencies.StudentCompanions}
 	}
 	owners := studentOwners{owners: dependencies.StudentOwners}
-	students := application.NewStudents(postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), companions, owners, transaction{}, observe)
+	noteStore := postgres.NewStudentNoteStore(database)
+	var noteDeletionAudit ports.StudentNoteDeletionAudit
+	if dependencies.StudentNoteDeletionAudit != nil {
+		noteDeletionAudit = studentNoteDeletionAudit{audit: dependencies.StudentNoteDeletionAudit}
+	}
+	students := application.NewStudents(postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), noteStore, companions, owners, transaction{}, noteDeletionAudit, observe)
 	guardians := application.NewGuardians(postgres.NewGuardianStore(database, postgres.PortalMembershipQuery(memberships)), dependencies.GuardianLinkOwners, transaction{}, observe)
 	var auditLog ports.StudentFieldAuditLog
 	if dependencies.StudentFieldAudit != nil {
@@ -121,10 +130,14 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 	}
 	studentPhotos := application.NewStudentPhotos(
 		postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), photoRuntime, transaction{}, observe, now)
+	studentNotes := application.NewStudentNotes(
+		noteStore, postgres.New(database),
+		postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery),
+		transaction{}, noteDeletionAudit, observe)
 	return peopledirectory.NewModule(engine{
 		service: service, students: students, guardians: guardians,
 		studentAudit: studentAudit, studentConsents: studentConsents,
-		studentPhotos: studentPhotos, observe: observe,
+		studentPhotos: studentPhotos, studentNotes: studentNotes, observe: observe,
 	}), nil
 }
 
@@ -174,6 +187,7 @@ type engine struct {
 	studentAudit    *application.StudentAuditService
 	studentConsents *application.StudentConsentService
 	studentPhotos   *application.StudentPhotoService
+	studentNotes    *application.StudentNoteService
 	observe         func(Observation)
 }
 
@@ -316,6 +330,16 @@ func mapError(err error) error {
 		return peopledirectory.ErrFamilyProtectionUnchanged
 	case errors.Is(err, domain.ErrFamilyProtectionInvalid):
 		return peopledirectory.ErrFamilyProtectionInvalid
+	case errors.Is(err, domain.ErrStudentNoteNotFound):
+		return peopledirectory.ErrStudentNoteNotFound
+	case errors.Is(err, domain.ErrStudentNoteNotAuthor):
+		return peopledirectory.ErrStudentNoteNotAuthor
+	case errors.Is(err, domain.ErrStudentNoteImmutable):
+		return peopledirectory.ErrStudentNoteImmutable
+	case errors.Is(err, domain.ErrStudentNoteDeleteForbidden):
+		return peopledirectory.ErrStudentNoteDeleteForbidden
+	case errors.Is(err, domain.ErrStudentNoteInvalid):
+		return peopledirectory.ErrStudentNoteInvalid
 	default:
 		return err
 	}

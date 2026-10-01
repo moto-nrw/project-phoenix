@@ -48,6 +48,11 @@ func (e callerEngine) MyGroupIDs(ctx context.Context) ([]int64, error) {
 	return ids, mapCallerError(err)
 }
 
+func (e callerEngine) MyTeacherGroupIDs(ctx context.Context) ([]int64, error) {
+	ids, err := e.app.MyTeacherGroupIDs(ctx)
+	return ids, mapCallerError(err)
+}
+
 func (e callerEngine) SubstitutedGroupIDs(ctx context.Context) (map[int64]bool, error) {
 	ids, err := e.app.SubstitutedGroupIDs(ctx)
 	return ids, mapCallerError(err)

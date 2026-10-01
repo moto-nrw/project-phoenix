@@ -4370,6 +4370,10 @@
       "write_owner": "people-directory"
     },
     {
+      "name": "users.student_notes",
+      "write_owner": "people-directory"
+    },
+    {
       "name": "users.student_document_file_cleanup",
       "write_owner": "care-plan"
     },

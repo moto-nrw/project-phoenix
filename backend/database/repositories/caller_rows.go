@@ -135,6 +135,30 @@ func (r *CallerRows) StudentAccessFacts(ctx context.Context) (admin, staff bool)
 	return access.Admin, access.Staff
 }
 
+// MyGroupIDs returns the IDs of the caller's educational groups. The note
+// audience (#3632) needs the IDs only, so it does not pay for the group rows
+// GetMyGroups loads.
+func (r *CallerRows) MyGroupIDs(ctx context.Context) ([]int64, error) {
+	return r.caller.MyGroupIDs(ctx)
+}
+
+// MyTeacherGroupIDs returns only the caller's direct teacher assignments.
+// Temporary substitutions provide care-team reach but never group leadership.
+func (r *CallerRows) MyTeacherGroupIDs(ctx context.Context) ([]int64, error) {
+	return r.caller.MyTeacherGroupIDs(ctx)
+}
+
+// MySchoolClasses returns the caller's school classes under the caller-context
+// name, next to the legacy Get-prefixed one above.
+func (r *CallerRows) MySchoolClasses(ctx context.Context) ([]string, error) {
+	return r.caller.MySchoolClasses(ctx)
+}
+
+// MyActivityGroupIDs returns the activities the caller supervises.
+func (r *CallerRows) MyActivityGroupIDs(ctx context.Context) ([]int64, error) {
+	return r.caller.MyActivityGroupIDs(ctx)
+}
+
 // GetMySchoolClasses returns the caller's school classes.
 func (r *CallerRows) GetMySchoolClasses(ctx context.Context) ([]string, error) {
 	return r.caller.MySchoolClasses(ctx)

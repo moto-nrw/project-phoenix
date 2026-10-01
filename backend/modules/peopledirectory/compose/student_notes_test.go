@@ -1,0 +1,681 @@
+package compose
+
+import (
+	"context"
+	"errors"
+	"strconv"
+	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// These exercise the note card against the real table: the audience predicate
+// the store builds, the authorship rule, the soft deletion and the tenant
+// boundary. Every one of them is a SQL statement whose correctness nothing
+// upstream can prove.
+
+func notesModule(t *testing.T, db *testpkg.DB) *peopledirectory.Module {
+	return notesModuleWithOwners(t, db, nil)
+}
+
+func notesModuleWithOwners(t *testing.T, db *testpkg.DB, owners StudentOwners) *peopledirectory.Module {
+	return notesModuleWithDeletionAudit(t, db, owners, testStudentNoteDeletionAudit{db: db})
+}
+
+func notesModuleWithDeletionAudit(
+	t *testing.T, db *testpkg.DB, owners StudentOwners, audit StudentNoteDeletionAudit,
+) *peopledirectory.Module {
+	t.Helper()
+	module, err := New(Dependencies{
+		DB: db, StudentOwners: owners, StudentNoteDeletionAudit: audit, Observe: func(Observation) {},
+	})
+	require.NoError(t, err)
+	return module
+}
+
+type testStudentNoteDeletionAudit struct{ db *testpkg.DB }
+
+func (a testStudentNoteDeletionAudit) RecordStudentNoteDeletion(
+	ctx context.Context, studentID, noteID, actorAccountID int64,
+) error {
+	_, err := a.db.NewRaw(`INSERT INTO audit.data_deletions
+		(tenant_id, student_id, deletion_type, records_deleted, deletion_reason, deleted_by, metadata)
+		VALUES (?, ?, 'manual', 1, 'student note deleted', ?,
+		jsonb_build_object('student_note_id', ?, 'deleted_by_account_id', ?))`,
+		tenant.FromContext(ctx), studentID, "account:"+strconv.FormatInt(actorAccountID, 10), noteID, actorAccountID).Exec(ctx)
+	return err
+}
+
+func (a testStudentNoteDeletionAudit) RecordLegacyStudentNoteDeletion(
+	ctx context.Context, studentID, noteID int64,
+) error {
+	_, err := a.db.NewRaw(`INSERT INTO audit.data_deletions
+		(tenant_id, student_id, deletion_type, records_deleted, deletion_reason, deleted_by, metadata)
+		VALUES (?, ?, 'manual', 1, 'legacy supervisor notes cleared', 'system',
+		jsonb_build_object('student_note_id', ?, 'source', 'supervisor_notes'))`,
+		tenant.FromContext(ctx), studentID, noteID).Exec(ctx)
+	return err
+}
+
+// noteTestStudentOwners supplies the owner calls a real student write makes.
+// The note test is about the synchronisation after that owner write, not about
+// duplicating the care-plan owner's own persistence contract.
+type noteTestStudentOwners struct{}
+
+func (noteTestStudentOwners) LockClassWrites(context.Context, bool) error { return nil }
+func (noteTestStudentOwners) Enroll(_ context.Context, record peopledirectory.StudentRecord) (int64, error) {
+	return record.ID, nil
+}
+func (noteTestStudentOwners) Renew(_ context.Context, record peopledirectory.StudentRecord) (int64, error) {
+	return record.ID, nil
+}
+func (noteTestStudentOwners) SaveCare(context.Context, int64, peopledirectory.StudentRecord, peopledirectory.StudentPlan, *string, bool) error {
+	return nil
+}
+
+// noteAuthor creates an account with a person, so a read can resolve the
+// author's name the way the timeline renders it.
+func noteAuthor(t *testing.T, db *testpkg.DB, first, last string) int64 {
+	t.Helper()
+	account := testpkg.CreateTestAccount(t, db, "student-notes-"+last)
+	person := testpkg.CreateTestPerson(t, db, first, last)
+	_, err := db.NewRaw(`UPDATE users.persons SET account_id = ? WHERE id = ?`,
+		account.ID, person.ID).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	return account.ID
+}
+
+func bodies(notes []peopledirectory.StudentNote) []string {
+	result := make([]string, 0, len(notes))
+	for _, note := range notes {
+		result = append(result, note.Body)
+	}
+	return result
+}
+
+func TestStudentNotesRoundTrip(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := notesModuleWithOwners(t, db, noteTestStudentOwners{})
+	ctx := testpkg.Ctx(t)
+
+	child := testpkg.CreateTestStudent(t, db, "Mila", "Roundtrip", "3a")
+	author := noteAuthor(t, db, "Sara", "Betreuerin")
+	date := calendar.NewDate(2026, 9, 9)
+
+	created, err := module.CreateStudentNote(ctx, peopledirectory.CreateStudentNote{
+		StudentID: child.ID, AuthorAccountID: author,
+		Kind:       peopledirectory.StudentNoteKindJournal,
+		Visibility: peopledirectory.StudentNoteVisibilityAllStaff,
+		Category:   peopledirectory.StudentNoteCategoryPositive,
+		Body:       "  Hat heute vorgelesen.  ",
+		Subject:    peopledirectory.StudentNoteSubject{Date: &date},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Hat heute vorgelesen.", created.Body, "the body is trimmed on the way in")
+	assert.Equal(t, peopledirectory.StudentNoteOriginStaff, created.Origin)
+	require.NotNil(t, created.AuthorAccountID)
+	assert.Equal(t, author, *created.AuthorAccountID)
+	assert.Equal(t, "Sara Betreuerin", created.AuthorName, "the create response resolves the author's name")
+	require.NotNil(t, created.Subject.Date)
+	assert.Equal(t, date, *created.Subject.Date, "the day survives the DATE column unshifted")
+	assert.False(t, created.Edited())
+
+	notes, err := module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
+		StudentID: child.ID,
+		Audience: peopledirectory.StudentNoteAudience{
+			Visibilities: []string{peopledirectory.StudentNoteVisibilityAllStaff},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, notes, 1)
+	assert.Equal(t, "Sara Betreuerin", notes[0].AuthorName, "the timeline resolves the author's name")
+
+	updated, err := module.UpdateStudentNote(ctx, peopledirectory.UpdateStudentNote{
+		ID: created.ID, StudentID: child.ID, ActorAccountID: author,
+		Kind:       peopledirectory.StudentNoteKindJournal,
+		Visibility: peopledirectory.StudentNoteVisibilityCareTeam,
+		Body:       "Hat heute zweimal vorgelesen.", SubjectDate: &date,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Hat heute zweimal vorgelesen.", updated.Body)
+	assert.Equal(t, peopledirectory.StudentNoteVisibilityCareTeam, updated.Visibility)
+	assert.Equal(t, "Sara Betreuerin", updated.AuthorName, "the update response resolves the author's name")
+	assert.True(t, updated.Edited(), "the trigger moves updated_at past created_at")
+	require.NotNil(t, updated.Subject.Date, "a correction keeps the day it was written for")
+
+	permanent, err := module.UpdateStudentNote(ctx, peopledirectory.UpdateStudentNote{
+		ID: created.ID, StudentID: child.ID, ActorAccountID: author,
+		Kind:       peopledirectory.StudentNoteKindPermanent,
+		Visibility: peopledirectory.StudentNoteVisibilityCareTeam,
+		Body:       "Gilt weiterhin.",
+	})
+	require.NoError(t, err)
+	assert.Nil(t, permanent.Subject.Date, "a durable hint has no calendar day")
+
+	journal, err := module.UpdateStudentNote(ctx, peopledirectory.UpdateStudentNote{
+		ID: created.ID, StudentID: child.ID, ActorAccountID: author,
+		Kind:       peopledirectory.StudentNoteKindJournal,
+		Visibility: peopledirectory.StudentNoteVisibilityCareTeam,
+		Body:       "Gilt wieder für diesen Tag.", SubjectDate: &date,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, journal.Subject.Date)
+	assert.Equal(t, date, *journal.Subject.Date, "converting back restores the requested day")
+
+	err = module.DeleteStudentNote(ctx, peopledirectory.DeleteStudentNote{
+		ID: created.ID, StudentID: child.ID, ActorAccountID: author,
+	})
+	require.ErrorIs(t, err, peopledirectory.ErrStudentNoteDeleteForbidden,
+		"the locked note is never removed based on a handler-only authorization check")
+
+	require.NoError(t, module.DeleteStudentNote(ctx, peopledirectory.DeleteStudentNote{
+		ID: created.ID, StudentID: child.ID, ActorAccountID: author,
+		Authorization: peopledirectory.StudentNoteDeleteAuthorization{Admin: true},
+	}))
+	var deletionAudit struct {
+		RecordsDeleted int    `bun:"records_deleted"`
+		DeletedBy      string `bun:"deleted_by"`
+		NoteID         int64  `bun:"note_id"`
+		ActorAccountID int64  `bun:"actor_account_id"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT records_deleted, deleted_by,
+		(metadata->>'student_note_id')::bigint AS note_id,
+		(metadata->>'deleted_by_account_id')::bigint AS actor_account_id
+		FROM audit.data_deletions
+		WHERE tenant_id = ? AND student_id = ? AND deletion_reason = 'student note deleted'`,
+		testpkg.Tenant(t), child.ID).Scan(ctx, &deletionAudit))
+	assert.Equal(t, 1, deletionAudit.RecordsDeleted)
+	assert.Equal(t, "account:"+strconv.FormatInt(author, 10), deletionAudit.DeletedBy)
+	assert.Equal(t, created.ID, deletionAudit.NoteID)
+	assert.Equal(t, author, deletionAudit.ActorAccountID)
+
+	notes, err = module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
+		StudentID: child.ID,
+		Audience: peopledirectory.StudentNoteAudience{
+			Visibilities: []string{
+				peopledirectory.StudentNoteVisibilityAllStaff,
+				peopledirectory.StudentNoteVisibilityCareTeam,
+			},
+			ReaderAccountID: author,
+		},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, notes, "a removed note leaves every timeline, including its author's")
+}
+
+func TestStudentNoteDeleteRollsBackWithoutDeletionAudit(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := notesModuleWithDeletionAudit(t, db, noteTestStudentOwners{}, failingStudentNoteDeletionAudit{})
+	ctx := testpkg.Ctx(t)
+	child := testpkg.CreateTestStudent(t, db, "Mila", "Audit", "3a")
+	author := noteAuthor(t, db, "Sara", "Prüfung")
+	date := calendar.NewDate(2026, 9, 9)
+	note, err := module.CreateStudentNote(ctx, peopledirectory.CreateStudentNote{
+		StudentID: child.ID, AuthorAccountID: author,
+		Kind: peopledirectory.StudentNoteKindJournal, Visibility: peopledirectory.StudentNoteVisibilityAllStaff,
+		Body: "Bleibt bei Auditfehler erhalten.", Subject: peopledirectory.StudentNoteSubject{Date: &date},
+	})
+	require.NoError(t, err)
+
+	err = module.DeleteStudentNote(ctx, peopledirectory.DeleteStudentNote{
+		ID: note.ID, StudentID: child.ID, ActorAccountID: author,
+		Authorization: peopledirectory.StudentNoteDeleteAuthorization{Admin: true},
+	})
+	require.ErrorContains(t, err, "deletion audit unavailable")
+
+	notes, err := module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
+		StudentID: child.ID,
+		Audience:  peopledirectory.StudentNoteAudience{Visibilities: []string{peopledirectory.StudentNoteVisibilityAllStaff}},
+	})
+	require.NoError(t, err)
+	require.Len(t, notes, 1)
+}
+
+type failingStudentNoteDeletionAudit struct{}
+
+func (failingStudentNoteDeletionAudit) RecordStudentNoteDeletion(context.Context, int64, int64, int64) error {
+	return errors.New("deletion audit unavailable")
+}
+
+func (failingStudentNoteDeletionAudit) RecordLegacyStudentNoteDeletion(context.Context, int64, int64) error {
+	return errors.New("deletion audit unavailable")
+}
+
+func TestStudentNoteCreateRevalidatesSubjectInWriteTransaction(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := notesModuleWithOwners(t, db, noteTestStudentOwners{})
+	ctx := testpkg.Ctx(t)
+	child := testpkg.CreateTestStudent(t, db, "Mila", "Prüfung", "3a")
+	author := noteAuthor(t, db, "Sara", "Betreuerin")
+	date := calendar.NewDate(2026, 9, 9)
+	called := false
+
+	_, err := module.CreateStudentNote(ctx, peopledirectory.CreateStudentNote{
+		StudentID: child.ID, AuthorAccountID: author,
+		Kind: peopledirectory.StudentNoteKindJournal, Visibility: peopledirectory.StudentNoteVisibilityAllStaff,
+		Body: "Veralteter Bezug.", Subject: peopledirectory.StudentNoteSubject{Date: &date},
+		RevalidateSubject: func(ctx context.Context) error {
+			called = true
+			if _, ok := tenant.TransactionFromContext(ctx); !ok {
+				return assert.AnError
+			}
+			return peopledirectory.ErrStudentNoteInvalid
+		},
+	})
+	require.ErrorIs(t, err, peopledirectory.ErrStudentNoteInvalid)
+	assert.True(t, called, "the reference check runs after the service opens its write transaction")
+}
+
+func TestStudentNoteDeleteReloadsAuthorizationInWriteTransaction(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := notesModuleWithOwners(t, db, noteTestStudentOwners{})
+	ctx := testpkg.Ctx(t)
+	child := testpkg.CreateTestStudent(t, db, "Mila", "Löschung", "3a")
+	author := noteAuthor(t, db, "Sara", "Betreuerin")
+	date := calendar.NewDate(2026, 9, 9)
+	note, err := module.CreateStudentNote(ctx, peopledirectory.CreateStudentNote{
+		StudentID: child.ID, AuthorAccountID: author,
+		Kind: peopledirectory.StudentNoteKindJournal, Visibility: peopledirectory.StudentNoteVisibilityAllStaff,
+		Body: "Bleibt bestehen.", Subject: peopledirectory.StudentNoteSubject{Date: &date},
+	})
+	require.NoError(t, err)
+
+	called := false
+	err = module.DeleteStudentNote(ctx, peopledirectory.DeleteStudentNote{
+		ID: note.ID, StudentID: child.ID, ActorAccountID: author,
+		Authorization: peopledirectory.StudentNoteDeleteAuthorization{Admin: true},
+		ResolveAuthorization: func(ctx context.Context) (peopledirectory.StudentNoteDeleteAuthorization, error) {
+			called = true
+			if _, ok := tenant.TransactionFromContext(ctx); !ok {
+				return peopledirectory.StudentNoteDeleteAuthorization{}, assert.AnError
+			}
+			return peopledirectory.StudentNoteDeleteAuthorization{}, nil
+		},
+	})
+	require.ErrorIs(t, err, peopledirectory.ErrStudentNoteDeleteForbidden)
+	assert.True(t, called, "the supplied authorization is replaced in the write transaction")
+}
+
+// The temporary supervisor_notes column still has two product writers: the
+// legacy student form and imports through ApplyEnrollmentProfile. Both use the
+// same owner command, which must keep the carried-over hint current without a
+// compatibility trigger on the old student-owner tables.
+func TestStudentNotesStayInSyncWithLegacySupervisorNotes(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := notesModuleWithOwners(t, db, noteTestStudentOwners{})
+	ctx := testpkg.Ctx(t)
+	child := testpkg.CreateTestStudent(t, db, "Mira", "Altwert", "3a")
+	audience := peopledirectory.StudentNoteAudience{
+		Visibilities: []string{peopledirectory.StudentNoteVisibilityAllStaff},
+	}
+	listPermanent := func() []peopledirectory.StudentNote {
+		t.Helper()
+		notes, err := module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
+			StudentID: child.ID, Kind: peopledirectory.StudentNoteKindPermanent, Audience: audience,
+		})
+		require.NoError(t, err)
+		return notes
+	}
+
+	first := "  Braucht Zeit zum Ankommen.  "
+	record, err := module.FindStudentRecord(ctx, child.ID)
+	require.NoError(t, err)
+	record.SupervisorNotes = &first
+	_, err = module.UpdateStudent(ctx, peopledirectory.StudentWrite{
+		Record: record, SupervisorNotesSupplied: true,
+	})
+	require.NoError(t, err)
+	notes := listPermanent()
+	require.Len(t, notes, 1)
+	assert.Equal(t, "Braucht Zeit zum Ankommen.", notes[0].Body)
+	assert.Equal(t, peopledirectory.StudentNoteOriginMasterData, notes[0].Origin)
+
+	updated := "Morgens bitte in Ruhe ankommen lassen."
+	require.NoError(t, module.ApplyEnrollmentProfile(ctx, child.ID, peopledirectory.EnrollmentProfilePatch{
+		SupervisorNotesSet: true, SupervisorNotes: &updated,
+	}))
+	notes = listPermanent()
+	require.Len(t, notes, 1)
+	assert.Equal(t, updated, notes[0].Body)
+	legacyNoteID := notes[0].ID
+
+	cleared := ""
+	require.NoError(t, module.ApplyEnrollmentProfile(ctx, child.ID, peopledirectory.EnrollmentProfilePatch{
+		SupervisorNotesSet: true, SupervisorNotes: &cleared,
+	}))
+	assert.Empty(t, listPermanent())
+	var deletionAudit struct {
+		DeletedBy string `bun:"deleted_by"`
+		NoteID    int64  `bun:"note_id"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT deleted_by,
+		(metadata->>'student_note_id')::bigint AS note_id
+		FROM audit.data_deletions
+		WHERE tenant_id = ? AND student_id = ? AND deletion_reason = 'legacy supervisor notes cleared'`,
+		testpkg.Tenant(t), child.ID).Scan(ctx, &deletionAudit))
+	assert.Equal(t, "system", deletionAudit.DeletedBy)
+	assert.Equal(t, legacyNoteID, deletionAudit.NoteID)
+
+	reintroduced := "Wieder ein alter Hinweis."
+	require.NoError(t, module.ApplyEnrollmentProfile(ctx, child.ID, peopledirectory.EnrollmentProfilePatch{
+		SupervisorNotesSet: true, SupervisorNotes: &reintroduced,
+	}))
+	assert.Empty(t, listPermanent(), "clearing the legacy field keeps its carried-over hint deleted")
+
+	var tombstones int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.student_notes
+		WHERE tenant_id = ? AND student_id = ? AND origin = 'master_data'
+			AND deleted_at IS NOT NULL AND deleted_by_account_id IS NULL`,
+		testpkg.Tenant(t), child.ID).Scan(ctx, &tombstones))
+	assert.Equal(t, 1, tombstones, "the compatibility writer records a system tombstone")
+}
+
+func TestDeletedLegacyStudentNoteStaysDeleted(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := notesModuleWithOwners(t, db, noteTestStudentOwners{})
+	ctx := testpkg.Ctx(t)
+	child := testpkg.CreateTestStudent(t, db, "Mira", "Gelöscht", "3a")
+	audience := peopledirectory.StudentNoteAudience{
+		Visibilities: []string{peopledirectory.StudentNoteVisibilityAllStaff},
+	}
+
+	legacyText := "Braucht Zeit zum Ankommen."
+	record, err := module.FindStudentRecord(ctx, child.ID)
+	require.NoError(t, err)
+	record.SupervisorNotes = &legacyText
+	_, err = module.UpdateStudent(ctx, peopledirectory.StudentWrite{
+		Record: record, SupervisorNotesSupplied: true,
+	})
+	require.NoError(t, err)
+
+	notes, err := module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
+		StudentID: child.ID, Kind: peopledirectory.StudentNoteKindPermanent, Audience: audience,
+	})
+	require.NoError(t, err)
+	require.Len(t, notes, 1)
+	require.NoError(t, module.DeleteStudentNote(ctx, peopledirectory.DeleteStudentNote{
+		ID: notes[0].ID, StudentID: child.ID, ActorAccountID: noteAuthor(t, db, "Mara", "Verwaltung"),
+		Authorization: peopledirectory.StudentNoteDeleteAuthorization{Admin: true},
+	}))
+	var tombstone struct {
+		Body      string    `bun:"body"`
+		UpdatedAt time.Time `bun:"updated_at"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT body, updated_at FROM users.student_notes
+		WHERE tenant_id = ? AND student_id = ? AND origin = 'master_data'`,
+		testpkg.Tenant(t), child.ID).Scan(ctx, &tombstone))
+
+	record, err = module.FindStudentRecord(ctx, child.ID)
+	require.NoError(t, err)
+	record.SupervisorNotes = &legacyText
+	_, err = module.UpdateStudent(ctx, peopledirectory.StudentWrite{
+		Record: record, SupervisorNotesSupplied: true,
+	})
+	require.NoError(t, err)
+
+	notes, err = module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
+		StudentID: child.ID, Kind: peopledirectory.StudentNoteKindPermanent, Audience: audience,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, notes, "a later legacy write must not restore a deliberately deleted hint")
+	var after struct {
+		Body      string    `bun:"body"`
+		UpdatedAt time.Time `bun:"updated_at"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT body, updated_at FROM users.student_notes
+		WHERE tenant_id = ? AND student_id = ? AND origin = 'master_data'`,
+		testpkg.Tenant(t), child.ID).Scan(ctx, &after))
+	assert.Equal(t, tombstone, after, "an unchanged legacy write must not rewrite a deleted hint")
+}
+
+// The audience predicate is the security boundary of this feature. It is built
+// from four OR branches, and a wrong bracket would widen all of them at once.
+func TestStudentNotesAudience(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := notesModule(t, db)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+
+	child := testpkg.CreateTestStudent(t, db, "Tim", "Audience", "3a")
+	author := noteAuthor(t, db, "Ana", "Autorin")
+	group := testpkg.CreateTestEducationGroupForTenant(t, db, tenantID, "Audience-Gruppe")
+	otherGroup := testpkg.CreateTestEducationGroupForTenant(t, db, tenantID, "Audience-Fremdgruppe")
+	date := calendar.NewDate(2026, 9, 9)
+
+	write := func(visibility, body string, educationGroupID *int64) {
+		t.Helper()
+		_, err := module.CreateStudentNote(ctx, peopledirectory.CreateStudentNote{
+			StudentID: child.ID, AuthorAccountID: author,
+			Kind: peopledirectory.StudentNoteKindJournal, Visibility: visibility, Body: body,
+			Subject: peopledirectory.StudentNoteSubject{Date: &date, EducationGroupID: educationGroupID},
+		})
+		require.NoError(t, err)
+	}
+	write(peopledirectory.StudentNoteVisibilityAllStaff, "Team", nil)
+	write(peopledirectory.StudentNoteVisibilityCareTeam, "Betreuungsteam", nil)
+	write(peopledirectory.StudentNoteVisibilityGroupLeads, "Leitung", &group.ID)
+
+	list := func(audience peopledirectory.StudentNoteAudience) []string {
+		t.Helper()
+		notes, err := module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
+			StudentID: child.ID, Audience: audience,
+		})
+		require.NoError(t, err)
+		return bodies(notes)
+	}
+
+	stranger := peopledirectory.StudentNoteAudience{
+		Visibilities: []string{peopledirectory.StudentNoteVisibilityAllStaff},
+	}
+	assert.Equal(t, []string{"Team"}, list(stranger),
+		"a colleague without the child sees only the team note")
+
+	careTeam := peopledirectory.StudentNoteAudience{
+		Visibilities: []string{
+			peopledirectory.StudentNoteVisibilityAllStaff,
+			peopledirectory.StudentNoteVisibilityCareTeam,
+		},
+	}
+	assert.ElementsMatch(t, []string{"Team", "Betreuungsteam"}, list(careTeam),
+		"the care team sees its note, but not the leadership's")
+
+	lead := peopledirectory.StudentNoteAudience{
+		Visibilities:         []string{peopledirectory.StudentNoteVisibilityAllStaff},
+		LedEducationGroupIDs: []int64{group.ID},
+	}
+	assert.ElementsMatch(t, []string{"Team", "Leitung"}, list(lead),
+		"the lead of the referenced group reaches its note")
+
+	wrongLead := peopledirectory.StudentNoteAudience{
+		Visibilities:         []string{peopledirectory.StudentNoteVisibilityAllStaff},
+		LedEducationGroupIDs: []int64{otherGroup.ID},
+	}
+	assert.Equal(t, []string{"Team"}, list(wrongLead),
+		"leading another group unlocks nothing")
+
+	assert.ElementsMatch(t, []string{"Team", "Betreuungsteam", "Leitung"},
+		list(peopledirectory.StudentNoteAudience{
+			Visibilities:    []string{peopledirectory.StudentNoteVisibilityAllStaff},
+			ReaderAccountID: author,
+		}),
+		"an author keeps sight of everything they wrote, whatever audience it has")
+}
+
+func TestStudentNotesOnlyTheAuthorCorrects(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := notesModule(t, db)
+	ctx := testpkg.Ctx(t)
+
+	child := testpkg.CreateTestStudent(t, db, "Nour", "Autorschaft", "3a")
+	author := noteAuthor(t, db, "Ben", "Verfasser")
+	colleague := noteAuthor(t, db, "Kim", "Kollegin")
+	date := calendar.NewDate(2026, 9, 9)
+
+	note, err := module.CreateStudentNote(ctx, peopledirectory.CreateStudentNote{
+		StudentID: child.ID, AuthorAccountID: author,
+		Kind:       peopledirectory.StudentNoteKindJournal,
+		Visibility: peopledirectory.StudentNoteVisibilityAllStaff,
+		Body:       "Meine Beobachtung.",
+		Subject:    peopledirectory.StudentNoteSubject{Date: &date},
+	})
+	require.NoError(t, err)
+
+	correction := peopledirectory.UpdateStudentNote{
+		ID: note.ID, StudentID: child.ID, ActorAccountID: colleague,
+		Kind:       peopledirectory.StudentNoteKindJournal,
+		Visibility: peopledirectory.StudentNoteVisibilityAllStaff,
+		Body:       "Umgeschrieben.", SubjectDate: &date,
+	}
+	_, err = module.UpdateStudentNote(ctx, correction)
+	require.ErrorIs(t, err, peopledirectory.ErrStudentNoteNotAuthor)
+
+	correction.ActorAccountID = author
+	_, err = module.UpdateStudentNote(ctx, correction)
+	require.NoError(t, err)
+}
+
+// A carried-over hint has no author, so nobody may put their wording under it.
+func TestStudentNotesCarriedOverHintIsNotEditable(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := notesModule(t, db)
+	ctx := testpkg.Ctx(t)
+
+	child := testpkg.CreateTestStudent(t, db, "Elif", "Uebernommen", "3a")
+	editor := noteAuthor(t, db, "Tom", "Bearbeiter")
+
+	var noteID int64
+	require.NoError(t, db.NewRaw(`
+		INSERT INTO users.student_notes (tenant_id, student_id, origin, kind, visibility, body)
+		VALUES (?, ?, 'master_data', 'permanent', 'all_staff', ?) RETURNING id`,
+		testpkg.Tenant(t), child.ID, "Aus den Betreuernotizen.").Scan(ctx, &noteID))
+
+	_, err := module.UpdateStudentNote(ctx, peopledirectory.UpdateStudentNote{
+		ID: noteID, StudentID: child.ID, ActorAccountID: editor,
+		Kind:       peopledirectory.StudentNoteKindPermanent,
+		Visibility: peopledirectory.StudentNoteVisibilityAllStaff,
+		Body:       "Neu formuliert.",
+	})
+	require.ErrorIs(t, err, peopledirectory.ErrStudentNoteImmutable)
+}
+
+// Naming a note of another child must not reach past the child the caller
+// authorized against — neither on read nor on write.
+func TestStudentNotesStayWithTheirChild(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := notesModule(t, db)
+	ctx := testpkg.Ctx(t)
+
+	mine := testpkg.CreateTestStudent(t, db, "Anna", "Meins", "3a")
+	other := testpkg.CreateTestStudent(t, db, "Paul", "Anders", "3a")
+	author := noteAuthor(t, db, "Eva", "Schreiberin")
+	date := calendar.NewDate(2026, 9, 9)
+
+	note, err := module.CreateStudentNote(ctx, peopledirectory.CreateStudentNote{
+		StudentID: other.ID, AuthorAccountID: author,
+		Kind:       peopledirectory.StudentNoteKindJournal,
+		Visibility: peopledirectory.StudentNoteVisibilityAllStaff,
+		Body:       "Gehört Paul.",
+		Subject:    peopledirectory.StudentNoteSubject{Date: &date},
+	})
+	require.NoError(t, err)
+
+	notes, err := module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
+		StudentID: mine.ID, NoteID: note.ID,
+		Audience: peopledirectory.StudentNoteAudience{
+			Visibilities:    []string{peopledirectory.StudentNoteVisibilityAllStaff},
+			ReaderAccountID: author,
+		},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, notes, "naming a foreign note under the wrong child returns nothing")
+
+	err = module.DeleteStudentNote(ctx, peopledirectory.DeleteStudentNote{
+		ID: note.ID, StudentID: mine.ID, ActorAccountID: author,
+	})
+	require.ErrorIs(t, err, peopledirectory.ErrStudentNoteNotFound)
+}
+
+func TestStudentNotesDoNotCrossTenants(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := notesModule(t, db)
+	ctx := testpkg.Ctx(t)
+
+	otherTenant := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, otherTenant)
+	foreign := testpkg.CreateTestStudentForTenant(t, db, otherTenant, "Fremd", "Kind", "2a")
+	_, err := db.NewRaw(`
+		INSERT INTO users.student_notes (tenant_id, student_id, kind, visibility, body, subject_date)
+		VALUES (?, ?, 'journal', 'all_staff', ?, '2026-09-09')`,
+		otherTenant, foreign.ID, "Notiz einer anderen Schule.").Exec(ctx)
+	require.NoError(t, err)
+
+	notes, err := module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
+		StudentID: foreign.ID,
+		Audience: peopledirectory.StudentNoteAudience{
+			Visibilities: []string{peopledirectory.StudentNoteVisibilityAllStaff},
+		},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, notes, "another school's note card must stay invisible")
+}
+
+// Kind narrows the read to one lifetime: the Stammdaten tab asks for the
+// durable hints only, the timeline for everything.
+func TestStudentNotesFilterByKind(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := notesModule(t, db)
+	ctx := testpkg.Ctx(t)
+
+	child := testpkg.CreateTestStudent(t, db, "Rana", "Arten", "3a")
+	author := noteAuthor(t, db, "Jo", "Schreiber")
+	audience := peopledirectory.StudentNoteAudience{
+		Visibilities: []string{peopledirectory.StudentNoteVisibilityAllStaff},
+	}
+	date := calendar.NewDate(2026, 9, 9)
+
+	for _, note := range []struct{ kind, body string }{
+		{peopledirectory.StudentNoteKindPermanent, "Dauerhafter Hinweis"},
+		{peopledirectory.StudentNoteKindJournal, "Eintrag"},
+	} {
+		subject := peopledirectory.StudentNoteSubject{}
+		if note.kind == peopledirectory.StudentNoteKindJournal {
+			subject.Date = &date
+		}
+		_, err := module.CreateStudentNote(ctx, peopledirectory.CreateStudentNote{
+			StudentID: child.ID, AuthorAccountID: author, Kind: note.kind,
+			Visibility: peopledirectory.StudentNoteVisibilityAllStaff, Body: note.body,
+			Subject: subject,
+		})
+		require.NoError(t, err)
+	}
+
+	permanent, err := module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
+		StudentID: child.ID, Kind: peopledirectory.StudentNoteKindPermanent, Audience: audience,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Dauerhafter Hinweis"}, bodies(permanent))
+
+	all, err := module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
+		StudentID: child.ID, Audience: audience,
+	})
+	require.NoError(t, err)
+	assert.Len(t, all, 2, "without a kind the card returns both lifetimes")
+}

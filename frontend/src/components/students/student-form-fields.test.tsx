@@ -7,7 +7,6 @@ import { describe, it, expect, vi } from "vitest";
 import {
   PersonalInfoSection,
   HealthInfoSection,
-  SupervisorNotesSection,
   AdditionalInfoSection,
   PrivacyConsentSection,
   BusStatusSection,
@@ -106,27 +105,6 @@ describe("HealthInfoSection", () => {
     fireEvent.change(textarea, { target: { value: "New info" } });
 
     expect(onChange).toHaveBeenCalledWith("New info");
-  });
-});
-
-describe("SupervisorNotesSection", () => {
-  it("renders supervisor notes textarea", () => {
-    const onChange = vi.fn();
-    render(
-      <SupervisorNotesSection value="Important note" onChange={onChange} />,
-    );
-
-    expect(screen.getByDisplayValue("Important note")).toBeInTheDocument();
-  });
-
-  it("calls onChange when textarea changes", () => {
-    const onChange = vi.fn();
-    render(<SupervisorNotesSection value="" onChange={onChange} />);
-
-    const textarea = screen.getByPlaceholderText(/Interne Notizen/);
-    fireEvent.change(textarea, { target: { value: "New note" } });
-
-    expect(onChange).toHaveBeenCalledWith("New note");
   });
 });
 

@@ -323,12 +323,25 @@ func TestStudentOwnerCutoverRepointsAndValidatesForeignKeys(t *testing.T) {
 		WHERE confrelid = 'users.student_profiles'::regclass AND contype = 'f' AND NOT convalidated`).
 		Scan(t.Context(), &unvalidated))
 	require.Equal(t, before, unvalidated, "the switch itself must not scan the dependent tables")
+	var notesRepointed bool
+	require.NoError(t, db.NewRaw(`SELECT EXISTS (
+		SELECT 1 FROM pg_constraint
+		WHERE conrelid = 'users.student_notes'::regclass
+			AND conname = 'fk_student_notes_student'
+			AND confrelid = 'users.student_profiles'::regclass
+			AND NOT convalidated
+	)`).Scan(t.Context(), &notesRepointed))
+	require.True(t, notesRepointed, "student notes must follow the compatibility cutover without a table scan")
 
 	require.NoError(t, ValidateStudentOwnerForeignKeys(t.Context(), db))
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM pg_constraint
 		WHERE confrelid = 'users.student_profiles'::regclass AND contype = 'f' AND NOT convalidated`).
 		Scan(t.Context(), &unvalidated))
 	require.Zero(t, unvalidated)
+	require.NoError(t, db.NewRaw(`SELECT convalidated FROM pg_constraint
+		WHERE conrelid = 'users.student_notes'::regclass AND conname = 'fk_student_notes_student'`).
+		Scan(t.Context(), &notesRepointed))
+	require.True(t, notesRepointed)
 	require.NoError(t, ValidateStudentOwnerForeignKeys(t.Context(), db), "validation must be resumable")
 
 	// A child enrolled after the switch exists only in the owner tables; its

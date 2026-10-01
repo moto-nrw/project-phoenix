@@ -53,6 +53,8 @@ import { StudentRecordActions } from "~/components/students/student-record-actio
 import { ParentMessagesCard } from "~/components/students/parent-messages-card";
 import { StudentEnrollmentsTab } from "~/components/students/student-enrollments-tab";
 import { StudentDokumenteTab } from "~/components/students/dokumente-tab";
+import { StudentNotizenTab } from "~/components/students/student-notizen-tab";
+import { StudentPermanentNotesCard } from "~/components/students/student-permanent-notes-card";
 import {
   AggregatedRequestList,
   type AggregatedRequestFilters,
@@ -124,6 +126,7 @@ const EMPTY_GROUP_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [];
 // criterion: "navigate directly to the relevant section").
 type StudentTabId =
   | "stammdaten"
+  | "notizen"
   | "nachrichten"
   | "erziehungsberechtigte"
   | "betreuungsplan"
@@ -135,6 +138,7 @@ type StudentTabId =
 
 const TAB_LABELS: Record<StudentTabId, string> = {
   stammdaten: "Stammdaten",
+  notizen: "Notizen",
   nachrichten: "Nachrichten",
   erziehungsberechtigte: "Erziehungsberechtigte",
   betreuungsplan: "Betreuungsplan",
@@ -150,6 +154,7 @@ const TAB_LABELS: Record<StudentTabId, string> = {
 // parent-message overview (the backend gates per-child read access anyway).
 const FULL_ACCESS_BASE_TABS: StudentTabId[] = [
   "stammdaten",
+  "notizen",
   "nachrichten",
   "erziehungsberechtigte",
   "betreuungsplan",
@@ -166,6 +171,7 @@ const LIMITED_ACCESS_BASE_TABS: StudentTabId[] = [
 ];
 const FULL_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
   "stammdaten",
+  "notizen",
   "nachrichten",
   "erziehungsberechtigte",
   "betreuungsplan",
@@ -891,7 +897,6 @@ function StudentDetailPageContent() {
       confirmed_companion_extensions:
         editedStudent.confirmed_companion_extensions ?? [],
       health_info: editedStudent.health_info,
-      supervisor_notes: editedStudent.supervisor_notes,
       extra_info: editedStudent.extra_info,
       pickup_status: editedStudent.pickup_status,
       pickup_days: editedStudent.pickup_days,
@@ -1844,6 +1849,12 @@ function FullAccessView({
   useEffect(() => {
     if (activeTab === "aenderungsprotokoll") setProtocolTabSeen(true);
   }, [activeTab]);
+  // Ebenso die Kartei (#3632): die Stammdaten zeigen die dauerhaften Hinweise
+  // ohnehin: die volle Chronik lädt erst, wenn jemand den Reiter öffnet.
+  const [notesTabSeen, setNotesTabSeen] = useState(activeTab === "notizen");
+  useEffect(() => {
+    if (activeTab === "notizen") setNotesTabSeen(true);
+  }, [activeTab]);
   return (
     <>
       <StudentTabPanel
@@ -1869,6 +1880,7 @@ function FullAccessView({
             onEditClick={hasWriteAccess ? onOpenPersonalInfoEdit : undefined}
           />
         )}
+        <StudentPermanentNotesCard studentId={studentId} />
         <StudentConsentsReadOnly consents={student.consents} />
         {canManageFamilyProtection ? (
           <SectionCard
@@ -1877,6 +1889,19 @@ function FullAccessView({
           >
             <FamilyProtectionControl studentId={studentId} canManage />
           </SectionCard>
+        ) : null}
+      </StudentTabPanel>
+
+      <StudentTabPanel
+        value="notizen"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        {notesTabSeen ? (
+          <StudentNotizenTab
+            studentId={studentId}
+            educationGroupId={student.group_id ?? ""}
+          />
         ) : null}
       </StudentTabPanel>
 
