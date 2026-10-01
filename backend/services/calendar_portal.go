@@ -42,6 +42,8 @@ type CalendarDependencies struct {
 	ParentsURL             string
 	FrontendURL            string
 	CalDAVURL              string
+	// Today pins the feeds' calendar day; nil uses the real day.
+	Today func() appointmentcap.Date
 
 	// Notifier and Preferences drive the guardian push/in-app notification that
 	// accompanies the appointment e-mails (#1671). Both optional and both
@@ -84,6 +86,7 @@ func NewCalendarPortal(d CalendarDependencies) calendarCompose.Application {
 	cfg.ParentsURL = d.ParentsURL
 	cfg.FrontendURL = d.FrontendURL
 	cfg.CalDAVURL = d.CalDAVURL
+	cfg.Today = d.Today
 	cfg.Logger = d.Logger
 	cfg.Preferences = d.Preferences
 	cfg.Runtime = calendarPortalRuntime{db: d.DB}
