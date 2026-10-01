@@ -276,27 +276,38 @@ func (s *StudentNoteStore) SyncLegacySupervisorNotes(
 	if studentID <= 0 {
 		return domain.OperationStats{}, domain.ErrStudentNoteInvalid
 	}
-	body := ""
-	if supervisorNotes != nil {
-		body = strings.TrimSpace(*supervisorNotes)
+	body := strings.TrimSpace(derefString(supervisorNotes))
+	if body == "" {
+		return s.deleteLegacySupervisorNote(ctx, db, tenantID, studentID)
 	}
+	return s.upsertLegacySupervisorNote(ctx, db, tenantID, studentID, body)
+}
+
+func (s *StudentNoteStore) deleteLegacySupervisorNote(
+	ctx context.Context, db bun.IDB, tenantID, studentID int64,
+) (domain.OperationStats, error) {
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	if body == "" {
-		_, err = db.NewDelete().
-			Model((*studentNoteRow)(nil)).
-			ModelTableExpr(studentNotesTable+" AS note").
-			Where(`"note".tenant_id = ?`, tenantID).
-			Where(`"note".student_id = ?`, studentID).
-			Where(`"note".origin = ?`, domain.StudentNoteOriginMasterData).
-			Where(`"note".deleted_at IS NULL`).
-			Exec(ctx)
-		stats.StatementDuration = time.Since(started)
-		if err != nil {
-			return stats, fmt.Errorf("sync legacy supervisor notes: %w", err)
-		}
-		return stats, nil
+	_, err := db.NewDelete().
+		Model((*studentNoteRow)(nil)).
+		ModelTableExpr(studentNotesTable+" AS note").
+		Where(`"note".tenant_id = ?`, tenantID).
+		Where(`"note".student_id = ?`, studentID).
+		Where(`"note".origin = ?`, domain.StudentNoteOriginMasterData).
+		Where(`"note".deleted_at IS NULL`).
+		Exec(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return stats, fmt.Errorf("sync legacy supervisor notes: %w", err)
 	}
+	return stats, nil
+}
+
+func (s *StudentNoteStore) upsertLegacySupervisorNote(
+	ctx context.Context, db bun.IDB, tenantID, studentID int64, body string,
+) (domain.OperationStats, error) {
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
 	result, err := db.NewUpdate().
 		Model((*studentNoteRow)(nil)).
 		ModelTableExpr(studentNotesTable+" AS note").
@@ -335,6 +346,13 @@ func (s *StudentNoteStore) SyncLegacySupervisorNotes(
 	}
 	stats.Rows = 1
 	return stats, nil
+}
+
+func derefString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func (r studentNoteRow) toDomain() domain.StudentNote {

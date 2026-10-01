@@ -85,7 +85,7 @@ func (s *StudentService) CreateEnrollment(ctx context.Context, input domain.Enro
 			return err
 		}
 		return s.syncLegacySupervisorNotes(txCtx, stats, record.ID, record.SupervisorNotes,
-			input.InitialProfile != nil && input.InitialProfile.SupervisorNotesSet)
+			input.InitialProfile != nil && input.InitialProfile.SupervisorNotesSet && hasLegacySupervisorNotes(record.SupervisorNotes))
 	})
 	return result, err
 }

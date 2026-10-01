@@ -206,7 +206,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/peopledirectory/departure/companion_note.go:NormalizeCompanionNote":                          20,
 	"modules/peopledirectory/enrollment_departure.go:normalizeEnrollmentDeparture":                        41,
 	"modules/peopledirectory/internal/application/student_photo.go:(*StudentPhotoService).CommitPhoto":    30,
-	"modules/peopledirectory/internal/application/student_write.go:(*StudentService).UpdateStudent":       27,
+	"modules/peopledirectory/internal/application/student_write.go:(*StudentService).UpdateStudent":       23,
 	"modules/peopledirectory/internal/application/student_write.go:(*StudentService).decideStranding":     18,
 	"modules/peopledirectory/internal/application/student_write.go:(*StudentService).reconcileCompanions": 19,
 	"modules/peopledirectory/student_field_review.go:reviewStudentField":                                  16,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 )
@@ -71,7 +72,8 @@ func (s *StudentService) CreateStudent(ctx context.Context, write StudentWrite) 
 		if err != nil {
 			return err
 		}
-		if err := s.syncLegacySupervisorNotes(txCtx, stats, record.ID, record.SupervisorNotes, write.SupervisorNotesSupplied); err != nil {
+		if err := s.syncLegacySupervisorNotes(txCtx, stats, record.ID, record.SupervisorNotes,
+			write.SupervisorNotesSupplied && hasLegacySupervisorNotes(record.SupervisorNotes)); err != nil {
 			return err
 		}
 		result = applyPlanToRecord(record, resolved, noteToStore(resolved, write.CompanionNote))
@@ -137,20 +139,8 @@ func (s *StudentService) UpdateStudent(ctx context.Context, write StudentWrite) 
 			return err
 		}
 
-		record, updated, writeStats, err := s.store.UpdateRecord(txCtx, write.Record)
-		stats.Add(writeStats)
+		record, err := s.persistStudentWrite(txCtx, stats, write, resolved, plan.Touched() || write.NoteSupplied)
 		if err != nil {
-			return err
-		}
-		if !updated {
-			return domain.ErrStudentNotFound
-		}
-
-		note := noteToStore(resolved, write.CompanionNote)
-		if err := s.saveStudentOwners(txCtx, record, resolved, note, plan.Touched() || write.NoteSupplied); err != nil {
-			return err
-		}
-		if err := s.syncLegacySupervisorNotes(txCtx, stats, record.ID, record.SupervisorNotes, write.SupervisorNotesSupplied); err != nil {
 			return err
 		}
 
@@ -159,10 +149,35 @@ func (s *StudentService) UpdateStudent(ctx context.Context, write StudentWrite) 
 				return err
 			}
 		}
-		result = applyPlanToRecord(record, resolved, note)
+		result = applyPlanToRecord(record, resolved, noteToStore(resolved, write.CompanionNote))
 		return nil
 	})
 	return result, err
+}
+
+func (s *StudentService) persistStudentWrite(
+	ctx context.Context,
+	stats *domain.OperationStats,
+	write StudentWrite,
+	plan domain.DeparturePlan,
+	planTouched bool,
+) (domain.StudentRecord, error) {
+	record, updated, writeStats, err := s.store.UpdateRecord(ctx, write.Record)
+	stats.Add(writeStats)
+	if err != nil {
+		return domain.StudentRecord{}, err
+	}
+	if !updated {
+		return domain.StudentRecord{}, domain.ErrStudentNotFound
+	}
+	note := noteToStore(plan, write.CompanionNote)
+	if err := s.saveStudentOwners(ctx, record, plan, note, planTouched); err != nil {
+		return domain.StudentRecord{}, err
+	}
+	if err := s.syncLegacySupervisorNotes(ctx, stats, record.ID, record.SupervisorNotes, write.SupervisorNotesSupplied); err != nil {
+		return domain.StudentRecord{}, err
+	}
+	return record, nil
 }
 
 func (s *StudentService) syncLegacySupervisorNotes(
@@ -178,6 +193,10 @@ func (s *StudentService) syncLegacySupervisorNotes(
 	queryStats, err := s.notes.SyncLegacySupervisorNotes(ctx, studentID, supervisorNotes)
 	stats.Add(queryStats)
 	return err
+}
+
+func hasLegacySupervisorNotes(notes *string) bool {
+	return notes != nil && strings.TrimSpace(*notes) != ""
 }
 
 func (s *StudentService) saveStudentOwners(ctx context.Context, record domain.StudentRecord, plan domain.DeparturePlan, note *string, touched bool) error {
