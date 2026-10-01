@@ -163,6 +163,41 @@ func (s *StudentNoteStore) FindByID(ctx context.Context, id int64, lock string) 
 	return row.toDomain(), true, stats, nil
 }
 
+// FindLegacySupervisorNote finds the still-live hint the temporary legacy
+// field owns. A field clear locks it before hiding the note and recording the
+// compatibility deletion in the Audit-owned ledger.
+func (s *StudentNoteStore) FindLegacySupervisorNote(
+	ctx context.Context, studentID int64, lock string,
+) (domain.StudentNote, bool, domain.OperationStats, error) {
+	db, tenantID, err := s.tenantDatabase(ctx)
+	if err != nil {
+		return domain.StudentNote{}, false, domain.OperationStats{}, err
+	}
+	var row studentNoteRow
+	query := db.NewSelect().
+		Model(&row).
+		ModelTableExpr(studentNotesTable+" AS note").
+		Where(`"note".tenant_id = ?`, tenantID).
+		Where(`"note".student_id = ?`, studentID).
+		Where(`"note".origin = ?`, domain.StudentNoteOriginMasterData).
+		Where(`"note".deleted_at IS NULL`)
+	if lock != "" {
+		query = query.For(lock)
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = query.Scan(ctx)
+	stats.StatementDuration = time.Since(started)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.StudentNote{}, false, stats, nil
+	}
+	if err != nil {
+		return domain.StudentNote{}, false, stats, fmt.Errorf("find legacy supervisor note: %w", err)
+	}
+	stats.Rows = 1
+	return row.toDomain(), true, stats, nil
+}
+
 // Insert writes one new note and returns it as stored, so the caller renders
 // the server's timestamps rather than guessing them.
 func (s *StudentNoteStore) Insert(ctx context.Context, create domain.CreateStudentNote) (domain.StudentNote, domain.OperationStats, error) {

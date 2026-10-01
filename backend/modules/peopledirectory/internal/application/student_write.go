@@ -3,10 +3,12 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
 )
 
 // StudentWrite is one create or update of a child, as the caller submits it:
@@ -190,9 +192,29 @@ func (s *StudentService) syncLegacySupervisorNotes(
 	if !supplied {
 		return nil
 	}
+	var deletedNoteID int64
+	if !hasLegacySupervisorNotes(supervisorNotes) {
+		legacyNote, found, findStats, err := s.notes.FindLegacySupervisorNote(ctx, studentID, "UPDATE")
+		stats.Add(findStats)
+		if err != nil {
+			return err
+		}
+		if found {
+			if s.audit == nil {
+				return ports.ErrStudentNoteDeletionAuditUnavailable
+			}
+			deletedNoteID = legacyNote.ID
+		}
+	}
 	queryStats, err := s.notes.SyncLegacySupervisorNotes(ctx, studentID, supervisorNotes)
 	stats.Add(queryStats)
-	return err
+	if err != nil || deletedNoteID == 0 {
+		return err
+	}
+	if err := s.audit.RecordLegacyStudentNoteDeletion(ctx, studentID, deletedNoteID); err != nil {
+		return fmt.Errorf("record legacy student note deletion: %w", err)
+	}
+	return nil
 }
 
 func hasLegacySupervisorNotes(notes *string) bool {

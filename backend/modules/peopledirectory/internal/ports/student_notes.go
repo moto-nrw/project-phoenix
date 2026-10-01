@@ -17,6 +17,9 @@ type StudentNoteStore interface {
 	// FindByID reads one note regardless of audience — the writers use it to
 	// re-check authorship and ownership under the lock they write with.
 	FindByID(ctx context.Context, id int64, lock string) (domain.StudentNote, bool, domain.OperationStats, error)
+	// FindLegacySupervisorNote finds the live carried-over hint so a legacy
+	// field clear can record the same note in the deletion ledger.
+	FindLegacySupervisorNote(ctx context.Context, studentID int64, lock string) (domain.StudentNote, bool, domain.OperationStats, error)
 	Insert(context.Context, domain.CreateStudentNote) (domain.StudentNote, domain.OperationStats, error)
 	Update(context.Context, domain.UpdateStudentNote) (domain.StudentNote, domain.OperationStats, error)
 	SoftDelete(context.Context, domain.DeleteStudentNote) (domain.OperationStats, error)

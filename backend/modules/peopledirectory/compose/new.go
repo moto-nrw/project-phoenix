@@ -107,17 +107,17 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 	}
 	owners := studentOwners{owners: dependencies.StudentOwners}
 	noteStore := postgres.NewStudentNoteStore(database)
-	students := application.NewStudents(postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), noteStore, companions, owners, transaction{}, observe)
+	var noteDeletionAudit ports.StudentNoteDeletionAudit
+	if dependencies.StudentNoteDeletionAudit != nil {
+		noteDeletionAudit = studentNoteDeletionAudit{audit: dependencies.StudentNoteDeletionAudit}
+	}
+	students := application.NewStudents(postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), noteStore, companions, owners, transaction{}, noteDeletionAudit, observe)
 	guardians := application.NewGuardians(postgres.NewGuardianStore(database, postgres.PortalMembershipQuery(memberships)), dependencies.GuardianLinkOwners, transaction{}, observe)
 	var auditLog ports.StudentFieldAuditLog
 	if dependencies.StudentFieldAudit != nil {
 		auditLog = studentFieldAuditLog{log: dependencies.StudentFieldAudit}
 	}
 	studentAudit := application.NewStudentAudit(auditLog, observe)
-	var noteDeletionAudit ports.StudentNoteDeletionAudit
-	if dependencies.StudentNoteDeletionAudit != nil {
-		noteDeletionAudit = studentNoteDeletionAudit{audit: dependencies.StudentNoteDeletionAudit}
-	}
 	var consentHistory ports.StudentConsentHistory
 	if dependencies.StudentConsentHistory != nil {
 		consentHistory = dependencies.StudentConsentHistory

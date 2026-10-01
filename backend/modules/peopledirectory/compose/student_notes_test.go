@@ -52,6 +52,17 @@ func (a testStudentNoteDeletionAudit) RecordStudentNoteDeletion(
 	return err
 }
 
+func (a testStudentNoteDeletionAudit) RecordLegacyStudentNoteDeletion(
+	ctx context.Context, studentID, noteID int64,
+) error {
+	_, err := a.db.NewRaw(`INSERT INTO audit.data_deletions
+		(tenant_id, student_id, deletion_type, records_deleted, deletion_reason, deleted_by, metadata)
+		VALUES (?, ?, 'manual', 1, 'legacy supervisor notes cleared', 'system',
+		jsonb_build_object('student_note_id', ?, 'source', 'supervisor_notes'))`,
+		tenant.FromContext(ctx), studentID, noteID).Exec(ctx)
+	return err
+}
+
 // noteTestStudentOwners supplies the owner calls a real student write makes.
 // The note test is about the synchronisation after that owner write, not about
 // duplicating the care-plan owner's own persistence contract.
@@ -234,6 +245,10 @@ func (failingStudentNoteDeletionAudit) RecordStudentNoteDeletion(context.Context
 	return errors.New("deletion audit unavailable")
 }
 
+func (failingStudentNoteDeletionAudit) RecordLegacyStudentNoteDeletion(context.Context, int64, int64) error {
+	return errors.New("deletion audit unavailable")
+}
+
 func TestStudentNoteCreateRevalidatesSubjectInWriteTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -333,12 +348,24 @@ func TestStudentNotesStayInSyncWithLegacySupervisorNotes(t *testing.T) {
 	notes = listPermanent()
 	require.Len(t, notes, 1)
 	assert.Equal(t, updated, notes[0].Body)
+	legacyNoteID := notes[0].ID
 
 	cleared := ""
 	require.NoError(t, module.ApplyEnrollmentProfile(ctx, child.ID, peopledirectory.EnrollmentProfilePatch{
 		SupervisorNotesSet: true, SupervisorNotes: &cleared,
 	}))
 	assert.Empty(t, listPermanent())
+	var deletionAudit struct {
+		DeletedBy string `bun:"deleted_by"`
+		NoteID    int64  `bun:"note_id"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT deleted_by,
+		(metadata->>'student_note_id')::bigint AS note_id
+		FROM audit.data_deletions
+		WHERE tenant_id = ? AND student_id = ? AND deletion_reason = 'legacy supervisor notes cleared'`,
+		testpkg.Tenant(t), child.ID).Scan(ctx, &deletionAudit))
+	assert.Equal(t, "system", deletionAudit.DeletedBy)
+	assert.Equal(t, legacyNoteID, deletionAudit.NoteID)
 
 	reintroduced := "Wieder ein alter Hinweis."
 	require.NoError(t, module.ApplyEnrollmentProfile(ctx, child.ID, peopledirectory.EnrollmentProfilePatch{
