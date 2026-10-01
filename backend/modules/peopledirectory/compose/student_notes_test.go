@@ -262,6 +262,19 @@ func TestStudentNotesStayInSyncWithLegacySupervisorNotes(t *testing.T) {
 		SupervisorNotesSet: true, SupervisorNotes: &cleared,
 	}))
 	assert.Empty(t, listPermanent())
+
+	reintroduced := "Wieder ein alter Hinweis."
+	require.NoError(t, module.ApplyEnrollmentProfile(ctx, child.ID, peopledirectory.EnrollmentProfilePatch{
+		SupervisorNotesSet: true, SupervisorNotes: &reintroduced,
+	}))
+	assert.Empty(t, listPermanent(), "clearing the legacy field keeps its carried-over hint deleted")
+
+	var tombstones int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.student_notes
+		WHERE tenant_id = ? AND student_id = ? AND origin = 'master_data'
+			AND deleted_at IS NOT NULL AND deleted_by_account_id IS NULL`,
+		testpkg.Tenant(t), child.ID).Scan(ctx, &tombstones))
+	assert.Equal(t, 1, tombstones, "the compatibility writer records a system tombstone")
 }
 
 func TestDeletedLegacyStudentNoteStaysDeleted(t *testing.T) {

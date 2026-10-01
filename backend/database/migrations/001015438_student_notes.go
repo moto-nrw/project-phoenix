@@ -117,8 +117,14 @@ func studentNotesUp(ctx context.Context, db *bun.DB) error {
 				(kind = 'permanent' AND subject_date IS NULL)
 				OR (kind = 'journal' AND subject_date IS NOT NULL)
 			),
+			-- The compatibility writer can retire a carried-over text without an
+			-- account: the legacy field has no actor to record. Every staff note
+			-- still requires an accountable deleter.
 			CONSTRAINT chk_student_notes_deletion CHECK (
-				(deleted_at IS NULL) = (deleted_by_account_id IS NULL)
+				(deleted_at IS NULL AND deleted_by_account_id IS NULL)
+				OR (deleted_at IS NOT NULL AND (
+					deleted_by_account_id IS NOT NULL OR origin = 'master_data'
+				))
 			),
 			-- The tenant travels into the foreign key, as on every table the
 			-- student split created: a note can only ever point at a child of

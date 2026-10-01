@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
@@ -91,6 +92,13 @@ func TestParseNoteSubject(t *testing.T) {
 		broken := "09.09.2026"
 		_, err := parseNoteSubject(studentNoteRequestBody{SubjectDate: &broken})
 		require.ErrorContains(t, err, "YYYY-MM-DD")
+	})
+
+	t.Run("a future day is refused", func(t *testing.T) {
+		t.Parallel()
+		future := timezone.TodayDate().AddDays(1).String()
+		_, err := parseNoteSubject(studentNoteRequestBody{SubjectDate: &future})
+		require.ErrorContains(t, err, "must not be in the future")
 	})
 
 	t.Run("an empty reference is no reference", func(t *testing.T) {

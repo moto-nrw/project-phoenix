@@ -288,9 +288,11 @@ func (s *StudentNoteStore) deleteLegacySupervisorNote(
 ) (domain.OperationStats, error) {
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	_, err := db.NewDelete().
+	_, err := db.NewUpdate().
 		Model((*studentNoteRow)(nil)).
 		ModelTableExpr(studentNotesTable+" AS note").
+		Set("deleted_at = clock_timestamp()").
+		Set("deleted_by_account_id = NULL").
 		Where(`"note".tenant_id = ?`, tenantID).
 		Where(`"note".student_id = ?`, studentID).
 		Where(`"note".origin = ?`, domain.StudentNoteOriginMasterData).

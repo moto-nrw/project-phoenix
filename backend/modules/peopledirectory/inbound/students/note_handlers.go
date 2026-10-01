@@ -344,6 +344,9 @@ func parseNoteSubject(body studentNoteRequestBody) (peopleModule.StudentNoteSubj
 		if err != nil {
 			return subject, errors.New("subject_date must be a YYYY-MM-DD date")
 		}
+		if date.After(timezone.TodayDate()) {
+			return subject, errors.New("subject_date must not be in the future")
+		}
 		subject.Date = &date
 	}
 	activityID, err := parseOptionalID(body.ActivityGroupID, "activity_group_id")

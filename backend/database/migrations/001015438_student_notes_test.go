@@ -115,6 +115,14 @@ func TestStudentNotesConstraints(t *testing.T) {
 		require.ErrorContains(t, err, "chk_student_notes_deletion")
 	})
 
+	t.Run("a carried-over hint may be retired without an invented author", func(t *testing.T) {
+		_, err := db.ExecContext(ctx, `
+			INSERT INTO users.student_notes (tenant_id, student_id, origin, kind, visibility, body, deleted_at)
+			VALUES (?, ?, 'master_data', 'permanent', 'all_staff', 'Übernommener Hinweis.', now())`,
+			tenantID, student.ID)
+		require.NoError(t, err)
+	})
+
 	t.Run("a note for another tenant's child is rejected", func(t *testing.T) {
 		otherTenantID, _ := testpkg.CreateTestTenant(t, db)
 		foreign := testpkg.CreateTestStudentForTenant(t, db, otherTenantID, "Fremd", "Kind", "4b")
