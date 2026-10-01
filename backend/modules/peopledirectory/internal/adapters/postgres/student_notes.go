@@ -253,11 +253,12 @@ func (s *StudentNoteStore) SoftDelete(ctx context.Context, deletion domain.Delet
 		return stats, fmt.Errorf("delete student note: %w", err)
 	}
 	affected, err := result.RowsAffected()
-	if err == nil {
-		stats.Rows = affected
-		if affected == 0 {
-			return stats, domain.ErrStudentNoteNotFound
-		}
+	if err != nil {
+		return stats, fmt.Errorf("delete student note: %w", err)
+	}
+	stats.Rows = affected
+	if affected == 0 {
+		return stats, domain.ErrStudentNoteNotFound
 	}
 	return stats, nil
 }
