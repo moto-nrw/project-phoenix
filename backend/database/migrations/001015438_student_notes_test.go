@@ -71,18 +71,12 @@ func TestStudentNotesConstraints(t *testing.T) {
 		require.ErrorContains(t, err, "chk_student_notes_single_reference")
 	})
 
-	t.Run("group_leads without a group reference is rejected", func(t *testing.T) {
-		err := insertStudentNote(t, db, tenantID, student.ID,
-			", visibility, subject_date", "group_leads", "2026-09-09")
-		require.ErrorContains(t, err, "chk_student_notes_group_leads_reference")
-	})
-
 	t.Run("group_leads with a group reference is accepted", func(t *testing.T) {
 		require.NoError(t, insertStudentNote(t, db, tenantID, student.ID,
 			", visibility, subject_date, education_group_id", "group_leads", "2026-09-09", group.ID))
 	})
 
-	t.Run("deleting a referenced group removes its leadership note", func(t *testing.T) {
+	t.Run("deleting a referenced group retains its leadership note without the reference", func(t *testing.T) {
 		var noteID int64
 		require.NoError(t, db.NewRaw(`
 			INSERT INTO users.student_notes (tenant_id, student_id, visibility, body, subject_date, activity_group_id)
@@ -90,11 +84,10 @@ func TestStudentNotesConstraints(t *testing.T) {
 			tenantID, student.ID, activity.ID).Scan(ctx, &noteID))
 		_, err := db.NewRaw(`DELETE FROM activities.groups WHERE id = ?`, activity.ID).Exec(ctx)
 		require.NoError(t, err)
-		var exists bool
-		require.NoError(t, db.NewRaw(`SELECT EXISTS (
-			SELECT 1 FROM users.student_notes WHERE id = ?
-		)`, noteID).Scan(ctx, &exists))
-		assert.False(t, exists)
+		var activityGroupID *int64
+		require.NoError(t, db.NewRaw(`SELECT activity_group_id FROM users.student_notes WHERE id = ?`, noteID).
+			Scan(ctx, &activityGroupID))
+		assert.Nil(t, activityGroupID)
 	})
 
 	t.Run("a durable hint with a day is rejected", func(t *testing.T) {

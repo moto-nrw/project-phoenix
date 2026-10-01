@@ -78,8 +78,8 @@ func studentNotesUp(ctx context.Context, db *bun.DB) error {
 			category             VARCHAR(40),
 			body                 TEXT NOT NULL,
 			subject_date         DATE,
-			activity_group_id    BIGINT REFERENCES activities.groups(id) ON DELETE CASCADE,
-			education_group_id   BIGINT REFERENCES education.groups(id) ON DELETE CASCADE,
+			activity_group_id    BIGINT REFERENCES activities.groups(id) ON DELETE SET NULL,
+			education_group_id   BIGINT REFERENCES education.groups(id) ON DELETE SET NULL,
 			deleted_at           TIMESTAMPTZ,
 			deleted_by_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
 			created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -102,14 +102,10 @@ func studentNotesUp(ctx context.Context, db *bun.DB) error {
 			CONSTRAINT chk_student_notes_single_reference CHECK (
 				activity_group_id IS NULL OR education_group_id IS NULL
 			),
-			-- 'group_leads' asks the leadership of a referenced group. Without
-			-- a reference there is no leadership to ask, and the note would be
-			-- visible to nobody but its author.
-			CONSTRAINT chk_student_notes_group_leads_reference CHECK (
-				visibility <> 'group_leads'
-				OR activity_group_id IS NOT NULL
-				OR education_group_id IS NOT NULL
-			),
+			-- New leadership notes require a reference in the domain. A deleted
+			-- group clears its reference instead of deleting the child's history;
+			-- that retained row keeps its narrow audience and is visible only to
+			-- its author until it is removed.
 			-- A durable hint has no day, while every chronicle entry has one.
 			-- These two lifetimes must not overlap: a dated hint belongs in the
 			-- journal and an undated entry cannot be placed in its chronology.

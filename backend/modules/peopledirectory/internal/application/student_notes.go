@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
@@ -27,6 +28,7 @@ type StudentNoteService struct {
 	// how the family-protection ledger refuses an entry for a graduate.
 	students ports.StudentStore
 	tx       ports.Transaction
+	audit    ports.StudentNoteDeletionAudit
 	observe  ports.Observer
 }
 
@@ -35,12 +37,13 @@ func NewStudentNotes(
 	persons ports.Store,
 	students ports.StudentStore,
 	tx ports.Transaction,
+	audit ports.StudentNoteDeletionAudit,
 	observe ports.Observer,
 ) *StudentNoteService {
 	if store == nil || persons == nil || students == nil || tx == nil || observe == nil {
 		panic("people directory application: all student note dependencies are required")
 	}
-	return &StudentNoteService{store: store, persons: persons, students: students, tx: tx, observe: observe}
+	return &StudentNoteService{store: store, persons: persons, students: students, tx: tx, audit: audit, observe: observe}
 }
 
 // List returns the notes of one child that the resolved audience may read,
@@ -94,6 +97,10 @@ func (s *StudentNoteService) Create(ctx context.Context, input domain.CreateStud
 		var writeStats domain.OperationStats
 		result, writeStats, err = s.store.Insert(txCtx, input)
 		stats.Add(writeStats)
+		if err != nil {
+			return err
+		}
+		result, err = s.withAuthorName(txCtx, stats, result)
 		return err
 	})
 	return result, err
@@ -120,6 +127,10 @@ func (s *StudentNoteService) Update(ctx context.Context, input domain.UpdateStud
 		var writeStats domain.OperationStats
 		result, writeStats, err = s.store.Update(txCtx, input)
 		stats.Add(writeStats)
+		if err != nil {
+			return err
+		}
+		result, err = s.withAuthorName(txCtx, stats, result)
 		return err
 	})
 	return result, err
@@ -145,8 +156,31 @@ func (s *StudentNoteService) Delete(ctx context.Context, input domain.DeleteStud
 		}
 		deleteStats, err := s.store.SoftDelete(txCtx, input)
 		stats.Add(deleteStats)
-		return err
+		if err != nil {
+			return err
+		}
+		if s.audit == nil {
+			return ports.ErrStudentNoteDeletionAuditUnavailable
+		}
+		if err := s.audit.RecordStudentNoteDeletion(txCtx, input.StudentID, input.ID, input.ActorAccountID); err != nil {
+			return fmt.Errorf("record student note deletion: %w", err)
+		}
+		return nil
 	})
+}
+
+func (s *StudentNoteService) withAuthorName(
+	ctx context.Context, stats *domain.OperationStats, note domain.StudentNote,
+) (domain.StudentNote, error) {
+	if note.AuthorAccountID == nil {
+		return note, nil
+	}
+	persons, personStats, err := s.persons.ListByAccounts(ctx, []int64{*note.AuthorAccountID})
+	stats.Add(personStats)
+	if err != nil {
+		return domain.StudentNote{}, err
+	}
+	return withAuthorNames([]domain.StudentNote{note}, persons)[0], nil
 }
 
 func (s *StudentNoteService) lockForDeletion(

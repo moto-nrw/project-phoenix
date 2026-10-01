@@ -2,6 +2,8 @@ package compose
 
 import (
 	"context"
+	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -22,10 +24,31 @@ func notesModule(t *testing.T, db *testpkg.DB) *peopledirectory.Module {
 }
 
 func notesModuleWithOwners(t *testing.T, db *testpkg.DB, owners StudentOwners) *peopledirectory.Module {
+	return notesModuleWithDeletionAudit(t, db, owners, testStudentNoteDeletionAudit{db: db})
+}
+
+func notesModuleWithDeletionAudit(
+	t *testing.T, db *testpkg.DB, owners StudentOwners, audit StudentNoteDeletionAudit,
+) *peopledirectory.Module {
 	t.Helper()
-	module, err := New(Dependencies{DB: db, StudentOwners: owners, Observe: func(Observation) {}})
+	module, err := New(Dependencies{
+		DB: db, StudentOwners: owners, StudentNoteDeletionAudit: audit, Observe: func(Observation) {},
+	})
 	require.NoError(t, err)
 	return module
+}
+
+type testStudentNoteDeletionAudit struct{ db *testpkg.DB }
+
+func (a testStudentNoteDeletionAudit) RecordStudentNoteDeletion(
+	ctx context.Context, studentID, noteID, actorAccountID int64,
+) error {
+	_, err := a.db.NewRaw(`INSERT INTO audit.data_deletions
+		(tenant_id, student_id, deletion_type, records_deleted, deletion_reason, deleted_by, metadata)
+		VALUES (?, ?, 'manual', 1, 'student note deleted', ?,
+		jsonb_build_object('student_note_id', ?, 'deleted_by_account_id', ?))`,
+		tenant.FromContext(ctx), studentID, "account:"+strconv.FormatInt(actorAccountID, 10), noteID, actorAccountID).Exec(ctx)
+	return err
 }
 
 // noteTestStudentOwners supplies the owner calls a real student write makes.
@@ -87,6 +110,7 @@ func TestStudentNotesRoundTrip(t *testing.T) {
 	assert.Equal(t, peopledirectory.StudentNoteOriginStaff, created.Origin)
 	require.NotNil(t, created.AuthorAccountID)
 	assert.Equal(t, author, *created.AuthorAccountID)
+	assert.Equal(t, "Sara Betreuerin", created.AuthorName, "the create response resolves the author's name")
 	require.NotNil(t, created.Subject.Date)
 	assert.Equal(t, date, *created.Subject.Date, "the day survives the DATE column unshifted")
 	assert.False(t, created.Edited())
@@ -110,6 +134,7 @@ func TestStudentNotesRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Hat heute zweimal vorgelesen.", updated.Body)
 	assert.Equal(t, peopledirectory.StudentNoteVisibilityCareTeam, updated.Visibility)
+	assert.Equal(t, "Sara Betreuerin", updated.AuthorName, "the update response resolves the author's name")
 	assert.True(t, updated.Edited(), "the trigger moves updated_at past created_at")
 	require.NotNil(t, updated.Subject.Date, "a correction keeps the day it was written for")
 
@@ -142,6 +167,22 @@ func TestStudentNotesRoundTrip(t *testing.T) {
 		ID: created.ID, StudentID: child.ID, ActorAccountID: author,
 		Authorization: peopledirectory.StudentNoteDeleteAuthorization{Admin: true},
 	}))
+	var deletionAudit struct {
+		RecordsDeleted int    `bun:"records_deleted"`
+		DeletedBy      string `bun:"deleted_by"`
+		NoteID         int64  `bun:"note_id"`
+		ActorAccountID int64  `bun:"actor_account_id"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT records_deleted, deleted_by,
+		(metadata->>'student_note_id')::bigint AS note_id,
+		(metadata->>'deleted_by_account_id')::bigint AS actor_account_id
+		FROM audit.data_deletions
+		WHERE tenant_id = ? AND student_id = ? AND deletion_reason = 'student note deleted'`,
+		testpkg.Tenant(t), child.ID).Scan(ctx, &deletionAudit))
+	assert.Equal(t, 1, deletionAudit.RecordsDeleted)
+	assert.Equal(t, "account:"+strconv.FormatInt(author, 10), deletionAudit.DeletedBy)
+	assert.Equal(t, created.ID, deletionAudit.NoteID)
+	assert.Equal(t, author, deletionAudit.ActorAccountID)
 
 	notes, err = module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
 		StudentID: child.ID,
@@ -155,6 +196,41 @@ func TestStudentNotesRoundTrip(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Empty(t, notes, "a removed note leaves every timeline, including its author's")
+}
+
+func TestStudentNoteDeleteRollsBackWithoutDeletionAudit(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := notesModuleWithDeletionAudit(t, db, noteTestStudentOwners{}, failingStudentNoteDeletionAudit{})
+	ctx := testpkg.Ctx(t)
+	child := testpkg.CreateTestStudent(t, db, "Mila", "Audit", "3a")
+	author := noteAuthor(t, db, "Sara", "Prüfung")
+	date := calendar.NewDate(2026, 9, 9)
+	note, err := module.CreateStudentNote(ctx, peopledirectory.CreateStudentNote{
+		StudentID: child.ID, AuthorAccountID: author,
+		Kind: peopledirectory.StudentNoteKindJournal, Visibility: peopledirectory.StudentNoteVisibilityAllStaff,
+		Body: "Bleibt bei Auditfehler erhalten.", Subject: peopledirectory.StudentNoteSubject{Date: &date},
+	})
+	require.NoError(t, err)
+
+	err = module.DeleteStudentNote(ctx, peopledirectory.DeleteStudentNote{
+		ID: note.ID, StudentID: child.ID, ActorAccountID: author,
+		Authorization: peopledirectory.StudentNoteDeleteAuthorization{Admin: true},
+	})
+	require.ErrorContains(t, err, "deletion audit unavailable")
+
+	notes, err := module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
+		StudentID: child.ID,
+		Audience:  peopledirectory.StudentNoteAudience{Visibilities: []string{peopledirectory.StudentNoteVisibilityAllStaff}},
+	})
+	require.NoError(t, err)
+	require.Len(t, notes, 1)
+}
+
+type failingStudentNoteDeletionAudit struct{}
+
+func (failingStudentNoteDeletionAudit) RecordStudentNoteDeletion(context.Context, int64, int64, int64) error {
+	return errors.New("deletion audit unavailable")
 }
 
 func TestStudentNoteCreateRevalidatesSubjectInWriteTransaction(t *testing.T) {

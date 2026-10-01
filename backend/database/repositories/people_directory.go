@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	auditRepositories "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -63,14 +64,15 @@ func NewPeopleDirectoryWithPhotosAndObserver(
 		StudentClassWriteGateQuery: func(ctx context.Context) (*bun.SelectQuery, error) {
 			return membershipCompose.StudentClassWriteGateQuery(ctx, db)
 		},
-		StudentOwners:         NewStudentOwners(membership, careProfiles),
-		DB:                    db,
-		Observe:               observe,
-		StudentFieldAudit:     NewStudentFieldAuditLog(db),
-		StudentConsentHistory: NewStudentConsentHistory(db),
-		StudentPhotoRuntime:   func() peopleCompose.StudentPhotoRuntime { return *photoRuntime },
-		StudentCompanions:     NewStudentCompanionSeam(companions),
-		GuardianLinkOwners:    newGuardianLinkOwners(db),
+		StudentOwners:            NewStudentOwners(membership, careProfiles),
+		DB:                       db,
+		Observe:                  observe,
+		StudentFieldAudit:        NewStudentFieldAuditLog(db),
+		StudentNoteDeletionAudit: NewStudentNoteDeletionAudit(db),
+		StudentConsentHistory:    NewStudentConsentHistory(db),
+		StudentPhotoRuntime:      func() peopleCompose.StudentPhotoRuntime { return *photoRuntime },
+		StudentCompanions:        NewStudentCompanionSeam(companions),
+		GuardianLinkOwners:       newGuardianLinkOwners(db),
 	},
 		newIdentityAccess(db, nil).FindActiveGuardianMemberships,
 	)
@@ -78,6 +80,28 @@ func NewPeopleDirectoryWithPhotosAndObserver(
 		return nil, nil, err
 	}
 	return capability, photoRuntime, nil
+}
+
+// NewStudentNoteDeletionAudit binds the Audit Platform deletion ledger behind
+// the People Directory note command. The append uses the ambient tenant
+// transaction, so missing evidence rolls the note's soft deletion back.
+func NewStudentNoteDeletionAudit(db *bun.DB) peopleCompose.StudentNoteDeletionAudit {
+	return studentNoteDeletionAudit{repo: auditRepositories.NewDataDeletionRepository(auditRootRuntime(db))}
+}
+
+type studentNoteDeletionAudit struct {
+	repo auditModels.DataDeletionRepository
+}
+
+func (a studentNoteDeletionAudit) RecordStudentNoteDeletion(
+	ctx context.Context, studentID, noteID, actorAccountID int64,
+) error {
+	record := auditModels.NewDataDeletion(studentID, auditModels.DeletionTypeManual, 1,
+		"account:"+strconv.FormatInt(actorAccountID, 10))
+	record.DeletionReason = "student note deleted"
+	record.SetMetadata("student_note_id", noteID)
+	record.SetMetadata("deleted_by_account_id", actorAccountID)
+	return a.repo.Create(ctx, record)
 }
 
 // MustNewPeopleDirectory is NewPeopleDirectory for composition seams that

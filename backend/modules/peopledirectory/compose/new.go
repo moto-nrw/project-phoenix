@@ -38,6 +38,10 @@ type Dependencies struct {
 	// reports that it is not configured, which is what graphs that never
 	// touch it (CLI roots, repository tests) need.
 	StudentFieldAudit StudentFieldAuditLog
+	// StudentNoteDeletionAudit records every hidden note in Audit's
+	// append-only deletion ledger. It is optional only for compositions that
+	// do not serve note deletion; that operation fails closed without it.
+	StudentNoteDeletionAudit StudentNoteDeletionAudit
 	// StudentConsentHistory is the Audit Platform seam behind the shared
 	// consent projection. Optional on the same terms; a child without a live
 	// photo consent then reports that the trail is not configured rather than
@@ -110,6 +114,10 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		auditLog = studentFieldAuditLog{log: dependencies.StudentFieldAudit}
 	}
 	studentAudit := application.NewStudentAudit(auditLog, observe)
+	var noteDeletionAudit ports.StudentNoteDeletionAudit
+	if dependencies.StudentNoteDeletionAudit != nil {
+		noteDeletionAudit = studentNoteDeletionAudit{audit: dependencies.StudentNoteDeletionAudit}
+	}
 	var consentHistory ports.StudentConsentHistory
 	if dependencies.StudentConsentHistory != nil {
 		consentHistory = dependencies.StudentConsentHistory
@@ -125,7 +133,7 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 	studentNotes := application.NewStudentNotes(
 		noteStore, postgres.New(database),
 		postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery),
-		transaction{}, observe)
+		transaction{}, noteDeletionAudit, observe)
 	return peopledirectory.NewModule(engine{
 		service: service, students: students, guardians: guardians,
 		studentAudit: studentAudit, studentConsents: studentConsents,
