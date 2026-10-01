@@ -68,7 +68,7 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/identityaccess/compose/account_lifecycle.go":                            828,
 	"modules/organizationtenancy/inbound/operator/provisioning.go":                   865,
 	"modules/peopledirectory/http/guardian_handlers.go":                              1025,
-	"modules/schoolcalendar/portal/internal/application/service.go":                  2000,
+	"modules/schoolcalendar/portal/internal/application/service.go":                  1993,
 	"modules/timetable/compose/httpadapter/schedules.go":                             1090,
 	"modules/timetable/compose/new.go":                                               1146,
 	"modules/timetable/timetable.go":                                                 1775,
