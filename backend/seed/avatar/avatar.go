@@ -65,22 +65,62 @@ type Choice struct {
 	Tint     Tint
 }
 
-// Choose resolves a name to its figure, direction and color. Case and
+// Variants is the number of distinct pictures: every figure facing both
+// ways in every color.
+func Variants() int { return len(poses) * 2 * len(tints) }
+
+// Index returns the variant in [0, Variants()) a name resolves to. Case and
 // surrounding whitespace do not change the result.
-func Choose(name string) Choice {
+func Index(name string) int {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(strings.ToLower(strings.TrimSpace(name))))
-	sum := h.Sum32()
+	return int(h.Sum32() % uint32(Variants()))
+}
+
+// Choose resolves a name to its figure, direction and color.
+func Choose(name string) Choice { return choiceAt(Index(name)) }
+
+func choiceAt(variant int) Choice {
 	return Choice{
-		Pose:     int(sum % uint32(len(poses))),
-		Mirrored: (sum/uint32(len(poses)))%2 == 1,
-		Tint:     tints[(sum/uint32(2*len(poses)))%uint32(len(tints))],
+		Pose:     variant % len(poses),
+		Mirrored: (variant/len(poses))%2 == 1,
+		Tint:     tints[(variant/(2*len(poses)))%len(tints)],
 	}
+}
+
+// Distinct assigns variants to people shown together, such as the children
+// and staff of one school. Each name keeps its own variant unless an earlier
+// name already took it; then it moves to the next free one, so no two people
+// share a picture while there are enough variants. The result depends only
+// on the names and their order.
+func Distinct(names []string) []int {
+	variants := make([]int, len(names))
+	taken := make(map[int]bool, Variants())
+	for i, name := range names {
+		if len(taken) == Variants() {
+			clear(taken) // more people than pictures: start a new round
+		}
+		v := Index(name)
+		for taken[v] {
+			v = (v + 1) % Variants()
+		}
+		taken[v] = true
+		variants[i] = v
+	}
+	return variants
 }
 
 // PNG renders the picture for name as a square PNG of size pixels.
 func PNG(name string, size int) ([]byte, error) {
-	img, err := Render(name, size)
+	return PNGVariant(Index(name), size)
+}
+
+// PNGVariant renders variant (see Variants) as a square PNG of size pixels.
+func PNGVariant(variant, size int) ([]byte, error) {
+	if variant < 0 || variant >= Variants() {
+		return nil, fmt.Errorf("avatar variant %d outside [0, %d)", variant, Variants())
+	}
+	img, err := render(choiceAt(variant), size)
 	if err != nil {
 		return nil, err
 	}
@@ -93,10 +133,13 @@ func PNG(name string, size int) ([]byte, error) {
 
 // Render draws the picture for name into a square image of size pixels.
 func Render(name string, size int) (*image.RGBA, error) {
+	return render(Choose(name), size)
+}
+
+func render(choice Choice, size int) (*image.RGBA, error) {
 	if size <= 0 {
 		return nil, fmt.Errorf("avatar size must be positive, got %d", size)
 	}
-	choice := Choose(name)
 	p := poses[choice.Pose]
 
 	img := image.NewRGBA(image.Rect(0, 0, size, size))

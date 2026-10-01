@@ -107,3 +107,51 @@ func sameColor(a, b color.Color) bool {
 	br, bg, bb, ba := b.RGBA()
 	return ar == br && ag == bg && ab == bb && aa == ba
 }
+
+func TestDistinctGivesEveryPersonOwnPicture(t *testing.T) {
+	t.Parallel()
+	names := make([]string, Variants())
+	for i := range names {
+		names[i] = fmt.Sprintf("Person %d", i)
+	}
+	variants := Distinct(names)
+	seen := make(map[int]bool)
+	for i, v := range variants {
+		if seen[v] {
+			t.Fatalf("%s got variant %d a second time", names[i], v)
+		}
+		seen[v] = true
+	}
+	if variants[0] != Index(names[0]) {
+		t.Fatalf("first name moved from its own variant %d to %d", Index(names[0]), variants[0])
+	}
+}
+
+func TestDistinctKeepsOwnVariantWithoutCollision(t *testing.T) {
+	t.Parallel()
+	a, b := "", ""
+	for i := 0; a == "" || b == ""; i++ {
+		name := fmt.Sprintf("Kind %d", i)
+		switch {
+		case a == "":
+			a = name
+		case Index(name) != Index(a):
+			b = name
+		}
+	}
+	got := Distinct([]string{a, b})
+	if got[0] != Index(a) || got[1] != Index(b) {
+		t.Fatalf("names without collision changed variants: got %v, want [%d %d]", got, Index(a), Index(b))
+	}
+	twin := Distinct([]string{a, a})
+	if twin[0] == twin[1] {
+		t.Fatalf("two people with the same name share variant %d", twin[0])
+	}
+}
+
+func TestPNGVariantRejectsUnknownVariant(t *testing.T) {
+	t.Parallel()
+	if _, err := PNGVariant(Variants(), 64); err == nil {
+		t.Fatal("variant outside the range was accepted")
+	}
+}

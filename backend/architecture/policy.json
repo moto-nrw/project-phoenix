@@ -1655,6 +1655,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "seed/avatar",
+      "owner": "dev-tools",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "services",
       "owner": "legacy-composition",
       "role": "compose",
@@ -4931,6 +4938,10 @@
       "class": "utility"
     },
     {
+      "path": "golang.org/x/image/vector",
+      "class": "utility"
+    },
+    {
       "path": "golang.org/x/sync/singleflight",
       "class": "concurrency"
     },
@@ -4983,7 +4994,15 @@
       "class": "standard"
     },
     {
+      "path": "image/draw",
+      "class": "standard"
+    },
+    {
       "path": "image/jpeg",
+      "class": "standard"
+    },
+    {
+      "path": "image/png",
       "class": "standard"
     },
     {
