@@ -10,11 +10,11 @@ import (
 
 func TestPNGIsDeterministic(t *testing.T) {
 	t.Parallel()
-	first, err := PNG("Mia Wagner", 128)
+	first, err := PNGVariant(Index("Mia Wagner"), 128)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := PNG("Mia Wagner", 128)
+	second, err := PNGVariant(Index("Mia Wagner"), 128)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,20 +23,20 @@ func TestPNGIsDeterministic(t *testing.T) {
 	}
 }
 
-func TestChooseIgnoresCaseAndOuterSpace(t *testing.T) {
+func TestIndexIgnoresCaseAndOuterSpace(t *testing.T) {
 	t.Parallel()
-	if Choose("Mia Wagner") != Choose("  mia wagner ") {
+	if Index("Mia Wagner") != Index("  mia wagner ") {
 		t.Fatal("case or surrounding whitespace changed the picture")
 	}
 }
 
-func TestChooseUsesEveryPoseDirectionAndTint(t *testing.T) {
+func TestIndexReachesEveryPoseDirectionAndTint(t *testing.T) {
 	t.Parallel()
 	poseSeen := make(map[int]bool)
 	mirrorSeen := make(map[bool]bool)
 	tintSeen := make(map[Tint]bool)
 	for i := range 200 {
-		c := Choose(fmt.Sprintf("Kind %d", i))
+		c := choiceAt(Index(fmt.Sprintf("Kind %d", i)))
 		poseSeen[c.Pose] = true
 		mirrorSeen[c.Mirrored] = true
 		tintSeen[c.Tint] = true
@@ -51,7 +51,7 @@ func TestRenderDrawsFigureOnTint(t *testing.T) {
 	t.Parallel()
 	for poseIndex := range poses {
 		name := nameForPose(t, poseIndex)
-		data, err := PNG(name, 256)
+		data, err := PNGVariant(Index(name), 256)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -62,7 +62,7 @@ func TestRenderDrawsFigureOnTint(t *testing.T) {
 		if b := img.Bounds(); b.Dx() != 256 || b.Dy() != 256 {
 			t.Fatalf("pose %d: size %v, want 256x256", poseIndex, b)
 		}
-		tint := Choose(name).Tint
+		tint := choiceAt(Index(name)).Tint
 		// Top corners stay background: the crop leaves room beside the arms.
 		if got := img.At(0, 0); !sameColor(got, tint.Background) {
 			t.Errorf("pose %d: corner %v, want background %v", poseIndex, got, tint.Background)
@@ -85,7 +85,7 @@ func TestRenderDrawsFigureOnTint(t *testing.T) {
 
 func TestRenderRejectsNonPositiveSize(t *testing.T) {
 	t.Parallel()
-	if _, err := Render("Mia Wagner", 0); err == nil {
+	if _, err := PNGVariant(Index("Mia Wagner"), 0); err == nil {
 		t.Fatal("size 0 was accepted")
 	}
 }
@@ -94,7 +94,7 @@ func nameForPose(t *testing.T, pose int) string {
 	t.Helper()
 	for i := range 100 {
 		name := fmt.Sprintf("Person %d", i)
-		if Choose(name).Pose == pose {
+		if choiceAt(Index(name)).Pose == pose {
 			return name
 		}
 	}

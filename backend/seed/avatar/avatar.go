@@ -58,7 +58,7 @@ var (
 	}
 )
 
-// Choice is what a name resolves to.
+// Choice is what a variant draws: figure, direction and color.
 type Choice struct {
 	Pose     int // 0 adult, 1 child
 	Mirrored bool
@@ -76,9 +76,6 @@ func Index(name string) int {
 	_, _ = h.Write([]byte(strings.ToLower(strings.TrimSpace(name))))
 	return int(h.Sum32() % uint32(Variants()))
 }
-
-// Choose resolves a name to its figure, direction and color.
-func Choose(name string) Choice { return choiceAt(Index(name)) }
 
 func choiceAt(variant int) Choice {
 	return Choice{
@@ -110,11 +107,6 @@ func Distinct(names []string) []int {
 	return variants
 }
 
-// PNG renders the picture for name as a square PNG of size pixels.
-func PNG(name string, size int) ([]byte, error) {
-	return PNGVariant(Index(name), size)
-}
-
 // PNGVariant renders variant (see Variants) as a square PNG of size pixels.
 func PNGVariant(variant, size int) ([]byte, error) {
 	if variant < 0 || variant >= Variants() {
@@ -129,11 +121,6 @@ func PNGVariant(variant, size int) ([]byte, error) {
 		return nil, fmt.Errorf("encode avatar: %w", err)
 	}
 	return buf.Bytes(), nil
-}
-
-// Render draws the picture for name into a square image of size pixels.
-func Render(name string, size int) (*image.RGBA, error) {
-	return render(Choose(name), size)
 }
 
 func render(choice Choice, size int) (*image.RGBA, error) {
