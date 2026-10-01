@@ -124,7 +124,7 @@ GetLoginImageURL / SetLoginImageURL / ClearLoginImageURL(ctx, tenantID, ...) // 
 ### Access Control — Two Dimensions
 
 1. **Permissions** (`ReadPermission` / `WritePermission`): `config:update` for operational settings, `config:manage` for GDPR/security. Route-level auth accepts either; service-level `checkWritePermission` is wildcard-aware (`admin:*` works).
-2. **AccessPolicy** (`shared` | `admin_only` | `operator_only`, default `shared`): who may see/change the setting at all. `operator_only` settings (e.g. `operations.presence_mode`, `attendance.nfc_enabled`, the session-lifecycle settings) are hidden from the tenant schema and managed via the operator portal; `admin_only` (e.g. `security.ogs_device_pin`) is hidden from operators. Settings without an explicit policy are `shared` (e.g. the `gdpr.data_cleanup_*` system-tab settings remain tenant-visible).
+2. **AccessPolicy** (`shared` | `admin_only` | `operator_only`, default `shared`): who may see/change the setting at all. `operator_only` settings (e.g. `operations.presence_mode`, `attendance.nfc_enabled`, the session-lifecycle settings, `gdpr.data_cleanup_timeout_minutes`) are hidden from the tenant schema and managed via the operator portal; `admin_only` (e.g. `security.ogs_device_pin`) is hidden from operators. Settings without an explicit policy are `shared` (e.g. `gdpr.data_cleanup_enabled` and `gdpr.data_cleanup_time` remain tenant-visible).
 
 ### Frontend
 

@@ -9,28 +9,28 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyDataCleanupEnabled,
-		Label:           "Automatische Datenbereinigung",
-		Description:     "Automatische Löschung abgelaufener Besuchsdaten gemäß Datenschutzeinstellungen",
+		Label:           "Alte Daten automatisch löschen",
+		Description:     "Löscht jeden Tag Daten, deren Aufbewahrungsdauer abgelaufen ist. Wie lange was aufbewahrt wird, legen Sie darunter fest.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
-		Tab:             "system",
+		Tab:             "gdpr",
 		Category:        "datenbereinigung",
-		SortOrder:       20,
+		SortOrder:       1,
 	})
 
 	config.Register(config.Definition{
 		Key:             config.KeyDataCleanupTime,
-		Label:           "Bereinigungszeitpunkt",
-		Description:     "Uhrzeit für die tägliche Datenbereinigung",
+		Label:           "Uhrzeit für das Löschen",
+		Description:     "Zu dieser Uhrzeit löscht moto jeden Tag die alten Daten.",
 		Type:            config.FieldTime,
 		Default:         "02:00",
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
-		Tab:             "system",
+		Tab:             "gdpr",
 		Category:        "datenbereinigung",
-		SortOrder:       21,
+		SortOrder:       2,
 		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
 	})
 
@@ -42,19 +42,20 @@ func init() {
 		Default:         30,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
-		Tab:             "system",
+		Tab:             "gdpr",
 		Category:        "datenbereinigung",
-		SortOrder:       22,
+		SortOrder:       3,
 		Validation:      config.Range(5, 120),
 		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
+		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
 	// --- Anwesenheitsprotokoll / Raumverlauf (per-student attendance history) ---
 
 	config.Register(config.Definition{
 		Key:             config.KeyAttendanceLogEnabled,
-		Label:           "Anwesenheitsprotokoll aktivieren",
-		Description:     "Ermöglicht Mitarbeitenden den Zugriff auf das Anwesenheitsprotokoll und den Raumverlauf einzelner Kinder. Aus Datenschutzgründen standardmäßig deaktiviert.",
+		Label:           "Anwesenheitsprotokoll",
+		Description:     "Das Team sieht bei jedem Kind, wann es da war und in welchen Räumen. Aus Datenschutzgründen ist das zunächst ausgeschaltet.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -66,8 +67,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyAttendanceVisibleDays,
-		Label:           "Sichtbarkeitsdauer Anwesenheit (Tage)",
-		Description:     "Maximaler Zeitraum, für den Anwesenheitsdaten (An- und Abmeldezeiten) eines Kindes angezeigt werden dürfen.",
+		Label:           "Anwesenheit sichtbar für (Tage)",
+		Description:     "So viele Tage zurück sieht das Team, wann ein Kind kam und ging.",
 		Type:            config.FieldNumber,
 		Default:         30,
 		ReadPermission:  "config:read",
@@ -81,8 +82,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyRoomDetailVisibleDays,
-		Label:           "Sichtbarkeitsdauer Raumdetails (Tage)",
-		Description:     "Maximaler Zeitraum, für den zusätzlich zur Anwesenheit auch die besuchten Räume eines Kindes angezeigt werden dürfen. Sollte kleiner oder gleich der Sichtbarkeitsdauer Anwesenheit sein.",
+		Label:           "Räume sichtbar für (Tage)",
+		Description:     "So viele Tage zurück sieht das Team, in welchen Räumen ein Kind war. Der Wert sollte nicht größer sein als bei der Anwesenheit.",
 		Type:            config.FieldNumber,
 		Default:         7,
 		ReadPermission:  "config:read",
@@ -105,8 +106,8 @@ func init() {
 	// arbitrary day counts that don't map to legal milestones.
 	config.Register(config.Definition{
 		Key:             config.KeyGDPRTimeTrackingRetentionDays,
-		Label:           "Aufbewahrungsdauer Zeiterfassung",
-		Description:     "Wie lange Arbeitszeit-Daten (Stempelzeiten, Pausen, Korrekturen, Abwesenheiten) aufbewahrt werden, bevor sie automatisch gelöscht werden. Mindestens 2 Jahre.",
+		Label:           "Zeiterfassung aufbewahren",
+		Description:     "So lange speichert moto Stempelzeiten, Pausen, Korrekturen und Abwesenheiten. Danach löscht moto sie. Mindestens 2 Jahre.",
 		Type:            config.FieldSelect,
 		Default:         730,
 		ReadPermission:  "config:read",
@@ -137,8 +138,8 @@ func init() {
 	// per-Schule konfigurierbare Einstellung verschoben.
 	config.Register(config.Definition{
 		Key:             config.KeyPrivacyConsentRetentionDays,
-		Label:           "Standard-Aufbewahrungsdauer Besuchsdaten (Tage)",
-		Description:     "Wie lange Besuchsdaten eines Kindes aufbewahrt werden, wenn dessen Datenschutz-Einwilligung keinen eigenen Wert festlegt. Wird beim automatischen Löschen abgelaufener Besuchsdaten angewendet.",
+		Label:           "Besuchsdaten aufbewahren (Tage)",
+		Description:     "So lange speichert moto, wann ein Kind in welchem Raum war. Gilt, wenn die Datenschutz-Einwilligung des Kindes keine eigene Dauer nennt. Danach löscht moto die Daten.",
 		Type:            config.FieldNumber,
 		Default:         30,
 		ReadPermission:  "config:read",
@@ -160,8 +161,8 @@ func init() {
 	maxChangeLogRetentionDays := float64(365)
 	config.Register(config.Definition{
 		Key:             config.KeyGDPRStudentChangeLogRetentionDays,
-		Label:           "Aufbewahrungsdauer Änderungsprotokoll (Tage)",
-		Description:     "Wie lange das Änderungsprotokoll pro Kind (wer hat welche Angabe geändert) aufbewahrt wird, bevor alte Einträge automatisch gelöscht werden.",
+		Label:           "Änderungsprotokoll aufbewahren (Tage)",
+		Description:     "So lange speichert moto, wer welche Angabe bei einem Kind geändert hat. Danach löscht moto die alten Einträge.",
 		Type:            config.FieldNumber,
 		Default:         90,
 		ReadPermission:  "config:read",
@@ -181,8 +182,8 @@ func init() {
 	maxPWAUsageRetentionDays := float64(365)
 	config.Register(config.Definition{
 		Key:             config.KeyGDPRPWAUsageRetentionDays,
-		Label:           "Aufbewahrungsdauer App-Nutzungsdaten (Tage)",
-		Description:     "Wie lange gespeichert wird, wer die App zuletzt vom Startbildschirm aus (Standalone-Modus) benutzt hat. Ältere Einträge werden automatisch gelöscht.",
+		Label:           "App-Nutzung aufbewahren (Tage)",
+		Description:     "So lange speichert moto, wer moto zuletzt über das Symbol auf dem Startbildschirm geöffnet hat. Danach löscht moto die Einträge.",
 		Type:            config.FieldNumber,
 		Default:         90,
 		ReadPermission:  "config:read",
@@ -207,7 +208,7 @@ func init() {
 	maxStaffMessageRetentionDays := float64(730)
 	config.Register(config.Definition{
 		Key:             config.KeyGDPRStaffMessageRetentionDays,
-		Label:           "Aufbewahrungsdauer Team-Chat (Tage)",
+		Label:           "Team-Chat aufbewahren (Tage)",
 		Description:     "Wie lange Nachrichten im internen Team-Chat gespeichert bleiben. Ältere Nachrichten werden automatisch gelöscht. Unterhaltungen ohne Nachrichten verschwinden danach aus der Übersicht.",
 		Type:            config.FieldNumber,
 		Default:         365,

@@ -256,7 +256,7 @@ func TestCalendarCalDAVSetting(t *testing.T) {
 	assert.Equal(t, "config:update", def.WritePermission)
 	assert.Equal(t, config.AccessShared, def.AccessPolicy)
 	assert.Equal(t, "system", def.Tab)
-	assert.Equal(t, "schnittstellen", def.Category)
+	assert.Equal(t, "kalender", def.Category)
 }
 
 func TestParentRequestGroupLeaderReviewSetting(t *testing.T) {
@@ -1101,8 +1101,8 @@ func TestPickupOfferingReviewSetting(t *testing.T) {
 	assert.Equal(t, "betreuungszeiten", def.Category)
 	assert.Equal(t, "config:read", def.ReadPermission)
 	assert.Equal(t, "config:update", def.WritePermission)
-	assert.Equal(t, "Angebotsabgleich für dauerhafte Gehzeiten", def.Label)
-	assert.Equal(t, "Bei einer Abweichung wählen Sie ein anderes Angebot oder eine Ausnahme.", def.Description)
+	assert.Equal(t, "Abgleich fester Abholzeiten mit dem Angebot", def.Label)
+	assert.Equal(t, "Passt eine neue feste Abholzeit nicht zum gebuchten Betreuungsangebot, wählt das Team ein anderes Angebot oder eine Ausnahme.", def.Description)
 }
 
 func TestParentPermanentCareRequestSettings_DefaultOnAndIndependent(t *testing.T) {
@@ -1619,6 +1619,9 @@ func TestDependsOn_GDPRGroup(t *testing.T) {
 
 	timeoutDef := config.GetDefinition("gdpr.data_cleanup_timeout_minutes")
 	require.NotNil(t, timeoutDef)
+	// The duration is a technical limit for the deletion job. Schools decide
+	// whether and when data is deleted, while moto sets this safety limit.
+	assert.Equal(t, config.AccessOperatorOnly, timeoutDef.AccessPolicy)
 	require.NotNil(t, timeoutDef.DependsOn)
 	assert.Equal(t, "gdpr.data_cleanup_enabled", timeoutDef.DependsOn.Key)
 }
@@ -1688,21 +1691,45 @@ func TestFeedbackSettings(t *testing.T) {
 	assert.Equal(t, "config:manage", def.WritePermission)
 }
 
-func TestDevicesSettings(t *testing.T) {
+// TestNachHauseSettingsShareOneBlock pins #1252: every setting that decides
+// when "nach Hause" appears on the tablet sits in one block on the devices
+// tab, in the order a school reads them. Schools looked for the lead time
+// under "Betrieb" while the room rule lived under "Geräte".
+func TestNachHauseSettingsShareOneBlock(t *testing.T) {
 	t.Parallel()
 
 	keys := []string{
-		"checkout.raumwechsel_enabled",
-		"checkout.schulhof_enabled",
-		"checkout.wc_enabled",
-		"checkout.daily_checkout_from_all_rooms_enabled",
+		config.KeyStudentDailyCheckoutTime,
+		config.KeyPerStudentCheckoutEnabled,
+		config.KeyPerStudentCheckoutDeltaMinutes,
+		config.KeyCheckoutDailyFromAllRoomsEnabled,
 	}
+	previous := -1
 	for _, key := range keys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		assert.Equalf(t, "devices", def.Tab, "setting %q tab", key)
+		assert.Equalf(t, "nach-hause", def.Category, "setting %q category", key)
+		assert.Greaterf(t, def.SortOrder, previous, "setting %q order", key)
+		previous = def.SortOrder
+	}
+}
+
+func TestDevicesSettings(t *testing.T) {
+	t.Parallel()
+
+	categories := map[string]string{
+		"checkout.raumwechsel_enabled":                   "checkout",
+		"checkout.schulhof_enabled":                      "checkout",
+		"checkout.wc_enabled":                            "checkout",
+		"checkout.daily_checkout_from_all_rooms_enabled": "nach-hause",
+	}
+	for key, category := range categories {
 		def := config.GetDefinition(key)
 		require.NotNilf(t, def, "setting %q should exist", key)
 		assert.Equal(t, config.FieldBoolean, def.Type, "setting %q should be boolean", key)
 		assert.Equal(t, "devices", def.Tab, "setting %q should be in devices tab", key)
-		assert.Equal(t, "checkout", def.Category, "setting %q should be in checkout category", key)
+		assert.Equal(t, category, def.Category, "setting %q should be in %s category", key, category)
 		assert.Equal(t, "config:update", def.WritePermission, "setting %q should use config:update", key)
 		require.NotNil(t, def.DependsOn, "setting %q should be gated by nfc_enabled", key)
 		assert.Equal(t, config.KeyAttendanceNFCEnabled, def.DependsOn.Key)
@@ -2058,7 +2085,7 @@ func TestSFTPSettings(t *testing.T) {
 		require.NotNilf(t, def, "%s should be registered", key)
 		assert.Equal(t, "", def.Default, "%s must default to EMPTY — an invented target is a wrong target", key)
 		assert.Equal(t, "system", def.Tab, key)
-		assert.Equal(t, "schnittstellen", def.Category, key)
+		assert.Equal(t, "zeitkonten-export", def.Category, key)
 		assert.Equal(t, "config:manage", def.WritePermission, key)
 		assert.Equal(t, config.AccessAdminOnly, def.AccessPolicy, key)
 		require.NotNil(t, def.Validation, key)

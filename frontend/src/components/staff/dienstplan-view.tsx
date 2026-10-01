@@ -50,7 +50,7 @@ const logger = createLogger({ component: "DienstplanView" });
 // Admin week view for planned staff shifts (Dienstplan, #1376 core slice).
 // One row per staff member, Mo–Fr columns, click-to-edit per cell. The
 // planned shift end also drives the automatic checkout (#1798) when the
-// tenant setting "Automatische Ausstempelung" is enabled.
+// tenant setting "Automatisch ausstempeln" is enabled.
 //
 // URL-Vokabular: genau
 // `d` (Berlin-Kalendertag; die angezeigte Woche ist die Woche, die `d` enthält)

@@ -56,43 +56,43 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyStudentDailyCheckoutTime,
-		Label:           "Tägliche Abmeldezeit",
-		Description:     "Uhrzeit, ab der Kinder aus dem Heimraum abgemeldet werden können. Wenn leer, ist die Abmeldung jederzeit möglich.",
+		Label:           "„Nach Hause“ ab Uhrzeit",
+		Description:     "Ab dieser Uhrzeit können Kinder am Tablet „Nach Hause“ wählen. „Jederzeit“ heißt: den ganzen Tag.",
 		Type:            config.FieldTime,
 		Default:         "",
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
-		Tab:             "operations",
-		Category:        "checkout",
-		SortOrder:       1,
+		Tab:             "devices",
+		Category:        "nach-hause",
+		SortOrder:       5,
 		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
 	})
 
 	config.Register(config.Definition{
 		Key:             config.KeyPerStudentCheckoutEnabled,
-		Label:           "Individuelle Abholzeiten verwenden",
-		Description:     "Wenn aktiviert, wird die Abmeldung anhand der individuellen Abholzeiten der Kinder angezeigt statt der globalen Abmeldezeit.",
+		Label:           "Abholzeit jedes Kindes beachten",
+		Description:     "Eingeschaltet erscheint „Nach Hause“ erst kurz vor der Abholzeit des Kindes an diesem Tag. Für Kinder ohne Abholzeit gilt die Uhrzeit oben.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
-		Tab:             "operations",
-		Category:        "checkout",
-		SortOrder:       2,
+		Tab:             "devices",
+		Category:        "nach-hause",
+		SortOrder:       6,
 		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
 	})
 
 	config.Register(config.Definition{
 		Key:             config.KeyPerStudentCheckoutDeltaMinutes,
-		Label:           "Vorlaufzeit vor Abholung (Minuten)",
-		Description:     "Minuten vor der Abholzeit, ab der die Abmeldung am Gerät angeboten wird. Beispiel: Bei Abholzeit 15:00 und Vorlaufzeit 15 Min. ist die Abmeldung ab 14:45 möglich.",
+		Label:           "„Nach Hause“ vor der Abholzeit (Minuten)",
+		Description:     "Beispiel: Abholzeit 16:00 und 15 Minuten. Dann kann das Kind ab 15:45 „Nach Hause“ wählen.",
 		Type:            config.FieldNumber,
 		Default:         15,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
-		Tab:             "operations",
-		Category:        "checkout",
-		SortOrder:       3,
+		Tab:             "devices",
+		Category:        "nach-hause",
+		SortOrder:       7,
 		Validation:      config.Range(0, 120),
 		DependsOn:       config.DependsOnEq(config.KeyPerStudentCheckoutEnabled, true),
 	})
@@ -104,27 +104,27 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyEarlyCheckoutNoteEnabled,
-		Label:           "Bei frühem Gehen nach dem Grund fragen",
+		Label:           "Grund bei frühem Gehen abfragen",
 		Description:     "Wird ein Kind früher als geplant abgemeldet, erscheint ein Feld für den Grund. Der Grund ist freiwillig.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
-		Category:        "abholung",
+		Category:        "frueh-abgeholt",
 		SortOrder:       1,
 	})
 
 	config.Register(config.Definition{
 		Key:             config.KeyEarlyCheckoutNoteToleranceMinutes,
-		Label:           "Früh heißt: mehr als so viele Minuten vor der Abholzeit",
+		Label:           "Als früh gilt (Minuten vor der Abholzeit)",
 		Description:     "Beispiel: Abholzeit 15:00 und 15 Minuten. Wer ein Kind vor 14:45 abmeldet, wird nach dem Grund gefragt.",
 		Type:            config.FieldNumber,
 		Default:         15,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
-		Category:        "abholung",
+		Category:        "frueh-abgeholt",
 		SortOrder:       2,
 		Validation:      config.Range(0, 240),
 		DependsOn:       config.DependsOnEq(config.KeyEarlyCheckoutNoteEnabled, true),
@@ -259,7 +259,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyTimeTrackingAccountStartDate,
 		Label:           "Stundenkonto ab Datum berechnen",
-		Description:     "Legt fest, ab welchem Datum das Stundenkonto neu berechnet wird. Wenn kein Datum gesetzt ist, startet die Berechnung am 1. Januar des aktuellen Jahres.",
+		Description:     "Ab diesem Datum rechnet moto das Stundenkonto. Ohne Datum beginnt es am 1. Januar dieses Jahres.",
 		Type:            config.FieldDate,
 		Default:         "",
 		ReadPermission:  "config:read",
@@ -272,7 +272,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyTimeTrackingEnforcePlannedStart,
 		Label:           "Einstempeln erst ab geplanter Startzeit",
-		Description:     "Wenn aktiviert, können Mitarbeitende erst ab der Startzeit einstempeln, die im Arbeitszeitmodell für den jeweiligen Tag hinterlegt ist. Tage ohne Startzeit bleiben unverändert.",
+		Description:     "Mitarbeitende können erst ab der Startzeit aus ihrem Arbeitszeitmodell einstempeln. Tage ohne Startzeit sind nicht betroffen.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -285,7 +285,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:         config.KeyTimeTrackingRequireDeviationReason,
 		Label:       "Begründung bei Abweichung vom Dienstplan",
-		Description: "Wenn aktiviert, verlangt das Ein- und Ausstempeln außerhalb des Toleranzfensters um die geplante Schichtzeit eine Begründung. Gilt auch für nachträgliche Änderungen eigener Zeiten. Tage ohne geplante Schicht bleiben unverändert.",
+		Description: "Wer deutlich früher oder später als geplant ein- oder ausstempelt, gibt einen Grund an. Das gilt auch für nachträgliche Änderungen eigener Zeiten. Tage ohne geplante Schicht sind nicht betroffen.",
 		Type:        config.FieldBoolean,
 		// Default on (#1844): Planabweichungen sollen standardmäßig begründet
 		// werden, damit spätere Zeiten (später Bus, längerer Einsatz) im Audit-Log
@@ -300,8 +300,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyTimeTrackingDeviationToleranceMinutes,
-		Label:           "Toleranzfenster für Abweichungen (Minuten)",
-		Description:     "So viele Minuten darf die Ist-Zeit von der geplanten Schichtzeit abweichen, bevor eine Begründung verlangt wird.",
+		Label:           "Erlaubte Abweichung vom Dienstplan (Minuten)",
+		Description:     "So viele Minuten darf die Stempelzeit von der geplanten Schicht abweichen, ohne dass ein Grund nötig ist.",
 		Type:            config.FieldNumber,
 		Default:         15,
 		Validation:      config.Range(0, 120),
@@ -320,8 +320,8 @@ func init() {
 
 	statusFlagOptions := &config.SelectOptions{
 		Static: []config.SelectOption{
-			{Label: "Manuell (nur durch Betreuer)", Value: config.ClearModeManual},
-			{Label: "Beim nächsten Check-in", Value: config.ClearModeNextCheckin},
+			{Label: "Manuell durch das Team", Value: config.ClearModeManual},
+			{Label: "Beim nächsten Einchecken", Value: config.ClearModeNextCheckin},
 			{Label: "Am Ende des Tages", Value: config.ClearModeEndOfDay},
 		},
 	}
@@ -329,7 +329,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeySickClearMode,
 		Label:           "Krankmeldung automatisch beenden",
-		Description:     "Legt fest, wann die Krankmeldung eines Kindes automatisch aufgehoben wird. Bei \"Am Ende des Tages\" endet sie um 18 Uhr. Bei \"Beim nächsten Check-in\" bleibt sie auch nach dem Enddatum sichtbar. Sie endet erst, wenn das Kind wieder eincheckt.",
+		Description:     "Legt fest, wann eine Krankmeldung von selbst endet. „Am Ende des Tages“ heißt: um 18 Uhr. Bei „Beim nächsten Einchecken“ bleibt sie auch nach dem Enddatum stehen, bis das Kind wieder da ist.",
 		Type:            config.FieldSelect,
 		Default:         config.ClearModeEndOfDay,
 		ReadPermission:  "config:read",
@@ -343,7 +343,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyExcusedClearMode,
 		Label:           "Entschuldigung automatisch beenden",
-		Description:     "Legt fest, wann die Entschuldigung eines Kindes automatisch aufgehoben wird. Bei \"Am Ende des Tages\" endet sie um 18 Uhr.",
+		Description:     "Legt fest, wann eine Entschuldigung von selbst endet. „Am Ende des Tages“ heißt: um 18 Uhr.",
 		Type:            config.FieldSelect,
 		Default:         config.ClearModeEndOfDay,
 		ReadPermission:  "config:read",
@@ -503,8 +503,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyStudentPhotosEnabled,
-		Label:           "Kinderfotos aktivieren",
-		Description:     "Wenn aktiviert, können Mitarbeitende mit Bearbeitungsrecht in der Datenverwaltung Fotos zu Kindern hinterlegen (nur mit dokumentierter Einwilligung der Eltern). Fotos erscheinen anschließend in Suche, Räumen, Abholplan und Kinderdetail.",
+		Label:           "Kinderfotos",
+		Description:     "Wer Kinder bearbeiten darf, kann in der Datenverwaltung Fotos hinterlegen. Nur mit nachweisbarer Einwilligung der Eltern. Die Fotos erscheinen in Suche, Räumen, Abholplan und beim Kind.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -519,8 +519,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyRequirePickupOfferingReview,
-		Label:           "Angebotsabgleich für dauerhafte Gehzeiten",
-		Description:     "Bei einer Abweichung wählen Sie ein anderes Angebot oder eine Ausnahme.",
+		Label:           "Abgleich fester Abholzeiten mit dem Angebot",
+		Description:     "Passt eine neue feste Abholzeit nicht zum gebuchten Betreuungsangebot, wählt das Team ein anderes Angebot oder eine Ausnahme.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -625,8 +625,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyParentNotesEnabled,
-		Label:           "Eltern-OGS-Nachrichten",
-		Description:     "Wenn aktiviert, können Eltern dem Team über das Elternportal Nachrichten zu ihrem Kind schreiben und das Team kann direkt antworten. Die Unterhaltungen erscheinen im zentralen Nachrichten-Posteingang und in der Kinderdetailansicht.",
+		Label:           "Nachrichten von Eltern",
+		Description:     "Eltern schreiben dem Team im Elternportal zu ihrem Kind. Das Team antwortet direkt. Die Nachrichten stehen unter „Nachrichten“ und beim Kind.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -657,8 +657,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyParentCarePickupRequestEnabled,
-		Label:           "Dauerhafte Abholzeiten durch Eltern ändern lassen",
-		Description:     "Wenn aktiviert, können Eltern Änderungen an den dauerhaften wöchentlichen Abholzeiten zur Freigabe einreichen.",
+		Label:           "Feste Abholzeiten ändern (Eltern)",
+		Description:     "Eltern können im Elternportal neue feste Abholzeiten für die Wochentage beantragen. Sie gelten erst nach Freigabe durch das Team.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -670,8 +670,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyParentCareModeRequestEnabled,
-		Label:           "Dauerhafte Abholart durch Eltern ändern lassen",
-		Description:     "Wenn aktiviert, können Eltern Änderungen an der dauerhaften wöchentlichen Abholart zur Freigabe einreichen.",
+		Label:           "Feste Abholart ändern (Eltern)",
+		Description:     "Eltern können im Elternportal eine neue feste Abholart für die Wochentage beantragen. Sie gilt erst nach Freigabe durch das Team.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -692,7 +692,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyParentMessageStaffNameVisible,
 		Label:           "Name des Teammitglieds in Nachrichten anzeigen",
-		Description:     "Wenn aktiviert, sehen Eltern bei Antworten des Teams den Vornamen und den ersten Buchstaben des Nachnamens der antwortenden Person (z. B. „Anna M.“) statt nur „OGS [Schulname]“. Gilt nur für Nachrichten, die ab der Aktivierung geschrieben werden; ältere Nachrichten bleiben anonym. Bereits mit Namen gesendete Nachrichten bleiben sichtbar, wenn die Funktion später wieder deaktiviert wird.",
+		Description:     "Eltern sehen bei Antworten dann zum Beispiel „Anna M.“ statt nur „OGS [Schulname]“. Das gilt für Nachrichten ab dem Einschalten. Schon gesendete Nachrichten ändern sich nicht.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -709,7 +709,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyGuardianParentInviteMode,
 		Label:           "Weitere Bezugspersonen einladen (Eltern)",
-		Description:     "Legt fest, ob Eltern über das Elternportal weitere Bezugspersonen zu ihrem Kind einladen dürfen. \"Mit Freigabe\" stellt die Einladung dem Team zur Bestätigung in eine Warteschlange. Das Team kann unabhängig davon immer einladen.",
+		Description:     "Legt fest, ob Eltern im Elternportal weitere Bezugspersonen zu ihrem Kind einladen dürfen. Bei „Mit Freigabe“ bestätigt das Team jede Einladung. Das Team selbst kann immer einladen.",
 		Type:            config.FieldSelect,
 		Default:         config.ParentInviteModeDisabled,
 		ReadPermission:  "config:read",
@@ -719,8 +719,8 @@ func init() {
 		SortOrder:       63,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
-				{Label: "Deaktiviert", Value: config.ParentInviteModeDisabled},
-				{Label: "Direkt", Value: config.ParentInviteModeDirect},
+				{Label: "Nicht erlaubt", Value: config.ParentInviteModeDisabled},
+				{Label: "Ohne Freigabe", Value: config.ParentInviteModeDirect},
 				{Label: "Mit Freigabe durch das Team", Value: config.ParentInviteModeStaffApproval},
 			},
 		},
@@ -729,7 +729,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyGuardianParentCanRemove,
 		Label:           "Bezugspersonen entfernen (Eltern)",
-		Description:     "Wenn aktiviert, dürfen Eltern den Zugang anderer Konten zu ihrem Kind über das Elternportal entfernen. Die primäre Bezugsperson kann nicht von Eltern entfernt werden. Das Team kann unabhängig davon immer entfernen.",
+		Description:     "Eltern dürfen im Elternportal anderen Personen den Zugang zu ihrem Kind entziehen. Die primäre Bezugsperson können Eltern nicht entfernen. Das Team kann immer entfernen.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -742,8 +742,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyParentPickupChangeEnabled,
-		Label:           "Abholzeit über Elternportal ändern",
-		Description:     "Wenn aktiviert, können Eltern über das Elternportal für einen einzelnen Tag eine abweichende Abhol- und Bringzeit hinterlegen. Die Änderung gilt nur für diesen Tag und erscheint im Betreuungsplan als von den Eltern geändert.",
+		Label:           "Abholzeit für einen Tag ändern (Eltern)",
+		Description:     "Eltern können im Elternportal für einen einzelnen Tag eine andere Bring- oder Abholzeit eintragen. Im Betreuungsplan steht dann, dass die Eltern sie geändert haben.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -761,7 +761,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyParentPickupChangeCutoffTime,
 		Label:           "Änderungsfrist für die Abholzeit am selben Tag",
-		Description:     "Bis zu dieser Uhrzeit können Eltern die Abholzeit für heute ändern. Danach ist heute für Eltern gesperrt. Für morgen und spätere Tage gilt keine Frist. Das Team kann die Abholzeit jederzeit ändern. Leer bedeutet: keine Frist.",
+		Description:     "Bis zu dieser Uhrzeit können Eltern die Abholzeit für heute ändern. Danach ist heute für Eltern gesperrt. Für morgen und spätere Tage gilt keine Frist. Das Team kann die Abholzeit immer ändern. „Jederzeit“ heißt: keine Frist.",
 		Type:            config.FieldTime,
 		Default:         "",
 		ReadPermission:  "config:read",
@@ -774,8 +774,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyParentMasterDataEditEnabled,
-		Label:           "Stammdaten über Elternportal bearbeiten",
-		Description:     "Wenn aktiviert, können Eltern die von ihnen gepflegten Stammdaten ihres Kindes (Gesundheitsangaben, eigene Kontaktdaten) direkt über das Elternportal ändern. Die Änderungen werden sofort übernommen und protokolliert.",
+		Label:           "Stammdaten bearbeiten (Eltern)",
+		Description:     "Eltern ändern Gesundheitsangaben und ihre eigenen Kontaktdaten direkt im Elternportal. Die Änderung gilt sofort. moto hält fest, wer was geändert hat.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -797,8 +797,8 @@ func init() {
 	// off therefore disables self-edit too; the Description says so explicitly.
 	config.Register(config.Definition{
 		Key:             config.KeyParentGuardianManagementEnabled,
-		Label:           "Kontaktdaten und Abholberechtigung über Elternportal verwalten",
-		Description:     "Wenn aktiviert, können berechtigte Eltern über das Elternportal ihre eigenen Kontaktdaten sowie die von Bezugspersonen ohne eigenen Zugang bearbeiten und deren Abhol- und Notfallberechtigung setzen. Bezugspersonen mit eigenem Konto bleiben geschützt: deren Daten und Berechtigungen ändert nur das Team. Ist die Funktion deaktiviert, können Eltern auch ihre eigenen Kontaktdaten nicht mehr über das Portal ändern.",
+		Label:           "Kontaktdaten und Abholberechtigung verwalten (Eltern)",
+		Description:     "Eltern ändern im Elternportal ihre Kontaktdaten. Bei Bezugspersonen ohne eigenes Konto auch, ob sie abholen dürfen und im Notfall angerufen werden. Personen mit eigenem Konto ändert nur das Team. Ausgeschaltet können Eltern auch ihre eigenen Kontaktdaten dort nicht ändern.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -810,8 +810,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyParentMasterDataRequestEnabled,
-		Label:           "Stammdaten-Änderungen zur Freigabe einreichen",
-		Description:     "Wenn aktiviert, können Eltern für besonders sensible Angaben (Name, Geburtsdatum, dauerhafte Gehzeiten) über das Elternportal Änderungen vorschlagen. Diese werden dem Team zur Prüfung und Freigabe vorgelegt und erst nach Bestätigung übernommen.",
+		Label:           "Änderungen an Stammdaten vorschlagen (Eltern)",
+		Description:     "Eltern schlagen im Elternportal Änderungen an Name, Geburtsdatum oder festen Gehzeiten vor. Das Team prüft sie. Erst nach der Freigabe gelten sie.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -867,7 +867,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyMealPlanEnabled,
 		Label:           "Essensplan",
-		Description:     "Wenn eingeschaltet, kann das Team pro Tag ein Gericht mit optionalem Hinweis hinterlegen. Eltern sehen den Essensplan für die aktuelle und nächste Woche im Elternportal.",
+		Description:     "Das Team trägt pro Tag ein Gericht ein, auf Wunsch mit Hinweis. Eltern sehen den Plan für diese und nächste Woche im Elternportal.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -880,7 +880,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyMealRegistrationEnabled,
 		Label:           "Anmeldung zum Mittagessen",
-		Description:     "Wenn eingeschaltet, können Eltern feste Wochentage und einzelne Tage für das Mittagessen festlegen. Das Team erhält daraus eine Tagesliste für die Küche.",
+		Description:     "Eltern melden ihr Kind für feste Wochentage oder einzelne Tage zum Essen an. Das Team bekommt daraus eine Tagesliste für die Küche.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -913,7 +913,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyParentNewsEnabled,
 		Label:           "Elternmitteilungen (Neuigkeiten)",
-		Description:     "Wenn aktiviert, kann das Team über das Elternportal Mitteilungen an ausgewählte Elterngruppen senden (ganze Schule, Klassen, Gruppen, AGs, einzelne Kinder oder offene Anmeldungen). Eltern sehen die Mitteilungen als Neuigkeiten im Elternportal; optional kann eine Lesebestätigung verlangt werden.",
+		Description:     "Das Team schreibt Mitteilungen an Eltern: an die ganze Schule, Klassen, Gruppen, AGs, einzelne Kinder oder offene Anmeldungen. Eltern sehen sie im Elternportal unter Neuigkeiten. Auf Wunsch bestätigen Eltern, dass sie die Mitteilung gelesen haben.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",

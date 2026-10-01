@@ -23,8 +23,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableEnabled,
-		Label:           "Betreuungsplan aktivieren",
-		Description:     "Zeigt den Betreuungsplan in der Navigation an und schaltet die passenden Einstellungen frei.",
+		Label:           "Betreuungsplan nutzen",
+		Description:     "Zeigt den Betreuungsplan im Menü. Die Einstellungen dazu erscheinen darunter.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -95,8 +95,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableAutoStartPlanned,
-		Label:           "Automatischer Start geplanter Aktivitäten",
-		Description:     "Startet geplante Aktivitäten automatisch zur eingetragenen Uhrzeit. Wenn deaktiviert, werden sie als Hinweis angezeigt und manuell gestartet.",
+		Label:           "Geplante Aktivitäten automatisch starten",
+		Description:     "Startet geplante Aktivitäten zur eingetragenen Uhrzeit. Ausgeschaltet erscheint ein Hinweis, und Ihr Team startet sie selbst.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -138,8 +138,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableStartLeadMinutes,
-		Label:           "Aktivitäten vor Planbeginn starten (Minuten)",
-		Description:     "Legt fest, wie viele Minuten vor der geplanten Startzeit eine Aktivität gestartet werden kann.",
+		Label:           "Start vor Planbeginn erlaubt (Minuten)",
+		Description:     "So viele Minuten vor der geplanten Startzeit kann Ihr Team eine Aktivität starten.",
 		Type:            config.FieldNumber,
 		Default:         15,
 		ReadPermission:  "config:read",
@@ -153,8 +153,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableEnforcePlannedEnd,
-		Label:           "Aktivitäten nur nach Planende beenden",
-		Description:     "Verhindert, dass eine geplante Aktivität vor ihrer eingetragenen Endzeit beendet wird. Spontane Aktivitäten sind ausgenommen.",
+		Label:           "Beenden erst ab geplanter Endzeit",
+		Description:     "Eine geplante Aktivität lässt sich erst ab ihrer eingetragenen Endzeit beenden. Spontane Aktivitäten sind ausgenommen.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -168,7 +168,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableOverdueThresholdMinutes,
 		Label:           "Als überfällig markieren nach (Minuten)",
-		Description:     "Minuten nach der geplanten Startzeit, ab denen eine Aktivität als überfällig angezeigt wird.",
+		Description:     "So viele Minuten nach der geplanten Startzeit zeigt moto eine Aktivität als überfällig an.",
 		Type:            config.FieldNumber,
 		Default:         5,
 		ReadPermission:  "config:read",
@@ -196,8 +196,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableChildrenPerStaffRatio,
-		Label:           "Betreuungsschlüssel (Kinder pro Betreuer)",
-		Description:     "Anzahl der Kinder, die eine Betreuungskraft in einem Termin höchstens allein betreuen soll. Wird verwendet, um eine mögliche Unterbesetzung anzuzeigen.",
+		Label:           "Betreuungsschlüssel (Kinder pro Betreuungskraft)",
+		Description:     "So viele Kinder soll eine Betreuungskraft in einem Termin höchstens allein betreuen. Sind es mehr, zeigt moto eine mögliche Unterbesetzung.",
 		Type:            config.FieldNumber,
 		Default:         12,
 		ReadPermission:  "config:read",
@@ -218,8 +218,8 @@ func init() {
 	// coherent unit when cleanup is enabled.
 	config.Register(config.Definition{
 		Key:             config.KeyGDPRTimetableRetentionDays,
-		Label:           "Aufbewahrungsdauer Betreuungsplan (Tage)",
-		Description:     "Anzahl der Tage, für die abgeschlossene oder abgesagte Termine gespeichert bleiben.",
+		Label:           "Betreuungsplan aufbewahren (Tage)",
+		Description:     "So lange bleiben beendete oder abgesagte Termine gespeichert.",
 		Type:            config.FieldNumber,
 		Default:         365,
 		ReadPermission:  "config:read",
@@ -239,8 +239,8 @@ func init() {
 	// OGS day (09:00 Schulende → 17:00 Abholung).
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableDayStartTime,
-		Label:           "Tagesansicht Beginn",
-		Description:     "Uhrzeit, ab der die Wochenansicht standardmäßig beginnt. Frühere Termine bleiben per Scrollen erreichbar.",
+		Label:           "Beginn der Wochenansicht",
+		Description:     "Ab dieser Uhrzeit zeigt die Wochenansicht den Tag. Frühere Termine erreichen Sie durch Scrollen.",
 		Type:            config.FieldTime,
 		Default:         "09:00",
 		ReadPermission:  "config:read",
@@ -253,8 +253,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableDayEndTime,
-		Label:           "Tagesansicht Ende",
-		Description:     "Uhrzeit, bis zu der die Wochenansicht standardmäßig angezeigt wird. Spätere Termine bleiben per Scrollen erreichbar.",
+		Label:           "Ende der Wochenansicht",
+		Description:     "Bis zu dieser Uhrzeit zeigt die Wochenansicht den Tag. Spätere Termine erreichen Sie durch Scrollen.",
 		Type:            config.FieldTime,
 		Default:         "17:00",
 		ReadPermission:  "config:read",
@@ -269,8 +269,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeySlotListShortDayCutoff,
-		Label:           "Kurzer Ganztag bis",
-		Description:     "Abholzeit-Grenze für die kurze Ganztagsliste. Kinder mit Abholzeit bis einschließlich dieser Uhrzeit erscheinen in dieser Kohorte.",
+		Label:           "Frühe Abholung bis",
+		Description:     "Kinder mit Abholzeit bis einschließlich dieser Uhrzeit stehen unter „Listen“ in der Ganztagsliste mit früher Abholung.",
 		Type:            config.FieldTime,
 		Default:         "14:30",
 		ReadPermission:  "config:read",
@@ -283,8 +283,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeySlotListLongDayCutoff,
-		Label:           "Langer Ganztag bis",
-		Description:     "Abholzeit-Grenze für die lange Ganztagsliste. Kinder nach dem kurzen Ganztag und bis einschließlich dieser Uhrzeit erscheinen in dieser Kohorte.",
+		Label:           "Späte Abholung bis",
+		Description:     "Kinder mit späterer Abholzeit bis einschließlich dieser Uhrzeit stehen unter „Listen“ in der Ganztagsliste mit später Abholung.",
 		Type:            config.FieldTime,
 		Default:         "16:00",
 		ReadPermission:  "config:read",

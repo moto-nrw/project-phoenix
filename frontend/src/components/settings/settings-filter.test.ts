@@ -1,9 +1,15 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { ResolvedSetting, SchemaTab } from "~/lib/settings-api";
 import {
+  categoryLabels,
   categorySummary,
   changedCount,
+  displayCategoryLabel,
   filterCategoryItems,
+  hasCategoryLabel,
   normalizeQuery,
   searchTabs,
 } from "./settings-filter";
@@ -82,6 +88,47 @@ const tabs: SchemaTab[] = [
     ],
   },
 ];
+
+describe("displayCategoryLabel", () => {
+  it("matches all category keys registered by backend defaults", () => {
+    const defaultsDirectory = resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      "../../../../backend/services/config/defaults",
+    );
+    const backendCategoryKeys = new Set<string>();
+
+    for (const filename of readdirSync(defaultsDirectory)) {
+      if (!filename.endsWith(".go") || filename.endsWith("_test.go")) {
+        continue;
+      }
+      const source = readFileSync(resolve(defaultsDirectory, filename), "utf8");
+      for (const match of source.matchAll(/Category:\s*"([^"]+)"/g)) {
+        backendCategoryKeys.add(match[1]!);
+      }
+    }
+
+    expect(Object.keys(categoryLabels).sort()).toEqual(
+      [...backendCategoryKeys].sort(),
+    );
+  });
+
+  it("shows a German heading instead of the raw category key", () => {
+    const category = { key: "lockout", label: "lockout", items: [] };
+    expect(displayCategoryLabel(category)).toBe("Sperre nach Fehlversuchen");
+    expect(hasCategoryLabel(category)).toBe(true);
+  });
+
+  it("names the block that decides when „Nach Hause“ appears", () => {
+    const category = { key: "nach-hause", label: "nach-hause", items: [] };
+    expect(displayCategoryLabel(category)).toBe("„Nach Hause“ am Tablet");
+  });
+
+  it("falls back to the key for an unknown category", () => {
+    const category = { key: "neu", label: "neu", items: [] };
+    expect(displayCategoryLabel(category)).toBe("neu");
+    expect(hasCategoryLabel(category)).toBe(false);
+  });
+});
 
 describe("normalizeQuery", () => {
   it("trims and lower-cases", () => {

@@ -7,8 +7,8 @@ import (
 func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyCheckoutRaumwechselEnabled,
-		Label:           "Raumwechsel-Button anzeigen",
-		Description:     "Zeigt den Raumwechsel-Button auf dem Geräte-Checkout-Bildschirm an",
+		Label:           "„Raumwechsel“ am Tablet anbieten",
+		Description:     "Kinder können beim Auschecken am Tablet „Raumwechsel“ wählen.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -21,8 +21,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyCheckoutSchulhofEnabled,
-		Label:           "Schulhof-Button anzeigen",
-		Description:     "Zeigt den Schulhof-Button auf dem Geräte-Checkout-Bildschirm an (Schulhof-Raum wird automatisch erstellt)",
+		Label:           "„Schulhof“ am Tablet anbieten",
+		Description:     "Kinder können beim Auschecken am Tablet „Schulhof“ wählen. moto legt dafür einen Raum für den Schulhof an.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -35,8 +35,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyCheckoutWCEnabled,
-		Label:           "Toilette-Button anzeigen",
-		Description:     "Zeigt den Toilette-Button auf dem Geräte-Checkout-Bildschirm an (WC-Raum wird automatisch erstellt)",
+		Label:           "„Toilette“ am Tablet anbieten",
+		Description:     "Kinder können beim Auschecken am Tablet „Toilette“ wählen. moto legt dafür einen Raum für die Toilette an.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -50,14 +50,14 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyCheckoutDailyFromAllRoomsEnabled,
 		Label:           "„Nach Hause“ in jedem Raum anzeigen",
-		Description:     "Zeigt „Nach Hause“ nach der Abholzeit in jedem Raum. Ausgeschaltet erscheint die Auswahl nur im Gruppenraum und auf dem Schulhof.",
+		Description:     "Ausgeschaltet geht „Nach Hause“ nur im Gruppenraum und auf dem Schulhof.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "devices",
-		Category:        "checkout",
-		SortOrder:       13,
+		Category:        "nach-hause",
+		SortOrder:       8,
 		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
 	})
 
@@ -70,8 +70,8 @@ func init() {
 	// nothing. Schools with a stored value keep it.
 	config.Register(config.Definition{
 		Key:             config.KeyCheckinActivityCapacityDetailsEnabled,
-		Label:           "Details bei voller Aktivität anzeigen",
-		Description:     "Zeigt auf dem Gerät, welche Aktivität voll ist und wie viele Kinder dort sind (z. B. Fußball AG ist voll (20/20 Teilnehmer)). So ist klar, dass die Aktivität voll ist und nicht der Raum. Ausgeschaltet erscheint nur ein allgemeiner Hinweis ohne Namen.",
+		Label:           "Name und Belegung bei voller Aktivität",
+		Description:     "Das Tablet zeigt dann zum Beispiel „Fußball AG ist voll (20/20 Teilnehmer)“. So sieht Ihr Team, dass die Aktivität voll ist und nicht der Raum. Ausgeschaltet erscheint nur ein allgemeiner Hinweis.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -84,8 +84,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyCheckinRoomCapacityDetailsEnabled,
-		Label:           "Details bei vollem Raum anzeigen",
-		Description:     "Zeigt beim Erreichen der Raumkapazität den Namen des Raums und die Belegung auf dem Gerät an (z. B. Turnhalle ist voll (30/30 Plätze belegt)). Wenn deaktiviert, erscheint nur ein allgemeiner Hinweis.",
+		Label:           "Name und Belegung bei vollem Raum",
+		Description:     "Das Tablet zeigt dann zum Beispiel „Turnhalle ist voll (30/30 Plätze belegt)“. Ausgeschaltet erscheint nur ein allgemeiner Hinweis.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",

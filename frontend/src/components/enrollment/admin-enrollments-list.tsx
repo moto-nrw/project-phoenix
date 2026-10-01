@@ -591,13 +591,13 @@ function EnrollmentSetupGuide({
 
   const steps = [
     {
-      title: "Online-Anmeldung aktivieren",
+      title: "Online-Anmeldung einschalten",
       description:
-        "Schaltet den Elternlink frei und zeigt ihn in den Settings.",
+        "Schaltet den Link für Eltern frei. Sie finden ihn dann in den Einstellungen.",
       href: "/settings?tab=enrollment&highlight=enrollment.enabled",
-      action: enrollmentEnabled ? "Einstellungen prüfen" : "Aktivieren",
+      action: enrollmentEnabled ? "Einstellungen prüfen" : "Einschalten",
       status: enrollmentEnabled ? "done" : "todo",
-      meta: enrollmentEnabled ? "Aktiv" : "Nicht aktiv",
+      meta: enrollmentEnabled ? "Eingeschaltet" : "Ausgeschaltet",
       icon: Settings2,
       requiredForPublish: true,
     },
