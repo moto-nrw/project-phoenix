@@ -151,50 +151,6 @@ func studentNotesUp(ctx context.Context, db *bun.DB) error {
 		GRANT SELECT, INSERT, UPDATE, DELETE ON users.student_notes TO phoenix_tenant;
 		GRANT USAGE ON SEQUENCE users.student_notes_id_seq TO phoenix_tenant;
 
-		-- supervisor_notes remains during the expand/contract period. Its old
-		-- writers (including imports) must keep the carried-over hint current
-		-- until the contract migration removes the column and this trigger.
-		CREATE OR REPLACE FUNCTION users.sync_supervisor_notes_to_student_notes()
-		RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog AS $function$
-		DECLARE
-			profile_id BIGINT;
-			note_body TEXT;
-		BEGIN
-			IF TG_OP = 'UPDATE' AND NEW.supervisor_notes IS NOT DISTINCT FROM OLD.supervisor_notes THEN
-				RETURN NEW;
-			END IF;
-
-			SELECT membership.student_profile_id INTO profile_id
-			FROM users.student_school_memberships AS membership
-			WHERE membership.tenant_id = NEW.tenant_id AND membership.id = NEW.membership_id;
-			IF profile_id IS NULL THEN
-				RETURN NEW;
-			END IF;
-
-			note_body := NULLIF(btrim(NEW.supervisor_notes), '');
-			IF note_body IS NULL THEN
-				DELETE FROM users.student_notes
-				WHERE tenant_id = NEW.tenant_id AND student_id = profile_id
-					AND origin = 'master_data' AND deleted_at IS NULL;
-			ELSE
-				UPDATE users.student_notes SET body = note_body
-				WHERE tenant_id = NEW.tenant_id AND student_id = profile_id
-					AND origin = 'master_data' AND deleted_at IS NULL;
-				IF NOT FOUND THEN
-					INSERT INTO users.student_notes (
-						tenant_id, student_id, origin, kind, visibility, body
-					) VALUES (
-						NEW.tenant_id, profile_id, 'master_data', 'permanent', 'all_staff', note_body
-					);
-				END IF;
-			END IF;
-			RETURN NEW;
-		END;
-		$function$;
-		DROP TRIGGER IF EXISTS sync_supervisor_notes_to_student_notes ON users.student_care_profiles;
-		CREATE TRIGGER sync_supervisor_notes_to_student_notes
-		AFTER INSERT OR UPDATE OF supervisor_notes ON users.student_care_profiles
-		FOR EACH ROW EXECUTE FUNCTION users.sync_supervisor_notes_to_student_notes();
 	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("error creating users.student_notes: %w", err)
@@ -281,11 +237,7 @@ func studentNotesDown(ctx context.Context, db *bun.DB) error {
 		}
 	}()
 
-	if _, err := tx.NewRaw(`
-		DROP TRIGGER IF EXISTS sync_supervisor_notes_to_student_notes ON users.student_care_profiles;
-		DROP FUNCTION IF EXISTS users.sync_supervisor_notes_to_student_notes();
-		DROP TABLE IF EXISTS users.student_notes;
-	`).Exec(ctx); err != nil {
+	if _, err := tx.NewRaw(`DROP TABLE IF EXISTS users.student_notes;`).Exec(ctx); err != nil {
 		return fmt.Errorf("error dropping users.student_notes: %w", err)
 	}
 

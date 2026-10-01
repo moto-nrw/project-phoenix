@@ -57,7 +57,10 @@ func (s *StudentService) ApplyEnrollmentProfile(ctx context.Context, id int64, i
 			return err
 		}
 		plan := domain.DeparturePlan{AllowedDepartureModes: record.AllowedDepartureModes, DepartureDays: record.DepartureDays, BusDays: record.BusDays, PickupDays: record.PickupDays}
-		return s.owners.SaveCare(txCtx, membershipID, record, plan, record.DepartureCompanionNote, input.DepartureSet)
+		if err := s.owners.SaveCare(txCtx, membershipID, record, plan, record.DepartureCompanionNote, input.DepartureSet); err != nil {
+			return err
+		}
+		return s.syncLegacySupervisorNotes(txCtx, stats, record.ID, record.SupervisorNotes, input.SupervisorNotesSet)
 	})
 }
 
@@ -78,7 +81,11 @@ func (s *StudentService) CreateEnrollment(ctx context.Context, input domain.Enro
 			return err
 		}
 		plan := domain.DeparturePlan{AllowedDepartureModes: record.AllowedDepartureModes, DepartureDays: record.DepartureDays, BusDays: record.BusDays, PickupDays: record.PickupDays}
-		return s.owners.SaveCare(txCtx, membershipID, record, plan, record.DepartureCompanionNote, input.InitialProfile != nil && input.InitialProfile.DepartureSet)
+		if err := s.owners.SaveCare(txCtx, membershipID, record, plan, record.DepartureCompanionNote, input.InitialProfile != nil && input.InitialProfile.DepartureSet); err != nil {
+			return err
+		}
+		return s.syncLegacySupervisorNotes(txCtx, stats, record.ID, record.SupervisorNotes,
+			input.InitialProfile != nil && input.InitialProfile.SupervisorNotesSet)
 	})
 	return result, err
 }

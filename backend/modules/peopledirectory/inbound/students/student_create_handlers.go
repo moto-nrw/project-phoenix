@@ -72,6 +72,7 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *Student {
 	}
 	if req.SupervisorNotes != nil {
 		student.SupervisorNotes = req.SupervisorNotes
+		student.SupervisorNotesSupplied = true
 	}
 	if req.DepartureCompanionNote != nil {
 		student.DepartureCompanionNote = req.DepartureCompanionNote

@@ -20,4 +20,7 @@ type StudentNoteStore interface {
 	Insert(context.Context, domain.CreateStudentNote) (domain.StudentNote, domain.OperationStats, error)
 	Update(context.Context, domain.UpdateStudentNote) (domain.StudentNote, domain.OperationStats, error)
 	SoftDelete(context.Context, domain.DeleteStudentNote) (domain.OperationStats, error)
+	// SyncLegacySupervisorNotes keeps the temporary master-data field and its
+	// carried-over permanent hint aligned during the expand/contract period.
+	SyncLegacySupervisorNotes(context.Context, int64, *string) (domain.OperationStats, error)
 }

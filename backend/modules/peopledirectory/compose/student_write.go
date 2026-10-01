@@ -34,11 +34,12 @@ func (e engine) VerifyStudentStrandingBatch(ctx context.Context) error {
 
 func toApplicationStudentWrite(write peopledirectory.StudentWrite) application.StudentWrite {
 	return application.StudentWrite{
-		Record:        domain.StudentRecord(write.Record),
-		Plan:          write.Plan,
-		Baseline:      write.Baseline,
-		CompanionNote: write.CompanionNote,
-		NoteSupplied:  write.NoteSupplied,
+		Record:                  domain.StudentRecord(write.Record),
+		Plan:                    write.Plan,
+		Baseline:                write.Baseline,
+		CompanionNote:           write.CompanionNote,
+		NoteSupplied:            write.NoteSupplied,
+		SupervisorNotesSupplied: write.SupervisorNotesSupplied,
 	}
 }
 

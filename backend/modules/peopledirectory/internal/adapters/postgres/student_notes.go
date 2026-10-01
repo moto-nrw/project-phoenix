@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres/calendar"
@@ -258,6 +259,81 @@ func (s *StudentNoteStore) SoftDelete(ctx context.Context, deletion domain.Delet
 			return stats, domain.ErrStudentNoteNotFound
 		}
 	}
+	return stats, nil
+}
+
+// SyncLegacySupervisorNotes mirrors an actual legacy-field write to the
+// carried-over permanent hint. It is an application write rather than a
+// database trigger: the student-owner expand contract forbids compatibility
+// triggers on its storage tables.
+func (s *StudentNoteStore) SyncLegacySupervisorNotes(
+	ctx context.Context, studentID int64, supervisorNotes *string,
+) (domain.OperationStats, error) {
+	db, tenantID, err := s.tenantDatabase(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	if studentID <= 0 {
+		return domain.OperationStats{}, domain.ErrStudentNoteInvalid
+	}
+	body := ""
+	if supervisorNotes != nil {
+		body = strings.TrimSpace(*supervisorNotes)
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	if body == "" {
+		_, err = db.NewDelete().
+			Model((*studentNoteRow)(nil)).
+			ModelTableExpr(studentNotesTable+" AS note").
+			Where(`"note".tenant_id = ?`, tenantID).
+			Where(`"note".student_id = ?`, studentID).
+			Where(`"note".origin = ?`, domain.StudentNoteOriginMasterData).
+			Where(`"note".deleted_at IS NULL`).
+			Exec(ctx)
+		stats.StatementDuration = time.Since(started)
+		if err != nil {
+			return stats, fmt.Errorf("sync legacy supervisor notes: %w", err)
+		}
+		return stats, nil
+	}
+	result, err := db.NewUpdate().
+		Model((*studentNoteRow)(nil)).
+		ModelTableExpr(studentNotesTable+" AS note").
+		Set("body = ?", body).
+		Where(`"note".tenant_id = ?`, tenantID).
+		Where(`"note".student_id = ?`, studentID).
+		Where(`"note".origin = ?`, domain.StudentNoteOriginMasterData).
+		Where(`"note".deleted_at IS NULL`).
+		Exec(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return stats, fmt.Errorf("sync legacy supervisor notes: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return stats, fmt.Errorf("sync legacy supervisor notes: %w", err)
+	}
+	stats.Rows = affected
+	if affected > 0 {
+		return stats, nil
+	}
+	stats.Queries++
+	started = time.Now()
+	_, err = db.NewInsert().
+		Model(&studentNoteRow{
+			TenantID: tenantID, StudentID: studentID,
+			Origin: domain.StudentNoteOriginMasterData,
+			Kind:   domain.StudentNoteKindPermanent, Visibility: domain.StudentNoteVisibilityAllStaff,
+			Body: body,
+		}).
+		ModelTableExpr(studentNotesTable).
+		Exec(ctx)
+	stats.StatementDuration += time.Since(started)
+	if err != nil {
+		return stats, fmt.Errorf("sync legacy supervisor notes: %w", err)
+	}
+	stats.Rows = 1
 	return stats, nil
 }
 

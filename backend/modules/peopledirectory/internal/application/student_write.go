@@ -25,6 +25,10 @@ type StudentWrite struct {
 	// NoteSupplied distinguishes "the caller cleared the note" from "the caller
 	// said nothing about it", which a nil pointer alone cannot.
 	NoteSupplied bool
+	// SupervisorNotesSupplied says the legacy master-data field changed. It is
+	// separate from the value because unrelated writes carry a hydrated record
+	// and must not resurrect a deliberately removed carried-over hint.
+	SupervisorNotesSupplied bool
 }
 
 // A failed composite command must undo its own writes even when an ambient
@@ -65,6 +69,9 @@ func (s *StudentService) CreateStudent(ctx context.Context, write StudentWrite) 
 		}
 		err = s.owners.SaveCare(txCtx, membershipID, record, resolved, noteToStore(resolved, write.CompanionNote), write.Plan.Touched() || write.NoteSupplied)
 		if err != nil {
+			return err
+		}
+		if err := s.syncLegacySupervisorNotes(txCtx, stats, record.ID, record.SupervisorNotes, write.SupervisorNotesSupplied); err != nil {
 			return err
 		}
 		result = applyPlanToRecord(record, resolved, noteToStore(resolved, write.CompanionNote))
@@ -143,6 +150,9 @@ func (s *StudentService) UpdateStudent(ctx context.Context, write StudentWrite) 
 		if err := s.saveStudentOwners(txCtx, record, resolved, note, plan.Touched() || write.NoteSupplied); err != nil {
 			return err
 		}
+		if err := s.syncLegacySupervisorNotes(txCtx, stats, record.ID, record.SupervisorNotes, write.SupervisorNotesSupplied); err != nil {
+			return err
+		}
 
 		if trim != nil && len(trim.DropIDs) > 0 {
 			if err := s.companions.DeleteEdges(txCtx, trim.DropIDs); err != nil {
@@ -153,6 +163,21 @@ func (s *StudentService) UpdateStudent(ctx context.Context, write StudentWrite) 
 		return nil
 	})
 	return result, err
+}
+
+func (s *StudentService) syncLegacySupervisorNotes(
+	ctx context.Context,
+	stats *domain.OperationStats,
+	studentID int64,
+	supervisorNotes *string,
+	supplied bool,
+) error {
+	if !supplied {
+		return nil
+	}
+	queryStats, err := s.notes.SyncLegacySupervisorNotes(ctx, studentID, supervisorNotes)
+	stats.Add(queryStats)
+	return err
 }
 
 func (s *StudentService) saveStudentOwners(ctx context.Context, record domain.StudentRecord, plan domain.DeparturePlan, note *string, touched bool) error {

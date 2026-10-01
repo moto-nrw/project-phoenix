@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -16,10 +17,30 @@ import (
 // upstream can prove.
 
 func notesModule(t *testing.T, db *testpkg.DB) *peopledirectory.Module {
+	return notesModuleWithOwners(t, db, nil)
+}
+
+func notesModuleWithOwners(t *testing.T, db *testpkg.DB, owners StudentOwners) *peopledirectory.Module {
 	t.Helper()
-	module, err := New(Dependencies{DB: db, Observe: func(Observation) {}})
+	module, err := New(Dependencies{DB: db, StudentOwners: owners, Observe: func(Observation) {}})
 	require.NoError(t, err)
 	return module
+}
+
+// noteTestStudentOwners supplies the owner calls a real student write makes.
+// The note test is about the synchronisation after that owner write, not about
+// duplicating the care-plan owner's own persistence contract.
+type noteTestStudentOwners struct{}
+
+func (noteTestStudentOwners) LockClassWrites(context.Context, bool) error { return nil }
+func (noteTestStudentOwners) Enroll(_ context.Context, record peopledirectory.StudentRecord) (int64, error) {
+	return record.ID, nil
+}
+func (noteTestStudentOwners) Renew(_ context.Context, record peopledirectory.StudentRecord) (int64, error) {
+	return record.ID, nil
+}
+func (noteTestStudentOwners) SaveCare(context.Context, int64, peopledirectory.StudentRecord, peopledirectory.StudentPlan, *string, bool) error {
+	return nil
 }
 
 // noteAuthor creates an account with a person, so a read can resolve the
@@ -45,7 +66,7 @@ func bodies(notes []peopledirectory.StudentNote) []string {
 func TestStudentNotesRoundTrip(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module := notesModule(t, db)
+	module := notesModuleWithOwners(t, db, noteTestStudentOwners{})
 	ctx := testpkg.Ctx(t)
 
 	child := testpkg.CreateTestStudent(t, db, "Mila", "Roundtrip", "3a")
@@ -133,6 +154,56 @@ func TestStudentNotesRoundTrip(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Empty(t, notes, "a removed note leaves every timeline, including its author's")
+}
+
+// The temporary supervisor_notes column still has two product writers: the
+// legacy student form and imports through ApplyEnrollmentProfile. Both use the
+// same owner command, which must keep the carried-over hint current without a
+// compatibility trigger on the old student-owner tables.
+func TestStudentNotesStayInSyncWithLegacySupervisorNotes(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := notesModuleWithOwners(t, db, noteTestStudentOwners{})
+	ctx := testpkg.Ctx(t)
+	child := testpkg.CreateTestStudent(t, db, "Mira", "Altwert", "3a")
+	audience := peopledirectory.StudentNoteAudience{
+		Visibilities: []string{peopledirectory.StudentNoteVisibilityAllStaff},
+	}
+	listPermanent := func() []peopledirectory.StudentNote {
+		t.Helper()
+		notes, err := module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
+			StudentID: child.ID, Kind: peopledirectory.StudentNoteKindPermanent, Audience: audience,
+		})
+		require.NoError(t, err)
+		return notes
+	}
+
+	first := "  Braucht Zeit zum Ankommen.  "
+	record, err := module.FindStudentRecord(ctx, child.ID)
+	require.NoError(t, err)
+	record.SupervisorNotes = &first
+	_, err = module.UpdateStudent(ctx, peopledirectory.StudentWrite{
+		Record: record, SupervisorNotesSupplied: true,
+	})
+	require.NoError(t, err)
+	notes := listPermanent()
+	require.Len(t, notes, 1)
+	assert.Equal(t, "Braucht Zeit zum Ankommen.", notes[0].Body)
+	assert.Equal(t, peopledirectory.StudentNoteOriginMasterData, notes[0].Origin)
+
+	updated := "Morgens bitte in Ruhe ankommen lassen."
+	require.NoError(t, module.ApplyEnrollmentProfile(ctx, child.ID, peopledirectory.EnrollmentProfilePatch{
+		SupervisorNotesSet: true, SupervisorNotes: &updated,
+	}))
+	notes = listPermanent()
+	require.Len(t, notes, 1)
+	assert.Equal(t, updated, notes[0].Body)
+
+	cleared := ""
+	require.NoError(t, module.ApplyEnrollmentProfile(ctx, child.ID, peopledirectory.EnrollmentProfilePatch{
+		SupervisorNotesSet: true, SupervisorNotes: &cleared,
+	}))
+	assert.Empty(t, listPermanent())
 }
 
 // The audience predicate is the security boundary of this feature. It is built

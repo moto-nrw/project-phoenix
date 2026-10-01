@@ -102,7 +102,8 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		companions = studentCompanions{seam: dependencies.StudentCompanions}
 	}
 	owners := studentOwners{owners: dependencies.StudentOwners}
-	students := application.NewStudents(postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), companions, owners, transaction{}, observe)
+	noteStore := postgres.NewStudentNoteStore(database)
+	students := application.NewStudents(postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), noteStore, companions, owners, transaction{}, observe)
 	guardians := application.NewGuardians(postgres.NewGuardianStore(database, postgres.PortalMembershipQuery(memberships)), dependencies.GuardianLinkOwners, transaction{}, observe)
 	var auditLog ports.StudentFieldAuditLog
 	if dependencies.StudentFieldAudit != nil {
@@ -122,7 +123,7 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 	studentPhotos := application.NewStudentPhotos(
 		postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), photoRuntime, transaction{}, observe, now)
 	studentNotes := application.NewStudentNotes(
-		postgres.NewStudentNoteStore(database), postgres.New(database),
+		noteStore, postgres.New(database),
 		postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery),
 		transaction{}, observe)
 	return peopledirectory.NewModule(engine{
