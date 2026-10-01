@@ -85,7 +85,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyRemindersActivityOverdueEnabled,
 		Label:           "Überfällige Aktivität",
-		Description:     "Zeigt eine Erinnerung an, wenn eine geplante Aktivität nicht rechtzeitig gestartet wurde. Die Schwelle richtet sich nach der Überfälligkeits-Einstellung im Betreuungsplan.",
+		Description:     "Zeigt eine Erinnerung an, wenn eine geplante Aktivität nicht rechtzeitig gestartet wurde. Wann das ist, legen Sie unter „Betrieb“ beim Betreuungsplan fest.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",

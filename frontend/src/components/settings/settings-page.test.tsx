@@ -764,8 +764,8 @@ describe("SettingsContent (via renderTab)", () => {
           label: "Betrieb",
           categories: [
             {
-              key: "aufsicht",
-              label: "Aufsicht",
+              key: "sehen-und-bearbeiten",
+              label: "sehen-und-bearbeiten",
               items: [
                 {
                   key: "operations.operational_overview_scope",
@@ -801,7 +801,7 @@ describe("SettingsContent (via renderTab)", () => {
     mockSetSettingValue.mockResolvedValue(null);
 
     renderWithProviders(<RenderedTab tabId="settings-operations" />);
-    await openCategory(/Aufsicht/);
+    await openCategory(/Sehen und bearbeiten/);
     fireEvent.click(await screen.findByRole("combobox"));
     fireEvent.click(
       screen.getByRole("option", {

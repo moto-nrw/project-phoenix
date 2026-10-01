@@ -303,6 +303,9 @@ describe("StaffTimeExportModal", () => {
         ).toBeInTheDocument(),
       );
       expect(
+        screen.getByText(/Kalender und Export.*Zeitkonten übertragen/),
+      ).toBeInTheDocument();
+      expect(
         screen.getByRole("button", { name: "An die Gegenstelle übertragen" }),
       ).toBeDisabled();
       expect(

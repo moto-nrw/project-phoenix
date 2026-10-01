@@ -7,8 +7,8 @@ import (
 func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyFeedbackEnabled,
-		Label:           "Feedback aktiviert",
-		Description:     "Ermöglicht das Erfassen und Anzeigen von Feedback. Feedback-Modal beim täglichen Checkout und Feedbackhistorie in der Kinddetailansicht. Aus Datenschutzgründen standardmäßig deaktiviert.",
+		Label:           "Feedback der Kinder beim Gehen",
+		Description:     "Kinder zeigen beim Gehen am Tablet mit einem Smiley, wie ihr Tag war. Das Team sieht die Rückmeldungen beim Kind. Aus Datenschutzgründen ist das zunächst ausgeschaltet.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -20,8 +20,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyFeedbackDataRetentionDays,
-		Label:           "Feedback-Aufbewahrung (Tage)",
-		Description:     "Anzahl der Tage, nach denen Feedback-Einträge automatisch gelöscht werden",
+		Label:           "Rückmeldungen aufbewahren (Tage)",
+		Description:     "Danach löscht moto die Rückmeldungen der Kinder.",
 		Type:            config.FieldNumber,
 		Default:         90,
 		ReadPermission:  "config:read",

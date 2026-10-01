@@ -9,7 +9,7 @@ func init() {
 	} {
 		config.Register(config.Definition{
 			Key: report.key, Label: report.label,
-			Description: "Elternmeldungen ändern den Tagesstatus, melden aber kein Kind an.",
+			Description: "Die Meldung trägt nur die Abwesenheit ein. Sie meldet das Kind nicht an.",
 			Type:        config.FieldBoolean, Default: true,
 			ReadPermission: "config:read", WritePermission: "config:manage",
 			Tab: "operations", Category: "elternmeldungen", SortOrder: 6 + index,

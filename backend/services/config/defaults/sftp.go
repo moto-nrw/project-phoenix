@@ -7,11 +7,10 @@ import (
 // SFTP target for the manual transfer of Zeitwirtschafts-/DATEV exports
 // (#3050). Exactly ONE target per school.
 //
-// It lives under Einstellungen → System in the "Schnittstellen" category: a
-// connection to an outside system is infrastructure, not payroll bookkeeping,
-// and the next such connection belongs beside it rather than in whatever
-// screen happens to use it first. The switch is the gate — with it off, the
-// export dialog offers no transfer at all.
+// It lives under Einstellungen → Kalender und Export in the
+// "Zeitkonten übertragen" category: the destination belongs next to the
+// export it receives. The switch is the gate — with it off, the export dialog
+// offers no transfer at all.
 //
 // Host, username, password, directory and fingerprint default to the EMPTY
 // STRING: a school without a target has no target, and an invented preset
@@ -40,14 +39,14 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeySFTPEnabled,
-		Label:           "SFTP-Übertragung",
+		Label:           "Zeitkonten per SFTP übertragen",
 		Description:     "Schaltet die Übertragung der Zeitkonten-Exporte ein. Im Export-Dialog erscheint dann neben dem Herunterladen die Übertragung. Solange eine der Angaben unten fehlt, wird nichts übertragen.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "system",
-		Category:        "schnittstellen",
+		Category:        "zeitkonten-export",
 		SortOrder:       10,
 		AccessPolicy:    config.AccessAdminOnly,
 	})
@@ -61,7 +60,7 @@ func init() {
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "system",
-		Category:        "schnittstellen",
+		Category:        "zeitkonten-export",
 		SortOrder:       20,
 		Validation:      &config.ValidationRules{Pattern: &hostPattern, AllowEmpty: true},
 		AccessPolicy:    config.AccessAdminOnly,
@@ -77,7 +76,7 @@ func init() {
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "system",
-		Category:        "schnittstellen",
+		Category:        "zeitkonten-export",
 		SortOrder:       30,
 		Validation:      &config.ValidationRules{Min: &minPort, Max: &maxPort},
 		AccessPolicy:    config.AccessAdminOnly,
@@ -93,7 +92,7 @@ func init() {
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "system",
-		Category:        "schnittstellen",
+		Category:        "zeitkonten-export",
 		SortOrder:       40,
 		Validation:      &config.ValidationRules{Pattern: &usernamePattern, AllowEmpty: true},
 		AccessPolicy:    config.AccessAdminOnly,
@@ -109,7 +108,7 @@ func init() {
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "system",
-		Category:        "schnittstellen",
+		Category:        "zeitkonten-export",
 		SortOrder:       50,
 		Validation:      &config.ValidationRules{AllowEmpty: true},
 		AccessPolicy:    config.AccessAdminOnly,
@@ -125,7 +124,7 @@ func init() {
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "system",
-		Category:        "schnittstellen",
+		Category:        "zeitkonten-export",
 		SortOrder:       60,
 		Validation:      &config.ValidationRules{Pattern: &directoryPattern, AllowEmpty: true},
 		AccessPolicy:    config.AccessAdminOnly,
@@ -141,7 +140,7 @@ func init() {
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "system",
-		Category:        "schnittstellen",
+		Category:        "zeitkonten-export",
 		SortOrder:       70,
 		Validation:      &config.ValidationRules{Pattern: &fingerprintPattern, AllowEmpty: true},
 		AccessPolicy:    config.AccessAdminOnly,

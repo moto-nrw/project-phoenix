@@ -2524,7 +2524,7 @@ function loginProblemTopic(nfcEnabled: boolean | null): HelpTopic {
  * Die Themen des laufenden Betriebs. Die Reihenfolge einer Gruppe in
  * Seitenleiste und Gruppenseite folgt dieser Liste, deshalb stehen die zwei
  * Leitungsthemen zum NFC-Gerät hier und nicht in `leadTopics`: ohne
- * gesetzte `OGS Geräte-PIN` kommt am Tablet niemand weiter, und stünden sie
+ * gesetzte `Geräte-PIN` kommt am Tablet niemand weiter, und stünden sie
  * am Ende, müsste die Leitung zuerst nach unten springen. Die Betreuung
  * sieht beide nicht.
  */
@@ -5189,13 +5189,13 @@ function parentVisibilityTopic(): HelpTopic {
     ],
     result: "Eltern sehen die Änderung, wenn sie moto das nächste Mal öffnen.",
     notes: [
-      "Einzeln schaltbar sind zum Beispiel `Krankmeldung über Elternportal`, `Abholzeit über Elternportal ändern` und `Stammdaten über Elternportal bearbeiten`.",
-      "`Krankmeldung muss bestätigt werden` legt fest, ob eine Meldung erst durch Ihr Team freigegeben wird.",
+      "Einzeln schaltbar sind zum Beispiel `Nachrichten von Eltern`, `Abholzeit für einen Tag ändern (Eltern)` und `Stammdaten bearbeiten (Eltern)`.",
+      "Wählen Sie bei `Krankmeldungen durch Eltern` die Möglichkeit `Erst bestätigen`, wenn Ihr Team jede Meldung freigeben soll.",
       "Der Essensplan ist ein eigener Schalter.",
     ],
     differences: [
       "Ist ein Schalter aus, sehen Eltern den Bereich gar nicht. Er wird nicht ausgegraut.",
-      "`Weitere Bezugspersonen einladen (Eltern)` ist kein Schalter, sondern eine Auswahl: `Deaktiviert`, `Direkt` oder `Mit Freigabe durch das Team`.",
+      "`Weitere Bezugspersonen einladen (Eltern)` ist kein Schalter, sondern eine Auswahl: `Nicht erlaubt`, `Ohne Freigabe` oder `Mit Freigabe durch das Team`.",
       "Bei `Mit Freigabe durch das Team` landen die Einladungen unter `Elternzugänge`.",
     ],
     troubleshootingDetails: [
@@ -5262,9 +5262,9 @@ function tabletSetupTopic(): HelpTopic {
 }
 
 /**
- * Der Bereich `Geräte` der Einstellungen plus die `Tägliche Abmeldezeit`
- * unter `Betrieb`. Alle diese Schalter haengen an NFC (`DependsOn` in
- * backend/services/config/defaults/devices.go und operations.go), stehen bei
+ * Der Bereich `Geräte` der Einstellungen. Alle diese Schalter haengen an NFC
+ * (`DependsOn` in backend/services/config/defaults/devices.go und
+ * operations.go), stehen bei
  * einfacher Anwesenheit aber trotzdem da: `scanBinary` schaltet nur die
  * Anwesenheit um und fragt kein Ziel ab. Deshalb sagt der Artikel das zuerst.
  */
@@ -5289,7 +5289,7 @@ function nfcSettingsTopic(presenceMode: HelpPresenceMode): HelpTopic {
         steps: [
           "Wählen Sie unten in der Seitenleiste `Einstellungen`.",
           "Wählen Sie oben den Bereich `Geräte`.",
-          "Tragen Sie unter `OGS Geräte-PIN` eine vierstellige Zahl ein.",
+          "Tragen Sie unter `Geräte-PIN` eine vierstellige Zahl ein.",
           "Geben Sie die neue PIN an Ihr Team weiter.",
         ],
       },
@@ -5301,18 +5301,20 @@ function nfcSettingsTopic(presenceMode: HelpPresenceMode): HelpTopic {
                 "Diese Schalter bestimmen, welche Knöpfe ein Kind am Tablet sieht, wenn es sein Armband ein zweites Mal auflegt.",
               steps: [
                 "Bleiben Sie im Bereich `Geräte`.",
-                "Schalten Sie `Raumwechsel-Button anzeigen` ein, wenn Kinder den Raum wechseln dürfen.",
-                "Schalten Sie `Schulhof-Button anzeigen` und `Toilette-Button anzeigen` nach Bedarf ein.",
-                "`„Nach Hause“ in jedem Raum anzeigen` erlaubt den Heimweg aus jedem Raum.",
+                "Schalten Sie `„Raumwechsel“ am Tablet anbieten` ein, wenn Kinder den Raum wechseln dürfen.",
+                "Schalten Sie `„Schulhof“ am Tablet anbieten` und `„Toilette“ am Tablet anbieten` nach Bedarf ein.",
               ],
               ordered: false,
             },
             {
               title: "Festlegen, ab wann Kinder nach Hause dürfen",
+              description:
+                "Alles dazu steht im Bereich `Geräte` unter `„Nach Hause“ am Tablet`.",
               steps: [
-                "Wählen Sie oben den Bereich `Betrieb`.",
-                "Tragen Sie bei `Tägliche Abmeldezeit` eine Uhrzeit ein.",
-                "Lassen Sie das Feld leer, wenn `nach Hause` immer gelten soll.",
+                "Tragen Sie bei `„Nach Hause“ ab Uhrzeit` eine Uhrzeit ein. Bei `Jederzeit` geht `nach Hause` den ganzen Tag.",
+                "Soll die Abholzeit jedes Kindes zählen? Dann schalten Sie `Abholzeit jedes Kindes beachten` ein.",
+                "Tragen Sie bei `„Nach Hause“ vor der Abholzeit (Minuten)` ein, wie früh das Kind gehen darf. Bei 15 Minuten und Abholzeit 16:00 geht es ab 15:45.",
+                "Schalten Sie `„Nach Hause“ in jedem Raum anzeigen` aus, wenn Kinder nur aus dem Gruppenraum und vom Schulhof nach Hause dürfen.",
               ],
             },
           ]
@@ -5325,7 +5327,7 @@ function nfcSettingsTopic(presenceMode: HelpPresenceMode): HelpTopic {
       ...(tracksRooms
         ? [
             "`Schulhof` und `Toilette` legen jeweils einen passenden Raum mit an.",
-            "`Details bei vollem Raum anzeigen` nennt am Tablet Name und Belegung.",
+            "`Name und Belegung bei vollem Raum` nennt am Tablet, welcher Raum voll ist.",
           ]
         : []),
     ],
@@ -5334,12 +5336,12 @@ function nfcSettingsTopic(presenceMode: HelpPresenceMode): HelpTopic {
       // einstellen kann: das Tablet fragt kein Ziel ab.
       ...(presenceMode === "binary"
         ? [
-            "Ihre OGS hält nur fest, ob ein Kind da ist. Dann wirkt hier nur die `OGS Geräte-PIN`.",
-            "Die Knöpfe zum Auschecken und die `Tägliche Abmeldezeit` ändern bei Ihnen nichts.",
+            "Ihre OGS hält nur fest, ob ein Kind da ist. Dann wirkt hier nur die `Geräte-PIN`.",
+            "Die Knöpfe zum Auschecken und die Einstellungen zu `nach Hause` ändern bei Ihnen nichts.",
           ]
         : []),
       "Arbeitet Ihre OGS ohne NFC, gibt es den Bereich `Geräte` in den `Einstellungen` nicht.",
-      "Die `OGS Geräte-PIN` darf nur ändern, wer die OGS verwaltet.",
+      "Die `Geräte-PIN` darf nur ändern, wer die OGS verwaltet.",
     ],
     troubleshootingDetails: [
       "Die neue PIN klappt am Tablet nicht? Starten Sie das Tablet neu.",
@@ -5486,7 +5488,7 @@ function infoDisplaysTopic(): HelpTopic {
       "Legen Sie für jeden Bildschirm ein eigenes Display an.",
     ],
     differences: [
-      "Fehlt `Info-Displays` in der Seitenleiste? Dann ist die Funktion ausgeschaltet. Schalten Sie sie in den `Einstellungen` unter `Betrieb` bei `Info-Displays aktivieren` ein.",
+      "Fehlt `Info-Displays` in der Seitenleiste? Dann ist die Funktion ausgeschaltet. Schalten Sie sie in den `Einstellungen` unter `Betrieb` bei `Info-Displays nutzen` ein.",
     ],
     troubleshootingDetails: [
       "Der Bildschirm zeigt nichts? Prüfen Sie, ob der Link vollständig geöffnet wurde.",
