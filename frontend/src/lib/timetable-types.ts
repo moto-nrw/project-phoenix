@@ -825,8 +825,6 @@ export interface GuardianNoticeResult {
 
 /** Preview the cancel dialog shows before anything is sent. */
 export interface GuardianNoticeReach {
-  enabled: boolean;
-  defaultOn: boolean;
   childCount: number;
   familyCount: number;
 }
@@ -838,8 +836,6 @@ export interface BackendGuardianNoticeResult {
 }
 
 export interface BackendGuardianNoticeReach {
-  enabled: boolean;
-  default_on: boolean;
   child_count: number;
   family_count: number;
 }

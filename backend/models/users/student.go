@@ -1,7 +1,6 @@
 package users
 
 import (
-	"database/sql"
 	"errors"
 	"strings"
 	"time"
@@ -57,10 +56,12 @@ var ErrDepartureCompanionNoteRequired = departure.ErrDepartureCompanionNoteRequi
 var ErrStudentRowMissing = errors.New("student row not found")
 
 // MissingStudentError is the error a lookup returns for a child that is not
-// there: a DatabaseError wrapping both base.ErrNotFound and sql.ErrNoRows,
-// which is the shape the retained callers branch on.
-func MissingStudentError(op string) error {
-	return &base.DatabaseError{Op: op, Err: errors.Join(base.ErrNotFound, sql.ErrNoRows, ErrStudentRowMissing)}
+// there: a DatabaseError wrapping both base.ErrNotFound and noRows, which is
+// the shape the retained callers branch on. The persistence callers pass
+// sql.ErrNoRows as noRows, because retained consumers still match that
+// sentinel and this package stays free of database/sql.
+func MissingStudentError(op string, noRows error) error {
+	return &base.DatabaseError{Op: op, Err: errors.Join(base.ErrNotFound, noRows, ErrStudentRowMissing)}
 }
 
 // Student is the joined student DTO consumed by the retained API and service

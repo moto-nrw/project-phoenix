@@ -44,6 +44,7 @@ const TAB_LABELS: Record<string, string> = {
   devices: "Geräte",
   system: "System",
   general: "Allgemein",
+  startseite: "Startseite für alle",
 };
 
 // Konzept je Einstellungs-Tab, fuer die Kachel im Sektions-Header. Faellt auf

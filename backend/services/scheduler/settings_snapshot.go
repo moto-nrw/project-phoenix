@@ -46,7 +46,6 @@ var schedulerPollingSettingKeys = []string{
 	configModel.KeySessionAbandonedThresholdMin,
 	configModel.KeyTrackingAutoCheckoutEnabled,
 	configModel.KeyTrackingAutoCheckoutGraceMinutes,
-	configModel.KeyStatusFlagClearTime,
 	configModel.KeySickClearMode,
 	configModel.KeyExcusedClearMode,
 	configModel.KeyTimetableMaterializationEnabled,

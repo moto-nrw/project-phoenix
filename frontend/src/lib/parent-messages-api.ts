@@ -198,8 +198,8 @@ export async function markThreadUnread(threadId: string): Promise<void> {
 }
 
 /**
- * Mark every conversation the caller sees as unread as read for the caller's
- * own account. Colleagues and parents see no change in their unread numbers.
+ * Clear the caller's own unread numbers for every conversation they see as
+ * unread. Colleagues see no change, and parents get no read receipt (#3673).
  * Returns the caller's new unread count: above zero only while conversations
  * the team marked unread remain.
  */
@@ -210,6 +210,60 @@ export async function markAllMessagesRead(): Promise<number> {
     "Die Nachrichten wurden nicht als gelesen markiert.",
   );
   return result.data?.unread_count ?? 0;
+}
+
+/**
+ * Which parent conversations the own counter at "Nachrichten" counts (#3673).
+ * Personal: colleagues and parents see no change.
+ */
+export type MessageCountScope = "all" | "own_groups" | "none";
+
+export interface MessageCountSetting {
+  scope: MessageCountScope;
+  /** Without an OGS group today, "own_groups" counts nothing. */
+  hasOwnGroups: boolean;
+}
+
+const COUNT_SCOPES: readonly MessageCountScope[] = [
+  "all",
+  "own_groups",
+  "none",
+];
+
+function toCountScope(value: unknown): MessageCountScope {
+  return COUNT_SCOPES.includes(value as MessageCountScope)
+    ? (value as MessageCountScope)
+    : "all";
+}
+
+export async function fetchMessageCountSetting(): Promise<MessageCountSetting> {
+  const result = await getEnvelope<{
+    scope?: string;
+    has_own_groups?: boolean;
+  }>(
+    "/api/messages/count-scope",
+    "Die Einstellung konnte nicht geladen werden.",
+  );
+  return {
+    scope: toCountScope(result.data?.scope),
+    hasOwnGroups: result.data?.has_own_groups === true,
+  };
+}
+
+export async function saveMessageCountScope(
+  scope: MessageCountScope,
+): Promise<void> {
+  const response = await fetch("/api/messages/count-scope", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scope }),
+  });
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Die Einstellung konnte nicht gespeichert werden.",
+    );
+  }
 }
 
 /**

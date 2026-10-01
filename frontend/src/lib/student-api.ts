@@ -390,15 +390,19 @@ interface BackendSchoolCheckinResponse {
 export async function schoolCheckinStudent(
   studentId: string,
   action: SchoolCheckinAction,
+  checkoutNote?: string,
 ): Promise<SchoolCheckinResponse> {
   const url = `/api/students/${studentId}/school-checkin`;
+  // Optional reason for an early checkout (#3324); the backend accepts it
+  // only with "out" and stores nothing for a blank note.
+  const note = action === "out" ? checkoutNote?.trim() : undefined;
   try {
     const session = await getCachedSession();
     const response = await authFetch<
       ApiResponse<BackendSchoolCheckinResponse> | BackendSchoolCheckinResponse
     >(url, {
       method: "POST",
-      body: { action },
+      body: note ? { action, note } : { action },
       token: session?.user?.token,
     });
 

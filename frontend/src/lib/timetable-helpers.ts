@@ -945,8 +945,6 @@ export function mapGuardianNoticeReach(
   raw: BackendGuardianNoticeReach,
 ): GuardianNoticeReach {
   return {
-    enabled: raw.enabled,
-    defaultOn: raw.default_on,
     childCount: raw.child_count,
     familyCount: raw.family_count,
   };

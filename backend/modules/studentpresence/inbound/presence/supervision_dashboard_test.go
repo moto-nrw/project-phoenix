@@ -130,9 +130,13 @@ func TestSupervisionDashboard_Aggregates(t *testing.T) {
 	settingsCtx := testpkg.Ctx(t)
 	require.NoError(t, tc.settings.SetBool(settingsCtx, tenantsettings.KeyTrackingIndicatorsEnabled, true, nil, nil))
 	require.NoError(t, tc.settings.SetString(settingsCtx, tenantsettings.KeyTrackingIndicator1, "Hausaufgaben", nil, nil))
+	// Slot 2 defaults to "Hausaufgaben" since #3738; an explicit empty slot
+	// is skipped.
+	require.NoError(t, tc.settings.SetString(settingsCtx, tenantsettings.KeyTrackingIndicator2, "", nil, nil))
 	t.Cleanup(func() {
 		_ = tc.settings.ResetValue(settingsCtx, tenantsettings.KeyTrackingIndicatorsEnabled, nil, nil)
 		_ = tc.settings.ResetValue(settingsCtx, tenantsettings.KeyTrackingIndicator1, nil, nil)
+		_ = tc.settings.ResetValue(settingsCtx, tenantsettings.KeyTrackingIndicator2, nil, nil)
 	})
 
 	envelope := dashboardExec(t, router, "/active/supervision-dashboard", account.ID, dashboardPerms)

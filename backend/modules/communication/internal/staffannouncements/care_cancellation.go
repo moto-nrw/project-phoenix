@@ -2,13 +2,11 @@ package announcement
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -20,14 +18,15 @@ import (
 // regular parent announcement, authored by the system on behalf of the person
 // cancelling. Reusing the announcement gives the notice everything a
 // Leistungskatalog asks for without a second delivery system: a feed entry
-// that stays, a read state per family, an optional e-mail through the shared
-// outbox, and a push. The row is marked with SystemKind so the team list can
-// badge it and the parent feed can show it even where the optional news
-// feature is off.
-
-// ErrCareCancellationDisabled is returned when the school switched the
-// cancellation notice off. Handler maps it to 409.
-var ErrCareCancellationDisabled = errors.New("announcement: cancellation notice is disabled for this school")
+// that stays, a read state per family, an e-mail through the shared outbox,
+// and a push. The row is marked with SystemKind so the team list can badge it
+// and the parent feed can show it even where the optional news feature is
+// off.
+//
+// Whether the families hear about a cancellation is decided in the cancel
+// dialog, not by school settings (#3731): the person cancelling ticks
+// "Eltern per App und E-Mail informieren". Each family's own notification
+// and e-mail choices still apply.
 
 // The parents app serves the feed at /news; the portal adds its own prefix,
 // so the deep link is the browser path. Lock-screen copy lives with the other
@@ -59,11 +58,8 @@ type CareCancellationResult struct {
 }
 
 // CareCancellationReach is what the cancel dialog shows before anything is
-// sent: whether the school allows the notice at all, whether the checkbox
-// starts ticked, and how many families a notice for these children reaches.
+// sent: how many families a notice for these children reaches.
 type CareCancellationReach struct {
-	Enabled     bool
-	DefaultOn   bool
 	FamilyCount int
 }
 
@@ -71,36 +67,16 @@ type CareCancellationReach struct {
 // schedule cancel path depends on.
 type CareCancellationPublisher interface {
 	// PublishCareCancellation creates and publishes the notice inside the
-	// caller's tenant transaction. It fails with ErrCareCancellationDisabled
-	// when the school gate is off and with ErrValidation on empty text, so the
-	// caller can refuse before the cancellation itself is written.
+	// caller's tenant transaction. It fails with ErrValidation on empty text,
+	// so the caller can refuse before the cancellation itself is written.
 	PublishCareCancellation(ctx context.Context, in CareCancellationInput) (*CareCancellationResult, error)
 	// CareCancellationReachFor resolves the dialog preview for the given
 	// children. Runs inside the caller's tenant transaction.
 	CareCancellationReachFor(ctx context.Context, studentIDs []int64) (*CareCancellationReach, error)
 }
 
-func (s *service) careCancellationEnabled(ctx context.Context) (bool, error) {
-	if s.settings == nil {
-		return false, nil
-	}
-	return s.settings.ResolveBool(ctx, configModel.KeyNotificationsCareCancelledEnabled)
-}
-
 func (s *service) CareCancellationReachFor(ctx context.Context, studentIDs []int64) (*CareCancellationReach, error) {
-	enabled, err := s.careCancellationEnabled(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("announcement: resolve cancellation notice flag: %w", err)
-	}
-	reach := &CareCancellationReach{Enabled: enabled}
-	if !enabled {
-		return reach, nil
-	}
-	defaultOn, err := s.settings.ResolveBool(ctx, configModel.KeyNotificationsCareCancelledDefaultOn)
-	if err != nil {
-		return nil, fmt.Errorf("announcement: resolve cancellation notice default: %w", err)
-	}
-	reach.DefaultOn = defaultOn
+	reach := &CareCancellationReach{}
 	ids := uniquePositive(studentIDs)
 	if len(ids) == 0 {
 		return reach, nil
@@ -114,13 +90,6 @@ func (s *service) CareCancellationReachFor(ctx context.Context, studentIDs []int
 }
 
 func (s *service) PublishCareCancellation(ctx context.Context, in CareCancellationInput) (*CareCancellationResult, error) {
-	enabled, err := s.careCancellationEnabled(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("announcement: resolve cancellation notice flag: %w", err)
-	}
-	if !enabled {
-		return nil, ErrCareCancellationDisabled
-	}
 	title, body, err := ValidateCareCancellationText(in.Title, in.Body)
 	if err != nil {
 		return nil, err
@@ -132,10 +101,9 @@ func (s *service) PublishCareCancellation(ctx context.Context, in CareCancellati
 	if len(studentIDs) == 0 {
 		return nil, fmt.Errorf("%w: at least one student is required", ErrValidation)
 	}
-	sendEmail, err := s.settings.ResolveBool(ctx, configModel.KeyNotificationsCareCancelledEmail)
-	if err != nil {
-		return nil, fmt.Errorf("announcement: resolve cancellation notice e-mail flag: %w", err)
-	}
+	// The dialog promises "per App und E-Mail"; the outbox still skips
+	// families who opted out of these e-mails.
+	const sendEmail = true
 
 	kind := usersModels.ParentAnnouncementSystemKindCareCancellation
 	a := &usersModels.ParentAnnouncement{
@@ -184,15 +152,12 @@ func (s *service) PublishCareCancellation(ctx context.Context, in CareCancellati
 		slog.Int64("created_by", in.CreatedBy),
 		slog.Int("student_count", len(studentIDs)),
 		slog.Int("recipient_count", len(recipients)),
-		slog.Bool("send_email", sendEmail),
 	)
 	if err := s.notifyAnnouncementGuardians(ctx, a); err != nil {
 		return nil, fmt.Errorf("announcement: cancellation notice push: %w", err)
 	}
-	if sendEmail {
-		if err := s.enqueueAnnouncementEmails(ctx, a); err != nil {
-			return nil, fmt.Errorf("announcement: cancellation notice e-mails: %w", err)
-		}
+	if err := s.enqueueAnnouncementEmails(ctx, a); err != nil {
+		return nil, fmt.Errorf("announcement: cancellation notice e-mails: %w", err)
 	}
 	return &CareCancellationResult{Announcement: a, RecipientCount: len(recipients)}, nil
 }

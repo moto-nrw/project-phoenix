@@ -67,9 +67,14 @@ vi.mock("swr", () => ({
   useSWRConfig: () => ({ mutate: swrMutate, cache: new Map() }),
 }));
 
+// Mutable so a test can grant config:update ("Startseite für alle").
+const mockPermissions = { value: [] as string[] };
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
-    data: { user: { token: "test-token" }, expires: "2099-01-01" },
+    data: {
+      user: { token: "test-token", permissions: mockPermissions.value },
+      expires: "2099-01-01",
+    },
     status: "authenticated",
     update: vi.fn(),
   }),
@@ -121,6 +126,7 @@ vi.mock("~/lib/supervision-context", () => ({
 }));
 
 const { useSettingsTabs } = await import("./settings-page");
+const { useNFCEnabled } = await import("~/lib/tenant-context");
 
 const mockSchema = {
   tabs: [
@@ -177,7 +183,57 @@ const mockSchema = {
 interface TabsResult {
   tabs: { id: string; label: string; icon: string }[];
   renderTab: (tabId: string) => React.ReactNode;
+  highlightTabId: string | null;
+  highlightNeedsNfc: boolean;
 }
+
+function schemaItem(key: string) {
+  return {
+    key,
+    label: key,
+    description: key,
+    type: "boolean" as const,
+    default: true,
+    value: true,
+    is_default: true,
+    writable: true,
+    visible: true,
+    sort_order: 1,
+    validation: null,
+    depends_on: null,
+    options: null,
+  };
+}
+
+// Schema with the NFC-only "Geräte" tab and the birthday switches that live
+// on the hand-written "Startseite für alle" tab (#3735, #3737).
+const schemaWithDevicesAndStartseite = {
+  tabs: [
+    ...mockSchema.tabs,
+    {
+      key: "devices",
+      label: "devices",
+      categories: [
+        {
+          key: "checkout",
+          label: "checkout",
+          items: [schemaItem("checkout.wc_enabled")],
+        },
+      ],
+    },
+    {
+      key: "startseite",
+      label: "startseite",
+      categories: [
+        {
+          key: "geburtstage",
+          label: "geburtstage",
+          items: [schemaItem("operations.birthday_display_enabled")],
+        },
+      ],
+    },
+  ],
+};
 
 function HookWrapper({
   onResult,
@@ -221,6 +277,9 @@ function settingsErrorBanner(): Element | null {
 describe("useSettingsTabs", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
+    mockSearchParams.value = "";
+    mockPermissions.value = [];
     mockSetSettingValue.mockResolvedValue(null);
     mockResetSettingValue.mockResolvedValue(null);
   });
@@ -273,6 +332,95 @@ describe("useSettingsTabs", () => {
     });
     expect(captured!.tabs).toHaveLength(1);
     expect(captured!.tabs[0]!.id).toBe("settings-personalisierung");
+  });
+
+  it("shows the Geräte tab for a school with NFC", async () => {
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
+    mockFetchSchema.mockResolvedValue(schemaWithDevicesAndStartseite);
+    let captured: TabsResult | null = null;
+
+    render(<HookWrapper onResult={(r) => (captured = r)} />);
+    await waitFor(() => {
+      expect(captured).not.toBeNull();
+    });
+    expect(captured!.tabs.map((tab) => tab.label)).toContain("Geräte");
+  });
+
+  it("hides the Geräte tab for a school without NFC (#3735)", async () => {
+    vi.mocked(useNFCEnabled).mockReturnValue(false);
+    mockFetchSchema.mockResolvedValue(schemaWithDevicesAndStartseite);
+    let captured: TabsResult | null = null;
+
+    render(<HookWrapper onResult={(r) => (captured = r)} />);
+    await waitFor(() => {
+      expect(captured).not.toBeNull();
+    });
+    expect(captured!.tabs.map((tab) => tab.id)).not.toContain(
+      "settings-devices",
+    );
+  });
+
+  it("never renders the startseite schema tab as a generic tab (#3737)", async () => {
+    mockFetchSchema.mockResolvedValue(schemaWithDevicesAndStartseite);
+    let captured: TabsResult | null = null;
+
+    render(<HookWrapper onResult={(r) => (captured = r)} />);
+    await waitFor(() => {
+      expect(captured).not.toBeNull();
+    });
+    // Without config:update there is no "Startseite für alle" at all, and
+    // the schema tab must not sneak in as a generic one.
+    expect(captured!.tabs.map((tab) => tab.id)).not.toContain(
+      "settings-startseite",
+    );
+
+    mockPermissions.value = ["config:update"];
+    let withWrite: TabsResult | null = null;
+    render(<HookWrapper onResult={(r) => (withWrite = r)} />);
+    await waitFor(() => {
+      expect(withWrite).not.toBeNull();
+    });
+    expect(
+      withWrite!.tabs.filter((tab) => tab.id === "settings-startseite"),
+    ).toHaveLength(1);
+  });
+
+  it("maps a device deep link to the Geräte tab with NFC", async () => {
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
+    mockSearchParams.value = "highlight=checkout.wc_enabled";
+    mockFetchSchema.mockResolvedValue(schemaWithDevicesAndStartseite);
+    let captured: TabsResult | null = null;
+
+    render(<HookWrapper onResult={(r) => (captured = r)} />);
+    await waitFor(() => {
+      expect(captured?.highlightTabId).toBe("settings-devices");
+    });
+    expect(captured!.highlightNeedsNfc).toBe(false);
+  });
+
+  it("explains a device deep link without NFC instead of landing nowhere", async () => {
+    vi.mocked(useNFCEnabled).mockReturnValue(false);
+    mockSearchParams.value = "highlight=checkout.wc_enabled";
+    mockFetchSchema.mockResolvedValue(schemaWithDevicesAndStartseite);
+    let captured: TabsResult | null = null;
+
+    render(<HookWrapper onResult={(r) => (captured = r)} />);
+    await waitFor(() => {
+      expect(captured?.highlightNeedsNfc).toBe(true);
+    });
+    expect(captured!.highlightTabId).toBeNull();
+  });
+
+  it("maps a birthday deep link to Startseite für alle", async () => {
+    mockPermissions.value = ["config:update"];
+    mockSearchParams.value = "highlight=operations.birthday_display_enabled";
+    mockFetchSchema.mockResolvedValue(schemaWithDevicesAndStartseite);
+    let captured: TabsResult | null = null;
+
+    render(<HookWrapper onResult={(r) => (captured = r)} />);
+    await waitFor(() => {
+      expect(captured?.highlightTabId).toBe("settings-startseite");
+    });
   });
 
   it("tabs have icon paths", async () => {

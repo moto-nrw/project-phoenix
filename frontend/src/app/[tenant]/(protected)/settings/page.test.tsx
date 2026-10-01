@@ -115,6 +115,43 @@ describe("SettingsPage", () => {
     });
   });
 
+  it("opens the tab that holds a deep-linked setting (#3735)", async () => {
+    mockUseSettingsTabs.mockReturnValue({
+      tabs: [
+        { id: "settings-operations", label: "Betrieb", icon: "settings" },
+        { id: "settings-devices", label: "Geräte", icon: "devices" },
+      ],
+      renderTab: (tabId: string) => <div>Inhalt {tabId}</div>,
+      highlightTabId: "settings-devices",
+      highlightNeedsNfc: false,
+    });
+
+    render(<SettingsPage />);
+
+    expect(
+      await screen.findByText("Inhalt settings-devices"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/NFC-Tablets/)).not.toBeInTheDocument();
+  });
+
+  it("says why a device setting is missing without NFC (#3735)", async () => {
+    mockUseSettingsTabs.mockReturnValue({
+      tabs: [{ id: "settings-operations", label: "Betrieb", icon: "settings" }],
+      renderTab: (tabId: string) => <div>Inhalt {tabId}</div>,
+      highlightTabId: null,
+      highlightNeedsNfc: true,
+    });
+
+    render(<SettingsPage />);
+
+    expect(
+      await screen.findByText(
+        "Diese Einstellung gibt es nur für Schulen mit NFC-Tablets. Ihre Schule nutzt keine NFC-Tablets.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Inhalt settings-operations")).toBeInTheDocument();
+  });
+
   it("counts overrides only in visible settings tabs", async () => {
     mockUseSettingsTabs.mockReturnValue({
       tabs: [{ id: "settings-operations", label: "Betrieb", icon: "settings" }],

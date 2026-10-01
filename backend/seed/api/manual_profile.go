@@ -398,11 +398,17 @@ func seedManualAttendance(rt *Runtime, students map[string]SeedStudent) error {
 	}
 	for index, key := range keys[:8] {
 		student := students[key]
-		if err := postSchoolAttendance(rt, student.ID, "in", "checked_in"); err != nil {
+		if err := postSchoolAttendance(rt, student.ID, "in", "checked_in", ""); err != nil {
 			return err
 		}
 		if index >= 4 {
-			if err := postSchoolAttendance(rt, student.ID, "out", "checked_out"); err != nil {
+			// One checkout carries the optional early-checkout note (#3324),
+			// so the detail header and the day log show it on every dev machine.
+			note := ""
+			if index == 4 {
+				note = "Arzttermin, die Mutter hat früher abgeholt"
+			}
+			if err := postSchoolAttendance(rt, student.ID, "out", "checked_out", note); err != nil {
 				return err
 			}
 		}
@@ -410,9 +416,13 @@ func seedManualAttendance(rt *Runtime, students map[string]SeedStudent) error {
 	return nil
 }
 
-func postSchoolAttendance(rt *Runtime, studentID int64, action, expectedStatus string) error {
+func postSchoolAttendance(rt *Runtime, studentID int64, action, expectedStatus, note string) error {
 	path := fmt.Sprintf("/api/students/%d/school-checkin", studentID)
-	raw, err := rt.Client.Post(path, map[string]any{"action": action})
+	body := map[string]any{"action": action}
+	if note != "" {
+		body["note"] = note
+	}
+	raw, err := rt.Client.Post(path, body)
 	if err != nil {
 		return fmt.Errorf("record web attendance for student %d: %w", studentID, err)
 	}
