@@ -198,6 +198,13 @@ func TestStudentNoteAllowsUpdate(t *testing.T) {
 		withGroup.Subject.EducationGroupID = &groupID
 		require.NoError(t, withGroup.AllowsUpdate(narrow))
 	})
+
+	t.Run("a retained leadership note cannot be broadened", func(t *testing.T) {
+		t.Parallel()
+		orphaned := base
+		orphaned.Visibility = StudentNoteVisibilityGroupLeads
+		require.ErrorIs(t, orphaned.AllowsUpdate(update), ErrStudentNoteInvalid)
+	})
 }
 
 func TestStudentNoteAllowsDelete(t *testing.T) {

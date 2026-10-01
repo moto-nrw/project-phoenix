@@ -103,19 +103,8 @@ function toPayload(draft: StudentNoteDraft): Record<string, unknown> {
   };
 }
 
-async function throwNoteError(
-  response: Response,
-  fallback: string,
-): Promise<never> {
+function throwNoteError(response: Response, fallback: string): never {
   let message = fallback;
-  try {
-    const body = (await response.json()) as { error?: string };
-    if (body.error) {
-      message = body.error;
-    }
-  } catch {
-    // Non-JSON body — keep the fallback.
-  }
   if (response.status === 403) {
     message = "Dafür fehlt Ihnen die Berechtigung.";
   }
@@ -130,7 +119,7 @@ class StudentNotesService {
       `/api/students/${studentId}/notes${query}`,
     );
     if (!response.ok) {
-      throw new Error(`Failed to fetch student notes: ${response.statusText}`);
+      throwNoteError(response, "Notizen konnten nicht geladen werden.");
     }
     const json = (await response.json()) as { data: BackendStudentNote[] };
     return (json.data ?? []).map(mapNote);
@@ -142,7 +131,7 @@ class StudentNotesService {
       body: JSON.stringify(toPayload(draft)),
     });
     if (!response.ok) {
-      await throwNoteError(response, "Notiz konnte nicht gespeichert werden.");
+      throwNoteError(response, "Notiz konnte nicht gespeichert werden.");
     }
   }
 
@@ -156,7 +145,7 @@ class StudentNotesService {
       { method: "PUT", body: JSON.stringify(toPayload(draft)) },
     );
     if (!response.ok) {
-      await throwNoteError(response, "Notiz konnte nicht geändert werden.");
+      throwNoteError(response, "Notiz konnte nicht geändert werden.");
     }
   }
 
@@ -166,7 +155,7 @@ class StudentNotesService {
       { method: "DELETE" },
     );
     if (!response.ok) {
-      await throwNoteError(response, "Notiz konnte nicht entfernt werden.");
+      throwNoteError(response, "Notiz konnte nicht entfernt werden.");
     }
   }
 }

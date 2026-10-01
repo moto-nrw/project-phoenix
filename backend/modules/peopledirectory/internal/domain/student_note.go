@@ -288,14 +288,17 @@ func (u UpdateStudentNote) Validate() error {
 
 // AllowsUpdate reports whether the stored note may take this correction. It
 // re-checks the coupled constraints against the requested day: a durable hint
-// has no day, every entry has one, and a note narrowed to leadership refers to
-// a group.
+// has no day, every entry has one, a note narrowed to leadership refers to a
+// group, and a retained leadership note without its reference stays immutable.
 func (n StudentNote) AllowsUpdate(update UpdateStudentNote) error {
 	if n.AuthorAccountID == nil {
 		return ErrStudentNoteImmutable
 	}
 	if *n.AuthorAccountID != update.ActorAccountID {
 		return ErrStudentNoteNotAuthor
+	}
+	if n.Visibility == StudentNoteVisibilityGroupLeads && !n.Subject.HasReference() {
+		return ErrStudentNoteInvalid
 	}
 	if update.Kind == StudentNoteKindPermanent && update.SubjectDate != nil {
 		return ErrStudentNoteInvalid
