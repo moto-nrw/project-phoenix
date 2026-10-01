@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Migration 1.15.437 carries the child note card. Its CHECK constraints are the
+// Migration 1.15.438 carries the child note card. Its CHECK constraints are the
 // model: they are what stops a note from being about two groups at once, from
 // being a durable hint with a day, or from reaching a leadership that no group
 // reference names. Go-side validation that drifts from them would let the

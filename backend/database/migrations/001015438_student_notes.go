@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	studentNotesVersion     = "1.15.437"
+	studentNotesVersion     = "1.15.438"
 	studentNotesDescription = "Kindnotizen: Kartei je Kind mit Bezug, Sichtbarkeit und dauerhaften Hinweisen"
 )
 
