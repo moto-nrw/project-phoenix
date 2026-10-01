@@ -728,6 +728,10 @@ func (s *Scheduler) runIntervalPolling(task *ScheduledTask, panicName, startupMs
 	}()
 
 	s.getLogger().Info(startupMsg, startupAttrs...)
+	var acquired <-chan struct{}
+	if s.leadership != nil {
+		acquired = s.leadership.nextAcquisition()
+	}
 
 	select {
 	case <-time.After(startupDelay):
@@ -739,6 +743,9 @@ func (s *Scheduler) runIntervalPolling(task *ScheduledTask, panicName, startupMs
 	for {
 		select {
 		case <-time.After(interval()):
+			s.runJobCheck(task, check)
+		case <-acquired:
+			acquired = s.leadership.nextAcquisition()
 			s.runJobCheck(task, check)
 		case <-s.done:
 			return
@@ -1104,6 +1111,10 @@ func (s *Scheduler) runTokenCleanupTask(task *ScheduledTask) {
 	}()
 
 	s.getLogger().Info("token cleanup task scheduled to run every hour")
+	var acquired <-chan struct{}
+	if s.leadership != nil {
+		acquired = s.leadership.nextAcquisition()
+	}
 
 	// Run immediately on startup
 	s.runJobCheck(task, s.executeTokenCleanup)
@@ -1115,6 +1126,9 @@ func (s *Scheduler) runTokenCleanupTask(task *ScheduledTask) {
 	for {
 		select {
 		case <-ticker.C:
+			s.runJobCheck(task, s.executeTokenCleanup)
+		case <-acquired:
+			acquired = s.leadership.nextAcquisition()
 			s.runJobCheck(task, s.executeTokenCleanup)
 		case <-s.done:
 			return

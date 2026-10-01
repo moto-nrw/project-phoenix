@@ -106,10 +106,12 @@ type leadership struct {
 	mu      sync.Mutex
 	since   atomic.Int64 // start of the current standby, Unix nanoseconds
 
-	stopRun     context.CancelFunc
-	runCtx      context.Context
-	stopped     chan struct{}
-	loopStarted atomic.Bool
+	stopRun       context.CancelFunc
+	runCtx        context.Context
+	stopped       chan struct{}
+	loopStarted   atomic.Bool
+	deadlineTimer *time.Timer   // guarded by mu
+	acquired      chan struct{} // closed on each new term, then replaced; guarded by mu
 }
 
 // leaseRun is one term as this process holds it. validUntil is local
@@ -123,7 +125,7 @@ type leaseRun struct {
 
 func newLeadership(config WorkerLease, logger *slog.Logger, parent context.Context) *leadership {
 	runCtx, stopRun := context.WithCancel(context.Background())
-	l := &leadership{config: config, logger: logger, parent: parent, runCtx: runCtx, stopRun: stopRun, stopped: make(chan struct{})}
+	l := &leadership{config: config, logger: logger, parent: parent, runCtx: runCtx, stopRun: stopRun, stopped: make(chan struct{}), acquired: make(chan struct{})}
 	l.since.Store(time.Now().UnixNano())
 	return l
 }
@@ -246,16 +248,23 @@ func (l *leadership) renew(ctx context.Context, term LeaseTerm, validUntil time.
 		return false
 	}
 	l.operation("renew", "ok", latency)
+	nextValidUntil := started.Add(l.config.TTL - l.config.FenceMargin)
 	l.mu.Lock()
-	if run := l.running.Load(); run != nil && run.term.Token == term.Token {
+	run := l.running.Load()
+	if run != nil && run.term.Token == term.Token && time.Now().Before(run.validUntil) && time.Now().Before(nextValidUntil) {
 		l.running.Store(&leaseRun{
-			term: renewed, validUntil: started.Add(l.config.TTL - l.config.FenceMargin),
+			term: renewed, validUntil: nextValidUntil,
 			ctx: run.ctx, cancel: run.cancel,
 		})
+		l.deadlineTimer.Stop()
+		l.deadlineTimer = time.AfterFunc(time.Until(nextValidUntil), func() { l.expire(term) })
+		l.mu.Unlock()
+		l.evidenceTerm(true, renewed.Token, renewed.Until)
+		return true
 	}
 	l.mu.Unlock()
-	l.evidenceTerm(true, renewed.Token, renewed.Until)
-	return true
+	l.stepDown(term, "expired")
+	return false
 }
 
 func (l *leadership) lead(term LeaseTerm, validUntil time.Time) {
@@ -263,6 +272,9 @@ func (l *leadership) lead(term LeaseTerm, validUntil time.Time) {
 	standby := time.Since(time.Unix(0, l.since.Load()))
 	l.mu.Lock()
 	l.running.Store(&leaseRun{term: term, validUntil: validUntil, ctx: termCtx, cancel: cancel})
+	l.deadlineTimer = time.AfterFunc(time.Until(validUntil), func() { l.expire(term) })
+	close(l.acquired)
+	l.acquired = make(chan struct{})
 	l.mu.Unlock()
 
 	l.logger.Info("worker lease acquired",
@@ -278,6 +290,18 @@ func (l *leadership) lead(term LeaseTerm, validUntil time.Time) {
 	l.ready(true)
 }
 
+func (l *leadership) expire(term LeaseTerm) {
+	if _, held, validUntil := l.snapshot(); held && !time.Now().Before(validUntil) {
+		l.stepDown(term, "expired")
+	}
+}
+
+func (l *leadership) nextAcquisition() <-chan struct{} {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.acquired
+}
+
 // stepDown ends term at once: its context is cancelled, so its running jobs
 // stop and their transactions roll back. A later term is left alone.
 func (l *leadership) stepDown(term LeaseTerm, reason string) {
@@ -288,6 +312,7 @@ func (l *leadership) stepDown(term LeaseTerm, reason string) {
 		return
 	}
 	run.cancel()
+	l.deadlineTimer.Stop()
 	l.running.Store(nil)
 	l.since.Store(time.Now().UnixNano())
 	l.mu.Unlock()

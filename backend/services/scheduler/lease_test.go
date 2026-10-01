@@ -119,6 +119,22 @@ func (m *memoryLeaseStore) current() (string, int64) {
 	return m.holder, m.token
 }
 
+type delayedRenewStore struct {
+	*memoryLeaseStore
+	started chan struct{}
+	release chan struct{}
+}
+
+func (m *delayedRenewStore) Renew(_ context.Context, term LeaseTerm, ttl time.Duration) (LeaseTerm, bool, error) {
+	select {
+	case m.started <- struct{}{}:
+	default:
+	}
+	<-m.release // simulates a store that returns after its context deadline
+	term.Until = time.Now().Add(ttl)
+	return term, true, nil
+}
+
 type leaseRecorder struct {
 	mu         sync.Mutex
 	changes    []string
@@ -338,6 +354,61 @@ func TestLostRenewalEndsTheTermAndCancelsItsJob(t *testing.T) {
 	require.ErrorIs(t, cancelled, context.Canceled, "the next renewal finds the term gone and stops the job")
 	require.Eventually(t, func() bool { return recorder.changed("lost") }, time.Second, time.Millisecond)
 	assert.False(t, worker.Ready())
+}
+
+func TestLocalDeadlineCancelsJobWhileRenewalIsInFlight(t *testing.T) {
+	t.Parallel()
+	store := &delayedRenewStore{memoryLeaseStore: newMemoryLeaseStore(), started: make(chan struct{}, 1), release: make(chan struct{})}
+	worker := leaseWorker(t, store, "leader", nil)
+	lease := worker.leadership
+	require.True(t, lease.acquire(context.Background()))
+	term, _, validUntil := lease.snapshot()
+	renewed := make(chan bool, 1)
+	go func() { renewed <- lease.renew(context.Background(), term, validUntil) }()
+	<-store.started
+
+	_, jobCtx, held := lease.current()
+	require.True(t, held)
+	select {
+	case <-jobCtx.Done():
+	case <-time.After(testLeaseTTL):
+		t.Fatal("the local deadline did not cancel the running job")
+	}
+	_, _, held = lease.current()
+	assert.False(t, held)
+	close(store.release)
+	assert.False(t, <-renewed, "a late successful response cannot restore the expired term")
+	_, _, held = lease.current()
+	assert.False(t, held)
+}
+
+func TestStandbyRunsIntervalStartupCheckOnTakeover(t *testing.T) {
+	t.Parallel()
+	store := newMemoryLeaseStore()
+	store.takeOver("other-worker")
+	recorder := &leaseRecorder{}
+	worker := leaseWorker(t, store, "standby", recorder)
+	stopOnce(t, worker)
+	worker.Start()
+
+	checked := make(chan struct{}, 1)
+	worker.registerTask("takeover-check", "1h", func(task *ScheduledTask) {
+		worker.runIntervalPolling(task, "takeover check", "takeover check started", 0,
+			func() time.Duration { return time.Hour }, func(context.Context, *ScheduledTask) {
+				select {
+				case checked <- struct{}{}:
+				default:
+				}
+			})
+	})
+	require.Eventually(t, func() bool { return recorder.count("standby") > 0 }, time.Second, time.Millisecond)
+	store.set(func(m *memoryLeaseStore) { m.until = time.Now() })
+	require.Eventually(t, worker.Ready, time.Second, time.Millisecond)
+	select {
+	case <-checked:
+	case <-time.After(time.Second):
+		t.Fatal("the skipped startup check was not retried on takeover")
+	}
 }
 
 func TestDatabaseOutageEndsTheTermLocallyBeforeTheLeaseExpires(t *testing.T) {
