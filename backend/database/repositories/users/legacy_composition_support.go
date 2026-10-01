@@ -21,6 +21,13 @@ func NotFoundError(op string) error {
 	return &usersModels.DatabaseError{Op: op, Err: translateNotFound(sql.ErrNoRows)}
 }
 
+// MissingStudentError is the not-found shape the student reads return for a
+// child that is not there: usersModels.MissingStudentError carrying the
+// driver's no-rows sentinel the retained callers still match.
+func MissingStudentError(op string) error {
+	return usersModels.MissingStudentError(op, sql.ErrNoRows)
+}
+
 // WrapError wraps err in the legacy repository error shape, preserving the
 // chain so errors.Is on the original sentinel still works.
 func WrapError(op string, err error) error {
