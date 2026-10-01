@@ -164,6 +164,27 @@ describe("AdminEnrollmentsPage (#3778)", () => {
       expect(await openEmailEntry()).toHaveAttribute("aria-checked", "false");
     });
 
+    it("sperrt weitere Änderungen, bis das Speichern abgeschlossen ist", async () => {
+      let finishSave!: () => void;
+      mocks.setEmailSubscription.mockReturnValue(
+        new Promise<void>((resolve) => {
+          finishSave = resolve;
+        }),
+      );
+      render(<Page />);
+
+      fireEvent.click(await openEmailEntry());
+      const pendingEntry = await openEmailEntry();
+      expect(pendingEntry).toHaveAttribute("aria-checked", "true");
+      expect(pendingEntry).toBeDisabled();
+      fireEvent.click(pendingEntry);
+      expect(mocks.setEmailSubscription).toHaveBeenCalledTimes(1);
+
+      finishSave();
+      await waitFor(() => expect(mocks.toastSuccess).toHaveBeenCalled());
+      await waitFor(() => expect(pendingEntry).not.toBeDisabled());
+    });
+
     it("zeigt keinen falschen Haken, wenn der Stand nicht lädt", async () => {
       mocks.fetchEmailSubscription.mockRejectedValue(new Error("boom"));
       render(<Page />);

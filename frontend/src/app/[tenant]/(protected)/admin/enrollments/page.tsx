@@ -45,6 +45,7 @@ export default function AdminEnrollmentsPage() {
   const [emailState, setEmailState] = useState<
     "loading" | "on" | "off" | "unavailable"
   >("loading");
+  const [emailSaving, setEmailSaving] = useState(false);
   useEffect(() => {
     if (!isReady) return;
     let cancelled = false;
@@ -63,8 +64,9 @@ export default function AdminEnrollmentsPage() {
     };
   }, [isReady]);
   const handleToggleEmail = useCallback(() => {
-    if (emailState !== "on" && emailState !== "off") return;
+    if (emailSaving || (emailState !== "on" && emailState !== "off")) return;
     const next = emailState === "off";
+    setEmailSaving(true);
     setEmailState(next ? "on" : "off");
     setEmailSubscription(ENROLLMENT_EMAIL, next)
       .then(() =>
@@ -77,8 +79,9 @@ export default function AdminEnrollmentsPage() {
       .catch(() => {
         setEmailState(next ? "off" : "on");
         toastError(SAVE_FAILED);
-      });
-  }, [emailState, toastSuccess, toastError]);
+      })
+      .finally(() => setEmailSaving(false));
+  }, [emailState, emailSaving, toastSuccess, toastError]);
   const handleSummaryChange = useCallback(
     (next: AdminEnrollmentsSummary | null) => setSummary(next),
     [],
@@ -117,7 +120,7 @@ export default function AdminEnrollmentsPage() {
                     kind: "checkbox" as const,
                     label: "E-Mail an mich bei neuer Anmeldung",
                     checked: emailState === "on",
-                    disabled: emailState === "loading",
+                    disabled: emailState === "loading" || emailSaving,
                     onClick: handleToggleEmail,
                   },
                 ]),

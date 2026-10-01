@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/mail"
 	"strings"
 
@@ -77,7 +78,33 @@ func (s *Intake) adminNotificationRecipients(ctx context.Context) ([]string, err
 	if s.deps.AdminSubscribers == nil {
 		return configured, nil
 	}
-	return s.deps.AdminSubscribers.AdminNotificationRecipients(ctx, configured)
+	var recipients []string
+	err := s.deps.Runtime.Savepoint(ctx, func(txCtx context.Context) error {
+		var lookupErr error
+		recipients, lookupErr = s.deps.AdminSubscribers.AdminNotificationRecipients(txCtx, configured)
+		return lookupErr
+	})
+	if err == nil {
+		return recipients, nil
+	}
+	if s.deps.Runtime.IsSavepointControl(err) {
+		return nil, err
+	}
+	s.logger().Warn("enrollment admin subscriber lookup failed", slog.String("error", err.Error()))
+	return deduplicateAdminEmails(configured), nil
+}
+
+func deduplicateAdminEmails(addresses []string) []string {
+	seen := make(map[string]bool, len(addresses))
+	unique := make([]string, 0, len(addresses))
+	for _, address := range addresses {
+		key := strings.ToLower(address)
+		if !seen[key] {
+			seen[key] = true
+			unique = append(unique, address)
+		}
+	}
+	return unique
 }
 
 func (s *Intake) adminNotificationEmails(ctx context.Context) string {
