@@ -775,6 +775,7 @@ func TestPolicyRejectsProjectionPackageAliasesWithDuplicateGrants(t *testing.T) 
 
 func TestCanonicalArchitectureRatchetMatchesCommittedBaseline(t *testing.T) {
 	t.Parallel()
+	holdRepositoryGraphLoad(t)
 
 	output, err := runArchitecture(t, "check")
 	if err != nil {

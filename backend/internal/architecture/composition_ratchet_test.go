@@ -165,6 +165,7 @@ func TestCompositionSurfaceResolvesCrossFileDependenciesAndTestScopes(t *testing
 
 func TestCompositionRatchetWrapperFromGitHook(t *testing.T) {
 	t.Parallel()
+	holdRepositoryGraphLoad(t)
 	root := filepath.Clean(filepath.Join(packageDir(t), "..", "..", ".."))
 	gitDir := strings.TrimSpace(runGit(t, root, "rev-parse", "--absolute-git-dir"))
 	output, err := runArchitectureWithEnv(t, map[string]string{"GIT_DIR": gitDir, "GIT_WORK_TREE": "."}, "check")

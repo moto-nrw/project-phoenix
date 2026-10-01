@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"go/ast"
 	"go/constant"
+	"go/parser"
 	"go/token"
 	"go/types"
 	"path"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"sort"
@@ -67,11 +69,17 @@ func analyzeSemantics(project string, policy *Policy) ([]Violation, error) {
 }
 
 func loadTypedPackages(project string, build Build) ([]*packages.Package, error) {
+	environment := fixedBuildEnvironment(build)
+	dependencyRoots, err := dependencySourceRoots(project, environment)
+	if err != nil {
+		return nil, err
+	}
 	config := &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports |
 			packages.NeedDeps | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
-		Dir: project,
-		Env: fixedBuildEnvironment(build),
+		Dir:       project,
+		Env:       environment,
+		ParseFile: parseWithoutDependencyBodies(dependencyRoots),
 	}
 	loaded, err := packages.Load(config, "./...")
 	if err != nil {
@@ -83,6 +91,59 @@ func loadTypedPackages(project string, build Build) ([]*packages.Package, error)
 		}
 	}
 	return loaded, nil
+}
+
+// dependencySourceRoots returns the directories that hold standard-library and
+// module-cache sources. Packages loaded from there are never analyzed; they
+// are type-checked only so the project's own packages resolve against them.
+func dependencySourceRoots(project string, environment []string) ([]string, error) {
+	output, err := processOutput(project, environment, "go", "env", "GOROOT", "GOMODCACHE")
+	if err != nil {
+		return nil, fmt.Errorf("locate dependency sources: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	var roots []string
+	for _, line := range strings.Split(string(output), "\n") {
+		if root := strings.TrimSpace(line); root != "" {
+			roots = append(roots, filepath.Clean(root)+string(filepath.Separator))
+		}
+	}
+	return roots, nil
+}
+
+// parseWithoutDependencyBodies parses project files like the go/packages
+// default. Dependency files keep only what the project's type information
+// needs: comments and the bodies of non-generic functions are dropped, since a
+// function's signature, not its body, defines its type. Type-checking every
+// dependency body dominated the load's memory and CPU. Generic functions keep
+// their bodies because go/types rejects a generic declaration without one.
+// Without bodies, go/types reports unused imports and bodiless init functions
+// in dependencies. Those errors stay on the dependency packages; only project
+// packages are checked for errors and analyzed.
+func parseWithoutDependencyBodies(dependencyRoots []string) func(*token.FileSet, string, []byte) (*ast.File, error) {
+	return func(fset *token.FileSet, filename string, source []byte) (*ast.File, error) {
+		if !hasAnyPrefix(filename, dependencyRoots) {
+			return parser.ParseFile(fset, filename, source, parser.AllErrors|parser.ParseComments)
+		}
+		file, err := parser.ParseFile(fset, filename, source, parser.AllErrors|parser.SkipObjectResolution)
+		if err != nil {
+			return file, err
+		}
+		for _, declaration := range file.Decls {
+			if function, ok := declaration.(*ast.FuncDecl); ok && function.Type.TypeParams == nil {
+				function.Body = nil
+			}
+		}
+		return file, nil
+	}
+}
+
+func hasAnyPrefix(value string, prefixes []string) bool {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(value, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func newSemanticAnalyzer(policy *Policy, project string) semanticAnalyzer {

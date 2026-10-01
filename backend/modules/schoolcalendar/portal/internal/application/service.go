@@ -86,6 +86,9 @@ type Config struct {
 	ParentsURL             string
 	FrontendURL            string
 	CalDAVURL              string
+	// Today is the Berlin calendar day the subscription feeds count their
+	// window from. Nil means the real day; tests pin it to fixed dates.
+	Today func() appointmentcap.Date
 
 	// Notifier and Preferences drive the guardian push/in-app notification that
 	// accompanies the appointment e-mails (#1671). Both optional and both
@@ -417,18 +420,8 @@ func (s *service) listAppointmentsVisibleToStaff(ctx context.Context, staffID in
 	return values, err
 }
 
-func (s *service) listStaffCancellationTombstones(ctx context.Context, staffID int64, since time.Time) ([]*appointmentcap.Appointment, error) {
-	values, err := s.cfg.Appointments.ListStaffCancellationTombstones(ctx, staffID, since)
-	return values, err
-}
-
 func (s *service) listAppointmentsVisibleToGuardians(ctx context.Context, guardianIDs, studentIDs []int64, from, to appointmentcap.Date) ([]*appointmentcap.Appointment, error) {
 	values, err := s.cfg.Appointments.ListAppointmentsVisibleToGuardians(ctx, guardianIDs, studentIDs, from, to)
-	return values, err
-}
-
-func (s *service) listGuardianCancellationTombstones(ctx context.Context, guardianIDs, studentIDs []int64, since time.Time) ([]*appointmentcap.Appointment, error) {
-	values, err := s.cfg.Appointments.ListGuardianCancellationTombstones(ctx, guardianIDs, studentIDs, since)
 	return values, err
 }
 
