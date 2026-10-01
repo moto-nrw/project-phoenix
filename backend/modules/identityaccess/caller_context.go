@@ -181,6 +181,7 @@ type CallerIdentities interface {
 // ErrCallerNotAuthorized, of a missing one with ErrCallerGroupNotFound.
 type CallerReach interface {
 	MyGroupIDs(context.Context) ([]int64, error)
+	MyTeacherGroupIDs(context.Context) ([]int64, error)
 	SubstitutedGroupIDs(context.Context) (map[int64]bool, error)
 	MySchoolClasses(context.Context) ([]string, error)
 	MyActivityGroupIDs(context.Context) ([]int64, error)

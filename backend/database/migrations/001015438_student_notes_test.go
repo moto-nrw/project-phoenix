@@ -137,6 +137,7 @@ func TestStudentNotesBackfill(t *testing.T) {
 
 	withNotes := testpkg.CreateTestStudent(t, db, "Jonas", "MitNotiz", "3a")
 	without := testpkg.CreateTestStudent(t, db, "Lea", "OhneNotiz", "3a")
+	reenrolled := testpkg.CreateTestStudent(t, db, "Nora", "NeuEingeschult", "4a")
 
 	_, err := db.ExecContext(ctx, `
 		UPDATE users.student_care_profiles AS care
@@ -172,6 +173,31 @@ func TestStudentNotesBackfill(t *testing.T) {
 
 	assert.Zero(t, countStudentNotes(t, db, tenantID, without.ID),
 		"a child without a Betreuernotiz gets no note")
+
+	// A re-enrolled child may have text on a retired membership, while the
+	// current membership deliberately has none. The backfill must select the
+	// newest membership before it decides whether there is text to carry over.
+	_, err = db.ExecContext(ctx, `
+		UPDATE users.student_care_profiles AS care
+		SET supervisor_notes = 'Notiz aus der alten Mitgliedschaft'
+		FROM users.student_school_memberships AS membership
+		WHERE membership.id = care.membership_id
+		  AND membership.tenant_id = care.tenant_id
+		  AND membership.student_profile_id = ?`, reenrolled.ID)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `UPDATE users.student_school_memberships
+		SET deleted_at = NOW() WHERE tenant_id = ? AND student_profile_id = ?`, tenantID, reenrolled.ID)
+	require.NoError(t, err)
+	var currentMembershipID int64
+	require.NoError(t, db.NewRaw(`INSERT INTO users.student_school_memberships
+		(tenant_id, student_profile_id, school_class) VALUES (?, ?, '4b') RETURNING id`,
+		tenantID, reenrolled.ID).Scan(ctx, &currentMembershipID))
+	_, err = db.ExecContext(ctx, `INSERT INTO users.student_care_profiles (tenant_id, membership_id)
+		VALUES (?, ?)`, tenantID, currentMembershipID)
+	require.NoError(t, err)
+	require.NoError(t, studentNotesBackfill(ctx, db))
+	assert.Zero(t, countStudentNotes(t, db, tenantID, reenrolled.ID),
+		"a retired membership's note must not outlive a newer empty membership")
 
 	// Replay: the predicate, not a unique constraint, is what keeps this safe.
 	require.NoError(t, studentNotesBackfill(ctx, db))

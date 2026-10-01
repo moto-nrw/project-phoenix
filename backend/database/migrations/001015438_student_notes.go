@@ -197,26 +197,31 @@ func studentNotesUp(ctx context.Context, db *bun.DB) error {
 // real rows instead of re-typing it.
 func studentNotesBackfill(ctx context.Context, db bun.IDB) error {
 	_, err := db.NewRaw(`
+		WITH newest_memberships AS (
+			SELECT DISTINCT ON (profile.tenant_id, profile.id)
+				profile.tenant_id, profile.id AS student_id, membership.id AS membership_id
+			FROM users.student_school_memberships AS membership
+			JOIN users.student_profiles AS profile
+				ON profile.tenant_id = membership.tenant_id AND profile.id = membership.student_profile_id
+			ORDER BY profile.tenant_id, profile.id, membership.id DESC
+		)
 		INSERT INTO users.student_notes (
 			tenant_id, student_id, origin, kind, visibility, body, created_at, updated_at
 		)
-		SELECT DISTINCT ON (profile.tenant_id, profile.id)
-			profile.tenant_id, profile.id, 'master_data', 'permanent', 'all_staff',
+		SELECT membership.tenant_id, membership.student_id, 'master_data', 'permanent', 'all_staff',
 			btrim(care.supervisor_notes), NOW(), NOW()
-		FROM users.student_care_profiles AS care
-		JOIN users.student_school_memberships AS membership
-			ON membership.tenant_id = care.tenant_id AND membership.id = care.membership_id
-		JOIN users.student_profiles AS profile
-			ON profile.tenant_id = membership.tenant_id AND profile.id = membership.student_profile_id
+		FROM newest_memberships AS membership
+		LEFT JOIN users.student_care_profiles AS care
+			ON care.tenant_id = membership.tenant_id AND care.membership_id = membership.membership_id
 		WHERE care.supervisor_notes IS NOT NULL
 		  AND length(btrim(care.supervisor_notes)) > 0
 		  AND NOT EXISTS (
 			SELECT 1 FROM users.student_notes AS existing
-			WHERE existing.tenant_id = profile.tenant_id
-			  AND existing.student_id = profile.id
+			WHERE existing.tenant_id = membership.tenant_id
+			  AND existing.student_id = membership.student_id
 			  AND existing.origin = 'master_data'
-		  )
-		ORDER BY profile.tenant_id, profile.id, membership.id DESC;
+		)
+		;
 	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("error carrying supervisor notes into users.student_notes: %w", err)

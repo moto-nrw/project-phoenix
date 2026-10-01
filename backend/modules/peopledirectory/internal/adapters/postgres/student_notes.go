@@ -308,10 +308,20 @@ func (s *StudentNoteStore) deleteLegacySupervisorNote(
 func (s *StudentNoteStore) upsertLegacySupervisorNote(
 	ctx context.Context, db bun.IDB, tenantID, studentID int64, body string,
 ) (domain.OperationStats, error) {
+	updated, stats, err := s.updateLiveLegacySupervisorNote(ctx, db, tenantID, studentID, body)
+	if err != nil || updated {
+		return stats, err
+	}
+	insertStats, err := s.insertLegacySupervisorNote(ctx, db, tenantID, studentID, body)
+	stats.Add(insertStats)
+	return stats, err
+}
+
+func (s *StudentNoteStore) updateLiveLegacySupervisorNote(
+	ctx context.Context, db bun.IDB, tenantID, studentID int64, body string,
+) (bool, domain.OperationStats, error) {
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	// A tombstone remains the source row for this legacy field. Seeing it here
-	// prevents an unchanged legacy write from restoring a deliberately deleted hint.
 	result, err := db.NewUpdate().
 		Model((*studentNoteRow)(nil)).
 		ModelTableExpr(studentNotesTable+" AS note").
@@ -319,35 +329,40 @@ func (s *StudentNoteStore) upsertLegacySupervisorNote(
 		Where(`"note".tenant_id = ?`, tenantID).
 		Where(`"note".student_id = ?`, studentID).
 		Where(`"note".origin = ?`, domain.StudentNoteOriginMasterData).
+		Where(`"note".deleted_at IS NULL`).
 		Exec(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return false, stats, fmt.Errorf("sync legacy supervisor notes: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, stats, fmt.Errorf("sync legacy supervisor notes: %w", err)
+	}
+	stats.Rows = affected
+	return affected > 0, stats, nil
+}
+
+func (s *StudentNoteStore) insertLegacySupervisorNote(
+	ctx context.Context, db bun.IDB, tenantID, studentID int64, body string,
+) (domain.OperationStats, error) {
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	result, err := db.NewRaw(`INSERT INTO users.student_notes
+		(tenant_id, student_id, origin, kind, visibility, body)
+		SELECT ?, ?, 'master_data', 'permanent', 'all_staff', ?
+		WHERE NOT EXISTS (
+			SELECT 1 FROM users.student_notes AS note
+			WHERE note.tenant_id = ? AND note.student_id = ? AND note.origin = 'master_data'
+		)`, tenantID, studentID, body, tenantID, studentID).Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return stats, fmt.Errorf("sync legacy supervisor notes: %w", err)
 	}
-	affected, err := result.RowsAffected()
+	stats.Rows, err = result.RowsAffected()
 	if err != nil {
 		return stats, fmt.Errorf("sync legacy supervisor notes: %w", err)
 	}
-	stats.Rows = affected
-	if affected > 0 {
-		return stats, nil
-	}
-	stats.Queries++
-	started = time.Now()
-	_, err = db.NewInsert().
-		Model(&studentNoteRow{
-			TenantID: tenantID, StudentID: studentID,
-			Origin: domain.StudentNoteOriginMasterData,
-			Kind:   domain.StudentNoteKindPermanent, Visibility: domain.StudentNoteVisibilityAllStaff,
-			Body: body,
-		}).
-		ModelTableExpr(studentNotesTable).
-		Exec(ctx)
-	stats.StatementDuration += time.Since(started)
-	if err != nil {
-		return stats, fmt.Errorf("sync legacy supervisor notes: %w", err)
-	}
-	stats.Rows = 1
 	return stats, nil
 }
 

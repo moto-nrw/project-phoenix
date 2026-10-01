@@ -15,6 +15,7 @@ var errSessionNotFound = errors.New("find by id: record not found")
 
 const (
 	opGetMyGroups         = "get my groups"
+	opGetMyTeacherGroups  = "get my teacher groups"
 	opGetSubstitutedIDs   = "get substituted group IDs"
 	opGetMySchoolClasses  = "get my school classes"
 	opGetSupervisedGroups = "get supervised groups"
@@ -72,9 +73,31 @@ func (c *CallerContext) MyGroupIDs(ctx context.Context) ([]int64, error) {
 	return ids, nil
 }
 
+// MyTeacherGroupIDs returns only the education groups assigned directly to
+// the caller's teacher profile. It intentionally excludes current
+// substitutions: covering a group provides day-to-day reach, not its
+// leadership authority.
+func (c *CallerContext) MyTeacherGroupIDs(ctx context.Context) ([]int64, error) {
+	if c.principal(ctx).AccountID <= 0 {
+		return nil, &domain.CallerError{Op: opGetMyTeacherGroups, Err: domain.ErrCallerNotAuthenticated}
+	}
+	teacherID, err := c.TeacherID(ctx)
+	if err != nil {
+		if isExpectedLinkageError(err) {
+			return []int64{}, nil
+		}
+		return nil, &domain.CallerError{Op: opGetMyTeacherGroups, Err: err}
+	}
+	ids, err := c.teacherGroupIDs(ctx, teacherID)
+	if err != nil {
+		return nil, &domain.CallerError{Op: opGetMyTeacherGroups, Err: err}
+	}
+	return ids, nil
+}
+
 // addTeacherGroups adds the groups assigned to the caller's teacher profile.
 func (c *CallerContext) addTeacherGroups(ctx context.Context, teacherID int64, groups map[int64]struct{}) error {
-	ids, err := c.deps.Structure.TeacherGroupIDs(ctx, teacherID)
+	ids, err := c.teacherGroupIDs(ctx, teacherID)
 	if err != nil {
 		return &domain.CallerError{Op: opGetMyGroups, Err: err}
 	}
@@ -82,6 +105,19 @@ func (c *CallerContext) addTeacherGroups(ctx context.Context, teacherID int64, g
 		groups[id] = struct{}{}
 	}
 	return nil
+}
+
+func (c *CallerContext) teacherGroupIDs(ctx context.Context, teacherID int64) ([]int64, error) {
+	entry := c.entry(ctx)
+	if ids, ok := entry.cachedTeacherGroups(); ok {
+		return ids, nil
+	}
+	ids, err := c.deps.Structure.TeacherGroupIDs(ctx, teacherID)
+	if err != nil {
+		return nil, err
+	}
+	entry.storeTeacherGroups(ids)
+	return ids, nil
 }
 
 // addSubstitutionGroups adds the groups the caller substitutes for today. A

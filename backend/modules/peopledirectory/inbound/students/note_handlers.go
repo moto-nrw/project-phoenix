@@ -278,6 +278,10 @@ func (rs *Resource) noteReader(ctx context.Context) (securityruntime.StudentNote
 	if err != nil {
 		return securityruntime.StudentNoteReader{}, err
 	}
+	ledGroupIDs, err := rs.UserContextService.MyTeacherGroupIDs(ctx)
+	if err != nil {
+		return securityruntime.StudentNoteReader{}, err
+	}
 	activityIDs, err := rs.UserContextService.MyActivityGroupIDs(ctx)
 	if err != nil {
 		return securityruntime.StudentNoteReader{}, err
@@ -291,7 +295,8 @@ func (rs *Resource) noteReader(ctx context.Context) (securityruntime.StudentNote
 		normalized = append(normalized, schoolClassKey(class))
 	}
 	return securityruntime.StudentNoteReader{
-		GroupIDs: groupIDs, ActivityGroupIDs: activityIDs, Classes: normalized,
+		GroupIDs: groupIDs, LedEducationGroupIDs: ledGroupIDs,
+		ActivityGroupIDs: activityIDs, Classes: normalized,
 	}, nil
 }
 

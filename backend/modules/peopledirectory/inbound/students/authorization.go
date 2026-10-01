@@ -32,6 +32,7 @@ type CallerContext interface {
 	// their own and substituted OGS groups, the activities they supervise, and
 	// the school classes assigned to them via education.class_teachers.
 	MyGroupIDs(ctx context.Context) ([]int64, error)
+	MyTeacherGroupIDs(ctx context.Context) ([]int64, error)
 	MyActivityGroupIDs(ctx context.Context) ([]int64, error)
 	MySchoolClasses(ctx context.Context) ([]string, error)
 }

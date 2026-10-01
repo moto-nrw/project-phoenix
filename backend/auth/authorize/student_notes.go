@@ -9,6 +9,10 @@ import "slices"
 type StudentNoteReader struct {
 	// GroupIDs are the caller's own and substituted OGS groups.
 	GroupIDs []int64
+	// LedEducationGroupIDs are assigned directly to the caller's teacher
+	// profile. Unlike GroupIDs, temporary substitutions never confer the
+	// authority to read or remove a leadership note.
+	LedEducationGroupIDs []int64
 	// ActivityGroupIDs are the activities the caller supervises.
 	ActivityGroupIDs []int64
 	// Classes are the caller's school classes, already normalized with
@@ -73,7 +77,7 @@ func ResolveStudentNoteAudience(
 	}
 	return StudentNoteAudience{
 		CareTeam:             readerHasChild(reader, child),
-		LedEducationGroupIDs: reader.GroupIDs,
+		LedEducationGroupIDs: reader.LedEducationGroupIDs,
 		LedActivityGroupIDs:  reader.ActivityGroupIDs,
 	}
 }

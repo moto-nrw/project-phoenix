@@ -142,6 +142,12 @@ func (r *CallerRows) MyGroupIDs(ctx context.Context) ([]int64, error) {
 	return r.caller.MyGroupIDs(ctx)
 }
 
+// MyTeacherGroupIDs returns only the caller's direct teacher assignments.
+// Temporary substitutions provide care-team reach but never group leadership.
+func (r *CallerRows) MyTeacherGroupIDs(ctx context.Context) ([]int64, error) {
+	return r.caller.MyTeacherGroupIDs(ctx)
+}
+
 // MySchoolClasses returns the caller's school classes under the caller-context
 // name, next to the legacy Get-prefixed one above.
 func (r *CallerRows) MySchoolClasses(ctx context.Context) ([]string, error) {

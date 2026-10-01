@@ -1,6 +1,10 @@
 package authorize
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 // The note audience is the first place in this system where a group decides
 // what a staff member sees about a child (CONTEXT.md "Gruppe"), so the three
@@ -73,6 +77,20 @@ func TestResolveStudentNoteAudienceAdmin(t *testing.T) {
 	if !audience.Admin || !audience.CareTeam {
 		t.Errorf("an admin reaches every audience, got %+v", audience)
 	}
+}
+
+func TestResolveStudentNoteAudienceSubstitutionDoesNotGrantLeadership(t *testing.T) {
+	t.Parallel()
+
+	// GroupIDs contains both the caller's teacher groups and temporary
+	// substitutions. A substitute has the child for care-team visibility, but
+	// does not lead the group and must not reach or remove leadership notes.
+	audience := ResolveStudentNoteAudience(nil,
+		StudentNoteReader{GroupIDs: []int64{12}}, StudentNoteChild{GroupID: groupID(12)})
+
+	assert.True(t, audience.CareTeam)
+	assert.Empty(t, audience.LedEducationGroupIDs)
+	assert.False(t, CanDeleteStudentNote(audience, nil, groupID(12), nil))
 }
 
 func TestCanDeleteStudentNote(t *testing.T) {

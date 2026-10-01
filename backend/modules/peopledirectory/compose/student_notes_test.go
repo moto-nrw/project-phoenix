@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -381,6 +382,13 @@ func TestDeletedLegacyStudentNoteStaysDeleted(t *testing.T) {
 		ID: notes[0].ID, StudentID: child.ID, ActorAccountID: noteAuthor(t, db, "Mara", "Verwaltung"),
 		Authorization: peopledirectory.StudentNoteDeleteAuthorization{Admin: true},
 	}))
+	var tombstone struct {
+		Body      string    `bun:"body"`
+		UpdatedAt time.Time `bun:"updated_at"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT body, updated_at FROM users.student_notes
+		WHERE tenant_id = ? AND student_id = ? AND origin = 'master_data'`,
+		testpkg.Tenant(t), child.ID).Scan(ctx, &tombstone))
 
 	record, err = module.FindStudentRecord(ctx, child.ID)
 	require.NoError(t, err)
@@ -395,6 +403,14 @@ func TestDeletedLegacyStudentNoteStaysDeleted(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Empty(t, notes, "a later legacy write must not restore a deliberately deleted hint")
+	var after struct {
+		Body      string    `bun:"body"`
+		UpdatedAt time.Time `bun:"updated_at"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT body, updated_at FROM users.student_notes
+		WHERE tenant_id = ? AND student_id = ? AND origin = 'master_data'`,
+		testpkg.Tenant(t), child.ID).Scan(ctx, &after))
+	assert.Equal(t, tombstone, after, "an unchanged legacy write must not rewrite a deleted hint")
 }
 
 // The audience predicate is the security boundary of this feature. It is built
