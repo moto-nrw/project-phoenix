@@ -234,7 +234,8 @@ func (c CreateStudentNote) Validate() error {
 	if c.Visibility == StudentNoteVisibilityGroupLeads && !c.Subject.HasReference() {
 		return ErrStudentNoteInvalid
 	}
-	if c.Kind == StudentNoteKindPermanent && c.Subject.Date != nil {
+	if (c.Kind == StudentNoteKindPermanent && c.Subject.Date != nil) ||
+		(c.Kind == StudentNoteKindJournal && c.Subject.Date == nil) {
 		return ErrStudentNoteInvalid
 	}
 	return nil
@@ -270,6 +271,9 @@ func (n StudentNote) AllowsUpdate(update UpdateStudentNote) error {
 		return ErrStudentNoteNotAuthor
 	}
 	if update.Kind == StudentNoteKindPermanent && n.Subject.Date != nil {
+		return ErrStudentNoteInvalid
+	}
+	if update.Kind == StudentNoteKindJournal && n.Subject.Date == nil {
 		return ErrStudentNoteInvalid
 	}
 	if update.Visibility == StudentNoteVisibilityGroupLeads && !n.Subject.HasReference() {

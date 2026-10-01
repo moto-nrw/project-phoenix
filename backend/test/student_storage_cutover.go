@@ -91,12 +91,6 @@ func RestoreStudentStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 				  -- The membership's own link to its profile is owner storage,
 				  -- not a reference the cutover moved off users.students.
 				  AND con.conrelid <> 'users.student_school_memberships'::regclass
-				  -- Tables created AFTER the cutover never referenced
-				  -- users.students, so moving their keys onto it would restore
-				  -- a shape that never existed — and the cutover's own guard
-				  -- would then rightly refuse a key its static list does not
-				  -- name. Their key is dropped below instead.
-				  AND con.conrelid <> to_regclass('users.student_notes')
 				ORDER BY con.conrelid::regclass::text, con.conname
 			LOOP
 				EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I',
@@ -127,20 +121,7 @@ func RestoreStudentStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 		FROM users.privacy_consents pc
 		JOIN users.students s ON pc.student_id = s.id
 		WHERE pc.expires_at < CURRENT_TIMESTAMP AND pc.accepted = true AND pc.renewal_required = true;
-		-- CASCADE, because the owner tables are emptied while the post-cutover
-		-- tables above still reference the profile. Those did not exist before
-		-- the cutover, so a restored historical state holds none of their rows
-		-- either; every other student reference was repointed onto
-		-- users.students a few lines up and is untouched by this.
-		-- The Kindnotizen came long after the cutover, so the restored history
-		-- holds neither their rows nor their key. Keeping the key would block
-		-- the expand migration's own rollback, which drops the profile table;
-		-- repointing it onto users.students would invent a shape that never
-		-- existed and trip the cutover's static key list.
-		ALTER TABLE IF EXISTS users.student_notes
-			DROP CONSTRAINT IF EXISTS fk_student_notes_student;
-		TRUNCATE users.student_care_profiles, users.student_school_memberships, users.student_profiles CASCADE;
-		TRUNCATE users.student_notes;
+		TRUNCATE users.student_care_profiles, users.student_school_memberships, users.student_profiles;
 		DELETE FROM platform.storage_backfill_checkpoints WHERE backfill = 'student-owner';
 	`); err != nil {
 		tb.Fatalf("restore student storage before cutover: %v", err)

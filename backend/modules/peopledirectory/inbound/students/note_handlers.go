@@ -57,7 +57,7 @@ type studentNoteRequestBody struct {
 }
 
 func (rs *Resource) listStudentNotes(w http.ResponseWriter, r *http.Request) {
-	student, audience, ok := rs.resolveNoteReader(w, r)
+	student, _, audience, ok := rs.resolveNoteReader(w, r)
 	if !ok {
 		return
 	}
@@ -78,7 +78,7 @@ func (rs *Resource) listStudentNotes(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) createStudentNote(w http.ResponseWriter, r *http.Request) {
-	student, audience, ok := rs.resolveNoteReader(w, r)
+	student, child, audience, ok := rs.resolveNoteReader(w, r)
 	if !ok {
 		return
 	}
@@ -88,6 +88,10 @@ func (rs *Resource) createStudentNote(w http.ResponseWriter, r *http.Request) {
 	}
 	subject, err := parseNoteSubject(body)
 	if err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if err := validateNoteSubjectForChild(subject, child); err != nil {
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
@@ -105,7 +109,7 @@ func (rs *Resource) createStudentNote(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) updateStudentNote(w http.ResponseWriter, r *http.Request) {
-	student, audience, ok := rs.resolveNoteReader(w, r)
+	student, _, audience, ok := rs.resolveNoteReader(w, r)
 	if !ok {
 		return
 	}
@@ -130,7 +134,7 @@ func (rs *Resource) updateStudentNote(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) deleteStudentNote(w http.ResponseWriter, r *http.Request) {
-	student, audience, ok := rs.resolveNoteReader(w, r)
+	student, _, audience, ok := rs.resolveNoteReader(w, r)
 	if !ok {
 		return
 	}
@@ -175,23 +179,23 @@ func (rs *Resource) deleteStudentNote(w http.ResponseWriter, r *http.Request) {
 // which of THIS child's notes they may see.
 func (rs *Resource) resolveNoteReader(
 	w http.ResponseWriter, r *http.Request,
-) (*Student, securityruntime.StudentNoteAudience, bool) {
+) (*Student, securityruntime.StudentNoteChild, securityruntime.StudentNoteAudience, bool) {
 	if rs.StudentNotes == nil {
 		renderError(w, r, common.ErrorInternalServer(errors.New("student notes capability is not configured")))
-		return nil, securityruntime.StudentNoteAudience{}, false
+		return nil, securityruntime.StudentNoteChild{}, securityruntime.StudentNoteAudience{}, false
 	}
 	student, ok := rs.parseAndGetStudent(w, r)
 	if !ok {
-		return nil, securityruntime.StudentNoteAudience{}, false
+		return nil, securityruntime.StudentNoteChild{}, securityruntime.StudentNoteAudience{}, false
 	}
 	if !rs.checkStudentReadAccess(r, student) {
 		renderError(w, r, common.ErrorForbidden(errors.New("read access required to view notes")))
-		return nil, securityruntime.StudentNoteAudience{}, false
+		return nil, securityruntime.StudentNoteChild{}, securityruntime.StudentNoteAudience{}, false
 	}
 	child, err := rs.noteChild(r.Context(), student)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
-		return nil, securityruntime.StudentNoteAudience{}, false
+		return nil, securityruntime.StudentNoteChild{}, securityruntime.StudentNoteAudience{}, false
 	}
 	reader, err := rs.noteReader(r.Context())
 	if err != nil {
@@ -199,9 +203,9 @@ func (rs *Resource) resolveNoteReader(
 		// would leak, the empty one would render the child's card as empty —
 		// both are worse than an error the caller can retry.
 		renderError(w, r, common.ErrorInternalServer(err))
-		return nil, securityruntime.StudentNoteAudience{}, false
+		return nil, securityruntime.StudentNoteChild{}, securityruntime.StudentNoteAudience{}, false
 	}
-	return student, securityruntime.ResolveStudentNoteAudience(
+	return student, child, securityruntime.ResolveStudentNoteAudience(
 		jwt.PermissionsFromCtx(r.Context()), reader, child), true
 }
 
@@ -295,6 +299,28 @@ func parseNoteSubject(body studentNoteRequestBody) (peopleModule.StudentNoteSubj
 	}
 	subject.ActivityGroupID, subject.EducationGroupID = activityID, educationID
 	return subject, nil
+}
+
+// validateNoteSubjectForChild keeps a note's reference inside the selected
+// child's current group or enrollment. The same child snapshot already drives
+// the audience decision, so this adds no second cross-owner lookup.
+func validateNoteSubjectForChild(
+	subject peopleModule.StudentNoteSubject,
+	child securityruntime.StudentNoteChild,
+) error {
+	if subject.EducationGroupID != nil &&
+		(child.GroupID == nil || *subject.EducationGroupID != *child.GroupID) {
+		return errors.New("education_group_id must belong to the child")
+	}
+	if subject.ActivityGroupID != nil {
+		for _, activityGroupID := range child.ActivityGroupIDs {
+			if *subject.ActivityGroupID == activityGroupID {
+				return nil
+			}
+		}
+		return errors.New("activity_group_id must belong to the child")
+	}
+	return nil
 }
 
 func parseOptionalID(value *string, field string) (*int64, error) {

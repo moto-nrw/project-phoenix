@@ -110,10 +110,12 @@ func studentNotesUp(ctx context.Context, db *bun.DB) error {
 				OR activity_group_id IS NOT NULL
 				OR education_group_id IS NOT NULL
 			),
-			-- A durable hint has no day. It is the counterpart of the former
-			-- master-data field, not an entry in the chronicle.
+			-- A durable hint has no day, while every chronicle entry has one.
+			-- These two lifetimes must not overlap: a dated hint belongs in the
+			-- journal and an undated entry cannot be placed in its chronology.
 			CONSTRAINT chk_student_notes_permanent_undated CHECK (
-				kind <> 'permanent' OR subject_date IS NULL
+				(kind = 'permanent' AND subject_date IS NULL)
+				OR (kind = 'journal' AND subject_date IS NOT NULL)
 			),
 			CONSTRAINT chk_student_notes_deletion CHECK (
 				(deleted_at IS NULL) = (deleted_by_account_id IS NULL)

@@ -16,7 +16,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
-import { formatDate, todayISO } from "~/lib/date-helpers";
+import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   NOTE_KIND_JOURNAL,
@@ -29,7 +29,7 @@ import {
   type StudentNote,
   type StudentNoteDraft,
 } from "~/lib/student-notes-api";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 // Notizen tab (#3632): the chronicle of one child. The backend resolves who
 // may read which note and sends can_edit / can_delete with every entry, so
@@ -103,7 +103,7 @@ function emptyDraft(): StudentNoteDraft {
     visibility: NOTE_VISIBILITY_ALL_STAFF,
     category: "",
     body: "",
-    subjectDate: todayISO(),
+    subjectDate: berlinTodayISO(),
   };
 }
 
@@ -131,7 +131,7 @@ function monthLabel(isoDate: string): string {
 function noteDay(note: StudentNote): string {
   return note.subjectDate !== ""
     ? note.subjectDate
-    : note.createdAt.slice(0, 10);
+    : berlinTodayISO(new Date(note.createdAt));
 }
 
 function NoteMeta({ note }: { readonly note: StudentNote }) {
@@ -207,7 +207,7 @@ function NoteForm({
             <ISODatePicker
               label="Tag"
               value={draft.subjectDate ?? ""}
-              max={todayISO()}
+              max={berlinTodayISO()}
               onChange={(subjectDate) => onChange({ ...draft, subjectDate })}
             />
           </div>
@@ -225,7 +225,7 @@ function NoteForm({
                 kind,
                 // Ein dauerhafter Hinweis gilt ohne Tag.
                 subjectDate:
-                  kind === NOTE_KIND_PERMANENT ? undefined : todayISO(),
+                  kind === NOTE_KIND_PERMANENT ? undefined : berlinTodayISO(),
               })
             }
             fullWidth
@@ -282,6 +282,15 @@ export function StudentNotizenTab({
     `student-notes-${studentId}`,
     () => studentNotesService.list(studentId),
   );
+  const tenantMutate = useTenantMutate();
+
+  const revalidateNotes = async (permanentNotesChanged: boolean) => {
+    const revalidations: Promise<unknown>[] = [mutate()];
+    if (permanentNotesChanged) {
+      revalidations.push(tenantMutate(`student-permanent-notes-${studentId}`));
+    }
+    await Promise.all(revalidations);
+  };
 
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState<StudentNoteDraft>(emptyDraft);
@@ -359,7 +368,7 @@ export function StudentNotizenTab({
       });
       setComposing(false);
       setDraft(emptyDraft());
-      await mutate();
+      await revalidateNotes(draft.kind === NOTE_KIND_PERMANENT);
     } catch (caught) {
       const message =
         caught instanceof Error
@@ -384,7 +393,10 @@ export function StudentNotizenTab({
         body: editDraft.body.trim(),
       });
       setEditing(null);
-      await mutate();
+      await revalidateNotes(
+        editing.kind === NOTE_KIND_PERMANENT ||
+          editDraft.kind === NOTE_KIND_PERMANENT,
+      );
     } catch (caught) {
       const message =
         caught instanceof Error
@@ -406,7 +418,7 @@ export function StudentNotizenTab({
     try {
       await studentNotesService.remove(studentId, deleteTarget.id);
       setDeleteTarget(null);
-      await mutate();
+      await revalidateNotes(deleteTarget.kind === NOTE_KIND_PERMANENT);
     } catch (caught) {
       const message =
         caught instanceof Error

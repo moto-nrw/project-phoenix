@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
 // The note routes turn a request into an owner command. What is checked here
@@ -111,3 +112,37 @@ func TestParseNoteSubject(t *testing.T) {
 		require.ErrorContains(t, err, "activity_group_id")
 	})
 }
+
+func TestValidateNoteSubjectForChild(t *testing.T) {
+	t.Parallel()
+
+	groupID, activityID := int64(9), int64(7)
+	child := securityruntime.StudentNoteChild{
+		GroupID: &groupID, ActivityGroupIDs: []int64{activityID},
+	}
+
+	tests := []struct {
+		name    string
+		subject peopleModule.StudentNoteSubject
+		wantErr string
+	}{
+		{name: "the child's education group", subject: peopleModule.StudentNoteSubject{EducationGroupID: &groupID}},
+		{name: "the child's activity", subject: peopleModule.StudentNoteSubject{ActivityGroupID: &activityID}},
+		{name: "another education group", subject: peopleModule.StudentNoteSubject{EducationGroupID: int64Pointer(10)}, wantErr: "education_group_id"},
+		{name: "another activity", subject: peopleModule.StudentNoteSubject{ActivityGroupID: int64Pointer(8)}, wantErr: "activity_group_id"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			err := validateNoteSubjectForChild(test.subject, child)
+			if test.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, test.wantErr)
+		})
+	}
+}
+
+func int64Pointer(value int64) *int64 { return &value }

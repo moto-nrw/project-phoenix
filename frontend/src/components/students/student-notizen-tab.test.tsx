@@ -43,6 +43,7 @@ vi.mock("~/lib/swr", () => ({
       mutate: state.mutate,
     };
   },
+  useTenantMutate: () => swrState.tenantMutate,
 }));
 
 const swrState: {
@@ -51,12 +52,14 @@ const swrState: {
   isLoading: boolean;
   error: unknown;
   mutate: () => Promise<void>;
+  tenantMutate: (key: string) => Promise<unknown>;
 } = {
   started: false,
   data: undefined,
   isLoading: false,
   error: undefined,
   mutate: vi.fn(async () => undefined),
+  tenantMutate: vi.fn(async () => undefined),
 };
 
 function note(overrides: Partial<StudentNote> = {}): StudentNote {
@@ -94,6 +97,7 @@ describe("StudentNotizenTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     swrState.mutate = vi.fn(async () => undefined);
+    swrState.tenantMutate = vi.fn(async () => undefined);
   });
 
   it("names its purpose and says parents cannot see the notes", () => {
@@ -186,6 +190,18 @@ describe("StudentNotizenTab", () => {
     expect(headings).toEqual(["Dauerhafte Hinweise", "September 2026"]);
   });
 
+  it("groups an undated legacy entry by its Berlin day", () => {
+    renderTab([
+      note({
+        subjectDate: "",
+        createdAt: "2026-08-31T22:30:00Z",
+      }),
+    ]);
+    expect(
+      screen.getByRole("heading", { name: "September 2026" }),
+    ).toBeInTheDocument();
+  });
+
   it("writes a new entry with the values from the form", async () => {
     createMock.mockResolvedValue(undefined);
     renderTab([]);
@@ -213,6 +229,25 @@ describe("StudentNotizenTab", () => {
     renderTab([]);
     fireEvent.click(screen.getAllByRole("button", { name: "Neue Notiz" })[0]!);
     expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+  });
+
+  it("revalidates the Stammdaten hints after creating a permanent note", async () => {
+    createMock.mockResolvedValue(undefined);
+    renderTab([]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Neue Notiz" })[0]!);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dauerhafter Hinweis" }),
+    );
+    fireEvent.change(screen.getByLabelText("Notiz"), {
+      target: { value: "Bleibt wichtig." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(swrState.tenantMutate).toHaveBeenCalledWith(
+        "student-permanent-notes-7",
+      );
+    });
   });
 
   // The leadership audience needs a group reference, and the form does not

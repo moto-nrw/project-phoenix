@@ -48,31 +48,38 @@ func TestStudentNotesConstraints(t *testing.T) {
 	group := testpkg.CreateTestEducationGroupForTenant(t, db, tenantID, "Notiz-Gruppe")
 	activity := testpkg.CreateTestActivityGroupForTenant(t, db, tenantID, "Notiz-Angebot")
 
-	t.Run("a plain journal entry is accepted", func(t *testing.T) {
-		require.NoError(t, insertStudentNote(t, db, tenantID, student.ID, ""))
+	t.Run("a dated journal entry is accepted", func(t *testing.T) {
+		require.NoError(t, insertStudentNote(t, db, tenantID, student.ID,
+			", subject_date", "2026-09-09"))
+	})
+
+	t.Run("an undated journal entry is rejected", func(t *testing.T) {
+		err := insertStudentNote(t, db, tenantID, student.ID, "")
+		require.ErrorContains(t, err, "chk_student_notes_permanent_undated")
 	})
 
 	t.Run("an empty body is rejected", func(t *testing.T) {
 		_, err := db.ExecContext(ctx, `
-			INSERT INTO users.student_notes (tenant_id, student_id, body) VALUES (?, ?, ?)`,
-			tenantID, student.ID, "   ")
+			INSERT INTO users.student_notes (tenant_id, student_id, body, subject_date) VALUES (?, ?, ?, ?)`,
+			tenantID, student.ID, "   ", "2026-09-09")
 		require.ErrorContains(t, err, "chk_student_notes_body")
 	})
 
 	t.Run("two group references are rejected", func(t *testing.T) {
 		err := insertStudentNote(t, db, tenantID, student.ID,
-			", activity_group_id, education_group_id", activity.ID, group.ID)
+			", subject_date, activity_group_id, education_group_id", "2026-09-09", activity.ID, group.ID)
 		require.ErrorContains(t, err, "chk_student_notes_single_reference")
 	})
 
 	t.Run("group_leads without a group reference is rejected", func(t *testing.T) {
-		err := insertStudentNote(t, db, tenantID, student.ID, ", visibility", "group_leads")
+		err := insertStudentNote(t, db, tenantID, student.ID,
+			", visibility, subject_date", "group_leads", "2026-09-09")
 		require.ErrorContains(t, err, "chk_student_notes_group_leads_reference")
 	})
 
 	t.Run("group_leads with a group reference is accepted", func(t *testing.T) {
 		require.NoError(t, insertStudentNote(t, db, tenantID, student.ID,
-			", visibility, education_group_id", "group_leads", group.ID))
+			", visibility, subject_date, education_group_id", "group_leads", "2026-09-09", group.ID))
 	})
 
 	t.Run("a durable hint with a day is rejected", func(t *testing.T) {
@@ -82,19 +89,21 @@ func TestStudentNotesConstraints(t *testing.T) {
 	})
 
 	t.Run("an unknown visibility is rejected", func(t *testing.T) {
-		err := insertStudentNote(t, db, tenantID, student.ID, ", visibility", "everyone")
+		err := insertStudentNote(t, db, tenantID, student.ID,
+			", visibility, subject_date", "everyone", "2026-09-09")
 		require.ErrorContains(t, err, "chk_student_notes_visibility")
 	})
 
 	t.Run("a half-recorded deletion is rejected", func(t *testing.T) {
-		err := insertStudentNote(t, db, tenantID, student.ID, ", deleted_at", "2026-09-09 10:00:00+02")
+		err := insertStudentNote(t, db, tenantID, student.ID,
+			", subject_date, deleted_at", "2026-09-09", "2026-09-09 10:00:00+02")
 		require.ErrorContains(t, err, "chk_student_notes_deletion")
 	})
 
 	t.Run("a note for another tenant's child is rejected", func(t *testing.T) {
 		otherTenantID, _ := testpkg.CreateTestTenant(t, db)
 		foreign := testpkg.CreateTestStudentForTenant(t, db, otherTenantID, "Fremd", "Kind", "4b")
-		err := insertStudentNote(t, db, tenantID, foreign.ID, "")
+		err := insertStudentNote(t, db, tenantID, foreign.ID, ", subject_date", "2026-09-09")
 		require.ErrorContains(t, err, "fk_student_notes_student")
 	})
 }

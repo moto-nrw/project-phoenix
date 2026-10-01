@@ -15,10 +15,12 @@ import (
 // the ones a later edit is most likely to break apart.
 
 func validNote() CreateStudentNote {
+	date := calendar.NewDate(2026, time.September, 9)
 	return CreateStudentNote{
 		StudentID: 7, AuthorAccountID: 3,
 		Kind: StudentNoteKindJournal, Visibility: StudentNoteVisibilityAllStaff,
-		Body: "Hat heute in der Hausaufgabenzeit gut mitgearbeitet.",
+		Body:    "Hat heute in der Hausaufgabenzeit gut mitgearbeitet.",
+		Subject: StudentNoteSubject{Date: &date},
 	}
 }
 
@@ -38,6 +40,7 @@ func TestCreateStudentNoteValidate(t *testing.T) {
 			name: "durable hint carries no day",
 			mutate: func(c *CreateStudentNote) {
 				c.Kind = StudentNoteKindPermanent
+				c.Subject.Date = nil
 			},
 		},
 		{
@@ -74,6 +77,13 @@ func TestCreateStudentNoteValidate(t *testing.T) {
 			mutate: func(c *CreateStudentNote) {
 				c.Kind = StudentNoteKindPermanent
 				c.Subject.Date = &date
+			},
+			wantErr: true,
+		},
+		{
+			name: "a journal entry has a day",
+			mutate: func(c *CreateStudentNote) {
+				c.Subject.Date = nil
 			},
 			wantErr: true,
 		},
@@ -134,7 +144,7 @@ func TestStudentNoteAllowsUpdate(t *testing.T) {
 	base := StudentNote{
 		ID: 1, StudentID: 7, AuthorAccountID: &author,
 		Origin: StudentNoteOriginStaff, Kind: StudentNoteKindJournal,
-		Visibility: StudentNoteVisibilityAllStaff,
+		Visibility: StudentNoteVisibilityAllStaff, Subject: StudentNoteSubject{Date: &date},
 	}
 	update := UpdateStudentNote{
 		ID: 1, StudentID: 7, ActorAccountID: author,
@@ -171,11 +181,21 @@ func TestStudentNoteAllowsUpdate(t *testing.T) {
 		require.ErrorIs(t, dated.AllowsUpdate(promote), ErrStudentNoteInvalid)
 	})
 
-	t.Run("an undated entry can", func(t *testing.T) {
+	t.Run("an undated legacy entry can become a durable hint", func(t *testing.T) {
 		t.Parallel()
+		undated := base
+		undated.Subject.Date = nil
 		promote := update
 		promote.Kind = StudentNoteKindPermanent
-		require.NoError(t, base.AllowsUpdate(promote))
+		require.NoError(t, undated.AllowsUpdate(promote))
+	})
+
+	t.Run("an undated durable hint cannot become a journal entry", func(t *testing.T) {
+		t.Parallel()
+		undatedHint := base
+		undatedHint.Kind = StudentNoteKindPermanent
+		undatedHint.Subject.Date = nil
+		require.ErrorIs(t, undatedHint.AllowsUpdate(update), ErrStudentNoteInvalid)
 	})
 
 	t.Run("narrowing to the leadership needs a group", func(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -26,6 +27,7 @@ func TestStudentNotesListQueryBudget(t *testing.T) {
 	audience := peopledirectory.StudentNoteAudience{
 		Visibilities: []string{peopledirectory.StudentNoteVisibilityAllStaff},
 	}
+	date := calendar.NewDate(2026, 9, 9)
 
 	// Each note gets its own author, so a per-note name lookup would grow the
 	// count with the timeline instead of hiding behind one cached account.
@@ -42,6 +44,7 @@ func TestStudentNotesListQueryBudget(t *testing.T) {
 				Kind:       peopledirectory.StudentNoteKindJournal,
 				Visibility: peopledirectory.StudentNoteVisibilityAllStaff,
 				Body:       "Eintrag.",
+				Subject:    peopledirectory.StudentNoteSubject{Date: &date},
 			})
 			require.NoError(t, err)
 		}

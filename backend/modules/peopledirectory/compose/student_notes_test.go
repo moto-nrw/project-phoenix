@@ -122,13 +122,14 @@ func TestStudentNotesAudience(t *testing.T) {
 	author := noteAuthor(t, db, "Ana", "Autorin")
 	group := testpkg.CreateTestEducationGroupForTenant(t, db, tenantID, "Audience-Gruppe")
 	otherGroup := testpkg.CreateTestEducationGroupForTenant(t, db, tenantID, "Audience-Fremdgruppe")
+	date := calendar.NewDate(2026, 9, 9)
 
 	write := func(visibility, body string, educationGroupID *int64) {
 		t.Helper()
 		_, err := module.CreateStudentNote(ctx, peopledirectory.CreateStudentNote{
 			StudentID: child.ID, AuthorAccountID: author,
 			Kind: peopledirectory.StudentNoteKindJournal, Visibility: visibility, Body: body,
-			Subject: peopledirectory.StudentNoteSubject{EducationGroupID: educationGroupID},
+			Subject: peopledirectory.StudentNoteSubject{Date: &date, EducationGroupID: educationGroupID},
 		})
 		require.NoError(t, err)
 	}
@@ -191,12 +192,14 @@ func TestStudentNotesOnlyTheAuthorCorrects(t *testing.T) {
 	child := testpkg.CreateTestStudent(t, db, "Nour", "Autorschaft", "3a")
 	author := noteAuthor(t, db, "Ben", "Verfasser")
 	colleague := noteAuthor(t, db, "Kim", "Kollegin")
+	date := calendar.NewDate(2026, 9, 9)
 
 	note, err := module.CreateStudentNote(ctx, peopledirectory.CreateStudentNote{
 		StudentID: child.ID, AuthorAccountID: author,
 		Kind:       peopledirectory.StudentNoteKindJournal,
 		Visibility: peopledirectory.StudentNoteVisibilityAllStaff,
 		Body:       "Meine Beobachtung.",
+		Subject:    peopledirectory.StudentNoteSubject{Date: &date},
 	})
 	require.NoError(t, err)
 
@@ -250,12 +253,14 @@ func TestStudentNotesStayWithTheirChild(t *testing.T) {
 	mine := testpkg.CreateTestStudent(t, db, "Anna", "Meins", "3a")
 	other := testpkg.CreateTestStudent(t, db, "Paul", "Anders", "3a")
 	author := noteAuthor(t, db, "Eva", "Schreiberin")
+	date := calendar.NewDate(2026, 9, 9)
 
 	note, err := module.CreateStudentNote(ctx, peopledirectory.CreateStudentNote{
 		StudentID: other.ID, AuthorAccountID: author,
 		Kind:       peopledirectory.StudentNoteKindJournal,
 		Visibility: peopledirectory.StudentNoteVisibilityAllStaff,
 		Body:       "Gehört Paul.",
+		Subject:    peopledirectory.StudentNoteSubject{Date: &date},
 	})
 	require.NoError(t, err)
 
@@ -285,8 +290,8 @@ func TestStudentNotesDoNotCrossTenants(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, otherTenant)
 	foreign := testpkg.CreateTestStudentForTenant(t, db, otherTenant, "Fremd", "Kind", "2a")
 	_, err := db.NewRaw(`
-		INSERT INTO users.student_notes (tenant_id, student_id, kind, visibility, body)
-		VALUES (?, ?, 'journal', 'all_staff', ?)`,
+		INSERT INTO users.student_notes (tenant_id, student_id, kind, visibility, body, subject_date)
+		VALUES (?, ?, 'journal', 'all_staff', ?, '2026-09-09')`,
 		otherTenant, foreign.ID, "Notiz einer anderen Schule.").Exec(ctx)
 	require.NoError(t, err)
 
@@ -313,14 +318,20 @@ func TestStudentNotesFilterByKind(t *testing.T) {
 	audience := peopledirectory.StudentNoteAudience{
 		Visibilities: []string{peopledirectory.StudentNoteVisibilityAllStaff},
 	}
+	date := calendar.NewDate(2026, 9, 9)
 
 	for _, note := range []struct{ kind, body string }{
 		{peopledirectory.StudentNoteKindPermanent, "Dauerhafter Hinweis"},
 		{peopledirectory.StudentNoteKindJournal, "Eintrag"},
 	} {
+		subject := peopledirectory.StudentNoteSubject{}
+		if note.kind == peopledirectory.StudentNoteKindJournal {
+			subject.Date = &date
+		}
 		_, err := module.CreateStudentNote(ctx, peopledirectory.CreateStudentNote{
 			StudentID: child.ID, AuthorAccountID: author, Kind: note.kind,
 			Visibility: peopledirectory.StudentNoteVisibilityAllStaff, Body: note.body,
+			Subject: subject,
 		})
 		require.NoError(t, err)
 	}
