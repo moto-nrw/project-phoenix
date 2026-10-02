@@ -110,10 +110,11 @@ type AdvisoryLocks interface {
 	AcquireXactLock(ctx context.Context, key string) error
 }
 
-// TimetableDataDependencies wires the planner's reads. Locks and Advisory are
-// optional: without them attendance patches skip the completion lock and
-// spontaneous-start locks are skipped outside a transaction only. Every other
-// collaborator is required.
+// TimetableDataDependencies wires the planner's reads. Locks, Advisory and
+// BlockMetadata are optional: without them attendance patches skip the
+// completion lock, spontaneous-start locks are skipped outside a transaction
+// only and callers that do not render blocks receive no display metadata.
+// Every other collaborator is required.
 type TimetableDataDependencies struct {
 	Instances         DataInstances
 	InstanceStaff     OperationInstanceStaff
@@ -145,7 +146,7 @@ type timetableData struct {
 func NewTimetableData(deps TimetableDataDependencies) (timetable.TimetableDataCapability, error) {
 	if deps.Instances == nil || deps.InstanceStaff == nil || deps.Participants == nil || deps.PickupExceptions == nil ||
 		deps.ArrivalExceptions == nil || deps.Visits == nil || deps.Templates == nil || deps.Groups == nil || deps.Categories == nil ||
-		deps.Rooms == nil || deps.BlockMetadata == nil || deps.RoomOccupancy == nil || deps.DeviationEvents == nil || deps.ConflictAcks == nil {
+		deps.Rooms == nil || deps.RoomOccupancy == nil || deps.DeviationEvents == nil || deps.ConflictAcks == nil {
 		return nil, errors.New("timetable data: required dependency is nil")
 	}
 	return &timetableData{ConflictAckCapability: deps.ConflictAcks, deps: deps}, nil
@@ -313,6 +314,9 @@ func (d *timetableData) FindBlockParticipant(ctx context.Context, instanceID, st
 }
 
 func (d *timetableData) BlockDisplayMetadata(ctx context.Context, instanceIDs []int64) (map[int64]timetable.BlockDisplayMetadata, error) {
+	if d.deps.BlockMetadata == nil {
+		return map[int64]timetable.BlockDisplayMetadata{}, nil
+	}
 	return d.deps.BlockMetadata.ListBlockDisplayMetadata(ctx, instanceIDs)
 }
 
