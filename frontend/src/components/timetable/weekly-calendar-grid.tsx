@@ -117,6 +117,11 @@ interface WeeklyCalendarGridProps {
    * Planungsseiten steht kein Text (BAUARTEN-SPEC Teil 3).
    */
   legend?: ReactNode;
+  /**
+   * Personal-ID → voller Name: die Blöcke zeigen damit, wer sie betreut
+   * (#3817). Ohne Map zeigen sie nur die Zahlen.
+   */
+  staffNames?: ReadonlyMap<string, string>;
 }
 
 export function WeeklyCalendarGrid({
@@ -135,6 +140,7 @@ export function WeeklyCalendarGrid({
   emptyState,
   showDayHeader = false,
   legend,
+  staffNames,
 }: WeeklyCalendarGridProps) {
   const gridColsClass = GRID_COLS_CLASS;
   const grouped = useMemo(() => groupInstancesByDate(instances), [instances]);
@@ -497,6 +503,7 @@ export function WeeklyCalendarGrid({
                       width={`${widthPct}%`}
                       isSelected={selectedId === instance.id}
                       isGap={gapInstanceIds?.has(instance.id) ?? false}
+                      staffNames={staffNames}
                       onClick={() => onInstanceClick(instance)}
                     />
                   );

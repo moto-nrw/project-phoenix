@@ -551,6 +551,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     activityType: raw.activity_type,
     roomId: String(raw.room_id),
     roomName: raw.room_name,
+    groupName: raw.group_name,
     staff,
     studentIds,
     students,

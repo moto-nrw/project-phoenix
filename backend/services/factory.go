@@ -2733,6 +2733,7 @@ func newFactory(
 		Groups:           timetableCapability,
 		Sessions:         repos.ActiveGroup,
 		ConflictAcks:     timetableCapability,
+		DB:               db,
 		Transactional:    true,
 		Logger:           logger.With("service", "timetable-data"),
 	})

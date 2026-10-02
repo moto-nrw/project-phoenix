@@ -164,7 +164,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	timetableData, err := newTimetableData(timetableDataInputs{
 		Rows: dataRows, ArrivalBaselines: arrival, PickupBaselines: pickup, Visits: newStudentPresence(db, logger),
 		Groups: r.Timetable, Sessions: r.ActiveGroup,
-		ConflictAcks: r.Timetable, Transactional: true, Logger: logger,
+		ConflictAcks: r.Timetable, DB: db, Transactional: true, Logger: logger,
 	})
 	if err != nil {
 		return TimetableTestModule{}, err

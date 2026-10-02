@@ -28,6 +28,11 @@ import {
   CoverageIndicator,
   type CoverageState,
 } from "~/components/ui/coverage-indicator";
+import {
+  BlockStaffNames,
+  blockPlaceLine,
+  blockStaffEntries,
+} from "~/components/timetable/block-staff-names";
 import { staffLabel } from "~/lib/timetable-helpers";
 import type {
   EnrichedInstance,
@@ -319,6 +324,10 @@ function VertretungDayListRow({
   // Störungsvermerke — die Vermerke selbst bleiben
   // ohnehin aus, weil ihre Bedingungen für eine ungestörte Zeile nie zutreffen.
   const titleClass = isDisturbed ? "text-gray-900" : "text-gray-400";
+  const placeLine = blockPlaceLine(instance);
+  const staffEntries = isCancelled
+    ? []
+    : blockStaffEntries(instance.staff, staffNames);
   const timeClass = isDisturbed ? "text-gray-500" : "text-gray-400";
   // Das Datenmodell kennt nur "Ersatz für diesen Block", nicht "Ersatz für
   // diese abwesende Person". Namen daher nur blockweit aggregiert ausgeben.
@@ -345,6 +354,12 @@ function VertretungDayListRow({
           <span className={`text-xs font-semibold ${titleClass}`}>
             {instance.title}
           </span>
+          {/* #3817: Raum, Gruppe und wer eingeteilt ist, ohne den Editor zu
+              öffnen. */}
+          {placeLine !== "" && (
+            <span className="text-xs text-gray-500">{placeLine}</span>
+          )}
+          <BlockStaffNames entries={staffEntries} />
         </div>
         {/* Auch Lesenutzer brauchen ein Klickziel: unterhalb lg gibt es keine
             Kalenderspalte, und der Verlauf muss ohne schedules:manage lesbar

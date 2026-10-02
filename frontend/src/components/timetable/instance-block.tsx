@@ -16,6 +16,12 @@ import type { ReactNode } from "react";
 
 import { CircleCheck, TriangleAlert } from "lucide-react";
 
+import {
+  BlockStaffNames,
+  blockDetailLines,
+  blockPlaceLine,
+  blockStaffEntries,
+} from "~/components/timetable/block-staff-names";
 import { CoverageIndicator } from "~/components/ui/coverage-indicator";
 import { PlanBlock } from "~/components/ui/plan-block";
 import { TIMETABLE_NEUTRAL_COLOR } from "~/components/timetable/timetable-style";
@@ -45,7 +51,15 @@ interface InstanceBlockProps {
    * Cancelled-Rendering hat Vorrang und zeigt kein Lücken-Icon.
    */
   isGap?: boolean;
+  /**
+   * Personal-ID → voller Name. Damit zeigt der Block, wer ihn betreut
+   * (#3817); ohne Namen bleibt es bei den Zahlen und der Zeile
+   * „N abwesend · Ersatz“.
+   */
+  staffNames?: ReadonlyMap<string, string>;
 }
+
+const EMPTY_STAFF_NAMES: ReadonlyMap<string, string> = new Map();
 
 const COMPACT_HEIGHT_PX = 48;
 const TINY_HEIGHT_PX = 30;
@@ -58,6 +72,12 @@ const TINY_HEIGHT_PX = 30;
  * der Regelfall, nicht der Ausnahmefall.
  */
 const FOOTER_MIN_HEIGHT_PX = 64;
+/**
+ * Ab dieser Höhe stehen Ort und Namen in zwei Zeilen. Darunter teilen sie
+ * sich eine Zeile wie im kurzen Block, damit die Besetzung im Block bleibt:
+ * ein 60-Minuten-Block ist bei 90px/Stunde genau 90px hoch.
+ */
+const SPLIT_INFO_MIN_HEIGHT_PX = 120;
 
 /** Bewusst-unbesetzt-Blöcke lesen sich vollständig neutral: graue Kante, keine
  *  Tönung; die Semantik trägt der CoverageIndicator-Vermerk (Spec 5.3). */
@@ -72,6 +92,7 @@ export function InstanceBlock({
   isSelected,
   onClick,
   isGap = false,
+  staffNames = EMPTY_STAFF_NAMES,
 }: InstanceBlockProps) {
   const showTimetableCounts = useShowTimetableCounts();
   const isCancelled = instance.status === "cancelled";
@@ -91,6 +112,20 @@ export function InstanceBlock({
   const isTiny = height <= TINY_HEIGHT_PX;
   const showFooter = height >= FOOTER_MIN_HEIGHT_PX;
   const showCompactStatus = !showFooter;
+
+  // #3817: Raum, Gruppe und Fachkräfte stehen im Block selbst. Was der Block
+  // kürzen muss, steht vollständig im Tooltip und im Screenreader-Namen.
+  const staffEntries = blockStaffEntries(instance.staff, staffNames);
+  const placeLine = blockPlaceLine(instance);
+  const detailLines = blockDetailLines(instance, staffEntries);
+  const hasStaffNames = staffEntries.length > 0;
+  // Ein kurzer Block (zwischen Einzeiler und Fußzeile) rückt Zeit und Titel
+  // in eine Zeile und zeigt darunter eine Infozeile: Raum · Gruppe · Namen.
+  const showInfoLine =
+    !isTiny &&
+    !showFooter &&
+    !isCancelled &&
+    (placeLine !== "" || hasStaffNames);
 
   // #1840 Vertretungsplan deviation signals. A removed substitute keeps
   // is_substitute=true but is marked is_absent=true — they are no longer
@@ -206,27 +241,48 @@ export function InstanceBlock({
   const totalStudents =
     instance.expectedStudentsCount + instance.presentStudentsCount;
 
+  // Kurzer Block: genau eine Zeile Platz, Ort und Namen teilen sie sich.
+  const infoLine = (
+    <span className="flex min-w-0 items-baseline gap-1 text-xs text-gray-500">
+      {placeLine !== "" && (
+        <span
+          className={`truncate ${hasStaffNames ? "max-w-[50%] shrink-0" : ""}`}
+        >
+          {placeLine}
+          {hasStaffNames ? " ·" : ""}
+        </span>
+      )}
+      <BlockStaffNames entries={staffEntries} className="flex-1" />
+    </span>
+  );
+  // Fuß: eine Zeile, wenn die Spalte breit genug ist; in einer schmalen
+  // Spalte rücken die Namen in die nächste Zeile, statt dass beide Hälften
+  // unlesbar gekürzt werden.
+  const wrappingInfoLine = (
+    <span className="flex min-w-0 flex-wrap items-baseline gap-x-1 text-xs text-gray-500">
+      {placeLine !== "" && (
+        <span className="max-w-full truncate">
+          {placeLine}
+          {hasStaffNames ? " ·" : ""}
+        </span>
+      )}
+      <BlockStaffNames entries={staffEntries} className="max-w-full" />
+    </span>
+  );
+
   const footer = !showFooter ? undefined : (
     <span className="flex min-w-0 flex-col gap-0.5">
-      {!isCompact && !isCancelled && instance.roomName && (
-        <span className="truncate text-[10px] text-gray-500">
-          {instance.roomName}
-        </span>
-      )}
-
-      {!isCompact && !isCancelled && instance.planningTrackName && (
-        <span className="truncate text-[10px] font-medium text-gray-600">
-          {instance.planningTrackName}
-        </span>
-      )}
-
-      {!isCompact && instance.isSpontaneous && !isCancelled && (
-        <span
-          className="truncate text-[10px] font-semibold text-gray-600"
-          title="Dieser Termin wurde spontan gestartet und war nicht geplant."
-        >
-          Spontan
-        </span>
+      {/* Ort und Namen zuerst, dann die Besetzung: was ein niedriger Block
+          unten abschneidet, ist die Planungsspur, die schon Farbkante und
+          Legende zeigen. */}
+      {!isCancelled && height < SPLIT_INFO_MIN_HEIGHT_PX && wrappingInfoLine}
+      {!isCancelled &&
+        height >= SPLIT_INFO_MIN_HEIGHT_PX &&
+        placeLine !== "" && (
+          <span className="truncate text-xs text-gray-500">{placeLine}</span>
+        )}
+      {!isCancelled && height >= SPLIT_INFO_MIN_HEIGHT_PX && (
+        <BlockStaffNames entries={staffEntries} />
       )}
 
       {!isCancelled && (coverage || isActive || !isCompact) && (
@@ -265,7 +321,24 @@ export function InstanceBlock({
         </span>
       )}
 
-      {!isCancelled && (absentCount > 0 || hasSubstitute) && (
+      {!isCompact && !isCancelled && instance.planningTrackName && (
+        <span className="truncate text-[10px] font-medium text-gray-600">
+          {instance.planningTrackName}
+        </span>
+      )}
+
+      {!isCompact && instance.isSpontaneous && !isCancelled && (
+        <span
+          className="truncate text-[10px] font-semibold text-gray-600"
+          title="Dieser Termin wurde spontan gestartet und war nicht geplant."
+        >
+          Spontan
+        </span>
+      )}
+
+      {/* Ohne bekannte Namen bleibt die Sammelzeile; mit Namen zeigt die
+          Namenszeile Abwesenheit und Ersatz schon an der Person. */}
+      {!isCancelled && !hasStaffNames && (absentCount > 0 || hasSubstitute) && (
         <span className="flex flex-wrap gap-1 text-[10px]">
           {absentCount > 0 && (
             <span className="text-moto-red-strong font-semibold">
@@ -288,11 +361,18 @@ export function InstanceBlock({
       tinted={!isUnderstaffedAck}
       // Sehr niedrige Blöcke (<=30px) einzeilig rendern — das zweizeilige
       // Default-Layout (Zeitzeile + Titel) würde in der Höhe abgeschnitten.
-      size={isTiny ? "compact" : "default"}
+      // Kurze Blöcke mit Infozeile nutzen dieselbe Kopfzeile, damit die
+      // Infozeile darunter Platz hat.
+      size={isTiny || showInfoLine ? "compact" : "default"}
       status={isCancelled ? "cancelled" : "default"}
       selected={isSelected}
       statusIcon={statusIcon}
       footer={footer}
+      compactDetail={showInfoLine ? infoLine : undefined}
+      title={[
+        `${instance.title}, ${instance.startTime} – ${instance.endTime}`,
+        ...detailLines,
+      ].join("\n")}
       onClick={onClick}
       className="overflow-hidden"
       // Inline `position: absolute` schlägt die `relative`-Klasse der
@@ -322,6 +402,7 @@ export function InstanceBlock({
           ? [`Planungsspur ${instance.planningTrackName}`]
           : []),
         ...(showCompactStatus ? compactStatusDetails : []),
+        ...detailLines,
       ].join(", ")}
     />
   );

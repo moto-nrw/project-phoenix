@@ -200,7 +200,7 @@ func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *test
 		}},
 	}})
 	periodID := sourceID + 1
-	meta := templateMeta{sourceCareOfferingIDs: []int64{sourceID}}
+	metadata := timetable.BlockDisplayMetadata{SourceCareOfferingIDs: []int64{sourceID}}
 
 	tests := []struct {
 		name     string
@@ -214,7 +214,7 @@ func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *test
 		t.Run(tt.name, func(t *testing.T) {
 			instance := timetable.ScheduledInstance{Date: tt.date, CalendarPeriodID: &periodID}
 			reason := resource.resolveEmptyRosterReason(
-				context.Background(), instance, meta, nil,
+				context.Background(), instance, metadata, nil,
 				make(map[int64]timetable.EmptyOfferingRosterExplainer),
 			)
 			require.NotNil(t, reason)
@@ -227,7 +227,7 @@ func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *test
 	populated := resource.resolveEmptyRosterReason(
 		context.Background(),
 		timetable.ScheduledInstance{Date: calendar.NewDate(2026, 8, 10), CalendarPeriodID: &periodID},
-		meta,
+		metadata,
 		[]timetable.ScheduledParticipant{{StudentID: sourceID + 2}},
 		make(map[int64]timetable.EmptyOfferingRosterExplainer),
 	)
@@ -920,6 +920,57 @@ func TestListInstances_SeriesNotesJoinedFromTemplate(t *testing.T) {
 	assert.Equal(t, seriesNote, *item.SeriesNotes)
 	require.NotNil(t, item.Notes, "per-occurrence Tagesnotiz must remain independent")
 	assert.Equal(t, dayNote, *item.Notes)
+}
+
+// TestListInstances_NamesTemplateEducationGroup covers #3817: every block of
+// a template that targets an education group carries the group's name, so
+// the Betreuungsplan can show it in the block; a block without a template
+// group carries none.
+func TestListInstances_NamesTemplateEducationGroup(t *testing.T) {
+	t.Parallel()
+
+	s := buildListSetup(t)
+	defer s.cleanupFn()
+
+	from, fromDate := listFutureDate(1)
+	to, _ := listFutureDate(7)
+
+	educationGroup := testpkg.CreateTestEducationGroup(t, s.db, "Plan-Gruppe")
+	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("Group-Template-%d", time.Now().UnixNano()))
+	_, err := s.db.NewUpdate().
+		TableExpr("activities.groups").
+		Set("is_template = TRUE").
+		Set("education_group_id = ?", educationGroup.ID).
+		Where("id = ?", group.ID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	for _, day := range []int{0, 1} {
+		testpkg.CreateTestActivityInstance(t, s.db, fromDate.AddDays(day), s.roomID, testpkg.ActivityInstanceOpts{
+			ActivityGroupID: &group.ID,
+			StartHHMM:       "14:00",
+			EndHHMM:         "15:00",
+			Title:           "Gruppenblock",
+		})
+	}
+	ungrouped := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "16:00", EndHHMM: "17:00", Title: "Ohne Gruppe",
+	})
+
+	router := listRouter(s.ctx, s.res)
+	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodeList(t, w)
+	require.Len(t, got.Instances, 3)
+	for _, item := range got.Instances {
+		if item.ID == ungrouped.ID {
+			assert.Empty(t, item.GroupName, "a block without a template group carries no group name")
+			continue
+		}
+		assert.Equal(t, educationGroup.Name, item.GroupName)
+	}
 }
 
 // TestListInstances_NoSeriesNotesWhenTemplateHasNone confirms an instance whose

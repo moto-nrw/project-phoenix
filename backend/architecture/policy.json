@@ -75,6 +75,10 @@
       "kind": "projection"
     },
     {
+      "id": "timetable-block-display",
+      "kind": "projection"
+    },
+    {
       "id": "presence-legacy-view",
       "kind": "projection"
     },
@@ -2213,6 +2217,13 @@
       "role": "test-support",
       "internal_test_role": "workflow-integration-test",
       "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/timetableblockdisplay",
+      "owner": "timetable-block-display",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     },
     {
       "path": "modules/presenceprojection",
@@ -4582,6 +4593,18 @@
         "enrollment.request_children",
         "schedule.activity_instances",
         "schedule.instance_students"
+      ],
+      "tenant_safe": true
+    },
+    {
+      "id": "timetable-block-display",
+      "package": "modules/timetableblockdisplay",
+      "data_objects": [
+        "activities.groups",
+        "education.groups",
+        "facilities.rooms",
+        "schedule.activity_instances",
+        "schedule.planning_tracks"
       ],
       "tenant_safe": true
     },
@@ -11195,6 +11218,28 @@
       "source_role": "compose",
       "target_owner": "timetable-activities",
       "target_role": "public"
+    },
+    {
+      "id": "timetable-block-display.timetable-public",
+      "description": "The block display projection returns the Timetable owner's display vocabulary.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-block-display",
+      "source_role": "postgres",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.timetable-block-display",
+      "description": "Legacy composition binds the block display projection to the Timetable data port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "timetable-block-display",
+      "target_role": "postgres"
     },
     {
       "id": "timetable-activities.postgres.enrollment-provenance",
