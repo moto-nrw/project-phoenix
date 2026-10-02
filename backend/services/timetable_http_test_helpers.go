@@ -221,6 +221,7 @@ func newTimetableHTTPTestReads(db *bun.DB, r TimetableHTTPTestRows, rows reposit
 		Groups:            r.Timetable,
 		Categories:        r.ActivityCategory,
 		Rooms:             rows.RoomNames(),
+		EducationGroups:   rows.EducationGroupNames(),
 		RoomOccupancy:     timetableRoomOccupancy{sessions: r.ActiveGroup},
 		DeviationEvents:   rows.DeviationEventReader(),
 		ConflictAcks:      r.Timetable,

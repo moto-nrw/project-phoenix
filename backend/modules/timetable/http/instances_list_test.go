@@ -922,6 +922,57 @@ func TestListInstances_SeriesNotesJoinedFromTemplate(t *testing.T) {
 	assert.Equal(t, dayNote, *item.Notes)
 }
 
+// TestListInstances_NamesTemplateEducationGroup covers #3817: every block of
+// a template that targets an education group carries the group's name, so
+// the Betreuungsplan can show it in the block; a block without a template
+// group carries none.
+func TestListInstances_NamesTemplateEducationGroup(t *testing.T) {
+	t.Parallel()
+
+	s := buildListSetup(t)
+	defer s.cleanupFn()
+
+	from, fromDate := listFutureDate(1)
+	to, _ := listFutureDate(7)
+
+	educationGroup := testpkg.CreateTestEducationGroup(t, s.db, "Plan-Gruppe")
+	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("Group-Template-%d", time.Now().UnixNano()))
+	_, err := s.db.NewUpdate().
+		TableExpr("activities.groups").
+		Set("is_template = TRUE").
+		Set("education_group_id = ?", educationGroup.ID).
+		Where("id = ?", group.ID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	for _, day := range []int{0, 1} {
+		testpkg.CreateTestActivityInstance(t, s.db, fromDate.AddDays(day), s.roomID, testpkg.ActivityInstanceOpts{
+			ActivityGroupID: &group.ID,
+			StartHHMM:       "14:00",
+			EndHHMM:         "15:00",
+			Title:           "Gruppenblock",
+		})
+	}
+	ungrouped := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "16:00", EndHHMM: "17:00", Title: "Ohne Gruppe",
+	})
+
+	router := listRouter(s.ctx, s.res)
+	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodeList(t, w)
+	require.Len(t, got.Instances, 3)
+	for _, item := range got.Instances {
+		if item.ID == ungrouped.ID {
+			assert.Empty(t, item.GroupName, "a block without a template group carries no group name")
+			continue
+		}
+		assert.Equal(t, educationGroup.Name, item.GroupName)
+	}
+}
+
 // TestListInstances_NoSeriesNotesWhenTemplateHasNone confirms an instance whose
 // template carries no Wochennotiz omits series_notes.
 func TestListInstances_NoSeriesNotesWhenTemplateHasNone(t *testing.T) {

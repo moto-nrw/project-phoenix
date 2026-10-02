@@ -53,6 +53,7 @@ func newTimetableData(in timetableDataInputs) (timetable.TimetableDataCapability
 		Groups:            in.Groups,
 		Categories:        in.Rows.Categories,
 		Rooms:             in.Rows.RoomNames(),
+		EducationGroups:   in.Rows.EducationGroupNames(),
 		RoomOccupancy:     timetableRoomOccupancy{sessions: in.Sessions},
 		DeviationEvents:   in.Rows.DeviationEventReader(),
 		ConflictAcks:      in.ConflictAcks,

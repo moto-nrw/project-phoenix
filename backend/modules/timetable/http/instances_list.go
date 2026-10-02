@@ -79,37 +79,40 @@ type instanceStudentSummary struct {
 // "activity" | "care" | "external". Spontaneous instances without a template
 // fall back to "activity" so the frontend has a deterministic colour key.
 type enrichedInstance struct {
-	ID                     int64                    `json:"id"`
-	Date                   string                   `json:"date"`
-	StartTime              string                   `json:"start_time"`
-	EndTime                string                   `json:"end_time"`
-	Title                  string                   `json:"title"`
-	Description            *string                  `json:"description,omitempty"`
-	Notes                  *string                  `json:"notes,omitempty"`
-	SeriesNotes            *string                  `json:"series_notes,omitempty"`
-	Status                 string                   `json:"status"`
-	IsSpontaneous          bool                     `json:"is_spontaneous"`
-	IsLive                 bool                     `json:"is_live"`
-	ActivityGroupID        *int64                   `json:"activity_group_id,omitempty"`
-	CalendarPeriodID       *int64                   `json:"calendar_period_id,omitempty"`
-	ListKind               *string                  `json:"list_kind,omitempty"`
-	ActivityType           string                   `json:"activity_type"`
-	PlanningTrackID        *int64                   `json:"planning_track_id,omitempty"`
-	PlanningTrackName      string                   `json:"planning_track_name,omitempty"`
-	PlanningTrackColor     string                   `json:"planning_track_color,omitempty"`
-	PlanningTrackSortOrder *int                     `json:"planning_track_sort_order,omitempty"`
-	RoomID                 int64                    `json:"room_id"`
-	RoomName               string                   `json:"room_name"`
-	Staff                  []instanceStaffSummary   `json:"staff"`
-	StudentIDs             []int64                  `json:"student_ids"`
-	Students               []instanceStudentSummary `json:"students"`
-	StaffCount             int                      `json:"staff_count"`
-	AbsentStaffCount       int                      `json:"absent_staff_count"`
-	UnderstaffedAck        bool                     `json:"understaffed_ack"`
-	UnderstaffedNote       *string                  `json:"understaffed_note,omitempty"`
-	CancelReason           *string                  `json:"cancel_reason,omitempty"`
-	ExpectedStudentsCount  int                      `json:"expected_students_count"`
-	PresentStudentsCount   int                      `json:"present_students_count"`
+	ID                     int64   `json:"id"`
+	Date                   string  `json:"date"`
+	StartTime              string  `json:"start_time"`
+	EndTime                string  `json:"end_time"`
+	Title                  string  `json:"title"`
+	Description            *string `json:"description,omitempty"`
+	Notes                  *string `json:"notes,omitempty"`
+	SeriesNotes            *string `json:"series_notes,omitempty"`
+	Status                 string  `json:"status"`
+	IsSpontaneous          bool    `json:"is_spontaneous"`
+	IsLive                 bool    `json:"is_live"`
+	ActivityGroupID        *int64  `json:"activity_group_id,omitempty"`
+	CalendarPeriodID       *int64  `json:"calendar_period_id,omitempty"`
+	ListKind               *string `json:"list_kind,omitempty"`
+	ActivityType           string  `json:"activity_type"`
+	PlanningTrackID        *int64  `json:"planning_track_id,omitempty"`
+	PlanningTrackName      string  `json:"planning_track_name,omitempty"`
+	PlanningTrackColor     string  `json:"planning_track_color,omitempty"`
+	PlanningTrackSortOrder *int    `json:"planning_track_sort_order,omitempty"`
+	RoomID                 int64   `json:"room_id"`
+	RoomName               string  `json:"room_name"`
+	// GroupName is the education group the block's template targets, as the
+	// Tagesplan shows it (#3817); empty without a template group.
+	GroupName             string                   `json:"group_name,omitempty"`
+	Staff                 []instanceStaffSummary   `json:"staff"`
+	StudentIDs            []int64                  `json:"student_ids"`
+	Students              []instanceStudentSummary `json:"students"`
+	StaffCount            int                      `json:"staff_count"`
+	AbsentStaffCount      int                      `json:"absent_staff_count"`
+	UnderstaffedAck       bool                     `json:"understaffed_ack"`
+	UnderstaffedNote      *string                  `json:"understaffed_note,omitempty"`
+	CancelReason          *string                  `json:"cancel_reason,omitempty"`
+	ExpectedStudentsCount int                      `json:"expected_students_count"`
+	PresentStudentsCount  int                      `json:"present_students_count"`
 	// Occupancy pairs the template's Teilnehmergrenze with the children still
 	// there; nil without a limit (#3634).
 	Occupancy         *instanceOccupancy `json:"occupancy,omitempty"`
@@ -290,10 +293,16 @@ func (rs *Resource) enrichWrittenInstance(ctx context.Context, instanceID int64)
 	if err != nil {
 		return enrichedInstance{}, fmt.Errorf("load instance rows: %w", err)
 	}
-	enriched, _, _, err := rs.enrichInstance(ctx, inst, rows, make(map[int64]string), make(map[int64]templateMeta), make(map[int64]*timetable.PlanningTrack), make(map[int64]timetable.EmptyOfferingRosterExplainer), rs.childrenPerStaffRatio(ctx), careDays)
+	metaCache := make(map[int64]templateMeta)
+	enriched, _, _, err := rs.enrichInstance(ctx, inst, rows, make(map[int64]string), metaCache, make(map[int64]*timetable.PlanningTrack), make(map[int64]timetable.EmptyOfferingRosterExplainer), rs.childrenPerStaffRatio(ctx), careDays)
 	if err != nil {
 		return enrichedInstance{}, err
 	}
+	written := []enrichedInstance{enriched}
+	if err := rs.applyGroupNames(ctx, []timetable.ScheduledInstance{inst}, written, metaCache); err != nil {
+		return enrichedInstance{}, err
+	}
+	enriched = written[0]
 	enriched.ConflictWarnings = rs.dayConflictWarningsFor(ctx, inst)
 	return enriched, nil
 }
@@ -326,7 +335,40 @@ func (rs *Resource) enrichInstances(
 		enriched = append(enriched, item)
 		conflictInputs = append(conflictInputs, windowConflictBlock(inst, staffRows, studentRows))
 	}
+	if err := rs.applyGroupNames(ctx, instances, enriched, metaCache); err != nil {
+		return nil, nil, err
+	}
 	return enriched, conflictInputs, nil
+}
+
+// applyGroupNames names the education group of every listed block's template
+// with one read for the whole window (#3817). instances and enriched are
+// parallel slices; metaCache holds every template the enrichment looked up.
+func (rs *Resource) applyGroupNames(ctx context.Context, instances []timetable.ScheduledInstance, enriched []enrichedInstance, metaCache map[int64]templateMeta) error {
+	ids := make([]int64, 0)
+	seen := map[int64]bool{}
+	for _, meta := range metaCache {
+		if id := meta.educationGroupID; id != nil && !seen[*id] {
+			seen[*id] = true
+			ids = append(ids, *id)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	names, err := rs.TimetableData.BlockEducationGroupNames(ctx, ids)
+	if err != nil {
+		return fmt.Errorf("load education group names: %w", err)
+	}
+	for i, inst := range instances {
+		if inst.ActivityGroupID == nil {
+			continue
+		}
+		if id := metaCache[*inst.ActivityGroupID].educationGroupID; id != nil {
+			enriched[i].GroupName = names[*id]
+		}
+	}
+	return nil
 }
 
 // windowConflictBlock maps one listed block and its rows onto the input of
@@ -544,6 +586,9 @@ type templateMeta struct {
 	seriesNotes           *string
 	sourceCareOfferingIDs []int64
 	participantLimit      *int
+	// educationGroupID is the template's target education group; the list
+	// names all of them in one read afterwards (applyGroupNames).
+	educationGroupID *int64
 }
 
 func (rs *Resource) lookupTemplateMeta(
@@ -578,6 +623,7 @@ func (rs *Resource) lookupTemplateMeta(
 		planningTrackID:       group.PlanningTrackID,
 		sourceCareOfferingIDs: append([]int64(nil), group.SourceCareOfferingIDs...),
 		participantLimit:      timetable.ParticipantLimitPtr(group.MaxParticipants),
+		educationGroupID:      group.EducationGroupID,
 	}
 	if group.PlanningTrackID != nil {
 		if track := rs.lookupPlanningTrack(ctx, *group.PlanningTrackID, planningTrackCache); track != nil {

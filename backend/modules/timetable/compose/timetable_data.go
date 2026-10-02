@@ -105,10 +105,10 @@ type AdvisoryLocks interface {
 	AcquireXactLock(ctx context.Context, key string) error
 }
 
-// TimetableDataDependencies wires the planner's reads. Locks and Advisory
-// are optional: without them attendance patches skip the completion lock and
-// spontaneous-start locks are skipped outside a transaction only. Every other
-// collaborator is required.
+// TimetableDataDependencies wires the planner's reads. Locks, Advisory and
+// EducationGroups are optional: without them attendance patches skip the
+// completion lock, spontaneous-start locks are skipped outside a transaction
+// only and blocks carry no group name. Every other collaborator is required.
 type TimetableDataDependencies struct {
 	Instances         DataInstances
 	InstanceStaff     OperationInstanceStaff
@@ -122,6 +122,7 @@ type TimetableDataDependencies struct {
 	Groups            DataGroups
 	Categories        DataCategories
 	Rooms             RoomNames
+	EducationGroups   EducationGroupNames
 	RoomOccupancy     RoomOccupancy
 	DeviationEvents   DeviationEventReader
 	ConflictAcks      timetable.ConflictAckCapability
@@ -312,6 +313,13 @@ func (d *timetableData) FindBlockTemplate(ctx context.Context, groupID int64) (t
 
 func (d *timetableData) BlockRoomName(ctx context.Context, roomID int64) (string, bool, error) {
 	return d.deps.Rooms.RoomName(ctx, roomID)
+}
+
+func (d *timetableData) BlockEducationGroupNames(ctx context.Context, educationGroupIDs []int64) (map[int64]string, error) {
+	if d.deps.EducationGroups == nil || len(educationGroupIDs) == 0 {
+		return map[int64]string{}, nil
+	}
+	return d.deps.EducationGroups.EducationGroupNames(ctx, educationGroupIDs)
 }
 
 // LockBlockAttendance takes FOR UPDATE on every participant row, so a

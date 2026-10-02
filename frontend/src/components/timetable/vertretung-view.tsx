@@ -83,6 +83,7 @@ import { staffShiftService } from "~/lib/shift-api";
 import { substitutionService } from "~/lib/substitution-api";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { staffNamesFromOverview } from "~/components/timetable/block-staff-names";
 import { timetableService } from "~/lib/timetable-api";
 import {
   VERTRETUNG_GAPS_KEY_PREFIX,
@@ -368,8 +369,10 @@ function VertretungContent() {
     () => (staffData?.staff ?? []).map((s) => ({ id: s.id, name: s.name })),
     [staffData],
   );
+  // Auch die Fachkräfte der Termine: die Blöcke und die Tagesliste nennen
+  // jede eingeteilte Person (#3817), nicht nur die möglichen Ersatzkräfte.
   const staffNames = useMemo(
-    () => new Map((staffData?.staff ?? []).map((s) => [s.id, s.name])),
+    () => staffNamesFromOverview(staffData),
     [staffData],
   );
   const selectedInstance = useMemo(
@@ -941,6 +944,7 @@ function VertretungContent() {
             dayStartHour={dayStartHour}
             dayEndHour={dayEndHour}
             hourHeightPx={HOUR_HEIGHT_PX}
+            staffNames={staffNames}
             emptyState={
               (isWeekView ? weekdayInstances : dayInstances).length > 0
                 ? undefined

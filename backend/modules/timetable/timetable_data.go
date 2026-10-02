@@ -78,6 +78,9 @@ type ScheduledBlockQuery interface {
 	FindBlockTemplate(ctx context.Context, groupID int64) (Group, error)
 	// BlockRoomName names a block's room; ok is false when it does not exist.
 	BlockRoomName(ctx context.Context, roomID int64) (name string, ok bool, err error)
+	// BlockEducationGroupNames names the education groups the blocks'
+	// templates target in one read; unknown ids are absent.
+	BlockEducationGroupNames(ctx context.Context, educationGroupIDs []int64) (map[int64]string, error)
 }
 
 // SlotAttendanceCommand edits a planned child's attendance from the planner.

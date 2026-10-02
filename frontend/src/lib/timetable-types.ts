@@ -162,6 +162,11 @@ export interface EnrichedInstance {
   activityType: ActivityType;
   roomId: string;
   roomName: string;
+  /**
+   * Zielgruppe des Regeltermins hinter dem Block (#3817), wie im Tagesplan;
+   * fehlt bei Blöcken ohne Gruppe.
+   */
+  groupName?: string;
   staff: InstanceStaffSummary[];
   studentIds: string[];
   students: InstanceStudentSummary[];
@@ -270,6 +275,7 @@ export interface BackendEnrichedInstance {
   activity_type: ActivityType;
   room_id: number;
   room_name: string;
+  group_name?: string;
   staff: BackendInstanceStaffSummary[];
   student_ids?: number[];
   students?: BackendInstanceStudentSummary[];

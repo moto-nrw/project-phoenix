@@ -1126,10 +1126,13 @@ function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Wählen Sie den Tab `Betreuungsplan`.",
       "Wählen Sie oben `Tag` oder `Woche`.",
       "Nutzen Sie die Pfeile oder `Heute`, um zum passenden Tag zu wechseln.",
-      // Ohne Raumzuordnung steht im Block auch kein Raum.
+      // #3817: Raum, Gruppe und Fachkräfte stehen direkt im Block. Ohne
+      // Raumzuordnung steht im Block auch kein Raum.
       presenceMode === "binary"
-        ? "Wählen Sie einen Block, um Zeit, Betreuungsteam und Kinder zu sehen."
-        : "Wählen Sie einen Block, um Zeit, Raum, Betreuungsteam und Kinder zu sehen.",
+        ? "Jeder Block zeigt Gruppe und die eingeteilten Fachkräfte."
+        : "Jeder Block zeigt Raum, Gruppe und die eingeteilten Fachkräfte.",
+      "Ein durchgestrichener Name heißt: abwesend. `(Ersatz)` steht hinter einer Ersatzkraft.",
+      "Wählen Sie einen Block, um alle Kinder zu sehen.",
     ],
     result:
       "Sie sehen, was die OGS geplant hat und wo Sie eingesetzt sind. Als Betreuungskraft können Sie den Plan nicht verändern.",
