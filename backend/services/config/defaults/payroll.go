@@ -49,7 +49,7 @@ func init() {
 		config.Register(config.Definition{
 			Key:             l.key,
 			Label:           l.label,
-			Description:     "Mandantenspezifische DATEV-Lohnartnummer (1 bis 4 Ziffern). Leer bedeutet: noch nicht konfiguriert; ohne Nummer erzeugt der spätere DATEV-Export keine Zeile für diese Kategorie.",
+			Description:     "Die Nummer dieser Lohnart in Ihrem DATEV (1 bis 4 Ziffern). Ohne Nummer fehlt diese Lohnart im DATEV-Export.",
 			Type:            config.FieldText,
 			Default:         "",
 			ReadPermission:  payrollReadPermission,
@@ -75,7 +75,7 @@ func init() {
 		config.Register(config.Definition{
 			Key:             u.key,
 			Label:           u.label,
-			Description:     "Ob die zugehörige DATEV-Lohnart Stunden oder Tage erwartet. Richtet sich nach der Lohnart-Definition im Lohnsystem des Trägers.",
+			Description:     "Ob die Lohnart in DATEV Stunden oder Tage erwartet. Das steht in der Lohnabrechnung Ihres Trägers.",
 			Type:            config.FieldSelect,
 			Default:         "",
 			ReadPermission:  payrollReadPermission,

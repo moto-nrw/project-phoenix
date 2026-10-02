@@ -176,6 +176,25 @@ func TestMyGroupIDs_RejectsUnauthenticated(t *testing.T) {
 	assert.Nil(t, groups)
 }
 
+func TestMyTeacherGroupIDsExcludesSubstitutions(t *testing.T) {
+	t.Parallel()
+
+	h := newCallerHarness(authenticatedCaller(false)).withStaff()
+	h.memo = newCallerTestMemo()
+	h.membership.teacherID, h.membership.teacherFound = 91, true
+	h.structure.teacherGroups = []int64{11}
+	h.structure.subs = map[int64]bool{12: true}
+
+	caller := h.build(t)
+	_, err := caller.MyGroupIDs(context.Background())
+	require.NoError(t, err)
+	groups, err := caller.MyTeacherGroupIDs(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, []int64{11}, groups)
+	assert.Equal(t, 1, h.structure.teacherCalls, "both reaches share the direct assignment read")
+	assert.Equal(t, 1, h.structure.subsCalls, "only the general group reach reads substitutions")
+}
+
 func TestCallerContextLogger_FallsBackToDefault(t *testing.T) {
 	t.Parallel()
 

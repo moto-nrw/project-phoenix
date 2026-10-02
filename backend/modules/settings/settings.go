@@ -55,6 +55,7 @@ const (
 	KeyTimetableChildrenPerStaffRatio        = configModel.KeyTimetableChildrenPerStaffRatio
 	KeyTimetableEnabled                      = configModel.KeyTimetableEnabled
 	KeyTimetableEnforcePlannedEnd            = configModel.KeyTimetableEnforcePlannedEnd
+	KeyTimetableCompleteLeadMinutes          = configModel.KeyTimetableCompleteLeadMinutes
 	KeyTimetableShowExpectedChildrenCount    = configModel.KeyTimetableShowExpectedChildrenCount
 	KeyTrackingIndicator1                    = configModel.KeyTrackingIndicator1
 	KeyTrackingIndicator2                    = configModel.KeyTrackingIndicator2

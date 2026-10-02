@@ -1423,6 +1423,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		ParentRequestBulkService:     api.Services.ParentRequests,
 		ParentRequestConflictService: api.Services.ParentRequests,
 		FamilyProtection:             api.Services.PeopleDirectory,
+		StudentNotes:                 api.Services.PeopleDirectory,
 		RequestReviewAccess:          api.Services.RequestReviewPolicy,
 		RequestReview:                requestReview,
 		StudentStatusDayService:      api.Services.StudentStatusDays,

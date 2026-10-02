@@ -25,10 +25,14 @@ func (s *InstanceLifecycleService) validateCompleteTime(ctx context.Context, ins
 	if err != nil {
 		return fmt.Errorf("%w: resolve planned end policy: %v", timetable.ErrLifecycleSettings, err)
 	}
-	availability := evaluateLifecycleAvailability(instance, now, 0, enforce)
+	lead, err := s.deps.Settings.CompleteLeadMinutes(ctx)
+	if err != nil {
+		return fmt.Errorf("%w: resolve complete lead: %v", timetable.ErrLifecycleSettings, err)
+	}
+	availability := evaluateLifecycleAvailability(instance, now, 0, lead, enforce)
 	if !availability.CanComplete {
 		return fmt.Errorf("%w: available at %s", timetable.ErrInstanceCompleteEarly,
-			timetable.LifecycleBoundary(timezone.Date(instance.Date), instance.EndTime).Format(time.RFC3339))
+			availability.CompleteAvailableAt.Format(time.RFC3339))
 	}
 	return nil
 }

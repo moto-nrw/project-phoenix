@@ -10,8 +10,8 @@ import (
 func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyDisplayEnabled,
-		Label:           "Info-Displays aktivieren",
-		Description:     "Ermöglicht die Erstellung von Info-Displays für große Bildschirme im Eingangsbereich.",
+		Label:           "Info-Displays nutzen",
+		Description:     "Ihr Team kann Anzeigen für große Bildschirme anlegen, zum Beispiel für den Eingangsbereich.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Releases are versioned by release-please, and each release produces product screenshots
@@ -37,3 +37,6 @@ that release event (and manually), not on every deploy.
 - Deploys and releases are separate: not every deploy is a release.
 - Commit types now affect the version, so a mislabelled `feat`/`fix` changes
   the next version number.
+- A release created with `GITHUB_TOKEN` triggers no other workflow, so the
+  release workflow calls the screenshot pipeline itself, and the release PR
+  runs no PR checks (`main` requires none).

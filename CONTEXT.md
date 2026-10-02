@@ -104,7 +104,8 @@ auszuführen, bleibt beim Suchen und Filtern erhalten und wird nicht gespeichert
 
 Eine **Gruppe** ist eine dauerhaft gespeicherte OGS-Zuordnung eines Kindes.
 Gruppen strukturieren den Betreuungsalltag, aber nicht die Sichtbarkeit von
-Kinderdaten. Eine Auswahl erstellt oder verändert keine Gruppe.
+Kinderdaten. Die einzige Ausnahme ist die Kindnotiz, deren Reichweite jede
+Notiz einzeln festlegt. Eine Auswahl erstellt oder verändert keine Gruppe.
 
 Eine **Gruppenübergabe** ordnet eine Gruppe einer weiteren Betreuungskraft
 zeitlich begrenzt als eigene Zuständigkeit zu. Sie erweitert nicht die
@@ -416,6 +417,35 @@ erläutert.
 Ein **Jahrgangs-Abgang** beendet die OGS-Zugehörigkeit im Rahmen eines
 Jahrgangswechsels. Er bleibt von einem einzelnen Austritt getrennt, weil der
 gesamte Jahrgangswechsel gemeinsam zurückgesetzt werden kann.
+
+## Kindnotiz
+
+Eine **Kindnotiz** ist ein Eintrag, den eine Betreuungskraft zu einem Kind
+schreibt. Sie gehört dem Kind, nicht einem Termin: die Wochennotiz und die
+Tagesnotiz des Betreuungsplans beschreiben weiterhin den Termin selbst.
+
+Ein **dauerhafter Hinweis** ist eine Kindnotiz ohne Datum, die bei den
+Stammdaten steht. Er löst das frühere Freitextfeld „Betreuernotizen“ ab.
+Ein **Karteieintrag** ist eine datierte Kindnotiz in der Chronik des Kindes.
+Ein Eintrag kann zum dauerhaften Hinweis werden; sein Datum entfällt dabei.
+
+Der **Bezug** einer Kindnotiz ist das, worum es außer dem Kind geht: nichts,
+ein Angebot oder eine Gruppe. Ein einzelner Termin ist das Angebot zusammen
+mit dem Tag und kein eigener Bezug.
+
+Die **Reichweite** einer Kindnotiz legt fest, wer sie liest: das ganze Team,
+das **Betreuungsteam** des Kindes oder die Leitung der bezogenen Gruppe. Das
+Betreuungsteam eines Kindes sind die Betreuungskräfte, die es tatsächlich
+haben — über seine Gruppe, seine Klasse oder ein Angebot, in dem es
+angemeldet ist. Die Reichweite gilt je Notiz und erteilt keine weiteren
+Rechte. Admins lesen immer alles, und wer eine Notiz geschrieben hat, sieht
+sie weiterhin.
+
+Eine Kindnotiz korrigiert nur, wer sie geschrieben hat. Entfernen darf sie
+die Leitung der bezogenen Gruppe, bei einer Notiz ohne Bezug die Leitung der
+Gruppe des Kindes. Eltern sehen Kindnotizen nicht.
+
+Gesundheitsinformationen sind keine Kindnotiz und bleiben ein eigenes Feld.
 
 ## Regelmäßiger Wochenplan
 

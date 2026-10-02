@@ -229,6 +229,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedStaffMessagingStep{},
 		seedParentMessageCountScopeStep{},
 		seedStaffNoticesStep{},
+		seedStudentNotesStep{},
 		seedFileStorageStep{},
 		// Der einzige Block, der über die Stempeluhr läuft: nach ihm stempelt
 		// niemand mehr live, und die Historie kann neben der Simulation laufen.

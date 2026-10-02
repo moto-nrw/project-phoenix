@@ -43,6 +43,11 @@ type NotificationConsentCapability interface {
 	// FilterOptedIn keeps only the candidates who agreed to the type.
 	FilterOptedIn(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
 
+	// ListOptedIn returns every account of the current school that agreed to
+	// the type. It is the candidate set of an opt-in e-mail; the consumer
+	// narrows it by a relation (a permission) before addressing anyone.
+	ListOptedIn(ctx context.Context, notificationType string) ([]int64, error)
+
 	// FilterOptedInByType answers FilterOptedIn for several types in one read.
 	FilterOptedInByType(ctx context.Context, notificationTypes []string, accountIDs []int64) (map[string][]int64, error)
 

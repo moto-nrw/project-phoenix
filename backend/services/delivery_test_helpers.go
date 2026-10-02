@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -28,6 +29,21 @@ func NewNotificationConsentTestStore(db *bun.DB) notifications.ConsentStore {
 		panic(err)
 	}
 	return consent
+}
+
+// NewEnrollmentAdminSubscribersForTests binds the intake's opt-in admin mail
+// (#3780) to Communication's real consent rows and Identity & Access, and
+// returns the consent store the suite records decisions with.
+func NewEnrollmentAdminSubscribersForTests(db *bun.DB) (enrollmentCompose.AdminMailSubscribers, notifications.ConsentStore, error) {
+	consent, err := communicationCompose.NewNotificationConsent(communicationCompose.NotificationConsentConfig{DB: db})
+	if err != nil {
+		return nil, nil, err
+	}
+	identity, err := repositories.NewIdentityAccessForTests(db)
+	if err != nil {
+		return nil, nil, err
+	}
+	return NewEnrollmentAdminSubscribers(consent, identity), consent, nil
 }
 
 type DeliveryTestModule struct {

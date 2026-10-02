@@ -871,6 +871,14 @@ describe("StudentDetailPage", () => {
       );
     });
 
+    it("hides the notes tab because its endpoint requires full child read access", () => {
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.queryByRole("tab", { name: "Notizen" }),
+      ).not.toBeInTheDocument();
+    });
+
     it("renders guardian manager in read-only mode in limited view", () => {
       // All staff can view guardian info (read-only), only supervisors can edit
       render(<StudentDetailPage />);
@@ -949,6 +957,7 @@ describe("StudentDetailPage", () => {
       >;
       expect(payload).not.toHaveProperty("privacy_consent_accepted");
       expect(payload).not.toHaveProperty("data_retention_days");
+      expect(payload).not.toHaveProperty("supervisor_notes");
     });
 
     it("revalidates field history after saving personal info", async () => {

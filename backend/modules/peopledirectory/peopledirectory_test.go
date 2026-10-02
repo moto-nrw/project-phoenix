@@ -21,6 +21,9 @@ type recordingEngine struct {
 	observed  []string
 	directory peopledirectory.StudentDirectoryFilter
 
+	noteFilter  peopledirectory.StudentNoteFilter
+	updatedNote peopledirectory.UpdateStudentNote
+
 	lockedRecord int64
 	recordIDs    []int64
 	written      peopledirectory.StudentWrite

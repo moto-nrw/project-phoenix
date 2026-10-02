@@ -52,7 +52,7 @@ const TAB_LABELS: Record<string, string> = {
   gdpr: "Datenschutz",
   devices: "Geräte",
   enrollment: "Anmeldung",
-  system: "System",
+  system: "Kalender und Export",
   general: "Allgemein",
   security: "Sicherheit",
 };

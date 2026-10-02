@@ -15,9 +15,8 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -184,7 +183,7 @@ func TestCheckAndRunTimetableCleanup_Disabled(t *testing.T) {
 		timetableCleanup: svc,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
-				configModel.KeyDataCleanupEnabled: false,
+				settingDataCleanupEnabled: false,
 			},
 		}})
 
@@ -211,10 +210,10 @@ func TestCheckAndRunTimetableCleanup_WrongTime(t *testing.T) {
 		timetableCleanup: svc,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
-				configModel.KeyDataCleanupEnabled: true,
+				settingDataCleanupEnabled: true,
 			},
 			stringValues: map[string]string{
-				configModel.KeyDataCleanupTime: future,
+				settingDataCleanupTime: future,
 			},
 		}})
 
@@ -237,10 +236,10 @@ func TestCheckAndRunTimetableCleanup_WasRunToday(t *testing.T) {
 		timetableCleanup: svc,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
-				configModel.KeyDataCleanupEnabled: true,
+				settingDataCleanupEnabled: true,
 			},
 			stringValues: map[string]string{
-				configModel.KeyDataCleanupTime: now,
+				settingDataCleanupTime: now,
 			},
 		}})
 
@@ -264,7 +263,7 @@ func TestCheckAndRunTimetableCleanup_HappyPath(t *testing.T) {
 			ExceptionsDeleted: 2,
 			StudentsAffected:  3,
 			RetentionDays:     365,
-			CutoffDate:        timezone.TodayDate(),
+			CutoffDate:        calendar.TodayDate(),
 			DurationMS:        42,
 		},
 	}
@@ -273,13 +272,13 @@ func TestCheckAndRunTimetableCleanup_HappyPath(t *testing.T) {
 		timetableCleanup: svc,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
-				configModel.KeyDataCleanupEnabled: true,
+				settingDataCleanupEnabled: true,
 			},
 			stringValues: map[string]string{
-				configModel.KeyDataCleanupTime: now,
+				settingDataCleanupTime: now,
 			},
 			intValues: map[string]int{
-				configModel.KeyDataCleanupTimeoutMinutes: 30,
+				settingDataCleanupTimeoutMinutes: 30,
 			},
 		}})
 
@@ -305,10 +304,10 @@ func TestCheckAndRunTimetableCleanup_ServiceError_ClearsTodayStamp(t *testing.T)
 		timetableCleanup: svc,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
-				configModel.KeyDataCleanupEnabled: true,
+				settingDataCleanupEnabled: true,
 			},
 			stringValues: map[string]string{
-				configModel.KeyDataCleanupTime: now,
+				settingDataCleanupTime: now,
 			},
 		}})
 
@@ -344,10 +343,10 @@ func TestCheckAndRunTimetableCleanup_ZeroCounters_SuppressesInfoLog(t *testing.T
 		timetableCleanup: svc,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
-				configModel.KeyDataCleanupEnabled: true,
+				settingDataCleanupEnabled: true,
 			},
 			stringValues: map[string]string{
-				configModel.KeyDataCleanupTime: now,
+				settingDataCleanupTime: now,
 			},
 		}})
 

@@ -440,14 +440,18 @@ func (rs *Resource) enrichInstance(
 }
 
 // completionAvailability evaluates when the block may be completed under the
-// tenant's planned-end policy.
+// tenant's planned-end policy and its lead before the planned end.
 func (rs *Resource) completionAvailability(ctx context.Context, inst timetable.ScheduledInstance) (timetable.LifecycleAvailability, error) {
 	enforcePlannedEnd, err := rs.enforcePlannedEnd(ctx)
 	if err != nil {
 		return timetable.LifecycleAvailability{}, err
 	}
+	completeLead, err := rs.completeLeadMinutes(ctx)
+	if err != nil {
+		return timetable.LifecycleAvailability{}, err
+	}
 	return timetable.EvaluateLifecycleAvailability(
-		timetable.LifecycleWindow{Date: inst.Date, StartTime: inst.StartTime, EndTime: inst.EndTime, IsSpontaneous: inst.IsSpontaneous}, time.Now(), 0, enforcePlannedEnd,
+		timetable.LifecycleWindow{Date: inst.Date, StartTime: inst.StartTime, EndTime: inst.EndTime, IsSpontaneous: inst.IsSpontaneous}, time.Now(), 0, completeLead, enforcePlannedEnd,
 	), nil
 }
 

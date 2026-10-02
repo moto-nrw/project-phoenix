@@ -1085,6 +1085,8 @@ func (testOperationSettings) StartLeadMinutes(context.Context) (int, error) { re
 
 func (testOperationSettings) EnforcePlannedEnd(context.Context) (bool, error) { return false, nil }
 
+func (testOperationSettings) CompleteLeadMinutes(context.Context) (int, error) { return 0, nil }
+
 func (testOperationSettings) ActionScopeKey(timetableCompose.ScopedAction) (string, error) {
 	return testActionScopeKey, nil
 }

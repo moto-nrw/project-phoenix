@@ -203,7 +203,7 @@ func (s *operations) plannedNowEntry(
 	past := opts.Scope == timetable.PlannedNowScopePast
 	wholeDay := opts.Scope == timetable.PlannedNowScopeDay
 	if candidate.canStart && !past && (!wholeDay || candidate.instance.Status == scheduleModels.InstanceStatusPlanned) {
-		availability := timetable.EvaluateLifecycleAvailability(lifecycleWindow(candidate.instance), now, startLead, true)
+		availability := timetable.EvaluateLifecycleAvailability(lifecycleWindow(candidate.instance), now, startLead, 0, true)
 		mapped.CanStart = availability.CanStart
 		mapped.StartAvailableAt = availability.StartAvailableAt.Format(time.RFC3339)
 		if !candidate.instance.IsSpontaneous {

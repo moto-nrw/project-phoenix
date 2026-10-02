@@ -14,7 +14,7 @@ func init() {
 		config.Register(config.Definition{
 			Key:             config.SchoolPeriodEndKey(period),
 			Label:           fmt.Sprintf("Ende der %d. Stunde", period),
-			Description:     fmt.Sprintf("Das Team kann diese Uhrzeit bei der Ankunft als „%d. Stunde“ wählen. Leer bedeutet: nicht wählbar.", period),
+			Description:     fmt.Sprintf("Das Team kann diese Uhrzeit bei der Ankunft als „%d. Stunde“ wählen. „Nicht eingetragen“ heißt: nicht wählbar.", period),
 			Type:            config.FieldTime,
 			Default:         "",
 			ReadPermission:  "config:read",

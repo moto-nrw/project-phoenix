@@ -5,17 +5,11 @@ import (
 	"log/slog"
 	"time"
 
-	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
-	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	"github.com/uptrace/bun"
 )
 
 // WorkerDependencies is the complete typed input to the embedded Worker root.
@@ -23,9 +17,8 @@ import (
 type WorkerDependencies struct {
 	Logger                    *slog.Logger
 	Getenv                    func(string) string
-	DB                        *bun.DB
 	SchoolRepo                TenantDirectory
-	TenantRuntime             *tenant.UnitOfWork
+	TenantRuntime             TenantRuntime
 	TenantRuntimeObserver     func(entryPoint, outcome string)
 	UnitOfWorkObserver        func(entryPoint, kind, result string, duration time.Duration, retries int)
 	Tracer                    WorkerTracer
@@ -48,25 +41,28 @@ type WorkerDependencies struct {
 	TimetableCleanup          timetable.TimetableCleanup
 	CalendarFeedCleanup       CalendarFeedCleaner
 	TimeTrackingCleanup       TimeTrackingCleanupService
-	StudentChangeLogCleanup   usersSvc.StudentChangeLogCleanupService
+	StudentChangeLogCleanup   StudentChangeLogCleanup
 	PWAUsageCleanup           pwaSvc.UsageService
 	StaffMessageCleanup       StaffMessageCleanup
-	BookingConsistency        auditModel.BookingConsistencyRepository
+	BookingConsistency        BookingConsistencyAudit
 	EnrollmentRejectedCleanup RejectedEnrollmentCleaner
 	AutoStart                 timetable.InstanceAutoStart
 	AutoEnd                   timetable.InstanceAutoEnd
-	InstanceRepo              scheduleModel.ActivityInstanceRepository
-	InstanceRoomRepo          facilitiesModel.RoomRepository
-	InstanceStudentRepo       scheduleModel.InstanceStudentRepository
+	InstanceRepo              DayInstanceReader
+	InstanceRoomRepo          ExistingRoomReader
+	InstanceStudentRepo       InstanceCheckoutCloser
 	TimetableBridge           TimetableBridgeCompleter
 	StudentStatusDayRepo      StudentStatusFlagArchiver
-	OverdueBroadcaster        realtime.Broadcaster
+	OverdueBroadcaster        realtimeevents.Publisher
 	StudentLifecycleRepo      StudentLifecycleRepository
 	StudentLifecycleAudit     StudentLifecycleAuditor
 	CareExitEffector          CareExitEffector
 	OutboxWorker              OutboxWorkerRunner
 	RolloverDeadlineRunner    RolloverDeadlineRunner
 	ReminderNotifications     ReminderNotificationDeps
+	// Lease elects the single Worker that runs jobs (#2726). Every Worker
+	// process, embedded in Serve or standalone, runs under it.
+	Lease WorkerLease
 	// AppointmentReminders is the established reminder capability consumed by
 	// the scheduler. It also exposes scheduled parent-announcement delivery,
 	// avoiding a second dependency in this shrink-only worker composition.
@@ -95,7 +91,6 @@ func validateWorkerDependencies(deps WorkerDependencies) error {
 		value any
 	}{
 		{name: "logger", value: deps.Logger},
-		{name: "database", value: deps.DB},
 		{name: "tenant directory", value: deps.SchoolRepo},
 		{name: "tenant runtime", value: deps.TenantRuntime},
 		{name: "settings", value: deps.Settings},
@@ -110,7 +105,7 @@ func validateWorkerDependencies(deps WorkerDependencies) error {
 			return fmt.Errorf("worker dependency %s is required", dependency.name)
 		}
 	}
-	return nil
+	return deps.Lease.validate()
 }
 
 func requiredWorkerJobIDs() []JobID {

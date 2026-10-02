@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/analytics"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
@@ -33,7 +34,26 @@ type ServeConfig struct {
 	// error reports go to (#3645); empty when the backend runs without
 	// Sentry.
 	SentryPyrePortalDSN string
+	// Process selects what this root runs (#2726). The zero value keeps the
+	// HTTP API with its embedded Worker.
+	Process ServeProcess
 }
+
+// ServeProcess is what one Serve root runs. Every Worker, embedded or
+// standalone, leads only while it holds the Worker lease, so the processes
+// may overlap during a cutover.
+type ServeProcess string
+
+const (
+	// ServeAPIWithWorker serves the HTTP API and runs the embedded Worker.
+	ServeAPIWithWorker ServeProcess = ""
+	// ServeAPIOnly serves the HTTP API once a standalone Worker runs the jobs.
+	ServeAPIOnly ServeProcess = "api"
+	// ServeWorkerOnly runs the standalone Worker behind its probes:
+	// /health while the process lives, /ready only while it holds the lease,
+	// and /internal/metrics.
+	ServeWorkerOnly ServeProcess = "worker"
+)
 
 // Runtime owns the assembled HTTP graph and its process-scoped resources.
 // A Runtime may be served once.
@@ -104,6 +124,9 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 	if strings.TrimSpace(config.PublicAPIURL) == "" {
 		return nil, fmt.Errorf("serve dependency public API URL is required")
 	}
+	if err := validateServeProcess(config.Process); err != nil {
+		return nil, err
+	}
 
 	config.Logger.Info("initializing API server")
 
@@ -118,14 +141,19 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 		tracker:        api.Services.Tracker,
 		logger:         config.Logger,
 	}
-	worker, err := newWorker(api, config.Logger)
-	if err != nil {
-		return nil, errors.Join(err, runtime.closeResources())
+	var worker *scheduler.Scheduler
+	if config.Process == ServeAPIOnly {
+		config.Logger.Info("embedded worker disabled; a standalone worker runs the jobs")
+	} else {
+		worker, err = newWorker(api, config.Logger)
+		if err != nil {
+			return nil, errors.Join(err, runtime.closeResources())
+		}
+		runtime.worker = worker
 	}
-	runtime.worker = worker
 	runtime.server = &http.Server{
 		Addr:    resolveListenAddr(config.Port),
-		Handler: runtime.Handler(),
+		Handler: processHandler(config.Process, runtime.Handler(), worker, api.metricsBearerToken),
 		// ReadTimeout stays modest to protect against slowloris attacks,
 		// but WriteTimeout must be disabled to allow long-lived SSE streams.
 		ReadTimeout:  15 * time.Second,
@@ -175,7 +203,25 @@ func newWorker(api *API, logger *slog.Logger) (*scheduler.Scheduler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("compose worker billing: %w", err)
 	}
+	lease, err := newWorkerLease(api.tenantRuntime)
+	if err != nil {
+		return nil, fmt.Errorf("compose worker lease: %w", err)
+	}
+	runtime, err := schedulerTenantRuntime(api.tenantRuntime)
+	if err != nil {
+		return nil, fmt.Errorf("compose worker tenant runtime: %w", err)
+	}
+	if err := verifySchedulerSettingKeys(); err != nil {
+		return nil, err
+	}
+	settings, err := schedulerSettings(api)
+	if err != nil {
+		return nil, err
+	}
 	deps := workerRuntimeDependencies(api, logger, billing)
+	deps.TenantRuntime = runtime
+	deps.Settings = settings
+	deps.Lease = lease
 	addWorkerServiceDependencies(&deps, api)
 	addWorkerRepositoryDependencies(&deps, api)
 	return scheduler.NewWorker(deps)
@@ -185,13 +231,10 @@ func workerRuntimeDependencies(api *API, logger *slog.Logger, billing organizati
 	return scheduler.WorkerDependencies{
 		Logger:                 logger.With("service", "scheduler"),
 		Getenv:                 os.Getenv,
-		DB:                     api.db,
 		SchoolRepo:             schedulerTenantDirectory{schools: api.Services.Schools, billing: billing},
-		TenantRuntime:          &api.tenantRuntime,
 		TenantRuntimeObserver:  observability.RecordTenantRuntimeEvent,
 		UnitOfWorkObserver:     observability.RecordUnitOfWorkEvent,
 		Tracer:                 workerTracer(api),
-		Settings:               api.Services.Settings,
 		StaffDocumentCleaner:   api.StaffAdmin,
 		StudentDocumentCleaner: api.Students,
 		FileStoreCleaner:       fileStoreCleaner(api),
@@ -225,14 +268,14 @@ func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, api *API) 
 	deps.TimetableCleanup = services.TimetableCleanup
 	deps.CalendarFeedCleanup = services.CalendarFeedCleanup
 	deps.TimeTrackingCleanup = schedulerTimeTrackingCleanupPort(services.TimeTrackingCleanup)
-	deps.StudentChangeLogCleanup = services.StudentChangeLogCleanup
+	deps.StudentChangeLogCleanup = schedulerStudentChangeLogCleanup(api)
 	deps.PWAUsageCleanup = services.PWAUsage
 	deps.StaffMessageCleanup = staffMessageCleanup(services.StaffMessaging)
 	deps.EnrollmentRejectedCleanup = services.EnrollmentRejectedCleanup
 	deps.AutoStart = services.AutoStart
 	deps.AutoEnd = services.AutoEnd
 	deps.TimetableBridge = services.TimetableBridge
-	deps.StudentLifecycleAudit = services.StudentAudit
+	deps.StudentLifecycleAudit = schedulerStudentAudit(api)
 	deps.CareExitEffector = services.CareLifecycle
 	deps.OutboxWorker = services.EmailOutboxWorker
 	deps.AppointmentReminders = services.Reminders
@@ -260,13 +303,13 @@ func staffMessageCleanup(service communication.StaffMessagingRuntime) scheduler.
 }
 
 func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, api *API) {
-	deps.BookingConsistency = api.repos.BookingConsistency
-	deps.InstanceRepo = api.repos.ActivityInstance
-	deps.InstanceRoomRepo = api.repos.Room
+	deps.BookingConsistency = schedulerBookingConsistency(api)
+	deps.InstanceRepo = schedulerDayInstances(api)
+	deps.InstanceRoomRepo = schedulerExistingRooms(api)
 	deps.InstanceStudentRepo = api.repos.InstanceStudent
 	deps.StudentStatusDayRepo = api.repos.StudentStatusDay
 	deps.OverdueBroadcaster = api.Services.RealtimeHub
-	deps.StudentLifecycleRepo = api.repos.Student
+	deps.StudentLifecycleRepo = schedulerStudentLifecycle(api)
 	deps.ReminderNotifications = scheduler.ReminderNotificationDeps{
 		Computer:     api.Services.Reminders,
 		Notifier:     api.Services.Notifications,
@@ -334,6 +377,48 @@ func (runtime *Runtime) Serve(ctx context.Context) error {
 		runtime.logger.Info("server gracefully stopped")
 	}
 	return runErr
+}
+
+func validateServeProcess(process ServeProcess) error {
+	switch process {
+	case ServeAPIWithWorker, ServeAPIOnly, ServeWorkerOnly:
+		return nil
+	default:
+		return fmt.Errorf("unknown serve process %q", process)
+	}
+}
+
+// processHandler selects what the listener serves: the HTTP API, or for the
+// standalone Worker only its probes and metrics.
+func processHandler(process ServeProcess, apiHandler http.Handler, worker readyWorker, metricsToken string) http.Handler {
+	if process == ServeWorkerOnly {
+		return workerProbeHandler(worker.Ready, metricsToken)
+	}
+	return apiHandler
+}
+
+// readyWorker is a Worker that reports whether it holds the lease.
+type readyWorker interface {
+	Ready() bool
+}
+
+func workerProbeHandler(ready func() bool, metricsToken string) http.Handler {
+	router := chi.NewRouter()
+	router.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("OK"))
+	})
+	router.Get("/ready", func(w http.ResponseWriter, _ *http.Request) {
+		if !ready() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("standby"))
+			return
+		}
+		_, _ = w.Write([]byte("ready"))
+	})
+	if metricsToken != "" {
+		router.With(metricsAuthMiddleware(metricsToken)).Handle("/internal/metrics", metricsHandler())
+	}
+	return router
 }
 
 func (runtime *Runtime) startHTTP(ctx context.Context) (<-chan error, error) {

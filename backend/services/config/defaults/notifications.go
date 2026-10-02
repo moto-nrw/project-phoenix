@@ -29,8 +29,8 @@ func init() {
 	// silently ignored.
 	config.Register(config.Definition{
 		Key:             config.KeyNotificationsDispatchEnabled,
-		Label:           "Benachrichtigungen aktivieren",
-		Description:     "Aktiviert die zentrale Benachrichtigungs-Funktion (In-App-Hinweise und Push-Nachrichten). Standardmäßig aktiv. Was tatsächlich ankommt, wählt jede Person im eigenen Profil.",
+		Label:           "Benachrichtigungen senden",
+		Description:     "Hinweise in moto und auf dem Handy. Was ankommt, wählt jede Person im eigenen Profil.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -89,8 +89,8 @@ func init() {
 	// taste, so it exists on top of the per-person opt-in.
 	config.Register(config.Definition{
 		Key:             config.KeyNotificationsAbsenceReportedEnabled,
-		Label:           "Krankmeldungen melden",
-		Description:     "Erlaubt Hinweise an die Gruppe und die Leitung, wenn für ein Kind eine Krankmeldung oder Entschuldigung eingetragen wird. Jede Person entscheidet zusätzlich im eigenen Profil.",
+		Label:           "Hinweis bei Krankmeldung",
+		Description:     "Gruppe und Leitung bekommen einen Hinweis, wenn ein Kind krank oder entschuldigt gemeldet wird. Jede Person entscheidet zusätzlich im eigenen Profil.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",

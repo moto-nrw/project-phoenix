@@ -66,6 +66,12 @@ func (c *notificationConsent) FilterOptedIn(ctx context.Context, notificationTyp
 	})
 }
 
+func (c *notificationConsent) ListOptedIn(ctx context.Context, notificationType string) ([]int64, error) {
+	return observeResult(ctx, c.observe, "notification_consent.list_opted_in", func(runCtx context.Context) ([]int64, error) {
+		return c.store.ListOptedIn(runCtx, notificationType)
+	})
+}
+
 func (c *notificationConsent) FilterOptedInByType(ctx context.Context, notificationTypes []string, accountIDs []int64) (map[string][]int64, error) {
 	return observeResult(ctx, c.observe, "notification_consent.filter_opted_in_by_type", func(runCtx context.Context) (map[string][]int64, error) {
 		return c.store.FilterOptedInByType(runCtx, notificationTypes, accountIDs)

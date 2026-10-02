@@ -16,9 +16,9 @@ import (
 
 // evaluateLifecycleAvailability applies the owner's clock policy to a
 // retained row.
-func evaluateLifecycleAvailability(instance *scheduleModel.ActivityInstance, now time.Time, startLeadMinutes int, enforcePlannedEnd bool) timetable.LifecycleAvailability {
+func evaluateLifecycleAvailability(instance *scheduleModel.ActivityInstance, now time.Time, startLeadMinutes, completeLeadMinutes int, enforcePlannedEnd bool) timetable.LifecycleAvailability {
 	window := timetable.LifecycleWindow{Date: timezone.Date(instance.Date), StartTime: instance.StartTime, EndTime: instance.EndTime, IsSpontaneous: instance.IsSpontaneous}
-	return timetable.EvaluateLifecycleAvailability(window, now, startLeadMinutes, enforcePlannedEnd)
+	return timetable.EvaluateLifecycleAvailability(window, now, startLeadMinutes, completeLeadMinutes, enforcePlannedEnd)
 }
 
 func (s *InstanceLifecycleService) validateStartTime(ctx context.Context, instance *scheduleModel.ActivityInstance, now time.Time) error {
@@ -29,7 +29,7 @@ func (s *InstanceLifecycleService) validateStartTime(ctx context.Context, instan
 	if err != nil {
 		return fmt.Errorf("%w: resolve start lead: %v", timetable.ErrLifecycleSettings, err)
 	}
-	availability := evaluateLifecycleAvailability(instance, now, lead, true)
+	availability := evaluateLifecycleAvailability(instance, now, lead, 0, true)
 	if now.Before(availability.StartAvailableAt) {
 		return fmt.Errorf("%w: available at %s", timetable.ErrInstanceStartTooEarly, availability.StartAvailableAt.Format(time.RFC3339))
 	}

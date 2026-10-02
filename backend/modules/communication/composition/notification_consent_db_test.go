@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -168,5 +169,40 @@ func TestNotificationConsentStore(t *testing.T) {
 		stored, err := consent.StoredConsent(foreignCtx, account.ID)
 		require.NoError(t, err)
 		require.Len(t, stored, 1, "the other school keeps its own row")
+	})
+}
+
+// ListOptedIn is the candidate set of an opt-in e-mail (#3780): enabled rows
+// of one type in the current school, and nothing from another school.
+func TestNotificationConsentListOptedIn(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	consent, err := NewNotificationConsent(NotificationConsentConfig{DB: db})
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+
+	suffix := time.Now().UnixNano()
+	on := testpkg.CreateTestAccount(t, db, fmt.Sprintf("list-on-%d@example.com", suffix))
+	off := testpkg.CreateTestAccount(t, db, fmt.Sprintf("list-off-%d@example.com", suffix))
+	require.NoError(t, consent.RecordConsent(ctx, on.ID, "enrollment_submitted", true))
+	require.NoError(t, consent.RecordConsent(ctx, on.ID, "pickup_upcoming", true))
+	require.NoError(t, consent.RecordConsent(ctx, off.ID, "enrollment_submitted", false))
+
+	listed, err := consent.ListOptedIn(ctx, "enrollment_submitted")
+	require.NoError(t, err)
+	assert.Equal(t, []int64{on.ID}, listed, "a decline and another type are not listed")
+
+	_, err = consent.ListOptedIn(context.Background(), "enrollment_submitted")
+	require.Error(t, err, "without a school the read would span every school")
+
+	t.Run("another school's subscribers stay there", func(t *testing.T) {
+		otherCtx := testpkg.OwnCtx(t)
+		elsewhere := testpkg.CreateTestAccount(t, db, fmt.Sprintf("list-elsewhere-%d@example.com", suffix))
+		require.NoError(t, consent.RecordConsent(otherCtx, elsewhere.ID, "enrollment_submitted", true))
+
+		listed, err := consent.ListOptedIn(otherCtx, "enrollment_submitted")
+		require.NoError(t, err)
+		assert.Equal(t, []int64{elsewhere.ID}, listed)
 	})
 }

@@ -541,4 +541,46 @@ describe("OverflowMenu", () => {
     expect(screen.getByRole("menu")).toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
+
+  it("renders an on/off entry as a menuitemcheckbox with its state", () => {
+    const toggle = vi.fn();
+    const { rerender } = render(
+      <OverflowMenu
+        items={[
+          {
+            kind: "checkbox",
+            label: "E-Mail an mich",
+            checked: false,
+            onClick: toggle,
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Weitere Aktionen/i }));
+    const entry = screen.getByRole("menuitemcheckbox", {
+      name: "E-Mail an mich",
+    });
+    expect(entry).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(entry);
+    expect(toggle).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    rerender(
+      <OverflowMenu
+        items={[
+          {
+            kind: "checkbox",
+            label: "E-Mail an mich",
+            checked: true,
+            onClick: toggle,
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Weitere Aktionen/i }));
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: "E-Mail an mich" }),
+    ).toHaveAttribute("aria-checked", "true");
+  });
 });

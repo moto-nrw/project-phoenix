@@ -132,6 +132,8 @@ type OperationSettings interface {
 	StartLeadMinutes(ctx context.Context) (int, error)
 	// EnforcePlannedEnd is timetable.enforce_planned_end.
 	EnforcePlannedEnd(ctx context.Context) (bool, error)
+	// CompleteLeadMinutes is timetable.complete_lead_minutes.
+	CompleteLeadMinutes(ctx context.Context) (int, error)
 	// ActionScopeKey names the action's scope setting.
 	ActionScopeKey(action ScopedAction) (string, error)
 	// StudentAbsenceEditAllStaff reports operations.student_absence_edit_scope

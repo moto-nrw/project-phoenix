@@ -102,6 +102,20 @@ describe("transferExportViaSFTP", () => {
 });
 
 describe("transferFailureMessage", () => {
+  it("verweist bei allen einrichtungsbezogenen Fehlern auf die SFTP-Einstellungen", () => {
+    const settingsPath =
+      "Einstellungen > Kalender und Export > Zeitkonten übertragen";
+
+    for (const reason of [
+      "not_configured",
+      "host_key_mismatch",
+      "authentication_rejected",
+      "upload_failed",
+    ]) {
+      expect(transferFailureMessage(reason)).toContain(settingsPath);
+    }
+  });
+
   it("nennt zu jedem Grund einen verständlichen Satz", () => {
     for (const reason of [
       "not_configured",

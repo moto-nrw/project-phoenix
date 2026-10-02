@@ -8,8 +8,8 @@ func init() {
 	pinPattern := `^\d{4}$`
 	config.Register(config.Definition{
 		Key:             config.KeyOGSDevicePIN,
-		Label:           "OGS Geräte-PIN",
-		Description:     "PIN für die Authentifizierung an RFID-Geräten. Wird als Klartext gespeichert und in der Oberfläche maskiert.",
+		Label:           "Geräte-PIN",
+		Description:     "Mit dieser PIN meldet sich Ihr Team am Tablet an. Nutzen Sie keine PIN, die Sie auch anderswo verwenden.",
 		Type:            config.FieldPassword,
 		Default:         "1234",
 		ReadPermission:  "config:read",
@@ -26,8 +26,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyMFAMode,
-		Label:           "Zwei-Faktor-Authentifizierung",
-		Description:     "Legt fest, ob ein zweiter Faktor per E-Mail beim Login erforderlich ist. \"Nur Admins\" verlangt 2FA für Schul-Admins, \"Alle\" für alle Mitarbeitenden.",
+		Label:           "Zwei-Faktor-Anmeldung (Code per E-Mail)",
+		Description:     "Beim Anmelden kommt zusätzlich ein Code per E-Mail. „Nur Admins“ gilt für Schul-Admins, „Alle Mitarbeitenden“ für das ganze Team.",
 		Type:            config.FieldSelect,
 		Default:         config.MFAModeOff,
 		ReadPermission:  "config:read",
@@ -46,8 +46,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyMFATrustedDeviceEnabled,
-		Label:           "Vertrauenswürdige Geräte erlauben",
-		Description:     "Wenn aktiviert, können Mitarbeitende ihren Browser als vertrauenswürdig markieren und 2FA für die Cookie-Laufzeit überspringen.",
+		Label:           "Gerät merken erlauben",
+		Description:     "Mitarbeitende können beim Anmelden ihr Gerät merken lassen. Dort brauchen sie dann eine Zeit lang keinen Code.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -60,8 +60,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyMFATrustedDeviceDays,
-		Label:           "Vertrauenswürdige Geräte: Gültigkeit (Tage)",
-		Description:     "Wie lange ein als vertrauenswürdig markierter Browser ohne erneute 2FA gilt.",
+		Label:           "Gültigkeit gemerkter Geräte (Tage)",
+		Description:     "So lange braucht ein gemerktes Gerät keinen Code.",
 		Type:            config.FieldNumber,
 		Default:         90,
 		ReadPermission:  "config:read",
@@ -77,8 +77,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyAccountLockoutThreshold,
-		Label:           "Konto-Sperre: Fehlversuche",
-		Description:     "Anzahl fehlgeschlagener PIN- oder 2FA-Versuche, nach denen ein Konto vorübergehend gesperrt wird.",
+		Label:           "Fehlversuche bis zur Kontosperre",
+		Description:     "Nach so vielen falschen Eingaben von PIN oder Code sperrt moto das Konto für eine Weile.",
 		Type:            config.FieldNumber,
 		Default:         5,
 		ReadPermission:  "config:read",
@@ -91,8 +91,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyAccountLockoutDurationMinutes,
-		Label:           "Konto-Sperre: Dauer (Minuten)",
-		Description:     "Wie lange ein Konto nach Überschreiten der Fehlversuche gesperrt bleibt, bevor wieder Versuche möglich sind.",
+		Label:           "Dauer der Kontosperre (Minuten)",
+		Description:     "So lange bleibt das Konto danach gesperrt.",
 		Type:            config.FieldNumber,
 		Default:         15,
 		ReadPermission:  "config:read",

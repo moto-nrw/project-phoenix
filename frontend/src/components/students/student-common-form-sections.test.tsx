@@ -24,21 +24,6 @@ vi.mock("./student-form-fields", () => ({
       />
     </div>
   ),
-  SupervisorNotesSection: ({
-    value,
-    onChange,
-  }: {
-    value?: string | null;
-    onChange: (v: string) => void;
-  }) => (
-    <div data-testid="supervisor-notes">
-      <textarea
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value)}
-        data-testid="supervisor-notes-textarea"
-      />
-    </div>
-  ),
   AdditionalInfoSection: ({
     value,
     onChange,
@@ -68,7 +53,7 @@ describe("StudentCommonFormSections", () => {
   const mockOnChange = vi.fn();
 
   it("renders all form sections", () => {
-    const { getByTestId } = render(
+    const { getByTestId, queryByTestId } = render(
       <StudentCommonFormSections
         formData={mockFormData}
         errors={mockErrors}
@@ -77,8 +62,8 @@ describe("StudentCommonFormSections", () => {
     );
 
     expect(getByTestId("health-info")).toBeInTheDocument();
-    expect(getByTestId("supervisor-notes")).toBeInTheDocument();
     expect(getByTestId("additional-info")).toBeInTheDocument();
     expect(getByTestId("privacy-consent")).toBeInTheDocument();
+    expect(queryByTestId("supervisor-notes")).not.toBeInTheDocument();
   });
 });

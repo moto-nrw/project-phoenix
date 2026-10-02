@@ -820,14 +820,6 @@ export function PersonalInfoEditPanel({
         parentVisibleHint={PARENT_VISIBLE_HINTS.healthInfo}
       />
       <TextAreaInput
-        id="modal-student-supervisor-notes"
-        label="Betreuernotizen"
-        value={editedStudent.supervisor_notes ?? ""}
-        onChange={(value) => updateField("supervisor_notes", value)}
-        placeholder="Notizen für Betreuer"
-        rows={3}
-      />
-      <TextAreaInput
         id="modal-student-extra-info"
         label="Elternnotizen"
         value={editedStudent.extra_info ?? ""}

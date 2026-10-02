@@ -12,7 +12,7 @@ func init() {
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "system",
-		Category:        "schnittstellen",
+		Category:        "kalender",
 		SortOrder:       1,
 		AccessPolicy:    config.AccessShared,
 	})

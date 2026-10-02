@@ -519,8 +519,9 @@ describe("getParentHelpTopicForPath", () => {
     // seit #3430 mit den Einverständnissen) plus die geteilten Artikel, deren
     // Ablauf fuer Leitung und Betreuung derselbe ist -- die eigene
     // Arbeitszeit, der eigene Kalender, der Aufbau der Navigation, die Seiten
-    // des Tagesbetriebs und der Umgang mit dem NFC-Tablet.
-    expect(leadTopics).toHaveLength(81);
+    // des Tagesbetriebs, der Umgang mit dem NFC-Tablet und die Notizen zu
+    // einem Kind.
+    expect(leadTopics).toHaveLength(82);
     expect(
       leadTopics.every(
         (topic) =>

@@ -8,6 +8,7 @@ import {
   categorySummary,
   changedCount,
   displayCategoryLabel,
+  hasCategoryLabel,
   filterCategoryItems,
 } from "./settings-filter";
 
@@ -79,12 +80,7 @@ export function SettingsCategory({
     <SectionCard
       headingLevel={3}
       title={displayCategoryLabel(category)}
-      titleClassName={
-        category.key === "sehen-und-bearbeiten" ||
-        category.key === "anwesenheit-erfassen"
-          ? undefined
-          : "capitalize"
-      }
+      titleClassName={hasCategoryLabel(category) ? undefined : "capitalize"}
       titleBadge={
         tabLabel || changed > 0 ? (
           <>

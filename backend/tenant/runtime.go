@@ -354,7 +354,7 @@ func withinTenant(ctx context.Context, id TenantID, retry bool, fn func(context.
 	scoped := WithTenant(ctx, id)
 	return runtime.execute(scoped, retry, func(attemptCtx context.Context) error {
 		return runtime.withinTenant(attemptCtx, id.Int64(), func(txCtx context.Context, tx any) error {
-			return fn(withTransaction(txCtx, tx))
+			return runInTransaction(txCtx, tx, fn)
 		})
 	})
 }
@@ -393,8 +393,9 @@ func withinAdmin(ctx context.Context, retry bool, fn func(context.Context) error
 	ctx = ContextWithoutTenant(ctx)
 	return runtime.execute(ctx, retry, func(attemptCtx context.Context) error {
 		return runtime.withinAdmin(attemptCtx, func(txCtx context.Context, tx any) error {
-			txCtx = withTransaction(txCtx, tx)
-			return fn(withAdminTxFlag(txCtx))
+			return runInTransaction(txCtx, tx, func(txCtx context.Context) error {
+				return fn(withAdminTxFlag(txCtx))
+			})
 		})
 	})
 }
@@ -427,7 +428,9 @@ func WithTenantTx[DB, TX any](ctx context.Context, _ DB, rawID int64, fn func(co
 			if !ok {
 				return fmt.Errorf("tenant: unit of work returned transaction type %T", rawTX)
 			}
-			return fn(withTransaction(txCtx, rawTX), tx)
+			return runInTransaction(txCtx, rawTX, func(txCtx context.Context) error {
+				return fn(txCtx, tx)
+			})
 		})
 	})
 }
@@ -450,8 +453,9 @@ func WithAdminTx[DB, TX any](ctx context.Context, _ DB, fn func(context.Context,
 			if !ok {
 				return fmt.Errorf("tenant: unit of work returned transaction type %T", rawTX)
 			}
-			txCtx = withTransaction(txCtx, rawTX)
-			return fn(withAdminTxFlag(txCtx), tx)
+			return runInTransaction(txCtx, rawTX, func(txCtx context.Context) error {
+				return fn(withAdminTxFlag(txCtx), tx)
+			})
 		})
 	})
 }

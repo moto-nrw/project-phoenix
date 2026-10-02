@@ -53,17 +53,17 @@ export interface TransferOutcome {
  */
 const FAILURE_MESSAGES: Record<string, string> = {
   not_configured:
-    "Die Übertragung ist noch nicht eingerichtet. Ein Admin kann sie in den Einstellungen unter System, Bereich Schnittstellen, einschalten.",
+    "Die Übertragung ist noch nicht eingerichtet. Ein Admin kann sie unter Einstellungen > Kalender und Export > Zeitkonten übertragen einschalten.",
   address_denied:
     "Diese Adresse ist nicht erlaubt. Möglich sind nur Adressen im Internet, nicht im eigenen Netz der Schule.",
   host_key_mismatch:
-    "Die Gegenstelle konnte nicht sicher erkannt werden. Bitte prüfen Sie den Fingerabdruck in den Einstellungen unter System. Es wurde nichts übertragen.",
+    "Die Gegenstelle konnte nicht sicher erkannt werden. Bitte prüfen Sie den Fingerabdruck unter Einstellungen > Kalender und Export > Zeitkonten übertragen. Es wurde nichts übertragen.",
   authentication_rejected:
-    "Die Anmeldung wurde abgelehnt. Bitte prüfen Sie Benutzername und Passwort in den Einstellungen unter System.",
+    "Die Anmeldung wurde abgelehnt. Bitte prüfen Sie Benutzername und Passwort unter Einstellungen > Kalender und Export > Zeitkonten übertragen.",
   connection_failed:
     "Die Gegenstelle war nicht erreichbar. Bitte versuchen Sie es später noch einmal.",
   upload_failed:
-    "Die Datei konnte nicht abgelegt werden. Bitte prüfen Sie den Zielordner in den Einstellungen unter System.",
+    "Die Datei konnte nicht abgelegt werden. Bitte prüfen Sie den Zielordner unter Einstellungen > Kalender und Export > Zeitkonten übertragen.",
   file_too_large: "Die Datei ist zu groß für die Übertragung.",
   internal_error:
     "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",

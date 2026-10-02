@@ -1135,6 +1135,25 @@ func AssignLehrkraftSystemRole(tb testing.TB, db *bun.DB, accountID, tenantID in
 	require.NoError(tb, err, "Failed to assign lehrkraft system role")
 }
 
+// GrantTestPermission grants a seeded permission (by name, e.g.
+// "config:manage") directly to an account at one school, the way a school
+// hands one right to one person.
+func GrantTestPermission(tb testing.TB, db *bun.DB, tenantID, accountID int64, permissionName string) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := db.ExecContext(ctx, `
+		INSERT INTO auth.account_permissions (tenant_id, account_id, permission_id, granted)
+		SELECT ?, ?, id, TRUE FROM auth.permissions WHERE name = ?`,
+		tenantID, accountID, permissionName)
+	require.NoError(tb, err, "Failed to grant test permission")
+	rows, err := result.RowsAffected()
+	require.NoError(tb, err)
+	require.EqualValues(tb, 1, rows, "the seeded permission %s must exist", permissionName)
+}
+
 // CreateTestPermission creates a permission in the database.
 // Note: The database has a unique constraint on (resource, action), so each call
 // creates a unique resource to avoid constraint violations.

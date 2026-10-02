@@ -9,10 +9,8 @@ import (
 	"testing"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type unitOfWorkOutboxRunner struct {
@@ -28,7 +26,7 @@ func (w *unitOfWorkOutboxRunner) RunOnce(ctx context.Context, _ int, maxAttempts
 	if w.err != nil {
 		return 0, w.err
 	}
-	err := tenant.WithinAdmin(ctx, func(context.Context) error { return nil })
+	err := testpkg.WithinAdminTransaction(ctx, func(context.Context) error { return nil })
 	return 1, err
 }
 
@@ -38,21 +36,12 @@ func (w *unitOfWorkOutboxRunner) Backlog(context.Context) (int, error) {
 
 func TestRunOutboxOnceReportsWorkerUnitOfWorkEvidence(t *testing.T) {
 	t.Parallel()
-	uow, err := tenant.NewUnitOfWork(
-		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
-			return fn(ctx, struct{}{})
-		},
-		func(ctx context.Context, fn func(context.Context, any) error) error { return fn(ctx, struct{}{}) },
-		func(context.Context, tenant.SavepointAction) error { return nil },
-		func(error) bool { return false },
-	)
-	require.NoError(t, err)
 	runner := &unitOfWorkOutboxRunner{backlog: 7}
 	var results []string
 	var logs bytes.Buffer
 	scheduler := newScheduler(WorkerDependencies{
 		Logger:        slog.New(slog.NewTextHandler(&logs, nil)),
-		TenantRuntime: &uow,
+		TenantRuntime: unitTenantRuntime(),
 		OutboxWorker:  runner,
 		UnitOfWorkObserver: func(entryPoint, kind, result string, _ time.Duration, _ int) {
 			if entryPoint == "worker" && kind == "transaction" {
@@ -77,7 +66,7 @@ func TestRunOutboxOnceReportsFailure(t *testing.T) {
 	var operation, outcome string
 	scheduler := newScheduler(WorkerDependencies{
 		Logger:        slog.Default(),
-		TenantRuntime: newTestUnitOfWork(t),
+		TenantRuntime: unitTenantRuntime(),
 		OutboxWorker:  runner,
 		Tracer: WorkerTracer{Failure: func(_ context.Context, gotOperation, gotOutcome string, _ error) {
 			operation, outcome = gotOperation, gotOutcome
@@ -93,14 +82,14 @@ func TestRunOutboxOnceReportsFailure(t *testing.T) {
 func TestRunOutboxOncePassesRetryLimitOnEachTick(t *testing.T) {
 	t.Parallel()
 	runner := &unitOfWorkOutboxRunner{}
-	settings := &fakeSettingsResolver{intValues: map[string]int{configModel.KeyEnrollmentOutboxMaxAttempts: 3}}
+	settings := &fakeSettingsResolver{intValues: map[string]int{settingEnrollmentOutboxMaxAttempts: 3}}
 	scheduler := newScheduler(WorkerDependencies{
-		Logger: slog.Default(), TenantRuntime: newTestUnitOfWork(t), OutboxWorker: runner, Settings: settings,
+		Logger: slog.Default(), TenantRuntime: unitTenantRuntime(), OutboxWorker: runner, Settings: settings,
 	})
 	task := &ScheduledTask{}
 	scheduler.runOutboxOnce(context.Background(), task)
 	assert.Equal(t, 3, runner.maxAttempts)
-	settings.intValues[configModel.KeyEnrollmentOutboxMaxAttempts] = 5
+	settings.intValues[settingEnrollmentOutboxMaxAttempts] = 5
 	scheduler.runOutboxOnce(context.Background(), task)
 	assert.Equal(t, 5, runner.maxAttempts)
 }
@@ -112,7 +101,7 @@ func TestRunOutboxOncePropagatesJobCorrelationToFailure(t *testing.T) {
 	correlated := false
 	scheduler := newScheduler(WorkerDependencies{
 		Logger:        slog.Default(),
-		TenantRuntime: newTestUnitOfWork(t),
+		TenantRuntime: unitTenantRuntime(),
 		OutboxWorker:  runner,
 		Tracer: WorkerTracer{
 			StartJob: func(ctx context.Context, _ string) (context.Context, error) {
@@ -127,20 +116,4 @@ func TestRunOutboxOncePropagatesJobCorrelationToFailure(t *testing.T) {
 	scheduler.runJobCheck(&ScheduledTask{Name: "email-outbox"}, scheduler.runOutboxOnce)
 
 	assert.True(t, correlated)
-}
-
-func newTestUnitOfWork(t *testing.T) *tenant.UnitOfWork {
-	t.Helper()
-	runtime, err := tenant.NewUnitOfWork(
-		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
-			return fn(ctx, struct{}{})
-		},
-		func(ctx context.Context, fn func(context.Context, any) error) error {
-			return fn(ctx, struct{}{})
-		},
-		func(context.Context, tenant.SavepointAction) error { return nil },
-		func(error) bool { return false },
-	)
-	require.NoError(t, err)
-	return &runtime
 }

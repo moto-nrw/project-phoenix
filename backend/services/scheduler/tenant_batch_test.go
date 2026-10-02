@@ -9,15 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // RetrySafeTenantCommandFunc adapts an explicitly retry-safe test command.
-type RetrySafeTenantCommandFunc func(context.Context, tenant.TenantID) error
+type RetrySafeTenantCommandFunc func(context.Context, int64) error
 
-func (command RetrySafeTenantCommandFunc) Execute(ctx context.Context, tenantID tenant.TenantID) error {
+func (command RetrySafeTenantCommandFunc) Execute(ctx context.Context, tenantID int64) error {
 	return command(ctx, tenantID)
 }
 
@@ -38,9 +37,9 @@ func TestTenantBatchesBoundWorkAndPreserveEveryOutcome(t *testing.T) {
 		tenantIDs[index] = int64(index + 11)
 	}
 	var called []int64
-	result := scheduler.runTenantBatches(context.Background(), tenantIDs, "bounded-job", TenantCommandFunc(func(_ context.Context, tenantID tenant.TenantID) error {
-		called = append(called, tenantID.Int64())
-		if tenantID.Int64() == tenantIDs[1] {
+	result := scheduler.runTenantBatches(context.Background(), tenantIDs, "bounded-job", TenantCommandFunc(func(_ context.Context, tenantID int64) error {
+		called = append(called, tenantID)
+		if tenantID == tenantIDs[1] {
 			return commandErr
 		}
 		return nil
@@ -71,8 +70,8 @@ func TestTenantBatchErrorsKeepOnlyRepresentativeFailures(t *testing.T) {
 	}
 	tenantIDs := []int64{71, 72, 73, 74, 75}
 
-	result := scheduler.runTenantBatches(context.Background(), tenantIDs, "bounded-errors", TenantCommandFunc(func(_ context.Context, tenantID tenant.TenantID) error {
-		return failures[tenantID.Int64()-tenantIDs[0]]
+	result := scheduler.runTenantBatches(context.Background(), tenantIDs, "bounded-errors", TenantCommandFunc(func(_ context.Context, tenantID int64) error {
+		return failures[tenantID-tenantIDs[0]]
 	}))
 
 	assert.Len(t, result.Outcomes, len(failures))
@@ -94,8 +93,8 @@ func TestTenantBatchesStopOnCancellationAndReportBacklog(t *testing.T) {
 	tenantIDs := []int64{21, 22, 23}
 	var called []int64
 
-	result := scheduler.runTenantBatches(ctx, tenantIDs, "cancelled-job", TenantCommandFunc(func(_ context.Context, tenantID tenant.TenantID) error {
-		called = append(called, tenantID.Int64())
+	result := scheduler.runTenantBatches(ctx, tenantIDs, "cancelled-job", TenantCommandFunc(func(_ context.Context, tenantID int64) error {
+		called = append(called, tenantID)
 		cancel()
 		return nil
 	}))
@@ -105,8 +104,8 @@ func TestTenantBatchesStopOnCancellationAndReportBacklog(t *testing.T) {
 	assert.ErrorIs(t, result.Err, context.Canceled)
 
 	called = nil
-	resumed := scheduler.runTenantBatches(context.Background(), tenantIDs, "cancelled-job", TenantCommandFunc(func(_ context.Context, tenantID tenant.TenantID) error {
-		called = append(called, tenantID.Int64())
+	resumed := scheduler.runTenantBatches(context.Background(), tenantIDs, "cancelled-job", TenantCommandFunc(func(_ context.Context, tenantID int64) error {
+		called = append(called, tenantID)
 		return nil
 	}))
 	assert.Equal(t, []int64{22, 23, 21}, called)
@@ -122,7 +121,7 @@ func TestTenantBatchesClassifyTransactionRetry(t *testing.T) {
 	})
 	attempts := 0
 
-	result := scheduler.runTenantBatches(context.Background(), []int64{31}, "retry-job", RetrySafeTenantCommandFunc(func(context.Context, tenant.TenantID) error {
+	result := scheduler.runTenantBatches(context.Background(), []int64{31}, "retry-job", RetrySafeTenantCommandFunc(func(context.Context, int64) error {
 		attempts++
 		if attempts < 3 {
 			return retryErr
@@ -157,13 +156,13 @@ func TestTenantBatchesRetryDefaultCommandOnNextTickAfterRollback(t *testing.T) {
 	)
 	var lastRun sync.Map
 	var executed, skipped int
-	command := TenantCommandFunc(func(ctx context.Context, tenantID tenant.TenantID) error {
-		if wasRunToday(&lastRun, tenantID.Int64()) {
+	command := TenantCommandFunc(func(ctx context.Context, tenantID int64) error {
+		if wasRunToday(&lastRun, tenantID) {
 			skipped++
 			return nil
 		}
 		executed++
-		markRunTodayAfterCommit(ctx, &lastRun, tenantID.Int64())
+		scheduler.markRunTodayAfterCommit(ctx, &lastRun, tenantID)
 		return nil
 	})
 
@@ -190,7 +189,7 @@ func TestTenantBatchesObserveBacklogWithoutCompletedBatch(t *testing.T) {
 		backlog = gotBacklog
 	}
 
-	result := scheduler.runTenantBatches(context.Background(), nil, "empty-job", TenantCommandFunc(func(context.Context, tenant.TenantID) error {
+	result := scheduler.runTenantBatches(context.Background(), nil, "empty-job", TenantCommandFunc(func(context.Context, int64) error {
 		return nil
 	}))
 
@@ -211,7 +210,7 @@ func TestTenantBatchesObserveBacklogWhenCancelledBeforeFirstBatch(t *testing.T) 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	result := scheduler.runTenantBatches(ctx, []int64{36, 37}, "cancelled-before-batch", TenantCommandFunc(func(context.Context, tenant.TenantID) error {
+	result := scheduler.runTenantBatches(ctx, []int64{36, 37}, "cancelled-before-batch", TenantCommandFunc(func(context.Context, int64) error {
 		return nil
 	}))
 
@@ -228,8 +227,8 @@ func TestTenantBatchesRejectMissingTenantAndContinue(t *testing.T) {
 	tenantIDs := []int64{0, 41}
 	var called []int64
 
-	result := scheduler.runTenantBatches(context.Background(), tenantIDs, "missing-tenant-job", TenantCommandFunc(func(_ context.Context, tenantID tenant.TenantID) error {
-		called = append(called, tenantID.Int64())
+	result := scheduler.runTenantBatches(context.Background(), tenantIDs, "missing-tenant-job", TenantCommandFunc(func(_ context.Context, tenantID int64) error {
+		called = append(called, tenantID)
 		return nil
 	}))
 
@@ -250,9 +249,9 @@ func TestTenantBatchesPropagateRetryExhaustionAndContinue(t *testing.T) {
 	tenantIDs := []int64{51, 52}
 	var called []int64
 
-	result := scheduler.runTenantBatches(context.Background(), tenantIDs, "failed-retry-job", RetrySafeTenantCommandFunc(func(_ context.Context, tenantID tenant.TenantID) error {
-		called = append(called, tenantID.Int64())
-		if tenantID.Int64() == tenantIDs[0] {
+	result := scheduler.runTenantBatches(context.Background(), tenantIDs, "failed-retry-job", RetrySafeTenantCommandFunc(func(_ context.Context, tenantID int64) error {
+		called = append(called, tenantID)
+		if tenantID == tenantIDs[0] {
 			return retryErr
 		}
 		return nil
@@ -285,7 +284,7 @@ func TestJobRunReportsAggregatedCommandFailure(t *testing.T) {
 	}
 
 	scheduler.runJobCheck(&ScheduledTask{Name: "command-job"}, func(ctx context.Context, _ *ScheduledTask) {
-		scheduler.runTenantBatches(ctx, []int64{61}, "inner-operation-name", TenantCommandFunc(func(context.Context, tenant.TenantID) error {
+		scheduler.runTenantBatches(ctx, []int64{61}, "inner-operation-name", TenantCommandFunc(func(context.Context, int64) error {
 			return commandErr
 		}))
 	})
@@ -312,18 +311,9 @@ func newTenantBatchTestSchedulerWithTenantRunner(
 	retryable func(error) bool,
 ) *Scheduler {
 	t.Helper()
-	runtime, err := tenant.NewUnitOfWork(
-		withinTenant,
-		func(ctx context.Context, run func(context.Context, any) error) error {
-			return run(ctx, struct{}{})
-		},
-		func(context.Context, tenant.SavepointAction) error { return nil },
-		retryable,
-	)
-	require.NoError(t, err)
 	return newScheduler(WorkerDependencies{
 		Logger:        slog.New(slog.DiscardHandler),
-		TenantRuntime: &runtime,
+		TenantRuntime: scriptedTenantRuntime(withinTenant, retryable),
 		Tracer: WorkerTracer{
 			Run: func(JobID, string, time.Duration) {},
 		},

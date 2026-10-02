@@ -168,7 +168,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/organizationtenancy/inbound/operator/provisioning.go:ProvisioningErrorRenderer":                                         91,
 	"modules/peopledirectory/enrollment_departure.go:normalizeEnrollmentDeparture":                                                   67,
 	"modules/peopledirectory/internal/application/student_photo.go:(*StudentPhotoService).CommitPhoto":                               62,
-	"modules/peopledirectory/internal/application/student_write.go:(*StudentService).UpdateStudent":                                  66,
 	"modules/planexport/betreuungsplan.go:(*betreuungsplanData).rows":                                                                75,
 	"modules/planexport/dienstplan.go:(*dienstplanData).rowsByArea":                                                                  91,
 	"modules/requestreview/compose/corrections.go:(correctionLog).History":                                                           64,

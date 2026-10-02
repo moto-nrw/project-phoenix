@@ -9,6 +9,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -48,7 +49,10 @@ type EnrollmentIntakeSources struct {
 	RateLimitRepo      enrollmentCompose.SubmissionRateLimiter
 	OutboxEnqueuer     platformModels.OutboxEnqueuer
 	Settings           EnrollmentIntakeSettings
-	ManualDecider      enrollmentCompose.ManualEnrollmentDecider
+	// AdminSubscribers adds the staff who switched on the "Neue Anmeldung"
+	// mail (#3780); nil keeps the configured address list only.
+	AdminSubscribers enrollmentCompose.AdminMailSubscribers
+	ManualDecider    enrollmentCompose.ManualEnrollmentDecider
 	// ParentChanges makes a request unread again after a parent edit (#3778).
 	ParentChanges enrollmentCompose.RequestParentChanges
 	// FrontendURL is the base of the staff links, ParentsURL of the
@@ -65,11 +69,26 @@ func NewEnrollmentIntake(src EnrollmentIntakeSources) *enrollmentCompose.Intake 
 		Catalog: src.Catalog, RateLimits: src.RateLimitRepo, Offerings: src.CareOfferingRepo, Bookings: src.Bookings,
 		Capacity: src.Capacity, Schools: src.SchoolRepo, Notifications: src.Notifications, Students: src.StudentRepo,
 		GuardianAuthorizer: src.GuardianAuthorizer, Outbox: intakeMailOutbox(src.OutboxEnqueuer),
-		Settings: intakeSettings(src.Settings), ManualDecider: src.ManualDecider,
+		Settings: intakeSettings(src.Settings), AdminSubscribers: src.AdminSubscribers, ManualDecider: src.ManualDecider,
 		ParentChanges: src.ParentChanges,
 		Random:        securityruntime.FillRandom, Fingerprint: securityruntime.Fingerprint,
 		FrontendURL: src.FrontendURL, ParentsURL: src.ParentsURL, Logger: src.Logger,
 	})
+}
+
+// NewEnrollmentAdminSubscribers binds Delivery's opt-in e-mail resolver to the
+// intake's admin notification (#3780): the configured addresses plus every
+// enrollment manager of the school who switched "Neue Anmeldung" on.
+func NewEnrollmentAdminSubscribers(subscribers notifications.EmailSubscribers, accounts notifications.EmailAccounts) enrollmentCompose.AdminMailSubscribers {
+	return enrollmentAdminSubscribers{resolver: notifications.NewEmailRecipientResolver(subscribers, accounts)}
+}
+
+type enrollmentAdminSubscribers struct {
+	resolver notifications.EmailRecipientResolver
+}
+
+func (s enrollmentAdminSubscribers) AdminNotificationRecipients(ctx context.Context, configured []string) ([]string, error) {
+	return s.resolver.Recipients(ctx, notifications.TypeEnrollmentSubmitted, configured)
 }
 
 // EnrollmentChangeRequestSources are the owners and retained repositories the

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -67,21 +66,10 @@ func newSentryTestScheduler(t *testing.T, options sentryTestSchedulerOptions) (*
 	if run == nil {
 		run = func(JobID, string, time.Duration) {}
 	}
-	runtime, err := tenant.NewUnitOfWork(
-		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
-			return fn(ctx, struct{}{})
-		},
-		func(ctx context.Context, fn func(context.Context, any) error) error {
-			return fn(ctx, struct{}{})
-		},
-		func(context.Context, tenant.SavepointAction) error { return nil },
-		retryable,
-	)
-	require.NoError(t, err)
 	hub, transport := newRecordingHub(t)
 	scheduler := newScheduler(WorkerDependencies{
 		Logger:        slog.New(slog.DiscardHandler),
-		TenantRuntime: &runtime,
+		TenantRuntime: scriptedTenantRuntime(nil, retryable),
 		Tracer: WorkerTracer{
 			StartJob: func(ctx context.Context, _ string) (context.Context, error) {
 				ctx = sentry.SetHubOnContext(ctx, hub)
@@ -116,7 +104,7 @@ func TestJobRunFailingForGoodSendsOneEventWithAttemptBreadcrumbs(t *testing.T) {
 	attempts := 0
 
 	scheduler.runJobCheck(&ScheduledTask{Name: "timetable-auto-end"}, func(ctx context.Context, _ *ScheduledTask) {
-		scheduler.runTenantBatches(ctx, []int64{71}, "timetable-auto-end", RetrySafeTenantCommandFunc(func(context.Context, tenant.TenantID) error {
+		scheduler.runTenantBatches(ctx, []int64{71}, "timetable-auto-end", RetrySafeTenantCommandFunc(func(context.Context, int64) error {
 			attempts++
 			return deadlock
 		}))
@@ -157,7 +145,7 @@ func TestJobRunRecoveringAfterFailedAttemptSendsNoEvent(t *testing.T) {
 	attempts := 0
 
 	scheduler.runJobCheck(&ScheduledTask{Name: "session-end"}, func(ctx context.Context, _ *ScheduledTask) {
-		scheduler.runTenantBatches(ctx, []int64{72}, "session-end", RetrySafeTenantCommandFunc(func(context.Context, tenant.TenantID) error {
+		scheduler.runTenantBatches(ctx, []int64{72}, "session-end", RetrySafeTenantCommandFunc(func(context.Context, int64) error {
 			attempts++
 			if attempts == 1 {
 				return serialization
@@ -177,8 +165,8 @@ func TestJobRunFailingInSeveralSchoolsLeavesSchoolAbsent(t *testing.T) {
 	scheduler, transport := newSentryTestScheduler(t, sentryTestSchedulerOptions{})
 
 	scheduler.runJobCheck(&ScheduledTask{Name: "auto-checkout"}, func(ctx context.Context, _ *ScheduledTask) {
-		scheduler.runTenantBatches(ctx, []int64{81, 82, 83}, "auto-checkout", TenantCommandFunc(func(_ context.Context, id tenant.TenantID) error {
-			if id.Int64() == 82 {
+		scheduler.runTenantBatches(ctx, []int64{81, 82, 83}, "auto-checkout", TenantCommandFunc(func(_ context.Context, id int64) error {
+			if id == 82 {
 				return nil
 			}
 			return errors.New("constraint violated")
@@ -198,7 +186,7 @@ func TestJobRunFailingOutsideSchoolsLeavesSchoolAbsent(t *testing.T) {
 	scheduler, transport := newSentryTestScheduler(t, sentryTestSchedulerOptions{})
 
 	scheduler.runJobCheck(&ScheduledTask{Name: "email-outbox"}, func(ctx context.Context, _ *ScheduledTask) {
-		scheduler.runTenantBatches(ctx, []int64{91}, "email-outbox", TenantCommandFunc(func(context.Context, tenant.TenantID) error {
+		scheduler.runTenantBatches(ctx, []int64{91}, "email-outbox", TenantCommandFunc(func(context.Context, int64) error {
 			return errors.New("claim failed")
 		}))
 		recordJobCommandFailure(ctx, errors.New("backlog query failed"))
@@ -243,7 +231,7 @@ func TestJobRunStoppedByShutdownSendsNoEvent(t *testing.T) {
 	scheduler, transport := newSentryTestScheduler(t, sentryTestSchedulerOptions{stopped: true})
 
 	scheduler.runJobCheck(&ScheduledTask{Name: "visit-cleanup"}, func(ctx context.Context, _ *ScheduledTask) {
-		scheduler.runTenantBatches(ctx, []int64{1, 2}, "visit-cleanup", TenantCommandFunc(func(context.Context, tenant.TenantID) error {
+		scheduler.runTenantBatches(ctx, []int64{1, 2}, "visit-cleanup", TenantCommandFunc(func(context.Context, int64) error {
 			return nil
 		}))
 	})

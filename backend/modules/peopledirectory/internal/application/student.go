@@ -12,6 +12,8 @@ import (
 type StudentService struct {
 	owners ports.StudentOwners
 	store  ports.StudentStore
+	notes  ports.StudentNoteStore
+	audit  ports.StudentNoteDeletionAudit
 	// companions is Care Plan's "läuft mit" edges. Narrowing a child's
 	// departure plan has to drop the links it no longer allows, and this is the
 	// one write path every writer passes through. Optional: a graph that never
@@ -23,15 +25,17 @@ type StudentService struct {
 
 func NewStudents(
 	store ports.StudentStore,
+	notes ports.StudentNoteStore,
 	companions ports.StudentCompanions,
 	owners ports.StudentOwners,
 	tx ports.Transaction,
+	audit ports.StudentNoteDeletionAudit,
 	observe ports.Observer,
 ) *StudentService {
-	if store == nil || tx == nil || observe == nil {
+	if store == nil || notes == nil || tx == nil || observe == nil {
 		panic("people directory application: all student dependencies are required")
 	}
-	return &StudentService{store: store, companions: companions, owners: owners, tx: tx, observe: observe}
+	return &StudentService{store: store, notes: notes, companions: companions, owners: owners, tx: tx, audit: audit, observe: observe}
 }
 
 func (s *StudentService) ListByIDs(ctx context.Context, ids []int64) (result []domain.Student, err error) {

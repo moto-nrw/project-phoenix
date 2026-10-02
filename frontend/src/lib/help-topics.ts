@@ -114,6 +114,7 @@ export const HELP_TOPICS = {
   leadCreateStudent: "kinder-anlegen",
   leadCareTimes: "betreuungszeiten-eintragen",
   leadManageStudent: "angaben-eines-kindes-verwalten",
+  studentNotes: "notizen-zu-einem-kind",
   leadInviteGuardians: "eltern-einladen",
   leadEndCare: "betreuung-eines-kindes-beenden",
   leadDeleteStudent: "kind-dauerhaft-loeschen",
