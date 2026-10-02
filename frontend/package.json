@@ -56,7 +56,7 @@
     "date-fns": "^4.4.0",
     "framer-motion": "^12.43.0",
     "lucide-react": "^1.31.0",
-    "next": "^16.3.3",
+    "next": "^16.3.6",
     "next-auth": "5.0.0-beta.32",
     "next-intl": "^4.13.6",
     "posthog-js": "^1.415.2",
