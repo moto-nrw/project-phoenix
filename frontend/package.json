@@ -16,6 +16,7 @@
     "generate:guides": "playwright test -c playwright.guides.config.ts",
     "generate:screenshots": "playwright test -c playwright.screenshots.config.ts generate\\.pw",
     "test:screenshots": "playwright test -c playwright.screenshots.config.ts pipeline\\.pw",
+    "publish:screenshots": "playwright test -c playwright.screenshots.config.ts publish\\.pw",
     "test:layout": "playwright test -c playwright.layout.config.ts",
     "generate:locales": "node scripts/generate-locales.mjs",
     "generate:error-catalog": "node scripts/verify-error-catalog.mjs --write",

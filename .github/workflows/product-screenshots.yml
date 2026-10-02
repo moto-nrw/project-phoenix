@@ -1,0 +1,379 @@
+name: Produkt-Screenshots
+
+# Produkt-Screenshots bei jedem Release (#3759, ADR 0042): Stack starten, Profil
+# `marketing` seeden, alle Shots aus frontend/scripts/product-screenshots/
+# shots.yaml fotografieren und rahmen, die Ausgabe als Artefakt anhängen
+# (7 Tage) und nach Google Drive hochladen: ein Ordner `v<version> (<datum>)`
+# und "Aktuell" mit stabilen Datei-IDs.
+#
+# Auslöser:
+#   - release-please.yml ruft den Workflow nach jedem neuen Release auf
+#     (workflow_call). Ein von GITHUB_TOKEN angelegtes Release löst das
+#     release-Event nicht aus.
+#   - release: ein von Hand veröffentlichtes Release.
+#   - workflow_dispatch: von Hand, etwa nach einer Korrektur der Shot-Liste.
+#     Fotografiert den Stand, von dem aus der Lauf startet: main für den
+#     aktuellen Stand, der Tag vX.Y.Z für genau dieses Release. Ohne Version
+#     gilt das neueste Release mit einem Tag vX.Y.Z. Andere Branches erreichen
+#     die Environment nicht und laden nichts hoch.
+#   - pull_request: Änderungen an Pipeline oder Workflow fotografieren einmal
+#     zur Probe, ohne Upload.
+#
+# Capture und Upload sind getrennte Jobs. Der Capture-Job sieht keine
+# Zugangsdaten; der Upload-Job läuft nur nach einem erfolgreichen Capture. Ein
+# kaputter Shot bricht die Pipeline vor jeder Ausgabe ab, Drive bleibt dann
+# unverändert. Die Drive-Zugangsdaten liegen in der GitHub-Environment
+# `product-screenshots` und kommen aus scripts/product-screenshots-drive-wizard.sh.
+# Bricht der Upload selbst ab, gleicht ein erneuter Lauf derselben Version die
+# Ordner an.
+#
+# Grenze: an Wochenenden (Berliner Zeit) bricht der Lauf ab, siehe den Schritt
+# "Require a Berlin weekday". Ein Release vom Wochenende am nächsten Werktag
+# von Hand nachholen, gestartet vom Tag des Releases.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release-Version, etwa 1.4.0 (leer: neuestes Release)"
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        description: "Release-Tag, etwa v1.4.0"
+        required: true
+        type: string
+  pull_request:
+    paths:
+      - ".github/workflows/product-screenshots.yml"
+      - "frontend/scripts/product-screenshots/**"
+      - "frontend/playwright.screenshots.config.ts"
+      - "backend/seed/api/marketing*"
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  capture:
+    name: Fotografieren und rahmen
+    # Ältere Releases mit Tags wie pr-1768-… sind QA-Ablagen, keine Versionen.
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 90
+    # Ein neuer Push auf denselben PR ersetzt dessen Probelauf.
+    concurrency:
+      group: product-screenshots-capture-${{ github.event_name == 'pull_request' && github.head_ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      publish: ${{ steps.version.outputs.publish }}
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: phoenix_screenshots
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          TZ: Europe/Berlin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 10
+      mailpit:
+        # Operator login enrolls MFA and reads the code back out of mailpit's
+        # REST API, so the seeder cannot authenticate without a mail sink.
+        image: axllent/mailpit:v1.30
+        ports:
+          - 1025:1025
+          - 8025:8025
+
+    env:
+      # --- Backend (validateServeConfig() requires every one of these) ---
+      DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_screenshots?sslmode=disable
+      DB_MAX_OPEN_CONNS: "40"
+      DB_MAX_IDLE_CONNS: "40"
+      DB_CONN_MAX_LIFETIME: 30m
+      DB_CONN_MAX_IDLE_TIME: 10m
+      PHOENIX_AUTH_PASSWORD: phoenix_auth_test
+      PHOENIX_DEMO_PASSWORD: phoenix_demo_test
+      APP_ENV: development
+      LOG_LEVEL: info
+      LOG_TEXTLOGGING: "true"
+      AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
+      AUTH_JWT_EXPIRY: 15m
+      AUTH_JWT_REFRESH_EXPIRY: 168h
+      OPERATOR_EMAIL: operator@example.com
+      OPERATOR_PASSWORD: Screenshots1234%
+      OPERATOR_DISPLAY_NAME: CI Operator
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: Screenshots1234%
+      FRONTEND_URL: http://localhost:3000
+      PARENTS_URL: http://eltern.localhost:3000
+      SCHOOL_URL: http://schule.localhost:3000
+      TENANT_DOMAIN: localhost
+      METRICS_BEARER_TOKEN: ci-metrics-token
+      OGS_DEVICE_PIN: "1234"
+      EMAIL_SMTP_HOST: localhost
+      EMAIL_SMTP_PORT: 1025
+      EMAIL_FROM_ADDRESS: noreply@localhost
+      EMAIL_FROM_NAME: moto CI
+      MAILPIT_URL: http://localhost:8025
+      # The schedulers would mutate seeded rows before the capture.
+      CLEANUP_SCHEDULER_ENABLED: "false"
+      SESSION_END_SCHEDULER_ENABLED: "false"
+      # --- Frontend: `next dev`, wie lokal (scripts/dev-native.sh) ---
+      API_URL: http://localhost:8080
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+      NEXT_PUBLIC_TENANT_DOMAIN: localhost
+      NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
+      NEXT_PUBLIC_PARENTS_HOSTNAME: eltern.localhost:3000
+      NEXT_PUBLIC_SCHOOL_HOSTNAME: schule.localhost:3000
+      NEXT_PUBLIC_APP_ENV: development
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ci-product-screenshots-throwaway-secret
+      AUTH_TRUST_HOST: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      # Version aus Eingabe, Release-Event oder neuestem Release. Eingaben
+      # kommen über env, nie direkt in das Skript.
+      - name: Resolve version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          publish=true
+          if [ -n "${INPUT_VERSION}" ]; then
+            tag=${INPUT_VERSION}
+          elif [ "${GITHUB_EVENT_NAME}" = release ]; then
+            tag=${RELEASE_TAG}
+          elif [ "${GITHUB_EVENT_NAME}" = pull_request ]; then
+            tag="0.0.0-pr.${PR_NUMBER}"
+            publish=false
+          else
+            # Neuestes Release mit Versions-Tag; ältere QA-Releases tragen
+            # Tags wie pr-1768-… und zählen nicht.
+            tag=$(gh release list --repo "${GITHUB_REPOSITORY}" --exclude-drafts --limit 100 \
+              --json tagName,createdAt \
+              --jq '[.[] | select(.tagName | test("^v[0-9]+[.][0-9]+[.][0-9]+$"))] | sort_by(.createdAt) | last | .tagName // ""')
+            if [ -z "${tag}" ]; then
+              echo "::error::Es gibt noch kein Release vX.Y.Z. Die Version beim Start angeben."
+              exit 1
+            fi
+          fi
+          version=${tag#v}
+          if ! [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::${tag} ist keine Version wie 1.4.0 oder v1.4.0."
+            exit 1
+          fi
+          echo "Version ${version}, Upload: ${publish}"
+          {
+            echo "version=${version}"
+            echo "publish=${publish}"
+          } >> "${GITHUB_OUTPUT}"
+
+      # Der Server rendert mit seiner echten Uhr, die Browser-Uhr steht auf
+      # einem Werktag um 10:15 (reference-time.ts). Am Wochenende passen beide
+      # nicht zusammen und jeder Shot bräche mit einem Hydration-Fehler ab.
+      - name: Require a Berlin weekday
+        run: |
+          if [ "$(TZ=Europe/Berlin date +%u)" -ge 6 ]; then
+            echo "::error::Produkt-Screenshots entstehen nur an Werktagen (Berliner Zeit). Am nächsten Werktag über 'Run workflow' auf main neu starten."
+            exit 1
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Build backend binary
+        working-directory: backend
+        run: go build -o "${RUNNER_TEMP}/phoenix" .
+
+      - name: Run migrations
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/phoenix" migrate
+
+      - name: Start backend
+        working-directory: backend
+        env:
+          PORT: "8080"
+        run: |
+          "${RUNNER_TEMP}/phoenix" serve > "${RUNNER_TEMP}/server.log" 2>&1 &
+          echo $! > "${RUNNER_TEMP}/server.pid"
+          for _ in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/health > /dev/null; then
+              echo "server up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "server did not become healthy in 60s"
+          exit 1
+
+      # Seeds every profile, including `marketing`, and writes
+      # backend/.seed-state.json; access.ts reads the marketing logins from it.
+      - name: Seed demo data
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/phoenix" seed \
+            --email "${OPERATOR_EMAIL}" \
+            --password "${OPERATOR_PASSWORD}" \
+            --pin "${OGS_DEVICE_PIN}" \
+            --url http://localhost:8080
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            pnpm exec playwright install-deps chromium
+          else
+            pnpm exec playwright install --with-deps chromium
+          fi
+
+      - name: Start frontend
+        working-directory: frontend
+        env:
+          PORT: "3000"
+        run: |
+          pnpm run dev > "${RUNNER_TEMP}/frontend.log" 2>&1 &
+          echo $! > "${RUNNER_TEMP}/frontend.pid"
+          for _ in $(seq 1 180); do
+            if curl -fsS -o /dev/null http://localhost:3000/help; then
+              echo "frontend up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "frontend did not answer in 180s"
+          exit 1
+
+      - name: Capture and frame all shots
+        working-directory: frontend
+        env:
+          SHOT_OUT: ${{ runner.temp }}/product-screenshots
+          SHOT_VERSION: ${{ steps.version.outputs.version }}
+        run: pnpm run generate:screenshots
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: product-screenshots-${{ steps.version.outputs.version }}
+          path: ${{ runner.temp }}/product-screenshots/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload Playwright output
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: product-screenshots-failure-${{ github.run_id }}
+          path: frontend/test-results/product-screenshots/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Backend and frontend log
+        if: always()
+        run: |
+          tail -n 200 "${RUNNER_TEMP}/server.log" || true
+          tail -n 200 "${RUNNER_TEMP}/frontend.log" || true
+
+      - name: Stop servers
+        if: always()
+        run: |
+          kill "$(cat "${RUNNER_TEMP}/frontend.pid")" 2>/dev/null || true
+          kill "$(cat "${RUNNER_TEMP}/server.pid")" 2>/dev/null || true
+
+  upload:
+    name: Nach Google Drive hochladen
+    needs: capture
+    if: needs.capture.outputs.publish == 'true'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 60
+    environment: product-screenshots
+    # Zwei Läufe dürfen "Aktuell" nicht gleichzeitig angleichen.
+    concurrency:
+      group: product-screenshots-upload
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Download screenshots
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: product-screenshots-${{ needs.capture.outputs.version }}
+          path: ${{ runner.temp }}/product-screenshots
+
+      - name: Publish to Google Drive
+        working-directory: frontend
+        env:
+          SHOT_OUT: ${{ runner.temp }}/product-screenshots
+          SHOT_VERSION: ${{ needs.capture.outputs.version }}
+          DRIVE_CLIENT_ID: ${{ secrets.DRIVE_CLIENT_ID }}
+          DRIVE_CLIENT_SECRET: ${{ secrets.DRIVE_CLIENT_SECRET }}
+          DRIVE_REFRESH_TOKEN: ${{ secrets.DRIVE_REFRESH_TOKEN }}
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+        run: pnpm run publish:screenshots
