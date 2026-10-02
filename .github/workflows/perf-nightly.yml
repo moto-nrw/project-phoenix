@@ -19,8 +19,12 @@ on:
     - cron: "30 3 * * 1-5"
   workflow_dispatch:
   # Änderungen am Harness oder an diesem Workflow laufen einmal auf dem PR,
-  # damit sie nicht erst nachts kaputtgehen. Kein Required Check.
+  # damit sie nicht erst nachts kaputtgehen. Kein Required Check. Nur PRs nach
+  # development: Release-PRs nach main tragen den ganzen Diff und träfen sonst
+  # immer. Drafts laufen erst bei ready_for_review.
   pull_request:
+    branches: [development]
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - ".github/workflows/perf-nightly.yml"
       - "frontend/scripts/perf/**"
@@ -43,6 +47,7 @@ env:
 jobs:
   perf-nightly:
     name: Perf trace and render counters
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 90
     permissions:

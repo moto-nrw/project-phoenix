@@ -6,68 +6,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { checkRelease } from './check-release-architecture.mjs';
 
-function polling(sequence) {
-  let calls = 0;
-  let elapsed = 0;
-  const delays = [];
-  return {
-    execute(command, args) {
-      if (command !== 'gh') return executor()(command, args);
-      return executor(sequence[Math.min(calls++, sequence.length - 1)])(command, args);
-    },
-    options: {
-      timeoutMs: 60, pollIntervalMs: 20, now: () => elapsed,
-      sleep: async ms => { delays.push(ms); elapsed += ms; }, log: () => {},
-    },
-    delays,
-    calls: () => calls,
-  };
-}
-
-test('waits for discovery, queued and running CI before accepting success', async () => {
-  const probe = polling([[], [{ ...successful, status: 'queued', conclusion: null }],
-    [{ ...successful, status: 'in_progress', conclusion: null }], [successful]]);
-  assert.equal(await checkRelease(context, probe.execute, probe.options), context.headSha);
-  assert.deepEqual(probe.delays, [20, 20, 20]);
-  assert.equal(probe.calls(), 4);
-});
-
-for (const conclusion of ['failure', 'cancelled', 'timed_out']) {
-  test(`stops when development CI completes with ${conclusion}`, async () => {
-    const probe = polling([[{ ...successful, status: 'in_progress', conclusion: null }],
-      [{ ...successful, conclusion }]]);
-    await assert.rejects(() => checkRelease(context, probe.execute, probe.options), /No successful/);
-    assert.equal(probe.calls(), 2);
-    assert.deepEqual(probe.delays, [20]);
-  });
-}
-
-test('times out for missing, pending or unrelated CI', async () => {
-  for (const runs of [[], [{ ...successful, status: 'in_progress', conclusion: null }],
-    [{ ...successful, head_sha: 'c'.repeat(40) }]]) {
-    const probe = polling([runs]);
-    await assert.rejects(() => checkRelease(context, probe.execute, probe.options), /Timed out/);
-    assert.equal(probe.calls(), 4);
-    assert.deepEqual(probe.delays, [20, 20, 20]);
-  }
-});
-
 const context = {
   event: 'pull_request', baseRef: 'main', headRef: 'development', repository: 'moto-nrw/project-phoenix',
   headRepository: 'moto-nrw/project-phoenix', baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40),
 };
-const successful = {
-  event: 'push', head_branch: 'development', head_sha: context.headSha,
-  head_repository: { full_name: context.repository }, path: '.github/workflows/main.yml',
-  status: 'completed', conclusion: 'success',
-};
-function executor(runs = [successful], options = {}) {
+// development has no push run; the release pull request's own run carries the
+// full suites, so the gate must not wait for development CI.
+function executor(options = {}) {
   return (command, args) => {
-    if (command === 'gh') {
-      assert.ok(args.includes(`head_sha=${context.headSha}`));
-      assert.ok(args.includes('event=push'));
-      return JSON.stringify({ workflow_runs: runs });
-    }
+    if (command !== 'git') assert.fail(`unexpected ${command} call`);
     if (args[0] === 'merge-base') {
       if (options.diverged) throw new Error('not an ancestor');
       return '';
@@ -85,18 +32,10 @@ for (const change of [{ headRepository: 'fork/repo' }, { headRef: 'feature' }, {
   });
 }
 test('rejects diverged main and merge-only changes', async () => {
-  await assert.rejects(() => checkRelease(context, executor([], { diverged: true })), /ancestor/);
-  await assert.rejects(() => checkRelease(context, executor([], { changed: true })), /tree differs/);
+  await assert.rejects(() => checkRelease(context, executor({ diverged: true })), /ancestor/);
+  await assert.rejects(() => checkRelease(context, executor({ changed: true })), /tree differs/);
 });
-for (const change of [{ event: 'pull_request' }, { head_sha: 'c'.repeat(40) }, { conclusion: 'failure' },
-  { status: 'in_progress' }, { head_branch: 'feature' }, { path: '.github/workflows/build.yml' },
-  { head_repository: { full_name: 'fork/repo' } }]) {
-  test(`rejects unrelated or incomplete CI ${JSON.stringify(change)}`, async () => {
-    await assert.rejects(async () => checkRelease(context, executor([{ ...successful, ...change }]), { timeoutMs: 0 }), /No successful/);
-  });
-}
-test('missing CI and API failures fail closed', async () => {
-  await assert.rejects(() => checkRelease(context, executor([]), { timeoutMs: 0 }), /No successful/);
+test('Git failures fail closed', async () => {
   await assert.rejects(() => checkRelease(context, () => { throw new Error('unavailable'); }), /unavailable/);
 });
 
@@ -112,8 +51,7 @@ test('real Git ancestry and tree checks accept promotion but reject release-only
     writeFileSync(join(root, 'file'), content); git('add', '.'); git('commit', '-qm', 'fixture'); return git('rev-parse', 'HEAD');
   };
   const baseSha = commit('main'); const headSha = commit('development');
-  const execute = (command, args) => command === 'git' ? git(...args) :
-    JSON.stringify({ workflow_runs: [{ ...successful, head_sha: headSha }] });
+  const execute = (command, args) => command === 'git' ? git(...args) : assert.fail(`unexpected ${command} call`);
   assert.equal(await checkRelease({ ...context, baseSha, headSha }, execute), headSha);
   commit('release-only edit');
   await assert.rejects(() => checkRelease({ ...context, baseSha, headSha }, execute), /tree differs/);
