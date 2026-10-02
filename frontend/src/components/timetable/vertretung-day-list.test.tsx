@@ -210,6 +210,32 @@ describe("VertretungDayList", () => {
     expect(screen.queryByText("Lesen")).not.toBeInTheDocument();
   });
 
+  it("nennt je Zeile Raum, Gruppe und die eingeteilten Fachkräfte (#3817)", () => {
+    const grouped = makeInstance({
+      ...gapInstance,
+      roomName: "Raum 104",
+      groupName: "Sonne",
+    });
+    render(
+      <VertretungDayList
+        instances={[grouped]}
+        gaps={gaps}
+        acknowledged={[]}
+        gapsAvailable
+        staffNames={staffNames}
+        mode="stoerungen"
+        canManage={false}
+        onEdit={vi.fn()}
+      />,
+    );
+
+    const row = screen.getByTestId("vertretung-day-list-row-10");
+    expect(within(row).getByText("Raum 104 · Sonne")).toBeInTheDocument();
+    expect(within(row).getByText("Anna K.", { exact: false })).toHaveClass(
+      "line-through",
+    );
+  });
+
   it("sortiert nach Startzeit, bei Gleichstand nach Schwere", () => {
     render(
       <VertretungDayList

@@ -82,6 +82,11 @@ type DataGroups interface {
 	FindGroup(ctx context.Context, id int64) (timetable.Group, error)
 }
 
+// BlockDisplayMetadata reads the display data for a list of scheduled blocks.
+type BlockDisplayMetadata interface {
+	ListBlockDisplayMetadata(ctx context.Context, instanceIDs []int64) (map[int64]timetable.BlockDisplayMetadata, error)
+}
+
 // DataCategories reads and creates the activity categories.
 type DataCategories interface {
 	FindByNameIncludingArchivedForShare(ctx context.Context, name string) (*activitiesModels.Category, error)
@@ -105,10 +110,11 @@ type AdvisoryLocks interface {
 	AcquireXactLock(ctx context.Context, key string) error
 }
 
-// TimetableDataDependencies wires the planner's reads. Locks and Advisory
-// are optional: without them attendance patches skip the completion lock and
-// spontaneous-start locks are skipped outside a transaction only. Every other
-// collaborator is required.
+// TimetableDataDependencies wires the planner's reads. Locks, Advisory and
+// BlockMetadata are optional: without them attendance patches skip the
+// completion lock, spontaneous-start locks are skipped outside a transaction
+// only and callers that do not render blocks receive no display metadata.
+// Every other collaborator is required.
 type TimetableDataDependencies struct {
 	Instances         DataInstances
 	InstanceStaff     OperationInstanceStaff
@@ -120,6 +126,7 @@ type TimetableDataDependencies struct {
 	Visits            OperationVisits
 	Templates         DataTemplates
 	Groups            DataGroups
+	BlockMetadata     BlockDisplayMetadata
 	Categories        DataCategories
 	Rooms             RoomNames
 	RoomOccupancy     RoomOccupancy
@@ -306,12 +313,11 @@ func (d *timetableData) FindBlockParticipant(ctx context.Context, instanceID, st
 	return &participant, nil
 }
 
-func (d *timetableData) FindBlockTemplate(ctx context.Context, groupID int64) (timetable.Group, error) {
-	return d.deps.Groups.FindGroup(ctx, groupID)
-}
-
-func (d *timetableData) BlockRoomName(ctx context.Context, roomID int64) (string, bool, error) {
-	return d.deps.Rooms.RoomName(ctx, roomID)
+func (d *timetableData) BlockDisplayMetadata(ctx context.Context, instanceIDs []int64) (map[int64]timetable.BlockDisplayMetadata, error) {
+	if d.deps.BlockMetadata == nil {
+		return map[int64]timetable.BlockDisplayMetadata{}, nil
+	}
+	return d.deps.BlockMetadata.ListBlockDisplayMetadata(ctx, instanceIDs)
 }
 
 // LockBlockAttendance takes FOR UPDATE on every participant row, so a
