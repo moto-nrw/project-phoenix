@@ -628,9 +628,7 @@ func (rs *Resource) enforcePlannedEnd(ctx context.Context) (bool, error) {
 
 func (rs *Resource) completeLeadMinutes(ctx context.Context) (int, error) {
 	if rs.SettingsService == nil {
-		// Registry default for timetable.complete_lead_minutes, unwired like
-		// enforcePlannedEnd above.
-		return 0, nil
+		return 0, fmt.Errorf("%w: settings service is not configured", timetable.ErrLifecycleSettings)
 	}
 	lead, err := rs.SettingsService.ResolveInt(ctx, settings.KeyTimetableCompleteLeadMinutes)
 	if err != nil {

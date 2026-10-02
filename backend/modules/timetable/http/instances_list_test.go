@@ -111,6 +111,19 @@ func buildListSetup(t *testing.T) *listSetup {
 		Templates:         data,
 		TimetableData:     data.TimetableData(),
 		ConflictDetection: data.ConflictDetection(),
+		SettingsService: &configtest.Mock{
+			ResolveBoolFn: func(context.Context, string) (bool, error) { return true, nil },
+			ResolveIntFn: func(_ context.Context, key string) (int, error) {
+				switch key {
+				case settings.KeyTimetableCompleteLeadMinutes:
+					return 0, nil
+				case settings.KeyTimetableChildrenPerStaffRatio:
+					return 12, nil
+				default:
+					return 0, fmt.Errorf("unexpected integer setting %q", key)
+				}
+			},
+		},
 	})
 
 	return &listSetup{res: res, db: db, ctx: ctx, roomID: room.ID, cleanupFn: cleanup}
@@ -665,10 +678,33 @@ func TestEnforcePlannedEndPropagatesResolveError(t *testing.T) {
 	require.ErrorIs(t, err, timetable.ErrLifecycleSettings)
 }
 
-func TestCompleteLeadMinutesDefaultsZero(t *testing.T) {
+func TestCompleteLeadMinutesRejectsMissingSettings(t *testing.T) {
 	t.Parallel()
 
 	res := NewResource(Dependencies{})
+	_, err := res.completeLeadMinutes(context.Background())
+	require.ErrorIs(t, err, timetable.ErrLifecycleSettings)
+}
+
+func TestCompletionAvailabilityRejectsMissingSettings(t *testing.T) {
+	t.Parallel()
+
+	res := NewResource(Dependencies{})
+	_, err := res.completionAvailability(context.Background(), timetable.ScheduledInstance{})
+	require.ErrorIs(t, err, timetable.ErrLifecycleSettings)
+}
+
+func TestCompleteLeadMinutesResolvesZero(t *testing.T) {
+	t.Parallel()
+
+	res := NewResource(Dependencies{
+		SettingsService: &configtest.Mock{
+			ResolveIntFn: func(_ context.Context, key string) (int, error) {
+				require.Equal(t, settings.KeyTimetableCompleteLeadMinutes, key)
+				return 0, nil
+			},
+		},
+	})
 	got, err := res.completeLeadMinutes(context.Background())
 	require.NoError(t, err)
 	assert.Zero(t, got)
