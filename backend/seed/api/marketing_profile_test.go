@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -261,6 +262,9 @@ type marketingProfileAPIMock struct {
 	teamMessages    []marketingMockMessage
 	parentMessages  []marketingMockMessage
 	staffReplies    []marketingMockMessage
+	parentRequests  []marketingMockRequest
+	mealPlan        map[string][]any // date → dishes
+	appointments    []map[string]any
 	setupCompleted  bool
 	setupDismissed  bool
 }
@@ -271,6 +275,12 @@ type marketingMockMessage struct {
 	sender, target, body string
 }
 
+// marketingMockRequest is one request a family filed in the parents portal.
+type marketingMockRequest struct {
+	sender, kind, student string
+	body                  map[string]any
+}
+
 func newMarketingProfileAPIMock() *marketingProfileAPIMock {
 	return &marketingProfileAPIMock{
 		nextID: 7500, settings: make(map[string]json.RawMessage), students: make(map[int64]map[string]any),
@@ -278,6 +288,7 @@ func newMarketingProfileAPIMock() *marketingProfileAPIMock {
 		parentPasswords: make(map[string]string), parentGuardian: make(map[string]int64), photos: make(map[int64]string),
 		rooms: make(map[int64]string), activities: make(map[int64]map[string]any), instances: make(map[int64]map[string]any),
 		started: make(map[int64]bool), inRoom: make(map[int64]int64), news: make(map[int64]bool),
+		mealPlan: make(map[string][]any),
 	}
 }
 
@@ -601,6 +612,15 @@ func (m *marketingProfileAPIMock) respondDailyLife(t *testing.T, r *seedHTTPRequ
 	case strings.HasPrefix(path, "/api/parent-announcements/") && strings.HasSuffix(path, "/publish"):
 		m.news[mustParseID(t, parts[2])] = true
 		return nil, true
+	case strings.HasPrefix(path, "/parent/me/children/") && (strings.HasSuffix(path, "/care-exception") || strings.HasSuffix(path, "/sick-note")):
+		m.parentRequests = append(m.parentRequests, marketingMockRequest{sender: sender, kind: parts[4], student: parts[3], body: body})
+		return map[string]any{"id": strconv.Itoa(8200 + len(m.parentRequests))}, true
+	case path == "/api/calendar/appointments":
+		m.appointments = append(m.appointments, body)
+		return map[string]any{"id": strconv.Itoa(8300 + len(m.appointments))}, true
+	case strings.HasPrefix(path, "/api/meal-plan/") && r.Method == seedHTTPMethodPut:
+		m.mealPlan[parts[2]] = body["dishes"].([]any)
+		return nil, true
 	case path == "/api/staff-messages/threads/open":
 		return map[string]any{"thread_id": "account-" + fmt.Sprint(body["account_id"])}, true
 	case strings.HasPrefix(path, "/api/staff-messages/threads/"):
@@ -699,6 +719,47 @@ func assertMarketingDailyLife(t *testing.T, mock *marketingProfileAPIMock, profi
 	assert.Equal(t, marketingMockAdminToken, mock.staffReplies[0].sender)
 
 	assert.True(t, mock.setupCompleted && mock.setupDismissed, "the onboarding checklist does not cover the home page")
+	assertMarketingRequests(t, mock, profile)
+}
+
+// assertMarketingRequests checks what fills the request inbox, the absence
+// list and the meal plan: one open pickup change and one excused absence,
+// both filed by parents for the next weekday, and a dish on every weekday of
+// the current week.
+func assertMarketingRequests(t *testing.T, mock *marketingProfileAPIMock, profile *SeedProfile) {
+	t.Helper()
+	parentToken := func(key string) string {
+		return fmt.Sprintf("%s%d", marketingMockParentPrefix, profile.Entities.Guardians[key].ID)
+	}
+	studentID := func(key string) string { return strconv.FormatInt(profile.Entities.Students[key].ID, 10) }
+	next := marketingNextWeekday(todaySeedDate()).String()
+	require.Len(t, mock.parentRequests, 2)
+	pickup, absence := mock.parentRequests[0], mock.parentRequests[1]
+	assert.Equal(t, parentToken("sarah-yilmaz"), pickup.sender, "the parents-portal account shows its own open request")
+	assert.Equal(t, "care-exception", pickup.kind)
+	assert.Equal(t, studentID("elif-yilmaz"), pickup.student)
+	assert.Equal(t, next, pickup.body["date"])
+	assert.NotEmpty(t, pickup.body["reason"])
+	assert.Equal(t, parentToken("julia-wagner"), absence.sender)
+	assert.Equal(t, "sick-note", absence.kind)
+	assert.Equal(t, studentID("mia-wagner"), absence.student)
+	assert.Equal(t, []any{next}, absence.body["dates"])
+	assert.Equal(t, "excused", absence.body["status"])
+
+	require.Len(t, mock.appointments, 2)
+	meeting, festival := mock.appointments[0], mock.appointments[1]
+	assert.Equal(t, todaySeedDate().String(), meeting["start_date"], "the week view of the calendar shows a meeting today")
+	assert.Equal(t, []any{map[string]any{"type": "all_staff"}}, meeting["targets"])
+	assert.Equal(t, marketingNewsFriday(todaySeedDate()).String(), festival["start_date"], "the festival is the Friday the news announces")
+	assert.Equal(t, time.Friday, marketingNewsFriday(todaySeedDate()).Weekday())
+	assert.Contains(t, festival["targets"], map[string]any{"type": "all_school_parents"})
+	assert.Equal(t, "rsvp_required", festival["delivery_mode"], "families can accept in the parents portal")
+
+	monday := todaySeedDate().AddDays(-(int(todaySeedDate().Weekday()) + 6) % 7)
+	require.Len(t, mock.mealPlan, 5)
+	for offset := range 5 {
+		assert.NotEmpty(t, mock.mealPlan[monday.AddDays(offset).String()], "dishes on weekday %d", offset+1)
+	}
 }
 
 func filterNews(news map[int64]bool, published bool) map[int64]bool {
