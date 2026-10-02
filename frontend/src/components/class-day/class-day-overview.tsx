@@ -24,7 +24,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { Skeleton } from "~/components/ui/skeleton";
 import { getUserDisplayName } from "~/lib/auth-utils";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
-import { getTimeBasedGreeting } from "~/lib/greeting";
+import { useTimeBasedGreeting } from "~/lib/greeting";
 import type { ClassDayReport } from "~/lib/class-day-api";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -153,6 +153,7 @@ export function ClassDayOverview({
   fetchMyClasses,
   fetchClassDay,
 }: ClassDayOverviewProps) {
+  const greeting = useTimeBasedGreeting();
   const { data: session } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -274,7 +275,7 @@ export function ClassDayOverview({
               Klassenansicht
             </p>
             <h2 className="mt-1 text-base font-semibold text-gray-900">
-              {getTimeBasedGreeting()}, {getUserDisplayName(session)}
+              {greeting}, {getUserDisplayName(session)}
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
               Ihre Übergabe nach Unterricht am {formatDate(dateISO)}. Öffnen Sie

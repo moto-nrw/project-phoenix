@@ -15,7 +15,7 @@ import { StatCard } from "~/components/ui/stat-card";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { getUserDisplayName } from "~/lib/auth-utils";
 import { formatDate } from "~/lib/date-helpers";
-import { getTimeBasedGreeting } from "~/lib/greeting";
+import { useTimeBasedGreeting } from "~/lib/greeting";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
 import { startProximityLabel, summarizeDay } from "./view-model";
@@ -111,6 +111,7 @@ export function SupervisionsOverview({
   today: string;
   onOpen: (id: string) => void;
 }>) {
+  const greeting = useTimeBasedGreeting();
   const { data: session } = useSession();
   const summary = summarizeDay(instances);
 
@@ -122,7 +123,7 @@ export function SupervisionsOverview({
   return (
     <SectionCard
       kicker="Meine Aufsichten"
-      title={`${getTimeBasedGreeting()}, ${getUserDisplayName(session)}`}
+      title={`${greeting}, ${getUserDisplayName(session)}`}
       description={description}
     >
       {instances.length === 0 ? (
