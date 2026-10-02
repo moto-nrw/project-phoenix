@@ -131,9 +131,7 @@ function stepStatus(step: SetupChecklistStepState): string {
 }
 
 /** Was ein Schritt der Checkliste sagt und ob es eine Tour gibt. */
-export interface SetupChecklistStep<
-  K extends string,
-> extends SetupChecklistStepState {
+interface SetupChecklistStep<K extends string> extends SetupChecklistStepState {
   readonly key: K;
   readonly title: string;
   readonly description: string;
