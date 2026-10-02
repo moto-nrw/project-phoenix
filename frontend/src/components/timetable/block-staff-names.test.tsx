@@ -177,6 +177,27 @@ describe("BlockStaffNames", () => {
     expect(screen.getByText("+3")).toBeInTheDocument();
   });
 
+  it("zeigt alle Abweichungen, bevor reguläre Fachkräfte zusammengefasst werden", () => {
+    const entries = blockStaffEntries(
+      [
+        row("1", { isAbsent: true }),
+        row("2", { isAbsent: true }),
+        row("3", { isAbsent: true }),
+        row("4", { isSubstitute: true }),
+        row("5"),
+      ],
+      NAMES,
+    );
+    render(<BlockStaffNames entries={entries} />);
+
+    expect(screen.getByText(/Anna K\./)).toHaveClass("line-through");
+    expect(screen.getByText(/Ben M\./)).toHaveClass("line-through");
+    expect(screen.getByText(/Clara S\./)).toHaveClass("line-through");
+    expect(screen.getByText("Dana W. (Ersatz)")).toBeInTheDocument();
+    expect(screen.queryByText(/Emil Y\./)).not.toBeInTheDocument();
+    expect(screen.getByText("+1")).toBeInTheDocument();
+  });
+
   it("streicht Abwesende durch und sagt es dem Screenreader", () => {
     const entries = blockStaffEntries([row("1", { isAbsent: true })], NAMES);
     render(<BlockStaffNames entries={entries} />);

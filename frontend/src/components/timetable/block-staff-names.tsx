@@ -36,7 +36,7 @@ export function staffNamesFromOverview(
   return names;
 }
 
-/** Wie viele Namen ein Block zeigt, bevor „+N“ den Rest zusammenfasst. */
+/** Wie viele reguläre Namen ein Block neben Abweichungen zeigen darf. */
 const BLOCK_STAFF_VISIBLE = 2;
 
 /**
@@ -138,15 +138,25 @@ export function blockDetailLines(
 
 /**
  * Die Namenszeile im Block: abwesende Fachkräfte rot durchgestrichen,
- * Ersatzkräfte grün mit „(Ersatz)“, ab der dritten Person „+N“. Die Zeile
- * kürzt sich in schmalen Spalten selbst; „+N“ bleibt dabei sichtbar.
+ * Ersatzkräfte grün mit „(Ersatz)“, weitere reguläre Fachkräfte als „+N“.
+ * Abweichungen bleiben immer sichtbar. Die Zeile kürzt sich in schmalen
+ * Spalten selbst; „+N“ bleibt dabei sichtbar.
  */
 export function BlockStaffNames({
   entries,
   className = "",
 }: Readonly<{ entries: readonly BlockStaffEntry[]; className?: string }>) {
   if (entries.length === 0) return null;
-  const visible = entries.slice(0, BLOCK_STAFF_VISIBLE);
+  const deviations = entries.filter(
+    (entry) => entry.isAbsent || entry.isSubstitute,
+  );
+  const regular = entries.filter(
+    (entry) => !entry.isAbsent && !entry.isSubstitute,
+  );
+  const visible = [
+    ...deviations,
+    ...regular.slice(0, Math.max(0, BLOCK_STAFF_VISIBLE - deviations.length)),
+  ];
   const hidden = entries.length - visible.length;
   return (
     <span className={`flex min-w-0 text-xs text-gray-700 ${className}`}>

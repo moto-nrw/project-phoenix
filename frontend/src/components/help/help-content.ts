@@ -1111,7 +1111,7 @@ function myScheduleTopic(): HelpTopic {
   };
 }
 
-function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
+function carePlanTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.carePlan,
     title: "Den Betreuungsplan ansehen",
@@ -1126,11 +1126,7 @@ function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Wählen Sie den Tab `Betreuungsplan`.",
       "Wählen Sie oben `Tag` oder `Woche`.",
       "Nutzen Sie die Pfeile oder `Heute`, um zum passenden Tag zu wechseln.",
-      // #3817: Raum, Gruppe und Fachkräfte stehen direkt im Block. Ohne
-      // Raumzuordnung steht im Block auch kein Raum.
-      presenceMode === "binary"
-        ? "Jeder Block zeigt Gruppe und die eingeteilten Fachkräfte."
-        : "Jeder Block zeigt Raum, Gruppe und die eingeteilten Fachkräfte.",
+      "Raum, Gruppe und Fachkräfte stehen im Block, wenn sie zugeordnet sind.",
       "Ein durchgestrichener Name heißt: abwesend. `(Ersatz)` steht hinter einer Ersatzkraft.",
       "Wählen Sie einen Block, um alle Kinder zu sehen.",
     ],
@@ -2539,7 +2535,7 @@ function caregiverTopics(
 ): readonly HelpTopic[] {
   return [
     myScheduleTopic(),
-    carePlanTopic(presenceMode),
+    carePlanTopic(),
     dayPlanTopic(presenceMode),
     studentSearchTopic(presenceMode, groupMode),
     editStudentTopic(),
