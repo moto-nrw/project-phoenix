@@ -9,16 +9,15 @@ import (
 	"testing"
 	"time"
 
-	configRepository "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestSchedulerPollingSettingKeysAreRegisteredUniqueAndNonSecret(t *testing.T) {
+// Registration and secrecy of these keys are pinned against the Settings
+// Platform registry by api.TestSchedulerSettingKeysPassTheRegistryGuard; the
+// Worker refuses to start on a key that fails the same guard.
+func TestSchedulerPollingSettingKeysAreUnique(t *testing.T) {
 	t.Parallel()
 
 	seen := make(map[string]struct{}, len(schedulerPollingSettingKeys))
@@ -27,58 +26,130 @@ func TestSchedulerPollingSettingKeysAreRegisteredUniqueAndNonSecret(t *testing.T
 		_, duplicate := seen[key]
 		assert.False(t, duplicate, "duplicate scheduler snapshot key %q", key)
 		seen[key] = struct{}{}
-
-		definition := configModel.GetDefinition(key)
-		require.NotNil(t, definition, "scheduler snapshot key %q must be registered", key)
-		assert.NotEqual(t, configModel.FieldPassword, definition.Type,
-			"scheduler snapshots must not preload secret settings")
 	}
 }
 
 func TestSchedulerPollingSettingKeysIncludeAppointmentReminderSettings(t *testing.T) {
 	t.Parallel()
 
-	assert.Contains(t, schedulerPollingSettingKeys, configModel.KeyCalendarAppointmentReminderEnabled)
-	assert.Contains(t, schedulerPollingSettingKeys, configModel.KeyCalendarAppointmentReminderLeadHours)
+	assert.Contains(t, schedulerPollingSettingKeys, settingCalendarAppointmentReminderEnabled)
+	assert.Contains(t, schedulerPollingSettingKeys, settingCalendarAppointmentReminderLeadHours)
 }
 
 func TestSchedulerPollingSettingKeysIncludeAutoEndSettings(t *testing.T) {
 	t.Parallel()
 
-	assert.Contains(t, schedulerPollingSettingKeys, configModel.KeyTimetableAutoEndEnabled)
-	assert.Contains(t, schedulerPollingSettingKeys, configModel.KeyTimetableAutoEndGraceMinutes)
+	assert.Contains(t, schedulerPollingSettingKeys, settingTimetableAutoEndEnabled)
+	assert.Contains(t, schedulerPollingSettingKeys, settingTimetableAutoEndGraceMinutes)
 }
 
-func TestLoadMinuteSnapshotUsesOneSettingsQuery(t *testing.T) {
+// batchSettings is a settings resolver that also offers the batch read.
+// It records every batch call and binds its snapshots by tenant ID.
+type batchSettings struct {
+	stubSettingsResolver
+	mu    sync.Mutex
+	calls [][]int64
+	keys  [][]string
+}
+
+type boundSnapshotKey struct{}
+
+func (b *batchSettings) ResolveSettingsSnapshots(_ context.Context, tenantIDs []int64, keys []string) (map[int64]SettingsSnapshot, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.calls = append(b.calls, append([]int64(nil), tenantIDs...))
+	b.keys = append(b.keys, append([]string(nil), keys...))
+	snapshots := make(map[int64]SettingsSnapshot, len(tenantIDs))
+	for _, tenantID := range tenantIDs {
+		snapshots[tenantID] = tenantID
+	}
+	return snapshots, nil
+}
+
+func (b *batchSettings) BindSettingsSnapshot(ctx context.Context, snapshot SettingsSnapshot) (context.Context, error) {
+	if _, ok := snapshot.(string); !ok {
+		return ctx, errors.New("snapshot was not resolved by this source")
+	}
+	return context.WithValue(ctx, boundSnapshotKey{}, snapshot), nil
+}
+
+// One scheduler minute lists the active schools and resolves their polling
+// settings in one batch call. The Settings Platform serves that call with one
+// config.setting_values SELECT (modules/settings/compose).
+func TestLoadMinuteSnapshotResolvesEverySchoolInOneBatch(t *testing.T) {
 	t.Parallel()
-	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupIsolatedTestDB(t)
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 
-	valueRepository := configRepository.NewSettingValueRepository(testpkg.ConfigRuntime(db))
-	settings := configService.NewSettingsService(valueRepository, nil, nil, testpkg.SettingsRuntime(t, db), slog.Default())
+	settings := &batchSettings{}
 	scheduler := unitScheduler(&Scheduler{
-		db:         db,
-		schoolRepo: dbTenantDirectory{db: db},
-		settings:   settings,
-		done:       make(chan struct{}),
-		logger:     slog.Default()})
-	runtime := testpkg.TenantRuntime(t, db)
-	scheduler.tenantRuntime = runtime
-
-	counter := testpkg.CaptureQueries(t, db)
+		schoolRepo:    dbTenantDirectory{db: db},
+		settings:      settings,
+		tenantRuntime: dbTenantRuntime(t, db),
+		done:          make(chan struct{}),
+		logger:        slog.Default()})
 
 	snapshot, err := scheduler.loadMinuteSnapshot(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, snapshot)
 	assert.Contains(t, snapshot.tenantIDs, tenantA)
 	assert.Contains(t, snapshot.tenantIDs, tenantB)
-	// One scheduler minute issues one config.setting_values SELECT for all active tenants.
-	testpkg.AssertQueryBudget(t, "services.scheduler.minute_snapshot.setting_values",
-		counter.Selects("config.setting_values"))
+	require.Len(t, settings.calls, 1, "one batch read for all active schools")
+	assert.Equal(t, snapshot.tenantIDs, settings.calls[0])
+	assert.Equal(t, schedulerPollingSettingKeys, settings.keys[0])
+	assert.Equal(t, SettingsSnapshot(tenantA), snapshot.settings[tenantA])
+}
+
+func TestForEachTenantSettingsBindsEachSchoolsSnapshot(t *testing.T) {
+	t.Parallel()
+
+	settings := &batchSettings{}
+	scheduler := unitScheduler(&Scheduler{
+		settings: settings,
+		done:     make(chan struct{}),
+		logger:   slog.Default(),
+		minuteSnapshotLoader: func(context.Context) (*schedulerMinuteSnapshot, error) {
+			return &schedulerMinuteSnapshot{
+				tenantIDs: []int64{31, 32},
+				settings:  map[int64]SettingsSnapshot{31: "snapshot-31", 32: "snapshot-32"},
+			}, nil
+		}})
+
+	bound := map[int64]any{}
+	scheduler.forEachTenantSettings(context.Background(), "bind-settings", func(ctx context.Context, tenantID int64) error {
+		bound[tenantID] = ctx.Value(boundSnapshotKey{})
+		return nil
+	})
+
+	assert.Equal(t, map[int64]any{31: "snapshot-31", 32: "snapshot-32"}, bound)
+}
+
+func TestForEachTenantSettingsFailsASchoolWhoseSnapshotCannotBeBound(t *testing.T) {
+	t.Parallel()
+
+	settings := &batchSettings{}
+	scheduler := unitScheduler(&Scheduler{
+		settings: settings,
+		done:     make(chan struct{}),
+		logger:   slog.Default(),
+		minuteSnapshotLoader: func(context.Context) (*schedulerMinuteSnapshot, error) {
+			return &schedulerMinuteSnapshot{
+				tenantIDs: []int64{33, 34},
+				settings:  map[int64]SettingsSnapshot{33: "snapshot-33", 34: 34},
+			}, nil
+		}})
+
+	var called []int64
+	completed := scheduler.forEachTenantSettings(context.Background(), "bind-settings", func(_ context.Context, tenantID int64) error {
+		called = append(called, tenantID)
+		return nil
+	})
+
+	assert.Equal(t, []int64{33}, called, "a school is never served without its snapshot")
+	assert.Equal(t, []int64{33}, completed)
 }
 
 func TestGetMinuteSnapshotCoalescesConcurrentLoads(t *testing.T) {
@@ -158,7 +229,7 @@ func TestGetMinuteSnapshotBindsTenantRuntimeBeforeLoading(t *testing.T) {
 	scheduler := unitScheduler(&Scheduler{
 		done: make(chan struct{}),
 		minuteSnapshotLoader: func(ctx context.Context) (*schedulerMinuteSnapshot, error) {
-			err := tenant.WithinAdmin(ctx, func(context.Context) error {
+			err := testpkg.WithinAdminTransaction(ctx, func(context.Context) error {
 				adminCalled = true
 				return nil
 			})

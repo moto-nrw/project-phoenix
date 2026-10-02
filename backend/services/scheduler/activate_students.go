@@ -6,21 +6,30 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+// The student statuses the activate-students tick moves between.
+const (
+	studentStatusPending  = "pending"
+	studentStatusActive   = "active"
+	studentStatusInactive = "inactive"
 )
 
 // StudentLifecycleRepository is the narrow contract the activate-students tick
-// needs from the student repository. Defined here so the scheduler does not
-// import the full users repository package, matching the opt-in shape used by
-// instanceRepo (overdue tick) and timetableCleanup (GDPR cleanup).
+// needs from the student repository. The root binds the retained repository;
+// statuses travel as their stored values.
 type StudentLifecycleRepository interface {
-	FindPendingDueForActivation(ctx context.Context, asOf timezone.Date) ([]*userModels.Student, error)
-	FindActiveDueForDeactivation(ctx context.Context, asOf timezone.Date) ([]*userModels.Student, error)
+	// FindPendingDueForActivation returns the pending children whose care
+	// starts on or before asOf.
+	FindPendingDueForActivation(ctx context.Context, asOf calendar.Date) ([]int64, error)
+	// FindActiveDueForDeactivation returns the active children whose care
+	// ended before asOf.
+	FindActiveDueForDeactivation(ctx context.Context, asOf calendar.Date) ([]int64, error)
 	// Compare-and-set, deliberately not the unconditional UpdateStatus: the tick
 	// decides from rows it read earlier, and by the time it writes, a grade
 	// transition may have graduated the child (see the repository method's doc).
-	TransitionStatus(ctx context.Context, studentID int64, expected, next userModels.StudentStatus) (bool, error)
+	TransitionStatus(ctx context.Context, studentID int64, expected, next string) (bool, error)
 }
 
 // CareExitEffector performs the effect-day housekeeping for children whose
@@ -28,12 +37,12 @@ type StudentLifecycleRepository interface {
 // closing the open parent requests. Narrow contract so the scheduler does not
 // import the whole users service package.
 type CareExitEffector interface {
-	ApplyDueEffects(ctx context.Context, asOf timezone.Date) (int, error)
+	ApplyDueEffects(ctx context.Context, asOf calendar.Date) (int, error)
 }
 
 // StudentLifecycleAuditor records scheduler-authored status transitions.
 type StudentLifecycleAuditor interface {
-	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after userModels.StudentStatus) error
+	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after string) error
 }
 
 // activateStudentsInterval is how often the activate-students tick runs. It
@@ -92,7 +101,7 @@ func (s *Scheduler) checkAndRunActivateStudents(ctx context.Context, task *Sched
 // and skipped. Audit failures abort the tenant transaction so an automated
 // transition can never commit without its history entry.
 func (s *Scheduler) runActivateStudentsForTenantWithError(ctx context.Context, tenantID int64, now time.Time) error {
-	asOf := timezone.DateFromTime(now)
+	asOf := calendar.DateFromTime(now)
 
 	pending, err := s.studentLifecycleRepo.FindPendingDueForActivation(ctx, asOf)
 	if err != nil {
@@ -102,7 +111,7 @@ func (s *Scheduler) runActivateStudentsForTenantWithError(ctx context.Context, t
 		)
 	} else {
 		if err := s.applyStatusTransitions(ctx, tenantID, pending,
-			userModels.StudentStatusPending, userModels.StudentStatusActive); err != nil {
+			studentStatusPending, studentStatusActive); err != nil {
 			return err
 		}
 	}
@@ -136,7 +145,7 @@ func (s *Scheduler) runActivateStudentsForTenantWithError(ctx context.Context, t
 		return nil
 	}
 	return s.applyStatusTransitions(ctx, tenantID, dueInactive,
-		userModels.StudentStatusActive, userModels.StudentStatusInactive)
+		studentStatusActive, studentStatusInactive)
 }
 
 // applyStatusTransitions updates each student to newStatus and emits a slog
@@ -151,19 +160,19 @@ func (s *Scheduler) runActivateStudentsForTenantWithError(ctx context.Context, t
 // student past every alumnus read filter and without any of apply's guards. A row
 // whose status moved on is skipped, not an error — the next tick re-evaluates it
 // from current data (#405 review).
-func (s *Scheduler) applyStatusTransitions(ctx context.Context, tenantID int64, students []*userModels.Student, from, to userModels.StudentStatus) error {
-	if len(students) == 0 {
+func (s *Scheduler) applyStatusTransitions(ctx context.Context, tenantID int64, studentIDs []int64, from, to string) error {
+	if len(studentIDs) == 0 {
 		return nil
 	}
 	transitions := 0
-	for _, student := range students {
-		applied, err := s.studentLifecycleRepo.TransitionStatus(ctx, student.ID, from, to)
+	for _, studentID := range studentIDs {
+		applied, err := s.studentLifecycleRepo.TransitionStatus(ctx, studentID, from, to)
 		if err != nil {
 			s.getLogger().Error("activate-students: update status failed",
 				slog.Int64("tenant_id", tenantID),
-				slog.Int64("student_id", student.ID),
-				slog.String("from", string(from)),
-				slog.String("to", string(to)),
+				slog.Int64("student_id", studentID),
+				slog.String("from", from),
+				slog.String("to", to),
 				slog.String("error", err.Error()),
 			)
 			continue
@@ -171,38 +180,38 @@ func (s *Scheduler) applyStatusTransitions(ctx context.Context, tenantID int64, 
 		if !applied {
 			s.getLogger().Debug("activate-students: status transition skipped after concurrent change",
 				slog.Int64("tenant_id", tenantID),
-				slog.Int64("student_id", student.ID),
-				slog.String("expected_status", string(from)),
-				slog.String("next_status", string(to)),
+				slog.Int64("student_id", studentID),
+				slog.String("expected_status", from),
+				slog.String("next_status", to),
 			)
 			continue
 		}
 		if s.studentLifecycleAudit != nil {
-			if err := s.studentLifecycleAudit.RecordSystemStatusChange(ctx, student.ID, from, to); err != nil {
+			if err := s.studentLifecycleAudit.RecordSystemStatusChange(ctx, studentID, from, to); err != nil {
 				s.getLogger().Error("activate-students: audit status transition failed",
 					slog.Int64("tenant_id", tenantID),
-					slog.Int64("student_id", student.ID),
-					slog.String("from", string(from)),
-					slog.String("to", string(to)),
+					slog.Int64("student_id", studentID),
+					slog.String("from", from),
+					slog.String("to", to),
 					slog.String("error", err.Error()),
 				)
-				return fmt.Errorf("audit student %d status transition: %w", student.ID, err)
+				return fmt.Errorf("audit student %d status transition: %w", studentID, err)
 			}
 		}
 		transitions++
 		s.getLogger().Info("student status transition",
 			slog.Int64("tenant_id", tenantID),
-			slog.Int64("student_id", student.ID),
-			slog.String("from", string(from)),
-			slog.String("to", string(to)),
+			slog.Int64("student_id", studentID),
+			slog.String("from", from),
+			slog.String("to", to),
 		)
 	}
 	s.getLogger().Info("activate-students batch complete",
 		slog.Int64("tenant_id", tenantID),
-		slog.String("from", string(from)),
-		slog.String("to", string(to)),
+		slog.String("from", from),
+		slog.String("to", to),
 		slog.Int("transitions", transitions),
-		slog.Int("candidates", len(students)),
+		slog.Int("candidates", len(studentIDs)),
 	)
 	return nil
 }

@@ -258,7 +258,8 @@ var queryBudgets = map[string]queryBudget{
 	"services.usercontext.identity_chain.staff":         {max: 1, exact: true},
 	"services.usercontext.identity_chain.teachers":      {max: 1, exact: true},
 	"services.usercontext.identity_chain.substitutions": {max: 2, exact: true},
-	// services/scheduler — one minute snapshot = one settings read for all tenants.
+	// Worker minute snapshot (settingsCompose.NewTenantSnapshots, #2746) — one
+	// settings read for all tenants.
 	"services.scheduler.minute_snapshot.setting_values": {max: 1, exact: true},
 	// services/schedule — Dienstplan overview reads are fixed batches.
 	// The second entry is cumulative on the same counter: 6 without shifts

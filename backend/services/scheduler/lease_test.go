@@ -11,7 +11,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -316,7 +316,7 @@ func TestLeaseLossMidJobCancelsTheRunAndFencesItsCommit(t *testing.T) {
 	ran := probeRun(worker, func(ctx context.Context) {
 		store.takeOver("usurper")
 
-		commitErr = tenant.WithinAdmin(worker.withUnitOfWork(ctx), func(context.Context) error { return nil })
+		commitErr = testpkg.WithinAdminTransaction(worker.withUnitOfWork(ctx), func(context.Context) error { return nil })
 
 		select {
 		case <-ctx.Done():

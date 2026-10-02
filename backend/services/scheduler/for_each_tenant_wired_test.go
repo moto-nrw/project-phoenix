@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,11 +30,9 @@ func TestForEachTenant_Wired_InvokesFnPerTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	s := unitScheduler(&Scheduler{
-		db:                      db,
-		schoolRepo:              dbTenantDirectory{db: db},
-		logger:                  slog.Default(),
-		tenantRuntime:           testpkg.TenantRuntime(t, db),
-		tenantRuntimeConfigured: true})
+		schoolRepo:    dbTenantDirectory{db: db},
+		logger:        slog.Default(),
+		tenantRuntime: dbTenantRuntime(t, db)})
 
 	var invocations int
 	err := s.forEachTenant(context.Background(), "wired-iter", func(_ context.Context) error {
@@ -52,11 +49,9 @@ func TestForEachTenantSettings_Wired_InvokesFnWithTenantID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	s := unitScheduler(&Scheduler{
-		db:                      db,
-		schoolRepo:              dbTenantDirectory{db: db},
-		logger:                  slog.Default(),
-		tenantRuntime:           testpkg.TenantRuntime(t, db),
-		tenantRuntimeConfigured: true})
+		schoolRepo:    dbTenantDirectory{db: db},
+		logger:        slog.Default(),
+		tenantRuntime: dbTenantRuntime(t, db)})
 
 	var gotTenantID int64
 	var invocations int
@@ -77,14 +72,12 @@ func TestForEachTenantSettings_Wired_ListerError_IsLogged(t *testing.T) {
 	// The real directory provides the embedded type plus transaction-context wiring; the
 	// lister error comes from our override.
 	s := unitScheduler(&Scheduler{
-		db: db,
 		schoolRepo: &erroringSchoolRepo{
 			TenantDirectory: dbTenantDirectory{db: db},
 			err:             errors.New("listing exploded"),
 		},
-		logger:                  slog.Default(),
-		tenantRuntime:           testpkg.TenantRuntime(t, db),
-		tenantRuntimeConfigured: true})
+		logger:        slog.Default(),
+		tenantRuntime: dbTenantRuntime(t, db)})
 
 	var invoked bool
 	s.forEachTenantSettings(context.Background(), "wired-err", func(_ context.Context, _ int64) error {
@@ -129,17 +122,14 @@ func TestForEachTenantSettings_MissingRuntimeSkipsWork(t *testing.T) {
 
 func TestForEachKnownTenantObservesMissingTenantAndTransactionFailure(t *testing.T) {
 	t.Parallel()
-	runtime, err := tenant.NewUnitOfWork(
+	runtime := scriptedTenantRuntime(
 		func(context.Context, int64, func(context.Context, any) error) error { return assert.AnError },
-		func(ctx context.Context, fn func(context.Context, any) error) error { return fn(ctx, struct{}{}) },
-		func(context.Context, tenant.SavepointAction) error { return nil },
-		func(error) bool { return false },
+		nil,
 	)
-	require.NoError(t, err)
 
 	var outcomes []string
 	var unitOfWorkResults []string
-	s := &Scheduler{tenantRuntime: runtime, tenantRuntimeConfigured: true}
+	s := &Scheduler{tenantRuntime: runtime}
 	s.tenantRuntimeObserver = func(entryPoint, outcome string) {
 		assert.Equal(t, "worker", entryPoint)
 		outcomes = append(outcomes, outcome)

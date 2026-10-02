@@ -497,6 +497,17 @@ func TestNotificationsOnDutyOnlyDefaultOff(t *testing.T) {
 	assert.Equal(t, false, def.Default)
 }
 
+// TestNotificationsDispatchDefaultsOn pins the default the Worker's reminder
+// tick reads for a school without its own value: notifications are on.
+func TestNotificationsDispatchDefaultsOn(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyNotificationsDispatchEnabled)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, true, def.Default)
+}
+
 // TestFilesMaxStorageOperatorOnly pins #3734: the moto team sets the storage
 // limit; the setting is hidden from the school's settings page.
 func TestFilesMaxStorageOperatorOnly(t *testing.T) {

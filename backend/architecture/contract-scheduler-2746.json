@@ -1,0 +1,148 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2648",
+    "#2653",
+    "#2658",
+    "#2700",
+    "#2709",
+    "#2710",
+    "#2711",
+    "#2726"
+  ],
+  "owner_and_capability": "Scheduler Runtime — the Worker application in services/scheduler (scheduler-runtime/application), contract step for #2746: the scheduler opens its transactions through a consumer-owned TenantRuntime port bound by modules/schedulerruntime/jobruntime, reads its settings keys as its own constants behind a registry guard of the root, publishes the overdue events through Delivery's realtimeevents, and reaches the retained repositories and services only through ports the root binds",
+  "affected_packages": [
+    "api",
+    "database/repositories",
+    "modules/delivery/application/realtimeevents",
+    "modules/schedulerruntime/jobruntime",
+    "modules/settings/compose",
+    "services",
+    "services/config/defaults",
+    "services/scheduler",
+    "test"
+  ],
+  "affected_tables": [
+    "config.setting_values",
+    "schedule.activity_instances",
+    "facilities.rooms",
+    "users.student_school_memberships",
+    "users.student_care_profiles",
+    "audit.student_field_edits"
+  ],
+  "exact_ratchet_keys": [
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/constants",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/database/repositories",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/database/repositories/config",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/models/audit",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/models/base",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/models/config",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/models/facilities",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/models/schedule",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/models/users",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/realtime",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/services/config",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/services/config/defaults",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/services/users",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|cmp",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/models/audit",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/models/config",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/models/facilities",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/models/schedule",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/models/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/realtime",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/services/config",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/services/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/uptrace/bun"
+  ],
+  "atomic_cutover": "One code-only change: services/scheduler drops its imports of cmp, internal/timezone, models/audit, models/config, models/facilities, models/schedule, models/users, realtime, services/config, services/users, tenant and bun in production and of every listed target in its internal suites. It opens its transactions through the consumer-owned TenantRuntime port (Attach, WithinTenant, WithinTenantRetry, WithinAdmin, WithCommitGuard, RegisterAfterCommit in plain values), which the new modules/schedulerruntime/jobruntime (scheduler-runtime/postgres, covered by the existing tenant-runtime rule) binds; WorkerDependencies loses DB and takes the port, TenantCommand takes the school as int64. Calendar values come from sharedkernel/calendar. The settings keys and the end-of-day clear mode are the scheduler's own constants with the semantics of the former Resolve*OrDefault helpers; the root refuses a Worker whose key the registry does not define or defines as a secret (modules/settings/compose.VerifyPreloadKeys) and binds the minute snapshot to the Settings Platform's cross-tenant read through compose.NewTenantSnapshots as an optional SettingsSnapshotSource of the existing SettingsResolver port, so no field or setter is added; a snapshot the source did not resolve fails the school's tick instead of falling back to database reads. The overdue tick publishes through two new Delivery producers in realtimeevents and reads the day's blocks and existing rooms through DayInstanceReader and ExistingRoomReader; the booking audit, the student lifecycle (statuses as stored values, IDs instead of models), the status audit, the change-history sweep and the slot checkout closing are scheduler ports. api/scheduler_ports.go binds them to the retained repositories and services without importing their packages: named string types are converted through small generic helpers. The internal suites compose through test support (testpkg.PassthroughTenantRuntime, ScriptedTenantRuntime, TenantIDFromContext, WithinAdminTransaction, RegisterAfterCommit) and record what the scheduler asks of its ports. The further keys of the issue text (models/active, models/platform, services/active, services/enrollment, services/notifications, services/pwa, services/reminders, services/schedule, services/staffmessaging, database/repositories/active, database/repositories/platform, database/repositories/schedule and internal_test bun) were already absent at the base and are not claimed here. No separate provider remained to delete: the scheduler reached the retained packages through direct imports, which this change removes; the removed symbols WorkerDependencies.DB, Scheduler.db, Scheduler.tenantRuntimeConfigured, tenantRuntimeValue and schedulerSettingsBatchResolver have zero callers (go build ./... and a repository-wide search).",
+  "tests": [
+    "services/scheduler: all 317 top-level tests pass against the isolated PostgreSQL test database (318 test functions including TestMain, 312 before). The suites that drove the legacy repositories (overdue tick, status-flag clear, session-end pass, PWA usage, change-history sweep, activate-students, booking audit) now pin what the scheduler asks of its ports: the calls, their arguments, the tenant transaction they run in, mode and time gating, rollback and day marking. They no longer exercise the repositories' SQL; the SQL sides are pinned where they live (below and in modules/careplan/internal/adapters/postgres, database/repositories/pwausage, services/users). The rollover rollback test still writes and rolls back a real row through the production tenant runtime.",
+    "database/repositories: TestActivityInstancesOfTheDayCarryTheirSessionStatus pins that a started block reads as active, the premise the overdue tick filters on; TestCloseOpenCheckoutsByActiveGroupIDsStampsTheOpenCheckout pins the slot-checkout close of the session-end pass.",
+    "services: TestSchedulerMinuteSnapshotReadsEverySchoolOnce binds the minute snapshot through settingsCompose.NewTenantSnapshots over the real settings service and holds the exact budget services.scheduler.minute_snapshot.setting_values: one config.setting_values read for two schools, and the bound snapshot serves a school's read without another.",
+    "modules/schedulerruntime/jobruntime: eight tests pin the adapter onto the tenant runtime (school scoping and observation, missing school, retry, admin transaction, commit guard, after-commit order, no prior Attach needed, uncomposed runtime).",
+    "modules/delivery/application/realtimeevents: three tests pin the instance_overdue envelope, the supervision refresh and transport errors.",
+    "api: TestSchedulerSettingKeysPassTheRegistryGuard pins every scheduler key to the registry and keeps secrets out of the snapshot; TestPreloadSettingKeyGuardRefusesUnknownAndSecretKeys, TestSchedulerSettingsPortBindsOnlyItsOwnSnapshots and TestSchedulerPortsConvertIntoTheRetainedStringTypes cover the guard, the snapshot binding and the conversions.",
+    "services/config/defaults: TestNotificationsDispatchDefaultsOn pins the registry default the reminder tick relies on.",
+    "go test ./test (ratchets, hermetic and module checks, composition inventory regenerated: only removals), scripts/test-changed.sh origin/development without --fast (the five packages whose database setup timed out under parallel load passed on rerun), golangci-lint on the affected packages.",
+    "scripts/backend-architecture.sh check with exactly the listed keys absent from legacy.jsonl and none added; scripts/backend-architecture.sh validate-ticket --all --base-ref f5c63771dda66b8fbdb05ac012d823f19501dbe1."
+  ],
+  "runtime_evidence": {
+    "source": "Local runs on the #2746 branch on 2026-10-02 against the local postgres-test server.",
+    "sources": [
+      "backend/api/scheduler_ports.go",
+      "backend/modules/delivery/application/realtimeevents/instance_overdue.go",
+      "backend/modules/schedulerruntime/jobruntime/runtime.go",
+      "backend/modules/settings/compose/tenant_snapshots.go",
+      "backend/services/scheduler/setting_keys.go",
+      "backend/services/scheduler/tenant_runtime.go",
+      "backend/services/settings_tenant_snapshots_test.go"
+    ],
+    "workload": "No load run. Go suites through scripts/run-go-toolchain.sh and scripts/test-changed.sh origin/development against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "Code-only contract: every affected suite passes, and scripts/backend-architecture.sh check passes with exactly the listed keys removed, no key added and a composition surface that does not grow.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "The jobs call the same repository and owner methods with the same arguments; only the type through which the scheduler names them changed."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "TestSchedulerMinuteSnapshotReadsEverySchoolOnce holds the exact budget of one config.setting_values read for two schools, including a settings read served by the bound snapshot; the jobs call the same repository and owner methods otherwise."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #2746 names zero old callers and zero listed keys as the gate for a code-only contract."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #2746 names zero old callers and zero listed keys as the gate for a code-only contract."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed with 350 remaining keys (377 before) and a composition surface of 603 -> 597; golangci-lint on the affected packages reported 0 issues; the standalone Worker smoke run logged no ERROR."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "The jobs open the same transactions through the same tenant runtime; the adapter adds no connection acquisition."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No statement or lock order changed."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No transaction boundary changed; retry-safe commands still replay through WithinTenantRetry."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The jobs run the same work per tenant; no Worker run was measured."
+    },
+    "job_retries": {
+      "state": "measured",
+      "result": "The tenant batch and Sentry reporting suites observe the same retry counts and classifications through the port as through the tenant package before (TestTenantBatchesPropagateRetryExhaustionAndContinue, the retry-safe Sentry cases, TestWithinTenantRetryReplaysARetryableFailure)."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "Batching and cursors are unchanged; no Worker run was measured."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The fail-closed paths keep their results in the suites: a Worker without runtime refuses its jobs with the runtime-required error, a failed change-history sweep rolls its tenant transaction back and leaves the day open, a failed status archive leaves the day open, an unbindable settings snapshot fails only its school, a fenced commit runs no after-commit hook, and the root refuses unknown or secret settings keys."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data write path or schema change. Reverting the change restores the imports, the providers and the baseline entries."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "go build ./... passed. A standalone Worker (go run . worker against the migrated, unseeded local database) started 27 jobs, passed the settings-key guard, acquired the lease, ran the token cleanup through the jobruntime administrative transaction and the email outbox ticks, released the lease on stop and logged no ERROR. No seeded school ran a tenant tick; no HTTP smoke run was made."
+    }
+  },
+  "rollback_and_cleanup": "Revert the code-only change if a hidden caller appears. No table, migration or configuration is touched, and nothing remains to clean up.",
+  "exit_criterion": "services/scheduler imports none of the listed targets in production or in its internal suites, every listed key is absent from legacy.jsonl, and scripts/backend-architecture.sh check passes with no key added, no policy rule added, no ownership of a data object changed and a composition surface of 603 -> 597."
+}

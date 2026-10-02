@@ -8,8 +8,6 @@ import (
 	"slices"
 	"sync"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 const (
@@ -21,7 +19,7 @@ const (
 // The scheduler owns cadence, batching, transactions, and observations; the
 // command owns one tenant's business operation.
 type TenantCommand interface {
-	Execute(context.Context, tenant.TenantID) error
+	Execute(context.Context, int64) error
 }
 
 // RetrySafeTenantCommand explicitly permits the scheduler to replay its
@@ -32,16 +30,14 @@ type RetrySafeTenantCommand interface {
 }
 
 // TenantCommandFunc adapts an owner command function to TenantCommand.
-type TenantCommandFunc func(context.Context, tenant.TenantID) error
+type TenantCommandFunc func(context.Context, int64) error
 
-func (command TenantCommandFunc) Execute(ctx context.Context, tenantID tenant.TenantID) error {
+func (command TenantCommandFunc) Execute(ctx context.Context, tenantID int64) error {
 	return command(ctx, tenantID)
 }
 
 func adaptTenantCommand(command func(context.Context, int64) error) TenantCommand {
-	return TenantCommandFunc(func(ctx context.Context, tenantID tenant.TenantID) error {
-		return command(ctx, tenantID.Int64())
-	})
+	return TenantCommandFunc(command)
 }
 
 // TenantOutcome classifies one isolated tenant command result.
@@ -176,14 +172,14 @@ func addJobCommandFailure(ctx context.Context, err error) {
 	}
 }
 
-func (evidence *batchRuntimeEvidence) observe(event tenant.UnitOfWorkEvent) {
+func (evidence *batchRuntimeEvidence) observe(kind string, duration time.Duration, retries int) {
 	evidence.mu.Lock()
 	defer evidence.mu.Unlock()
-	if event.Kind == tenant.UnitOfWorkTransaction {
-		evidence.retries += event.Retries
+	if kind == unitOfWorkTransaction {
+		evidence.retries += retries
 	}
-	if event.Kind == tenant.UnitOfWorkPoolWait {
-		evidence.poolWait += event.Duration
+	if kind == unitOfWorkPoolWait {
+		evidence.poolWait += duration
 	}
 }
 
@@ -299,15 +295,14 @@ func (s *Scheduler) runTenantCommand(
 	beforeRetries, _ := evidence.snapshot()
 	outcome := TenantOutcome{TenantID: tenantID}
 
-	id, err := tenant.NewTenantID(tenantID)
-	if err != nil {
+	if tenantID <= 0 {
 		s.observeTenantRuntime("missing_tenant")
-		outcome.Err = err
+		outcome.Err = errInvalidTenantID
 		outcome.Classification = TenantOutcomeMissingTenant
 	} else {
 		if _, retrySafe := command.(RetrySafeTenantCommand); retrySafe {
-			outcome.Err = tenant.WithinTenantRetry(ctx, id, func(txCtx context.Context) error {
-				err := command.Execute(txCtx, id)
+			outcome.Err = s.tenantRuntime.WithinTenantRetry(ctx, tenantID, func(txCtx context.Context) error {
+				err := command.Execute(txCtx, tenantID)
 				if err != nil {
 					// The runtime may replay the command; a later success
 					// drops this breadcrumb with the run.
@@ -319,8 +314,8 @@ func (s *Scheduler) runTenantCommand(
 				return err
 			})
 		} else {
-			outcome.Err = tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {
-				return command.Execute(txCtx, id)
+			outcome.Err = s.tenantRuntime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+				return command.Execute(txCtx, tenantID)
 			})
 		}
 		afterRetries, _ := evidence.snapshot()

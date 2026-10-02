@@ -12,10 +12,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -127,8 +125,8 @@ func TestNewScheduler_OnlyInvitationService(t *testing.T) {
 func TestIsoWeekdayMatches(t *testing.T) {
 	t.Parallel()
 
-	monday := time.Date(2024, time.January, 1, 12, 0, 0, 0, timezone.Berlin)
-	sunday := time.Date(2024, time.January, 7, 12, 0, 0, 0, timezone.Berlin)
+	monday := time.Date(2024, time.January, 1, 12, 0, 0, 0, calendar.Berlin)
+	sunday := time.Date(2024, time.January, 7, 12, 0, 0, 0, calendar.Berlin)
 
 	assert.True(t, isoWeekdayMatches(1, monday))
 	assert.False(t, isoWeekdayMatches(2, monday))
@@ -296,7 +294,7 @@ func TestRunCleanupJobsRejectsMissingRuntime(t *testing.T) {
 
 	err := s.RunCleanupJobs()
 
-	assert.ErrorIs(t, err, tenant.ErrRuntimeRequired)
+	assert.ErrorIs(t, err, errTenantRuntimeRequired)
 	assert.Zero(t, auth.tokenCalls)
 	assert.Zero(t, auth.passwordCalls)
 	assert.Zero(t, auth.rateLimitCalls)
@@ -2235,15 +2233,15 @@ type fakeMaterializer struct {
 	mu               sync.Mutex
 	materializeCalls int
 	resolveCalls     int
-	lastFrom         timezone.Date
-	lastTo           timezone.Date
+	lastFrom         calendar.Date
+	lastTo           calendar.Date
 	lastWeeksAhead   int
 	lastSource       timetable.MaterializationSource
 	returnErr        error
 	returnResult     *timetable.MaterializationResult
 }
 
-func (f *fakeMaterializer) MaterializeForTenant(_ context.Context, from, to timezone.Date, source timetable.MaterializationSource) (*timetable.MaterializationResult, error) {
+func (f *fakeMaterializer) MaterializeForTenant(_ context.Context, from, to calendar.Date, source timetable.MaterializationSource) (*timetable.MaterializationResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.materializeCalls++
@@ -2259,7 +2257,7 @@ func (f *fakeMaterializer) MaterializeForTenant(_ context.Context, from, to time
 	return &timetable.MaterializationResult{From: from, To: to}, nil
 }
 
-func (f *fakeMaterializer) ResolveWindow(baseDate timezone.Date, weeksAhead int) (timezone.Date, timezone.Date) {
+func (f *fakeMaterializer) ResolveWindow(baseDate calendar.Date, weeksAhead int) (calendar.Date, calendar.Date) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.resolveCalls++
@@ -2270,7 +2268,7 @@ func (f *fakeMaterializer) ResolveWindow(baseDate timezone.Date, weeksAhead int)
 	return from, to
 }
 
-func (f *fakeMaterializer) DetectEditedInWindow(_ context.Context, _ int64, _, _ timezone.Date, _ bool) ([]timetable.EditedOccurrence, error) {
+func (f *fakeMaterializer) DetectEditedInWindow(_ context.Context, _ int64, _, _ calendar.Date, _ bool) ([]timetable.EditedOccurrence, error) {
 	return nil, nil
 }
 
@@ -2335,7 +2333,7 @@ func (f *fakeSettingsResolver) ResolveString(_ context.Context, key string) (str
 const materializationTestWeekday = 1
 
 func fixedMaterializationTime() time.Time {
-	return time.Date(2024, time.January, 1, 12, 0, 0, 0, timezone.Berlin)
+	return time.Date(2024, time.January, 1, 12, 0, 0, 0, calendar.Berlin)
 }
 
 func TestScheduleMaterializationTask_NilMaterializer(t *testing.T) {
@@ -2399,7 +2397,7 @@ func TestCheckAndRunMaterialization_EnabledByDefault(t *testing.T) {
 		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday: materializationTestWeekday,
+				settingTimetableMaterializationWeekday: materializationTestWeekday,
 			},
 		}})
 
@@ -2424,10 +2422,10 @@ func TestCheckAndRunMaterialization_EnabledWrongWeekday(t *testing.T) {
 		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
-				configModel.KeyTimetableMaterializationEnabled: true,
+				settingTimetableMaterializationEnabled: true,
 			},
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday: materializationTestWeekday + 1,
+				settingTimetableMaterializationWeekday: materializationTestWeekday + 1,
 			},
 		}})
 
@@ -2448,10 +2446,10 @@ func TestCheckAndRunMaterialization_WasRunToday(t *testing.T) {
 		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
-				configModel.KeyTimetableMaterializationEnabled: true,
+				settingTimetableMaterializationEnabled: true,
 			},
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday: materializationTestWeekday,
+				settingTimetableMaterializationWeekday: materializationTestWeekday,
 			},
 		}})
 
@@ -2481,11 +2479,11 @@ func TestCheckAndRunMaterialization_HappyPath(t *testing.T) {
 		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
-				configModel.KeyTimetableMaterializationEnabled: true,
+				settingTimetableMaterializationEnabled: true,
 			},
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday:    materializationTestWeekday,
-				configModel.KeyTimetableMaterializationWeeksAhead: 3,
+				settingTimetableMaterializationWeekday:    materializationTestWeekday,
+				settingTimetableMaterializationWeeksAhead: 3,
 			},
 		}})
 
@@ -2521,10 +2519,10 @@ func TestCheckAndRunMaterialization_ZeroCounters(t *testing.T) {
 		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
-				configModel.KeyTimetableMaterializationEnabled: true,
+				settingTimetableMaterializationEnabled: true,
 			},
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday: materializationTestWeekday,
+				settingTimetableMaterializationWeekday: materializationTestWeekday,
 			},
 		}})
 
@@ -2547,10 +2545,10 @@ func TestCheckAndRunMaterialization_MaterializerError(t *testing.T) {
 		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
-				configModel.KeyTimetableMaterializationEnabled: true,
+				settingTimetableMaterializationEnabled: true,
 			},
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday: materializationTestWeekday,
+				settingTimetableMaterializationWeekday: materializationTestWeekday,
 			},
 		}})
 
@@ -2579,10 +2577,10 @@ func TestCheckAndRunMaterialization_OnlyRacedCounter(t *testing.T) {
 		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
-				configModel.KeyTimetableMaterializationEnabled: true,
+				settingTimetableMaterializationEnabled: true,
 			},
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday: materializationTestWeekday,
+				settingTimetableMaterializationWeekday: materializationTestWeekday,
 			},
 		}})
 
@@ -2637,7 +2635,7 @@ func TestRunMaterializationTaskPolling_TickerFires(t *testing.T) {
 			materializer: m,
 			settings: &fakeSettingsResolver{
 				boolValues: map[string]bool{
-					configModel.KeyTimetableMaterializationEnabled: false,
+					settingTimetableMaterializationEnabled: false,
 				},
 			}})
 

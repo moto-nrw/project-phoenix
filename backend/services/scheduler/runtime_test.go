@@ -6,12 +6,38 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/jobruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
+
+// mustTenantRuntime binds a composed tenant runtime through the Worker's
+// production adapter.
+func mustTenantRuntime(runtime jobruntime.Runtime, err error) TenantRuntime {
+	if err != nil {
+		panic(err)
+	}
+	return runtime
+}
+
+// unitTenantRuntime is the database-less runtime of the test support.
+func unitTenantRuntime() TenantRuntime {
+	return mustTenantRuntime(jobruntime.New(testpkg.PassthroughTenantRuntime()))
+}
+
+// scriptedTenantRuntime is the database-less runtime with a scripted tenant
+// transaction and retry decision.
+func scriptedTenantRuntime(withinTenant func(context.Context, int64, func(context.Context, any) error) error, retryable func(error) bool) TenantRuntime {
+	return mustTenantRuntime(jobruntime.New(testpkg.ScriptedTenantRuntime(withinTenant, retryable)))
+}
+
+// dbTenantRuntime is the production tenant runtime against the test database.
+func dbTenantRuntime(t *testing.T, db *bun.DB) TenantRuntime {
+	t.Helper()
+	return mustTenantRuntime(jobruntime.New(testpkg.TenantRuntime(t, db)))
+}
 
 const schedulerUnitTenantID int64 = 1
 
@@ -60,22 +86,9 @@ func newUnitScheduler(
 	operatorInvitationCleaner OperatorInvitationCleaner,
 	logger *slog.Logger,
 ) *Scheduler {
-	runtime, err := tenant.NewUnitOfWork(
-		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
-			return fn(ctx, struct{}{})
-		},
-		func(ctx context.Context, fn func(context.Context, any) error) error {
-			return fn(ctx, struct{}{})
-		},
-		func(context.Context, tenant.SavepointAction) error { return nil },
-		func(error) bool { return false },
-	)
-	if err != nil {
-		panic(err)
-	}
 	scheduler := newScheduler(WorkerDependencies{
 		Logger:                    logger,
-		TenantRuntime:             &runtime,
+		TenantRuntime:             unitTenantRuntime(),
 		Active:                    activeService,
 		ActiveCleanup:             cleanupService,
 		AuthCleanup:               authService,
@@ -105,25 +118,13 @@ func newUnitScheduler(
 
 func unitScheduler(scheduler *Scheduler) *Scheduler {
 	configured := newUnitScheduler(nil, nil, nil, nil, nil, nil, scheduler.logger)
-	if scheduler.db != nil {
-		runtime, ok := testpkg.PackageTenantRuntime()
-		if !ok {
-			panic("tenant runtime is not configured for the scheduler test package")
-		}
-		scheduler.tenantRuntime = runtime
-		scheduler.tenantRuntimeConfigured = true
-		if setter, ok := scheduler.settings.(interface{ SetTenantRuntime(tenant.UnitOfWork) }); ok {
-			setter.SetTenantRuntime(runtime)
-		}
-	}
-	if !scheduler.tenantRuntimeConfigured {
+	if scheduler.tenantRuntime == nil {
 		scheduler.tenantRuntime = configured.tenantRuntime
-		scheduler.tenantRuntimeConfigured = true
 	}
-	if scheduler.minuteSnapshotLoader == nil && scheduler.db == nil && scheduler.schoolRepo == nil {
+	if scheduler.minuteSnapshotLoader == nil && scheduler.schoolRepo == nil {
 		scheduler.minuteSnapshotLoader = configured.minuteSnapshotLoader
 	}
-	if scheduler.allTenantIDsLoader == nil && scheduler.db == nil && scheduler.schoolRepo == nil {
+	if scheduler.allTenantIDsLoader == nil && scheduler.schoolRepo == nil {
 		scheduler.allTenantIDsLoader = configured.allTenantIDsLoader
 	}
 	if scheduler.registry == nil {
@@ -131,18 +132,6 @@ func unitScheduler(scheduler *Scheduler) *Scheduler {
 	}
 	if scheduler.feedbackCleaner == nil {
 		scheduler.feedbackCleaner = configured.feedbackCleaner
-	}
-	return scheduler
-}
-
-func isolatedUnitScheduler(t *testing.T, db *bun.DB, scheduler *Scheduler) *Scheduler {
-	t.Helper()
-	scheduler = unitScheduler(scheduler)
-	scheduler.tenantRuntime = testpkg.TenantRuntime(t, db)
-	scheduler.tenantRuntimeConfigured = true
-	tenantID := testpkg.Tenant(t)
-	scheduler.minuteSnapshotLoader = func(context.Context) (*schedulerMinuteSnapshot, error) {
-		return &schedulerMinuteSnapshot{tenantIDs: []int64{tenantID}}, errSchedulerSettingsBatchUnsupported
 	}
 	return scheduler
 }

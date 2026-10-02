@@ -11,14 +11,12 @@ import (
 	"testing"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
 	// Populates the settings registry, so the tick test can assert against the
 	// registered default instead of a literal copy of it.
-	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	reminders "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -142,7 +140,7 @@ func (c *captureBatchNotifier) NotifyBatch(ctx context.Context, events []notific
 	if c.err != nil {
 		return c.err
 	}
-	tenant.RegisterAfterCommit(ctx, func() {
+	testpkg.RegisterAfterCommit(ctx, func() {
 		c.events = append(c.events, events...)
 	})
 	return nil
@@ -195,7 +193,7 @@ func buildReminderSched(results map[int64]*reminders.Result, consent map[string]
 // switched on. Since #3736 the gate is off unless a school switches it on.
 func buildOnDutyReminderSched(results map[int64]*reminders.Result, consent map[string][]int64) *reminderTestSetup {
 	return buildReminderSchedWithSettings(results, consent, &fakeSettingsResolver{boolValues: map[string]bool{
-		configModel.KeyNotificationsOnDutyOnly: true,
+		settingNotificationsOnDutyOnly: true,
 	}})
 }
 
@@ -609,7 +607,7 @@ func TestPersonalRemindersMarkOccurrencesAfterCommit(t *testing.T) {
 		accountID: caregiverAccountID,
 		reminder:  reminderIdentity(reminder),
 	}
-	ctx, commit := tenant.WithAfterCommitHooksForTest(context.Background())
+	ctx, commit := testpkg.WithAfterCommitHooks(context.Background())
 
 	setup.sched.runReminderNotificationsForTenant(ctx, testTenant, time.Now())
 
@@ -640,7 +638,7 @@ func TestPersonalRemindersRollbackLeavesOccurrencesUnmarked(t *testing.T) {
 		accountID: caregiverAccountID,
 		reminder:  reminderIdentity(reminder),
 	}
-	rolledBackCtx, _ := tenant.WithAfterCommitHooksForTest(context.Background())
+	rolledBackCtx, _ := testpkg.WithAfterCommitHooks(context.Background())
 
 	setup.sched.runReminderNotificationsForTenant(rolledBackCtx, testTenant, time.Now())
 
@@ -679,51 +677,34 @@ func TestPersonalRemindersTenantIsolationAndDayRotation(t *testing.T) {
 	assert.Len(t, setup.notifier.events, 3)
 }
 
-// registrySettingsResolver behaves like the real settings service for a school
-// that never touched a setting: no tenant override, and Resolve* answers with
-// the value registered in the settings registry. The other doubles in this
-// package invent their own "no value" behaviour, which is exactly what would let
-// a registry-default regression pass unnoticed.
-type registrySettingsResolver struct{}
+// registryDefaultSettings behaves like the real settings service for a
+// school that never touched a setting: no tenant override, and Resolve*
+// answers the registered default. The defaults it carries are the
+// registry's, pinned there by services/config/defaults; the other doubles in
+// this package invent their own "no value" behaviour, which is exactly what
+// would let a registry-default regression pass unnoticed.
+type registryDefaultSettings struct {
+	bools map[string]bool
+}
 
-func (registrySettingsResolver) HasTenantOverride(context.Context, string) (bool, error) {
+func (registryDefaultSettings) HasTenantOverride(context.Context, string) (bool, error) {
 	return false, nil
 }
 
-func (registrySettingsResolver) ResolveBool(_ context.Context, key string) (bool, error) {
-	def := configModel.GetDefinition(key)
-	if def == nil {
+func (r registryDefaultSettings) ResolveBool(_ context.Context, key string) (bool, error) {
+	value, ok := r.bools[key]
+	if !ok {
 		return false, fmt.Errorf("no definition registered for %s", key)
 	}
-	value, ok := def.Default.(bool)
-	if !ok {
-		return false, fmt.Errorf("%s is not a boolean setting", key)
-	}
 	return value, nil
 }
 
-func (registrySettingsResolver) ResolveInt(_ context.Context, key string) (int, error) {
-	def := configModel.GetDefinition(key)
-	if def == nil {
-		return 0, fmt.Errorf("no definition registered for %s", key)
-	}
-	value, ok := def.Default.(int)
-	if !ok {
-		return 0, fmt.Errorf("%s is not an integer setting", key)
-	}
-	return value, nil
+func (registryDefaultSettings) ResolveInt(_ context.Context, key string) (int, error) {
+	return 0, fmt.Errorf("no definition registered for %s", key)
 }
 
-func (registrySettingsResolver) ResolveString(_ context.Context, key string) (string, error) {
-	def := configModel.GetDefinition(key)
-	if def == nil {
-		return "", fmt.Errorf("no definition registered for %s", key)
-	}
-	value, ok := def.Default.(string)
-	if !ok {
-		return "", fmt.Errorf("%s is not a string setting", key)
-	}
-	return value, nil
+func (registryDefaultSettings) ResolveString(_ context.Context, key string) (string, error) {
+	return "", fmt.Errorf("no definition registered for %s", key)
 }
 
 // The tick's feature gate has to answer what the notification router answers.
@@ -733,17 +714,15 @@ func (registrySettingsResolver) ResolveString(_ context.Context, key string) (st
 func TestReminderNotificationTickHonoursRegistryDefault(t *testing.T) {
 	t.Parallel()
 
-	definition := configModel.GetDefinition(configModel.KeyNotificationsDispatchEnabled)
-	require.NotNil(t, definition, "the dispatch flag must be registered")
-	require.Equal(t, true, definition.Default,
-		"premise of this test: the registry default of the dispatch flag is on")
+	// Premise: the registry default of the dispatch flag is on, pinned by
+	// services/config/defaults.TestNotificationsDispatchDefaultsOn.
 
 	t.Run("no tenant override runs the tick", func(t *testing.T) {
 		setup := buildReminderSched(
 			map[int64]*reminders.Result{caregiverStaffID: resultOf(pickupFixture("11", "14:00"))},
 			map[string][]int64{notifications.TypePickupUpcoming: {caregiverAccountID}},
 		)
-		setup.sched.settings = registrySettingsResolver{}
+		setup.sched.settings = registryDefaultSettings{bools: map[string]bool{settingNotificationsDispatchEnabled: true}}
 
 		// No db/schoolRepo wired, so forEachTenantSettings runs the body once
 		// without tenant context, which is enough to exercise the gate.
