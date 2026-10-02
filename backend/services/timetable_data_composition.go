@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -26,6 +28,7 @@ type timetableDataInputs struct {
 	Groups           timetableCompose.DataGroups
 	Sessions         studentpresence.SessionRecords
 	ConflictAcks     timetable.ConflictAckCapability
+	DB               *bun.DB
 	Transactional    bool
 	Logger           *slog.Logger
 }
@@ -51,9 +54,9 @@ func newTimetableData(in timetableDataInputs) (timetable.TimetableDataCapability
 		Visits:            in.Visits,
 		Templates:         templates,
 		Groups:            in.Groups,
+		BlockMetadata:     newTimetableBlockDisplayMetadata(in.DB),
 		Categories:        in.Rows.Categories,
 		Rooms:             in.Rows.RoomNames(),
-		EducationGroups:   in.Rows.EducationGroupNames(),
 		RoomOccupancy:     timetableRoomOccupancy{sessions: in.Sessions},
 		DeviationEvents:   in.Rows.DeviationEventReader(),
 		ConflictAcks:      in.ConflictAcks,

@@ -200,7 +200,7 @@ func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *test
 		}},
 	}})
 	periodID := sourceID + 1
-	meta := templateMeta{sourceCareOfferingIDs: []int64{sourceID}}
+	metadata := timetable.BlockDisplayMetadata{SourceCareOfferingIDs: []int64{sourceID}}
 
 	tests := []struct {
 		name     string
@@ -214,7 +214,7 @@ func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *test
 		t.Run(tt.name, func(t *testing.T) {
 			instance := timetable.ScheduledInstance{Date: tt.date, CalendarPeriodID: &periodID}
 			reason := resource.resolveEmptyRosterReason(
-				context.Background(), instance, meta, nil,
+				context.Background(), instance, metadata, nil,
 				make(map[int64]timetable.EmptyOfferingRosterExplainer),
 			)
 			require.NotNil(t, reason)
@@ -227,7 +227,7 @@ func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *test
 	populated := resource.resolveEmptyRosterReason(
 		context.Background(),
 		timetable.ScheduledInstance{Date: calendar.NewDate(2026, 8, 10), CalendarPeriodID: &periodID},
-		meta,
+		metadata,
 		[]timetable.ScheduledParticipant{{StudentID: sourceID + 2}},
 		make(map[int64]timetable.EmptyOfferingRosterExplainer),
 	)

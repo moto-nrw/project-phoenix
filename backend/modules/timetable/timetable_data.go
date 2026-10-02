@@ -53,6 +53,23 @@ type ScheduledInstanceRows struct {
 	Cutoffs      map[calendar.Date]map[int64]time.Time
 }
 
+// BlockDisplayMetadata is the display-only data that belongs beside a
+// scheduled block. The planner loads it in one tenant-safe projection so a
+// window does not need a read per room, template or education group.
+type BlockDisplayMetadata struct {
+	RoomName               string
+	ActivityType           string
+	RequiredStaff          *int
+	PlanningTrackID        *int64
+	PlanningTrackName      string
+	PlanningTrackColor     string
+	PlanningTrackSortOrder *int
+	SeriesNotes            *string
+	SourceCareOfferingIDs  []int64
+	ParticipantLimit       *int
+	GroupName              string
+}
+
 // ScheduledBlockQuery reads the planner's blocks with the state of their
 // sessions and their rows.
 type ScheduledBlockQuery interface {
@@ -74,13 +91,9 @@ type ScheduledBlockQuery interface {
 	// FindBlockParticipant reads one child's slot; nil when the child has
 	// none on the block.
 	FindBlockParticipant(ctx context.Context, instanceID, studentID int64) (*ScheduledParticipant, error)
-	// FindBlockTemplate reads the template a block was materialized from.
-	FindBlockTemplate(ctx context.Context, groupID int64) (Group, error)
-	// BlockRoomName names a block's room; ok is false when it does not exist.
-	BlockRoomName(ctx context.Context, roomID int64) (name string, ok bool, err error)
-	// BlockEducationGroupNames names the education groups the blocks'
-	// templates target in one read; unknown ids are absent.
-	BlockEducationGroupNames(ctx context.Context, educationGroupIDs []int64) (map[int64]string, error)
+	// BlockDisplayMetadata loads the room, template and education-group display
+	// values for all blocks in one tenant-safe projection.
+	BlockDisplayMetadata(ctx context.Context, instanceIDs []int64) (map[int64]BlockDisplayMetadata, error)
 }
 
 // SlotAttendanceCommand edits a planned child's attendance from the planner.

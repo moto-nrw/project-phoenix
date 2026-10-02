@@ -144,9 +144,9 @@ var queryBudgets = map[string]queryBudget{
 	// lookup (#2962) with headroom for bun metadata reads; was ~98 pre-fix.
 	"api.timetable.student_week.14d": {max: 13},
 	// modules/timetable/http — GET /instances over a week, 8 instances on 3 days
-	// from one template with an education group: instances + room + template +
-	// education group + staff batch + student batch + one cutoff read per day.
-	"api.timetable.instances.list": {max: 9},
+	// from one template with an education group: instances + one display-metadata
+	// projection + staff batch + student batch + one cutoff read per day.
+	"api.timetable.instances.list": {max: 7},
 	// modules/timetable/http — GET /templates: template rows, retained list enrichments,
 	// plus the setting, offering and series-root reads for roster maintenance
 	// (#3140). The test proves all 11 statements stay flat from 3 to 8 rows.
