@@ -259,35 +259,6 @@ func int64PtrValue(v *int64) int64 {
 	return *v
 }
 
-// Stable error codes returned in the JSON envelope so the frontend can
-// map to localized German messages without parsing free-form text. Keep
-// in sync with ENROLLMENT_CODE_MESSAGES in
-// frontend/src/lib/enrollment-error-messages.ts.
-const (
-	ErrCodeEnrollmentCareOfferingMissing         = "enrollment.care_offering_missing"
-	ErrCodeEnrollmentCareOfferingExactlyOne      = "enrollment.care_offering_exactly_one"
-	ErrCodeEnrollmentRequiredCareOfferingMissing = "enrollment.required_care_offering_missing"
-	ErrCodeEnrollmentCareOfferingFull            = "enrollment.care_offering_full"
-	ErrCodeEnrollmentCareOfferingsDisabled       = "enrollment.care_offerings_disabled"
-	ErrCodeEnrollmentCareOfferingUnavailable     = "enrollment.care_offering_unavailable"
-	ErrCodeEnrollmentInvalidPhone                = "enrollment.invalid_phone"
-	ErrCodeEnrollmentInvalidEmail                = "enrollment.invalid_email"
-	ErrCodeEnrollmentPickupTimeNotAllowed        = "enrollment.pickup_time_not_allowed"
-	ErrCodeEnrollmentDepartureModeLimit          = "enrollment.departure_mode_limit"
-	ErrCodeEnrollmentLateInviteInvalid           = "enrollment.late_invite_invalid"
-	ErrCodeEnrollmentSelectedDayNotAvailable     = "enrollment.selected_day_not_available"
-	ErrCodeEnrollmentDaySelectionRequired        = "enrollment.day_selection_required"
-	ErrCodeEnrollmentDaySelectionNotAllowed      = "enrollment.day_selection_not_allowed"
-	// Phase eligibility codes (#1663).
-	ErrCodeEnrollmentPhaseNotEligible     = "enrollment.phase_not_eligible"
-	ErrCodeEnrollmentClassNotEligible     = "enrollment.class_not_eligible"
-	ErrCodeEnrollmentGradeNotEligible     = "enrollment.grade_not_eligible"
-	ErrCodeEnrollmentChildAlreadyEnrolled = "enrollment.child_already_enrolled"
-	ErrCodeEnrollmentChildNotEnrolled     = "enrollment.child_not_enrolled"
-	ErrCodeEnrollmentChildAmbiguous       = "enrollment.child_ambiguous"
-	ErrCodeEnrollmentChildNotPermitted    = "enrollment.child_not_permitted"
-)
-
 // MapSubmitError translates service-layer sentinel errors into HTTP
 // status codes. Unknown errors fall through to 500.
 func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
@@ -296,57 +267,57 @@ func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		errors.Is(err, capability.ErrEnrollmentWindowClosed):
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, capability.ErrLateInviteInvalid):
-		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, ErrCodeEnrollmentLateInviteInvalid))
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentLateInviteInvalid))
 	case errors.Is(err, capability.ErrPhaseNotEligible):
-		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, ErrCodeEnrollmentPhaseNotEligible))
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentPhaseNotEligible))
 	// The two child-level eligibility errors wrap ErrInvalidSubmission,
 	// so their specific matches must precede the generic case below.
 	case errors.Is(err, capability.ErrChildClassNotEligible):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentClassNotEligible))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentClassNotEligible))
 	case errors.Is(err, capability.ErrChildGradeNotEligible):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentGradeNotEligible))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentGradeNotEligible))
 	case errors.Is(err, capability.ErrChildAlreadyEnrolled):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentChildAlreadyEnrolled))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentChildAlreadyEnrolled))
 	case errors.Is(err, capability.ErrChildNotEnrolled):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentChildNotEnrolled))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentChildNotEnrolled))
 	case errors.Is(err, capability.ErrChildEnrollmentAmbiguous):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentChildAmbiguous))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentChildAmbiguous))
 	// Per-child re-enrollment authorization failure (#1663): a guardian account
 	// lacking parent_portal.enrollment.submit on the matched student. It does NOT
 	// wrap ErrInvalidSubmission — it is a 403, not a 400.
 	case errors.Is(err, capability.ErrChildEnrollmentNotPermitted):
-		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, ErrCodeEnrollmentChildNotPermitted))
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentChildNotPermitted))
 	case errors.Is(err, capability.ErrCareOfferingUnavailable):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingUnavailable))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingUnavailable))
 	case errors.Is(err, capability.ErrCareOfferingMissing):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingMissing))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingMissing))
 	case errors.Is(err, capability.ErrCareOfferingExactlyOneRequired):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingExactlyOne))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingExactlyOne))
 	case errors.Is(err, capability.ErrRequiredCareOfferingMissing):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentRequiredCareOfferingMissing))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentRequiredCareOfferingMissing))
 	case errors.Is(err, capability.ErrCareOfferingsDisabled):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingsDisabled))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingsDisabled))
 	case errors.Is(err, capability.ErrInvalidGuardianPhone):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentInvalidPhone))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentInvalidPhone))
 	// Must precede the generic ErrInvalidSubmission case below: the email
 	// error wraps ErrInvalidSubmission, so the specific match has to win.
 	case errors.Is(err, capability.ErrInvalidGuardianEmail):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentInvalidEmail))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentInvalidEmail))
 	// Must precede the generic ErrInvalidSubmission case below: the pickup
 	// error wraps ErrInvalidSubmission, so the specific match has to win.
 	case errors.Is(err, capability.ErrPickupTimeNotAllowed):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentPickupTimeNotAllowed))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentPickupTimeNotAllowed))
 	// Heimweg-Beschränkung (#2381) also wraps ErrInvalidSubmission.
 	case errors.Is(err, capability.ErrDepartureModeLimitExceeded):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentDepartureModeLimit))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentDepartureModeLimit))
 	// The three offering-day errors (#1885) also wrap ErrInvalidSubmission,
 	// so their specific matches must precede the generic case below.
 	case errors.Is(err, capability.ErrSelectedDayNotAvailable):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentSelectedDayNotAvailable))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentSelectedDayNotAvailable))
 	case errors.Is(err, capability.ErrDaySelectionRequired):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentDaySelectionRequired))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentDaySelectionRequired))
 	case errors.Is(err, capability.ErrDaySelectionNotAllowed):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentDaySelectionNotAllowed))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentDaySelectionNotAllowed))
 	case errors.Is(err, capability.ErrCareOfferingClosed),
 		errors.Is(err, capability.ErrInvalidSubmission):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -357,7 +328,7 @@ func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		// frontend can render a friendly German message; the previous
 		// http.Error() emitted plain text and the form fell back to
 		// "(HTTP 409)".
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeEnrollmentCareOfferingFull))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentCareOfferingFull))
 	case errors.Is(err, capability.ErrDuplicateEnrollment):
 		// 409 Conflict: the same guardian email already has an active
 		// (non-rejected, non-withdrawn) enrollment for one of these
@@ -810,7 +781,7 @@ func (rs *Resource) patchStatus(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, capability.ErrEditNotAllowed):
 			common.RenderError(w, r, common.ErrorForbidden(err))
 		case errors.Is(err, capability.ErrInvalidGuardianPhone):
-			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentInvalidPhone))
+			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentInvalidPhone))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}

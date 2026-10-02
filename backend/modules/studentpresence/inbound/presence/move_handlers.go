@@ -77,7 +77,7 @@ func openRoomMoveErrorRenderer(err error) render.Renderer {
 	case errors.Is(err, openroommove.ErrRoomNotFound):
 		return common.ErrorNotFound(err)
 	case errors.Is(err, openroommove.ErrRoomNotReleased):
-		return common.ErrorConflictWithCode(err, "room_not_released")
+		return common.ErrorConflictWithCode(err, common.CodeRoomsNotReleased)
 	}
 	return ErrorRenderer(err)
 }

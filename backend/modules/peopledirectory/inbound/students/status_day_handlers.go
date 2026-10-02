@@ -300,7 +300,7 @@ func (rs *Resource) renderStatusDayCreateError(w http.ResponseWriter, r *http.Re
 		// Stable code so the frontend can show a clear message instead of
 		// parsing this as an empty StudentStatusDayConflictError sample.
 		refuse()
-		renderError(w, r, common.ErrorConflictWithCode(err, "partial_absence_conflict"))
+		renderError(w, r, common.ErrorConflictWithCode(err, common.CodeStudentsPartialAbsenceConflict))
 		return
 	}
 	renderError(w, r, common.ErrorInternalServerWrap(failure, err))

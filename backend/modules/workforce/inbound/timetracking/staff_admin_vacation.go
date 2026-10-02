@@ -18,9 +18,9 @@ import (
 func renderVacationOpeningError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, workforce.ErrVacationOpeningExists):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "vacation_opening_already_exists"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeWorkforceVacationOpeningAlreadyExists))
 	case errors.Is(err, workforce.ErrVacationOpeningAbsencesBeforeCutoff):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "vacation_opening_absences_before_cutoff"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeWorkforceVacationOpeningAbsencesBeforeCutoff))
 	case errors.Is(err, workforce.ErrVacationOpeningNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, workforce.ErrVacationOpeningInvalid):

@@ -53,7 +53,7 @@ func TestBatchFailureResponseRetainsCommittedProgressAndRowErrors(t *testing.T) 
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
 	assert.Equal(t, "error", response.Status)
-	assert.Equal(t, "import_batch_failed", response.Code)
+	assert.Equal(t, "import.import_batch_failed", response.Code)
 	assert.Equal(t, 100, response.Details.Result.CreatedCount)
 	assert.Equal(t, 205, response.Details.Result.TotalRows)
 	require.Len(t, response.Details.Result.Errors, 1)

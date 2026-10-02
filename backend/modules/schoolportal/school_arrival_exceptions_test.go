@@ -85,7 +85,7 @@ func TestSchoolArrivalExceptionsScopeRatchet(t *testing.T) {
 				return
 			}
 			require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
-			assert.Contains(t, rec.Body.String(), "school_write_disabled")
+			assert.Contains(t, rec.Body.String(), "classday.school_write_disabled")
 		})
 	}
 }

@@ -79,7 +79,7 @@ describe("demo handoff route", () => {
 
   it("leads to this host's entry page when the link has expired", async () => {
     fetchMock.mockResolvedValue(
-      Response.json({ code: "demo_access_expired" }, { status: 410 }),
+      Response.json({ code: "identity.demo_access_expired" }, { status: 410 }),
     );
 
     const response = await handoff(

@@ -252,7 +252,7 @@ func TestAdminCreateStaffAbsence_BooksVacationWithinQuota(t *testing.T) {
 		"date_end":     monday.AddDays(2).String(),
 	})
 	require.Equal(t, http.StatusConflict, tooLong.Code, tooLong.Body.String())
-	assert.Contains(t, tooLong.Body.String(), `"vacation_quota_exceeded"`)
+	assert.Contains(t, tooLong.Body.String(), `"workforce.vacation_quota_exceeded"`)
 
 	fits := postAbsence(t, tc, token, subjectID, map[string]any{
 		"absence_type": "vacation",
@@ -285,7 +285,7 @@ func TestAdminCreateStaffAbsence_BooksVacationWithinQuota(t *testing.T) {
 		t, http.MethodPut, fmt.Sprintf("/staff/%d/vacation/quota", subjectID),
 		map[string]any{"year": 2027, "entitled_days": 5, "reason": "  "}, testutil.WithJWTBearer(token)))
 	require.Equal(t, http.StatusBadRequest, unreasoned.Code, unreasoned.Body.String())
-	assert.Contains(t, unreasoned.Body.String(), `"vacation_quota_reason_required"`)
+	assert.Contains(t, unreasoned.Body.String(), `"workforce.vacation_quota_reason_required"`)
 
 	// The reasoned change shows up in the time-tracking audit log.
 	var logged struct {
@@ -306,7 +306,7 @@ func TestAdminCreateStaffAbsence_BooksVacationWithinQuota(t *testing.T) {
 	// The claim cannot drop below the booked days any more.
 	lowered := putVacationQuota(t, tc, token, subjectID, 2027, 1)
 	require.Equal(t, http.StatusConflict, lowered.Code, lowered.Body.String())
-	assert.Contains(t, lowered.Body.String(), `"vacation_quota_below_used"`)
+	assert.Contains(t, lowered.Body.String(), `"workforce.vacation_quota_below_used"`)
 }
 
 func TestAdminCreateStaffAbsence_RejectsBlockedCustomAllowanceOverrun(t *testing.T) {
@@ -327,7 +327,7 @@ func TestAdminCreateStaffAbsence_RejectsBlockedCustomAllowanceOverrun(t *testing
 	})
 
 	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), `"absence_allowance_exceeded"`)
+	assert.Contains(t, rec.Body.String(), `"workforce.absence_allowance_exceeded"`)
 }
 
 // #2873: the comp-time preview endpoint returns the Stundenkonto projection
@@ -416,5 +416,5 @@ func TestApproveAbsence_RejectsBeyondVacationQuota(t *testing.T) {
 		t, http.MethodPost, fmt.Sprintf("/staff/absences/%d/approve", absenceID),
 		map[string]any{}, testutil.WithJWTBearer(token)))
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), `"vacation_quota_exceeded"`)
+	assert.Contains(t, rec.Body.String(), `"workforce.vacation_quota_exceeded"`)
 }

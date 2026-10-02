@@ -10,13 +10,13 @@ import (
 const (
 	MessageOpenRoomIDRequired  = "room_id is required"
 	MessageOpenRoomNotFound    = "room not found"
-	CodeOpenRoomNotFound       = "room_not_found"
+	CodeOpenRoomNotFound       = "iot.room_not_found"
 	MessageOpenRoomNotReleased = "room is not released as an open room"
-	CodeOpenRoomNotReleased    = "room_not_released"
+	CodeOpenRoomNotReleased    = "rooms.not_released"
 	MessageOpenRoomBinaryMode  = "open rooms need detailed presence mode"
-	CodeOpenRoomBinaryMode     = "open_room_binary_mode"
+	CodeOpenRoomBinaryMode     = "iot.open_room_binary_mode"
 	MessageStudentNotPresent   = "student is not checked in"
-	CodeStudentNotPresent      = "student_not_present"
+	CodeStudentNotPresent      = "iot.student_not_present"
 	MessageOpenRoomUnavailable = "open room booking is not available"
 
 	// ScanActionOpenRoomStay is the action of a booked independent stay.

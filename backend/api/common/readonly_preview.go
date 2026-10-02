@@ -7,10 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
-// CodeReadOnlyPreview is the stable wire code the frontend maps to its
-// read-only-preview error message (#2893).
-const CodeReadOnlyPreview = "read_only_preview"
-
 // msgReadOnlyPreview is shown verbatim when a write slips past the disabled
 // UI (direct API call, stale tab). German because it reaches school users.
 const msgReadOnlyPreview = "In der Vorschau können Sie nur lesen. Beenden Sie die Vorschau, um etwas zu ändern."
@@ -82,7 +78,7 @@ func ReadOnlyPreviewMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		RenderError(w, r, ErrorForbiddenMessageWithCode(msgReadOnlyPreview, CodeReadOnlyPreview))
+		RenderError(w, r, ErrorForbiddenMessageWithCode(msgReadOnlyPreview, CodeIdentityReadOnlyPreview))
 	})
 }
 

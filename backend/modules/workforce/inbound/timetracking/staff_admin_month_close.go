@@ -22,11 +22,11 @@ var monthCloseErrorRules = []common.ErrorRule{
 func renderMonthCloseError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, workforce.ErrLaterMonthClosed):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "later_month_closed"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeWorkforceLaterMonthClosed))
 	case errors.Is(err, workforce.ErrMonthNotClosable):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "month_not_closable"))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeWorkforceMonthNotClosable))
 	case errors.Is(err, workforce.ErrMonthNotClosed):
-		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, "month_not_closed"))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeWorkforceMonthNotClosed))
 	default:
 		common.RenderError(w, r, common.RenderWithRules(err, monthCloseErrorRules, common.ErrorInternalServer))
 	}

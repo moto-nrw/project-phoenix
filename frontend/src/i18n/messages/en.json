@@ -1990,6 +1990,9 @@
       "server": "{object} could not be processed. Please try again later."
     },
     "codes": {
+      "attendance": {
+        "web_disabled": "You cannot access {object}. Please contact the school."
+      },
       "care": {
         "announcement_ack_not_required": "{object} could not be saved. Please check your entries.",
         "announcement_not_a_poll": "{object} could not be saved. Please check your entries.",
@@ -2149,6 +2152,12 @@
       "identity": {
         "account_already_has_tenant_access": "{object} could not be changed. Please check its current status.",
         "account_inactive": "You cannot access {object}. Please contact the school.",
+        "demo_access_expired": "{object} could not be changed. Please check its current status.",
+        "demo_access_invalid": "{object} could not be saved. Please check your entries.",
+        "demo_access_rate_limited": "{object} is unavailable right now. Please try again.",
+        "demo_access_unknown": "{object} could not be saved. Please check your entries.",
+        "demo_capacity_reached": "{object} is unavailable right now. Please try again.",
+        "demo_school_preparing": "{object} is unavailable right now. Please try again.",
         "demo_session": "You cannot access {object}. Please contact the school.",
         "invitation_account_login_required": "You cannot access {object}. Please contact the school.",
         "invitation_account_mismatch": "You cannot access {object}. Please contact the school.",
@@ -2211,10 +2220,13 @@
         "source_not_found": "{object} could not be changed. Please check its current status."
       },
       "rooms": {
+        "color_already_in_use": "{object} could not be changed. Please check its current status.",
         "not_released": "{object} could not be changed. Please check its current status."
       },
       "school": {
-        "no_school_portal_role": "You cannot access {object}. Please contact the school."
+        "no_school_portal_role": "You cannot access {object}. Please contact the school.",
+        "setup_completed": "{object} could not be changed. Please check its current status.",
+        "setup_incomplete": "{object} could not be changed. Please check its current status."
       },
       "students": {
         "absence_read_required": "You cannot access {object}. Please contact the school.",
@@ -2226,6 +2238,7 @@
         "care_withdrawal_not_found": "{object} could not be changed. Please check its current status.",
         "change_request_not_pending": "{object} could not be changed. Please check its current status.",
         "change_request_stale": "{object} could not be changed. Please check its current status.",
+        "child_quota_reached": "{object} could not be changed. Please check its current status.",
         "companion_lock_busy": "{object} could not be changed. Please check its current status.",
         "companion_would_lose_departure": "{object} could not be saved. Please check your entries.",
         "companions_changed": "{object} could not be changed. Please check its current status.",
@@ -2273,19 +2286,36 @@
         "self_assignment": "{object} could not be saved. Please check your entries."
       },
       "timetable": {
+        "ambiguous_template_instance_delete": "{object} could not be changed. Please check its current status.",
         "calendar_period_care_offering_conflict": "{object} could not be changed. Please check its current status.",
         "calendar_period_overlap_conflict": "{object} could not be changed. Please check its current status.",
+        "complete_too_early": "{object} could not be changed. Please check its current status.",
         "completion_confirmation_stale": "{object} could not be changed. Please check its current status.",
+        "duplicate_instance": "{object} could not be changed. Please check its current status.",
+        "guardian_notice_disabled": "You cannot access {object}. Please contact the school.",
+        "idempotency_key_reused": "{object} could not be changed. Please check its current status.",
+        "instance_moved": "{object} could not be changed. Please check its current status.",
         "instance_not_convertible": "{object} could not be changed. Please check its current status.",
+        "instance_not_editable": "{object} could not be changed. Please check its current status.",
+        "invalid_transition": "{object} could not be changed. Please check its current status.",
         "only_supervisor_replacement_required": "{object} could not be changed. Please check its current status.",
         "pickup_extension_block_gone": "{object} could not be changed. Please check its current status.",
         "pickup_extension_not_found": "{object} could not be changed. Please check its current status.",
+        "presence_would_overstaff": "{object} could not be changed. Please check its current status.",
+        "sick_absence_scope_locked": "{object} could not be changed. Please check its current status.",
+        "staff_absent_on_date": "{object} could not be changed. Please check its current status.",
+        "staff_absent_on_target": "{object} could not be changed. Please check its current status.",
+        "staff_already_on_target": "{object} could not be changed. Please check its current status.",
+        "start_too_early": "{object} could not be changed. Please check its current status.",
+        "start_window_expired": "{object} could not be changed. Please check its current status.",
+        "substitute_conflict": "{object} could not be changed. Please check its current status.",
         "template_care_offering_conflict": "{object} could not be saved. Please check your entries.",
         "template_not_found": "{object} could not be changed. Please check its current status.",
         "template_roster_rebase_conflict": "{object} could not be changed. Please check its current status.",
         "template_start_in_past": "{object} could not be saved. Please check your entries.",
         "template_start_not_earlier": "{object} could not be saved. Please check your entries.",
-        "template_start_predecessor_overlap": "{object} could not be saved. Please check your entries."
+        "template_start_predecessor_overlap": "{object} could not be saved. Please check your entries.",
+        "understaffed_still_staffed": "{object} could not be changed. Please check its current status."
       },
       "workforce": {
         "absence_allowance_exceeded": "{object} could not be changed. Please check its current status.",

@@ -286,7 +286,7 @@ func TestMFAVerify_SchoolPortalOnlyAccountReturnsPortalCode(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, rr.Code)
 	var body map[string]any
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&body))
-	assert.Equal(t, "use_school_portal", body["code"])
+	assert.Equal(t, "identity.use_school_portal", body["code"])
 }
 
 func TestMFAVerify_IssueTokensUnknownErrorMapsTo500(t *testing.T) {

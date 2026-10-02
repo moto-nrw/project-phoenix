@@ -981,7 +981,7 @@ export const activeService = {
   /**
    * Records that the children now use a released room (#3066): an independent
    * room stay, not participation in an activity running there. Rejects with an
-   * ApiError whose `code` is `room_not_released` when the release was removed
+   * ApiError whose `code` is `rooms.not_released` when the release was removed
    * after the room list was loaded, or a full room's code and details.
    */
   moveStudentsToOpenRoom: async (

@@ -305,13 +305,13 @@ var instanceLifecycleErrorRules = []common.ErrorRule{
 	},
 	{
 		Target: timetable.ErrInstanceMoved,
-		Render: staticConflict("block was changed concurrently; reopen it and try again", "instance_moved"),
+		Render: staticConflict("block was changed concurrently; reopen it and try again", common.CodeTimetableInstanceMoved),
 	},
-	{Target: timetable.ErrInvalidInstanceTransition, Render: conflictCode("invalid_transition")},
-	{Target: timetable.ErrInstanceStartTooEarly, Render: conflictCode("start_too_early")},
-	{Target: timetable.ErrInstanceStartExpired, Render: conflictCode("start_window_expired")},
-	{Target: timetable.ErrInstanceCompleteEarly, Render: conflictCode("complete_too_early")},
-	{Target: timetable.ErrCompletionConfirmationStale, Render: conflictCode("completion_confirmation_stale")},
+	{Target: timetable.ErrInvalidInstanceTransition, Render: conflictCode(common.CodeTimetableInvalidTransition)},
+	{Target: timetable.ErrInstanceStartTooEarly, Render: conflictCode(common.CodeTimetableStartTooEarly)},
+	{Target: timetable.ErrInstanceStartExpired, Render: conflictCode(common.CodeTimetableStartWindowExpired)},
+	{Target: timetable.ErrInstanceCompleteEarly, Render: conflictCode(common.CodeTimetableCompleteTooEarly)},
+	{Target: timetable.ErrCompletionConfirmationStale, Render: conflictCode(common.CodeTimetableCompletionConfirmationStale)},
 	{Target: timetable.ErrTimetableOperationForbidden, Render: common.ErrorForbidden},
 	// A full room names itself with code and, when known, numbers (#3633).
 	{Target: studentpresence.ErrRoomCapacityExceeded, Render: common.ErrorBusinessRejectionOr(studentpresence.RoomCapacityCode)},
@@ -327,19 +327,19 @@ var instanceLifecycleErrorRules = []common.ErrorRule{
 		Target: timetable.ErrUnderstaffedAckStillStaffed,
 		Render: staticConflict(
 			"dieser Block kann nicht als bewusst unbesetzt markiert werden, solange noch Personal eingeteilt ist",
-			"understaffed_still_staffed",
+			common.CodeTimetableUnderstaffedStillStaffed,
 		),
 	},
 	{
 		Target: timetable.ErrAmbiguousTemplateInstanceDelete,
 		Render: staticConflict(
 			"dieser Termin kann nicht einzeln gelöscht werden, weil die Vorlage an diesem Tag mehrere Termine hat",
-			"ambiguous_template_instance_delete",
+			common.CodeTimetableAmbiguousTemplateInstanceDelete,
 		),
 	},
 	{
 		Target: timetable.ErrDuplicateTemplateInstance,
-		Render: staticConflict("instance already exists for this template/date/start_time", "duplicate_instance"),
+		Render: staticConflict("instance already exists for this template/date/start_time", common.CodeTimetableDuplicateInstance),
 	},
 }
 

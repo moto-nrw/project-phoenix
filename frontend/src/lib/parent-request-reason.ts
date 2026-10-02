@@ -5,7 +5,7 @@
  *
  * A missing flag means the strictest reading: keep the reason mandatory, so an
  * old backend or a failed features fetch can never let a request through that
- * the server would then reject with `reason_required`.
+ * the server would then reject with `students.reason_required`.
  */
 export function requiresGuardianReason(
   features?: Readonly<{ reason_required?: boolean }>,

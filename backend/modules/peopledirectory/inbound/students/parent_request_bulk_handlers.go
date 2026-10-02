@@ -60,13 +60,13 @@ func (rs *Resource) bulkApproveParentRequests(w http.ResponseWriter, r *http.Req
 
 var bulkParentRequestErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: parentrequests.ErrStale, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, "change_request_stale")
+		return common.ErrorConflictWithCode(err, common.CodeStudentsChangeRequestStale)
 	}},
 	{Target: parentrequests.ErrBulkIneligible, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, "bulk_approval_ineligible")
+		return common.ErrorConflictWithCode(err, common.CodeStudentsBulkApprovalIneligible)
 	}},
 	{Target: parentrequests.ErrNotFound, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, "bulk_approval_ineligible")
+		return common.ErrorConflictWithCode(err, common.CodeStudentsBulkApprovalIneligible)
 	}},
 	{Target: parentrequests.ErrInvalidBulkRequest, Render: common.ErrorInvalidRequest},
 	{Target: parentrequests.ErrForbidden, Render: common.ErrorForbidden},

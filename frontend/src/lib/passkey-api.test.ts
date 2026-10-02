@@ -312,13 +312,13 @@ describe("passkey-api", () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
       jsonResponse(403, {
         error: "school portal accounts must log in at the school portal",
-        code: "use_school_portal",
+        code: "identity.use_school_portal",
       }),
     );
 
     await expect(startPasskeyEnrollment("tenant")).rejects.toMatchObject({
       status: 403,
-      code: "use_school_portal",
+      code: "identity.use_school_portal",
     });
   });
 

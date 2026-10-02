@@ -53,8 +53,8 @@ func IsUniqueViolationOn(err error, constraint string) bool {
 	return hasTextualSQLState(err, "23505") && hasTextualConstraint(err.Error(), constraint)
 }
 
-func hasTextualSQLState(err error, code string) bool {
-	return err != nil && strings.Contains(err.Error(), "SQLSTATE="+code)
+func hasTextualSQLState(err error, sqlState string) bool {
+	return err != nil && strings.Contains(err.Error(), "SQLSTATE="+sqlState)
 }
 
 func hasTextualConstraint(message, identifier string) bool {

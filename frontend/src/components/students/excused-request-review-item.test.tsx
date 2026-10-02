@@ -159,7 +159,7 @@ describe("ExcusedRequestReviewItem", () => {
     mockDecide.mockRejectedValueOnce(
       new ExcusedRequestApiError(
         "students: excused request status conflict",
-        "excused_request_status_conflict",
+        "students.excused_request_status_conflict",
       ),
     );
     const onDecided = vi.fn();

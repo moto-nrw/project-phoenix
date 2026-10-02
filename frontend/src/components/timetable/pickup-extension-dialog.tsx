@@ -29,10 +29,10 @@ export function pickupExtensionWhen(task: PickupExtension): string {
 
 function resolveErrorMessage(err: unknown): string {
   if (err instanceof PickupExtensionApiError) {
-    if (err.code === "pickup_extension_block_gone") {
+    if (err.code === "timetable.pickup_extension_block_gone") {
       return "Der Termin hat sich inzwischen geändert. Bitte wählen Sie noch einmal.";
     }
-    if (err.code === "pickup_extension_not_found") {
+    if (err.code === "timetable.pickup_extension_not_found") {
       return "Das wurde schon erledigt.";
     }
   }
@@ -162,7 +162,7 @@ function PickupExtensionStep({
       });
       if (
         err instanceof PickupExtensionApiError &&
-        err.code === "pickup_extension_block_gone"
+        err.code === "timetable.pickup_extension_block_gone"
       ) {
         setError(resolveErrorMessage(err));
         setStale(true);

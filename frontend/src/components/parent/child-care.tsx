@@ -658,7 +658,10 @@ function resolveSickError(
   save: string,
 ): string {
   if (err instanceof ChildCareRefreshError) return refreshFailed;
-  if (err instanceof ParentApiError && err.code === "excused_request_overlap") {
+  if (
+    err instanceof ParentApiError &&
+    err.code === "care.excused_request_overlap"
+  ) {
     return overlap;
   }
   return err instanceof Error ? err.message : save;
@@ -1032,29 +1035,29 @@ export function PickupTimeModal({
   const resolveError = (err: unknown): string => {
     if (err instanceof ParentApiError) {
       switch (err.code) {
-        case "pickup_change_disabled":
+        case "care.pickup_change_disabled":
           return t("pickup.errorDisabled");
-        case "care_exception_conflict":
+        case "care.care_exception_conflict":
           return t("pickup.errorStaffConflict");
-        case "care_exception_already_left":
+        case "care.care_exception_already_left":
           return childFirstName
             ? t("pickup.alreadyHome", { name: childFirstName })
             : t("pickup.alreadyHomeGeneric");
-        case "care_exception_raced":
+        case "students.care_exception_raced":
           return t("pickup.errorRaced");
-        case "care_exception_past_date":
+        case "care.care_exception_past_date":
           return t("pickup.errorPastDate");
-        case "care_exception_too_far":
+        case "care.care_exception_too_far":
           return t("pickup.errorTooFar");
-        case "care_exception_no_time":
+        case "care.care_exception_no_time":
           return t("pickup.noTime");
-        case "care_exception_reason_required":
+        case "care.care_exception_reason_required":
           return t("pickup.reasonRequired");
-        case "care_exception_reason_too_long":
+        case "care.care_exception_reason_too_long":
           return t("pickup.reasonTooLong");
-        case "care_request_already_pending":
+        case "care.care_request_already_pending":
           return t("pickup.statusPending");
-        case "pickup_change_cutoff_passed":
+        case "care.pickup_change_cutoff_passed":
           setCutoffReported(true);
           onCutoffPassed?.();
           return cutoffTime
@@ -1141,7 +1144,8 @@ export function PickupTimeModal({
       onClose();
     } catch (err) {
       setError(
-        err instanceof ParentApiError && err.code === "change_request_stale"
+        err instanceof ParentApiError &&
+          err.code === "students.change_request_stale"
           ? t("pickup.staleError")
           : resolveError(err),
       );

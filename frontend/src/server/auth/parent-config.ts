@@ -15,6 +15,7 @@ import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { analyticsSessionHeaders } from "~/lib/analytics-session-header.server";
+import { wireErrorCode } from "~/lib/api-error";
 import { canonicalForwardedFor } from "~/lib/client-headers.server";
 import {
   logger,
@@ -96,9 +97,9 @@ export const parentAuthConfig = {
           if (status === 429)
             throw await createOperatorLoginError("rate_limited");
           // Backend body codes:
-          //   "invalid_credentials" → wrong password OR unknown email (masked)
-          //   "account_inactive"    → parent account disabled by the school
-          //   "not_a_guardian"      → staff account hitting the parent portal
+          //   "care.invalid_credentials"          → wrong password OR unknown email (masked)
+          //   "identity.session_account_inactive" → parent account disabled by the school
+          //   "care.not_a_guardian"               → staff account hitting the parent portal
           //
           // not_a_guardian used to be masked as invalid_credentials to avoid
           // confirming the email belongs to staff. That mask protected
@@ -109,9 +110,10 @@ export const parentAuthConfig = {
           // Meanwhile the mask cost real users the one hint they needed, and
           // parents hitting the mirror case on the staff login were resetting
           // their password over and over.
-          if (code === "account_inactive")
+          const backendCode = wireErrorCode(code);
+          if (backendCode === "identity.session_account_inactive")
             throw await createOperatorLoginError("account_inactive");
-          if (code === "not_a_guardian")
+          if (backendCode === "care.not_a_guardian")
             throw await createOperatorLoginError("not_a_guardian");
           throw await createOperatorLoginError("invalid_credentials");
         }

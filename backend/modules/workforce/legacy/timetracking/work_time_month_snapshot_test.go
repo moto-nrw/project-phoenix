@@ -352,7 +352,7 @@ func TestMonthClose_RejectsAdjustmentInClosedMonth(t *testing.T) {
 
 // TestMonthClose_RejectedAdjustmentCarriesClosedMonthSentinel pins the
 // dedicated sentinel the API layer maps to the stable code
-// "adjustment_in_closed_month", so the frontend can explain the month close
+// "workforce.adjustment_in_closed_month", so the frontend can explain the month close
 // instead of showing a generic validation error (#1417 UI).
 func TestMonthClose_RejectedAdjustmentCarriesClosedMonthSentinel(t *testing.T) {
 	t.Parallel()

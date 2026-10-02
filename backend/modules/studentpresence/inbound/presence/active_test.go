@@ -296,7 +296,7 @@ func TestEndActiveGroup(t *testing.T) {
 		rr := testutil.ExecuteWithAuthPermissions(t, disabledRouter, req, adminClaims, []string{permissions.GroupsUpdate})
 
 		testutil.AssertForbidden(t, rr)
-		assert.Contains(t, rr.Body.String(), common.ErrCodeAttendanceWebDisabled)
+		assert.Contains(t, rr.Body.String(), common.CodeAttendanceWebDisabled)
 		assert.Zero(t, recordingService.endCalls, "the disabled route must not invoke group teardown")
 		stored, err := tc.resource.Presence.ListLiveGroups(settingCtx, []int64{activeGroup.ID})
 		require.NoError(t, err)

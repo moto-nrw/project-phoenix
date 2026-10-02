@@ -113,7 +113,7 @@ func TestGroupAssignmentRequestPreservesDateErrors(t *testing.T) {
 	_, err := request.toAssignment()
 	response := renderErrorResponse(t, err)
 	require.Equal(t, 400, response.status)
-	require.Equal(t, "invalid_period", response.body.Code)
+	require.Equal(t, "substitutions.invalid_period", response.body.Code)
 	require.Equal(t, "Das Startdatum ist ungültig.", response.body.Error)
 }
 
@@ -122,7 +122,7 @@ func TestRenderModuleErrorHidesInternalCause(t *testing.T) {
 
 	response := renderErrorResponse(t, errors.New("postgres password leaked"))
 	require.Equal(t, 500, response.status)
-	require.Equal(t, "internal", response.body.Code)
+	require.Equal(t, "substitutions.internal", response.body.Code)
 	require.Equal(t, "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.", response.body.Error)
 	require.NotContains(t, response.rawBody, "postgres")
 }

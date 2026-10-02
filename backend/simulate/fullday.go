@@ -11,6 +11,13 @@ import (
 	"time"
 )
 
+// Registered error codes (error-registry.json) the simulation expects from
+// the device API.
+const (
+	codeRFIDTagNotFound      = "iot.rfid_tag_not_found"
+	codeRoomCapacityExceeded = "iot.room_capacity_exceeded"
+)
+
 var feedbackValues = []string{"positive", "neutral", "negative"}
 
 // Eight seeded sessions receive students round-robin. The 85th student would
@@ -462,7 +469,7 @@ func (recordAttendanceAction) Run(_ context.Context, rt *Runtime) error {
 		HTTPStatusCode() int
 		HTTPErrorCode() string
 	}
-	if !errors.As(err, &expectedErr) || expectedErr.HTTPStatusCode() != 404 || expectedErr.HTTPErrorCode() != "rfid_tag_not_found" {
+	if !errors.As(err, &expectedErr) || expectedErr.HTTPStatusCode() != 404 || expectedErr.HTTPErrorCode() != codeRFIDTagNotFound {
 		return fmt.Errorf("record unregistered tag scan: expected 404 (rfid_tag_not_found), got %w", err)
 	}
 

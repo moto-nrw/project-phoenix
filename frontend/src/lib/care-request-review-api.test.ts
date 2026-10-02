@@ -138,7 +138,7 @@ describe("decideCareScheduleChangeRequest", () => {
       jsonResponse(
         {
           error: "Die Anfrage ist nicht mehr offen",
-          code: "change_request_not_pending",
+          code: "students.change_request_not_pending",
           details: { request_id: "r1" },
           errors: [{ field: "impact_token", reason: "stale" }],
           instance: "request-care-409",
@@ -155,7 +155,7 @@ describe("decideCareScheduleChangeRequest", () => {
     ).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(CareRequestApiError);
     expect((err as CareRequestApiError).code).toBe(
-      "change_request_not_pending",
+      "students.change_request_not_pending",
     );
     expect(err).toMatchObject({
       status: 409,

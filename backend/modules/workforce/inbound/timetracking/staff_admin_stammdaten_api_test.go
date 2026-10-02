@@ -137,8 +137,8 @@ func TestStammdatenAPI_WireShapeAndValidation(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	rec = ctx.put(base+"/arbeitsvertrag", `{"weekly_hours":95}`, "staff:stammdaten")
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), `"stammdaten_invalid"`)
+	assert.Contains(t, rec.Body.String(), `"workforce.stammdaten_invalid"`)
 	rec = ctx.put(base+"/bank-steuer", `{"iban":"DE00123"}`, "staff:financial")
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), `"stammdaten_invalid"`)
+	assert.Contains(t, rec.Body.String(), `"workforce.stammdaten_invalid"`)
 }

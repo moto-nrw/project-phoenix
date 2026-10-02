@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/chi/v5"
@@ -588,7 +589,7 @@ func TestUpdateSchemaHandler_RenameNameCollisionReturns409WithCode(t *testing.T)
 			"fields": []map[string]any{{"key": "x", "label": "X", "type": "text", "sort_order": 0}},
 		})
 	require.Equal(t, http.StatusConflict, w.Code)
-	assert.Contains(t, w.Body.String(), ErrCodeSchemaNameExists)
+	assert.Contains(t, w.Body.String(), common.CodeEnrollmentSchemaNameExists)
 }
 
 func TestUpdateSchemaHandler_RenameNotFoundReturns404(t *testing.T) {
@@ -639,7 +640,7 @@ func TestDeleteSchemaHandler_HasPhases409WithCode(t *testing.T) {
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodDelete, "/enrollment/schema/1234", nil)
 	assert.Equal(t, http.StatusConflict, w.Code)
-	assert.Contains(t, w.Body.String(), ErrCodeSchemaHasPhases,
+	assert.Contains(t, w.Body.String(), common.CodeEnrollmentSchemaHasPhases,
 		"ErrFormSchemaHasPhases must surface as a stable error code so the frontend can render the friendly message")
 }
 
@@ -650,7 +651,7 @@ func TestDeleteSchemaHandler_HasRequests409WithCode(t *testing.T) {
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodDelete, "/enrollment/schema/1234", nil)
 	assert.Equal(t, http.StatusConflict, w.Code)
-	assert.Contains(t, w.Body.String(), ErrCodeSchemaHasRequests)
+	assert.Contains(t, w.Body.String(), common.CodeEnrollmentSchemaHasRequests)
 }
 
 func TestDeleteSchemaHandler_NotFoundReturns404(t *testing.T) {
@@ -714,7 +715,7 @@ func TestRenameSchemaHandler_NameExistsReturns409WithCode(t *testing.T) {
 	w := executeSchemaJSON(t, router, http.MethodPatch, "/enrollment/schema/1234",
 		map[string]any{"name": "Schon vergeben"})
 	assert.Equal(t, http.StatusConflict, w.Code)
-	assert.Contains(t, w.Body.String(), ErrCodeSchemaNameExists,
+	assert.Contains(t, w.Body.String(), common.CodeEnrollmentSchemaNameExists,
 		"a name collision must surface as a stable error code for the frontend")
 }
 

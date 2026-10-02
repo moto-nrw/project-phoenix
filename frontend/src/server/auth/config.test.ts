@@ -1269,7 +1269,7 @@ describe("authConfig", () => {
           JSON.stringify({
             status: "error",
             error: "account is inactive",
-            code: "account_inactive",
+            code: "identity.session_account_inactive",
           }),
       });
 
@@ -1283,7 +1283,7 @@ describe("authConfig", () => {
         access_token: "",
         refresh_token: "",
         status: 401,
-        code: "account_inactive",
+        code: "identity.session_account_inactive",
       });
     });
 
@@ -1300,7 +1300,7 @@ describe("authConfig", () => {
           JSON.stringify({
             status: "error",
             error: "account is not a guardian at any school",
-            code: "not_a_guardian",
+            code: "care.not_a_guardian",
           }),
       });
 
@@ -1314,7 +1314,7 @@ describe("authConfig", () => {
         access_token: "",
         refresh_token: "",
         status: 403,
-        code: "not_a_guardian",
+        code: "care.not_a_guardian",
       });
     });
 
@@ -2017,7 +2017,7 @@ describe("authConfig", () => {
           JSON.stringify({
             status: "error",
             error: "account is inactive",
-            code: "account_inactive",
+            code: "identity.session_account_inactive",
           }),
       });
 
@@ -2046,7 +2046,7 @@ describe("authConfig", () => {
           JSON.stringify({
             status: "error",
             error: "account is not a guardian at any school",
-            code: "not_a_guardian",
+            code: "care.not_a_guardian",
           }),
       });
 
@@ -2067,7 +2067,7 @@ describe("authConfig", () => {
           JSON.stringify({
             status: "error",
             error: "invalid credentials",
-            code: "invalid_credentials",
+            code: "care.invalid_credentials",
           }),
       });
 

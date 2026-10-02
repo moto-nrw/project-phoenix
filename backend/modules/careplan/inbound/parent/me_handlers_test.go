@@ -438,7 +438,7 @@ func TestGetChildMealPlan_DisabledContract(t *testing.T) {
 	assert.JSONEq(t, `{
 		"status":"error",
 		"error":"parent: meal plan disabled for this school",
-		"code":"meal_plan_disabled",
+		"code":"meals.plan_disabled",
 		"type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen",
 		"title":"Forbidden",
 		"detail":"parent: meal plan disabled for this school",
@@ -514,7 +514,7 @@ func TestSubmitCareException_MapsMissingReasonToStableCode(t *testing.T) {
 	rs.submitCareException(w, careExceptionRequest(`{"date":"2026-08-18","pickup_time":"14:30"}`))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), `"code":"care_exception_reason_required"`)
+	assert.Contains(t, w.Body.String(), `"code":"care.care_exception_reason_required"`)
 }
 
 // #3163: after the same-day cutoff the submit answers 409 with its own code,
@@ -529,7 +529,7 @@ func TestSubmitCareException_MapsCutoffPassedToConflictCode(t *testing.T) {
 	rs.submitCareException(w, careExceptionRequest(`{"date":"2026-08-18","pickup_time":"14:30","reason":"Arzttermin"}`))
 
 	assert.Equal(t, http.StatusConflict, w.Code)
-	assert.Contains(t, w.Body.String(), `"code":"pickup_change_cutoff_passed"`)
+	assert.Contains(t, w.Body.String(), `"code":"care.pickup_change_cutoff_passed"`)
 }
 
 // The features response carries the cutoff and today's lock state to the

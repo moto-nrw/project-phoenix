@@ -15,6 +15,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -37,7 +39,7 @@ func TestCompanionPlanErrorRenderer(t *testing.T) {
 		resp := rendererStatus(t, companionPlanErrorRenderer(careplan.ErrCompanionLockBusy))
 
 		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
-		assert.Equal(t, CodeCompanionLockBusy, resp.Code)
+		assert.Equal(t, common.CodeStudentsCompanionLockBusy, resp.Code)
 	})
 
 	t.Run("classifies through wrapping", func(t *testing.T) {
@@ -113,8 +115,8 @@ func TestDecideCareScheduleChangeRequest_MapsCompanionErrors(t *testing.T) {
 	}{
 		{name: "stranded companion", err: careplan.ErrCompanionWouldLoseDeparture, want: http.StatusBadRequest},
 		{name: "busy companion lock", err: careplan.ErrCompanionLockBusy, want: http.StatusConflict},
-		{name: "stale pickup impact", err: carerequests.ErrPickupChangeImpactChanged, want: http.StatusConflict, wantCode: "pickup_change_impact_changed"},
-		{name: "care day belongs to booking", err: carerequests.ErrCareDayManagedByBooking, want: http.StatusConflict, wantCode: "care_day_managed_by_booking"},
+		{name: "stale pickup impact", err: carerequests.ErrPickupChangeImpactChanged, want: http.StatusConflict, wantCode: "students.pickup_change_impact_changed"},
+		{name: "care day belongs to booking", err: carerequests.ErrCareDayManagedByBooking, want: http.StatusConflict, wantCode: "students.care_day_managed_by_booking"},
 		{name: "missing pickup impact", want: http.StatusBadRequest},
 		{name: "unrelated error stays a server error", err: errors.New("boom"), want: http.StatusInternalServerError},
 	}

@@ -242,7 +242,7 @@ func TestDeviceCheckin_UnknownCardIsNotFoundWithCode(t *testing.T) {
 	testutil.AssertNotFound(t, rr)
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	assert.Equal(t, "RFID tag not found", response["error"])
-	assert.Equal(t, "rfid_tag_not_found", response["code"])
+	assert.Equal(t, "iot.rfid_tag_not_found", response["code"])
 }
 
 func TestDeviceCheckin_NoSessionInRoom(t *testing.T) {
@@ -519,7 +519,7 @@ func TestDeviceCheckin_RoomCapacityExceeded(t *testing.T) {
 
 	require.Equal(t, 409, rr.Code, rr.Body.String())
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	assert.Equal(t, "ROOM_CAPACITY_EXCEEDED", response["code"])
+	assert.Equal(t, "iot.room_capacity_exceeded", response["code"])
 	assert.Equal(t, "Room capacity exceeded", response["message"])
 	details, ok := response["details"].(map[string]any)
 	require.True(t, ok, "room details are disclosed by default")
@@ -566,7 +566,7 @@ func TestDeviceCheckin_ActivityCapacityExceeded(t *testing.T) {
 
 	require.Equal(t, 409, rr.Code, rr.Body.String())
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	assert.Equal(t, "ACTIVITY_CAPACITY_EXCEEDED", response["code"])
+	assert.Equal(t, "iot.activity_capacity_exceeded", response["code"])
 	// Since #3633 the kiosk names the full activity by default, like a full
 	// room: the generic hint was read as "room full" in production.
 	details, ok := response["details"].(map[string]any)
@@ -598,7 +598,7 @@ func TestDeviceCheckin_ActivityCapacityExceededDetailsDisabled(t *testing.T) {
 
 	require.Equal(t, 409, rr.Code, rr.Body.String())
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	assert.Equal(t, "ACTIVITY_CAPACITY_EXCEEDED", response["code"])
+	assert.Equal(t, "iot.activity_capacity_exceeded", response["code"])
 	assert.NotContains(t, response, "details", "a stored false keeps the details hidden")
 }
 

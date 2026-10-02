@@ -178,13 +178,31 @@ describe("declarationErrorKey", () => {
 
   it.each([
     [404, "not_found", "notFound", false, true],
-    [403, "declaration_not_permitted", "notPermitted", false, true],
-    [409, "declaration_version_changed", "versionChanged", false, true],
-    [409, "declaration_closed", "closed", false, true],
-    [409, "declaration_action_not_allowed", "actionNotAllowed", false, true],
-    [409, "child_care_ended", "careEnded", false, true],
-    [403, "declaration_password_required", "passwordRequired", true, false],
-    [403, "declaration_password_incorrect", "passwordIncorrect", true, false],
+    [403, "care.declaration_not_permitted", "notPermitted", false, true],
+    [409, "care.declaration_version_changed", "versionChanged", false, true],
+    [409, "care.declaration_closed", "closed", false, true],
+    [
+      409,
+      "care.declaration_action_not_allowed",
+      "actionNotAllowed",
+      false,
+      true,
+    ],
+    [409, "care.child_care_ended", "careEnded", false, true],
+    [
+      403,
+      "care.declaration_password_required",
+      "passwordRequired",
+      true,
+      false,
+    ],
+    [
+      403,
+      "care.declaration_password_incorrect",
+      "passwordIncorrect",
+      true,
+      false,
+    ],
     [429, undefined, "tooMany", true, false],
     [400, undefined, "generic", true, false],
     [500, undefined, "uncertain", false, true],
@@ -328,7 +346,7 @@ describe("Einverständnis in the detail view", () => {
     const submit = vi
       .spyOn(parentApi, "submitDeclaration")
       .mockRejectedValueOnce(
-        new ParentApiError("wrong", 403, "declaration_password_incorrect"),
+        new ParentApiError("wrong", 403, "care.declaration_password_incorrect"),
       )
       .mockResolvedValueOnce(submission("declined"));
 
@@ -386,7 +404,7 @@ describe("Einverständnis in the detail view", () => {
 
   it("closes the confirmation, tells the parent and reloads when the text changed", async () => {
     vi.spyOn(parentApi, "submitDeclaration").mockRejectedValue(
-      new ParentApiError("changed", 409, "declaration_version_changed"),
+      new ParentApiError("changed", 409, "care.declaration_version_changed"),
     );
     const onStale = vi.fn();
 

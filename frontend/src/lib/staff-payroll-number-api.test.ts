@@ -73,11 +73,11 @@ describe("staffPayrollNumberService", () => {
 
   it.each([
     [
-      "personnel_number_taken",
+      "workforce.personnel_number_taken",
       "Diese Personalnummer ist in dieser Schule bereits vergeben.",
     ],
     [
-      "personnel_number_invalid",
+      "workforce.personnel_number_invalid",
       "Ungültige Personalnummer: nur Ziffern, höchstens 9 Stellen.",
     ],
     ["other", "backend error"],

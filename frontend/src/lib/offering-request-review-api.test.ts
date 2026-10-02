@@ -141,7 +141,7 @@ describe("previewOfferingChangeRequest", () => {
       jsonResponse(
         {
           error: "Diese Übersteuerung ist nicht mehr möglich",
-          code: "offering_change_invalid",
+          code: "care.offering_change_invalid",
         },
         { status: 422 },
       ),
@@ -152,7 +152,7 @@ describe("previewOfferingChangeRequest", () => {
     ).rejects.toMatchObject({
       name: "OfferingRequestApiError",
       message: "Diese Übersteuerung ist nicht mehr möglich",
-      code: "offering_change_invalid",
+      code: "care.offering_change_invalid",
     });
   });
 });

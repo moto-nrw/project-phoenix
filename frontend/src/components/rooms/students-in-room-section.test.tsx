@@ -1484,7 +1484,7 @@ describe("StudentsInRoomSection", () => {
       mockMoveStudentsToOpenRoom.mockRejectedValue(
         Object.assign(new Error("Move students to open room failed: 409"), {
           status: 409,
-          code: "room_not_released",
+          code: "rooms.not_released",
         }),
       );
 

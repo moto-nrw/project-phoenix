@@ -232,19 +232,19 @@ func renderOfferingDecisionError(w http.ResponseWriter, r *http.Request, err err
 
 var offeringDecisionErrorRenderer = common.RulesRenderer(parentRequestRules(
 	common.ErrorRule{Target: careplan.ErrOfferingChangeNotFound, Render: common.ErrorNotFound},
-	common.ErrorRule{Target: careplan.ErrOfferingChangeNotPending, Render: conflictWithCode("change_request_not_pending")},
+	common.ErrorRule{Target: careplan.ErrOfferingChangeNotPending, Render: conflictWithCode(common.CodeStudentsChangeRequestNotPending)},
 	common.ErrorRule{Target: careplan.ErrOfferingChangeForbidden, Render: common.ErrorForbidden},
 	common.ErrorRule{Target: careplan.ErrCareOfferingsDisabled, Render: func(err error) render.Renderer {
-		return common.ErrorForbiddenWithCode(err, "care_offerings_disabled")
+		return common.ErrorForbiddenWithCode(err, common.CodeStudentsCareOfferingsDisabled)
 	}},
-	common.ErrorRule{Target: careplan.ErrOfferingChangeCapacityFull, Render: conflictWithCode("offering_change_capacity_full")},
-	common.ErrorRule{Target: careplan.ErrOfferingChangeNoEnrollment, Render: conflictWithCode("offering_changes_no_enrollment")},
+	common.ErrorRule{Target: careplan.ErrOfferingChangeCapacityFull, Render: conflictWithCode(common.CodeStudentsOfferingChangeCapacityFull)},
+	common.ErrorRule{Target: careplan.ErrOfferingChangeNoEnrollment, Render: conflictWithCode(common.CodeStudentsOfferingChangesNoEnrollment)},
 	common.ErrorRule{Target: careplan.ErrOfferingChangeDateOutOfRange, Render: func(err error) render.Renderer {
-		return common.ErrorInvalidRequestWithCode(err, "offering_change_date_out_of_range")
+		return common.ErrorInvalidRequestWithCode(err, common.CodeStudentsOfferingChangeDateOutOfRange)
 	}},
 	common.ErrorRule{
 		Target: careplan.ErrCompleteWithdrawalConfirmationRequired,
-		Render: conflictWithCode("enrollment.complete_withdrawal_confirmation_required"),
+		Render: conflictWithCode(common.CodeEnrollmentCompleteWithdrawalConfirmationRequired),
 	},
 	common.ErrorRule{Target: careplan.ErrOfferingChangeInvalid, Render: common.ErrorInvalidRequest},
 	common.ErrorRule{Target: careplan.ErrOfferingAdjustmentInvalid, Render: common.ErrorInvalidRequest},

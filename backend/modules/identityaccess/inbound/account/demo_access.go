@@ -211,12 +211,12 @@ func demoError(status int, code string) func(error) render.Renderer {
 }
 
 var demoAccessErrorRules = []common.ErrorRule{
-	{Target: identityaccess.ErrDemoAccessInvalid, Render: demoError(http.StatusUnprocessableEntity, "demo_access_invalid")},
-	{Target: identityaccess.ErrDemoAccessUnknown, Render: demoError(http.StatusNotFound, "demo_access_unknown")},
-	{Target: identityaccess.ErrDemoAccessExpired, Render: demoError(http.StatusGone, "demo_access_expired")},
-	{Target: identityaccess.ErrDemoSchoolPreparing, Render: demoError(http.StatusConflict, "demo_school_preparing")},
-	{Target: identityaccess.ErrDemoAccessRateLimited, Render: demoError(http.StatusTooManyRequests, "demo_access_rate_limited")},
-	{Target: identityaccess.ErrDemoCapacityReached, Render: demoError(http.StatusServiceUnavailable, "demo_capacity_reached")},
+	{Target: identityaccess.ErrDemoAccessInvalid, Render: demoError(http.StatusUnprocessableEntity, common.CodeIdentityDemoAccessInvalid)},
+	{Target: identityaccess.ErrDemoAccessUnknown, Render: demoError(http.StatusNotFound, common.CodeIdentityDemoAccessUnknown)},
+	{Target: identityaccess.ErrDemoAccessExpired, Render: demoError(http.StatusGone, common.CodeIdentityDemoAccessExpired)},
+	{Target: identityaccess.ErrDemoSchoolPreparing, Render: demoError(http.StatusConflict, common.CodeIdentityDemoSchoolPreparing)},
+	{Target: identityaccess.ErrDemoAccessRateLimited, Render: demoError(http.StatusTooManyRequests, common.CodeIdentityDemoAccessRateLimited)},
+	{Target: identityaccess.ErrDemoCapacityReached, Render: demoError(http.StatusServiceUnavailable, common.CodeIdentityDemoCapacityReached)},
 }
 
 func (rs *DemoResource) renderError(w http.ResponseWriter, r *http.Request, err error) {

@@ -120,8 +120,8 @@ describe("MFAApiError", () => {
   });
 
   it("carries the backend error code when one is given", () => {
-    const err = new MFAApiError(403, "nope", "use_parent_portal");
-    expect(err.code).toBe("use_parent_portal");
+    const err = new MFAApiError(403, "nope", "identity.use_parent_portal");
+    expect(err.code).toBe("identity.use_parent_portal");
   });
 
   it("uses the permission class code when none is given", () => {
@@ -154,14 +154,14 @@ describe("login error bodies", () => {
     mockErrorBody(403, {
       status: "error",
       error: "guardian accounts must log in at the parents portal",
-      code: "use_parent_portal",
+      code: "identity.use_parent_portal",
     });
 
     await expect(
       login("tenant", { email: "a@b.de", password: "pw", tenantSlug: "s" }),
     ).rejects.toMatchObject({
       status: 403,
-      code: "use_parent_portal",
+      code: "identity.use_parent_portal",
     });
   });
 

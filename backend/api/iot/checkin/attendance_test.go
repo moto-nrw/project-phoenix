@@ -67,7 +67,7 @@ func TestGetAttendanceStatus(t *testing.T) {
 		rr := k.call(t, "GET", "/status/NONEXISTENT123", nil, k.device(t, "attendance-2"))
 		testutil.AssertNotFound(t, rr)
 		assert.Contains(t, rr.Body.String(), "RFID tag not found")
-		assert.NotContains(t, rr.Body.String(), "rfid_tag_not_found", "the attendance routes carry no code")
+		assert.NotContains(t, rr.Body.String(), "iot.rfid_tag_not_found", "the attendance routes carry no code")
 	})
 	t.Run("answers the student with the group", func(t *testing.T) {
 		t.Parallel()

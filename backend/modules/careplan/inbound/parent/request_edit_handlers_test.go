@@ -63,7 +63,7 @@ func TestSickNoteEnvelopeAndRecipientValidation(t *testing.T) {
 		"recipient_guardian_profile_ids": []string{"nicht-numerisch"},
 	})
 	require.Equal(t, http.StatusBadRequest, bad.Code, bad.Body.String())
-	assert.Contains(t, bad.Body.String(), "invalid_recipients")
+	assert.Contains(t, bad.Body.String(), "care.invalid_recipients")
 }
 
 // TestEditExcusedRequestEndpoint pins the wire contract of the guardian edit
@@ -123,7 +123,7 @@ func TestEditExcusedRequestEndpoint(t *testing.T) {
 		"expected_version": "2020-01-01T00:00:00Z",
 	})
 	require.Equal(t, http.StatusConflict, stale.Code, stale.Body.String())
-	assert.Contains(t, stale.Body.String(), "change_request_stale")
+	assert.Contains(t, stale.Body.String(), "students.change_request_stale")
 
 	// The request reason policy applies to edits too. A blank replacement must
 	// keep the create path's 400 response instead of surfacing as an internal

@@ -9,16 +9,18 @@ import (
 )
 
 // The codes below are a cross-repo contract: PyrePortal maps them to German
-// UI text (docs/agents/contracts.md, Ecosystem and IoT).
+// UI text (docs/agents/contracts.md, Ecosystem and IoT). They are registered
+// in error-registry.json; this package may not import api/common, so it
+// names them once here.
 const (
-	codeInvalidRequest         = "invalid_staff_clock_request"
-	codeInvalidRFIDTag         = "invalid_rfid_tag"
-	codeRFIDTagNotFound        = "rfid_tag_not_found"
-	codeRFIDTagInactive        = "rfid_tag_inactive"
-	codeRFIDTagNotStaff        = "rfid_tag_not_staff"
-	codeInvalidState           = "invalid_staff_clock_state"
-	codePlannedStartNotReached = "planned_start_not_reached"
-	codeDeviationReason        = "deviation_reason_required"
+	codeInvalidRequest         = "iot.invalid_staff_clock_request"
+	codeInvalidRFIDTag         = "iot.invalid_rfid_tag"
+	codeRFIDTagNotFound        = "iot.rfid_tag_not_found"
+	codeRFIDTagInactive        = "iot.rfid_tag_inactive"
+	codeRFIDTagNotStaff        = "iot.rfid_tag_not_staff"
+	codeInvalidState           = "iot.invalid_staff_clock_state"
+	codePlannedStartNotReached = "iot.planned_start_not_reached"
+	codeDeviationReason        = "iot.deviation_reason_required"
 	messageOperationFailed     = "staff clock operation failed"
 )
 

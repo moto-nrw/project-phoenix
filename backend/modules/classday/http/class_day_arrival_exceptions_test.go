@@ -146,15 +146,15 @@ func TestSchoolArrivalExceptionsClosedByDefault(t *testing.T) {
 	// the permission in the token.
 	rec = f.do(t, http.MethodPut, path, body, classDayWritePermission)
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), "school_write_disabled")
+	assert.Contains(t, rec.Body.String(), "classday.school_write_disabled")
 
 	rec = f.do(t, http.MethodDelete, path, "", classDayWritePermission)
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), "school_write_disabled")
+	assert.Contains(t, rec.Body.String(), "classday.school_write_disabled")
 
 	rec = f.do(t, http.MethodGet, "/arrival-exceptions/block-start?class="+f.class+"&date="+arrivalExceptionMonday, "", classDayWritePermission)
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), "school_write_disabled")
+	assert.Contains(t, rec.Body.String(), "classday.school_write_disabled")
 
 	// Reading stays open: what the OGS entered is visible regardless.
 	rec = f.do(t, http.MethodGet, f.listPath(), "", classDayReadPermission)
@@ -172,7 +172,7 @@ func TestSchoolArrivalExceptionsRequirePermissionBeforeSetting(t *testing.T) {
 	// class_day:read alone opens the list but no write.
 	rec := f.do(t, http.MethodPut, path, `{"arrival_time":"12:45"}`, classDayReadPermission)
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
-	assert.NotContains(t, rec.Body.String(), "school_write_disabled", "the permission gate answers before the setting")
+	assert.NotContains(t, rec.Body.String(), "classday.school_write_disabled", "the permission gate answers before the setting")
 
 	rec = f.do(t, http.MethodDelete, path, "", classDayReadPermission)
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
@@ -270,20 +270,20 @@ func TestSchoolArrivalExceptionsRefuseForeignClassAndBadDates(t *testing.T) {
 		path := f.writePath("2000-01-03")
 		rec := f.do(t, http.MethodPut, path, body, classDayWritePermission)
 		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
-		assert.Contains(t, rec.Body.String(), "class_arrival_exception_past_date")
+		assert.Contains(t, rec.Body.String(), "classday.arrival_exception_past_date")
 
 		// The delete reaches the seam, whose wrapped Care Plan error still
 		// classifies as the past date and keeps the retained message.
 		rec = f.do(t, http.MethodDelete, path, "", classDayWritePermission)
 		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
-		assert.Contains(t, rec.Body.String(), "class_arrival_exception_past_date")
+		assert.Contains(t, rec.Body.String(), "classday.arrival_exception_past_date")
 		assert.Contains(t, rec.Body.String(), "class arrival exception date lies in the past")
 	})
 
 	t.Run("weekend", func(t *testing.T) {
 		rec := f.do(t, http.MethodPut, f.writePath(arrivalExceptionSaturday), body, classDayWritePermission)
 		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
-		assert.Contains(t, rec.Body.String(), "class_arrival_exception_weekend")
+		assert.Contains(t, rec.Body.String(), "classday.arrival_exception_weekend")
 	})
 
 	t.Run("bad date and bad time", func(t *testing.T) {
@@ -293,7 +293,7 @@ func TestSchoolArrivalExceptionsRefuseForeignClassAndBadDates(t *testing.T) {
 		// A malformed day is refused before the seam is reached.
 		rec = f.do(t, http.MethodDelete, f.writePath("02.03.2099"), "", classDayWritePermission)
 		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
-		assert.NotContains(t, rec.Body.String(), "class_arrival_exception_past_date")
+		assert.NotContains(t, rec.Body.String(), "classday.arrival_exception_past_date")
 
 		rec = f.do(t, http.MethodPut, f.writePath(arrivalExceptionMonday), `{"arrival_time":"12h45"}`, classDayWritePermission)
 		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())

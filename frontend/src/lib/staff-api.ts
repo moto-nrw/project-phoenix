@@ -2,6 +2,8 @@
 
 import { sessionFetch } from "./session-cache";
 import { createLogger } from "~/lib/logger";
+import { wireErrorCode } from "~/lib/api-error";
+import type { ErrorCode } from "~/lib/error-codes.generated";
 
 const logger = createLogger({ component: "StaffAPI" });
 
@@ -1027,7 +1029,7 @@ class StaffAbsenceService {
         "Der Urlaubsanspruch konnte nicht gespeichert werden.",
       );
       throw new Error(
-        error.code === "vacation_quota_below_used"
+        error.code === "workforce.vacation_quota_below_used"
           ? "Der Anspruch ist kleiner als die schon genommenen und beantragten Tage. Bitte einen höheren Wert eintragen."
           : "Der Urlaubsanspruch konnte nicht gespeichert werden.",
       );
@@ -1065,12 +1067,12 @@ class StaffAbsenceService {
         response,
         "Übernahme fehlgeschlagen",
       );
-      if (error.code === "vacation_opening_already_exists") {
+      if (error.code === "workforce.vacation_opening_already_exists") {
         throw new Error(
           "Für dieses Jahr existiert bereits eine Urlaubs-Übernahme. Lösche zuerst die bestehende Übernahme.",
         );
       }
-      if (error.code === "vacation_opening_absences_before_cutoff") {
+      if (error.code === "workforce.vacation_opening_absences_before_cutoff") {
         throw new Error(
           "Es existieren bereits Urlaubs-Abwesenheiten vor dem Stichtag. Die Übernahme würde diese Tage doppelt zählen.",
         );
@@ -1112,7 +1114,7 @@ class StaffAbsenceService {
         "Genehmigung fehlgeschlagen",
       );
       throw new Error(
-        error.code === "vacation_quota_exceeded"
+        error.code === "workforce.vacation_quota_exceeded"
           ? "Dafür reicht der Resturlaub nicht. Erhöhen Sie zuerst den Urlaubsanspruch oder lehnen Sie den Antrag ab."
           : error.message,
       );
@@ -1284,7 +1286,7 @@ class StaffAbsenceService {
         response,
         "Die Art konnte nicht geändert werden.",
       );
-      if (error.code === "absence_rebooking_blocked") {
+      if (error.code === "workforce.absence_rebooking_blocked") {
         throw new AbsenceRebookingBlockedError(error.message);
       }
       throw new Error(absenceCreateErrorMessage(error));
@@ -1597,7 +1599,7 @@ async function throwSessionWriteError(
   fallback: string,
 ): Promise<never> {
   const error = await readStaffAPIError(response, fallback);
-  if (error.code === "work_session_overlap") {
+  if (error.code === "workforce.work_session_overlap") {
     throw new Error(
       "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.",
     );
@@ -1606,7 +1608,7 @@ async function throwSessionWriteError(
 }
 
 interface StaffAPIError {
-  readonly code?: string;
+  readonly code?: ErrorCode;
   readonly message: string;
 }
 
@@ -1614,11 +1616,11 @@ interface StaffAPIError {
 // technisch; der Dialog zeigt die Zahlen selbst, hier steht der Satz dazu.
 function absenceCreateErrorMessage(error: StaffAPIError): string {
   switch (error.code) {
-    case "vacation_quota_exceeded":
+    case "workforce.vacation_quota_exceeded":
       return "Dafür reicht der Resturlaub nicht. Erhöhen Sie zuerst den Urlaubsanspruch.";
-    case "absence_allowance_exceeded":
+    case "workforce.absence_allowance_exceeded":
       return "Für diese Art sind nicht mehr genug Tage übrig. Erhöhen Sie zuerst den Anspruch.";
-    case "absence_type_inactive":
+    case "workforce.absence_type_inactive":
       return "Diese Abwesenheitsart ist ausgeschaltet. Bitte eine andere wählen.";
   }
   if (
@@ -1647,7 +1649,7 @@ async function readStaffAPIError(
       message?: unknown;
     };
     return {
-      code: typeof payload.code === "string" ? payload.code : undefined,
+      code: wireErrorCode(payload.code),
       message:
         typeof payload.error === "string"
           ? payload.error
@@ -1707,17 +1709,17 @@ class StaffBalanceAdjustmentService {
     );
     if (!response.ok) {
       const error = await readStaffAPIError(response, "Buchung fehlgeschlagen");
-      if (error.code === "dependent_balance_reset") {
+      if (error.code === "workforce.dependent_balance_reset") {
         throw new Error(
           "Die Buchung liegt vor einem vorhandenen Reset und würde dessen Saldo verfälschen.",
         );
       }
-      if (error.code === "balance_adjustment_exceeds_balance") {
+      if (error.code === "workforce.balance_adjustment_exceeds_balance") {
         throw new Error(
           "Die Buchung übersteigt die zum gewählten Datum verfügbaren Plus-Stunden.",
         );
       }
-      if (error.code === "adjustment_in_closed_month") {
+      if (error.code === "workforce.adjustment_in_closed_month") {
         throw new Error(
           "Der gewählte Monat ist abgeschlossen. Buche die Korrektur mit einem Datum im offenen Monat oder öffne den Monatsabschluss wieder.",
         );
@@ -1735,17 +1737,17 @@ class StaffBalanceAdjustmentService {
     );
     if (!response.ok) {
       const error = await readStaffAPIError(response, "Löschen fehlgeschlagen");
-      if (error.code === "dependent_balance_reset") {
+      if (error.code === "workforce.dependent_balance_reset") {
         throw new Error(
           "Die Buchung liegt vor einem vorhandenen Reset und kann deshalb nicht gelöscht werden.",
         );
       }
-      if (error.code === "balance_adjustment_exceeds_balance") {
+      if (error.code === "workforce.balance_adjustment_exceeds_balance") {
         throw new Error(
           "Die Buchung kann nicht gelöscht werden, weil spätere Abzüge vom dadurch entstehenden Guthaben abhängen.",
         );
       }
-      if (error.code === "adjustment_in_closed_month") {
+      if (error.code === "workforce.adjustment_in_closed_month") {
         throw new Error(
           "Der gewählte Monat ist abgeschlossen. Öffne den Monatsabschluss wieder, bevor du die Buchung löschst.",
         );
@@ -1779,22 +1781,22 @@ class StaffBalanceAdjustmentService {
     );
     if (!response.ok) {
       const error = await readStaffAPIError(response, "Reset fehlgeschlagen");
-      if (error.code === "balance_already_reset") {
+      if (error.code === "workforce.balance_already_reset") {
         throw new Error(
           "Das Stundenkonto wurde für dieses Datum bereits zurückgesetzt.",
         );
       }
-      if (error.code === "dependent_balance_reset") {
+      if (error.code === "workforce.dependent_balance_reset") {
         throw new Error(
           "Der Reset liegt vor einem späteren Reset und würde dessen Saldo verfälschen.",
         );
       }
-      if (error.code === "balance_adjustment_exceeds_balance") {
+      if (error.code === "workforce.balance_adjustment_exceeds_balance") {
         throw new Error(
           "Der Reset kann nicht durchgeführt werden, weil spätere Buchungen oder Freizeitausgleichstage vom aktuellen Guthaben abhängen.",
         );
       }
-      if (error.code === "adjustment_in_closed_month") {
+      if (error.code === "workforce.adjustment_in_closed_month") {
         throw new Error(
           "Der gewählte Monat ist abgeschlossen. Wähle ein Datum im offenen Monat oder öffne den Monatsabschluss wieder.",
         );
@@ -1833,17 +1835,17 @@ class StaffBalanceAdjustmentService {
         response,
         "Eröffnungssaldo fehlgeschlagen",
       );
-      if (error.code === "opening_balance_already_exists") {
+      if (error.code === "workforce.opening_balance_already_exists") {
         throw new Error(
           "Für diese Person existiert bereits ein Eröffnungssaldo. Lösche zuerst die bestehende Buchung.",
         );
       }
-      if (error.code === "dependent_balance_reset") {
+      if (error.code === "workforce.dependent_balance_reset") {
         throw new Error(
           "Es existieren bereits spätere Buchungen (Reset), die vom Stichtag abhängen.",
         );
       }
-      if (error.code === "adjustment_in_closed_month") {
+      if (error.code === "workforce.adjustment_in_closed_month") {
         throw new Error(
           "Der gewählte Monat ist abgeschlossen. Wähle ein Datum im offenen Monat oder öffne den Monatsabschluss wieder.",
         );
@@ -1902,12 +1904,12 @@ class StaffMonthCloseService {
         response,
         "Monatsabschluss fehlgeschlagen",
       );
-      if (error.code === "month_not_closable") {
+      if (error.code === "workforce.month_not_closable") {
         throw new Error(
           "Dieser Monat kann noch nicht abgeschlossen werden: Er ist noch nicht vorbei. Der Abschluss friert den Stand zum Monatsende ein; für einen laufenden Monat gibt es diesen Stand noch nicht.",
         );
       }
-      if (error.code === "later_month_closed") {
+      if (error.code === "workforce.later_month_closed") {
         throw new Error(
           "Ein späterer Monat ist bereits abgeschlossen. Monate werden in Reihenfolge abgeschlossen; öffne zuerst den späteren Abschluss.",
         );
@@ -1940,10 +1942,10 @@ class StaffMonthCloseService {
         response,
         "Wiedereröffnung fehlgeschlagen",
       );
-      if (error.code === "month_not_closed") {
+      if (error.code === "workforce.month_not_closed") {
         throw new Error("Dieser Monat ist nicht abgeschlossen.");
       }
-      if (error.code === "later_month_closed") {
+      if (error.code === "workforce.later_month_closed") {
         throw new Error(
           "Für diese Person ist ein späterer Monat noch abgeschlossen. Abschlüsse werden vom neuesten zum ältesten geöffnet; öffne zuerst den späteren Monat.",
         );
@@ -1986,12 +1988,12 @@ class StaffPayrollNumberService {
         response,
         "Personalnummer konnte nicht gespeichert werden",
       );
-      if (error.code === "personnel_number_taken") {
+      if (error.code === "workforce.personnel_number_taken") {
         throw new Error(
           "Diese Personalnummer ist in dieser Schule bereits vergeben.",
         );
       }
-      if (error.code === "personnel_number_invalid") {
+      if (error.code === "workforce.personnel_number_invalid") {
         throw new Error(
           "Ungültige Personalnummer: nur Ziffern, höchstens 9 Stellen.",
         );
@@ -2134,7 +2136,7 @@ async function throwStammdatenError(
   fallback: string,
 ): Promise<never> {
   const error = await readStaffAPIError(response, fallback);
-  if (error.code === "stammdaten_invalid") {
+  if (error.code === "workforce.stammdaten_invalid") {
     throw new Error(
       "Ungültige Eingabe. Bitte prüfe die Werte und versuche es erneut.",
     );

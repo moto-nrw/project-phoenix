@@ -68,13 +68,13 @@ type ClassArrivalExceptionListResponse struct {
 
 var classArrivalExceptionErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: careplan.ErrClassArrivalExceptionPastDate, Render: func(err error) render.Renderer {
-		return common.ErrorInvalidRequestWithCode(err, "class_arrival_exception_past_date")
+		return common.ErrorInvalidRequestWithCode(err, common.CodeClassdayArrivalExceptionPastDate)
 	}},
 	{Target: careplan.ErrClassArrivalExceptionWeekend, Render: func(err error) render.Renderer {
-		return common.ErrorInvalidRequestWithCode(err, "class_arrival_exception_weekend")
+		return common.ErrorInvalidRequestWithCode(err, common.CodeClassdayArrivalExceptionWeekend)
 	}},
 	{Target: careplan.ErrClassArrivalExceptionClassNotFound, Render: func(err error) render.Renderer {
-		return common.ErrorNotFoundWithCode(err, "class_arrival_exception_class_not_found")
+		return common.ErrorNotFoundWithCode(err, common.CodeClassdayArrivalExceptionClassNotFound)
 	}},
 	{Target: careplan.ErrClassArrivalExceptionNotFound, Render: common.ErrorNotFound},
 }, common.ErrorInternalServer)
@@ -130,7 +130,7 @@ func (rs *Resource) requireClassArrivalExceptionEditor(w http.ResponseWriter, r 
 	if !allowed {
 		renderError(w, r, common.ErrorForbiddenWithCode(
 			errors.New("class arrival exceptions may only be set by administrators"),
-			"class_arrival_exception_editor_required",
+			common.CodeClassdayArrivalExceptionEditorRequired,
 		))
 		return false
 	}

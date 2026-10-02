@@ -110,8 +110,8 @@ function unwrap<T>(json: Envelope<T>): T {
 
 /**
  * Error thrown by the offering-request client. Carries the backend's stable
- * conflict `code` (e.g. "offering_change_capacity_full",
- * "change_request_not_pending") so the review UI can name the concrete recovery
+ * conflict `code` (e.g. "students.offering_change_capacity_full",
+ * "students.change_request_not_pending") so the review UI can name the concrete recovery
  * action instead of collapsing every failure into one message.
  */
 export class OfferingRequestApiError extends ApiError {

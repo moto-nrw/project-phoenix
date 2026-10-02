@@ -194,7 +194,10 @@ describe("OfferingRequestReviewItem", () => {
 
   it("names the capacity conflict and keeps the card pending", async () => {
     mockDecide.mockRejectedValue(
-      new OfferingRequestApiError("full", "offering_change_capacity_full"),
+      new OfferingRequestApiError(
+        "full",
+        "students.offering_change_capacity_full",
+      ),
     );
     const onDecided = vi.fn();
     renderItem(request(), onDecided);
@@ -209,7 +212,10 @@ describe("OfferingRequestReviewItem", () => {
 
   it("explains an already-decided request", async () => {
     mockDecide.mockRejectedValue(
-      new OfferingRequestApiError("gone", "change_request_not_pending"),
+      new OfferingRequestApiError(
+        "gone",
+        "students.change_request_not_pending",
+      ),
     );
     renderItem();
 
@@ -220,7 +226,10 @@ describe("OfferingRequestReviewItem", () => {
 
   it("explains a missing enrollment", async () => {
     mockDecide.mockRejectedValue(
-      new OfferingRequestApiError("gone", "offering_changes_no_enrollment"),
+      new OfferingRequestApiError(
+        "gone",
+        "students.offering_changes_no_enrollment",
+      ),
     );
     renderItem();
 
@@ -950,7 +959,10 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
 
   it("blocks the approval while the chosen date does not work out", async () => {
     mockPreview.mockRejectedValue(
-      new OfferingRequestApiError("range", "offering_change_date_out_of_range"),
+      new OfferingRequestApiError(
+        "range",
+        "students.offering_change_date_out_of_range",
+      ),
     );
     renderItem();
     unlockDate();

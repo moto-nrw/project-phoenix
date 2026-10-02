@@ -565,7 +565,7 @@ func TestCheckIn_PlannedStartNotReached(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "error", resp.Status)
-	assert.Equal(t, "planned_start_not_reached", resp.Code)
+	assert.Equal(t, "iot.planned_start_not_reached", resp.Code)
 	require.NotNil(t, resp.Details)
 	assert.Equal(t, "09:00", resp.Details["planned_start_time"])
 	assert.Equal(t, "08:45", resp.Details["current_time"])
@@ -1784,7 +1784,7 @@ func TestClassifyAbsenceError(t *testing.T) {
 		err := render.Render(w, r, renderer)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusForbidden, w.Code)
-		assert.JSONEq(t, `{"status":"error","error":"absence type is manager-controlled","code":"manager_controlled_absence","type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen","title":"Forbidden","detail":"absence type is manager-controlled","instance":""}`, w.Body.String())
+		assert.JSONEq(t, `{"status":"error","error":"absence type is manager-controlled","code":"workforce.manager_controlled_absence","type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen","title":"Forbidden","detail":"absence type is manager-controlled","instance":""}`, w.Body.String())
 	})
 
 	t.Run("allowance booking overlap returns conflict", func(t *testing.T) {
@@ -1903,7 +1903,7 @@ func TestCheckIn_DeviationReasonRequired(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "error", resp.Status)
-	assert.Equal(t, "deviation_reason_required", resp.Code)
+	assert.Equal(t, "iot.deviation_reason_required", resp.Code)
 	require.NotNil(t, resp.Details)
 	assert.Equal(t, "check_in", resp.Details["action"])
 	assert.Equal(t, "08:00", resp.Details["planned_time"])
@@ -1941,7 +1941,7 @@ func TestCheckOut_DeviationReasonRequired(t *testing.T) {
 		Details map[string]any `json:"details"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	assert.Equal(t, "deviation_reason_required", resp.Code)
+	assert.Equal(t, "iot.deviation_reason_required", resp.Code)
 	require.NotNil(t, resp.Details)
 	assert.Equal(t, "check_out", resp.Details["action"])
 	assert.Equal(t, "16:00", resp.Details["planned_time"])

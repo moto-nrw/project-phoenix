@@ -285,7 +285,7 @@ export function CarePlanEditorModal({
           : "Änderung konnte nicht gespeichert werden";
       // The backend refuses to let an account without a staff profile overwrite
       // a parent-set time. Surface that as a readable reason, not a raw 403.
-      const message = raw.includes("staff_profile_required")
+      const message = raw.includes("students.staff_profile_required")
         ? "Diese Zeit wurde von den Eltern gesetzt und kann nur von Mitarbeitenden mit Personalprofil geändert werden."
         : raw;
       setError(message);

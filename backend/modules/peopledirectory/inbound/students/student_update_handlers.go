@@ -504,14 +504,14 @@ func updateStudentTxErrorRenderer(err error) render.Renderer {
 	case errors.Is(err, errSickExcusedConflict):
 		return common.ErrorConflictWithCode(
 			errors.New("a student cannot be both sick and excused at the same time"),
-			ErrCodeSickExcusedConflict,
+			common.CodeStudentsSickExcusedConflict,
 		)
 	case errors.Is(err, errStudentReassigned):
 		return common.ErrorForbidden(errors.New("insufficient permissions to update this student's data"))
 	case errors.Is(err, errStudentNotFoundUnderLock):
 		return common.ErrorNotFound(errors.New("student not found"))
 	case errors.Is(err, studentpresence.ErrStudentStatusDayPartialAbsenceConflict):
-		return common.ErrorConflictWithCode(err, "partial_absence_conflict")
+		return common.ErrorConflictWithCode(err, common.CodeStudentsPartialAbsenceConflict)
 	// The merged plan (request modes applied onto the stored row) can violate
 	// the accompanied-requires-note invariant — e.g. a caller sets a "Mit
 	// anderem Kind" day on a child with no stored note. That is client input,
@@ -656,7 +656,7 @@ func (rs *Resource) stageStudentUpdate(ctx context.Context, userPermissions []st
 	// states simultaneously. The frontend uses the SICK_EXCUSED_CONFLICT code
 	// to prompt the user to switch states rather than hold both.
 	if err := checkSickExcusedConflict(req, student); err != nil {
-		return false, false, common.ErrorConflictWithCode(err, ErrCodeSickExcusedConflict)
+		return false, false, common.ErrorConflictWithCode(err, common.CodeStudentsSickExcusedConflict)
 	}
 	return hasFullWriteAccess, personResult.updated, nil
 }
