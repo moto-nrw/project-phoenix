@@ -36,7 +36,7 @@ func (f *hoursExport) ExportDienstplanHours(ctx context.Context, params planexpo
 func TestPlanningExportsTheHoursSheetFromTheWeeklySummaries(t *testing.T) {
 	t.Parallel()
 	monday := timezone.NewDate(2026, 9, 21)
-	typeID := int64(4)
+	typeID := int64(42)
 	target, delta := 1320, -30
 	anna := &usersModel.Staff{Person: &usersModel.Person{FirstName: "Anna", LastName: "Müller"}}
 	anna.ID = 7
