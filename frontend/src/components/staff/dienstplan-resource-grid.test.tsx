@@ -407,6 +407,7 @@ describe("DienstplanResourceGrid weekly summary", () => {
       plannedMinutes: 1080,
       targetMinutes: 1215,
       deltaMinutes: -135,
+      plannedByShiftType: [],
       ...overrides,
     };
   }
@@ -573,6 +574,7 @@ describe("DienstplanResourceGrid reduced path", () => {
             plannedMinutes: 1080,
             targetMinutes: 1215,
             deltaMinutes: -135,
+            plannedByShiftType: [],
           },
         ],
       ]),

@@ -60,6 +60,17 @@ type StaffWeeklySummary struct {
 	PlannedMinutes int
 	TargetMinutes  *int
 	DeltaMinutes   *int
+	// ByShiftType splits PlannedMinutes by Schichtart (#3819); the entries
+	// always add up to PlannedMinutes. Empty when the week has no shift for
+	// the person (a target-only row).
+	ByShiftType []ShiftTypeMinutes
+}
+
+// ShiftTypeMinutes is the planned net minutes of one Schichtart in a week.
+// ShiftTypeID is nil for shifts without a Schichtart.
+type ShiftTypeMinutes struct {
+	ShiftTypeID *int64
+	Minutes     int
 }
 
 // StaffScheduleOverview is the batched weekly projection consumed by the
@@ -432,6 +443,7 @@ func (s *staffScheduleOverviewService) buildWeeklySummaries(ctx context.Context,
 	}
 
 	planned := plannedShiftMinutes(data.weekShifts)
+	byType := plannedShiftMinutesByType(data.weekShifts)
 	targets, err := s.weeklyTargets(ctx, data.staff, data.workSchedules, weekStarts)
 	if err != nil {
 		return nil, err
@@ -452,6 +464,7 @@ func (s *staffScheduleOverviewService) buildWeeklySummaries(ctx context.Context,
 				StaffID:        member.ID,
 				WeekStart:      weekStart,
 				PlannedMinutes: plannedMinutes,
+				ByShiftType:    shiftTypeBreakdown(byType[key]),
 			}
 			if hasTarget {
 				targetMinutes := target
@@ -593,6 +606,57 @@ func plannedShiftMinutes(shifts []*StaffShift) map[staffDateKey]int {
 		planned[staffDateKey{StaffID: shift.StaffID, Date: weekFrom}] += staffShiftNetMinutes(shift)
 	}
 	return planned
+}
+
+// plannedShiftMinutesByType splits the same minutes plannedShiftMinutes sums
+// by Schichtart (#3819). Key 0 collects the shifts without a Schichtart; real
+// ids are positive. Cancelled shifts are skipped for the same reason.
+func plannedShiftMinutesByType(shifts []*StaffShift) map[staffDateKey]map[int64]int {
+	byType := make(map[staffDateKey]map[int64]int)
+	for _, shift := range shifts {
+		if shift == nil || shift.Cancelled {
+			continue
+		}
+		weekFrom, _ := containingCalendarWeek(shift.Date)
+		key := staffDateKey{StaffID: shift.StaffID, Date: weekFrom}
+		var typeID int64
+		if shift.ShiftTypeID != nil {
+			typeID = *shift.ShiftTypeID
+		}
+		if byType[key] == nil {
+			byType[key] = make(map[int64]int)
+		}
+		byType[key][typeID] += staffShiftNetMinutes(shift)
+	}
+	return byType
+}
+
+// shiftTypeBreakdown orders the per-type minutes by Schichtart id, with the
+// shifts without a Schichtart last, so the payload is stable between reads.
+func shiftTypeBreakdown(minutesByType map[int64]int) []ShiftTypeMinutes {
+	if len(minutesByType) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(minutesByType))
+	for id := range minutesByType {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool {
+		if ids[i] == 0 || ids[j] == 0 {
+			return ids[j] == 0 && ids[i] != 0
+		}
+		return ids[i] < ids[j]
+	})
+	out := make([]ShiftTypeMinutes, 0, len(ids))
+	for _, id := range ids {
+		entry := ShiftTypeMinutes{Minutes: minutesByType[id]}
+		if id != 0 {
+			typeID := id
+			entry.ShiftTypeID = &typeID
+		}
+		out = append(out, entry)
+	}
+	return out
 }
 
 // staffShiftNetMinutes is the planned working time of one shift: wall-clock

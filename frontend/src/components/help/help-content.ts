@@ -4812,7 +4812,9 @@ function dutyRosterTopic(): HelpTopic {
     notes: [
       "Jede Schicht kann eine Schichtart tragen. Die Farbe kommt von der Schichtart.",
       "Über `Schichtarten verwalten` pflegen Sie die Arten.",
+      "Unter dem Plan steht `Stunden der Woche`. Dort sehen Sie je Person die Stunden je Schichtart und das Soll.",
       "Über das Menü mit den drei Punkten geht `Drucken oder exportieren`.",
+      "Die Vorlage `Stundenübersicht` druckt diese Stunden als Liste.",
     ],
     differences: [
       "Eine neue Schicht auf einem Schließtag löst eine Rückfrage aus.",
