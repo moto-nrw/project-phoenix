@@ -236,17 +236,17 @@ describe("DienstplanPersonWeekGrid", () => {
       },
     });
 
-    expect(screen.getByText("Diese Woche geplant:")).toHaveTextContent(
-      "5 h",
+    expect(screen.getByText("5 h").parentElement).toHaveTextContent(
+      "Diese Woche geplant: 5 h",
     );
   });
 
   it("keeps horizontal touch panning available on each day column", () => {
     renderGrid([]);
 
-    expect(
-      screen.getByTestId("person-week-day-2026-07-06"),
-    ).toHaveClass("touch-pan-x");
+    expect(screen.getByTestId("person-week-day-2026-07-06")).toHaveClass(
+      "touch-pan-x",
+    );
   });
 
   it("opens the edit flow when a block is clicked", () => {
