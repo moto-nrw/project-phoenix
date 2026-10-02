@@ -258,9 +258,11 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
   printing an inconsistent image. Live presence follows the server clock too.
   Text that depends on the time of day must therefore not be rendered on the
   server: the home greeting uses `useTimeBasedGreeting` (`src/lib/greeting.ts`).
-- Adding a shot: the list follows the help flows and PostHog usage (#3764);
-  ids follow the names in `frontend/public/help/screens/`, parents-portal shots
-  start with `eltern-`. Detail pages get ids from the seed, so a shot starts on
+- Adding a shot: the list follows the help flows and PostHog usage (#3764),
+  with the reason in a comment above each shot. Ids follow the names in
+  `frontend/public/help/screens/` where one exists for the same view, otherwise
+  the page name; parents-portal shots start with `eltern-`. Never rename an
+  existing id: it names the files in Drive. Detail pages get ids from the seed, so a shot starts on
   the list and a `klicken` step opens the detail; follow such a click with a
   `warten_auf` on an element of the target page (the dev server compiles the
   route on first use). The redirect check applies to `pfad`, the page the shot
