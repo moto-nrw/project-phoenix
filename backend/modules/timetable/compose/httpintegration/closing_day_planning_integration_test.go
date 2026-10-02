@@ -45,11 +45,7 @@ func setSeriesIncludesClosingDays(t *testing.T, s *scenarioSetup, include bool) 
 
 func setInstanceStatus(t *testing.T, s *scenarioSetup, instanceID int64, status string) {
 	t.Helper()
-	_, err := s.db.NewUpdate().Table("schedule.activity_instances").
-		Set("status = ?", status).
-		Where("id = ?", instanceID).Where("tenant_id = ?", s.tenantID).
-		Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.SetActivityInstanceLifecycle(t, s.ctx, s.db, instanceID, status)
 }
 
 func countCancelledExceptions(t *testing.T, db *bun.DB, s *scenarioSetup, date calendar.Date) int {

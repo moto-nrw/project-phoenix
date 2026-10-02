@@ -25,6 +25,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -191,14 +192,9 @@ func TestUpdatePlanned_SpontaneousMove_WritesNothing(t *testing.T) {
 
 	// Spontaneous instance: no template binding before (or after) the edit.
 	spontaneousID := splitInsertInstance(t, s, nil, origDate, scheduleModels.InstanceStatusPlanned, true, 9)
-	inst := &scheduleModels.ActivityInstance{}
-	err := s.db.NewSelect().Model(inst).
-		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
-		Where(`"activity_instance".id = ?`, spontaneousID).
-		Scan(s.ctx)
-	require.NoError(t, err)
+	inst := testpkg.ActivityInstanceByID(t, s.ctx, s.db, spontaneousID)
 
-	_, err = s.factory.Instance.UpdatePlanned(s.ctx, spontaneousID, moveInput(s, inst, origDate.AddDays(1), 0), nil)
+	_, err := s.factory.Instance.UpdatePlanned(s.ctx, spontaneousID, moveInput(s, inst, origDate.AddDays(1), 0), nil)
 	require.NoError(t, err)
 
 	var count int

@@ -1,7 +1,16 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  beforeEach,
+  afterEach,
+} from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DatePicker, ISODateInput, ISODatePicker } from "./date-picker";
+import { preloadDayPicker } from "./lazy-day-picker";
 
 // Mock react-day-picker
 vi.mock("react-day-picker", () => ({
@@ -35,8 +44,8 @@ vi.mock("react-day-picker", () => ({
   ),
 }));
 
-// Mock date-fns
-vi.mock("date-fns", () => ({
+// Mock date-fns (the picker imports per-function submodules)
+vi.mock("date-fns/format", () => ({
   format: vi.fn((date: Date, formatStr: string) => {
     if (formatStr === "dd.MM.yyyy") {
       return "15.01.2024";
@@ -46,11 +55,15 @@ vi.mock("date-fns", () => ({
     }
     return date.toISOString();
   }),
+}));
+vi.mock("date-fns/addMonths", () => ({
   addMonths: vi.fn((date: Date, amount: number) => {
     const newDate = new Date(date);
     newDate.setMonth(newDate.getMonth() + amount);
     return newDate;
   }),
+}));
+vi.mock("date-fns/subMonths", () => ({
   subMonths: vi.fn((date: Date, amount: number) => {
     const newDate = new Date(date);
     newDate.setMonth(newDate.getMonth() - amount);
@@ -58,10 +71,14 @@ vi.mock("date-fns", () => ({
   }),
 }));
 
-// Mock date-fns/locale
-vi.mock("date-fns/locale", () => ({
+// Mock the date-fns German locale
+vi.mock("date-fns/locale/de", () => ({
   de: {},
 }));
+
+// The kit loads the calendar grid lazily; load it once up front so a cold
+// import on a busy machine does not race the findBy timeout.
+beforeAll(() => preloadDayPicker());
 
 describe("DatePicker", () => {
   const mockOnChange = vi.fn();
@@ -181,7 +198,7 @@ describe("DatePicker", () => {
     expect(screen.getByTestId("day-picker")).toBeInTheDocument();
   });
 
-  it("renders an inline calendar below the trigger controls", () => {
+  it("renders an inline calendar below the trigger controls", async () => {
     render(
       <DatePicker
         value={null}
@@ -191,6 +208,7 @@ describe("DatePicker", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /datum auswählen/i }));
+    await screen.findByTestId("day-picker");
 
     const controls = screen
       .getByRole("button", { name: /datum auswählen/i })
@@ -201,7 +219,7 @@ describe("DatePicker", () => {
     expect(controls?.nextElementSibling).toBe(panel);
   });
 
-  it("keeps compact sizing and legible day buttons in a narrow modal", () => {
+  it("keeps compact sizing and legible day buttons in a narrow modal", async () => {
     render(
       <DatePicker
         value={null}
@@ -211,6 +229,7 @@ describe("DatePicker", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /datum auswählen/i }));
+    await screen.findByTestId("day-picker");
 
     const panel = screen
       .getByTestId("day-picker")
@@ -276,7 +295,7 @@ describe("DatePicker", () => {
     expect(clearButton).not.toBeInTheDocument();
   });
 
-  it("keeps required dates non-clearable", () => {
+  it("keeps required dates non-clearable", async () => {
     const testDate = new Date("2024-01-15T00:00:00Z");
     render(<DatePicker value={testDate} onChange={mockOnChange} required />);
 
@@ -285,6 +304,7 @@ describe("DatePicker", () => {
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /15\.01\.2024/i }));
+    await screen.findByTestId("day-picker");
 
     expect(screen.getByTestId("day-picker")).toHaveAttribute(
       "data-required",
@@ -375,7 +395,7 @@ describe("DatePicker", () => {
     });
   });
 
-  it("closes the calendar with Escape and restores trigger focus", () => {
+  it("closes the calendar with Escape and restores trigger focus", async () => {
     const parentKeyDown = vi.fn();
     render(
       <div role="group" aria-label="Testgruppe" onKeyDown={parentKeyDown}>
@@ -385,6 +405,7 @@ describe("DatePicker", () => {
 
     const trigger = screen.getByRole("button", { name: /datum auswählen/i });
     fireEvent.click(trigger);
+    await screen.findByTestId("day-picker");
     expect(screen.getByTestId("day-picker")).toBeInTheDocument();
 
     fireEvent.keyDown(screen.getByTestId("day-picker"), { key: "Escape" });
@@ -394,7 +415,7 @@ describe("DatePicker", () => {
     expect(parentKeyDown).not.toHaveBeenCalled();
   });
 
-  it("closes an open month listbox before closing the calendar", () => {
+  it("closes an open month listbox before closing the calendar", async () => {
     render(
       <DatePicker
         value={new Date("2024-01-15T00:00:00Z")}
@@ -404,6 +425,7 @@ describe("DatePicker", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /15\.01\.2024/i }));
+    await screen.findByTestId("day-picker");
     const month = screen.getByRole("combobox", { name: "Monat" });
     fireEvent.click(month);
     expect(month).toHaveAttribute("aria-expanded", "true");
@@ -431,7 +453,7 @@ describe("DatePicker", () => {
     expect(month.querySelector("svg")).toHaveClass("shrink-0");
   });
 
-  it("synchronizes the displayed month when the controlled value changes", () => {
+  it("synchronizes the displayed month when the controlled value changes", async () => {
     const { rerender } = render(
       <DatePicker
         value={new Date("2024-01-15T00:00:00Z")}
@@ -440,6 +462,7 @@ describe("DatePicker", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /15\.01\.2024/i }));
+    await screen.findByTestId("day-picker");
     expect(screen.getByTestId("day-picker")).toHaveAttribute(
       "data-month",
       "2024-01-15T00:00:00.000Z",
@@ -458,7 +481,7 @@ describe("DatePicker", () => {
     );
   });
 
-  it("opens on defaultMonth while no value is set", () => {
+  it("opens on defaultMonth while no value is set", async () => {
     render(
       <DatePicker
         value={null}
@@ -468,13 +491,14 @@ describe("DatePicker", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Datum auswählen/i }));
+    await screen.findByTestId("day-picker");
     expect(screen.getByTestId("day-picker")).toHaveAttribute(
       "data-month",
       "2026-10-12T00:00:00.000Z",
     );
   });
 
-  it("prefers the value over defaultMonth", () => {
+  it("prefers the value over defaultMonth", async () => {
     render(
       <DatePicker
         value={new Date("2024-01-15T00:00:00Z")}
@@ -484,13 +508,14 @@ describe("DatePicker", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /15\.01\.2024/i }));
+    await screen.findByTestId("day-picker");
     expect(screen.getByTestId("day-picker")).toHaveAttribute(
       "data-month",
       "2024-01-15T00:00:00.000Z",
     );
   });
 
-  it("passes an ISO defaultMonth through ISODatePicker", () => {
+  it("passes an ISO defaultMonth through ISODatePicker", async () => {
     render(
       <ISODatePicker
         id="end"
@@ -501,6 +526,7 @@ describe("DatePicker", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Datum auswählen/i }));
+    await screen.findByTestId("day-picker");
     const month = screen.getByTestId("day-picker").getAttribute("data-month");
     expect(month).not.toBeNull();
     const opened = new Date(month!);
@@ -509,13 +535,14 @@ describe("DatePicker", () => {
     );
   });
 
-  it("keeps manual navigation when the controlled day is unchanged", () => {
+  it("keeps manual navigation when the controlled day is unchanged", async () => {
     const value = new Date("2024-01-15T00:00:00Z");
     const { rerender } = render(
       <DatePicker value={value} onChange={mockOnChange} />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /15\.01\.2024/i }));
+    await screen.findByTestId("day-picker");
     fireEvent.click(screen.getByRole("button", { name: "Nächster Monat" }));
     expect(screen.getByTestId("day-picker")).toHaveAttribute(
       "data-month",
@@ -568,6 +595,7 @@ describe("DatePicker", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /datum auswählen/i }));
+    await screen.findByTestId("day-picker");
     expect(screen.getByTestId("day-picker")).toBeInTheDocument();
 
     rerender(<DatePicker value={null} onChange={mockOnChange} disabled />);
@@ -600,7 +628,7 @@ describe("DatePicker", () => {
     expect(svg).toHaveClass("h-4", "w-4");
   });
 
-  it("renders the popover calendar already positioned on its first paint", () => {
+  it("renders the popover calendar already positioned on its first paint", async () => {
     render(
       <DatePicker
         value={null}
@@ -628,6 +656,7 @@ describe("DatePicker", () => {
     });
 
     fireEvent.click(trigger);
+    await screen.findByTestId("day-picker");
 
     // The position is measured in the click handler and the portal is gated on
     // it, so opening commits the calendar already in place instead of painting
@@ -638,7 +667,7 @@ describe("DatePicker", () => {
     expect(portal).toHaveClass("max-h-[calc(100dvh-1rem)]", "overflow-y-auto");
   });
 
-  it("keeps a preferred-below popover directly below its trigger", () => {
+  it("keeps a preferred-below popover directly below its trigger", async () => {
     vi.spyOn(window, "innerHeight", "get").mockReturnValue(900);
     render(
       <DatePicker
@@ -665,6 +694,7 @@ describe("DatePicker", () => {
     });
 
     fireEvent.click(trigger);
+    await screen.findByTestId("day-picker");
 
     expect(screen.getByTestId("day-picker").closest(".fixed")).toHaveStyle({
       top: "584px",
@@ -672,7 +702,7 @@ describe("DatePicker", () => {
     });
   });
 
-  it("flips a preferred-below popover up before it becomes unusably short", () => {
+  it("flips a preferred-below popover up before it becomes unusably short", async () => {
     vi.spyOn(window, "innerHeight", "get").mockReturnValue(768);
     render(
       <DatePicker
@@ -699,13 +729,14 @@ describe("DatePicker", () => {
     });
 
     fireEvent.click(trigger);
+    await screen.findByTestId("day-picker");
 
     expect(screen.getByTestId("day-picker").closest(".fixed")).toHaveStyle({
       top: "336px",
     });
   });
 
-  it("keeps the calendar open while its short-viewport panel scrolls", () => {
+  it("keeps the calendar open while its short-viewport panel scrolls", async () => {
     render(
       <DatePicker
         value={null}
@@ -715,13 +746,14 @@ describe("DatePicker", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /datum auswählen/i }));
+    await screen.findByTestId("day-picker");
     const panel = screen.getByTestId("day-picker").closest(".fixed")!;
     fireEvent.scroll(panel);
 
     expect(screen.getByTestId("day-picker")).toBeInTheDocument();
   });
 
-  it("portals the calendar into the surrounding modal focus scope", () => {
+  it("portals the calendar into the surrounding modal focus scope", async () => {
     render(
       <div data-modal-focus-scope="true">
         <DatePicker
@@ -733,6 +765,7 @@ describe("DatePicker", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /datum auswählen/i }));
+    await screen.findByTestId("day-picker");
 
     expect(screen.getByTestId("day-picker")).toBeInTheDocument();
     expect(
@@ -887,7 +920,7 @@ describe("ISODateInput", () => {
     expect(onChange).toHaveBeenLastCalledWith("1982-04-18");
   });
 
-  it("keeps calendar selection on a labeled native button", () => {
+  it("keeps calendar selection on a labeled native button", async () => {
     const onChange = vi.fn();
     render(
       <ISODateInput
@@ -904,6 +937,7 @@ describe("ISODateInput", () => {
     expect(calendarButton.tagName).toBe("BUTTON");
     expect(calendarButton).toHaveAttribute("type", "button");
     fireEvent.click(calendarButton);
+    await screen.findByTestId("day-picker");
     fireEvent.click(screen.getByTestId("select-date"));
 
     expect(onChange).toHaveBeenLastCalledWith("2024-01-15");

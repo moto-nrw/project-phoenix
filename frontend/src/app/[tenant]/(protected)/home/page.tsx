@@ -194,12 +194,17 @@ function HomeContent() {
   // Geburtstage leben auf ihrem eigenen Schlüssel: sie ändern sich einmal am
   // Tag, während die Betriebszahlen bei jedem Check-in über SSE neu geladen
   // werden (#1542). Ein Fehler hier darf die Startseite nie mitnehmen.
-  const { data: birthdays, isLoading: birthdaysLoading } =
-    useSWRAuth<BirthdayOverview>(
-      wantsBirthdayData ? "birthday-overview" : null,
-      fetchBirthdayOverviewClient,
-      { refreshInterval: 30 * 60 * 1000 },
-    );
+  const {
+    data: birthdays,
+    isLoading: birthdaysLoading,
+    error: birthdaysError,
+  } = useSWRAuth<BirthdayOverview>(
+    wantsBirthdayData ? "birthday-overview" : null,
+    // Ohne Argument: SWR reicht dem Abrufer sonst seinen Schlüssel durch,
+    // der dann als Woche beim Server ankäme.
+    () => fetchBirthdayOverviewClient(),
+    { refreshInterval: 30 * 60 * 1000 },
+  );
 
   useEffect(() => {
     setBirthdaysEnabled(true);
@@ -388,6 +393,7 @@ function HomeContent() {
     analyticsLoading: isLoading,
     birthdays,
     birthdaysLoading,
+    birthdaysError,
     canOpenStudentSearch: access.has("users:read"),
     tenantPath,
   };

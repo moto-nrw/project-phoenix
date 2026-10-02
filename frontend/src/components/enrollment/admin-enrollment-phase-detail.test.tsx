@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   getCareUsageReport: vi.fn(),
   listAdminRequests: vi.fn(),
   listPhases: vi.fn(),
+  setAdminRequestRead: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
   useCareOfferingsEnabled: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock("~/lib/enrollment-admin-api", async (importOriginal) => {
     ...actual,
     decideAdminChild: mocks.decideAdminChild,
     listAdminRequests: mocks.listAdminRequests,
+    setAdminRequestRead: mocks.setAdminRequestRead,
   };
 });
 
@@ -247,6 +249,77 @@ beforeEach(() => {
 });
 
 describe("AdminEnrollmentPhaseDetail", () => {
+  // Lesestatus pro Person (#3778): markiert an jedem Kind der Anmeldung,
+  // umschaltbar über das Menü der Zeile.
+  it("markiert ungelesene Anmeldungen und schaltet sie im Zeilenmenü um", async () => {
+    mocks.listAdminRequests.mockResolvedValue([
+      { ...requests[0], is_unread: true },
+    ]);
+    mocks.setAdminRequestRead.mockResolvedValue(undefined);
+    await renderPhase();
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Ungelesen")).toHaveLength(2);
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Aktionen für die Anmeldung von Lina Muster",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Als gelesen markieren" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.setAdminRequestRead).toHaveBeenCalledWith("10", true);
+    });
+    await waitFor(() => {
+      expect(screen.queryByText("Ungelesen")).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Aktionen für die Anmeldung von Tom Muster",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Als ungelesen markieren" }),
+    );
+    await waitFor(() => {
+      expect(mocks.setAdminRequestRead).toHaveBeenCalledWith("10", false);
+    });
+  });
+
+  it.each([
+    ["inaktiver Phase", false, false],
+    ["abgeschlossenen Kindern", true, true],
+  ])(
+    "bietet bei %s kein Markieren als ungelesen an",
+    async (_scenario, isActive, allTerminal) => {
+      mocks.listPhases.mockResolvedValue([{ ...phase, is_active: isActive }]);
+      if (allTerminal) {
+        mocks.listAdminRequests.mockResolvedValue([
+          {
+            ...requests[0],
+            children: requests[0]!.children.map((child) => ({
+              ...child,
+              status: "approved",
+            })),
+          },
+        ]);
+      }
+      await renderPhase();
+
+      expect(
+        screen.queryByRole("button", {
+          name: "Aktionen für die Anmeldung von Lina Muster",
+        }),
+      ).not.toBeInTheDocument();
+      expect(mocks.setAdminRequestRead).not.toHaveBeenCalled();
+    },
+  );
+
   it("keeps the tenant in the parent enrollment link in path routing", async () => {
     await renderPhase();
 

@@ -286,6 +286,10 @@ func (s *stubGuardianProfileRepo) FindByIDs(context.Context, []int64) (map[int64
 func (s *stubGuardianProfileRepo) FindActivePortalProfilesByIDs(context.Context, []int64) (map[int64]*userModels.GuardianProfile, error) {
 	return nil, nil
 }
+
+func (s *stubGuardianProfileRepo) FindLoginReadyPortalProfilesByIDs(context.Context, []int64) (map[int64]*userModels.GuardianProfile, error) {
+	return nil, nil
+}
 func (s *stubGuardianProfileRepo) Count(context.Context) (int, error) { return 0, nil }
 func (s *stubGuardianProfileRepo) Update(context.Context, *userModels.GuardianProfile) error {
 	return nil

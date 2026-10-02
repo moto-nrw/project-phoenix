@@ -16,7 +16,6 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -134,8 +133,6 @@ func mapOfferingLifecycleError(err error) error {
 		return nil
 	case errors.Is(err, careplan.ErrParentRequestStale):
 		return parentrequests.ErrStale
-	case errors.Is(err, careplan.ErrParentRequestReasonRequired):
-		return users.ErrParentRequestReasonRequired
 	case errors.Is(err, careplan.ErrParentRequestPast):
 		return parentrequests.ErrPast
 	case errors.Is(err, careplan.ErrParentRequestNotPast):

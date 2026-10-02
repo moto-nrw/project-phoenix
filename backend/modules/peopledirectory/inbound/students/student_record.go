@@ -37,8 +37,11 @@ type Student struct {
 	AddressPostalCode *string
 	ExtraInfo         *string
 	SupervisorNotes   *string
-	HealthInfo        *string
-	PickupStatus      *string
+	// SupervisorNotesSupplied is request-local. It prevents unrelated updates
+	// from treating a hydrated compatibility value as a new legacy write.
+	SupervisorNotesSupplied bool
+	HealthInfo              *string
+	PickupStatus            *string
 
 	// DepartureDays, AllowedDepartureModes, PickupDays and BusDays are the
 	// departure plan in its effective form (departure.Plan.Effective): the
@@ -237,8 +240,9 @@ func (s *Student) write() peopleModule.StudentWrite {
 			PickupDays:            s.PickupDays,
 			PickupStatus:          s.PickupStatus,
 		},
-		CompanionNote: s.DepartureCompanionNote,
-		NoteSupplied:  s.DepartureCompanionNote != nil,
+		CompanionNote:           s.DepartureCompanionNote,
+		NoteSupplied:            s.DepartureCompanionNote != nil,
+		SupervisorNotesSupplied: s.SupervisorNotesSupplied,
 	}
 	if baseline := s.DepartureBaseline; baseline != nil {
 		write.Baseline = &peopleModule.StudentPlan{

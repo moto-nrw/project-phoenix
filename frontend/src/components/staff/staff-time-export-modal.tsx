@@ -428,8 +428,8 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
               <p className="mt-1.5 text-xs text-gray-500">
                 Die Übertragung ist eingeschaltet, aber noch nicht vollständig
                 eingerichtet. Ein Admin kann die fehlenden Angaben in den
-                Einstellungen unter `System` im Bereich `Schnittstellen`
-                ergänzen. Solange laden Sie die Datei herunter.
+                Einstellungen unter `Kalender und Export` bei `Zeitkonten
+                übertragen` ergänzen. Solange laden Sie die Datei herunter.
               </p>
             )}
             {delivery === "sftp" && sftpStatus.host && (

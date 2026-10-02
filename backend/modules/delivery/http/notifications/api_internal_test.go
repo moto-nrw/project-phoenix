@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -18,7 +18,7 @@ import (
 )
 
 func init() {
-	testutil.SeedTestJWTConfig()
+	routetest.SeedTestJWTConfig()
 }
 
 // captureService records the event the handler dispatched.
@@ -175,17 +175,17 @@ func TestTestNotificationRouteAllowsStaffWithoutConfigUpdate(t *testing.T) {
 
 	svc := &captureService{}
 	router := NewResource(svc, nil, nil, db).Router()
-	claims := testutil.TeacherTestClaims(73)
+	claims := routetest.TeacherTestClaims(73)
 	require.NotContains(t, claims.Permissions, "config:update")
-	req := testutil.NewAuthenticatedRequest(
+	req := routetest.NewAuthenticatedRequest(
 		t,
 		http.MethodPost,
 		"/test",
 		nil,
-		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
+		routetest.WithJWTBearer(routetest.MintTestJWT(t, claims)),
 	)
 
-	rec := testutil.ExecuteRequest(router, req)
+	rec := routetest.ExecuteRequest(router, req)
 
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	require.True(t, svc.called)

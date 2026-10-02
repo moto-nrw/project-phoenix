@@ -6,6 +6,7 @@ const counts = vi.hoisted(() => ({
   enrollment: 0,
   withdrawals: 0,
   staffAbsences: 0,
+  unreadEnrollments: 0,
 }));
 
 vi.mock("~/lib/hooks/use-change-requests-pending", () => ({
@@ -20,6 +21,9 @@ vi.mock("~/lib/hooks/use-care-withdrawals-pending", () => ({
 vi.mock("~/lib/hooks/use-staff-absences-pending", () => ({
   useStaffAbsencesPending: () => ({ unreadCount: counts.staffAbsences }),
 }));
+vi.mock("~/lib/hooks/use-enrollments-unread", () => ({
+  useEnrollmentsUnread: () => ({ unreadCount: counts.unreadEnrollments }),
+}));
 vi.mock("~/lib/tenant-path", () => ({
   useTenantAwarePath: () => (path: string) => `/test-tenant${path}`,
 }));
@@ -32,6 +36,7 @@ describe("OpenRequestsBlock (#2180)", () => {
     counts.enrollment = 0;
     counts.withdrawals = 0;
     counts.staffAbsences = 0;
+    counts.unreadEnrollments = 0;
   });
 
   it("sagt es, wenn nichts auf eine Entscheidung wartet", () => {
@@ -66,5 +71,17 @@ describe("OpenRequestsBlock (#2180)", () => {
     expect(
       screen.getByRole("link", { name: /Abmeldungen aus der Betreuung/ }),
     ).toHaveAttribute("href", "/test-tenant/anfragen");
+  });
+
+  // Ungelesene Anmeldungen (#3778): eigene Zeile, führt zu den Anmeldungen.
+  it("zeigt ungelesene Anmeldungen als eigene Zeile", () => {
+    counts.unreadEnrollments = 2;
+
+    render(<OpenRequestsBlock />);
+
+    expect(screen.getByText("2 ungelesen")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Neue Anmeldungen/ }),
+    ).toHaveAttribute("href", "/test-tenant/admin/enrollments");
   });
 });

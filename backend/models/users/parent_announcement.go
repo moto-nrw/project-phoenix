@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // ErrAnnouncementPublished is returned by the repository Update when the target
@@ -79,7 +78,8 @@ const (
 
 // ValidAnnouncementDeliveryMode reports whether m is a known delivery mode.
 func ValidAnnouncementDeliveryMode(m string) bool {
-	return m == ParentAnnouncementDeliveryStandard || m == ParentAnnouncementDeliveryLetter
+	return m == ParentAnnouncementDeliveryStandard || m == ParentAnnouncementDeliveryLetter ||
+		m == ParentAnnouncementDeliveryDeclaration
 }
 
 // ValidAnnouncementEmailAudience reports whether a is a known e-mail audience.
@@ -184,6 +184,8 @@ type ParentAnnouncement struct {
 	// Options is attached the same way (ListOptions) and is empty for a plain
 	// Mitteilung.
 	Options []*ParentAnnouncementOption `bun:"-" json:"options,omitempty"`
+	// Declaration carries the Erklärung settings (#3430); zero for other modes.
+	Declaration AnnouncementDeclarationSettings `bun:"embed:declaration_" json:"-"`
 }
 
 // IsPublished reports whether the announcement has been published (vs draft).
@@ -249,30 +251,31 @@ func (a *ParentAnnouncement) AcceptsResponsesAt(t time.Time) bool {
 // class -> TargetRefText (the school_class string); group/activity_group/student
 // -> TargetRefID; school_all/pending_enrollment -> neither. The table has no
 // updated_at (targets are insert/delete only, replaced wholesale on edit), so
-// it embeds bun.BaseModel rather than base.Model.
+// it declares its own ID and CreatedAt instead of embedding base.Model.
 type ParentAnnouncementTarget struct {
-	bun.BaseModel `bun:"table:users.parent_announcement_targets,alias:pat"`
-	base.TenantModel
-	ID             int64     `bun:"id,pk,autoincrement" json:"id"`
-	AnnouncementID int64     `bun:"announcement_id,notnull" json:"announcement_id"`
-	TargetType     string    `bun:"target_type,notnull" json:"target_type"`
-	TargetRefID    *int64    `bun:"target_ref_id" json:"target_ref_id,omitempty"`
-	TargetRefText  *string   `bun:"target_ref_text" json:"target_ref_text,omitempty"`
-	CreatedAt      time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at"`
+	// Documents the source table; bun reads table tags only from bun.BaseModel.
+	base.TenantModel `bun:"table:users.parent_announcement_targets,alias:pat"`
+	ID               int64     `bun:"id,pk,autoincrement" json:"id"`
+	AnnouncementID   int64     `bun:"announcement_id,notnull" json:"announcement_id"`
+	TargetType       string    `bun:"target_type,notnull" json:"target_type"`
+	TargetRefID      *int64    `bun:"target_ref_id" json:"target_ref_id,omitempty"`
+	TargetRefText    *string   `bun:"target_ref_text" json:"target_ref_text,omitempty"`
+	CreatedAt        time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at"`
 }
 
 // ParentAnnouncementOption is one answer option of a poll. Position drives the
 // display order and is unique per announcement. Options are insert/delete only
 // (replaced wholesale while the announcement is a draft), so the table has no
-// updated_at and this embeds bun.BaseModel rather than base.Model.
+// updated_at and this declares its own ID and CreatedAt instead of embedding
+// base.Model.
 type ParentAnnouncementOption struct {
-	bun.BaseModel `bun:"table:users.parent_announcement_options,alias:pao"`
-	base.TenantModel
-	ID             int64     `bun:"id,pk,autoincrement" json:"id"`
-	AnnouncementID int64     `bun:"announcement_id,notnull" json:"announcement_id"`
-	Label          string    `bun:"label,notnull" json:"label"`
-	Position       int       `bun:"position,notnull" json:"position"`
-	CreatedAt      time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at"`
+	// Documents the source table; bun reads table tags only from bun.BaseModel.
+	base.TenantModel `bun:"table:users.parent_announcement_options,alias:pao"`
+	ID               int64     `bun:"id,pk,autoincrement" json:"id"`
+	AnnouncementID   int64     `bun:"announcement_id,notnull" json:"announcement_id"`
+	Label            string    `bun:"label,notnull" json:"label"`
+	Position         int       `bun:"position,notnull" json:"position"`
+	CreatedAt        time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at"`
 }
 
 // ParentAnnouncementResponse is one child's chosen option. The answer is per
@@ -281,14 +284,14 @@ type ParentAnnouncementOption struct {
 // guardian submitted it (two guardians share a child; the service replaces the
 // child's whole row set, so the last writer wins).
 type ParentAnnouncementResponse struct {
-	bun.BaseModel `bun:"table:users.parent_announcement_responses,alias:par_resp"`
-	base.TenantModel
-	ID             int64     `bun:"id,pk,autoincrement" json:"id"`
-	AnnouncementID int64     `bun:"announcement_id,notnull" json:"announcement_id"`
-	OptionID       int64     `bun:"option_id,notnull" json:"option_id"`
-	StudentID      int64     `bun:"student_id,notnull" json:"student_id"`
-	AccountID      int64     `bun:"account_id,notnull" json:"account_id"`
-	RespondedAt    time.Time `bun:"responded_at,nullzero,notnull,default:current_timestamp" json:"responded_at"`
+	// Documents the source table; bun reads table tags only from bun.BaseModel.
+	base.TenantModel `bun:"table:users.parent_announcement_responses,alias:par_resp"`
+	ID               int64     `bun:"id,pk,autoincrement" json:"id"`
+	AnnouncementID   int64     `bun:"announcement_id,notnull" json:"announcement_id"`
+	OptionID         int64     `bun:"option_id,notnull" json:"option_id"`
+	StudentID        int64     `bun:"student_id,notnull" json:"student_id"`
+	AccountID        int64     `bun:"account_id,notnull" json:"account_id"`
+	RespondedAt      time.Time `bun:"responded_at,nullzero,notnull,default:current_timestamp" json:"responded_at"`
 }
 
 // AnnouncementPollChild is one child a guardian may answer for, with the option
@@ -352,12 +355,12 @@ type AnnouncementPollReminderRecipient struct {
 // the guardian's, not a child's. AcknowledgedAt is nil until the guardian
 // explicitly confirms an announcement that RequiresAcknowledgement.
 type ParentAnnouncementRead struct {
-	bun.BaseModel `bun:"table:users.parent_announcement_reads,alias:par"`
-	base.TenantModel
-	AnnouncementID int64      `bun:"announcement_id,pk" json:"announcement_id"`
-	AccountID      int64      `bun:"account_id,pk" json:"account_id"`
-	ReadAt         time.Time  `bun:"read_at,notnull" json:"read_at"`
-	AcknowledgedAt *time.Time `bun:"acknowledged_at" json:"acknowledged_at,omitempty"`
+	// Documents the source table; bun reads table tags only from bun.BaseModel.
+	base.TenantModel `bun:"table:users.parent_announcement_reads,alias:par"`
+	AnnouncementID   int64      `bun:"announcement_id,pk" json:"announcement_id"`
+	AccountID        int64      `bun:"account_id,pk" json:"account_id"`
+	ReadAt           time.Time  `bun:"read_at,notnull" json:"read_at"`
+	AcknowledgedAt   *time.Time `bun:"acknowledged_at" json:"acknowledged_at,omitempty"`
 }
 
 // AnnouncementFeedScope names the tenants a guardian's feed draws from. A
@@ -409,6 +412,8 @@ type AnnouncementFeedItem struct {
 	// they come from separate batched queries, not this row's columns).
 	Options  []*ParentAnnouncementOption `bun:"-" json:"options,omitempty"`
 	Children []*AnnouncementPollChild    `bun:"-" json:"children,omitempty"`
+	// Declaration is attached for Erklärung items (#3430).
+	Declaration *AnnouncementFeedDeclaration `bun:"-" json:"-"`
 }
 
 // IsPoll reports whether the feed item asks the guardian a question.
@@ -515,6 +520,8 @@ type AnnouncementStats struct {
 // run inside a cross-tenant admin transaction (a guardian's children span
 // schools).
 type ParentAnnouncementRepository interface {
+	ParentDeclarationRepository
+
 	// --- staff authoring (tenant tx) ---
 	Create(ctx context.Context, a *ParentAnnouncement) error
 	Update(ctx context.Context, a *ParentAnnouncement) error

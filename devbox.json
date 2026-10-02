@@ -42,6 +42,7 @@
   ],
   "env": {
     "CGO_ENABLED": "0",
+    "GOFLAGS": "-p=4",
     "GOTOOLCHAIN": "local"
   },
   "shell": {

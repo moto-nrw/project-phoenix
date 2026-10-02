@@ -29,7 +29,7 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), author.TenantID)
 
 	_, err := db.NewUpdate().
-		TableExpr(`users.students_guardians`).
+		TableExpr(`users.student_guardian_relationships`).
 		Set("student_id = ?", author.StudentID).
 		// The author stays the child's one primary guardian (#2756).
 		Set("is_primary = false").

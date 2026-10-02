@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -210,6 +211,10 @@ type Scheduler struct {
 	getenv                     func(string) string
 	lifecycleCtx               context.Context
 	stopLifecycle              context.CancelFunc
+	// leadership gates every job run on the Worker lease (#2726). It keeps
+	// renewing while Stop drains the jobs and releases the lease afterwards.
+	leadership  *leadership
+	jobsStarted atomic.Bool
 	// done signals goroutines to stop when closed (replaces stored context)
 	done chan struct{}
 	wg   sync.WaitGroup
@@ -262,8 +267,9 @@ type Scheduler struct {
 	// Personal reminder notifications. Anything missing prevents Worker
 	// construction. reminderNotified is the
 	// once-per-day re-fire guard (now per person), rotated on civil-date
-	// rollover like overdueEmitted. It is process-local, so production must run
-	// only one scheduler instance until this state is shared.
+	// rollover like overdueEmitted. It is process-local: the Worker lease
+	// keeps one leader at a time (#2726), and a Worker that takes over starts
+	// with an empty guard.
 	reminderNotifications ReminderNotificationDeps
 	reminderNotified      sync.Map // reminderNotificationKey → time.Time
 	reminderNotifiedDay   timezone.Date
@@ -326,6 +332,9 @@ func newScheduler(deps WorkerDependencies) *Scheduler {
 	addCleanupDependencies(scheduler, deps)
 	addScheduleDependencies(scheduler, deps)
 	addRuntimeDependencies(scheduler, deps)
+	if !isNilDependency(deps.Lease.Store) {
+		scheduler.leadership = newLeadership(deps.Lease, scheduler.getLogger(), lifecycleCtx)
+	}
 	return scheduler
 }
 
@@ -561,7 +570,9 @@ func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn
 	})
 }
 
-// Start begins the scheduler
+// Start begins the scheduler. With a lease it first tries to lead once, so a
+// sole Worker runs its startup checks; a standby starts its jobs too, and
+// each run waits for the lease.
 func (s *Scheduler) Start() {
 	if s.registry == nil {
 		panic("worker registry is required")
@@ -571,21 +582,58 @@ func (s *Scheduler) Start() {
 		slog.Int("registered_job_count", len(ids)),
 		slog.Any("registered_job_ids", ids),
 	)
+	if s.leadership != nil {
+		s.leadership.start()
+	}
 	s.registry.Start()
+	s.jobsStarted.Store(true)
 }
 
-// Stop gracefully stops the scheduler
+// Stop gracefully stops the scheduler: running jobs are cancelled and
+// drained while the lease stays renewed, then the lease is released.
 func (s *Scheduler) Stop() {
 	started := time.Now()
 	s.getLogger().Info("stopping scheduler service")
+	s.jobsStarted.Store(false)
 	if s.stopLifecycle != nil {
 		s.stopLifecycle()
 	}
 	close(s.done)
 	s.wg.Wait()
+	drain := time.Since(started)
+	if s.leadership != nil {
+		s.leadership.stop()
+		s.leadership.drained(drain)
+	}
 	s.getLogger().Info("scheduler service stopped",
-		slog.Duration("shutdown_drain_time", time.Since(started)),
+		slog.Duration("shutdown_drain_time", drain),
 	)
+}
+
+// Ready reports whether this Worker runs jobs: it started them and holds
+// the lease. A standby is alive but not ready.
+func (s *Scheduler) Ready() bool {
+	if s.leadership == nil || !s.jobsStarted.Load() {
+		return false
+	}
+	_, _, held := s.leadership.current()
+	return held
+}
+
+// jobContext returns the context a job run executes under. With a lease it
+// is the running term's context, ended with the term, and every transaction
+// opened under it asserts the term before it commits. ok is false while
+// this Worker does not lead.
+func (s *Scheduler) jobContext() (context.Context, bool) {
+	if s.leadership == nil {
+		return s.lifecycleContext(), true
+	}
+	term, termCtx, held := s.leadership.current()
+	if !held {
+		s.leadership.suppress("standby")
+		return nil, false
+	}
+	return tenant.WithCommitGuard(termCtx, s.leadership.fence(term)), true
 }
 
 // taskContext is cancelled when the scheduler stops, in addition to its
@@ -638,12 +686,18 @@ func (s *Scheduler) runMinutePolling(task *ScheduledTask, panicName, startupMsg 
 	}()
 
 	s.getLogger().Info(startupMsg)
+	var acquired <-chan struct{}
+	if s.leadership != nil {
+		acquired = s.leadership.nextAcquisition()
+	}
 
 	// Immediate check on startup so we don't miss the current minute after a restart.
 	s.runJobCheck(task, check)
 
 	// Align to the next minute boundary so ticks land at HH:MM:00.
-	if !s.waitUntilNextMinute() {
+	var aligned bool
+	acquired, aligned = s.waitUntilNextMinute(acquired, func() { s.runJobCheck(task, check) })
+	if !aligned {
 		return
 	}
 
@@ -653,6 +707,9 @@ func (s *Scheduler) runMinutePolling(task *ScheduledTask, panicName, startupMsg 
 	for {
 		select {
 		case <-ticker.C:
+			s.runJobCheck(task, check)
+		case <-acquired:
+			acquired = s.leadership.nextAcquisition()
 			s.runJobCheck(task, check)
 		case <-s.done:
 			return
@@ -680,6 +737,10 @@ func (s *Scheduler) runIntervalPolling(task *ScheduledTask, panicName, startupMs
 	}()
 
 	s.getLogger().Info(startupMsg, startupAttrs...)
+	var acquired <-chan struct{}
+	if s.leadership != nil {
+		acquired = s.leadership.nextAcquisition()
+	}
 
 	select {
 	case <-time.After(startupDelay):
@@ -692,6 +753,9 @@ func (s *Scheduler) runIntervalPolling(task *ScheduledTask, panicName, startupMs
 		select {
 		case <-time.After(interval()):
 			s.runJobCheck(task, check)
+		case <-acquired:
+			acquired = s.leadership.nextAcquisition()
+			s.runJobCheck(task, check)
 		case <-s.done:
 			return
 		}
@@ -699,7 +763,10 @@ func (s *Scheduler) runIntervalPolling(task *ScheduledTask, panicName, startupMs
 }
 
 func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context, *ScheduledTask)) {
-	ctx := s.lifecycleContext()
+	ctx, leads := s.jobContext()
+	if !leads {
+		return
+	}
 	if traced, err := s.startWorkerJob(ctx, task.Name); err == nil {
 		ctx = traced
 	} else {
@@ -1053,6 +1120,10 @@ func (s *Scheduler) runTokenCleanupTask(task *ScheduledTask) {
 	}()
 
 	s.getLogger().Info("token cleanup task scheduled to run every hour")
+	var acquired <-chan struct{}
+	if s.leadership != nil {
+		acquired = s.leadership.nextAcquisition()
+	}
 
 	// Run immediately on startup
 	s.runJobCheck(task, s.executeTokenCleanup)
@@ -1064,6 +1135,9 @@ func (s *Scheduler) runTokenCleanupTask(task *ScheduledTask) {
 	for {
 		select {
 		case <-ticker.C:
+			s.runJobCheck(task, s.executeTokenCleanup)
+		case <-acquired:
+			acquired = s.leadership.nextAcquisition()
 			s.runJobCheck(task, s.executeTokenCleanup)
 		case <-s.done:
 			return
@@ -1631,18 +1705,23 @@ func (s *Scheduler) resolveNonNegativeIntSetting(ctx context.Context, key string
 	return fallback
 }
 
-// waitUntilNextMinute blocks until the start of the next wall-clock minute,
-// so that subsequent 60-second ticks are aligned to HH:MM:00.
-// Returns false if the scheduler is shutting down during the wait.
-func (s *Scheduler) waitUntilNextMinute() bool {
+// waitUntilNextMinute keeps the wall-clock alignment while checking again on
+// takeover. It returns the next acquisition signal for the aligned tick loop.
+func (s *Scheduler) waitUntilNextMinute(acquired <-chan struct{}, onAcquire func()) (<-chan struct{}, bool) {
 	now := time.Now()
 	nextMinute := now.Truncate(time.Minute).Add(time.Minute) //nolint:forbidigo // sub-day minute alignment, not calendar-date math
-	delay := time.Until(nextMinute)
-	select {
-	case <-time.After(delay):
-		return true
-	case <-s.done:
-		return false
+	timer := time.NewTimer(time.Until(nextMinute))
+	defer timer.Stop()
+	for {
+		select {
+		case <-timer.C:
+			return acquired, true
+		case <-acquired:
+			acquired = s.leadership.nextAcquisition()
+			onAcquire()
+		case <-s.done:
+			return acquired, false
+		}
 	}
 }
 
@@ -1695,10 +1774,26 @@ func markRunAtAfterCommit(ctx context.Context, lastRunMap *sync.Map, tenantID in
 	})
 }
 
+// statusFlagClearHour and statusFlagClearMinute are the fixed end of the day
+// for "Am Ende des Tages" (#3729). The time used to be a school setting; it is
+// 18:00 for every school now. Midnight would not work: the clear archives the
+// flag onto timezone.TodayDate(), which is already the next day at 00:00.
+const (
+	statusFlagClearHour   = 18
+	statusFlagClearMinute = 0
+)
+
+// statusFlagClearDue reports whether now is the minute the end-of-day clear
+// runs.
+func statusFlagClearDue(now time.Time) bool {
+	now = now.In(timezone.Berlin)
+	return now.Hour() == statusFlagClearHour && now.Minute() == statusFlagClearMinute
+}
+
 // scheduleStatusFlagClearTask schedules a daily task to clear sick / excused
 // flags for tenants whose operations.sick_clear_mode or
-// operations.excused_clear_mode is set to "end_of_day". The task fires at the
-// tenant's configured operations.status_flag_clear_time.
+// operations.excused_clear_mode is set to "end_of_day". The task fires at
+// the fixed end of the day (statusFlagClearHour:statusFlagClearMinute).
 func (s *Scheduler) scheduleStatusFlagClearTask() {
 	// Env var kill switch to allow ops to disable this task without code changes.
 	if s.env("STATUS_FLAG_CLEAR_ENABLED") == "false" {
@@ -1709,17 +1804,26 @@ func (s *Scheduler) scheduleStatusFlagClearTask() {
 	s.registerTask("status-flag-clear", "1m-poll", s.runStatusFlagClearTaskPolling)
 }
 
-// runStatusFlagClearTaskPolling checks every minute if any tenant's status
-// flag clear time matches now and clears the configured end_of_day flags.
+// runStatusFlagClearTaskPolling checks every minute whether the end of the
+// day has come and clears the configured end_of_day flags.
 func (s *Scheduler) runStatusFlagClearTaskPolling(task *ScheduledTask) {
 	s.runMinutePolling(task, "panic in status flag clear task",
 		"status flag clear task using minute-polling for per-tenant scheduling",
 		s.checkAndRunStatusFlagClear)
 }
 
-// checkAndRunStatusFlagClear evaluates each tenant's clear_mode settings and
-// clears flags when the configured status flag clear time matches now.
+// checkAndRunStatusFlagClear clears the end_of_day flags when the fixed end
+// of the day has come.
 func (s *Scheduler) checkAndRunStatusFlagClear(ctx context.Context, task *ScheduledTask) {
+	if !statusFlagClearDue(time.Now()) {
+		return
+	}
+	s.runStatusFlagClear(ctx, task)
+}
+
+// runStatusFlagClear evaluates each tenant's clear_mode settings and clears
+// the flags set to end_of_day, at most once per tenant and day.
+func (s *Scheduler) runStatusFlagClear(ctx context.Context, task *ScheduledTask) {
 	task.mu.Lock()
 	if task.Running {
 		task.mu.Unlock()
@@ -1737,15 +1841,10 @@ func (s *Scheduler) checkAndRunStatusFlagClear(ctx context.Context, task *Schedu
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "status-flag-clear", func(tenantCtx context.Context, tenantID int64) error {
-		clearTime := s.resolveStringSetting(tenantCtx, configModel.KeyStatusFlagClearTime, "", "18:00")
-		if clearTime == "" || !timeMatchesNow(clearTime) {
-			return nil
-		}
-
 		if wasRunToday(&s.lastStatusFlagClear, tenantID) {
 			return nil
 		}
-		sickMode := s.resolveStringSetting(tenantCtx, configModel.KeySickClearMode, "", configModel.ClearModeNextCheckin)
+		sickMode := s.resolveStringSetting(tenantCtx, configModel.KeySickClearMode, "", configModel.ClearModeEndOfDay)
 		excusedMode := s.resolveStringSetting(tenantCtx, configModel.KeyExcusedClearMode, "", configModel.ClearModeEndOfDay)
 		succeeded := true
 

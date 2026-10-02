@@ -10,9 +10,13 @@ import (
 // composition root binds them to the owner queries.
 
 // PortalMembershipQuery maps the requested accounts to schools where their
-// account, school membership, and guardian role make the portal reachable.
+// account, school membership, and guardian role make the portal available.
 // It does not authorize access to any child.
 type PortalMembershipQuery func(context.Context, []int64) (map[int64][]int64, error)
+
+// PortalLoginMembershipQuery maps the requested accounts to schools where the
+// account can also authenticate with a password.
+type PortalLoginMembershipQuery func(context.Context, []int64) (map[int64][]int64, error)
 
 // SchoolRoleClass is the owner's classification of the roles one account
 // holds at one school.

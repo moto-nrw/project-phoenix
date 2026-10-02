@@ -18,6 +18,8 @@ func TestStudentDocumentPermissionsMatchTheRegistry(t *testing.T) {
 		PermissionUsersUpdate:            permissions.UsersUpdate,
 		PermissionUsersAbsence:           permissions.UsersAbsence,
 		PermissionCalendarOwn:            permissions.CalendarOwn,
+		PermissionStaffManage:            permissions.StaffManage,
+		PermissionGroupsRead:             permissions.GroupsRead,
 	} {
 		if restated != registered {
 			t.Errorf("restated permission %q, registry has %q", restated, registered)

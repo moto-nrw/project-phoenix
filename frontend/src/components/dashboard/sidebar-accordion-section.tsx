@@ -1,7 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { UnreadBadge } from "~/components/messaging/unread-badge";
+import {
+  UnreadBadge,
+  type UnreadBadgeTone,
+} from "~/components/messaging/unread-badge";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -28,6 +31,9 @@ interface SidebarAccordionSectionProps {
   // Aggregate section badge for unread messages and pending requests. The
   // count stays visible while the section is collapsed.
   readonly badgeCount?: number;
+  readonly badgeTone?: UnreadBadgeTone;
+  // Was gezählt wird, für Vorleseprogramme (Standard: Nachrichten).
+  readonly badgeNoun?: string;
   // Eingeklappte Leiste (#2825/#2923): dieselbe Zeile, nur ohne Text. Der
   // Bereichsinhalt passt nicht in den Streifen, deshalb bleibt er dort
   // geschlossen; der Klick klappt die Leiste auf (die Elternkomponente
@@ -45,6 +51,8 @@ interface SidebarAccordionSectionProps {
   // darunter bewegen sich zweimal. Der Inhalt bleibt deshalb für die Dauer
   // der äußeren Bewegung offen stehen.
   readonly keepBodyExpandedWhileCollapsing?: boolean;
+  // Ziel der geführten Tour der ersten Schritte (#2832).
+  readonly tourId?: string;
 }
 
 export function SidebarAccordionSection({
@@ -61,10 +69,13 @@ export function SidebarAccordionSection({
   children,
   hasChildren,
   badgeCount = 0,
+  badgeTone,
+  badgeNoun,
   collapsed = false,
   labelsMounted = true,
   labelsVisible = true,
   keepBodyExpandedWhileCollapsing = false,
+  tourId,
 }: SidebarAccordionSectionProps) {
   const iconColorClass =
     (isIconActive ?? isActive) && activeColor ? activeColor : "";
@@ -94,6 +105,7 @@ export function SidebarAccordionSection({
         variant="ghost"
         size="md"
         onClick={onToggle}
+        data-setup-tour={tourId}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
@@ -149,7 +161,11 @@ export function SidebarAccordionSection({
                 aria-hidden={!labelsVisible}
                 className={`ml-2 shrink-0 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
               >
-                <UnreadBadge count={badgeCount} />
+                <UnreadBadge
+                  count={badgeCount}
+                  tone={badgeTone}
+                  noun={badgeNoun}
+                />
               </span>
             )}
             <svg
@@ -176,7 +192,7 @@ export function SidebarAccordionSection({
             aria-hidden={labelsVisible}
             className={`absolute top-1 right-1 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-0" : "opacity-100"}`}
           >
-            <UnreadBadge count={badgeCount} />
+            <UnreadBadge count={badgeCount} tone={badgeTone} noun={badgeNoun} />
           </span>
         )}
       </Button>

@@ -3,6 +3,7 @@ package compose
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
@@ -11,19 +12,22 @@ import (
 // Ports the composition root binds for Enrollment's intake and change
 // requests (#3565).
 type (
-	IntakeDependencies        = application.IntakeDependencies
-	IntakeRequests            = application.IntakeRequests
-	IntakeChildren            = application.IntakeChildren
-	IntakeGuardians           = application.IntakeGuardians
-	IntakeLateInvites         = application.IntakeLateInvites
-	IntakeCatalog             = application.IntakeCatalog
-	IntakeOfferings           = application.IntakeOfferings
-	IntakeSettings            = application.IntakeSettings
-	LegalSettings             = application.LegalSettings
-	SubmissionRateLimiter     = application.SubmissionRateLimiter
-	StudentMatches            = application.StudentMatches
-	GuardianStudentAuthorizer = application.GuardianStudentAuthorizer
-	ManualEnrollmentDecider   = application.ManualEnrollmentDecider
+	IntakeDependencies             = application.IntakeDependencies
+	IntakeRequests                 = application.IntakeRequests
+	RequestParentChanges           = application.RequestParentChanges
+	IntakeChildren                 = application.IntakeChildren
+	IntakeGuardians                = application.IntakeGuardians
+	IntakeLateInvites              = application.IntakeLateInvites
+	IntakeCatalog                  = application.IntakeCatalog
+	IntakeOfferings                = application.IntakeOfferings
+	IntakeSettings                 = application.IntakeSettings
+	AdminMailSubscribers           = application.AdminMailSubscribers
+	LegalSettings                  = application.LegalSettings
+	SubmissionRateLimiter          = application.SubmissionRateLimiter
+	StudentMatches                 = application.StudentMatches
+	GuardianStudentAuthorizer      = application.GuardianStudentAuthorizer
+	GuardianInvitationAvailability = application.GuardianInvitationAvailability
+	ManualEnrollmentDecider        = application.ManualEnrollmentDecider
 
 	ChangeRequestDependencies = application.ChangeRequestDependencies
 	ChangeRequestRecords      = application.ChangeRequestRecords
@@ -139,4 +143,54 @@ type (
 // NewOfferingChangeRecords binds the reads to Care Plan.
 func NewOfferingChangeRecords(carePlan CarePlanOfferingChanges) *OfferingChangeRecords {
 	return application.NewOfferingChangeRecords(carePlan, sql.ErrNoRows)
+}
+
+// errRequestReadsNotConfigured reports a composition without the read state.
+var errRequestReadsNotConfigured = errors.New("enrollment: request read state not configured")
+
+func (d publicDecisions) reads() (enrollment.RequestReads, error) {
+	if reads := d.inner.RequestReads(); reads != nil {
+		return reads, nil
+	}
+	return nil, errRequestReadsNotConfigured
+}
+
+func (d publicDecisions) CountUnreadRequests(ctx context.Context, accountID int64) (int, error) {
+	reads, err := d.reads()
+	if err != nil {
+		return 0, err
+	}
+	return reads.CountUnreadRequests(ctx, accountID)
+}
+
+func (d publicDecisions) UnreadRequestIDs(ctx context.Context, accountID int64, requestIDs []int64) ([]int64, error) {
+	reads, err := d.reads()
+	if err != nil {
+		return nil, err
+	}
+	return reads.UnreadRequestIDs(ctx, accountID, requestIDs)
+}
+
+func (d publicDecisions) MarkRequestsRead(ctx context.Context, accountID int64, requestIDs []int64) error {
+	reads, err := d.reads()
+	if err != nil {
+		return err
+	}
+	return reads.MarkRequestsRead(ctx, accountID, requestIDs)
+}
+
+func (d publicDecisions) MarkAllRequestsRead(ctx context.Context, accountID int64) error {
+	reads, err := d.reads()
+	if err != nil {
+		return err
+	}
+	return reads.MarkAllRequestsRead(ctx, accountID)
+}
+
+func (d publicDecisions) MarkRequestUnread(ctx context.Context, accountID, requestID int64) error {
+	reads, err := d.reads()
+	if err != nil {
+		return err
+	}
+	return reads.MarkRequestUnread(ctx, accountID, requestID)
 }

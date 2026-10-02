@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/mail"
 	"strings"
 
@@ -41,13 +42,17 @@ func (s *Intake) enqueueSubmissionEmails(ctx context.Context, tenantID int64, re
 	}); err != nil {
 		return fmt.Errorf("parent confirmation: %w", err)
 	}
-	for _, admin := range resolveAdminEmails(s.adminNotificationEmails(ctx)) {
+	admins, err := s.adminNotificationRecipients(ctx)
+	if err != nil {
+		return fmt.Errorf("admin notification recipients: %w", err)
+	}
+	for _, admin := range admins {
 		adminPayload := map[string]any{
 			enrollment.EnrollmentPayloadGuardianFirstName: request.GuardianFirstName,
 			enrollment.EnrollmentPayloadGuardianLastName:  request.GuardianLastName,
 			enrollment.EnrollmentPayloadGuardianEmail:     request.GuardianEmail,
 			enrollment.EnrollmentPayloadSchoolName:        schoolName,
-			enrollment.EnrollmentPayloadAdminURL:          fmt.Sprintf("%s/enrollments/%d", s.deps.FrontendURL, request.ID),
+			enrollment.EnrollmentPayloadAdminURL:          fmt.Sprintf("%s/admin/enrollments/%d", s.deps.FrontendURL, request.ID),
 			enrollment.EnrollmentPayloadLogoURL:           logoURL,
 			enrollment.EnrollmentPayloadMotoLogoURL:       footerLogoURL,
 			enrollment.EnrollmentPayloadChildNames:        childNames,
@@ -64,6 +69,42 @@ func (s *Intake) enqueueSubmissionEmails(ctx context.Context, tenantID int64, re
 		}
 	}
 	return nil
+}
+
+// adminNotificationRecipients is the configured address list plus, when
+// bound, the staff who switched the mail on.
+func (s *Intake) adminNotificationRecipients(ctx context.Context) ([]string, error) {
+	configured := resolveAdminEmails(s.adminNotificationEmails(ctx))
+	if s.deps.AdminSubscribers == nil {
+		return configured, nil
+	}
+	var recipients []string
+	err := s.deps.Runtime.Savepoint(ctx, func(txCtx context.Context) error {
+		var lookupErr error
+		recipients, lookupErr = s.deps.AdminSubscribers.AdminNotificationRecipients(txCtx, configured)
+		return lookupErr
+	})
+	if err == nil {
+		return recipients, nil
+	}
+	if s.deps.Runtime.IsSavepointControl(err) {
+		return nil, err
+	}
+	s.logger().Warn("enrollment admin subscriber lookup failed", slog.String("error", err.Error()))
+	return deduplicateAdminEmails(configured), nil
+}
+
+func deduplicateAdminEmails(addresses []string) []string {
+	seen := make(map[string]bool, len(addresses))
+	unique := make([]string, 0, len(addresses))
+	for _, address := range addresses {
+		key := strings.ToLower(address)
+		if !seen[key] {
+			seen[key] = true
+			unique = append(unique, address)
+		}
+	}
+	return unique
 }
 
 func (s *Intake) adminNotificationEmails(ctx context.Context) string {

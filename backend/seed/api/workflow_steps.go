@@ -227,7 +227,9 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedCareExitsStep{},
 		seedAnnouncementsStep{},
 		seedStaffMessagingStep{},
+		seedParentMessageCountScopeStep{},
 		seedStaffNoticesStep{},
+		seedStudentNotesStep{},
 		seedFileStorageStep{},
 		// Der einzige Block, der über die Stempeluhr läuft: nach ihm stempelt
 		// niemand mehr live, und die Historie kann neben der Simulation laufen.
@@ -248,7 +250,11 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedParentEngagementStep{},
 		seedGradeTransitionStep{},
 		seedParentLetterStep{},
+		seedParentDeclarationStep{},
 		seedInactiveAccountStep{},
+		// Zuletzt: Erst jetzt hat die Demo-Schule alle Daten, die der
+		// Einrichtungs-Assistent als erledigt erkennt (#2832).
+		seedSchoolSetupStep{},
 		verifyProfileStep{definition: seeder.definition},
 	)
 	if seeder.options.OnlyProfile == "" {
@@ -256,6 +262,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			manualProfileStep{seeder: seeder},
 			seedEnrollmentWeeklyProfileStep{seeder: seeder},
 			seedEnrollmentBookingsProfileStep{seeder: seeder},
+			seedMarketingProfileStep{seeder: seeder},
 		)
 	}
 	if !seeder.options.DeferHistory {

@@ -16,3 +16,11 @@ func todayDate() appointments.Date {
 	value := time.Now().In(location)
 	return appointments.NewDate(value.Year(), value.Month(), value.Day())
 }
+
+// today is the feed's calendar day: the injected one, else the real one.
+func (s *service) today() appointments.Date {
+	if s.cfg.Today != nil {
+		return s.cfg.Today()
+	}
+	return todayDate()
+}

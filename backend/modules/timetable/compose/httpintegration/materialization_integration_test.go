@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"testing"
 	"time"
 
@@ -217,14 +218,7 @@ func TestMaterializeForTenant_EndToEnd(t *testing.T) {
 	// Change status to 'active' and re-run. Must still be skipped-existing
 	// (the merge strategy skips every existing row regardless of status,
 	// v1 insert-only).
-	_, err = s.db.NewUpdate().
-		Model((*scheduleModels.ActivityInstance)(nil)).
-		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
-		Set("status = ?", scheduleModels.InstanceStatusActive).
-		Where(`"activity_instance".id = ?`, instanceRows[0].ID).
-		Where("tenant_id = ?", s.tenantID).
-		Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.SetActivityInstanceLifecycle(t, s.ctx, s.db, instanceRows[0].ID, scheduleModels.InstanceStatusActive)
 	r3, err := s.svc.MaterializeForTenant(s.ctx, from, to, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	assert.Zero(t, r3.InstancesCreated)
@@ -561,17 +555,11 @@ func TestMaterializeForTenant_ABWeekSmoke(t *testing.T) {
 
 func listInstancesForDate(tb testing.TB, db *bun.DB, templateID int64, date calendar.Date) []*scheduleModels.ActivityInstance {
 	tb.Helper()
-	var rows []*scheduleModels.ActivityInstance
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err := db.NewSelect().
-		Model(&rows).
-		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
-		Where(`"activity_instance".activity_group_id = ?`, templateID).
-		Where(`"activity_instance".date = ?`, date).
-		Order("start_time ASC").
-		Scan(ctx)
-	require.NoError(tb, err)
+	rows := testpkg.ActivityInstancesWhere(tb, ctx, db,
+		`"activity_instance".activity_group_id = ? AND "activity_instance".date = ?`, templateID, date)
+	sort.SliceStable(rows, func(i, j int) bool { return rows[i].StartTime.Before(rows[j].StartTime) })
 	return rows
 }
 

@@ -87,7 +87,7 @@ export function EnrollmentLinkPanel({ tab }: Props) {
           level={3}
           title="Anmeldelink für Eltern"
           concept="enrollments"
-          subtitle="Teilen Sie diesen Link mit Eltern, damit sie ihre Kinder anmelden können. Der Link ist öffentlich; ein Login ist nicht nötig."
+          subtitle="Teilen Sie diesen Link mit Eltern, damit sie ihre Kinder anmelden können. Jeder mit dem Link kann ihn öffnen. Eltern brauchen dafür kein Konto."
         />
         <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
           <code className="moto-content-surface flex-1 truncate rounded-lg border px-3 py-2 font-mono text-xs text-gray-800">

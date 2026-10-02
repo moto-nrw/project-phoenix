@@ -13,17 +13,20 @@ export type UnreadBadgeTone = "parents" | "feedback" | "staff";
 export function UnreadBadge({
   count,
   tone = "parents",
+  noun = "ungelesene Nachrichten",
   className,
 }: Readonly<{
   count: number;
   tone?: UnreadBadgeTone;
+  /** Was gezählt wird, für Vorleseprogramme, z. B. „ungelesene Anmeldungen". */
+  noun?: string;
   className?: string;
 }>) {
   return (
     <NotificationBadge
       count={count}
       tone={tone}
-      ariaLabel={`${count} ungelesene Nachrichten`}
+      ariaLabel={`${count} ${noun}`}
       className={className}
     />
   );

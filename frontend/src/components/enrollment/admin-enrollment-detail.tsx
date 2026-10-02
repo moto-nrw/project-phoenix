@@ -25,6 +25,7 @@ import {
   type ChildStatus,
   type DecisionStatus,
   decideAdminChild,
+  announceAdminRequestOpened,
   getAdminRequest,
   listAdminChildOfferingAdjustments,
   restoreAdminRequest,
@@ -138,6 +139,8 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     try {
       const fresh = await getAdminRequest(requestId);
       setData(fresh);
+      // Das Öffnen hat die Anmeldung für diese Person gelesen (#3778).
+      announceAdminRequestOpened();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("admin_enrollment_detail_load_failed", { error: message });

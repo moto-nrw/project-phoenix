@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -247,49 +248,53 @@ func TestDispatcher_Dispatch_Success(t *testing.T) {
 func TestDispatcher_Dispatch_NilMailer(t *testing.T) {
 	t.Parallel()
 
-	dispatcher := NewDispatcher(nil, slog.Default())
+	synctest.Test(t, func(t *testing.T) {
+		dispatcher := NewDispatcher(nil, slog.Default())
 
-	tracker := newCallbackTracker()
+		tracker := newCallbackTracker()
 
-	req := DeliveryRequest{
-		Message:  Message{Subject: "Test"},
-		Callback: tracker.callback,
-	}
+		req := DeliveryRequest{
+			Message:  Message{Subject: "Test"},
+			Callback: tracker.callback,
+		}
 
-	// Should not panic or call callback
-	dispatcher.Dispatch(context.Background(), req)
+		// Should not panic or call callback
+		dispatcher.Dispatch(context.Background(), req)
 
-	// Wait briefly to ensure nothing happens
-	time.Sleep(50 * time.Millisecond)
-	results := tracker.getResults()
-	assert.Empty(t, results)
+		// Wait until the async delivery goroutine is durably blocked or done
+		synctest.Wait()
+		results := tracker.getResults()
+		assert.Empty(t, results)
+	})
 }
 
 func TestDispatcher_Dispatch_NoCallback(t *testing.T) {
 	t.Parallel()
 
-	mailer := newMockMailer()
-	dispatcher := NewDispatcher(mailer, slog.Default())
+	synctest.Test(t, func(t *testing.T) {
+		mailer := newMockMailer()
+		dispatcher := NewDispatcher(mailer, slog.Default())
 
-	msg := Message{
-		From:    Email{Name: "Test", Address: "test@example.com"},
-		To:      Email{Name: "Recipient", Address: "recipient@example.com"},
-		Subject: "Test Email",
-	}
+		msg := Message{
+			From:    Email{Name: "Test", Address: "test@example.com"},
+			To:      Email{Name: "Recipient", Address: "recipient@example.com"},
+			Subject: "Test Email",
+		}
 
-	req := DeliveryRequest{
-		Message:  msg,
-		Callback: nil, // No callback
-	}
+		req := DeliveryRequest{
+			Message:  msg,
+			Callback: nil, // No callback
+		}
 
-	dispatcher.Dispatch(context.Background(), req)
+		dispatcher.Dispatch(context.Background(), req)
 
-	// Wait for async delivery
-	time.Sleep(50 * time.Millisecond)
+		// Wait until the async delivery goroutine is durably blocked or done
+		synctest.Wait()
 
-	// Verify message was sent
-	messages := mailer.getSentMessages()
-	require.Len(t, messages, 1)
+		// Verify message was sent
+		messages := mailer.getSentMessages()
+		require.Len(t, messages, 1)
+	})
 }
 
 // =============================================================================
@@ -666,36 +671,38 @@ func TestDispatcher_Dispatch_Concurrent(t *testing.T) {
 func TestDispatcher_Dispatch_ContextPassedToCallback(t *testing.T) {
 	t.Parallel()
 
-	mailer := newMockMailer()
-	dispatcher := NewDispatcher(mailer, slog.Default())
+	synctest.Test(t, func(t *testing.T) {
+		mailer := newMockMailer()
+		dispatcher := NewDispatcher(mailer, slog.Default())
 
-	type contextKey string
-	const testKey contextKey = "test-key"
+		type contextKey string
+		const testKey contextKey = "test-key"
 
-	var receivedCtx context.Context
-	var mu sync.Mutex
+		var receivedCtx context.Context
+		var mu sync.Mutex
 
-	callback := func(ctx context.Context, _ DeliveryResult) {
+		callback := func(ctx context.Context, _ DeliveryResult) {
+			mu.Lock()
+			receivedCtx = ctx
+			mu.Unlock()
+		}
+
+		ctx := context.WithValue(context.Background(), testKey, "test-value")
+
+		req := DeliveryRequest{
+			Message:  Message{Subject: "Test"},
+			Callback: callback,
+		}
+
+		dispatcher.Dispatch(ctx, req)
+
+		// Wait until the async delivery goroutine is durably blocked or done
+		synctest.Wait()
+
 		mu.Lock()
-		receivedCtx = ctx
-		mu.Unlock()
-	}
+		defer mu.Unlock()
 
-	ctx := context.WithValue(context.Background(), testKey, "test-value")
-
-	req := DeliveryRequest{
-		Message:  Message{Subject: "Test"},
-		Callback: callback,
-	}
-
-	dispatcher.Dispatch(ctx, req)
-
-	// Wait for callback
-	time.Sleep(50 * time.Millisecond)
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	require.NotNil(t, receivedCtx)
-	assert.Equal(t, "test-value", receivedCtx.Value(testKey))
+		require.NotNil(t, receivedCtx)
+		assert.Equal(t, "test-value", receivedCtx.Value(testKey))
+	})
 }

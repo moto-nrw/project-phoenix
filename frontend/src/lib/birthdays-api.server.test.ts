@@ -30,6 +30,16 @@ describe("fetchBirthdayOverview", () => {
     expect(apiGet).toHaveBeenCalledWith("/api/birthdays", "token");
   });
 
+  it("asks for the chosen week", async () => {
+    vi.mocked(apiGet).mockResolvedValue({ data: {} });
+
+    await fetchBirthdayOverview("token", "2026-07-27");
+    expect(apiGet).toHaveBeenCalledWith(
+      "/api/birthdays?week_start=2026-07-27",
+      "token",
+    );
+  });
+
   it("propagates a backend failure so the route can map the status", async () => {
     vi.mocked(apiGet).mockRejectedValue(new Error("401 Unauthorized"));
 

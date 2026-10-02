@@ -1146,7 +1146,7 @@ func TestDecisionService_Decide_ApprovedCreatesDownstreamRecords(t *testing.T) {
 
 // TestDecisionService_Decide_ApprovedLinksAdditionalGuardians verifies the
 // "GENAUSO" mapping: on approval every co-guardian stored on the request is
-// linked to the created student as an additional students_guardians row
+// linked to the created student as an additional relationship
 // (IsPrimary=false, but emergency-contact + can-pickup like the primary),
 // and the resolved guardian_profiles id is stamped back on the request row.
 // The email-less co-guardian must resolve to a contact profile with NULL email.
@@ -2471,7 +2471,7 @@ func TestDecisionService_Decide_SchedulePickupUsesReviewerStaffID(t *testing.T) 
 	require.Len(t, rows, 2)
 	for _, row := range rows {
 		assert.Equal(t, reviewerStaff.ID, row.CreatedBy,
-			"pickup schedule created_by must reference users.staff, not the reviewer account")
+			"pickup schedule created_by must reference the staff membership, not the reviewer account")
 		assert.NotEqual(t, reviewerAccountID, row.CreatedBy,
 			"the regression requires account id and staff id to stay distinct")
 	}
@@ -2901,7 +2901,7 @@ func TestDecisionService_Decide_ScheduleArrivalUsesReviewerStaffID(t *testing.T)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, reviewerStaff.ID, rows[0].CreatedBy,
-		"arrival schedule created_by must reference users.staff, not the reviewer account")
+		"arrival schedule created_by must reference the staff membership, not the reviewer account")
 	assert.NotEqual(t, reviewerAccountID, rows[0].CreatedBy,
 		"the regression requires account id and staff id to stay distinct")
 	assert.True(t, rows[0].ExpectedArrival.IsZero(),

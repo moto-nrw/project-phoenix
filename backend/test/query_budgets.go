@@ -58,6 +58,9 @@ var queryBudgets = map[string]queryBudget{
 	// response sources inside the tenant transaction. The matching test proves
 	// the total stays flat from three to eight children.
 	"api.enrollment.phase_responses.list": {max: 9},
+	// api/enrollment — GET /admin/requests: the caller's read state of every
+	// listed enrollment in one batched statement (#3778).
+	"api.enrollment.admin_requests.read_state": {max: 1, exact: true},
 	// api/students — #2059: schema capabilities are fixed at startup.
 	"api.students.requests.schema_introspection": {max: 0, exact: true},
 	// api/students — #2098: each planning-time bulk load runs once per list request.
@@ -224,6 +227,11 @@ var queryBudgets = map[string]queryBudget{
 	"modules.timetable.schedules.list":           {max: 1, exact: true},
 	"modules.timetable.supervisors.list":         {max: 1, exact: true},
 	"modules.timetable.target_students.list":     {max: 1, exact: true},
+	// modules/peopledirectory — one child's note card (#3632). Two statements,
+	// whatever the timeline holds: the notes, and one bulk read that resolves
+	// every author's name. Exact, because a count of one would mean the name
+	// resolution silently stopped running and every entry lost its author.
+	"modules.peopledirectory.student_notes.list": {max: 2, exact: true},
 	// modules/communication — inbox reads remain fixed as thread count grows.
 	"modules.communication.parent_messages.list_inbox": {max: 1, exact: true},
 	"modules.communication.staff_messages.list_inbox":  {max: 2, exact: true},

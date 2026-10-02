@@ -3,7 +3,6 @@ package test
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"os"
 	"path/filepath"
@@ -231,6 +230,9 @@ var modulePassthroughBudgets = map[string]int{
 	// Membership service reads (17), teaching assignments (11) and the
 	// class-list-entry surface (5).
 	"modules/schoolmembership": 28,
+	// Hiding the wizard is personal state with no rule of its own, so the
+	// service hands it to the store (#2832).
+	"modules/schoolsetup": 1,
 	// School-year transition (9) plus the transition history and service reads.
 	"modules/schoolstructure": 13,
 	// Attendance, visit, supervision, group-mapping and room reads/writes
@@ -365,8 +367,7 @@ func modulePassthroughScan(backendRoot string) (map[string]int, error) {
 				return nil
 			}
 
-			fset := token.NewFileSet()
-			file, parseErr := parser.ParseFile(fset, path, nil, 0)
+			fset, file, parseErr := parseGoSourceCached(path, nil)
 			if parseErr != nil {
 				return fmt.Errorf("parse %s: %w", rel, parseErr)
 			}

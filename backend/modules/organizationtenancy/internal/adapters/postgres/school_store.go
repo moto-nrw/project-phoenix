@@ -34,7 +34,6 @@ type schoolRow struct {
 	Zip            string     `bun:"zip"`
 	Phone          string     `bun:"phone"`
 	Email          string     `bun:"email"`
-	DevicePinHash  string     `bun:"device_pin_hash"`
 	// The Kinderkontingent (#3567) is written only by SetSchoolChildQuota;
 	// the full school update leaves both columns alone.
 	ChildQuotaBundles    *int `bun:"child_quota_bundles"`
@@ -50,7 +49,7 @@ func (s *Store) CreateSchool(ctx context.Context, input domain.CreateSchool) (do
 		OrganizationID: input.OrganizationID, Name: input.Name, Slug: input.Slug,
 		Subdomain: input.Subdomain, Active: input.Active, Hidden: input.Hidden,
 		Settings: input.Settings, Address: input.Address, City: input.City, Zip: input.Zip,
-		Phone: input.Phone, Email: input.Email, DevicePinHash: input.DevicePinHash,
+		Phone: input.Phone, Email: input.Email,
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -72,13 +71,13 @@ func (s *Store) UpdateSchool(ctx context.Context, input domain.UpdateSchool) (do
 		ID: input.ID, OrganizationID: input.OrganizationID, Name: input.Name, Slug: input.Slug,
 		Subdomain: input.Subdomain, Active: input.Active, Hidden: input.Hidden,
 		Settings: input.Settings, Address: input.Address, City: input.City, Zip: input.Zip,
-		Phone: input.Phone, Email: input.Email, DevicePinHash: input.DevicePinHash,
+		Phone: input.Phone, Email: input.Email,
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = db.NewUpdate().Model(&row).
 		ModelTableExpr(`platform.schools AS "school"`).
-		Column("organization_id", "name", "slug", "subdomain", "address", "city", "zip", "phone", "email", "active", "hidden", "settings", "device_pin_hash").
+		Column("organization_id", "name", "slug", "subdomain", "address", "city", "zip", "phone", "email", "active", "hidden", "settings").
 		Where(`"school".id = ?`, input.ID).
 		Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
@@ -261,7 +260,6 @@ func toSchoolDomain(row schoolRow) domain.School {
 		OrganizationID: row.OrganizationID, Name: row.Name, Slug: row.Slug, Subdomain: row.Subdomain,
 		Active: row.Active, Hidden: row.Hidden, DeletedAt: row.DeletedAt, Settings: row.Settings,
 		Address: row.Address, City: row.City, Zip: row.Zip, Phone: row.Phone, Email: row.Email,
-		DevicePinHash:     row.DevicePinHash,
 		ChildQuotaBundles: row.ChildQuotaBundles, ChildQuotaBundleSize: row.ChildQuotaBundleSize,
 	}
 }

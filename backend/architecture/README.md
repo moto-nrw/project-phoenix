@@ -95,6 +95,17 @@ wider module engine. The demo school stays with `organization-tenancy`: the
 capability resolves it through that owner's `FindSchoolBySlug`, bound in
 `services.NewDemoAccess`, and reads no `platform` table itself.
 
+#2726 creates `platform.worker_leases` (migration 1.15.437) and assigns it to
+`scheduler-runtime`: the Worker's runtime leadership, one fenced holder per
+lease name, no tenant data. The only package that reads or writes it is
+`modules/schedulerruntime/workerlease` (`scheduler-runtime`/`postgres`); it
+opens its administrative transaction and joins the job transaction through
+the tenant runtime. `services/scheduler` reaches it through its own
+`LeaseStore` port, which the Serve root binds. Job transactions assert the
+term through `platform.assert_worker_lease` before they commit, so the tenant
+role needs no grant on the table. Runbook:
+[worker lease](../../docs/operations/worker-lease-2726.md).
+
 #3349 settles the one table two owners reached for: `users.privacy_consents`
 stays with `student-presence`. The recorded window bounds how long presence
 data is kept, and the GDPR cleanup reads it through that owner's
@@ -365,15 +376,19 @@ still read one row per block or participant, so the tenant-safe projection
 with the owner rows in one statement each (`ListLegacyInstances`,
 `ListLegacyParticipants`, the partial-absence, parallel-presence, course and
 manual-planning reads), and `timetable/compose.PresenceReads` wraps it for
-the legacy composition. The old execution and attendance columns stay as a
+the legacy composition. The old execution and attendance columns stayed as a
 trigger-kept rollback mirror with the `active.presence_compatibility_writes`
-counter until #2763; `TestPresenceStorageCallerInventory` keeps every
-provider off them. The later-pickup decision that writes to both owners is
+counter until the Contract #2763 (migration 1.15.432) removed them and
+narrowed the planning status to planned and cancelled;
+`TestPresenceStorageCallerInventory` keeps application code, fixtures and
+behavior tests off the retired names. The later-pickup decision that writes to both owners is
 bound at the composition root (`api/pickup_extensions.go`) rather than as a
 new workflow owner. `database/repositories/student_presence.go`, the old
 provider, is gone. The evidence lives in
 [presence-cutover-2762.json](presence-cutover-2762.json) and the runbook in
-[docs/operations/presence-storage-cutover-2762.md](../../docs/operations/presence-storage-cutover-2762.md).
+[docs/operations/presence-storage-cutover-2762.md](../../docs/operations/presence-storage-cutover-2762.md),
+the Contract in
+[docs/operations/presence-storage-contract-2763.md](../../docs/operations/presence-storage-contract-2763.md).
 
 #2756 cut the student-guardian relationship over to its three owners
 (migration 1.15.417, one release with the caller switch). People Directory
@@ -935,6 +950,23 @@ clock consumes the public device-scan contract in `modules/devicescan`
 (`process-device-scan`/`public`); `staff-clock.to.process-device-scan` is the
 one rule anchored to that new point, and the staff-clock workflow reaches the
 Workforce time clock only through its own port.
+
+#3752 later moved the personnel-record administration out of `services/users`:
+the payroll number, the Stammdaten sections, the audited bank and tax reads and
+the Dokumente tab (the retained staff Stammdaten, payroll, document and default
+permission services) are Workforce's own `StaffAdmin`
+(`modules/workforce/internal/application`, rules in `internal/domain`, bound by
+`modules/workforce/compose.NewStaffAdmin`). The staff and person rows behind a
+record and the audit trail stay with School Membership, People Directory and the
+audit platform: Workforce reaches them through the consumer-owned ports
+`StaffAdminSubjects` and `StaffAdminAudit`, which the root binds over the
+retained repositories in `services/staff_admin_composition.go`, so every read
+and write still joins the caller's tenant transaction and reports its failure
+in the repository shape the HTTP layer classifies. The staff and teacher
+lookups and the two staff writes of the person service leave as the
+`users.StaffDirectory` port (`services/users/staff_directory_port.go`), bound
+by `services.NewStaffDirectory` and embedded in the person service, so the
+callers keep the verbatim repository results the IoT flows depend on.
 
 The retained Workforce time-tracking services
 (`modules/workforce/legacy/timetracking`, #3213) are classified
@@ -2430,7 +2462,10 @@ The same change moves the birthday routes to `modules/birthdays/http`
 compatibility bindings, the birthday handlers' retained user-context, birthday
 service and birthday row imports and the coordinator's retained storage
 backend, are exact debt under #2706 as well; the remaining `inbound-birthdays.*`
-permissions are the inbound target shape. The
+permissions are the inbound target shape. #3751 later moved the birthday
+service into People Directory and the routes to
+`modules/peopledirectory/inbound/birthdays`; the `inbound-birthdays` owner and its
+rules are retired. The
 `inbound-students.to.file-storage-adapter` binding is different: its source
 package existed before the move and imported the old path as debt under
 #2731, which PR mode cannot carry over to the new target. It is a

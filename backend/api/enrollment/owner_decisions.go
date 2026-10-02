@@ -92,6 +92,8 @@ type ExportChildRow struct {
 
 // DecisionService backs the admin review UI over the owner's decision flow.
 type DecisionService interface {
+	// RequestReads is the caller's read state of the queue (#3778).
+	capability.RequestReads
 	List(ctx context.Context, filters RequestFilters) ([]*RequestSummary, error)
 	ListByStudent(ctx context.Context, studentID int64) ([]*RequestSummary, error)
 	Get(ctx context.Context, requestID int64) (*RequestSummary, error)
@@ -115,6 +117,26 @@ func NewDecisionService(owner capability.Decisions) DecisionService {
 }
 
 type decisionService struct{ owner capability.Decisions }
+
+func (c decisionService) CountUnreadRequests(ctx context.Context, accountID int64) (int, error) {
+	return c.owner.CountUnreadRequests(ctx, accountID)
+}
+
+func (c decisionService) UnreadRequestIDs(ctx context.Context, accountID int64, requestIDs []int64) ([]int64, error) {
+	return c.owner.UnreadRequestIDs(ctx, accountID, requestIDs)
+}
+
+func (c decisionService) MarkRequestsRead(ctx context.Context, accountID int64, requestIDs []int64) error {
+	return c.owner.MarkRequestsRead(ctx, accountID, requestIDs)
+}
+
+func (c decisionService) MarkAllRequestsRead(ctx context.Context, accountID int64) error {
+	return c.owner.MarkAllRequestsRead(ctx, accountID)
+}
+
+func (c decisionService) MarkRequestUnread(ctx context.Context, accountID, requestID int64) error {
+	return c.owner.MarkRequestUnread(ctx, accountID, requestID)
+}
 
 func (c decisionService) List(ctx context.Context, filters RequestFilters) ([]*RequestSummary, error) {
 	return decisionSummaries(c.owner.DecisionRequests(ctx, filters))

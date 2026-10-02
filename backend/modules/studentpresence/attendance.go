@@ -21,6 +21,8 @@ type Attendance struct {
 	DeviceID           int64
 	CheckedOutDeviceID *int64
 	YardSince          *time.Time
+	// CheckOutNote is why the child went home earlier than planned (#3324).
+	CheckOutNote *string
 }
 
 // AttendanceFilter restricts an attendance history query. Nil ID lists mean
@@ -44,6 +46,9 @@ type AttendanceCheckout struct {
 	At         time.Time
 	StaffID    int64
 	DeviceID   int64
+	// Note is the optional reason for an early checkout (#3324). Empty
+	// leaves the column NULL.
+	Note string
 }
 
 var ErrAttendanceNotFound = errors.New("attendance not found")

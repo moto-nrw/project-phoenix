@@ -93,22 +93,14 @@ func seedPlanned(t *testing.T, s *overdueSetup, minutesAgo int) *scheduleModels.
 		IsSpontaneous: true, // avoids needing a template FK
 	}
 	ai.SetTenantID(testpkg.Tenant(t))
-	_, err := s.db.NewInsert().Model(ai).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, ai)
 	return ai
 }
 
 // setStatus forces the status column (for the active-not-overdue branch).
 func setStatus(t *testing.T, s *overdueSetup, id int64, status string) {
 	t.Helper()
-	_, err := s.db.NewUpdate().
-		Model((*scheduleModels.ActivityInstance)(nil)).
-		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
-		Set("status = ?", status).
-		Where(`"activity_instance".id = ?`, id).
-		Where("tenant_id = ?", testpkg.Tenant(t)).
-		Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.SetActivityInstanceLifecycle(t, s.ctx, s.db, id, status)
 }
 
 // The tests call runOverdueForTenant directly with the same tenant ctx used

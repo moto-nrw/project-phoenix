@@ -7,13 +7,15 @@
   "scripts": {
     "build": "next build",
     "build-storybook": "node scripts/build-storybook.mjs",
-    "check": "node scripts/verify-locales.mjs && node scripts/verify-error-catalog.mjs && oxlint . && node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit",
-    "check:fresh": "rm -f *.tsbuildinfo && node scripts/verify-locales.mjs && node scripts/verify-error-catalog.mjs && oxlint . && node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit",
+    "check": "node scripts/verify-locales.mjs && node scripts/verify-error-catalog.mjs && oxlint . && node ./node_modules/typescript-native/bin/tsc --noEmit",
+    "check:fresh": "rm -f *.tsbuildinfo && node scripts/verify-locales.mjs && node scripts/verify-error-catalog.mjs && oxlint . && node ./node_modules/typescript-native/bin/tsc --noEmit",
     "depcruise": "dependency-cruise --config .dependency-cruiser.cjs src",
     "dev": "next dev",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "generate:guides": "playwright test -c playwright.guides.config.ts",
+    "generate:screenshots": "playwright test -c playwright.screenshots.config.ts generate\\.pw",
+    "test:screenshots": "playwright test -c playwright.screenshots.config.ts pipeline\\.pw",
     "test:layout": "playwright test -c playwright.layout.config.ts",
     "generate:locales": "node scripts/generate-locales.mjs",
     "generate:error-catalog": "node scripts/verify-error-catalog.mjs --write",
@@ -26,7 +28,7 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "vitest": "vitest",
-    "typecheck": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit",
+    "typecheck": "node ./node_modules/typescript-native/bin/tsc --noEmit",
     "validate:build-env": "node scripts/validate-build-env.mjs",
     "knip": "knip",
     "knip:production": "knip --production --include files",
@@ -97,8 +99,10 @@
     "storybook": "^10.6.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
+    "typescript-native": "npm:typescript@7.0.2",
     "vite": "^8.2.1",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "yaml": "2.9.0"
   },
   "ct3aMetadata": {
     "initVersion": "7.39.3"
@@ -117,6 +121,7 @@
       "**/*.@(spec|test).?(c|m)[jt]s?(x)",
       "scripts/perf/*.perf.ts",
       "scripts/generate-guides.ts",
+      "scripts/product-screenshots/*.pw.ts",
       "playwright*.config.ts",
       "e2e/**/*.ts"
     ],
@@ -131,7 +136,6 @@
       ".storybook/mocks/**"
     ],
     "ignoreDependencies": [
-      "sharp",
       "lint-staged",
       "react-scan"
     ]

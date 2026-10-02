@@ -82,6 +82,7 @@ import {
   deriveCheckinState,
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
+import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import type { SchoolCheckinAction } from "~/lib/student-api";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
@@ -1357,6 +1358,12 @@ function SearchPageContent() {
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const checkinModeAvailable = isToday && attendanceWebEnabled;
   const schoolCheckin = useSchoolCheckinMode();
+  // A checkout well before today's pickup time asks for an optional reason
+  // (#3324); every other checkout keeps its current behaviour.
+  const earlyCheckout = useEarlyCheckoutDialog((studentId, note) => {
+    void schoolCheckin.toggle(studentId, "anwesend", note);
+  });
+  const requestEarlyCheckout = earlyCheckout.request;
   // Checkout of a student who is currently in a room asks first and names the
   // room; every roomless state stays a single tap (#2220).
   const [pendingRoomCheckout, setPendingRoomCheckout] = useState<{
@@ -2940,6 +2947,18 @@ function SearchPageContent() {
         return;
       }
       const room = checkoutConfirmationRoom(student.current_location);
+      const checkinState = deriveCheckinState(student.current_location);
+      if (
+        (checkinState === "anwesend" || checkinState === "schulhof") &&
+        requestEarlyCheckout({
+          studentId: studentIdStr,
+          studentName: `${student.first_name} ${student.second_name}`.trim(),
+          plannedPickup: student.pickup_time,
+          room,
+        })
+      ) {
+        return;
+      }
       if (room) {
         setPendingRoomCheckout({
           studentId: studentIdStr,
@@ -2948,12 +2967,9 @@ function SearchPageContent() {
         });
         return;
       }
-      void schoolCheckin.toggle(
-        studentIdStr,
-        deriveCheckinState(student.current_location),
-      );
+      void schoolCheckin.toggle(studentIdStr, checkinState);
     },
-    [schoolCheckin],
+    [schoolCheckin, requestEarlyCheckout],
   );
   const checkinClickRef = useLatest(checkinClick);
   const handleCheckinClick = useCallback(
@@ -3106,6 +3122,7 @@ function SearchPageContent() {
         }
         overlays={
           <>
+            {earlyCheckout.dialog}
             {/* Checkout out of a room ends the running room visit, so it asks
           first and names the room (#2220). Roomless states never reach
           this dialog — they stay a single tap. */}

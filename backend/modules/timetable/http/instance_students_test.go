@@ -411,12 +411,7 @@ func TestPatchInstanceStudent_409_CompletedInstance(t *testing.T) {
 	t.Parallel()
 
 	s := buildPatchSetup(t)
-	_, err := s.db.NewUpdate().
-		TableExpr("schedule.activity_instances").
-		Set("status = ?", timetable.InstanceStatusCompleted).
-		Where("id = ?", s.instanceID).
-		Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.SetActivityInstanceLifecycle(t, s.ctx, s.db, s.instanceID, timetable.InstanceStatusCompleted)
 
 	router := patchRouter(testpkg.Ctx(t), s.res, s.db)
 	w := doPatch(t, router, fmt.Sprintf("/instances/%d/students/%d", s.instanceID, s.studentID), map[string]any{

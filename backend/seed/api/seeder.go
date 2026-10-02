@@ -30,7 +30,7 @@ type SeedOptions struct {
 	AdminEmail    string // Optional bootstrap school admin email override
 	Randomize     bool   // Append unique suffixes and generate admin credentials
 	SchoolName    string // Optional school name override
-	OnlyProfile   string // Restrict the run to one profile; empty seeds all four
+	OnlyProfile   string // Restrict the run to one profile; empty seeds all five
 	StatePath     string // Output path; empty uses DefaultSeedStatePath
 	StandingDemo  bool   // Keep simulation devices but disable their user interface
 	// VisitorFirstName and VisitorLastName put a prospect of the public demo

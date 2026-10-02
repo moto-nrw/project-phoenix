@@ -332,6 +332,7 @@ type Engine interface {
 	ParentCalendarFeeds
 	SchoolAccountListings
 	GuardianPortalQuery
+	GuardianPortalLoginQuery
 	RFIDCards
 	AccountRoleQueries
 	StaffAccountQueries

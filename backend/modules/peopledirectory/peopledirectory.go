@@ -97,6 +97,7 @@ type Query interface {
 	StudentAuditQuery
 	StudentPhotoQuery
 	StudentConsentQuery
+	StudentNoteQuery
 	GuardianQuery
 	GuardianPortalReachQuery
 	GuardianPortalContacts
@@ -130,6 +131,7 @@ type Command interface {
 	StudentDeletionCommand
 	StudentAuditCommand
 	StudentPhotoCommand
+	StudentNoteCommand
 	GuardianCommand
 	GuardianPortalCommand
 	StudentPortalCommand
@@ -170,6 +172,8 @@ type engine interface {
 	StudentConsentQuery
 	StudentAuditCommand
 	StudentPhotoCommand
+	StudentNoteQuery
+	StudentNoteCommand
 	guardianEngine
 	guardianPortalEngine
 	Create(context.Context, CreatePerson) (Person, error)

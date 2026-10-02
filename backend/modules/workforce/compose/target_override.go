@@ -38,10 +38,15 @@ func (e engine) DeleteStaffTargetOverride(ctx context.Context, staffID, id int64
 }
 
 func targetOverrideToPublic(row domain.StaffTargetOverride) workforce.StaffTargetOverride {
-	return workforce.StaffTargetOverride{
+	result := workforce.StaffTargetOverride{
 		ID: row.ID, StaffID: row.StaffID, StartDate: row.StartDate, EndDate: row.EndDate,
-		DailyMinutes: row.DailyMinutes, CreatedBy: row.CreatedBy,
+		WeekdayMinutes: row.WeekdayMinutes, CreatedBy: row.CreatedBy,
 	}
+	if row.WeekdayMinutes == nil {
+		dailyMinutes := row.DailyMinutes
+		result.DailyMinutes = &dailyMinutes
+	}
+	return result
 }
 
 // targetOverrideError keeps the caller-facing reason while swapping the

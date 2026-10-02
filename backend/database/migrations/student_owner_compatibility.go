@@ -552,6 +552,16 @@ func repointStudentForeignKeys(ctx context.Context, tx bun.Tx) error {
 			ALTER TABLE users.students_guardians DROP CONSTRAINT fk_students_guardians_student_tenant;
 			ALTER TABLE users.students_guardians ADD CONSTRAINT fk_students_guardians_student_tenant
 				FOREIGN KEY (tenant_id, student_id) REFERENCES users.student_profiles(tenant_id, id) ON DELETE CASCADE NOT VALID;
+			-- Student notes were introduced after this Cutover. They are absent on
+			-- its original upgrade path, but a rollback or compatibility replay has
+			-- to repoint the later constraint before archiving users.students.
+			DO $$ BEGIN
+				IF to_regclass('users.student_notes') IS NOT NULL THEN
+					ALTER TABLE users.student_notes DROP CONSTRAINT fk_student_notes_student;
+					ALTER TABLE users.student_notes ADD CONSTRAINT fk_student_notes_student
+						FOREIGN KEY (tenant_id, student_id) REFERENCES users.student_profiles(tenant_id, id) ON DELETE CASCADE NOT VALID;
+				END IF;
+			END $$;
 			DO $$ BEGIN
 				IF EXISTS (SELECT 1 FROM pg_constraint
 					WHERE confrelid = 'users.students'::regclass AND contype = 'f') THEN
@@ -623,6 +633,11 @@ func ValidateStudentOwnerForeignKeys(ctx context.Context, db *bun.DB) error {
 		ALTER TABLE users.student_family_protection_events VALIDATE CONSTRAINT student_family_protection_events_student_id_fkey;
 		ALTER TABLE users.student_guardian_relationships VALIDATE CONSTRAINT fk_student_guardian_relationships_student;
 		ALTER TABLE users.students_guardians VALIDATE CONSTRAINT fk_students_guardians_student_tenant;
+		DO $$ BEGIN
+			IF to_regclass('users.student_notes') IS NOT NULL THEN
+				ALTER TABLE users.student_notes VALIDATE CONSTRAINT fk_student_notes_student;
+			END IF;
+		END $$;
 	`); err != nil {
 		return fmt.Errorf("student owner cutover: validate repointed foreign keys: %w", err)
 	}

@@ -190,9 +190,9 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 	require.NoError(t, modelRepo.Create(testpkg.TenantContext(tenantID), workModel, []*configModel.WorkTimeModelEntry{
 		{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 120},
 	}))
-	_, err := db.NewUpdate().Table("users.staff").
+	_, err := db.NewUpdate().Table("users.staff_employment_profiles").
 		Set("work_time_model_id = ?", workModel.ID).
-		Where("id = ?", modelStaff.ID).
+		Where("membership_id = ?", modelStaff.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 
@@ -200,9 +200,9 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 	insertWorkScheduleRow(t, db, tenantID, contractedStaff.ID, configModel.DayMonday, 480, validFrom)
 
 	t.Cleanup(func() {
-		_, _ = db.NewUpdate().Table("users.staff").
+		_, _ = db.NewUpdate().Table("users.staff_employment_profiles").
 			Set("work_time_model_id = NULL").
-			Where("id = ?", modelStaff.ID).
+			Where("membership_id = ?", modelStaff.ID).
 			Exec(context.Background())
 		_ = modelRepo.Delete(testpkg.TenantContext(tenantID), workModel.ID)
 	})

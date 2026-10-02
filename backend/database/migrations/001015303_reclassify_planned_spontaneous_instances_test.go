@@ -16,7 +16,7 @@ import (
 // planned+spontaneous) keep their flag.
 func TestReclassifyPlannedSpontaneousInstances(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupPresenceStorageBeforeCutover(t)
 	ctx := context.Background()
 
 	room := testpkg.CreateTestRoom(t, db, "Migration-2299-Room")

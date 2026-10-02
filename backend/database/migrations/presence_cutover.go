@@ -111,7 +111,8 @@ func presenceCompatibilityInstalled(ctx context.Context, db bun.IDB) (bool, erro
 
 // requirePresenceStorageBeforeCutover refuses the backfill and its restart once
 // the owner tables are authoritative: a restart would erase Presence data and
-// a batch would copy the mirror back onto itself.
+// a batch would copy the mirror back onto itself. After the Contract (#2763)
+// the source columns are gone, so the backfill has nothing left to read.
 func requirePresenceStorageBeforeCutover(ctx context.Context, db *bun.DB) error {
 	installed, err := presenceCompatibilityInstalled(ctx, db)
 	if err != nil {
@@ -119,6 +120,15 @@ func requirePresenceStorageBeforeCutover(ctx context.Context, db *bun.DB) error 
 	}
 	if installed {
 		return errors.New("presence backfill: the storage is already cut over (#2762); active.activity_sessions and active.activity_session_attendance are authoritative")
+	}
+	var contracted bool
+	if err := db.NewRaw(`SELECT NOT EXISTS (SELECT 1 FROM pg_attribute
+		WHERE attrelid = 'schedule.instance_students'::regclass AND attname = 'checked_in_at' AND NOT attisdropped)`).
+		Scan(ctx, &contracted); err != nil {
+		return fmt.Errorf("presence backfill: inspect source columns: %w", err)
+	}
+	if contracted {
+		return errors.New("presence backfill: the rollback mirror was removed by the Contract (#2763); active.activity_sessions and active.activity_session_attendance are the only storage")
 	}
 	return nil
 }

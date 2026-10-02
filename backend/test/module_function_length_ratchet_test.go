@@ -3,8 +3,6 @@ package test
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"sort"
@@ -70,7 +68,7 @@ const moduleFuncLenThreshold = 60
 // delete entries, never add one and never raise a number.
 var moduleFuncLenAllowlist = map[string]int{
 	"modules/appointments/recurrence.go:boundedRecurrenceDates":                                          117,
-	"modules/careplan/inbound/parent/api.go:(*Resource).RouterWithAuthRateLimiter":                       212,
+	"modules/careplan/inbound/parent/api.go:(*Resource).RouterWithAuthRateLimiter":                       211,
 	"modules/careplan/inbound/parent/child_write_handlers.go:(*Resource).submitSickNote":                 67,
 	"modules/careplan/inbound/parent/child_write_handlers.go:renderParentWriteError":                     162,
 	"modules/careplan/inbound/parent/enrollment_handlers.go:(*Resource).getEnrollmentBootstrap":          87,
@@ -98,15 +96,15 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/communication/internal/parentmessages/message_email.go:messageEmailCopy":                                                84,
 	"modules/communication/internal/parentmessages/service.go:(*Service).PostMessage":                                                69,
 	"modules/communication/internal/parentmessages/service.go:(*Service).notifyGuardianDevice":                                       61,
-	"modules/communication/internal/staffannouncements/care_cancellation.go:(*service).PublishCareCancellation":                      83,
+	"modules/communication/internal/staffannouncements/care_cancellation.go:(*service).PublishCareCancellation":                      72,
 	"modules/communication/internal/staffannouncements/email.go:NewAnnouncementRenderer":                                             61,
 	"modules/communication/internal/staffannouncements/letter.go:(*service).ResendFailedEmails":                                      107,
 	"modules/communication/internal/staffannouncements/letter.go:(*service).queueLetterMailsAs":                                      90,
 	"modules/communication/internal/staffannouncements/poll.go:(*service).enqueueReminderEmails":                                     77,
 	"modules/communication/internal/staffannouncements/poll.go:(*service).pushPollReminder":                                          64,
 	"modules/communication/internal/staffannouncements/reminder.go:(*service).SendDueReminders":                                      72,
-	"modules/communication/internal/staffannouncements/service.go:(*service).Publish":                                                100,
-	"modules/communication/internal/staffannouncements/service.go:(*service).Update":                                                 70,
+	"modules/communication/internal/staffannouncements/service.go:(*service).Publish":                                                86,
+	"modules/communication/internal/staffannouncements/service.go:(*service).Update":                                                 63,
 	"modules/communication/internal/staffannouncements/service.go:(*service).enqueueAnnouncementEmailsAs":                            131,
 	"modules/communication/internal/staffannouncements/service.go:(*service).notifyAnnouncementGuardiansWith":                        91,
 	"modules/communication/internal/staffannouncements/service.go:normalizeInput":                                                    78,
@@ -122,7 +120,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/delivery/application/notifications/service.go:(*router).NotifyBatch":                                                    62,
 	"modules/delivery/application/notifications/service.go:(*router).NotifySynchronously":                                            62,
 	"modules/delivery/application/notifications/service.go:validate":                                                                 69,
-	"modules/delivery/application/notifications/types.go:init":                                                                       152,
+	"modules/delivery/application/notifications/types.go:init":                                                                       151,
 	"modules/delivery/http/sse/school_api.go:(*Resource).schoolEventsHandler":                                                        71,
 	"modules/devicescan/internal/application/systemspace.go:(*Service).systemActivity":                                               68,
 	"modules/enrollment/form_schema.go:(*FormField).validateQuestion":                                                                83,
@@ -170,7 +168,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/organizationtenancy/inbound/operator/provisioning.go:ProvisioningErrorRenderer":                                         91,
 	"modules/peopledirectory/enrollment_departure.go:normalizeEnrollmentDeparture":                                                   67,
 	"modules/peopledirectory/internal/application/student_photo.go:(*StudentPhotoService).CommitPhoto":                               62,
-	"modules/peopledirectory/internal/application/student_write.go:(*StudentService).UpdateStudent":                                  66,
 	"modules/planexport/betreuungsplan.go:(*betreuungsplanData).rows":                                                                75,
 	"modules/planexport/dienstplan.go:(*dienstplanData).rowsByArea":                                                                  91,
 	"modules/requestreview/compose/corrections.go:(correctionLog).History":                                                           64,
@@ -346,8 +343,7 @@ func moduleFuncLenScan(backendRoot string) (map[string]int, error) {
 			}
 			rel = filepath.ToSlash(rel)
 
-			fset := token.NewFileSet()
-			file, parseErr := parser.ParseFile(fset, path, nil, 0)
+			fset, file, parseErr := parseGoSourceCached(path, nil)
 			if parseErr != nil {
 				return fmt.Errorf("parse %s: %w", rel, parseErr)
 			}

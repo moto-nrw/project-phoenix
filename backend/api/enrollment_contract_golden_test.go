@@ -260,7 +260,7 @@ func checkEnrollmentAcceptanceGolden(t *testing.T, api *API, db *testpkg.DB, sta
 	require.Equal(t, "Child-parent", lastName)
 	// The submitting parent's guardian profile holds the primary link.
 	var primaryProfileID int64
-	require.NoError(t, db.NewRaw("SELECT guardian_profile_id FROM users.students_guardians WHERE student_id = ? AND tenant_id = ? AND is_primary", linkedStudentID, tenantID).Scan(context.Background(), &primaryProfileID))
+	require.NoError(t, db.NewRaw("SELECT guardian_profile_id FROM users.student_guardian_relationships WHERE student_id = ? AND tenant_id = ? AND is_primary", linkedStudentID, tenantID).Scan(context.Background(), &primaryProfileID))
 	require.Equal(t, parent.GuardianProfileID, primaryProfileID)
 	// Identity & Access: the existing account keeps an active school mapping
 	// and exactly one guardian role assignment for this tenant.

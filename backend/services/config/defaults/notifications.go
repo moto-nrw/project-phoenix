@@ -29,8 +29,8 @@ func init() {
 	// silently ignored.
 	config.Register(config.Definition{
 		Key:             config.KeyNotificationsDispatchEnabled,
-		Label:           "Benachrichtigungen aktivieren",
-		Description:     "Aktiviert die zentrale Benachrichtigungs-Funktion (In-App-Hinweise und Push-Nachrichten). Standardmäßig aktiv. Was tatsächlich ankommt, wählt jede Person im eigenen Profil.",
+		Label:           "Benachrichtigungen senden",
+		Description:     "Hinweise in moto und auf dem Handy. Was ankommt, wählt jede Person im eigenen Profil.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -73,9 +73,9 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyNotificationsOnDutyOnly,
 		Label:           "Nur im Dienst benachrichtigen",
-		Description:     "Persönliche Hinweise erreichen nur Personen, die gerade eingestempelt sind. Schulen ohne Zeiterfassung müssen diese Einstellung ausschalten.",
+		Description:     "Persönliche Hinweise erreichen nur Personen, die gerade eingestempelt sind. Nutzen Sie das nur, wenn Ihr Team die Zeiterfassung verwendet.",
 		Type:            config.FieldBoolean,
-		Default:         true,
+		Default:         false,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
@@ -89,8 +89,8 @@ func init() {
 	// taste, so it exists on top of the per-person opt-in.
 	config.Register(config.Definition{
 		Key:             config.KeyNotificationsAbsenceReportedEnabled,
-		Label:           "Krankmeldungen melden",
-		Description:     "Erlaubt Hinweise an die Gruppe und die Leitung, wenn für ein Kind eine Krankmeldung oder Entschuldigung eingetragen wird. Jede Person entscheidet zusätzlich im eigenen Profil.",
+		Label:           "Hinweis bei Krankmeldung",
+		Description:     "Gruppe und Leitung bekommen einen Hinweis, wenn ein Kind krank oder entschuldigt gemeldet wird. Jede Person entscheidet zusätzlich im eigenen Profil.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -98,50 +98,5 @@ func init() {
 		Tab:             "operations",
 		Category:        "benachrichtigungen",
 		SortOrder:       5,
-	})
-
-	// Cancellation notice to families (#2601). The gate is separate from the
-	// parent-news flag: news is an optional broadcast channel, the notice is a
-	// service obligation. The two companions only shape the dialog and the
-	// delivery, so they hide when the gate is off.
-	config.Register(config.Definition{
-		Key:             config.KeyNotificationsCareCancelledEnabled,
-		Label:           "Eltern bei Ausfall informieren",
-		Description:     "Erlaubt beim Absagen eines Betreuungstermins eine Mitteilung an die Eltern der betroffenen Kinder. Die Mitteilung erscheint im Elternportal, auch wenn die Neuigkeiten ausgeschaltet sind.",
-		Type:            config.FieldBoolean,
-		Default:         true,
-		ReadPermission:  "config:read",
-		WritePermission: "config:update",
-		Tab:             "operations",
-		Category:        "benachrichtigungen",
-		SortOrder:       6,
-	})
-
-	config.Register(config.Definition{
-		Key:             config.KeyNotificationsCareCancelledDefaultOn,
-		Label:           "Eltern informieren vorauswählen",
-		Description:     "Beim Absagen ist \"Eltern informieren\" bereits angehakt. Die absagende Person kann den Haken jederzeit entfernen.",
-		Type:            config.FieldBoolean,
-		Default:         true,
-		ReadPermission:  "config:read",
-		WritePermission: "config:update",
-		Tab:             "operations",
-		Category:        "benachrichtigungen",
-		SortOrder:       7,
-		DependsOn:       config.DependsOnEq(config.KeyNotificationsCareCancelledEnabled, true),
-	})
-
-	config.Register(config.Definition{
-		Key:             config.KeyNotificationsCareCancelledEmail,
-		Label:           "Ausfall zusätzlich per E-Mail",
-		Description:     "Schickt die Ausfall-Mitteilung zusätzlich als E-Mail an die Eltern. Ohne diese Einstellung bleibt es bei Elternportal und Push-Nachricht.",
-		Type:            config.FieldBoolean,
-		Default:         false,
-		ReadPermission:  "config:read",
-		WritePermission: "config:update",
-		Tab:             "operations",
-		Category:        "benachrichtigungen",
-		SortOrder:       8,
-		DependsOn:       config.DependsOnEq(config.KeyNotificationsCareCancelledEnabled, true),
 	})
 }

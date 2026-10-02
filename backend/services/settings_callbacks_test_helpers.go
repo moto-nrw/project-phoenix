@@ -40,7 +40,7 @@ func NewSettingsCallbacksTestModule(db *bun.DB, unit tenant.UnitOfWork, unlinker
 	photos := NewStudentPhotos(directory, photoRuntime, StudentPhotoRuntimeDependencies{
 		Settings: settings.Settings, Broadcaster: hub, Unlinker: unlinker, Logger: slog.Default(),
 	})
-	users.RegisterStudentPhotoSettingsSideEffects(module.SettingsSideEffects, photos)
+	RegisterStudentPhotoSettingsSideEffects(module.SettingsSideEffects, photos)
 	operations := config.NewTenantOperations(settings.Settings, settings.payroll, settings.runtime,
 		module.SettingsSideEffects.Dispatch,
 		func(_ context.Context, tenantID int64, key string) {

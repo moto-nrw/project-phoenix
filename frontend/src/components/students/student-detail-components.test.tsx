@@ -1051,7 +1051,13 @@ describe("PersonalInfoReadOnly with showEditButton", () => {
     expect(onEditClick).toHaveBeenCalledTimes(1);
   });
 
-  it("renders supervisor notes when present", () => {
+  // Betreuernotizen used to render here as a free-text field. Since #3632 the
+  // durable hints are notes of their own, rendered by
+  // StudentPermanentNotesCard with their author and their audience. The
+  // student row still carries the old column until the follow-up migration
+  // drops it, so this pins that the retired field does not leak back onto a
+  // surface that no longer owns it.
+  it("does not render the retired supervisor-notes field", () => {
     render(
       <PersonalInfoReadOnly
         student={mockStudent}
@@ -1060,8 +1066,9 @@ describe("PersonalInfoReadOnly with showEditButton", () => {
       />,
     );
     expect(
-      screen.getByText("Benötigt extra Aufmerksamkeit"),
-    ).toBeInTheDocument();
+      screen.queryByText("Benötigt extra Aufmerksamkeit"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Betreuernotizen")).not.toBeInTheDocument();
   });
 
   it("renders extra info (parent notes) when present", () => {

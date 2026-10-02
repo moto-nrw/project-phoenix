@@ -28,6 +28,13 @@ type CallerContext interface {
 	HasCurrentStaff(ctx context.Context) (bool, error)
 	CurrentStaffID(ctx context.Context) (staffID int64, found bool, err error)
 	common.StudentAccessSource
+	// The note audience (#3632) asks which children this caller actually has:
+	// their own and substituted OGS groups, the activities they supervise, and
+	// the school classes assigned to them via education.class_teachers.
+	MyGroupIDs(ctx context.Context) ([]int64, error)
+	MyTeacherGroupIDs(ctx context.Context) ([]int64, error)
+	MyActivityGroupIDs(ctx context.Context) ([]int64, error)
+	MySchoolClasses(ctx context.Context) ([]string, error)
 }
 
 func canUpdateStudent(ctx context.Context, userPermissions []string, student *Student, ucs CallerContext) (bool, error) {

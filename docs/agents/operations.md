@@ -5,8 +5,10 @@ deployment, or PR screenshots. Commands start at the repo root unless noted.
 
 ## Service commands
 
-Use Docker Compose to run, build, migrate, and debug services. Host-side quality
-and test commands below are intentional exceptions; Go uses the repo toolchain.
+Run the app with `scripts/dev-native.sh up`: `postgres` and `mailpit` run in
+Docker Compose, backend and frontend natively (see Native dev loop). The
+`server` and `frontend` containers sit behind the `full` Compose profile.
+Go uses the repo toolchain.
 Add tools through `devbox search <tool>` / `devbox add <tool>@latest`, not a global install.
 
 For editor/LSP setup, fresh-worktree dependencies or mismatched tool versions,
@@ -15,18 +17,20 @@ through `devbox run` when the current process has not loaded the project environ
 
 | Task | Command |
 |---|---|
-| Start services | `docker compose up -d` |
-| Rebuild backend after go.mod / Dockerfile changes | `docker compose build server && docker compose up -d server` (air reloads plain Go edits) |
-| Migrate | `docker compose run server go run . migrate` |
-| Reset local DB | `docker compose run server go run . migrate reset` (seed credentials: `docs/getting-started.md`) |
-| Logs | `docker compose logs -f server` |
+| Start infra + backend + frontend | `scripts/dev-native.sh up` |
+| After go.mod changes | restart `scripts/dev-native.sh up` (air reloads plain Go edits) |
+| Migrate | `scripts/dev-native.sh backend go run . migrate` |
+| Reset local DB | `scripts/dev-native.sh backend go run . migrate reset` (seed credentials: `docs/getting-started.md`) |
+| Logs | `tmp/dev-native/backend.log`, `tmp/dev-native/frontend.log` |
+| Full container stack | `docker compose --profile full up -d`, logs via `docker compose logs -f server` |
 | Frontend quality | `cd frontend && pnpm run check` |
 | Backend suite | `cd backend && ../scripts/run-go-toolchain.sh go test ./...` |
 | Backend suite with immediate sweep | `scripts/run-go-toolchain.sh scripts/test-backend.sh` |
 | Backend unit-only loop | `cd backend && ../scripts/run-go-toolchain.sh go test -short ./...` (skips DB tests) |
 | Changed-code tests | `scripts/test-changed.sh origin/development` |
 | Fast inner loop | `scripts/test-changed.sh --fast origin/development` (run without `--fast` before push) |
-| Generate route docs | `docker compose run server go run . gendoc --routes` |
+| Generate route docs | `scripts/dev-native.sh backend go run . gendoc --routes` |
+| Standalone background jobs | `scripts/dev-native.sh backend go run . worker` with a free `PORT`; it waits in standby while `serve` leads (lease, cutover and rollback: [worker lease runbook](../operations/worker-lease-2726.md)) |
 
 ### Native dev loop
 
@@ -50,7 +54,8 @@ Logs land in `tmp/dev-native/backend.log` and `tmp/dev-native/frontend.log`.
 `up` stops the `server` and `frontend` containers first and refuses to start
 when a published port is taken. After `go.mod` changes restart `up`; plain Go
 edits reload through air. Worktrees created with `wt` carry their own ports in
-the copied `.env`, so several native loops run side by side.
+the copied `.env`, so several native loops run side by side; on 16 GB
+machines run one at a time ([low-memory machines](../development-environment.md#low-memory-machines)).
 
 ### Worktrees
 
@@ -220,6 +225,42 @@ Then the Contract ticket goes into the next release. Recording an observation
 day, a minimum duration or a separate evidence file is not required
 (decided 2026-09-23, same reasoning as the deployment gates removed in #3453
 and #3455).
+
+## Product screenshots (marketing images)
+
+Product screenshots are not PR evidence. They are the images for website, sales
+material and social media: every **Shot** of `frontend/scripts/product-screenshots/shots.yaml`
+photographed from the tenant and parents portal, plus **Geräte-Mockups** in the
+official Apple bezels (see `CONTEXT.md`, "Produkt-Screenshots"; #3759).
+
+```bash
+scripts/product-screenshots.sh                  # all shots into tmp/product-screenshots/
+scripts/product-screenshots.sh <shot-id> ...    # only these shots
+scripts/product-screenshots.sh --out DIR --version NAME
+cd frontend && pnpm run test:screenshots        # pipeline test against the running stack
+```
+
+- Needs the native stack (`scripts/dev-native.sh up`) seeded with the school
+  profile `marketing`; the tenant and parents logins come from
+  `backend/.seed-state.json`. Seed and capture must happen on the same Berlin
+  calendar day, or the command asks for a fresh seed instead of showing stale
+  attendance. Only `*.localhost` hosts are photographed.
+- Output per shot: `roh-<device>.png`, `<device>.png` (mockup, transparent
+  background) and both as WebP in 640/960/1280/1600/2400/3200 px, plus
+  `manifest.json` (format marker, version, time, shots, files, sizes). The output
+  directory is replaced only when its marker and files match a previous pipeline
+  result; unrelated files and older outputs without the marker stay untouched.
+  Remove or move an older output explicitly before rerunning. Nothing is uploaded.
+- The browser clock stands at 10:15 Berlin of today's weekday
+  (`reference-time.ts`); the seed derives its schedules from the same time. The
+  server renders with its real clock, so the reference day must be the server's
+  day; on a weekend the run aborts on the resulting hydration error instead of
+  printing an inconsistent image. Live presence follows the server clock too.
+- A broken shot (HTTP error, error page, silent redirect away from its `pfad`,
+  login redirect, unexpected dialog, loading state after the timeout, console
+  error) aborts the whole run before anything is written.
+- Bezels live unchanged in `frontend/scripts/product-screenshots/bezels/`; the
+  README there explains how to add one.
 
 ## PR screenshots and QA evidence
 

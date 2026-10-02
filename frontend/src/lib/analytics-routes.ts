@@ -141,6 +141,8 @@ export const TRACKED_PARENT_ROUTE_TEMPLATES = [
   "/messages",
   "/messages/:studentId",
   "/news",
+  // Nachweis einer Erklärung (#3430); das Kind steht nur im Query-String.
+  "/news/:id/nachweis",
   "/reset-password",
   "/settings",
 ] as const;

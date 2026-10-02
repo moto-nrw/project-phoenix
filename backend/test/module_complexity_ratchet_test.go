@@ -3,8 +3,6 @@ package test
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"sort"
@@ -94,20 +92,19 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/classday/internal/application/slotlists.go:filterRows":                     16,
 	"modules/classday/internal/application/slotlists.go:slotHeadingDisambiguation":      29,
 
-	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":                    43,
-	"modules/communication/internal/staffannouncements/care_cancellation.go:(*service).PublishCareCancellation": 16,
-	"modules/communication/internal/staffannouncements/letter.go:(*service).ResendFailedEmails":                 37,
-	"modules/communication/internal/staffannouncements/letter.go:(*service).queueLetterMailsAs":                 22,
-	"modules/communication/internal/staffannouncements/poll.go:(*service).enqueueReminderEmails":                25,
-	"modules/communication/internal/staffannouncements/poll.go:(*service).pushPollReminder":                     19,
-	"modules/communication/internal/staffannouncements/poll.go:normalizePollOptions":                            18,
-	"modules/communication/internal/staffannouncements/reminder.go:(*service).SendDueReminders":                 29,
-	"modules/communication/internal/staffannouncements/reminder.go:(*service).UpdateReminder":                   16,
-	"modules/communication/internal/staffannouncements/service.go:(*service).Publish":                           48,
-	"modules/communication/internal/staffannouncements/service.go:(*service).enqueueAnnouncementEmailsAs":       37,
-	"modules/communication/internal/staffannouncements/service.go:(*service).notifyAnnouncementGuardiansWith":   22,
-	"modules/communication/internal/staffannouncements/service.go:normalizeDelivery":                            17,
-	"modules/communication/internal/staffannouncements/service.go:normalizeInput":                               30,
+	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":                  43,
+	"modules/communication/internal/staffannouncements/letter.go:(*service).ResendFailedEmails":               37,
+	"modules/communication/internal/staffannouncements/letter.go:(*service).queueLetterMailsAs":               22,
+	"modules/communication/internal/staffannouncements/poll.go:(*service).enqueueReminderEmails":              25,
+	"modules/communication/internal/staffannouncements/poll.go:(*service).pushPollReminder":                   19,
+	"modules/communication/internal/staffannouncements/poll.go:normalizePollOptions":                          18,
+	"modules/communication/internal/staffannouncements/reminder.go:(*service).SendDueReminders":               29,
+	"modules/communication/internal/staffannouncements/reminder.go:(*service).UpdateReminder":                 16,
+	"modules/communication/internal/staffannouncements/service.go:(*service).Publish":                         40,
+	"modules/communication/internal/staffannouncements/service.go:(*service).enqueueAnnouncementEmailsAs":     37,
+	"modules/communication/internal/staffannouncements/service.go:(*service).notifyAnnouncementGuardiansWith": 22,
+	"modules/communication/internal/staffannouncements/service.go:normalizeDelivery":                          17,
+	"modules/communication/internal/staffannouncements/service.go:normalizeInput":                             30,
 
 	"modules/dataimport/compose/opening_references.go:NewOpeningReferences": 21,
 	"modules/dataimport/fileformat/helpers.go:MapStudentRow":                27,
@@ -209,7 +206,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/peopledirectory/departure/companion_note.go:NormalizeCompanionNote":                          20,
 	"modules/peopledirectory/enrollment_departure.go:normalizeEnrollmentDeparture":                        41,
 	"modules/peopledirectory/internal/application/student_photo.go:(*StudentPhotoService).CommitPhoto":    30,
-	"modules/peopledirectory/internal/application/student_write.go:(*StudentService).UpdateStudent":       27,
+	"modules/peopledirectory/internal/application/student_write.go:(*StudentService).UpdateStudent":       23,
 	"modules/peopledirectory/internal/application/student_write.go:(*StudentService).decideStranding":     18,
 	"modules/peopledirectory/internal/application/student_write.go:(*StudentService).reconcileCompanions": 19,
 	"modules/peopledirectory/student_field_review.go:reviewStudentField":                                  16,
@@ -448,8 +445,7 @@ func moduleComplexityScan(backendRoot string) (map[string]int, error) {
 			}
 			rel = filepath.ToSlash(rel)
 
-			fset := token.NewFileSet()
-			file, parseErr := parser.ParseFile(fset, path, nil, 0)
+			_, file, parseErr := parseGoSourceCached(path, nil)
 			if parseErr != nil {
 				return fmt.Errorf("parse %s: %w", rel, parseErr)
 			}

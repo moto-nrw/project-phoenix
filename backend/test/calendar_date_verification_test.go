@@ -21,7 +21,6 @@ import (
 	"bufio"
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"os"
 	"path/filepath"
@@ -48,6 +47,10 @@ var unmappedDateColumns = map[string]string{
 	// adapters/postgres/store_test.go checks the persistence field types.
 	"users.student_school_memberships.enrolled_from":  "People Directory explicit projection uses *calendar.Date",
 	"users.student_school_memberships.enrolled_until": "People Directory explicit projection uses *calendar.Date",
+	// The child note card (#3632) has no table-bound model either: the day an
+	// entry describes is carried by the adapter-local studentNoteRow as a
+	// *calendar.Date and travels through the capability as the same type.
+	"users.student_notes.subject_date": "People Directory adapter row studentNoteRow uses *calendar.Date",
 	// Reminder push claims are written and deleted exclusively by the two
 	// SECURITY DEFINER functions from 001015255; the occurrence date is bound as
 	// a timezone.Date parameter there and never scanned into a struct, so the
@@ -93,6 +96,10 @@ var renamedDateColumns = map[string]string{
 	// the old name is only the rollback view over those same date columns.
 	"enrollment.request_child_offerings.valid_from":  "enrollment.care_offering_bookings.valid_from",
 	"enrollment.request_child_offerings.valid_until": "enrollment.care_offering_bookings.valid_until",
+	// Staff owner cutover moves the anchor to the Workforce employment profile;
+	// the Contract (#2754) removed users.staff, and the Staff DTO no longer
+	// declares it as its table.
+	"users.staff.rotation_anchor_date": "users.staff_employment_profiles.rotation_anchor_date",
 	// 001015034_template_extensions.go renames enrollment_date to valid_from.
 	"activities.student_enrollments.enrollment_date": "activities.student_enrollments.valid_from",
 }
@@ -115,7 +122,7 @@ func enrollmentDateIsString(backendRoot string) bool {
 }
 
 func declaredTypeIsString(backendRoot, source, name string) bool {
-	file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(backendRoot, source), nil, 0)
+	_, file, err := parseGoSourceCached(filepath.Join(backendRoot, source), nil)
 	if err != nil {
 		return false
 	}
@@ -434,13 +441,13 @@ type dateFieldInfo struct {
 func scanModelDateFields(t *testing.T, root string, dateColumns map[string]string) map[string][]dateFieldInfo {
 	t.Helper()
 	result := map[string][]dateFieldInfo{}
-	fset := token.NewFileSet()
+	fset := sharedGoFileSet
 
 	walk := func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}
-		file, parseErr := parser.ParseFile(fset, path, nil, parser.ParseComments)
+		_, file, parseErr := parseGoSourceCached(path, nil)
 		if parseErr != nil {
 			return parseErr
 		}

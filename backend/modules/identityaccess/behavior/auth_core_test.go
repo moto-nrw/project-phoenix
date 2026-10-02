@@ -2854,7 +2854,7 @@ func TestAcceptInvitation_WithTenantID_CreatesAccountTenant(t *testing.T) {
 	defer func() {
 		// Clean up: staff, person, invitation tokens, then auth fixtures (includes account_tenants)
 		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM users.staff WHERE person_id IN (SELECT id FROM users.persons WHERE account_id = ?)`, account.ID)
+			`DELETE FROM users.staff_school_memberships WHERE person_id IN (SELECT id FROM users.persons WHERE account_id = ?)`, account.ID)
 		_, _ = db.ExecContext(context.Background(),
 			`DELETE FROM users.persons WHERE account_id = ?`, account.ID)
 		_, _ = db.ExecContext(context.Background(),

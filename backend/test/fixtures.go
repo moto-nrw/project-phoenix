@@ -349,16 +349,38 @@ func CreateTestStaff(tb testing.TB, db *bun.DB, firstName, lastName string) *use
 	}
 	staff.SetTenantID(fixtureTenantID(tb))
 
-	err := db.NewInsert().
-		Model(staff).
-		ModelTableExpr(`users.staff`).
-		Scan(ctx)
+	err := insertTestStaff(ctx, db, staff)
 	require.NoError(tb, err, "Failed to create test staff")
 
 	// Store person reference for convenience
 	staff.Person = person
 
 	return staff
+}
+
+// insertTestStaff stores a staff fixture in its owners: the School Membership
+// row (tenant, person, lifecycle) and its Workforce employment profile. The
+// membership id is the staff id every dependent table references (#2754).
+// A test that restored the pre-cutover world gets the historical table.
+func insertTestStaff(ctx context.Context, db bun.IDB, staff *users.Staff) error {
+	if historical, err := insertHistoricalStaff(ctx, db, staff); err != nil || historical {
+		return err
+	}
+	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if err := tx.NewRaw(`INSERT INTO users.staff_school_memberships (tenant_id, person_id, deleted_at)
+			VALUES (?, ?, ?) RETURNING id, created_at, updated_at`,
+			staff.TenantID, staff.PersonID, staff.DeletedAt).
+			Scan(ctx, &staff.ID, &staff.CreatedAt, &staff.UpdatedAt); err != nil {
+			return err
+		}
+		_, err := tx.NewRaw(`INSERT INTO users.staff_employment_profiles
+			(membership_id, tenant_id, staff_notes, employment_type, work_time_model_id,
+			 personnel_number, rotation_anchor_date, birthday_display_opt_out)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			staff.ID, staff.TenantID, staff.StaffNotes, staff.EmploymentType, staff.WorkTimeModelID,
+			staff.PersonnelNumber, staff.RotationAnchorDate, staff.BirthdayDisplayOptOut).Exec(ctx)
+		return err
+	})
 }
 
 // CreateTestStaffForPerson creates a staff record for an existing person
@@ -374,10 +396,7 @@ func CreateTestStaffForPerson(tb testing.TB, db *bun.DB, personID int64) *users.
 	}
 	staff.SetTenantID(fixtureTenantID(tb))
 
-	err := db.NewInsert().
-		Model(staff).
-		ModelTableExpr(`users.staff`).
-		Scan(ctx)
+	err := insertTestStaff(ctx, db, staff)
 	require.NoError(tb, err, "Failed to create test staff for person")
 
 	return staff
@@ -912,10 +931,7 @@ func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName s
 	}
 	staff.SetTenantID(fixtureTenantID(tb))
 
-	err := db.NewInsert().
-		Model(staff).
-		ModelTableExpr(`users.staff`).
-		Scan(ctx)
+	err := insertTestStaff(ctx, db, staff)
 	require.NoError(tb, err, "Failed to create test staff with account")
 
 	// Store person reference for convenience
@@ -1117,6 +1133,25 @@ func AssignLehrkraftSystemRole(tb testing.TB, db *bun.DB, accountID, tenantID in
 	_, err = db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
 		accountID, roleID, tenantID).Exec(ctx)
 	require.NoError(tb, err, "Failed to assign lehrkraft system role")
+}
+
+// GrantTestPermission grants a seeded permission (by name, e.g.
+// "config:manage") directly to an account at one school, the way a school
+// hands one right to one person.
+func GrantTestPermission(tb testing.TB, db *bun.DB, tenantID, accountID int64, permissionName string) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := db.ExecContext(ctx, `
+		INSERT INTO auth.account_permissions (tenant_id, account_id, permission_id, granted)
+		SELECT ?, ?, id, TRUE FROM auth.permissions WHERE name = ?`,
+		tenantID, accountID, permissionName)
+	require.NoError(tb, err, "Failed to grant test permission")
+	rows, err := result.RowsAffected()
+	require.NoError(tb, err)
+	require.EqualValues(tb, 1, rows, "the seeded permission %s must exist", permissionName)
 }
 
 // CreateTestPermission creates a permission in the database.
@@ -1959,10 +1994,7 @@ func CreateTestStaffForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstNa
 	}
 	staff.SetTenantID(tenantID)
 
-	err := db.NewInsert().
-		Model(staff).
-		ModelTableExpr(`users.staff`).
-		Scan(ctx)
+	err := insertTestStaff(ctx, db, staff)
 	require.NoError(tb, err, "Failed to create test staff for tenant")
 
 	staff.Person = person
@@ -1996,10 +2028,7 @@ func CreateTestStaffWithAccountForTenant(tb testing.TB, db *bun.DB, tenantID int
 
 	staff := &users.Staff{PersonID: person.ID}
 	staff.SetTenantID(tenantID)
-	err = db.NewInsert().
-		Model(staff).
-		ModelTableExpr(`users.staff`).
-		Scan(ctx)
+	err = insertTestStaff(ctx, db, staff)
 	require.NoError(tb, err, "Failed to create test staff with account for tenant")
 
 	staff.Person = person
@@ -2556,8 +2585,7 @@ func CreateTestActivityInstanceForTenant(tb testing.TB, db *bun.DB, tenantID int
 	if status == "" {
 		status = schedule.InstanceStatusPlanned
 		// A block bridged to a live group is running: since #2762 Student
-		// Presence owns that execution, and the compatibility routing only
-		// mirrors a session for a row in an execution state.
+		// Presence owns that execution in active.activity_sessions.
 		if opts.ActiveGroupID != nil {
 			status = schedule.InstanceStatusActive
 		}
@@ -2589,11 +2617,19 @@ func CreateTestActivityInstanceForTenant(tb testing.TB, db *bun.DB, tenantID int
 	}
 	row.SetTenantID(tenantID)
 
-	_, err := db.NewInsert().
-		Model(row).
-		ModelTableExpr(`schedule.activity_instances`).
-		Exec(ctx)
-	require.NoError(tb, err, "Failed to create test activity instance")
+	if !presenceStorageContracted(tb, db) {
+		// A migration test restored the old execution columns in its own
+		// clone; they are the storage there.
+		_, err := db.NewInsert().
+			Model(row).
+			ModelTableExpr(`schedule.activity_instances`).
+			Exec(ctx)
+		require.NoError(tb, err, "Failed to create test activity instance")
+		return row
+	}
+	// Timetable plans the block, Student Presence runs it (#2762, #2763): a
+	// running or completed block is a planned row plus its session.
+	InsertActivityInstanceRow(tb, ctx, db, row)
 	return row
 }
 
@@ -2838,11 +2874,19 @@ func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID 
 	}
 	row.TenantID = fixtureTenantID(tb)
 
-	_, err := db.NewInsert().
-		Model(row).
-		ModelTableExpr(`schedule.instance_students`).
-		Exec(ctx)
-	require.NoError(tb, err, "Failed to create test instance student")
+	if !presenceStorageContracted(tb, db) {
+		// A migration test restored the old attendance columns in its own
+		// clone; they are the storage there.
+		_, err := db.NewInsert().
+			Model(row).
+			ModelTableExpr(`schedule.instance_students`).
+			Exec(ctx)
+		require.NoError(tb, err, "Failed to create test instance student")
+		return row
+	}
+	// Timetable plans the participant, Student Presence records the
+	// attendance (#2762, #2763). A missing attendance row means expected.
+	InsertInstanceStudentRow(tb, ctx, db, row)
 	return row
 }
 
@@ -2925,7 +2969,7 @@ func CreateTestInstanceStaffForTenant(tb testing.TB, db *bun.DB, tenantID, insta
 // ParentChain bundles the IDs of a fully-wired loginable-parent → child
 // relationship, mirroring what the guardian-invitation accept flow
 // produces: an auth account, a guardian profile linked to it, an active
-// account_tenants mapping, and a students_guardians link to a student.
+// account_tenants mapping, and a student guardian link to a student.
 // All rows live in tenant 1 so the parent-portal cross-tenant queries
 // resolve.
 type ParentChain struct {
@@ -2972,8 +3016,7 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRolePrimaryGuardian)
 	link.IsPrimary = true
 	link.SetTenantID(fixtureTenantID(tb))
-	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(ctx)
-	require.NoError(tb, err, "Failed to create students_guardians link")
+	require.NoError(tb, InsertTestStudentGuardian(ctx, db, link), "Failed to create student guardian link")
 
 	now := time.Now()
 	mapping := &AccountTenantFixture{
@@ -3184,8 +3227,7 @@ func CreateTestCoGuardianForStudent(
 	// A co-guardian, not the primary one: same portal access, no primacy.
 	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleCoGuardian)
 	link.SetTenantID(fixtureTenantID(tb))
-	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(ctx)
-	require.NoError(tb, err, "Failed to link co-guardian to student")
+	require.NoError(tb, InsertTestStudentGuardian(ctx, db, link), "Failed to link co-guardian to student")
 
 	now := time.Now()
 	mapping := &AccountTenantFixture{

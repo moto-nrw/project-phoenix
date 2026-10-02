@@ -45,6 +45,9 @@ type StudentWrite struct {
 	// NoteSupplied says the caller spoke about the note at all, which a nil
 	// pointer alone cannot express.
 	NoteSupplied bool
+	// SupervisorNotesSupplied distinguishes a legacy-field update from the
+	// value merely included in a hydrated record.
+	SupervisorNotesSupplied bool
 }
 
 // StudentWriteCommand is the child row's own lifecycle. Each call is one flow:

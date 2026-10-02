@@ -458,7 +458,7 @@ const TINY_TEXT_BASELINE_FILES = new Set([
 ]);
 
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
-src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@164
+src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@169
 src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1335 text-[11px]@1335 text-[10px]@1339 text-[10px]@1348 text-[11px]@1348
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@231 text-[11px]@271
@@ -474,7 +474,7 @@ src/components/enrollment/enrollment-form.tsx|text-[11px]@2122
 src/components/enrollment/phases-editor.tsx|text-[11px]@669 text-[11px]@674
 src/components/files/files-page.tsx|text-[11px]@158 text-[11px]@275
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
-src/components/guardians/guardian-list.tsx|text-[10px]@373
+src/components/guardians/guardian-list.tsx|text-[10px]@376
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@676 text-[11px]@741
 src/components/parent/parent-enroll-picker.tsx|text-[11px]@205 text-[11px]@209
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
@@ -510,7 +510,7 @@ src/components/ui/multi-checkbox-select.tsx|text-[11px]@246
 src/components/ui/notification-badge.tsx|text-[10px]@15
 src/components/ui/origin-chip.tsx|text-[11px]@24
 src/components/ui/page-header/FilterButton.tsx|text-[10px]@61
-src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@437 text-[11px]@500
+src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@452 text-[11px]@522
 src/components/ui/parent-visible-badge.tsx|text-[11px]@44
 src/components/ui/plan-block.tsx|text-[11px]@126 text-[11px]@133
 src/components/ui/plan-legend.tsx|text-[11px]@106

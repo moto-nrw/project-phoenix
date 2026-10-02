@@ -362,31 +362,6 @@ export function HealthInfoSection({
   );
 }
 
-/**
- * Supervisor Notes Section
- */
-export function SupervisorNotesSection({
-  value,
-  onChange,
-}: Readonly<{
-  value: string | undefined | null;
-  onChange: (value: string) => void;
-}>) {
-  return (
-    <TextareaField
-      label="Betreuernotizen"
-      value={value}
-      onChange={onChange}
-      placeholder="Interne Notizen für Betreuer..."
-      iconColor="amber-600"
-      iconPath="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-    />
-  );
-}
-
-/**
- * Additional Info Section
- */
 export function AdditionalInfoSection({
   value,
   onChange,

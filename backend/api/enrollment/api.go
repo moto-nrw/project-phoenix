@@ -230,8 +230,14 @@ func (rs *Resource) Router() chi.Router {
 		// reviewed_by/reviewed_at on each child row.
 		r.Route("/admin/requests", func(r chi.Router) {
 			r.With(common.RequiresPermission("config:read")).Get("/", rs.listAdminRequests)
+			// Per-account read state (#3778): the badge on the Anmeldungen
+			// section, same permission as the section.
+			r.With(common.RequiresPermission("config:manage")).Get("/unread-count", rs.unreadAdminRequestCount)
+			r.With(common.RequiresPermission("config:manage")).Post("/mark-all-read", rs.markAllAdminRequestsRead)
 			r.Route("/{id}", func(r chi.Router) {
 				r.With(common.RequiresPermission("config:manage")).Get("/", rs.getAdminRequest)
+				r.With(common.RequiresPermission("config:manage")).Put("/read", rs.markAdminRequestRead)
+				r.With(common.RequiresPermission("config:manage")).Delete("/read", rs.markAdminRequestUnread)
 				r.With(common.RequiresPermission("config:manage")).Get("/delete-impact", rs.getAdminRequestDeleteImpact)
 				r.With(common.RequiresPermission("config:manage")).Delete("/", rs.deleteAdminRequest)
 				r.With(common.RequiresPermission("config:manage")).Post("/restore", rs.restoreAdminRequest)

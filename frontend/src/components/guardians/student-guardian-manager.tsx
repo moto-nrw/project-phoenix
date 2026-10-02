@@ -647,6 +647,7 @@ export default function StudentGuardianManager({
                 <button
                   type="button"
                   onClick={handleOpenCreateModal}
+                  data-setup-tour="guardian-add"
                   className="inline-flex items-center gap-1 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-700"
                   title="Erziehungsberechtigte/n hinzufügen"
                 >

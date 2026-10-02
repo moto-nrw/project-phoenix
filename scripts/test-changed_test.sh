@@ -20,6 +20,7 @@ trap cleanup EXIT
 mkdir -p "$fixture"/{backend/probe,fake-bin,scripts}
 cp "$repo_root/scripts/test-changed.sh" "$fixture/scripts/test-changed.sh"
 cp "$repo_root/scripts/test-run-id.sh" "$fixture/scripts/test-run-id.sh"
+cp "$repo_root/scripts/total-memory-gb.sh" "$fixture/scripts/total-memory-gb.sh"
 cat >"$fixture/scripts/backend-affected-packages.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail

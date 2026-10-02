@@ -2,7 +2,6 @@ package users
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -314,21 +313,21 @@ type GuestRepository interface {
 // GuardianEmergencyContactRow is one (guardian, phone number) projection row
 // for the emergency contact list; the consumer aggregates rows per student.
 type GuardianEmergencyContactRow struct {
-	StudentID         int64          `bun:"student_id"`
-	GuardianProfileID int64          `bun:"guardian_profile_id"`
-	FirstName         sql.NullString `bun:"first_name"`
-	LastName          sql.NullString `bun:"last_name"`
-	Email             sql.NullString `bun:"email"`
-	PhoneNumber       sql.NullString `bun:"phone_number"`
+	StudentID         int64   `bun:"student_id"`
+	GuardianProfileID int64   `bun:"guardian_profile_id"`
+	FirstName         *string `bun:"first_name"`
+	LastName          *string `bun:"last_name"`
+	Email             *string `bun:"email"`
+	PhoneNumber       *string `bun:"phone_number"`
 	// RelationshipType, CanPickup and IsEmergencyContact carry the role of the
 	// relationship (#2527). The emergency list itself ignores them — it wants
 	// every reachable adult — but the supervision sheet must tell "darf
 	// abholen" apart from "im Notfall anrufen", and both answers come from the
 	// same join.
-	RelationshipType   sql.NullString `bun:"relationship_type"`
-	PickupNotes        sql.NullString `bun:"pickup_notes"`
-	CanPickup          bool           `bun:"can_pickup"`
-	IsEmergencyContact bool           `bun:"is_emergency_contact"`
+	RelationshipType   *string `bun:"relationship_type"`
+	PickupNotes        *string `bun:"pickup_notes"`
+	CanPickup          bool    `bun:"can_pickup"`
+	IsEmergencyContact bool    `bun:"is_emergency_contact"`
 }
 
 // StudentGuardianRepository is the retained composition seam over the
@@ -518,6 +517,10 @@ type GuardianProfileRepository interface {
 	// FindActivePortalProfilesByIDs retrieves guardian profiles with a linked
 	// account and active account_tenants membership for the current tenant.
 	FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*GuardianProfile, error)
+
+	// FindLoginReadyPortalProfilesByIDs retrieves guardian profiles whose
+	// linked account can authenticate with a password at the current tenant.
+	FindLoginReadyPortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*GuardianProfile, error)
 
 	// Update updates an existing guardian profile
 	Update(ctx context.Context, profile *GuardianProfile) error

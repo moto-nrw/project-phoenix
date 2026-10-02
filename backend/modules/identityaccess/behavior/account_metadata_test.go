@@ -28,7 +28,7 @@ func TestAccountMetadataSelfEdits(t *testing.T) {
 
 	// Display edits cannot rewrite credentials or activation state from an
 	// earlier read, even when those facts change after that read.
-	_, err = db.NewRaw(`UPDATE auth.accounts SET active = FALSE, pin_attempts = pin_attempts + 1, is_password_otp = TRUE
+	_, err = db.NewRaw(`UPDATE auth.accounts SET active = FALSE, mfa_attempts = mfa_attempts + 1, is_password_otp = TRUE
 		WHERE id = ?`, account.ID).Exec(ctx)
 	require.NoError(t, err)
 	require.NoError(t, profiles.SetAccountUsername(ctx, account.ID, account.Email))
@@ -42,7 +42,7 @@ func TestAccountMetadataSelfEdits(t *testing.T) {
 	require.Equal(t, before.CreatedAt, after.CreatedAt)
 	require.False(t, after.UpdatedAt.Before(before.UpdatedAt))
 	var attempts int
-	require.NoError(t, db.NewRaw(`SELECT pin_attempts FROM auth.accounts WHERE id = ?`, account.ID).Scan(ctx, &attempts))
+	require.NoError(t, db.NewRaw(`SELECT mfa_attempts FROM auth.accounts WHERE id = ?`, account.ID).Scan(ctx, &attempts))
 	require.Equal(t, 1, attempts)
 
 	rollback := errors.New("roll back self edits")

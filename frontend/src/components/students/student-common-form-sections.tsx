@@ -7,7 +7,6 @@ import type { Student } from "@/lib/api";
 import type { BusDays } from "~/lib/student-helpers";
 import {
   HealthInfoSection,
-  SupervisorNotesSection,
   AdditionalInfoSection,
   PrivacyConsentSection,
 } from "./student-form-fields";
@@ -36,12 +35,6 @@ export function StudentCommonFormSections({
       <HealthInfoSection
         value={formData.health_info}
         onChange={(v) => onChange("health_info", v)}
-      />
-
-      {/* Supervisor Notes */}
-      <SupervisorNotesSection
-        value={formData.supervisor_notes}
-        onChange={(v) => onChange("supervisor_notes", v)}
       />
 
       {/* Additional Information */}

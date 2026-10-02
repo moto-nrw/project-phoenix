@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/operator"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -291,12 +291,12 @@ func TestProtectedOperatorRoutesAllowActiveOperator(t *testing.T) {
 // signer and the given active-operator lookup.
 func operatorTestSessions(t *testing.T, operators identityoperator.OperatorLookup) identityoperator.Sessions {
 	t.Helper()
-	return identityoperator.NewSessions(testutil.TestTokenAuth(t), operators)
+	return identityoperator.NewSessions(routetest.TestTokenAuth(t), operators)
 }
 
 func operatorRouteAccessToken(t *testing.T, operatorID int) string {
 	t.Helper()
-	token, err := testutil.TestTokenAuth(t).CreateJWT(testutil.Claims{
+	token, err := routetest.TestTokenAuth(t).CreateJWT(routetest.Claims{
 		ID:    operatorID,
 		Sub:   "operator-route-test",
 		Roles: []string{"operator"},

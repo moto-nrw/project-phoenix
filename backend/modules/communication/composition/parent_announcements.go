@@ -142,7 +142,18 @@ func (p *parentAnnouncements) ListParentAnnouncements(ctx context.Context, inclu
 
 func (p *parentAnnouncements) GetParentAnnouncement(ctx context.Context, id int64) (*communication.ParentAnnouncement, error) {
 	row, err := p.service.Get(ctx, id)
-	return mapParentAnnouncement(row), mapParentAnnouncementError(err)
+	if err != nil {
+		return nil, mapParentAnnouncementError(err)
+	}
+	announcement := mapParentAnnouncement(row)
+	if row.IsDeclaration() {
+		frozen, err := p.service.DeclarationFrozen(ctx, row)
+		if err != nil {
+			return nil, err
+		}
+		announcement.DeclarationFrozen = frozen
+	}
+	return announcement, nil
 }
 
 func (p *parentAnnouncements) CreateParentAnnouncement(ctx context.Context, createdBy int64, input communication.ParentAnnouncementInput) (*communication.ParentAnnouncement, error) {
@@ -298,7 +309,7 @@ func (p *parentAnnouncements) CareCancellationReachFor(ctx context.Context, stud
 	if reach == nil {
 		return nil, mapParentAnnouncementError(err)
 	}
-	return &communication.CareCancellationReach{Enabled: reach.Enabled, DefaultOn: reach.DefaultOn, FamilyCount: reach.FamilyCount}, mapParentAnnouncementError(err)
+	return &communication.CareCancellationReach{FamilyCount: reach.FamilyCount}, mapParentAnnouncementError(err)
 }
 
 func (p *parentAnnouncements) AnnouncementExists(ctx context.Context, id int64) (bool, error) {
@@ -336,6 +347,7 @@ func mapParentAnnouncementInput(input communication.ParentAnnouncementInput) sta
 		ResponseDeadline: input.ResponseDeadline, Options: input.Options,
 		DeliveryMode: input.DeliveryMode, EmailAudience: input.EmailAudience,
 		ReminderAt: input.ReminderAt, ReminderText: input.ReminderText,
+		Declaration: usersModels.AnnouncementDeclarationSettings(input.Declaration),
 	}
 }
 
@@ -361,6 +373,7 @@ func mapParentAnnouncement(row *usersModels.ParentAnnouncement) *communication.P
 		ResponseType: row.ResponseType, ResponseDeadline: row.ResponseDeadline, Options: options,
 		DeliveryMode: row.DeliveryMode, EmailAudience: row.EmailAudience, SystemKind: row.SystemKind,
 		ReminderAt: row.ReminderAt, ReminderText: row.ReminderText, ReminderSentAt: row.ReminderSentAt,
+		Declaration: communication.ParentDeclarationSettings(row.Declaration),
 	}
 }
 
@@ -388,8 +401,9 @@ func mapParentAnnouncementError(err error) error {
 		{staff.ErrNothingOutstanding, communication.ErrParentAnnouncementNothingDue},
 		{staff.ErrNotAPoll, communication.ErrParentAnnouncementNotPoll},
 		{staff.ErrPollNotOpen, communication.ErrParentAnnouncementPollClosed},
-		{staff.ErrCareCancellationDisabled, communication.ErrCareCancellationDisabled},
 		{staff.ErrReminderAlreadySent, communication.ErrParentAnnouncementReminderSent},
+		{staff.ErrDeclarationHasSubmissions, communication.ErrDeclarationHasSubmissions},
+		{staff.ErrNotDeclaration, communication.ErrNotDeclaration},
 	} {
 		if errors.Is(err, pair.internal) {
 			return &mappedParentAnnouncementError{public: pair.public, original: err}

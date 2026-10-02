@@ -3,6 +3,9 @@ package announcement
 import (
 	"context"
 	"fmt"
+	"io"
+
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Anhänge an Elternmitteilungen (#2890) — die Seite, die dieses Paket beiträgt.
@@ -24,6 +27,19 @@ type AttachmentPurger interface {
 	// CountAttachments reports how many live attachments an announcement has,
 	// so the e-mail can say that a file is waiting in the portal.
 	CountAttachments(ctx context.Context, announcementID int64) (int, error)
+	// AttachmentDigests returns the SHA-256 of every live attachment; an
+	// Erklärung freezes them when it is published (#3430).
+	AttachmentDigests(ctx context.Context, announcementID int64, digest func(io.Reader) (string, int64, error)) ([]AttachmentDigest, error)
+}
+
+// AttachmentDigest is the content identity of one attachment, the same
+// unnamed shape File Storage returns.
+type AttachmentDigest = struct {
+	AttachmentID int64
+	Filename     string
+	ContentType  string
+	SizeBytes    int64
+	SHA256       string
 }
 
 // hasAttachments reports whether the announcement carries files, for the
@@ -91,7 +107,7 @@ func (s *service) AnnouncementEditable(ctx context.Context, announcementID int64
 	if a == nil {
 		return false, nil
 	}
-	return !a.IsPublished() && !a.IsSystem(), nil
+	return s.attachmentsEditable(ctx, a)
 }
 
 // LockAnnouncementForAttachmentChange locks the announcement row for the rest
@@ -112,7 +128,26 @@ func (s *service) LockAnnouncementForAttachmentChange(ctx context.Context, annou
 	if a == nil {
 		return false, false, nil
 	}
-	return true, !a.IsPublished() && !a.IsSystem(), nil
+	editable, err := s.attachmentsEditable(ctx, a)
+	return true, editable, err
+}
+
+// attachmentsEditable: a draft accepts attachment changes, except a
+// declaration that was published before (#3430). Its earlier versions name
+// these files by digest, and the proof for those versions must still be able
+// to produce them. A changed document needs a new Erklärung.
+func (s *service) attachmentsEditable(ctx context.Context, a *usersModels.ParentAnnouncement) (bool, error) {
+	if a.IsPublished() || a.IsSystem() {
+		return false, nil
+	}
+	if !a.IsDeclaration() {
+		return true, nil
+	}
+	version, err := s.repo.LatestDeclarationVersion(ctx, a.GetTenantID(), a.ID)
+	if err != nil {
+		return false, fmt.Errorf("announcement: load declaration version for attachment check: %w", err)
+	}
+	return version == nil, nil
 }
 
 // ResetAnnouncementEngagement drops the reads, acknowledgements and poll

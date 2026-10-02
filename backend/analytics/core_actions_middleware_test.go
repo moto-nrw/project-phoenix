@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -123,6 +124,13 @@ func newCoreActionRouter(tracker Tracker, requestActor *Actor) http.Handler {
 		})
 		r.Post("/guardian-invitations/{token}/accept", answer(`{"accepted":true}`))
 	})
+	root.Route("/parent", func(r chi.Router) {
+		r.Post("/me/news/{announcementId}/declaration", func(w http.ResponseWriter, r *http.Request) {
+			created := r.URL.Query().Get("created") != "false"
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"status":"success","data":{"created":` + strconv.FormatBool(created) + `}}`))
+		})
+	})
 	root.Post("/demo/access-requests", answer(`{"link_sent":true}`))
 	root.Get("/api/groups/{id}", answer(`{}`))
 	return root
@@ -169,6 +177,20 @@ func TestCoreActionMiddlewareSendsNothingOnFailure(t *testing.T) {
 
 		assert.Empty(t, tracker.captured(), "status %s", status)
 	}
+}
+
+func TestCoreActionMiddlewareCountsOnlyNewDeclarationSubmissions(t *testing.T) {
+	t.Parallel()
+
+	tracker := &recordingTracker{}
+	router := newCoreActionRouter(tracker, &parentActor)
+
+	serve(router, http.MethodPost, "/parent/me/news/42/declaration?created=true", `{}`, nil)
+	serve(router, http.MethodPost, "/parent/me/news/42/declaration?created=false", `{}`, nil)
+
+	events := tracker.captured()
+	require.Len(t, events, 1)
+	assert.Equal(t, "parent_declaration_submitted", events[0].event)
 }
 
 // chi reports a mounted collection root as /api/groups/ whether or not the

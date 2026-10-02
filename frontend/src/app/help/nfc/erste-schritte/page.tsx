@@ -34,7 +34,7 @@ const steps = [
     icon: KeyRound,
     text: "Auf dem Startbildschirm auf Anmelden tippen und die 4-stellige PIN eingeben. Die Standard-PIN bei Auslieferung ist 1234. Nach der vierten Ziffer prüft das Tablet automatisch.",
     detail:
-      "Wir empfehlen, die Standard-PIN nach der ersten Anmeldung unter Einstellungen, Geräte, OGS Geräte-PIN zu ändern.",
+      "Wir empfehlen, die Standard-PIN nach der ersten Anmeldung unter Einstellungen, Geräte, Geräte-PIN zu ändern.",
   },
   {
     id: "armbaender-zuweisen",

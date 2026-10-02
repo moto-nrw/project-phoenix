@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"os"
 	"path/filepath"
@@ -393,8 +392,7 @@ func scanConstructorRoot(t *testing.T, backendRoot, relativeRoot string, policy 
 }
 
 func scanConstructorFile(backendRoot, path string, policy *compositionPolicy, aggregates map[string]*callerAggregate) error {
-	fileSet := token.NewFileSet()
-	file, err := parser.ParseFile(fileSet, path, nil, 0)
+	fileSet, file, err := parseGoSourceCached(path, nil)
 	if err != nil {
 		return err
 	}
@@ -528,8 +526,7 @@ func discoverWorkerJobIDs(t *testing.T, backendRoot string) []string {
 func discoverRequiredWorkerJobIDs(t *testing.T, backendRoot string) []string {
 	t.Helper()
 	path := filepath.Join(backendRoot, "services", "scheduler", "worker.go")
-	fileSet := token.NewFileSet()
-	file, err := parser.ParseFile(fileSet, path, nil, 0)
+	_, file, err := parseGoSourceCached(path, nil)
 	if err != nil {
 		t.Fatalf("parse worker registry: %v", err)
 	}
@@ -556,8 +553,7 @@ func discoverRequiredWorkerJobIDs(t *testing.T, backendRoot string) []string {
 }
 
 func collectRegisteredJobs(path string, jobs map[string]struct{}) error {
-	fileSet := token.NewFileSet()
-	file, err := parser.ParseFile(fileSet, path, nil, 0)
+	_, file, err := parseGoSourceCached(path, nil)
 	if err != nil {
 		return err
 	}
@@ -669,7 +665,7 @@ func assertRootsExist(t *testing.T, backendRoot string, roots []compositionRoot)
 }
 
 func sourceDeclarationExists(path, name string) (bool, error) {
-	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0) // #nosec G304 -- manifest-owned repository path
+	_, file, err := parseGoSourceCached(path, nil) // #nosec G304 -- manifest-owned repository path
 	if err != nil {
 		return false, err
 	}

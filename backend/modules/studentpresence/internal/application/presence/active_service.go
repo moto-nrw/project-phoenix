@@ -132,8 +132,8 @@ type ServiceDependencies struct {
 	WorkSessionService WorkSessionService
 
 	// Optional: Attendance sync (WP-B10). When non-nil, visit create/end
-	// calls mirror into schedule.instance_students and enrich check-in/out
-	// SSE events with attendance status/substatus/note.
+	// calls mirror into the slot attendance (active.activity_session_attendance)
+	// and enrich check-in/out SSE events with attendance status/substatus/note.
 	AttendanceSyncer AttendanceSyncer
 
 	// Optional: Timetable bridge cleanup for force-ended IoT sessions.

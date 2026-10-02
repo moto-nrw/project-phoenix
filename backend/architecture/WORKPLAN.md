@@ -68,17 +68,17 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#2760](https://github.com/moto-nrw/project-phoenix/issues/2760) Contract `users.students` — blockiert durch #2759, #3387, #3432
 - [x] [#2755](https://github.com/moto-nrw/project-phoenix/issues/2755) Backfill `users.students_guardians` — Migration 1.15.413 und `backfill guardian-owner`; Checkpoint und Verifikation (Counts, Checksummen, Account-Bindung, RLS) liegen für #2756 bereit, `users.students_guardians` bleibt autoritativ
 - [x] [#2756](https://github.com/moto-nrw/project-phoenix/issues/2756) Cutover `users.students_guardians` — Migration 1.15.417 und Caller-Switch in einem Release: People Directory schreibt die Beziehung und führt die Arbeitseinheit, Care Plan die Abholberechtigung, Identity & Access den Portalzugang; gelesen wird über die Projektion `guardian-link-view`. Die alte Tabelle bleibt als trigger-gepflegter Rollback-Spiegel mit Zähler für #2757
-- [ ] [#2757](https://github.com/moto-nrw/project-phoenix/issues/2757) Contract `users.students_guardians`
+- [x] [#2757](https://github.com/moto-nrw/project-phoenix/issues/2757) Contract `users.students_guardians` — Migration 1.15.429 entfernt Spiegeltabelle, Routing-, Spiegel- und Single-Primary-Trigger, alte Grant-Invalidierungsfunktionen und Zähler nach Integritätsprüfung unter Sperre (inkl. `incomplete_links` und `mirror_drift`); Fixtures und Tests schreiben die Owner-Tabellen
 - [x] [#2753](https://github.com/moto-nrw/project-phoenix/issues/2753) Cutover `users.staff` — Migration 1.15.409 und Caller-Switch in einem Release: School Membership schreibt die Mitgliedschaft, Workforce das Beschäftigungsprofil (`StaffEmployments`); Kompatibilitäts-View, Archiv und Zähler bleiben für #2754
-- [ ] [#2754](https://github.com/moto-nrw/project-phoenix/issues/2754) Contract `users.staff`
+- [x] [#2754](https://github.com/moto-nrw/project-phoenix/issues/2754) Contract `users.staff` — Migration 1.15.427 entfernt View, Routing, Archiv `users.staff_legacy` und Zähler nach Integritätsprüfung unter Sperre; `models/users.Staff` benennt keine Tabelle mehr, Fixtures und Tests schreiben die Owner-Tabellen
 - [x] [#2762](https://github.com/moto-nrw/project-phoenix/issues/2762) Cutover Activity Instances und Participants — Migration 1.15.415 und Caller-Switch in einem Release: Timetable plant Blöcke und Teilnehmer, Student Presence führt sie aus und erfasst die Anwesenheit (`active.activity_sessions`, `active.activity_session_attendance`); die alten Spalten bleiben als trigger-gepflegter Rollback-Spiegel mit Zähler für #2763
-- [ ] [#2763](https://github.com/moto-nrw/project-phoenix/issues/2763) Contract Activity Instances und Participants
+- [x] [#2763](https://github.com/moto-nrw/project-phoenix/issues/2763) Contract Activity Instances und Participants — Migration 1.15.432 entfernt die gespiegelten Ausführungs- und Anwesenheitsspalten, Spiegel- und Routing-Trigger und Zähler nach Integritätsprüfung unter Sperre (inkl. `execution mirror drift` und `attendance mirror drift`) und verengt den Planungsstatus auf planned/cancelled; Fixtures und Tests schreiben die Owner-Tabellen
 - [ ] [#2719](https://github.com/moto-nrw/project-phoenix/issues/2719) Contract Enrollment Request-Child
 
 ## Worker und Scheduler · 27 Keys
 
-- [ ] [#2726](https://github.com/moto-nrw/project-phoenix/issues/2726) Worker hinter erneuerbarem DB-Lease
-- [ ] [#2746](https://github.com/moto-nrw/project-phoenix/issues/2746) services/scheduler — 27, blockiert durch #2726
+- [x] [#2726](https://github.com/moto-nrw/project-phoenix/issues/2726) Worker hinter erneuerbarem DB-Lease — Migration 1.15.437 (`platform.worker_leases`, `platform.assert_worker_lease`), Store in `modules/schedulerruntime/workerlease`, jeder Job-Lauf und jeder Commit hängt am Lease-Term; eigenständiger Prozess `worker`, `serve --embedded-worker=false`; 0 Keys (Ratchet 378 → 378), Composition 603 → 603; Runbook `docs/operations/worker-lease-2726.md`
+- [ ] [#2746](https://github.com/moto-nrw/project-phoenix/issues/2746) services/scheduler — 27
 
 ## Laufzeit
 

@@ -827,6 +827,27 @@ func TestStudentOwnerBackfillResetAndRollback(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// The backfill reset predates the note-card migration. It must remain usable
+// against the historical schema, where no note table can reference profiles.
+func TestStudentOwnerBackfillResetBeforeStudentNotes(t *testing.T) {
+	t.Parallel()
+	db := setupStudentStorageBeforeCutover(t)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	_, err := db.ExecContext(ctx, `DROP TABLE users.student_notes`)
+	require.NoError(t, err)
+	studentOwnerFixture(t, db, tenantID, 1)
+
+	_, err = RunStudentOwnerBackfill(ctx, db, StudentOwnerBackfillOptions{})
+	require.NoError(t, err)
+	require.NoError(t, ResetStudentOwnerBackfill(ctx, db))
+	requireStudentOwnerTargetsEmpty(t, db)
+
+	status, err := StudentOwnerBackfillStatus(ctx, db)
+	require.NoError(t, err)
+	require.Empty(t, status.Tenants)
+}
+
 func requireStudentOwnerTargetsEmpty(t *testing.T, db *testpkg.DB) {
 	t.Helper()
 	for _, table := range []string{"users.student_profiles", "users.student_school_memberships", "users.student_care_profiles"} {

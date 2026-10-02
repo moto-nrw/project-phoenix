@@ -51,6 +51,16 @@ const (
 	afterStaffHandledCursorUM = `(um.created_at, um.id) > (COALESCE(t.staff_handled_up_to_at, '1970-01-01'::timestamptz), COALESCE(t.staff_handled_up_to_message_id, 0))`
 )
 
+// afterStaffClearedCursor* keeps only guardian activity after the staff
+// reader's personal clear boundary, which "Alle als gelesen markieren" moves
+// (#3673). It is a second bound on the staff side only: unlike the read cursor
+// it never feeds the parent-facing receipt, so clearing the numbers does not
+// tell the parents that the OGS read anything.
+const (
+	afterStaffClearedCursorCM = `(cm.created_at, cm.id) > (COALESCE(r.cleared_up_to_at, '1970-01-01'::timestamptz), COALESCE(r.cleared_up_to_message_id, 0))`
+	afterStaffClearedCursorUM = `(um.created_at, um.id) > (COALESCE(r.cleared_up_to_at, '1970-01-01'::timestamptz), COALESCE(r.cleared_up_to_message_id, 0))`
+)
+
 // notReaderAuthored* excludes the reader's OWN plain messages from their unread
 // set. Each carries a single ? bound to the reader's account id at the call
 // site.
@@ -94,6 +104,7 @@ const (
 	unreadCountForStaff = `GREATEST(` + unreadCountPrefix +
 		counterpartUnreadCMForStaff + `
 		  AND ` + afterReadCursorCM + `
+		  AND ` + afterStaffClearedCursorCM + `
 		  AND ` + notReaderAuthoredCM + `
 		  AND ` + afterStaffHandledCursorCM + `
 	), ` + staffMarkedUnreadFloor + `) AS unread_count`
@@ -209,6 +220,7 @@ const guardianUnreadExists = `EXISTS (
 	WHERE um.thread_id = t.id AND um.tenant_id = t.tenant_id
 	  AND ` + counterpartUnreadUMForStaff + `
 	  AND ` + afterReadCursorUM + `
+	  AND ` + afterStaffClearedCursorUM + `
 	  AND ` + notReaderAuthoredUM + `
 	  AND ` + afterStaffHandledCursorUM + `
 )`

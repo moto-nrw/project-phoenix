@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 import {
   disableAllNotificationPreferences,
+  fetchEmailSubscription,
   fetchNotificationPreferences,
+  setEmailSubscription,
   setNotificationPreference,
 } from "./notification-preferences-api";
 
@@ -111,6 +113,37 @@ describe("notification preferences API client", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
       "/api/parent/me/notification-preferences/parent_announcement",
     );
+  });
+
+  it("reads an e-mail subscription in either envelope shape", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ data: { enabled: true } }))
+      .mockResolvedValueOnce(jsonResponse({ enabled: false }));
+
+    await expect(fetchEmailSubscription("enrollment_submitted")).resolves.toBe(
+      true,
+    );
+    await expect(fetchEmailSubscription("enrollment_submitted")).resolves.toBe(
+      false,
+    );
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/api/notifications/email-subscriptions/enrollment_submitted",
+    );
+  });
+
+  it("records an e-mail subscription as a PUT", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 204 });
+
+    await setEmailSubscription("enrollment_submitted", true);
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe(
+      "/api/notifications/email-subscriptions/enrollment_submitted",
+    );
+    expect(init).toMatchObject({
+      method: "PUT",
+      body: JSON.stringify({ enabled: true }),
+    });
   });
 
   it("switches everything off with a DELETE", async () => {

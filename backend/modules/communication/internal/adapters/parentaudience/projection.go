@@ -461,7 +461,7 @@ const feedSQL = pendingApplicantsFeedCTE + `
 			LEFT JOIN users.parent_announcement_reads par
 				ON par.announcement_id = a.id AND par.account_id = ?
 			WHERE ` + feedScopePredicate + liveAnnouncementPredicate + `
-				AND ` + reachedAccountFeed + `
+			AND ` + reachedAccountFeed + `
 			ORDER BY GREATEST(a.published_at, a.reminder_sent_at) DESC, a.id DESC`
 
 type feedRow struct {

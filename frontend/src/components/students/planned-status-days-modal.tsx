@@ -2,14 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFormError } from "~/components/ui/form-error";
-import {
-  addDays,
-  differenceInCalendarDays,
-  format,
-  isSameDay,
-  startOfWeek,
-} from "date-fns";
-import { de } from "date-fns/locale";
+import { addDays } from "date-fns/addDays";
+import { differenceInCalendarDays } from "date-fns/differenceInCalendarDays";
+import { format } from "date-fns/format";
+import { isSameDay } from "date-fns/isSameDay";
+import { startOfWeek } from "date-fns/startOfWeek";
+import { de } from "date-fns/locale/de";
 import { Pencil, Trash2, X } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";

@@ -220,6 +220,8 @@ type RestoreOutcome struct {
 // write runs in the caller's tenant transaction, like the approval's
 // materialization and pickup sync in Care Plan.
 type Decisions interface {
+	// RequestReads is the per-account read state of the queue (#3778).
+	RequestReads
 	// DecisionRequests lists the requests of the admin queue.
 	DecisionRequests(ctx context.Context, filters DecisionRequestFilters) ([]*DecisionSummary, error)
 	// StudentDecisionRequests lists the requests whose children created the

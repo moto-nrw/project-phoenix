@@ -80,7 +80,7 @@ func (s *Service) CreateStaffTargetOverride(ctx context.Context, staffID int64, 
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.CreateStaffTargetOverride(txCtx, domain.StaffTargetOverride{
 				StaffID: staffID, StartDate: fields.StartDate, EndDate: fields.EndDate,
-				DailyMinutes: fields.DailyMinutes, CreatedBy: createdBy,
+				DailyMinutes: fields.DailyMinutes, WeekdayMinutes: fields.WeekdayMinutes, CreatedBy: createdBy,
 			})
 			stats.Add(writeStats)
 			return err
