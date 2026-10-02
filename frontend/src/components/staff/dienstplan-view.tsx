@@ -11,6 +11,7 @@ import { PlanningDisabledState } from "~/components/planning/planning-disabled-s
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
 import { DienstplanHalbjahrGrid } from "~/components/staff/dienstplan-halbjahr-grid";
+import { DienstplanPersonWeekGrid } from "~/components/staff/dienstplan-person-week-grid";
 import { DienstplanResourceGrid } from "~/components/staff/dienstplan-resource-grid";
 import { DienstplanGridSkeleton } from "~/components/staff/dienstplan-skeleton";
 import {
@@ -20,6 +21,7 @@ import {
 import { SickReportModal } from "~/components/staff/sick-report-modal";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -53,15 +55,17 @@ const logger = createLogger({ component: "DienstplanView" });
 // tenant setting "Automatisch ausstempeln" is enabled.
 //
 // URL-Vokabular: genau
-// `d` (Berlin-Kalendertag; die angezeigte Woche ist die Woche, die `d` enthält)
-// und `view` ("woche" | "halbjahr"). Ungültige Werte fallen still auf die
-// Defaults zurück (heute, "woche"). Modals bleiben reiner React-State.
+// `d` (Berlin-Kalendertag; die angezeigte Woche ist die Woche, die `d` enthält),
+// `view` ("woche" | "person" | "halbjahr") und `staff` (die Person der
+// Ansicht "person", #3818). Ungültige Werte fallen still auf die Defaults
+// zurück (heute, "woche", die eigene bzw. erste Person). Modals bleiben reiner
+// React-State.
 
-type DienstplanView = "woche" | "halbjahr";
+type DienstplanView = "woche" | "person" | "halbjahr";
 
 // updateUrlParams baut die URL aus dieser Allowlist neu auf, damit fremde
 // Params (?utm_source=…) nicht jeden Wochen-/Ansichtswechsel überleben.
-const ALLOWED_URL_PARAMS = ["d", "view"] as const;
+const ALLOWED_URL_PARAMS = ["d", "view", "staff"] as const;
 
 interface ModalState {
   mode: ShiftEditMode;
@@ -72,6 +76,8 @@ interface ModalState {
   // captured at open time so a background SWR revalidation cannot swap them out
   // from under an in-progress edit — same freeze as `shift` itself (#1841).
   replacements: readonly StaffShift[];
+  /** Im Viertelstunden-Raster aufgezogene Spanne für eine neue Schicht. */
+  initialTimes?: { startTime: string; endTime: string };
 }
 
 function DienstplanContent() {
@@ -114,8 +120,9 @@ function DienstplanContent() {
   const rawDay = params.d;
   const dayISO = rawDay !== null && isValidISODate(rawDay) ? rawDay : today;
   const rawView = params.view;
-  const view: DienstplanView =
-    rawView === "halbjahr" && canViewHalbjahr ? "halbjahr" : "woche";
+  let view: DienstplanView = "woche";
+  if (rawView === "halbjahr" && canViewHalbjahr) view = "halbjahr";
+  else if (rawView === "person" && canViewHalbjahr) view = "person";
 
   const [modal, setModal] = useState<ModalState | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
@@ -217,6 +224,20 @@ function DienstplanContent() {
   );
   const currentStaffId = ownStaff?.id ?? null;
 
+  // Person der Ansicht "person": aus `staff`, sonst die eigene Person, sonst
+  // die erste in der Liste.
+  const personMember =
+    sortedStaff.find((member) => member.id === params.staff) ??
+    sortedStaff.find((member) => member.id === currentStaffId) ??
+    sortedStaff[0] ??
+    null;
+  const personShiftCount = personMember
+    ? [...(shiftsByStaff.get(personMember.id)?.values() ?? [])].reduce(
+        (count, shifts) => count + shifts.length,
+        0,
+      )
+    : 0;
+
   const isOnCurrentWeek =
     toISODate(startOfWeek(parseISODate(today))) === toISODate(weekAnchor);
 
@@ -250,8 +271,11 @@ function DienstplanContent() {
   // URL sauber bleibt; Deep-Links funktionieren in beide Richtungen.
   const setView = useCallback(
     (next: DienstplanView) =>
-      updateUrlParams({ view: next === "woche" ? null : next }),
-    [updateUrlParams],
+      updateUrlParams({
+        view: next === "woche" ? null : next,
+        staff: next === "person" ? (personMember?.id ?? null) : null,
+      }),
+    [updateUrlParams, personMember],
   );
 
   if (sessionStatus !== "loading" && !canEdit) {
@@ -327,6 +351,49 @@ function DienstplanContent() {
         onWeekClick={(monday) => updateUrlParams({ d: monday, view: null })}
       />
     );
+  } else if (view === "person" && personMember) {
+    content = (
+      <div className="space-y-3">
+        {shiftTypesError && (
+          <Alert
+            type="warning"
+            message="Die Schichtarten konnten nicht geladen werden. Der Dienstplan zeigt die Schichten so lange in neutraler Farbe."
+          />
+        )}
+        <DienstplanPersonWeekGrid
+          member={personMember}
+          shiftsByDate={shiftsByStaff.get(personMember.id)}
+          weekDays={weekDays}
+          todayIso={today}
+          closingDays={closingDays}
+          closingDaysLoading={closingDaysLoading}
+          typesById={typesById}
+          shiftTypes={shiftTypes ?? []}
+          summary={summaryByStaff.get(personMember.id)}
+          onCreate={(date, startTime, endTime) =>
+            setModal({
+              mode: "create",
+              staff: personMember,
+              date,
+              shift: null,
+              replacements: [],
+              initialTimes: { startTime, endTime },
+            })
+          }
+          onEdit={(date, shift) =>
+            setModal({
+              mode: "edit",
+              staff: personMember,
+              date,
+              shift,
+              replacements: allShifts.filter(
+                (s) => s.originShiftId === shift.id,
+              ),
+            })
+          }
+        />
+      </div>
+    );
   } else {
     content = (
       // Kein zusätzlicher Kartenrahmen um das Raster (#2031) — die ResourceGrid
@@ -375,6 +442,12 @@ function DienstplanContent() {
           onSickReport={
             canManageAbsences ? (member) => setSickModal(member) : undefined
           }
+          onOpenPersonWeek={
+            canViewHalbjahr
+              ? (member) =>
+                  updateUrlParams({ view: "person", staff: member.id })
+              : undefined
+          }
         />
       </div>
     );
@@ -386,9 +459,11 @@ function DienstplanContent() {
   // Kein Zeitraum in der Statuszeile: den trägt das Bedienband direkt
   // darunter, mit Pfeilen. Zweimal dieselbe Woche in der Kopfkarte kostete
   // auf dem Telefon eine Zeile, die nichts sagte.
+  const displayedShiftCount =
+    view === "person" ? personShiftCount : allShifts.length;
   const statusLine = [
-    view === "woche"
-      ? `${allShifts.length} ${allShifts.length === 1 ? "Dienst" : "Dienste"}`
+    view !== "halbjahr"
+      ? `${displayedShiftCount} ${displayedShiftCount === 1 ? "Dienst" : "Dienste"}`
       : null,
     `${sortedStaff.length} ${sortedStaff.length === 1 ? "Person" : "Personen"}`,
   ]
@@ -450,7 +525,9 @@ function DienstplanContent() {
           onToday={isOnCurrentWeek ? undefined : goToToday}
           viewSwitcher={
             // Ohne schedules:read gibt es nur die Wochenansicht — ein
-            // Ein-Tab-Umschalter wäre sinnlos, also entfällt er ganz.
+            // Ein-Tab-Umschalter wäre sinnlos, also entfällt er ganz. Die
+            // Ansicht „Person“ (#3818) teilt diese Schranke: sie zeigt das
+            // Soll aus /overview wie die Halbjahres-Sicht.
             canViewHalbjahr ? (
               <SegmentedControl
                 ariaLabel="Ansicht"
@@ -458,12 +535,25 @@ function DienstplanContent() {
                 onChange={(next) => setView(next as DienstplanView)}
                 items={[
                   { value: "woche", label: "Woche" },
+                  { value: "person", label: "Person" },
                   { value: "halbjahr", label: "Halbjahr" },
                 ]}
               />
             ) : undefined
           }
         >
+          {view === "person" && sortedStaff.length > 0 && (
+            <CustomSelect
+              value={personMember?.id ?? ""}
+              options={sortedStaff.map((member) => ({
+                value: member.id,
+                label: `${member.lastName}, ${member.firstName}`,
+              }))}
+              onChange={(id) => updateUrlParams({ staff: id })}
+              ariaLabel="Person"
+              className="w-full sm:w-64"
+            />
+          )}
           {/* Zeitraum-Anzeige (#1946): gleicher Switcher wie im Betreuungsplan,
               damit der aktive Kalenderzeitraum an einer einheitlichen Stelle
               sichtbar, wechselbar und verwaltbar ist. */}
@@ -499,6 +589,8 @@ function DienstplanContent() {
           staffOptions={sortedStaff}
           existingReplacements={modal.replacements}
           closingDayRanges={closingDayRanges}
+          initialStartTime={modal.initialTimes?.startTime}
+          initialEndTime={modal.initialTimes?.endTime}
           onClose={() => setModal(null)}
           onSaved={refreshAfterPlanMutation}
         />
@@ -526,7 +618,7 @@ function DienstplanContent() {
           isOpen
           plan="dienstplan"
           weekDay={dayISO}
-          isWeekOnScreen={view === "woche"}
+          isWeekOnScreen={view !== "halbjahr"}
           canExportInternal={canExportInternal}
           onClose={() => setExportOpen(false)}
         />
