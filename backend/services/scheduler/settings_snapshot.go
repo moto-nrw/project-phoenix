@@ -5,22 +5,29 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 var errSchedulerSettingsBatchUnsupported = errors.New("scheduler settings resolver does not support batch snapshots")
 
-type schedulerSettingsBatchResolver interface {
-	ResolveManyForTenants(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]*configService.SettingsSnapshot, error)
+// SettingsSnapshot is an opaque handle on one school's settings, resolved
+// ahead of a tick. Only the source that resolved it can bind it.
+type SettingsSnapshot any
+
+// SettingsSnapshotSource is the batch read a SettingsResolver may also
+// offer. The root binds the Settings Platform's cross-tenant read, so one
+// query per minute serves every school; a school without a snapshot in the
+// result fails its tick.
+type SettingsSnapshotSource interface {
+	ResolveSettingsSnapshots(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]SettingsSnapshot, error)
+	// BindSettingsSnapshot returns a context whose settings reads the
+	// snapshot serves, including the reads of the owners a job calls. A
+	// snapshot it did not resolve is an error, never a silent database read.
+	BindSettingsSnapshot(ctx context.Context, snapshot SettingsSnapshot) (context.Context, error)
 }
 
 type schedulerMinuteSnapshot struct {
 	tenantIDs []int64
-	settings  map[int64]*configService.SettingsSnapshot
+	settings  map[int64]SettingsSnapshot
 }
 
 type schedulerMinuteSnapshotLoad struct {
@@ -34,44 +41,44 @@ type schedulerMinuteSnapshotLoad struct {
 // the reminder/notification services they invoke every minute. Job-specific
 // values used only when a daily job actually fires stay demand-loaded.
 var schedulerPollingSettingKeys = []string{
-	configModel.KeyDataCleanupEnabled,
-	configModel.KeyDataCleanupTime,
-	configModel.KeyDataCleanupTimeoutMinutes,
-	configModel.KeyFeedbackDataRetentionDays,
-	configModel.KeySessionEndEnabled,
-	configModel.KeySessionEndTime,
-	configModel.KeySessionEndTimeoutMinutes,
-	configModel.KeySessionCleanupEnabled,
-	configModel.KeySessionCleanupIntervalMinutes,
-	configModel.KeySessionAbandonedThresholdMin,
-	configModel.KeyTrackingAutoCheckoutEnabled,
-	configModel.KeyTrackingAutoCheckoutGraceMinutes,
-	configModel.KeySickClearMode,
-	configModel.KeyExcusedClearMode,
-	configModel.KeyTimetableMaterializationEnabled,
-	configModel.KeyTimetableMaterializationWeekday,
-	configModel.KeyTimetableMaterializationWeeksAhead,
-	configModel.KeyTimetableEnabled,
-	configModel.KeyTimetableAutoStartPlanned,
-	configModel.KeyTimetableAutoEndEnabled,
-	configModel.KeyTimetableAutoEndGraceMinutes,
-	configModel.KeyTimetableOverdueThresholdMinutes,
-	configModel.KeyNotificationsDispatchEnabled,
-	configModel.KeyNotificationsOnDutyOnly,
-	configModel.KeyRemindersPickupUpcomingEnabled,
-	configModel.KeyRemindersPickupOverdueEnabled,
-	configModel.KeyRemindersActivityStartEnabled,
-	configModel.KeyRemindersActivityOverdueEnabled,
-	configModel.KeyRemindersPickupUpcomingLeadMinutes,
-	configModel.KeyRemindersActivityStartLeadMinutes,
-	configModel.KeyCalendarAppointmentReminderEnabled,
-	configModel.KeyCalendarAppointmentReminderLeadHours,
-	configModel.KeyPresenceMode,
-	configModel.KeyEnrollmentWaitlistEnabled,
-	configModel.KeyEnrollmentAutoInviteGuardianOnApprove,
-	configModel.KeyEnrollmentCareOfferingsEnabled,
-	configModel.KeyEnrollmentDefaultActivationMode,
-	configModel.KeyEnrollmentNotifyPerDecision,
+	settingDataCleanupEnabled,
+	settingDataCleanupTime,
+	settingDataCleanupTimeoutMinutes,
+	settingFeedbackDataRetentionDays,
+	settingSessionEndEnabled,
+	settingSessionEndTime,
+	settingSessionEndTimeoutMinutes,
+	settingSessionCleanupEnabled,
+	settingSessionCleanupIntervalMinutes,
+	settingSessionAbandonedThresholdMin,
+	settingTrackingAutoCheckoutEnabled,
+	settingTrackingAutoCheckoutGraceMinutes,
+	settingSickClearMode,
+	settingExcusedClearMode,
+	settingTimetableMaterializationEnabled,
+	settingTimetableMaterializationWeekday,
+	settingTimetableMaterializationWeeksAhead,
+	settingTimetableEnabled,
+	settingTimetableAutoStartPlanned,
+	settingTimetableAutoEndEnabled,
+	settingTimetableAutoEndGraceMinutes,
+	settingTimetableOverdueThresholdMinutes,
+	settingNotificationsDispatchEnabled,
+	settingNotificationsOnDutyOnly,
+	settingRemindersPickupUpcomingEnabled,
+	settingRemindersPickupOverdueEnabled,
+	settingRemindersActivityStartEnabled,
+	settingRemindersActivityOverdueEnabled,
+	settingRemindersPickupUpcomingLeadMinutes,
+	settingRemindersActivityStartLeadMinutes,
+	settingCalendarAppointmentReminderEnabled,
+	settingCalendarAppointmentReminderLeadHours,
+	settingPresenceMode,
+	settingEnrollmentWaitlistEnabled,
+	settingEnrollmentAutoInviteGuardianOnApprove,
+	settingEnrollmentCareOfferingsEnabled,
+	settingEnrollmentDefaultActivationMode,
+	settingEnrollmentNotifyPerDecision,
 }
 
 // getMinuteSnapshot coalesces concurrent scheduler goroutines into one active
@@ -121,7 +128,7 @@ func (s *Scheduler) getMinuteSnapshot(ctx context.Context) (*schedulerMinuteSnap
 func (s *Scheduler) loadMinuteSnapshot(ctx context.Context) (*schedulerMinuteSnapshot, error) {
 	ctx = s.withUnitOfWork(ctx)
 	result := &schedulerMinuteSnapshot{}
-	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+	err := s.tenantRuntime.WithinAdmin(ctx, func(txCtx context.Context) error {
 		tenantIDs, listErr := s.schoolRepo.ListActiveTenantIDs(txCtx)
 		if listErr != nil {
 			return listErr
@@ -133,11 +140,11 @@ func (s *Scheduler) loadMinuteSnapshot(ctx context.Context) (*schedulerMinuteSna
 		return result, fmt.Errorf("list active tenants: %w", err)
 	}
 
-	batchResolver, ok := s.settings.(schedulerSettingsBatchResolver)
+	batch, ok := s.settings.(SettingsSnapshotSource)
 	if !ok {
 		return result, errSchedulerSettingsBatchUnsupported
 	}
-	result.settings, err = batchResolver.ResolveManyForTenants(ctx, result.tenantIDs, schedulerPollingSettingKeys)
+	result.settings, err = batch.ResolveSettingsSnapshots(ctx, result.tenantIDs, schedulerPollingSettingKeys)
 	if err != nil {
 		return result, fmt.Errorf("load tenant settings: %w", err)
 	}

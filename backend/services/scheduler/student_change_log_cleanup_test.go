@@ -3,52 +3,20 @@ package scheduler
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"testing"
 	"time"
 
-	repoFactory "github.com/moto-nrw/project-phoenix/database/repositories"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type failingDeleteStudentFieldEditRepo struct {
-	auditModels.StudentFieldEditRepository
-	err error
-}
-
-func (r *failingDeleteStudentFieldEditRepo) DeleteOlderThan(context.Context, time.Time) (int64, error) {
-	return 0, r.err
-}
-
+// A failed change-history sweep fails the school's tenant transaction, so
+// the deletion audit the People Directory sweep wrote before its delete rolls
+// back with it, and the school stays eligible for the next matching minute.
+// The sweep's own audit-then-delete order is covered in services/users.
 func TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.Ctx(t)
-
-	student := testpkg.CreateTestStudent(t, db, "Cleanup", "Rollback", "1a")
-	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM audit.data_deletions WHERE student_id = ?`, student.ID).Exec(context.Background())
-		_, _ = db.NewRaw(`DELETE FROM audit.student_field_edits WHERE student_id = ?`, student.ID).Exec(context.Background())
-	}()
-
-	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
-	edit := &auditModels.StudentFieldEdit{
-		StudentID:    student.ID,
-		EditedBy:     auditModels.StudentFieldEditSystemActorID,
-		EditedByName: auditModels.StudentFieldEditSystemActorName,
-		FieldName:    auditModels.StudentFieldSupervisorNotes,
-		OldValue:     testpkg.StrPtr("alt"),
-		NewValue:     testpkg.StrPtr("neu"),
-		CreatedAt:    time.Now().AddDate(0, 0, -200),
-	}
-	require.NoError(t, repos.StudentFieldEdit.CreateBatch(ctx, []*auditModels.StudentFieldEdit{edit}))
 
 	scheduleNow := time.Now()
 	if scheduleNow.Second() >= 58 {
@@ -56,56 +24,59 @@ func TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit(t *testing.
 	}
 
 	deleteErr := errors.New("delete failed")
-	cleanup := usersSvc.NewStudentChangeLogCleanupService(
-		&failingDeleteStudentFieldEditRepo{
-			StudentFieldEditRepository: repos.StudentFieldEdit,
-			err:                        deleteErr,
-		},
-		repos.DataDeletion,
-		&configtest.Mock{
-			ResolveIntFn: func(_ context.Context, key string) (int, error) {
-				if key != configModel.KeyGDPRStudentChangeLogRetentionDays {
-					return 0, fmt.Errorf("unexpected setting key %q", key)
-				}
-				return 90, nil
-			},
-		},
-		slog.Default(),
-	)
+	var results []string
 	s := unitScheduler(&Scheduler{
-		db:                      db,
-		schoolRepo:              dbTenantDirectory{db: db},
-		studentChangeLogCleanup: cleanup,
+		studentChangeLogCleanup: func(context.Context) (StudentChangeLogCleanupResult, error) {
+			return StudentChangeLogCleanupResult{}, deleteErr
+		},
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
-				configModel.KeyDataCleanupEnabled: true,
+				settingDataCleanupEnabled: true,
 			},
 			stringValues: map[string]string{
-				configModel.KeyDataCleanupTime: scheduleNow.Format("15:04"),
+				settingDataCleanupTime: scheduleNow.Format("15:04"),
 			},
 			intValues: map[string]int{
-				configModel.KeyDataCleanupTimeoutMinutes: 30,
+				settingDataCleanupTimeoutMinutes: 30,
 			},
+		},
+		unitOfWorkObserver: func(_, kind, result string, _ time.Duration, _ int) {
+			if kind == unitOfWorkTransaction {
+				results = append(results, result)
+			}
 		},
 		logger: slog.Default()})
 
 	s.checkAndRunStudentChangeLogCleanup(context.Background(), &ScheduledTask{Name: "student-change-log-cleanup"})
 
-	editCount, err := db.NewSelect().
-		ModelTableExpr(`audit.student_field_edits`).
-		Where(`student_id = ?`, student.ID).
-		Count(context.Background())
-	require.NoError(t, err)
-	assert.Equal(t, 1, editCount, "failed delete must leave the change-history row intact")
-
-	auditCount, err := db.NewSelect().
-		ModelTableExpr(`audit.data_deletions`).
-		Where(`student_id = ?`, student.ID).
-		Where(`deletion_type = ?`, auditModels.DeletionTypeStudentChangeLogRetention).
-		Count(context.Background())
-	require.NoError(t, err)
-	assert.Zero(t, auditCount, "failed delete must roll back its deletion audit")
-
-	_, ranToday := s.lastStudentChangeLogCleanup.Load(student.TenantID)
+	require.Equal(t, []string{"rollback"}, results, "the failed sweep rolls its tenant transaction back")
+	_, ranToday := s.lastStudentChangeLogCleanup.Load(schedulerUnitTenantID)
 	assert.False(t, ranToday, "failed cleanup must remain eligible for retry")
+}
+
+func TestStudentChangeLogCleanup_CommitsAndMarksTheDay(t *testing.T) {
+	t.Parallel()
+
+	scheduleNow := time.Now()
+	if scheduleNow.Second() >= 58 {
+		t.Skip("skipping to avoid minute-boundary race on timeMatchesNow")
+	}
+
+	calls := 0
+	s := unitScheduler(&Scheduler{
+		studentChangeLogCleanup: func(context.Context) (StudentChangeLogCleanupResult, error) {
+			calls++
+			return StudentChangeLogCleanupResult{EditsDeleted: 2, StudentsAffected: 1, RetentionDays: 90}, nil
+		},
+		settings: &fakeSettingsResolver{
+			boolValues:   map[string]bool{settingDataCleanupEnabled: true},
+			stringValues: map[string]string{settingDataCleanupTime: scheduleNow.Format("15:04")},
+			intValues:    map[string]int{settingDataCleanupTimeoutMinutes: 30},
+		},
+		logger: slog.Default()})
+
+	s.checkAndRunStudentChangeLogCleanup(context.Background(), &ScheduledTask{Name: "student-change-log-cleanup"})
+
+	assert.Equal(t, 1, calls)
+	assert.True(t, wasRunToday(&s.lastStudentChangeLogCleanup, schedulerUnitTenantID))
 }

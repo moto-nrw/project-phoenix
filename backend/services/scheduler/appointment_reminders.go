@@ -16,8 +16,6 @@ import (
 	"errors"
 	"log/slog"
 	"time"
-
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 const (
@@ -118,7 +116,7 @@ func (s *Scheduler) runAppointmentRemindersForTenant(ctx context.Context, tenant
 	if s.settings == nil {
 		return errors.New("appointment reminder settings are not configured")
 	}
-	enabled, err := s.settings.ResolveBool(ctx, configModel.KeyCalendarAppointmentReminderEnabled)
+	enabled, err := s.settings.ResolveBool(ctx, settingCalendarAppointmentReminderEnabled)
 	if err != nil {
 		s.getLogger().Error("appointment reminder setting resolution failed",
 			slog.Int64("tenant_id", tenantID),
@@ -129,7 +127,7 @@ func (s *Scheduler) runAppointmentRemindersForTenant(ctx context.Context, tenant
 	if !enabled {
 		return nil
 	}
-	leadHours, err := s.settings.ResolveInt(ctx, configModel.KeyCalendarAppointmentReminderLeadHours)
+	leadHours, err := s.settings.ResolveInt(ctx, settingCalendarAppointmentReminderLeadHours)
 	if err != nil {
 		s.getLogger().Error("appointment reminder lead setting resolution failed",
 			slog.Int64("tenant_id", tenantID),

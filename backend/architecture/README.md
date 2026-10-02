@@ -106,6 +106,26 @@ term through `platform.assert_worker_lease` before they commit, so the tenant
 role needs no grant on the table. Runbook:
 [worker lease](../../docs/operations/worker-lease-2726.md).
 
+#2746 closed the carrier of `services/scheduler`: its 27 keys fell without a
+new rule. The scheduler opens its transactions through its own
+`TenantRuntime` port; `modules/schedulerruntime/jobruntime`
+(`scheduler-runtime`/`postgres`, the role the lease store already holds)
+binds it to the tenant runtime. The settings keys are the scheduler's own
+constants: the Serve root refuses a Worker whose key the registry does not
+define or defines as a secret (`settingsCompose.VerifyPreloadKeys`), and binds
+the minute snapshot to the Settings Platform's cross-tenant read through
+`settingsCompose.NewTenantSnapshots` behind the `SettingsResolver` port; an
+unbindable snapshot fails its school instead of reading the database, and
+`services.TestSchedulerMinuteSnapshotReadsEverySchoolOnce` holds the one-read
+budget over the real binding. The
+overdue tick publishes through `realtimeevents` and reads the day's blocks
+and rooms through ports; the booking audit, the student lifecycle and the
+change-history sweep are ports too. `api/scheduler_ports.go` binds them to
+the retained repositories and services without importing their packages.
+The internal suites compose through test support
+(`testpkg.PassthroughTenantRuntime`, `testpkg.ScriptedTenantRuntime`) instead
+of the repository factory.
+
 #3349 settles the one table two owners reached for: `users.privacy_consents`
 stays with `student-presence`. The recorded window bounds how long presence
 data is kept, and the GDPR cleanup reads it through that owner's

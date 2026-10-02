@@ -6,9 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 type fakeOperatorInvitationCleaner struct{}
@@ -23,22 +21,10 @@ func (f *fakeFeedbackCleaner) DeleteExpired(context.Context) (int, error) { retu
 
 func minimalWorkerDependencies(t *testing.T) WorkerDependencies {
 	t.Helper()
-	runtime, err := tenant.NewUnitOfWork(
-		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
-			return fn(ctx, struct{}{})
-		},
-		func(ctx context.Context, fn func(context.Context, any) error) error {
-			return fn(ctx, struct{}{})
-		},
-		func(context.Context, tenant.SavepointAction) error { return nil },
-		func(error) bool { return false },
-	)
-	require.NoError(t, err)
 	return WorkerDependencies{
 		Logger:                    slog.Default(),
-		DB:                        new(bun.DB),
 		SchoolRepo:                dbTenantDirectory{},
-		TenantRuntime:             &runtime,
+		TenantRuntime:             unitTenantRuntime(),
 		Settings:                  &stubSettingsResolver{},
 		AuthCleanup:               &fakeAuthCleanup{},
 		InvitationCleanup:         &fakeInvitationCleaner{},

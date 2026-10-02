@@ -6,9 +6,24 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
+
+// BookingConsistencyReport counts the booking drift of one school on one day.
+// TotalFindings is the number of inconsistent rows or child-days; a child in
+// an optional-offering phase is reported for review but is not counted.
+type BookingConsistencyReport struct {
+	TenantID                        int64
+	AuditDate                       calendar.Date
+	PickupProjectionMissingDays     int
+	ApprovedWithoutRequiredOffering int
+	ApprovedWithoutOptionalOffering int
+	TotalFindings                   int
+}
+
+// BookingConsistencyAudit evaluates the booking-derived planning data of the
+// school in ctx on day. The root binds the Audit Platform's evaluation.
+type BookingConsistencyAudit func(ctx context.Context, day calendar.Date) (*BookingConsistencyReport, error)
 
 const (
 	bookingConsistencyAuditStartupDelay = 30 * time.Second
@@ -51,9 +66,9 @@ func (s *Scheduler) checkAndRunBookingConsistencyAudit(ctx context.Context, task
 	ctx, cancel := s.taskContext(ctx, bookingConsistencyAuditTimeout)
 	defer cancel()
 
-	auditDate := auditModel.Date(timezone.TodayDate())
+	auditDate := calendar.TodayDate()
 	if err := s.forEachTenant(ctx, "booking-consistency-audit", func(tenantCtx context.Context) error {
-		report, err := s.bookingConsistency.Audit(tenantCtx, auditDate)
+		report, err := s.bookingConsistency(tenantCtx, auditDate)
 		if err != nil {
 			return err
 		}
@@ -69,16 +84,16 @@ func (s *Scheduler) checkAndRunBookingConsistencyAudit(ctx context.Context, task
 	}
 }
 
-func (s *Scheduler) logBookingConsistencyReport(report *auditModel.BookingConsistencyReport) {
+func (s *Scheduler) logBookingConsistencyReport(report *BookingConsistencyReport) {
 	attrs := []slog.Attr{
 		slog.Int64("tenant_id", report.TenantID),
 		slog.String("audit_date", report.AuditDate.String()),
 		slog.Int("pickup_projection_missing_days", report.PickupProjectionMissingDays),
 		slog.Int("approved_without_required_offering", report.ApprovedWithoutRequiredOffering),
 		slog.Int("approved_without_optional_offering", report.ApprovedWithoutOptionalOffering),
-		slog.Int("total_findings", report.TotalFindings()),
+		slog.Int("total_findings", report.TotalFindings),
 	}
-	if report.TotalFindings() > 0 {
+	if report.TotalFindings > 0 {
 		s.getLogger().LogAttrs(context.Background(), slog.LevelWarn,
 			"booking consistency audit found drift", attrs...)
 		return

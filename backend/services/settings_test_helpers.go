@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -64,4 +65,10 @@ func NewSettingsTestModule(db *bun.DB, unit tenant.UnitOfWork) (SettingsTestModu
 		runtime:        runtime,
 		TenantSettings: config.NewTenantOperations(settings, payroll, runtime, nil, nil),
 	}, nil
+}
+
+// TenantSnapshots binds the Worker's minute-snapshot read over this module's
+// settings service, the way the Serve root binds it (#2746).
+func (m SettingsTestModule) TenantSnapshots() (settingsCompose.TenantSnapshots, error) {
+	return settingsCompose.NewTenantSnapshots(m.Settings)
 }

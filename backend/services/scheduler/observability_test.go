@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type workerCorrelationKey struct{}
@@ -48,8 +46,8 @@ func TestRunCleanupJobsEmitsCorrelatedWorkerFailure(t *testing.T) {
 	}
 
 	err := scheduler.RunCleanupJobs()
-	if !errors.Is(err, tenant.ErrRuntimeRequired) {
-		t.Fatalf("RunCleanupJobs() error = %v, want tenant.ErrRuntimeRequired", err)
+	if !errors.Is(err, errTenantRuntimeRequired) {
+		t.Fatalf("RunCleanupJobs() error = %v, want errTenantRuntimeRequired", err)
 	}
 	if runCalled {
 		t.Fatal("cleanup job ran without Worker runtime")
