@@ -9,18 +9,274 @@
 #   geraete      optional: macbook | ipad | iphone.
 #                Standard: tenant = macbook + ipad, eltern = iphone + ipad
 #   vorbereitung optional: Schritte vor dem Foto, jeweils genau eines von
-#                klicken (Selektor), warten_auf (Selektor), scrollen (Pixel oder Selektor)
+#                klicken (Selektor), warten_auf (Selektor), scrollen (Pixel oder Selektor).
+#                Ein Klick darf auf eine andere Seite führen, etwa auf ein
+#                Kind, dessen ID erst der Seed vergibt; geprüft wird, dass
+#                `pfad` selbst erreichbar ist.
 #
 # Unbekannte Felder schlagen beim Laden fehl. Die Daten kommen aus dem
 # Seed-Profil `marketing` (backend/seed/api).
+#
+# Reihenfolge und Auswahl (#3764): die Flows der Hilfe und die Nutzung laut
+# PostHog (Seitenaufrufe Produktion, Aug.–Okt. 2026). Die IDs folgen den
+# Namen der Hilfe-Screenshots (frontend/public/help/screens); Shots aus dem
+# Eltern-Portal beginnen mit `eltern-`.
 shots:
+  # --- Tagesbetrieb ---------------------------------------------------------
   - id: anwesenheit-ueberblick
-    titel: Anwesenheit im Überblick
+    titel: Startseite mit der Anwesenheit des Tages
     portal: tenant
     rolle: admin
     pfad: /home
+  - id: kindersuche
+    titel: Alle Kinder mit Aufenthaltsort
+    portal: tenant
+    rolle: admin
+    pfad: /students/search
+  - id: kinder-an-und-abmelden
+    titel: Kinder an- und abmelden
+    portal: tenant
+    rolle: admin
+    pfad: /students/search
+    geraete: [iphone, ipad, macbook]
+    vorbereitung:
+      - klicken: 'role=button[name="Kinder an- und abmelden"]'
+  - id: kinderdetailansicht
+    titel: Kinderakte mit dem heutigen Tag
+    portal: tenant
+    rolle: admin
+    pfad: /students/search
+    vorbereitung:
+      - klicken: 'role=button[name="Finn Hartmann - Details öffnen"]'
+      - warten_auf: 'role=tab[name="Stammdaten"]'
+  - id: kinderdetail-betreuungszeiten
+    titel: Betreuungszeiten eines Kindes
+    portal: tenant
+    rolle: admin
+    pfad: /students/search
+    vorbereitung:
+      - klicken: 'role=button[name="Finn Hartmann - Details öffnen"]'
+      - warten_auf: 'role=tab[name="Stammdaten"]'
+      - klicken: '[role="tab"][data-tab-value="betreuungszeiten"]'
+  - id: kinderdetail-krank-melden
+    titel: Ein Kind krank melden
+    portal: tenant
+    rolle: admin
+    pfad: /students/search
+    vorbereitung:
+      - klicken: 'role=button[name="Finn Hartmann - Details öffnen"]'
+      - warten_auf: 'role=tab[name="Stammdaten"]'
+      - klicken: 'main button:has-text("Krank melden")'
+      - warten_auf: '[role="dialog"]'
+  - id: meine-gruppen
+    titel: Meine Gruppe mit allen Kindern
+    portal: tenant
+    rolle: admin
+    pfad: /ogs-groups
+    geraete: [iphone, ipad, macbook]
+  - id: gruppe-uebergeben
+    titel: Gruppe vorübergehend übergeben
+    portal: tenant
+    rolle: admin
+    pfad: /ogs-groups
+    vorbereitung:
+      - klicken: 'role=button[name="Weitere Aktionen"]'
+      - klicken: 'text=Gruppe übergeben'
+      - warten_auf: '[role="dialog"]'
+  - id: aktuelle-aufsicht
+    titel: Laufende Aufsicht im Raum
+    portal: tenant
+    rolle: betreuer
+    pfad: /active-supervisions
+  - id: spontane-aktivitaet
+    titel: Spontane Aktivität starten
+    portal: tenant
+    rolle: admin
+    pfad: /active-supervisions
+    vorbereitung:
+      - klicken: 'main button:has-text("Spontane Aktivität starten")'
+      - warten_auf: '[role="dialog"]'
+  - id: tagesplan
+    titel: Tagesplan mit laufenden Blöcken
+    portal: tenant
+    rolle: betreuer
+    pfad: /tagesplan
+  - id: raeume
+    titel: Räume und ihre Belegung
+    portal: tenant
+    rolle: admin
+    pfad: /rooms
+  - id: notfall
+    titel: Notfallliste
+    portal: tenant
+    rolle: admin
+    pfad: /emergency
+
+  # --- Eltern ---------------------------------------------------------------
+  - id: nachrichten
+    titel: Nachrichten von Eltern
+    portal: tenant
+    rolle: admin
+    pfad: /messages
+  - id: nachrichten-verlauf
+    titel: Gespräch mit einer Familie
+    portal: tenant
+    rolle: admin
+    pfad: /messages
+    vorbereitung:
+      - klicken: 'text=Sarah Yilmaz'
+      - warten_auf: 'main textarea'
+  - id: offene-anfragen
+    titel: Offene Anfragen von Eltern
+    portal: tenant
+    rolle: admin
+    pfad: /anfragen
+  - id: elternbriefe
+    titel: Elternmitteilungen
+    portal: tenant
+    rolle: admin
+    pfad: /parent-announcements
+  - id: essensplan
+    titel: Essensplan der Woche
+    portal: tenant
+    rolle: admin
+    pfad: /meal-plan
+
+  # --- Team -----------------------------------------------------------------
+  - id: zeiterfassung
+    titel: Arbeitszeit erfassen
+    portal: tenant
+    rolle: betreuer
+    pfad: /time-tracking
+    geraete: [iphone, ipad, macbook]
+  - id: urlaub-beantragen
+    titel: Urlaub beantragen
+    portal: tenant
+    rolle: betreuer
+    pfad: /time-tracking
+    vorbereitung:
+      - klicken: 'role=button[name="Urlaub beantragen"]'
+      - warten_auf: '[role="dialog"]'
+  - id: mitarbeiter
+    titel: Das Team im Überblick
+    portal: tenant
+    rolle: admin
+    pfad: /staff
+  - id: team-chat
+    titel: Team-Chat
+    portal: tenant
+    rolle: admin
+    pfad: /team-chat
+  - id: tagesinformationen
+    titel: Tagesinformationen für das Team
+    portal: tenant
+    rolle: admin
+    pfad: /tagesinformationen
+  - id: kalender
+    titel: Mein Kalender
+    portal: tenant
+    rolle: admin
+    pfad: /calendar
+
+  # --- Planung --------------------------------------------------------------
+  - id: betreuungsplan
+    titel: Betreuungsplan der Woche
+    portal: tenant
+    rolle: admin
+    pfad: /betreuungsplan
+  - id: vertretungsplan
+    titel: Vertretung planen
+    portal: tenant
+    rolle: admin
+    pfad: /vertretung
+
+  # --- Verwaltung -----------------------------------------------------------
+  - id: datenverwaltung
+    titel: Datenverwaltung
+    portal: tenant
+    rolle: admin
+    pfad: /database
+  - id: datenverwaltung-kinder
+    titel: Kinder verwalten
+    portal: tenant
+    rolle: admin
+    pfad: /database/students
+  - id: einstellungen
+    titel: Einstellungen der Schule
+    portal: tenant
+    rolle: admin
+    pfad: /settings
+
+  # --- Eltern-Portal --------------------------------------------------------
+  - id: eltern-start
+    titel: Startseite im Eltern-Portal
+    portal: eltern
+    rolle: eltern
+    pfad: /
   - id: eltern-kinder
     titel: Meine Kinder im Eltern-Portal
     portal: eltern
     rolle: eltern
     pfad: /children
+  - id: eltern-kind-heute
+    titel: Der Tag meines Kindes
+    portal: eltern
+    rolle: eltern
+    pfad: /children
+    vorbereitung:
+      - klicken: 'text=Emir Yilmaz'
+      - warten_auf: 'role=tab'
+  - id: eltern-kind-abmelden
+    titel: Kind abmelden
+    portal: eltern
+    rolle: eltern
+    pfad: /children
+    vorbereitung:
+      - klicken: 'text=Emir Yilmaz'
+      - klicken: 'main button:has-text("Emir abmelden")'
+      - warten_auf: '[role="dialog"]'
+  - id: eltern-abholzeit-aendern
+    titel: Abholzeit für einen Tag ändern
+    portal: eltern
+    rolle: eltern
+    pfad: /children
+    vorbereitung:
+      - klicken: 'text=Emir Yilmaz'
+      - klicken: 'main button:has-text("Abholzeit für")'
+      - warten_auf: '[role="dialog"]'
+  - id: eltern-nachrichten
+    titel: Nachrichten an die OGS
+    portal: eltern
+    rolle: eltern
+    pfad: /messages
+  - id: eltern-nachrichten-verlauf
+    titel: Gespräch mit der OGS
+    portal: eltern
+    rolle: eltern
+    pfad: /messages
+    vorbereitung:
+      - klicken: 'text=Für Emir Yilmaz'
+      - warten_auf: 'main textarea'
+  - id: eltern-kalender
+    titel: Termine der Schule
+    portal: eltern
+    rolle: eltern
+    pfad: /calendar
+  - id: eltern-elternbriefe
+    titel: Elternbriefe
+    portal: eltern
+    rolle: eltern
+    pfad: /news
+  - id: eltern-elternbrief-lesen
+    titel: Einen Elternbrief lesen
+    portal: eltern
+    rolle: eltern
+    pfad: /news
+    vorbereitung:
+      - klicken: 'main ul li button'
+      - warten_auf: '[role="dialog"]'
+  - id: eltern-mittagessen
+    titel: Mittagessen der Woche
+    portal: eltern
+    rolle: eltern
+    pfad: /meal-plan

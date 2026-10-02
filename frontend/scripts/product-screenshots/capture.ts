@@ -173,7 +173,9 @@ async function runStep(page: Page, step: Step): Promise<void> {
     await page
       .locator(step.warten_auf)
       .first()
-      .waitFor({ state: "visible", timeout: 15_000 });
+      // Großzügig: nach einem Klick auf eine andere Seite kompiliert der
+      // Dev-Server deren Route beim ersten Aufruf.
+      .waitFor({ state: "visible", timeout: 30_000 });
   } else if (typeof step.scrollen === "number") {
     const offset = step.scrollen;
     await page.evaluate((top) => window.scrollTo(0, top), offset);
@@ -277,8 +279,10 @@ async function captureOne(
       try {
         await runStep(page, step);
       } catch (error) {
+        // Mit dem Anfang des Call-Logs: er sagt, ob der Selektor nichts fand
+        // oder ein Element, das sich nicht klicken ließ.
         stepFailures.push(
-          `Vorbereitung ${JSON.stringify(step)} fehlgeschlagen: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`,
+          `Vorbereitung ${JSON.stringify(step)} fehlgeschlagen: ${error instanceof Error ? error.message.split("\n").slice(0, 4).join(" ").replace(/\s+/g, " ") : String(error)}`,
         );
         break;
       }
