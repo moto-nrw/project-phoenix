@@ -114,11 +114,7 @@ func seedMarketingDailyLife(ctx context.Context, rt *Runtime, data manualProfile
 // marketingNewsFriday is the Friday the news item announces: the first
 // Friday after today.
 func marketingNewsFriday(today seedDate) seedDate {
-	day := today.AddDays(1)
-	for day.Weekday() != time.Friday {
-		day = day.AddDays(1)
-	}
-	return day
+	return seedDate{Time: nextWeekday(today.AddDays(1).Time, time.Friday)}
 }
 
 // seedMarketingAppointments puts a team meeting into today's calendar week
@@ -201,8 +197,7 @@ func seedMarketingParentRequests(ctx context.Context, rt *Runtime, data manualPr
 // seedMarketingMealPlan publishes lunch for every weekday of the current
 // week, the week the tenant meal plan and the parents portal open on.
 func seedMarketingMealPlan(rt *Runtime) error {
-	today := todaySeedDate()
-	monday := today.AddDays(-(int(today.Weekday()) + 6) % 7)
+	monday := seedDate{Time: mostRecentWeekday(todaySeedDate().Time, time.Monday)}
 	for offset, dishes := range marketingMeals {
 		day := monday.AddDays(offset).String()
 		if _, err := rt.Client.Put("/api/meal-plan/"+day, map[string]any{"dishes": dishes}); err != nil {

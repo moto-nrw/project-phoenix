@@ -722,10 +722,10 @@ func assertMarketingDailyLife(t *testing.T, mock *marketingProfileAPIMock, profi
 	assertMarketingRequests(t, mock, profile)
 }
 
-// assertMarketingRequests checks what fills the request inbox, the absence
-// list and the meal plan: one open pickup change and one excused absence,
-// both filed by parents for the next weekday, and a dish on every weekday of
-// the current week.
+// assertMarketingRequests checks the data the shot list adds (#3764): an
+// open pickup change and an excused absence filed by parents for the next
+// weekday, the two appointments, and a dish on every weekday of the current
+// week.
 func assertMarketingRequests(t *testing.T, mock *marketingProfileAPIMock, profile *SeedProfile) {
 	t.Helper()
 	parentToken := func(key string) string {
