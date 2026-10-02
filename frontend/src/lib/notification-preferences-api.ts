@@ -125,3 +125,35 @@ export async function disableAllNotificationPreferences(
 ): Promise<void> {
   await requestJson<void>(basePath(portal), { method: "DELETE" });
 }
+
+/**
+ * Opt-in e-mails to staff (#3780), decided where their event happens rather
+ * than on the profile page. The backend checks the type's permission.
+ */
+const emailSubscriptionSchema = z.object({ enabled: z.boolean() });
+const emailSubscriptionEnvelopeSchema = z.object({
+  data: emailSubscriptionSchema,
+});
+
+function emailSubscriptionPath(type: string): string {
+  return `/api/notifications/email-subscriptions/${encodeURIComponent(type)}`;
+}
+
+export async function fetchEmailSubscription(type: string): Promise<boolean> {
+  const response = await requestJson<unknown>(emailSubscriptionPath(type), {
+    cache: "no-store",
+  });
+  const direct = emailSubscriptionSchema.safeParse(response);
+  if (direct.success) return direct.data.enabled;
+  return emailSubscriptionEnvelopeSchema.parse(response).data.enabled;
+}
+
+export async function setEmailSubscription(
+  type: string,
+  enabled: boolean,
+): Promise<void> {
+  await requestJson<void>(emailSubscriptionPath(type), {
+    method: "PUT",
+    body: JSON.stringify({ enabled }),
+  });
+}

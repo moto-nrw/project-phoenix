@@ -685,35 +685,6 @@ func TestOperationsCreateAndStartSpontaneousRequiresSetting(t *testing.T) {
 	assert.Nil(t, service.lastSpontaneousInput, "disabled web spontaneous activities must not create instances")
 }
 
-func TestOperationsCreateAndStartSpontaneousRejectsFixedScheduleCareConcept(t *testing.T) {
-	t.Parallel()
-
-	service := &fakeOperationsService{}
-	res := NewResource(Dependencies{
-		TimetableData:     operationTimetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
-		InstanceService:   &mockInstanceService{},
-		OperationsService: service,
-		SettingsService: &fakeOperationSettingsService{
-			hasOverride: true,
-			boolValue:   true,
-			stringValue: settingsContract.CareConceptFixedSchedule,
-		},
-	})
-	res.Now = testWorkdayNow
-	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
-
-	rr := executeOperationRequest(t, router, http.MethodPost, "/spontaneous/start", map[string]any{
-		"date":       "2026-05-11",
-		"start_time": "14:00",
-		"end_time":   "15:00",
-		"title":      "Freispiel",
-		"room_id":    7,
-	})
-
-	assert.Equal(t, http.StatusForbidden, rr.Code)
-	assert.Nil(t, service.lastSpontaneousInput, "fixed schedule must not create spontaneous instances")
-}
-
 func TestOperationsCapabilities(t *testing.T) {
 	t.Parallel()
 
@@ -750,15 +721,17 @@ func TestOperationsCapabilitiesDefaultsToEnabled(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), `"web_spontaneous_activities_enabled":true`)
 }
 
-func TestOperationsCapabilitiesDisabledForFixedScheduleCareConcept(t *testing.T) {
+// The switch alone decides since #3730; the care concept it used to depend
+// on is gone, so a string setting of any value changes nothing.
+func TestOperationsCapabilitiesDisabledWhenSwitchOff(t *testing.T) {
 	t.Parallel()
 
 	res := NewResource(Dependencies{
 		TimetableData: operationTimetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		SettingsService: &fakeOperationSettingsService{
 			hasOverride: true,
-			boolValue:   true,
-			stringValue: settingsContract.CareConceptFixedSchedule,
+			boolValue:   false,
+			stringValue: "open_rooms",
 		},
 	})
 	router := operationRouter(http.MethodGet, "/capabilities", res.operationsCapabilities)
@@ -767,6 +740,25 @@ func TestOperationsCapabilitiesDisabledForFixedScheduleCareConcept(t *testing.T)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.Contains(t, rr.Body.String(), `"web_spontaneous_activities_enabled":false`)
+}
+
+func TestOperationsCapabilitiesIgnoreRemovedCareConcept(t *testing.T) {
+	t.Parallel()
+
+	res := NewResource(Dependencies{
+		TimetableData: operationTimetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
+		SettingsService: &fakeOperationSettingsService{
+			hasOverride: true,
+			boolValue:   true,
+			stringValue: "fixed_schedule",
+		},
+	})
+	router := operationRouter(http.MethodGet, "/capabilities", res.operationsCapabilities)
+
+	rr := executeOperationRequest(t, router, http.MethodGet, "/capabilities", nil)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), `"web_spontaneous_activities_enabled":true`)
 }
 
 func TestOperationsRosterByActiveGroup(t *testing.T) {
@@ -1092,6 +1084,8 @@ func (s testOperationSettings) ResolveString(ctx context.Context, key string) (s
 func (testOperationSettings) StartLeadMinutes(context.Context) (int, error) { return 0, nil }
 
 func (testOperationSettings) EnforcePlannedEnd(context.Context) (bool, error) { return false, nil }
+
+func (testOperationSettings) CompleteLeadMinutes(context.Context) (int, error) { return 0, nil }
 
 func (testOperationSettings) ActionScopeKey(timetableCompose.ScopedAction) (string, error) {
 	return testActionScopeKey, nil

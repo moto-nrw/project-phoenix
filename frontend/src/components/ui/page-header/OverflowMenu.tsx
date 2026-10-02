@@ -60,10 +60,23 @@ interface OverflowMenuRadioItem {
   readonly disabled?: boolean;
 }
 
+/**
+ * On/off row with a checkmark shown while on (role="menuitemcheckbox"), for a
+ * personal switch that belongs to the page, e.g. an e-mail on new entries.
+ */
+interface OverflowMenuCheckboxItem {
+  readonly kind: "checkbox";
+  readonly label: string;
+  readonly checked: boolean;
+  readonly onClick: () => void;
+  readonly disabled?: boolean;
+}
+
 export type OverflowMenuEntry =
   | OverflowMenuItem
   | OverflowMenuHeader
   | OverflowMenuRadioItem
+  | OverflowMenuCheckboxItem
   | OverflowMenuSeparator;
 
 interface OverflowMenuProps {
@@ -331,7 +344,7 @@ export function OverflowMenu({
   const menuEntries = () =>
     Array.from(
       menuRef.current?.querySelectorAll<HTMLElement>(
-        '[role="menuitem"]:not([disabled]), [role="menuitemradio"]:not([disabled])',
+        '[role="menuitem"]:not([disabled]), [role="menuitemradio"]:not([disabled]), [role="menuitemcheckbox"]:not([disabled])',
       ) ?? [],
     );
 
@@ -361,7 +374,9 @@ export function OverflowMenu({
   };
 
   const onItemKey =
-    (item: OverflowMenuItem | OverflowMenuRadioItem) =>
+    (
+      item: OverflowMenuItem | OverflowMenuRadioItem | OverflowMenuCheckboxItem,
+    ) =>
     (event: KeyboardEvent<HTMLButtonElement>) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
@@ -441,12 +456,19 @@ export function OverflowMenu({
                   );
                 }
 
-                if ("kind" in entry && entry.kind === "radio") {
+                if (
+                  "kind" in entry &&
+                  (entry.kind === "radio" || entry.kind === "checkbox")
+                ) {
                   return (
                     <button
-                      key={`radio-${entry.label}`}
+                      key={`${entry.kind}-${entry.label}`}
                       type="button"
-                      role="menuitemradio"
+                      role={
+                        entry.kind === "radio"
+                          ? "menuitemradio"
+                          : "menuitemcheckbox"
+                      }
                       aria-checked={entry.checked}
                       disabled={entry.disabled}
                       onClick={() => {
@@ -455,7 +477,7 @@ export function OverflowMenu({
                         entry.onClick();
                       }}
                       onKeyDown={onItemKey(entry)}
-                      className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
+                      className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
                         entry.disabled
                           ? "cursor-not-allowed opacity-50"
                           : "hover:bg-gray-50 active:bg-gray-100"

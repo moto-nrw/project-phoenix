@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -186,8 +185,8 @@ type assertAnError struct{}
 
 func appointmentReminderSettings(leadHours int, enabled bool) *fakeSettingsResolver {
 	return &fakeSettingsResolver{
-		boolValues: map[string]bool{configModel.KeyCalendarAppointmentReminderEnabled: enabled},
-		intValues:  map[string]int{configModel.KeyCalendarAppointmentReminderLeadHours: leadHours},
+		boolValues: map[string]bool{settingCalendarAppointmentReminderEnabled: enabled},
+		intValues:  map[string]int{settingCalendarAppointmentReminderLeadHours: leadHours},
 	}
 }
 

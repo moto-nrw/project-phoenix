@@ -71,7 +71,14 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedTenantGroup(r, rs.db, rs.registerRoutes)
+	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
+		rs.registerRoutes(r, withTx)
+		// Opt-in e-mails to staff (#3780). Each type names the permission its
+		// decision needs, so the handlers check it per type; the school portal
+		// has no such type.
+		r.With(withTx).Get("/email-subscriptions/{type}", rs.getEmailSubscription)
+		r.With(withTx).Put("/email-subscriptions/{type}", rs.setEmailSubscription)
+	})
 
 	return r
 }

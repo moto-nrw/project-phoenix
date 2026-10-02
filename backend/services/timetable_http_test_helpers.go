@@ -219,6 +219,7 @@ func newTimetableHTTPTestReads(db *bun.DB, r TimetableHTTPTestRows, rows reposit
 		Visits:            presence,
 		Templates:         templates,
 		Groups:            r.Timetable,
+		BlockMetadata:     newTimetableBlockDisplayMetadata(db),
 		Categories:        r.ActivityCategory,
 		Rooms:             rows.RoomNames(),
 		RoomOccupancy:     timetableRoomOccupancy{sessions: r.ActiveGroup},

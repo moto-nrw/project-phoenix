@@ -620,6 +620,9 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 	repos := calendarTestRepositories(t, db)
 	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.ParentsURL = "https://parents.test"
+	// The feed counts its window from today; the appointments below sit on
+	// fixed dates, so today is pinned to them instead of the wall clock.
+	cfg.Today = func() appointments.Date { return portalDate(2026, 8, 24) }
 	service := calendarRuntime.NewCalendarPortal(cfg)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Organizer")
@@ -1251,6 +1254,9 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 	repos := calendarTestRepositories(t, db)
 	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.ParentsURL = "https://parents.test"
+	// The feed counts its window from today; the appointments below sit on
+	// fixed dates, so today is pinned to them instead of the wall clock.
+	cfg.Today = func() appointments.Date { return portalDate(2026, 8, 24) }
 	service := calendarRuntime.NewCalendarPortal(cfg)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Tombstone", "Organizer")

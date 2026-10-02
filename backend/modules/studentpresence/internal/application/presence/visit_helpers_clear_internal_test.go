@@ -150,13 +150,12 @@ func (f *fakeSettingsResolver) WebParticipantLimitEnforced(context.Context) (boo
 }
 
 // registryDefaultSettings answers both clear-mode questions with the value an
-// unconfigured tenant gets: a sick note ends at the next check-in, an excuse
-// at the end of the day. That the registry declares these defaults is asserted
+// unconfigured tenant gets: sick notes and excuses end at the end of the day. That the registry declares these defaults is asserted
 // where the settings ports are bound.
 type registryDefaultSettings struct{ *fakeSettingsResolver }
 
 func (registryDefaultSettings) SickClearMode(context.Context) (string, error) {
-	return ClearModeNextCheckin, nil
+	return "end_of_day", nil
 }
 
 func (registryDefaultSettings) ExcusedClearMode(context.Context) (string, error) {
@@ -175,9 +174,9 @@ func TestResolveClearModeUsesResolvedValueAndPropagatesErrors(t *testing.T) {
 	}{
 		{name: "missing wiring", missing: true},
 		{name: "read failure", resolver: &fakeSettingsResolver{resolveErr: injected}, wantErr: injected},
-		{name: "registry default", resolver: &fakeSettingsResolver{resolved: "next_checkin"}, want: "next_checkin"},
+		{name: "registry default", resolver: &fakeSettingsResolver{resolved: "end_of_day"}, want: "end_of_day"},
 		{name: "explicit override", resolver: &fakeSettingsResolver{hasOverride: true, resolved: "manual"}, want: "manual"},
-		{name: "override equals default", resolver: &fakeSettingsResolver{hasOverride: true, resolved: "next_checkin"}, want: "next_checkin"},
+		{name: "override equals default", resolver: &fakeSettingsResolver{hasOverride: true, resolved: "end_of_day"}, want: "end_of_day"},
 		{name: "no override probe", resolver: &fakeSettingsResolver{hasOverrideErr: injected, resolved: "end_of_day"}, want: "end_of_day"},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
@@ -244,6 +243,23 @@ func TestAutoClearStudentSickness_SkipsWhenModeNotNextCheckin(t *testing.T) {
 	assert.Equal(t, 0, repo.updateCalls)
 }
 
+// TestAutoClearStudentSickness_SkipsUnderDefaultMode — the sick default is
+// end_of_day (#3728), so check-in leaves an unconfigured tenant's flag alone.
+func TestAutoClearStudentSickness_SkipsUnderDefaultMode(t *testing.T) {
+	t.Parallel()
+
+	repo := &mockStudentRepoForClear{
+		findByIDFunc: func(_ context.Context, _ int64) (*StudentRecord, error) {
+			t.Fatal("repo should not be called under default end_of_day mode")
+			return nil, nil
+		},
+	}
+	s := newTestServiceWithLogger(nil, repo)
+
+	require.NoError(t, s.autoClearStudentSickness(context.Background(), 42))
+	assert.Equal(t, 0, repo.updateCalls)
+}
+
 // TestAutoClearStudentSickness_FindByIDError — error from repo is swallowed
 // (logged), and no Update call happens.
 func TestAutoClearStudentSickness_FindByIDError(t *testing.T) {
@@ -254,9 +270,9 @@ func TestAutoClearStudentSickness_FindByIDError(t *testing.T) {
 			return nil, errors.New("db down")
 		},
 	}
-	// No settings -> resolveClearMode returns the fallback, which is
-	// next_checkin for sickness — so we actually enter the repo branch.
-	s := newTestServiceWithLogger(nil, repo)
+	// next_checkin makes the clear enter the repo branch.
+	settings := &fakeSettingsResolver{hasOverride: true, resolved: "next_checkin"}
+	s := newTestServiceWithLogger(settings, repo)
 
 	require.ErrorContains(t, s.autoClearStudentSickness(context.Background(), 99), "db down")
 	assert.Equal(t, 0, repo.updateCalls, "Update must not be called when FindByID fails")
@@ -274,7 +290,8 @@ func TestAutoClearStudentSickness_AlreadyHealthy(t *testing.T) {
 			return healthy, nil
 		},
 	}
-	s := newTestServiceWithLogger(nil, repo)
+	settings := &fakeSettingsResolver{hasOverride: true, resolved: "next_checkin"}
+	s := newTestServiceWithLogger(settings, repo)
 
 	require.NoError(t, s.autoClearStudentSickness(context.Background(), 1))
 	assert.Equal(t, 0, repo.updateCalls, "Update must not fire when student is already healthy")
@@ -292,7 +309,8 @@ func TestAutoClearStudentSickness_UpdateErrorPropagates(t *testing.T) {
 		},
 		updateErr: errors.New("update failed"),
 	}
-	s := newTestServiceWithLogger(nil, repo)
+	settings := &fakeSettingsResolver{hasOverride: true, resolved: "next_checkin"}
+	s := newTestServiceWithLogger(settings, repo)
 
 	require.ErrorContains(t, s.autoClearStudentSickness(context.Background(), 2), "update failed")
 	require.Equal(t, 1, repo.updateCalls)

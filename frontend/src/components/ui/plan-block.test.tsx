@@ -110,6 +110,39 @@ describe("PlanBlock", () => {
     expect(screen.queryByText("Soll 3, da 1")).not.toBeInTheDocument();
   });
 
+  it("renders the compact detail line under the single-line head", () => {
+    render(
+      <PlanBlock
+        timeRange="12:00–12:30"
+        label="Mensa"
+        size="compact"
+        compactDetail={<span>Raum 104 · Sonne</span>}
+      />,
+    );
+
+    expect(screen.getByText("Raum 104 · Sonne")).toBeInTheDocument();
+  });
+
+  it("ignores the compact detail line at size=default", () => {
+    render(
+      <PlanBlock
+        timeRange="12:00–14:00"
+        label="Mensa"
+        compactDetail={<span>Raum 104 · Sonne</span>}
+      />,
+    );
+
+    expect(screen.queryByText("Raum 104 · Sonne")).not.toBeInTheDocument();
+  });
+
+  it("passes the tooltip through as the native title", () => {
+    render(
+      <PlanBlock timeRange="12:00–14:00" label="Mensa" title="Raum: 104" />,
+    );
+
+    expect(screen.getByRole("button")).toHaveAttribute("title", "Raum: 104");
+  });
+
   it("renders the optional footer slot at size=default", () => {
     render(
       <PlanBlock

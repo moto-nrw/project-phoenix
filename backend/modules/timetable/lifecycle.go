@@ -38,20 +38,21 @@ func LifecycleBoundary(day calendar.Date, wallClock time.Time) time.Time {
 // EvaluateLifecycleAvailability is the shared clock policy of the lifecycle
 // writes and the payloads that announce them. A planned block starts from
 // the configured lead before its start until (but not including) its planned
-// end, and completes from its planned end when the tenant enforces it.
-// Spontaneous blocks are not bound to plan times.
-func EvaluateLifecycleAvailability(window LifecycleWindow, now time.Time, startLeadMinutes int, enforcePlannedEnd bool) LifecycleAvailability {
+// end, and completes from the configured lead before its planned end when the
+// tenant enforces it (#3809). Spontaneous blocks are not bound to plan times.
+func EvaluateLifecycleAvailability(window LifecycleWindow, now time.Time, startLeadMinutes, completeLeadMinutes int, enforcePlannedEnd bool) LifecycleAvailability {
 	if window.IsSpontaneous {
 		return LifecycleAvailability{CanStart: true, StartAvailableAt: now, CanComplete: true, CompleteAvailableAt: now}
 	}
 	start := LifecycleBoundary(window.Date, window.StartTime)
 	end := LifecycleBoundary(window.Date, window.EndTime)
 	availableAt := start.Add(-time.Duration(startLeadMinutes) * time.Minute)
+	completeAt := end.Add(-time.Duration(completeLeadMinutes) * time.Minute)
 	return LifecycleAvailability{
 		CanStart:            !now.Before(availableAt) && now.Before(end),
 		StartAvailableAt:    availableAt,
-		CanComplete:         !enforcePlannedEnd || !now.Before(end),
-		CompleteAvailableAt: end,
+		CanComplete:         !enforcePlannedEnd || !now.Before(completeAt),
+		CompleteAvailableAt: completeAt,
 	}
 }
 

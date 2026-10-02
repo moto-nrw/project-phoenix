@@ -1,3 +1,5 @@
+import { berlinClockFromISO } from "~/lib/date-helpers";
+
 function parseInstant(value: string | undefined): number | null {
   if (!value) return null;
   const ms = Date.parse(value);
@@ -38,5 +40,20 @@ export function canCompleteInstance(
   const available = new Date(completeAvailableAt);
   return (
     Number.isFinite(available.getTime()) && now.getTime() >= available.getTime()
+  );
+}
+
+/**
+ * The Berlin time ("15:45") from which a block can be completed. A school may
+ * allow completing some minutes before the planned end (#3809), so the label
+ * follows the time the backend announces and only falls back to the planned
+ * end when none is given.
+ */
+export function completeAvailableClock(
+  completeAvailableAt: string | undefined,
+  endTime: string,
+): string {
+  return (
+    (completeAvailableAt && berlinClockFromISO(completeAvailableAt)) || endTime
   );
 }

@@ -37,11 +37,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	reminders "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 )
 
@@ -170,7 +168,7 @@ func (s *Scheduler) notificationDispatchEnabled(ctx context.Context, tenantID in
 	if s.settings == nil {
 		return false
 	}
-	enabled, err := s.settings.ResolveBool(ctx, configModel.KeyNotificationsDispatchEnabled)
+	enabled, err := s.settings.ResolveBool(ctx, settingNotificationsDispatchEnabled)
 	if err != nil {
 		s.getLogger().Warn("reminder notification tick: notification feature flag unreadable, skipping tenant",
 			slog.Int64("tenant_id", tenantID),
@@ -277,7 +275,7 @@ func (s *Scheduler) runReminderNotificationsForTenant(ctx context.Context, tenan
 	// and only after the surrounding tenant transaction commits. A rollback or
 	// commit failure drops both hooks and leaves the occurrences eligible for
 	// the next tick.
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.afterCommit(ctx, func() {
 		for _, key := range freshKeys {
 			s.reminderNotified.Store(key, now)
 		}
@@ -404,7 +402,7 @@ func (s *Scheduler) resolveReminderRecipients(ctx context.Context) ([]reminderRe
 // notifications.on_duty_only. A nil map means "no restriction"; an empty,
 // non-nil map means nobody is currently on duty.
 func (s *Scheduler) resolveOnDutyStaff(ctx context.Context) (map[int64]struct{}, error) {
-	if !s.resolveBoolSetting(ctx, configModel.KeyNotificationsOnDutyOnly, "", true) {
+	if !s.resolveBoolSetting(ctx, settingNotificationsOnDutyOnly, "", false) {
 		return nil, nil
 	}
 
@@ -586,7 +584,7 @@ func buildPersonalReminderEvent(tenantID, accountID int64, notificationType stri
 
 	return notifications.Event{
 		Type:           notificationType,
-		IdempotencyKey: fmt.Sprintf("personal-reminder:%d:%d:%s:%s:%d", tenantID, accountID, notificationType, timezone.DateFromTime(timezone.Now()).String(), count),
+		IdempotencyKey: fmt.Sprintf("personal-reminder:%d:%d:%s:%s:%d", tenantID, accountID, notificationType, calendar.DateFromTime(calendar.Now()).String(), count),
 		RelatedType:    "personal_reminder", RelatedID: accountID,
 		Audience: notifications.Audience{
 			TenantID:        tenantID,
@@ -606,7 +604,7 @@ func buildPersonalReminderEvent(tenantID, accountID int64, notificationType stri
 // embed only wall-clock due times, so yesterday's keys would otherwise
 // suppress today's identical schedule.
 func (s *Scheduler) rotateReminderNotificationCacheIfNewDay(now time.Time) {
-	today := timezone.DateFromTime(now)
+	today := calendar.DateFromTime(now)
 	s.reminderNotifiedDayMu.Lock()
 	defer s.reminderNotifiedDayMu.Unlock()
 	if s.reminderNotifiedDay != today {

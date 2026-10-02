@@ -396,16 +396,6 @@ func (rs *Resource) webSpontaneousActivitiesEnabled(r *http.Request) bool {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	careConcept := settings.ResolveStringOrDefault(
-		r.Context(),
-		rs.SettingsService,
-		settings.KeyCareConcept,
-		settings.CareConceptOpenRooms,
-		logger,
-	)
-	if careConcept != settings.CareConceptOpenRooms {
-		return false
-	}
 	return settings.ResolveBoolOrDefault(
 		r.Context(),
 		rs.SettingsService,

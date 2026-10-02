@@ -46,7 +46,8 @@
     "phoenix simulate",
     "phoenix simulate full-day",
     "phoenix simulate live",
-    "phoenix simulate status"
+    "phoenix simulate status",
+    "phoenix worker"
   ],
   "constructor_calls": [
     {
@@ -65,7 +66,7 @@
       "declaration": "newRuntime",
       "target": "api.New",
       "lines": [
-        110
+        133
       ],
       "tables": []
     },
@@ -75,7 +76,7 @@
       "declaration": "newWorker",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        181
+        227
       ],
       "tables": []
     },
@@ -92,10 +93,10 @@
     {
       "scope": "production",
       "file": "cmd/serve.go",
-      "declaration": "var serveCmd",
+      "declaration": "runServeRoot",
       "target": "api.WithRuntime",
       "lines": [
-        55
+        72
       ],
       "tables": []
     },
@@ -1320,66 +1321,11 @@
     },
     {
       "scope": "test",
-      "file": "services/scheduler/overdue_test.go",
-      "declaration": "buildOverdue",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        52
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/scheduler/pwa_usage_cleanup_test.go",
-      "declaration": "TestPWAUsageCleanup_SweepsStaleRows",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        46
-      ],
-      "tables": [
-        "iot.pwa_standalone_usage"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/scheduler/rollover_deadline_test.go",
-      "declaration": "TestRolloverDeadlineWorkerErrorRollsBackTenantTick",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        49
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/scheduler/session_end_timetable_test.go",
-      "declaration": "TestCompleteTimetableInstancesForEndedSessions",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        44
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/scheduler/student_change_log_cleanup_test.go",
-      "declaration": "TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        41
-      ],
-      "tables": [
-        "audit.data_deletions",
-        "audit.student_field_edits"
-      ]
-    },
-    {
-      "scope": "test",
       "file": "services/scheduler/worker_test.go",
       "declaration": "TestNewWorkerRejectsMissingJobs",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        61
+        52
       ],
       "tables": []
     },
@@ -1389,7 +1335,7 @@
       "declaration": "TestNewWorkerRejectsMissingRuntimeDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        53
+        44
       ],
       "tables": []
     },
@@ -1399,7 +1345,7 @@
       "declaration": "TestNewWorkerRejectsMissingTokenCleanupDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        84
+        75
       ],
       "tables": []
     },
@@ -1409,8 +1355,8 @@
       "declaration": "TestNewWorkerRejectsTypedNilDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        100,
-        111
+        91,
+        102
       ],
       "tables": []
     },

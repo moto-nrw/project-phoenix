@@ -31,6 +31,7 @@ import { HomeBlocksTab } from "./home-blocks-tab";
 import { PersonalizationTab } from "./personalization-tab";
 import { EnrollmentLinkPanel } from "./enrollment-link-panel";
 import { useOptionalSupervision } from "~/lib/supervision-context";
+import { useNFCEnabled } from "~/lib/tenant-context";
 import { useTenantMutate } from "~/lib/swr/hooks";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
@@ -51,7 +52,7 @@ const TAB_LABELS: Record<string, string> = {
   gdpr: "Datenschutz",
   devices: "Geräte",
   enrollment: "Anmeldung",
-  system: "System",
+  system: "Kalender und Export",
   general: "Allgemein",
   security: "Sicherheit",
 };
@@ -62,9 +63,36 @@ function tabLabel(tab: SchemaTab): string {
 
 // Payroll settings (#1417) have their own maintenance page under /payroll —
 // rendering the auto-generated tab here would create a second, worse surface
-// for the same values. Search skips it for the same reason.
-function schemaTabsForPage(schema: SettingsSchema | null | undefined) {
-  return (schema?.tabs ?? []).filter((tab) => tab.key !== "abrechnung");
+// for the same values. The birthday switches (#3737) live on the hand-written
+// "Startseite für alle" tab next to the birthday card. Search skips both.
+const TABS_RENDERED_ELSEWHERE = new Set(["abrechnung", "startseite"]);
+
+// Every field on "Geräte" configures the NFC tablets (#3735). A school without
+// NFC does not see the tab at all instead of an empty one.
+const NFC_ONLY_TABS = new Set(["devices"]);
+
+function schemaTabsForPage(
+  schema: SettingsSchema | null | undefined,
+  nfcEnabled: boolean,
+) {
+  return (schema?.tabs ?? []).filter(
+    (tab) =>
+      !TABS_RENDERED_ELSEWHERE.has(tab.key) &&
+      (nfcEnabled || !NFC_ONLY_TABS.has(tab.key)),
+  );
+}
+
+/** The tab of the schema that holds a setting key, if any. */
+function schemaTabKeyOf(
+  schema: SettingsSchema | null | undefined,
+  settingKey: string,
+): string | null {
+  const owner = (schema?.tabs ?? []).find((tab) =>
+    tab.categories.some((category) =>
+      category.items.some((item) => item.key === settingKey),
+    ),
+  );
+  return owner?.key ?? null;
 }
 
 interface SettingsTabContentProps {
@@ -281,6 +309,7 @@ interface SettingsContentProps {
 
 function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
   const { refresh: refreshSupervision } = useOptionalSupervision();
+  const nfcEnabled = useNFCEnabled();
   const router = useRouter();
   const tenantMutate = useTenantMutate();
   const {
@@ -450,7 +479,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
       )}
       <SettingsTabContent
         tab={tab}
-        allTabs={schemaTabsForPage(schema)}
+        allTabs={schemaTabsForPage(schema, nfcEnabled)}
         highlightKey={highlightKey}
         onSave={handleSave}
         onReset={handleReset}
@@ -464,14 +493,22 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
  * Returns the tab definitions for injecting into SettingsLayout's extraTabs.
  * Each tab renders a SettingsContent component for its key.
  * Returns null silently if user has no access or schema is empty.
+ *
+ * `highlightTabId` is the tab that holds the `?highlight=` setting, so a deep
+ * link opens the right tab even without `?tab=`. `highlightNeedsNfc` is set
+ * when that setting sits on a tab this school does not see because it has no
+ * NFC tablets (#3735), so the page can say why instead of landing nowhere.
  */
 export function useSettingsTabs(): {
   tabs: { id: string; label: string; icon: MotoConceptKey }[];
   renderTab: (tabId: string) => React.ReactNode;
+  highlightTabId: string | null;
+  highlightNeedsNfc: boolean;
 } | null {
   const searchParams = useSearchParams();
   const { data: session } = useSession();
   const { data: schema, error: schemaError, isLoading } = useSettingsSchema();
+  const nfcEnabled = useNFCEnabled();
   const canManageHomeBlocks = hasPermission(session, "config:update");
 
   if (isLoading) {
@@ -495,14 +532,16 @@ export function useSettingsTabs(): {
   // When the schema fetch failed, render placeholder tabs so SettingsContent
   // mounts and can show its own retry UI instead of silently dropping all
   // schema tabs.
-  const fallbackTabKeys = ["operations", "gdpr", "devices", "system"];
+  const fallbackTabKeys = ["operations", "gdpr", "devices", "system"].filter(
+    (key) => nfcEnabled || !NFC_ONLY_TABS.has(key),
+  );
   const schemaTabs = schemaError
     ? fallbackTabKeys.map((key) => ({
         id: `settings-${key}`,
         label: TAB_LABELS[key] ?? key,
         icon: tabConcepts[key] ?? defaultTabConcept,
       }))
-    : schemaTabsForPage(schema).map((tab) => ({
+    : schemaTabsForPage(schema, nfcEnabled).map((tab) => ({
         id: `settings-${tab.key}`,
         label: tabLabel(tab),
         icon: tabConcepts[tab.key] ?? defaultTabConcept,
@@ -547,6 +586,22 @@ export function useSettingsTabs(): {
     personalizationTab,
   ];
   const highlightKey = searchParams.get("highlight");
+  const highlightSchemaTab = highlightKey
+    ? schemaTabKeyOf(schema, highlightKey)
+    : null;
+  let highlightTabId: string | null = null;
+  if (highlightSchemaTab === "startseite") {
+    highlightTabId = canManageHomeBlocks ? homeBlocksTab.id : null;
+  } else if (highlightSchemaTab) {
+    const candidate = `settings-${highlightSchemaTab}`;
+    highlightTabId = tabs.some((tab) => tab.id === candidate)
+      ? candidate
+      : null;
+  }
+  const highlightNeedsNfc =
+    highlightSchemaTab !== null &&
+    NFC_ONLY_TABS.has(highlightSchemaTab) &&
+    !nfcEnabled;
 
   const renderTab = (tabId: string) => {
     if (tabId === "settings-personalisierung") {
@@ -559,5 +614,5 @@ export function useSettingsTabs(): {
     return <SettingsContent tabKey={settingsKey} highlightKey={highlightKey} />;
   };
 
-  return { tabs, renderTab };
+  return { tabs, renderTab, highlightTabId, highlightNeedsNfc };
 }

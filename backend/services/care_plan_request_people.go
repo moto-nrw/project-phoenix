@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -47,7 +48,7 @@ func requestStudentAuditSnapshot(student peopledirectory.StudentRecord) *usersMo
 
 func requestStudentReadError(err error) error {
 	if errors.Is(err, peopledirectory.ErrStudentNotFound) || errors.Is(err, peopledirectory.ErrInvalidStudent) {
-		return usersModels.MissingStudentError("care request student")
+		return usersModels.MissingStudentError("care request student", sql.ErrNoRows)
 	}
 	return err
 }

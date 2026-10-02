@@ -7,21 +7,19 @@ import (
 	"log/slog"
 	"testing"
 
-	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type stubBookingConsistencyAudit struct {
-	report *auditModel.BookingConsistencyReport
+	report *BookingConsistencyReport
 	err    error
 	calls  int
 }
 
-func (s *stubBookingConsistencyAudit) Audit(
-	_ context.Context,
-	auditDate auditModel.Date,
-) (*auditModel.BookingConsistencyReport, error) {
+// audit serves the scheduler's booking consistency port.
+func (s *stubBookingConsistencyAudit) audit(_ context.Context, auditDate calendar.Date) (*BookingConsistencyReport, error) {
 	s.calls++
 	if s.report != nil {
 		s.report.AuditDate = auditDate
@@ -33,12 +31,13 @@ func TestBookingConsistencyAuditLogsDriftCounts(t *testing.T) {
 	t.Parallel()
 
 	var output bytes.Buffer
-	auditor := &stubBookingConsistencyAudit{report: &auditModel.BookingConsistencyReport{
+	auditor := &stubBookingConsistencyAudit{report: &BookingConsistencyReport{
 		TenantID:                    42,
 		PickupProjectionMissingDays: 3,
+		TotalFindings:               3,
 	}}
 	s := unitScheduler(&Scheduler{
-		bookingConsistency: auditor,
+		bookingConsistency: auditor.audit,
 		tasks:              make(map[string]*ScheduledTask),
 		logger: slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{
 			Level: slog.LevelDebug,
@@ -64,7 +63,7 @@ func TestBookingConsistencyAuditLogsRepositoryError(t *testing.T) {
 	want := errors.New("query failed")
 	auditor := &stubBookingConsistencyAudit{err: want}
 	s := unitScheduler(&Scheduler{
-		bookingConsistency: auditor,
+		bookingConsistency: auditor.audit,
 		tasks:              make(map[string]*ScheduledTask),
 		logger: slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{
 			Level: slog.LevelDebug,
@@ -81,12 +80,14 @@ func TestBookingConsistencyAuditTreatsOptionalNoOfferingAsReview(t *testing.T) {
 	t.Parallel()
 
 	var output bytes.Buffer
-	auditor := &stubBookingConsistencyAudit{report: &auditModel.BookingConsistencyReport{
+	// The Audit Platform counts an optional-offering phase for review only,
+	// so the bound report carries no finding for it.
+	auditor := &stubBookingConsistencyAudit{report: &BookingConsistencyReport{
 		TenantID:                        42,
 		ApprovedWithoutOptionalOffering: 2,
 	}}
 	s := unitScheduler(&Scheduler{
-		bookingConsistency: auditor,
+		bookingConsistency: auditor.audit,
 		tasks:              make(map[string]*ScheduledTask),
 		logger: slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{
 			Level: slog.LevelDebug,

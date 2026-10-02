@@ -62,7 +62,10 @@ import {
 import { berlinTodayISO, formatDate, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useMinuteClock } from "~/lib/pickup-helpers";
-import { canCompleteInstance } from "~/lib/timetable-lifecycle";
+import {
+  canCompleteInstance,
+  completeAvailableClock,
+} from "~/lib/timetable-lifecycle";
 import { useSWRAuth } from "~/lib/swr";
 import { timetableService } from "~/lib/timetable-api";
 import type { InstanceParticipantNames } from "~/lib/timetable-api";
@@ -864,7 +867,9 @@ export function InstanceDetailModal({
           >
             <span className="inline-flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4" />
-              {completeEnabled ? "Beenden" : `Beenden ab ${instance.endTime}`}
+              {completeEnabled
+                ? "Beenden"
+                : `Beenden ab ${completeAvailableClock(instance.completeAvailableAt, instance.endTime)}`}
             </span>
           </Button>
         )}

@@ -23,6 +23,9 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.student_daily_checkout_time",
 		"operations.per_student_checkout_enabled",
 		"operations.per_student_checkout_delta_minutes",
+		// Optional note when a child leaves early (#3324).
+		"operations.early_checkout_note_enabled",
+		"operations.early_checkout_note_tolerance_minutes",
 		"operations.session_cleanup_enabled",
 		"operations.session_cleanup_interval_minutes",
 		"operations.session_abandoned_threshold_minutes",
@@ -31,7 +34,6 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.operational_overview_scope",
 		// Who may set a class-wide arrival day exception (#2962).
 		"operations.class_arrival_exception_editors",
-		"operations.status_flag_clear_time",
 		"operations.sick_clear_mode",
 		"operations.excused_clear_mode",
 		"operations.federal_state",
@@ -74,6 +76,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"timetable.auto_start_planned",
 		"timetable.auto_end_enabled",
 		"timetable.auto_end_grace_minutes",
+		"timetable.complete_lead_minutes",
 		"timetable.overdue_threshold_minutes",
 		"timetable.show_expected_children_count",
 		"gdpr.timetable_retention_days",
@@ -89,7 +92,6 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"attendance.nfc_enabled",
 		"attendance.web_spontaneous_activities_enabled",
 		"operations.group_mode",
-		"operations.care_concept",
 		"operations.require_pickup_offering_review",
 		"operations.time_tracking_account_start_date",
 		"operations.time_tracking_enforce_planned_start",
@@ -107,8 +109,6 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"security.account_lockout_duration_minutes",
 		// Privacy-consent visit-data retention default (issue #586, Rule 12).
 		"gdpr.privacy_consent_retention_days",
-		// Parent-enrollment PR 2: activate-students scheduler interval.
-		"operations.student_activation_interval_minutes",
 		// Parent-enrollment PR 3: guardian invitation token expiry.
 		"invitations.guardian_token_expiry_hours",
 		// Parent-enrollment registry plumbing. open_window_*,
@@ -172,10 +172,6 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"display.enabled",
 		// Absence-approval email notifications (issue #1419 4d).
 		"notifications.absence_approval_email",
-		// Cancellation notice to families (#2601).
-		"notifications.care_cancelled_enabled",
-		"notifications.care_cancelled_default_on",
-		"notifications.care_cancelled_email",
 		// Tenant reply address for parent-facing mail (#1936).
 		"email.reply_to_address",
 		// SFTP target for the manual export transfer (#3050).
@@ -261,7 +257,7 @@ func TestCalendarCalDAVSetting(t *testing.T) {
 	assert.Equal(t, "config:update", def.WritePermission)
 	assert.Equal(t, config.AccessShared, def.AccessPolicy)
 	assert.Equal(t, "system", def.Tab)
-	assert.Equal(t, "schnittstellen", def.Category)
+	assert.Equal(t, "kalender", def.Category)
 }
 
 func TestParentRequestGroupLeaderReviewSetting(t *testing.T) {
@@ -471,6 +467,91 @@ func TestRemovedStudentGroupScopeSettings(t *testing.T) {
 	}
 }
 
+// TestSettingsCleanupRemovedKeys pins the settings removed in the settings
+// cleanup (#3729-#3733); migration 1.15.436 deletes their stored values.
+func TestSettingsCleanupRemovedKeys(t *testing.T) {
+	t.Parallel()
+
+	for _, key := range []string{
+		"operations.status_flag_clear_time",
+		"operations.care_concept",
+		"notifications.care_cancelled_enabled",
+		"notifications.care_cancelled_default_on",
+		"notifications.care_cancelled_email",
+		"operations.emergency_list_health_info",
+		"operations.student_activation_interval_minutes",
+	} {
+		assert.Nilf(t, config.GetDefinition(key), "setting %q was removed in the settings cleanup and must stay unregistered", key)
+	}
+}
+
+// TestNotificationsOnDutyOnlyDefaultOff pins #3736: new schools get personal
+// notices without time tracking. Existing schools were pinned to "on" by
+// migration 1.15.436.
+func TestNotificationsOnDutyOnlyDefaultOff(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyNotificationsOnDutyOnly)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default)
+}
+
+// TestNotificationsDispatchDefaultsOn pins the default the Worker's reminder
+// tick reads for a school without its own value: notifications are on.
+func TestNotificationsDispatchDefaultsOn(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyNotificationsDispatchEnabled)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, true, def.Default)
+}
+
+// TestFilesMaxStorageOperatorOnly pins #3734: the moto team sets the storage
+// limit; the setting is hidden from the school's settings page.
+func TestFilesMaxStorageOperatorOnly(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyFilesMaxStorageMB)
+	require.NotNil(t, def)
+	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy)
+	assert.Equal(t, 1024, def.Default)
+}
+
+// TestBirthdaySettingsOnStartseiteTab pins #3737: both birthday switches sit
+// on the hand-written "Startseite für alle" tab, not under "Betrieb".
+func TestBirthdaySettingsOnStartseiteTab(t *testing.T) {
+	t.Parallel()
+
+	for key, want := range map[string]any{
+		config.KeyBirthdayDisplayEnabled:      true,
+		config.KeyBirthdayDisplayIncludeStaff: false,
+	} {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "%s must be registered", key)
+		assert.Equal(t, "startseite", def.Tab, key)
+		assert.Equal(t, want, def.Default, key)
+	}
+}
+
+// TestTrackingIndicatorDefaults pins #3738: the indicators stay off, but
+// switching them on shows "Mensa" and "Hausaufgaben" right away.
+func TestTrackingIndicatorDefaults(t *testing.T) {
+	t.Parallel()
+
+	for key, want := range map[string]any{
+		config.KeyTrackingIndicatorsEnabled: false,
+		config.KeyTrackingIndicator1:        "Mensa",
+		config.KeyTrackingIndicator2:        "Hausaufgaben",
+		config.KeyTrackingIndicator3:        "",
+	} {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "%s must be registered", key)
+		assert.Equal(t, want, def.Default, key)
+	}
+}
+
 func TestWebSpontaneousActivitiesSetting(t *testing.T) {
 	t.Parallel()
 
@@ -482,10 +563,8 @@ func TestWebSpontaneousActivitiesSetting(t *testing.T) {
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "anwesenheit", def.Category)
 	assert.Equal(t, "config:manage", def.WritePermission)
-	require.NotNil(t, def.DependsOn)
-	assert.Equal(t, config.KeyCareConcept, def.DependsOn.Key)
-	assert.Equal(t, "eq", def.DependsOn.Condition)
-	assert.Equal(t, config.CareConceptOpenRooms, def.DependsOn.Value)
+	assert.Equal(t, "Spontane Aktivitäten erlauben", def.Label)
+	assert.Nil(t, def.DependsOn, "the switch alone decides since the care concept is gone (#3730)")
 }
 
 // TestWebParticipantLimitSetting pins the #3632 switch: web assignments may
@@ -648,19 +727,6 @@ func TestOrganizationSetupSettings(t *testing.T) {
 	groupValues := []any{groupDef.Options.Static[0].Value, groupDef.Options.Static[1].Value}
 	assert.Contains(t, groupValues, config.GroupModeFixedGroups)
 	assert.Contains(t, groupValues, config.GroupModeOpenCare)
-
-	careDef := config.GetDefinition(config.KeyCareConcept)
-	require.NotNil(t, careDef, "operations.care_concept should be registered")
-	assert.Equal(t, config.FieldSelect, careDef.Type)
-	assert.Equal(t, config.CareConceptOpenRooms, careDef.Default)
-	assert.Equal(t, config.AccessShared, careDef.AccessPolicy)
-	assert.Equal(t, "operations", careDef.Tab)
-	assert.Equal(t, "organisation", careDef.Category)
-	assert.Equal(t, "config:update", careDef.WritePermission)
-	require.NotNil(t, careDef.Options)
-	careValues := []any{careDef.Options.Static[0].Value, careDef.Options.Static[1].Value}
-	assert.Contains(t, careValues, config.CareConceptFixedSchedule)
-	assert.Contains(t, careValues, config.CareConceptOpenRooms)
 }
 
 func TestTimeTrackingAccountStartDateSetting(t *testing.T) {
@@ -739,6 +805,7 @@ func TestTimetableSettings_Types(t *testing.T) {
 		{"timetable.auto_start_planned", config.FieldBoolean},
 		{"timetable.auto_end_enabled", config.FieldBoolean},
 		{"timetable.auto_end_grace_minutes", config.FieldNumber},
+		{"timetable.complete_lead_minutes", config.FieldNumber},
 		{"timetable.overdue_threshold_minutes", config.FieldNumber},
 		{"timetable.show_expected_children_count", config.FieldBoolean},
 		{"gdpr.timetable_retention_days", config.FieldNumber},
@@ -749,6 +816,36 @@ func TestTimetableSettings_Types(t *testing.T) {
 		require.NotNilf(t, def, "setting %q should exist", tc.key)
 		assert.Equalf(t, tc.expected, def.Type, "setting %q should be type %s", tc.key, tc.expected)
 	}
+}
+
+// A school may let its team complete planned blocks a few minutes before
+// their planned end (#3809). No lead by default keeps existing schools as
+// they are; the setting only matters while the planned end is enforced.
+func TestTimetableCompleteLeadMinutesSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyTimetableCompleteLeadMinutes)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldNumber, def.Type)
+	assert.Equal(t, 0, def.Default, "no lead unless a school sets one")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "stundenplan", def.Category)
+	assert.Equal(t, "config:read", def.ReadPermission)
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	require.NotNil(t, def.Validation)
+	require.NotNil(t, def.Validation.Min)
+	assert.Equal(t, float64(0), *def.Validation.Min)
+	require.NotNil(t, def.Validation.Max)
+	assert.Equal(t, float64(60), *def.Validation.Max)
+	require.NotNil(t, def.DependsOn)
+	assert.Equal(t, config.KeyTimetableEnforcePlannedEnd, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
+
+	parent := config.GetDefinition(config.KeyTimetableEnforcePlannedEnd)
+	require.NotNil(t, parent)
+	assert.Equal(t, parent.SortOrder+1, def.SortOrder, "sits directly below the setting it depends on")
 }
 
 func TestTimetableSettings_Defaults(t *testing.T) {
@@ -955,11 +1052,12 @@ func TestOperationsSettings_Types(t *testing.T) {
 		{"operations.student_daily_checkout_time", config.FieldTime},
 		{"operations.per_student_checkout_enabled", config.FieldBoolean},
 		{"operations.per_student_checkout_delta_minutes", config.FieldNumber},
+		{"operations.early_checkout_note_enabled", config.FieldBoolean},
+		{"operations.early_checkout_note_tolerance_minutes", config.FieldNumber},
 		{"operations.session_cleanup_enabled", config.FieldBoolean},
 		{"operations.session_cleanup_interval_minutes", config.FieldNumber},
 		{"operations.session_abandoned_threshold_minutes", config.FieldNumber},
 		{"operations.operational_overview_scope", config.FieldSelect},
-		{"operations.status_flag_clear_time", config.FieldTime},
 		{"operations.sick_clear_mode", config.FieldSelect},
 		{"operations.excused_clear_mode", config.FieldSelect},
 		{"operations.parent_sick_note_enabled", config.FieldBoolean},
@@ -1046,8 +1144,8 @@ func TestPickupOfferingReviewSetting(t *testing.T) {
 	assert.Equal(t, "betreuungszeiten", def.Category)
 	assert.Equal(t, "config:read", def.ReadPermission)
 	assert.Equal(t, "config:update", def.WritePermission)
-	assert.Equal(t, "Angebotsabgleich für dauerhafte Gehzeiten", def.Label)
-	assert.Equal(t, "Bei einer Abweichung wählen Sie ein anderes Angebot oder eine Ausnahme.", def.Description)
+	assert.Equal(t, "Abgleich fester Abholzeiten mit dem Angebot", def.Label)
+	assert.Equal(t, "Passt eine neue feste Abholzeit nicht zum gebuchten Betreuungsangebot, wählt das Team ein anderes Angebot oder eine Ausnahme.", def.Description)
 }
 
 func TestParentPermanentCareRequestSettings_DefaultOnAndIndependent(t *testing.T) {
@@ -1359,28 +1457,10 @@ func TestGuardianInvitationTokenExpiry(t *testing.T) {
 	assert.Equal(t, float64(168), *def.Validation.Max)
 }
 
-// TestStudentActivationInterval guards the registry shape of the activate-
-// students scheduler interval. Default 60 minutes, validation 5-1440.
-func TestStudentActivationInterval(t *testing.T) {
-	t.Parallel()
-
-	def := config.GetDefinition(config.KeyStudentActivationIntervalMin)
-	require.NotNil(t, def, "operations.student_activation_interval_minutes should be registered")
-	assert.Equal(t, config.FieldNumber, def.Type)
-	assert.Equal(t, 60, def.Default)
-	assert.Equal(t, "operations", def.Tab)
-	assert.Equal(t, "config:update", def.WritePermission)
-	require.NotNil(t, def.Validation)
-	require.NotNil(t, def.Validation.Min)
-	require.NotNil(t, def.Validation.Max)
-	assert.Equal(t, float64(5), *def.Validation.Min)
-	assert.Equal(t, float64(1440), *def.Validation.Max)
-	assert.Nil(t, def.DependsOn, "activate-students interval is independent of other settings")
-}
-
-// TestStatusFlagClearMode_Defaults guards that the clear-mode settings
-// preserve existing behavior (sick clears on next check-in unconditionally,
-// new Entschuldigt flow clears at end of day).
+// TestStatusFlagClearMode_Defaults guards that both clear-mode settings end
+// the flag at the end of the day unless the school chose otherwise (#3728:
+// a sick note must not outlive its end date just because the child has not
+// checked in again).
 func TestStatusFlagClearMode_Defaults(t *testing.T) {
 	t.Parallel()
 
@@ -1389,8 +1469,10 @@ func TestStatusFlagClearMode_Defaults(t *testing.T) {
 	assert.Equal(t, "operations", sickDef.Tab)
 	assert.Equal(t, "abwesenheit", sickDef.Category)
 	assert.Equal(t, "config:update", sickDef.WritePermission)
-	assert.Equal(t, config.ClearModeNextCheckin, sickDef.Default,
-		"sick default must stay next_checkin to preserve prior behavior")
+	assert.Equal(t, config.ClearModeEndOfDay, sickDef.Default,
+		"sick default must be end_of_day so an ended sick note does not linger (#3728)")
+	assert.Contains(t, sickDef.Description, "Enddatum",
+		"description must warn that next_checkin keeps a sick note past its end date")
 
 	excusedDef := config.GetDefinition(config.KeyExcusedClearMode)
 	require.NotNil(t, excusedDef)
@@ -1580,6 +1662,9 @@ func TestDependsOn_GDPRGroup(t *testing.T) {
 
 	timeoutDef := config.GetDefinition("gdpr.data_cleanup_timeout_minutes")
 	require.NotNil(t, timeoutDef)
+	// The duration is a technical limit for the deletion job. Schools decide
+	// whether and when data is deleted, while moto sets this safety limit.
+	assert.Equal(t, config.AccessOperatorOnly, timeoutDef.AccessPolicy)
 	require.NotNil(t, timeoutDef.DependsOn)
 	assert.Equal(t, "gdpr.data_cleanup_enabled", timeoutDef.DependsOn.Key)
 }
@@ -1649,21 +1734,45 @@ func TestFeedbackSettings(t *testing.T) {
 	assert.Equal(t, "config:manage", def.WritePermission)
 }
 
-func TestDevicesSettings(t *testing.T) {
+// TestNachHauseSettingsShareOneBlock pins #1252: every setting that decides
+// when "nach Hause" appears on the tablet sits in one block on the devices
+// tab, in the order a school reads them. Schools looked for the lead time
+// under "Betrieb" while the room rule lived under "Geräte".
+func TestNachHauseSettingsShareOneBlock(t *testing.T) {
 	t.Parallel()
 
 	keys := []string{
-		"checkout.raumwechsel_enabled",
-		"checkout.schulhof_enabled",
-		"checkout.wc_enabled",
-		"checkout.daily_checkout_from_all_rooms_enabled",
+		config.KeyStudentDailyCheckoutTime,
+		config.KeyPerStudentCheckoutEnabled,
+		config.KeyPerStudentCheckoutDeltaMinutes,
+		config.KeyCheckoutDailyFromAllRoomsEnabled,
 	}
+	previous := -1
 	for _, key := range keys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		assert.Equalf(t, "devices", def.Tab, "setting %q tab", key)
+		assert.Equalf(t, "nach-hause", def.Category, "setting %q category", key)
+		assert.Greaterf(t, def.SortOrder, previous, "setting %q order", key)
+		previous = def.SortOrder
+	}
+}
+
+func TestDevicesSettings(t *testing.T) {
+	t.Parallel()
+
+	categories := map[string]string{
+		"checkout.raumwechsel_enabled":                   "checkout",
+		"checkout.schulhof_enabled":                      "checkout",
+		"checkout.wc_enabled":                            "checkout",
+		"checkout.daily_checkout_from_all_rooms_enabled": "nach-hause",
+	}
+	for key, category := range categories {
 		def := config.GetDefinition(key)
 		require.NotNilf(t, def, "setting %q should exist", key)
 		assert.Equal(t, config.FieldBoolean, def.Type, "setting %q should be boolean", key)
 		assert.Equal(t, "devices", def.Tab, "setting %q should be in devices tab", key)
-		assert.Equal(t, "checkout", def.Category, "setting %q should be in checkout category", key)
+		assert.Equal(t, category, def.Category, "setting %q should be in %s category", key, category)
 		assert.Equal(t, "config:update", def.WritePermission, "setting %q should use config:update", key)
 		require.NotNil(t, def.DependsOn, "setting %q should be gated by nfc_enabled", key)
 		assert.Equal(t, config.KeyAttendanceNFCEnabled, def.DependsOn.Key)
@@ -1723,18 +1832,6 @@ func TestStudentDailyCheckoutTime_OptionalDefault(t *testing.T) {
 	assert.Equal(t, "", def.Default, "daily checkout time should default to empty (always available)")
 }
 
-func TestStatusFlagClearTime_Default(t *testing.T) {
-	t.Parallel()
-
-	def := config.GetDefinition(config.KeyStatusFlagClearTime)
-	require.NotNil(t, def)
-	assert.Equal(t, config.FieldTime, def.Type)
-	assert.Equal(t, "18:00", def.Default, "status flag clear time should have a real default so end_of_day can run")
-	assert.Equal(t, "operations", def.Tab)
-	assert.Equal(t, "abwesenheit", def.Category)
-	assert.Equal(t, "config:update", def.WritePermission)
-}
-
 func TestValidation_NumberFields(t *testing.T) {
 	t.Parallel()
 
@@ -1748,6 +1845,7 @@ func TestValidation_NumberFields(t *testing.T) {
 		"gdpr.room_detail_visible_days",
 		"feedback.data_retention_days",
 		"operations.per_student_checkout_delta_minutes",
+		"operations.early_checkout_note_tolerance_minutes",
 	}
 
 	for _, key := range numberKeys {
@@ -1776,7 +1874,6 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"operations.session_cleanup_interval_minutes", 15},
 		{"operations.session_abandoned_threshold_minutes", 60},
 		{"operations.operational_overview_scope", config.OverviewScopeAllStaff},
-		{"operations.status_flag_clear_time", "18:00"},
 		{"gdpr.data_cleanup_enabled", true},
 		{"gdpr.data_cleanup_time", "02:00"},
 		{"gdpr.data_cleanup_timeout_minutes", 30},
@@ -1792,8 +1889,8 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"checkin.activity_capacity_details_enabled", true},
 		{"checkin.room_capacity_details_enabled", true},
 		{"tracking.indicators_enabled", false},
-		{"tracking.indicator_1", ""},
-		{"tracking.indicator_2", ""},
+		{"tracking.indicator_1", "Mensa"},
+		{"tracking.indicator_2", "Hausaufgaben"},
 		{"tracking.indicator_3", ""},
 		{"tracking.auto_checkout_enabled", false},
 		{"tracking.auto_checkout_grace_minutes", 15},
@@ -2031,7 +2128,7 @@ func TestSFTPSettings(t *testing.T) {
 		require.NotNilf(t, def, "%s should be registered", key)
 		assert.Equal(t, "", def.Default, "%s must default to EMPTY — an invented target is a wrong target", key)
 		assert.Equal(t, "system", def.Tab, key)
-		assert.Equal(t, "schnittstellen", def.Category, key)
+		assert.Equal(t, "zeitkonten-export", def.Category, key)
 		assert.Equal(t, "config:manage", def.WritePermission, key)
 		assert.Equal(t, config.AccessAdminOnly, def.AccessPolicy, key)
 		require.NotNil(t, def.Validation, key)
@@ -2131,4 +2228,34 @@ func TestAnalyticsFreigabeSettings(t *testing.T) {
 	assert.Equal(t, float64(100), *sample.Validation.Max)
 	require.NotNil(t, sample.DependsOn)
 	assert.Equal(t, config.KeyAnalyticsFreigabe, sample.DependsOn.Key)
+}
+
+// TestEarlyCheckoutNoteSettings pins the early-checkout note pair (#3324): the
+// prompt is on by default, independent of NFC, and its tolerance only shows
+// while the prompt is on.
+func TestEarlyCheckoutNoteSettings(t *testing.T) {
+	t.Parallel()
+
+	enabled := config.GetDefinition(config.KeyEarlyCheckoutNoteEnabled)
+	require.NotNil(t, enabled)
+	assert.Equal(t, config.FieldBoolean, enabled.Type)
+	assert.Equal(t, true, enabled.Default)
+	assert.Equal(t, "operations", enabled.Tab)
+	assert.Equal(t, "config:update", enabled.WritePermission)
+	assert.Nil(t, enabled.DependsOn, "the web prompt must not depend on NFC")
+	assert.Equal(t, config.AccessShared, enabled.AccessPolicy)
+
+	tolerance := config.GetDefinition(config.KeyEarlyCheckoutNoteToleranceMinutes)
+	require.NotNil(t, tolerance)
+	assert.Equal(t, config.FieldNumber, tolerance.Type)
+	assert.Equal(t, 15, tolerance.Default)
+	require.NotNil(t, tolerance.Validation)
+	require.NotNil(t, tolerance.Validation.Min)
+	require.NotNil(t, tolerance.Validation.Max)
+	assert.InDelta(t, 0, *tolerance.Validation.Min, 0)
+	assert.InDelta(t, 240, *tolerance.Validation.Max, 0)
+	require.NotNil(t, tolerance.DependsOn)
+	assert.Equal(t, config.KeyEarlyCheckoutNoteEnabled, tolerance.DependsOn.Key)
+	assert.Equal(t, "eq", tolerance.DependsOn.Condition)
+	assert.Equal(t, true, tolerance.DependsOn.Value)
 }

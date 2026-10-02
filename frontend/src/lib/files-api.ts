@@ -169,7 +169,7 @@ function filesErrorMessage(
     return "Es gibt schon einen Ordner mit diesem Namen.";
   }
   if (code === "files.quota_exceeded") {
-    return "Der Speicherplatz der Dateiablage ist voll. Bitte erst Dateien löschen.";
+    return "Der Speicherplatz der Dateiablage ist voll. Löschen Sie Dateien, die Sie nicht mehr brauchen. Für mehr Speicherplatz melden Sie sich bitte beim moto-Team.";
   }
   switch (status) {
     case 401:

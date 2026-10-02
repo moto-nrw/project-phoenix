@@ -75,6 +75,10 @@
       "kind": "projection"
     },
     {
+      "id": "timetable-block-display",
+      "kind": "projection"
+    },
+    {
       "id": "presence-legacy-view",
       "kind": "projection"
     },
@@ -1053,6 +1057,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "api/testutil/routetest",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "api/work-time-models",
       "owner": "inbound-work-time-models",
       "role": "http",
@@ -1655,6 +1666,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "seed/avatar",
+      "owner": "dev-tools",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "services",
       "owner": "legacy-composition",
       "role": "compose",
@@ -2201,6 +2219,13 @@
       "external_test_role": "workflow-integration-test"
     },
     {
+      "path": "modules/timetableblockdisplay",
+      "owner": "timetable-block-display",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/presenceprojection",
       "owner": "presence-legacy-view",
       "role": "postgres",
@@ -2526,6 +2551,20 @@
       "path": "services/scheduler",
       "owner": "scheduler-runtime",
       "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schedulerruntime/jobruntime",
+      "owner": "scheduler-runtime",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schedulerruntime/workerlease",
+      "owner": "scheduler-runtime",
+      "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -4045,6 +4084,10 @@
       "write_owner": "migrations"
     },
     {
+      "name": "platform.worker_leases",
+      "write_owner": "scheduler-runtime"
+    },
+    {
       "name": "schedule.activity_exceptions",
       "write_owner": "timetable-activities"
     },
@@ -4209,6 +4252,10 @@
       "write_owner": "communication"
     },
     {
+      "name": "users.parent_message_count_preferences",
+      "write_owner": "communication"
+    },
+    {
       "name": "users.parent_message_reads",
       "write_owner": "communication"
     },
@@ -4338,6 +4385,10 @@
     },
     {
       "name": "users.student_family_protection_events",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.student_notes",
       "write_owner": "people-directory"
     },
     {
@@ -4542,6 +4593,18 @@
         "enrollment.request_children",
         "schedule.activity_instances",
         "schedule.instance_students"
+      ],
+      "tenant_safe": true
+    },
+    {
+      "id": "timetable-block-display",
+      "package": "modules/timetableblockdisplay",
+      "data_objects": [
+        "activities.groups",
+        "education.groups",
+        "facilities.rooms",
+        "schedule.activity_instances",
+        "schedule.planning_tracks"
       ],
       "tenant_safe": true
     },
@@ -4927,6 +4990,10 @@
       "class": "utility"
     },
     {
+      "path": "golang.org/x/image/vector",
+      "class": "utility"
+    },
+    {
       "path": "golang.org/x/sync/singleflight",
       "class": "concurrency"
     },
@@ -4979,7 +5046,15 @@
       "class": "standard"
     },
     {
+      "path": "image/draw",
+      "class": "standard"
+    },
+    {
       "path": "image/jpeg",
+      "class": "standard"
+    },
+    {
+      "path": "image/png",
       "class": "standard"
     },
     {
@@ -11143,6 +11218,28 @@
       "source_role": "compose",
       "target_owner": "timetable-activities",
       "target_role": "public"
+    },
+    {
+      "id": "timetable-block-display.timetable-public",
+      "description": "The block display projection returns the Timetable owner's display vocabulary.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-block-display",
+      "source_role": "postgres",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.timetable-block-display",
+      "description": "Legacy composition binds the block display projection to the Timetable data port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "timetable-block-display",
+      "target_role": "postgres"
     },
     {
       "id": "timetable-activities.postgres.enrollment-provenance",
@@ -18992,17 +19089,6 @@
       "target_role": "domain"
     },
     {
-      "id": "emergency-snapshot.adapter.settings-platform-domain",
-      "description": "Compatibility binding (#2704): the adapter names the health-info setting key of the retained settings service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "emergency-snapshot",
-      "source_role": "adapter",
-      "target_owner": "settings-platform",
-      "target_role": "domain"
-    },
-    {
       "id": "emergency-snapshot.adapter.legacy-shared-domain",
       "description": "Compatibility binding (#2704): the adapter supplies the calendar day and the German collation of the shared helpers.",
       "scopes": [
@@ -21679,6 +21765,28 @@
       "source_role": "module-internal-test",
       "target_owner": "timetable-activities",
       "target_role": "public"
+    },
+    {
+      "id": "scheduler-runtime.postgres.tenant-runtime-public",
+      "description": "The Worker lease store opens its administrative transaction and joins the job transaction through the tenant runtime (#2726).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.compose.scheduler-runtime-postgres",
+      "description": "The Serve root binds the Worker lease store to the scheduler's lease port (#2726).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "scheduler-runtime",
+      "target_role": "postgres"
     },
     {
       "id": "timetable-planning-cutover.test-support.e2e-test.timetable-activities.public",

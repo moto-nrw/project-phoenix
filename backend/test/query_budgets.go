@@ -143,8 +143,9 @@ var queryBudgets = map[string]queryBudget{
 	// modules/timetable/http — 14-day /week: FindByID + 7 preloads + class-exception
 	// lookup (#2962) with headroom for bun metadata reads; was ~98 pre-fix.
 	"api.timetable.student_week.14d": {max: 13},
-	// modules/timetable/http — GET /instances over a week, 8 instances on 3 days:
-	// instances + room + staff batch + student batch + one cutoff read per day.
+	// modules/timetable/http — GET /instances over a week, 8 instances on 3 days
+	// from one template with an education group: instances + one display-metadata
+	// projection + staff batch + student batch + one cutoff read per day.
 	"api.timetable.instances.list": {max: 7},
 	// modules/timetable/http — GET /templates: template rows, retained list enrichments,
 	// plus the setting, offering and series-root reads for roster maintenance
@@ -227,6 +228,11 @@ var queryBudgets = map[string]queryBudget{
 	"modules.timetable.schedules.list":           {max: 1, exact: true},
 	"modules.timetable.supervisors.list":         {max: 1, exact: true},
 	"modules.timetable.target_students.list":     {max: 1, exact: true},
+	// modules/peopledirectory — one child's note card (#3632). Two statements,
+	// whatever the timeline holds: the notes, and one bulk read that resolves
+	// every author's name. Exact, because a count of one would mean the name
+	// resolution silently stopped running and every entry lost its author.
+	"modules.peopledirectory.student_notes.list": {max: 2, exact: true},
 	// modules/communication — inbox reads remain fixed as thread count grows.
 	"modules.communication.parent_messages.list_inbox": {max: 1, exact: true},
 	"modules.communication.staff_messages.list_inbox":  {max: 2, exact: true},
@@ -253,7 +259,8 @@ var queryBudgets = map[string]queryBudget{
 	"services.usercontext.identity_chain.staff":         {max: 1, exact: true},
 	"services.usercontext.identity_chain.teachers":      {max: 1, exact: true},
 	"services.usercontext.identity_chain.substitutions": {max: 2, exact: true},
-	// services/scheduler — one minute snapshot = one settings read for all tenants.
+	// Worker minute snapshot (settingsCompose.NewTenantSnapshots, #2746) — one
+	// settings read for all tenants.
 	"services.scheduler.minute_snapshot.setting_values": {max: 1, exact: true},
 	// services/schedule — Dienstplan overview reads are fixed batches.
 	// The second entry is cumulative on the same counter: 6 without shifts

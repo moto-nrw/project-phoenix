@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
@@ -37,8 +37,8 @@ func TestGetProfile_Success(t *testing.T) {
 	resource := identityoperator.NewProfileResource(mockService)
 
 	req := httptest.NewRequest(http.MethodGet, "/profile", nil)
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -68,8 +68,8 @@ func TestGetProfile_OperatorNotFound(t *testing.T) {
 	resource := identityoperator.NewProfileResource(mockService)
 
 	req := httptest.NewRequest(http.MethodGet, "/profile", nil)
-	claims := testutil.Claims{ID: 999}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 999}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -91,8 +91,8 @@ func TestGetProfile_ServiceError(t *testing.T) {
 	resource := identityoperator.NewProfileResource(mockService)
 
 	req := httptest.NewRequest(http.MethodGet, "/profile", nil)
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -126,8 +126,8 @@ func TestUpdateProfile_Success(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPut, "/profile", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -155,8 +155,8 @@ func TestUpdateProfile_EmptyDisplayName(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPut, "/profile", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -174,8 +174,8 @@ func TestUpdateProfile_InvalidJSON(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPut, "/profile", bytes.NewReader([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -201,8 +201,8 @@ func TestUpdateProfile_InvalidData(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPut, "/profile", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -232,8 +232,8 @@ func TestChangePassword_Success(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/password", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -256,8 +256,8 @@ func TestChangePassword_EmptyCurrentPassword(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/password", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -280,8 +280,8 @@ func TestChangePassword_EmptyNewPassword(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/password", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -299,8 +299,8 @@ func TestChangePassword_InvalidJSON(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/profile/password", bytes.NewReader([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -327,8 +327,8 @@ func TestChangePassword_PasswordMismatch(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/password", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -383,8 +383,8 @@ func TestInitiateEmailChange_Success(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -407,8 +407,8 @@ func TestInitiateEmailChange_EmptyNewEmail(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -431,8 +431,8 @@ func TestInitiateEmailChange_EmptyPassword(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -450,8 +450,8 @@ func TestInitiateEmailChange_InvalidJSON(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -478,8 +478,8 @@ func TestInitiateEmailChange_PasswordMismatch(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -507,8 +507,8 @@ func TestInitiateEmailChange_SameEmail(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -536,8 +536,8 @@ func TestInitiateEmailChange_EmailAlreadyInUse(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -565,8 +565,8 @@ func TestInitiateEmailChange_RateLimit(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -594,8 +594,8 @@ func TestInitiateEmailChange_OperatorInactive(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -623,8 +623,8 @@ func TestInitiateEmailChange_ServiceError(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := testutil.Claims{ID: 123}
-	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
+	claims := routetest.Claims{ID: 123}
+	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 

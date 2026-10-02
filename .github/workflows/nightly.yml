@@ -1,0 +1,28 @@
+name: Nightly full suite
+
+# development has no push run (see main.yml). Pull requests test only what they
+# change, so this run catches what slips between them: two pull requests that
+# pass alone but break together, and gaps in changed-test selection. It runs the
+# full suites on the development head before perf-nightly (03:30 UTC).
+
+on:
+  schedule:
+    - cron: "0 2 * * 1-5"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  test:
+    permissions:
+      contents: read
+      checks: write
+    uses: ./.github/workflows/test.yml
+    with:
+      run-backend: true
+      run-frontend: true
+      run-seed-smoke: true
+      changed-scope: false
+      base_ref: ""
+      full-backend-suite: true
+      full-frontend-suite: true

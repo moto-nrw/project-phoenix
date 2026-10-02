@@ -39,6 +39,15 @@ interface PlanBlockProps {
    * ungültiges HTML.
    */
   readonly footer?: ReactNode;
+  /**
+   * Eine Infozeile unter der einzeiligen Kopfzeile, nur bei size="compact"
+   * (der Fuß entfällt dort). Für Blöcke, die für den Fuß zu kurz sind, aber
+   * eine Zeile mehr tragen. Dieselbe Einschränkung wie beim Fuß: nur
+   * nicht-interaktive Inhalte.
+   */
+  readonly compactDetail?: ReactNode;
+  /** Nativer Tooltip mit dem vollständigen Inhalt, den der Block kürzt. */
+  readonly title?: string;
   /** Rendert <div> statt <button> und deaktiviert das Klick-/Fokusverhalten. */
   readonly interactive?: boolean;
   readonly onClick?: MouseEventHandler<HTMLButtonElement>;
@@ -83,10 +92,12 @@ export function PlanBlock({
   selected,
   statusIcon,
   footer,
+  compactDetail,
   interactive = true,
   onClick,
   className,
   style: positionStyle,
+  title,
   "aria-label": ariaLabel,
 }: PlanBlockProps) {
   const isCancelled = status === "cancelled";
@@ -122,15 +133,20 @@ export function PlanBlock({
 
   const content =
     size === "compact" ? (
-      <span className="flex min-w-0 items-center gap-1.5">
-        <span className="shrink-0 text-[11px] font-medium text-gray-500 tabular-nums">
-          {timeRange}
+      <span className="block min-w-0">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="shrink-0 text-[11px] font-medium text-gray-500 tabular-nums">
+            {timeRange}
+          </span>
+          <span className={labelClassName}>{label}</span>
         </span>
-        <span className={labelClassName}>{label}</span>
+        {compactDetail && <span className="block">{compactDetail}</span>}
       </span>
     ) : (
       <span className="block min-w-0">
-        <span className="block text-[11px] font-medium text-gray-500 tabular-nums">
+        {/* Einzeilig: eine umbrechende Zeitspanne kostet in schmalen Spalten
+            die Zeile, die Raum oder Namen tragen sollte (#3817). */}
+        <span className="block truncate text-[11px] font-medium text-gray-500 tabular-nums">
           {timeRange}
         </span>
         <span className={labelClassName}>{label}</span>
@@ -149,7 +165,12 @@ export function PlanBlock({
 
   if (!interactive) {
     return (
-      <div className={containerClassName} style={style} aria-label={ariaLabel}>
+      <div
+        className={containerClassName}
+        style={style}
+        title={title}
+        aria-label={ariaLabel}
+      >
         {content}
         {statusIconSlot}
       </div>
@@ -162,6 +183,7 @@ export function PlanBlock({
       className={containerClassName}
       style={style}
       onClick={onClick}
+      title={title}
       aria-pressed={selected}
       aria-label={ariaLabel}
     >

@@ -10,17 +10,24 @@ func init() {
 	// specific rooms/activities today (e.g., "Hausaufgaben", "Mensa").
 	// Admins configure up to 3 free-text labels; the backend matches them
 	// against today's visit history (activity group name + room name).
+	//
+	// The feature stays off by default, but the first two labels come
+	// prefilled (#3738): every school using it tracks lunch and homework, so
+	// switching it on shows something useful right away. Schools that enabled
+	// the feature before the prefill keep their exact labels (migration
+	// 1.15.436 pins empty slots). They sit in the "Kinder" category next to
+	// the child photos, the other switch for what a Kinderkarte shows.
 
 	config.Register(config.Definition{
 		Key:             config.KeyTrackingIndicatorsEnabled,
-		Label:           "Aktivitäts-Indikatoren",
-		Description:     "Zeigt in das Kindkarten an, ob ein Kind heute bereits in bestimmten Räumen oder Aktivitäten war",
+		Label:           "Häkchen auf der Kinderkarte",
+		Description:     "Zeigt auf jeder Kinderkarte, ob das Kind heute schon an einem bestimmten Ort war, zum Beispiel in der Mensa. Ein grüner Haken heißt: Das Kind war heute schon dort.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
-		Category:        "indikatoren",
+		Category:        "kinder",
 		SortOrder:       1,
 	})
 
@@ -28,14 +35,14 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyTrackingIndicator1,
-		Label:           "Indikator 1",
-		Description:     "Suchbegriff für Raum- oder Aktivitätsnamen (z.B. 'Mensa', 'Hausaufgaben')",
+		Label:           "Häkchen 1",
+		Description:     "Dieses Wort steht auf der Kinderkarte. Der Haken erscheint, wenn der Name eines besuchten Raums oder einer Aktivität das Wort enthält. Ein leeres Feld zeigt nichts an.",
 		Type:            config.FieldText,
-		Default:         "",
+		Default:         "Mensa",
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
-		Category:        "indikatoren",
+		Category:        "kinder",
 		SortOrder:       2,
 		Validation:      &config.ValidationRules{Pattern: &indicatorPattern},
 		DependsOn:       config.DependsOnEq(config.KeyTrackingIndicatorsEnabled, true),
@@ -43,14 +50,14 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyTrackingIndicator2,
-		Label:           "Indikator 2",
-		Description:     "Suchbegriff für Raum- oder Aktivitätsnamen (z.B. 'Mensa', 'Hausaufgaben')",
+		Label:           "Häkchen 2",
+		Description:     "Dieses Wort steht auf der Kinderkarte. Der Haken erscheint, wenn der Name eines besuchten Raums oder einer Aktivität das Wort enthält. Ein leeres Feld zeigt nichts an.",
 		Type:            config.FieldText,
-		Default:         "",
+		Default:         "Hausaufgaben",
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
-		Category:        "indikatoren",
+		Category:        "kinder",
 		SortOrder:       3,
 		Validation:      &config.ValidationRules{Pattern: &indicatorPattern},
 		DependsOn:       config.DependsOnEq(config.KeyTrackingIndicatorsEnabled, true),
@@ -58,14 +65,14 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyTrackingIndicator3,
-		Label:           "Indikator 3",
-		Description:     "Suchbegriff für Raum- oder Aktivitätsnamen (z.B. 'Mensa', 'Hausaufgaben')",
+		Label:           "Häkchen 3",
+		Description:     "Dieses Wort steht auf der Kinderkarte. Der Haken erscheint, wenn der Name eines besuchten Raums oder einer Aktivität das Wort enthält. Ein leeres Feld zeigt nichts an.",
 		Type:            config.FieldText,
 		Default:         "",
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
-		Category:        "indikatoren",
+		Category:        "kinder",
 		SortOrder:       4,
 		Validation:      &config.ValidationRules{Pattern: &indicatorPattern},
 		DependsOn:       config.DependsOnEq(config.KeyTrackingIndicatorsEnabled, true),
@@ -78,8 +85,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyTrackingAutoCheckoutEnabled,
-		Label:           "Automatische Ausstempelung",
-		Description:     "Stempelt Mitarbeitende automatisch zum geplanten Dienstende aus, wenn sie vergessen haben, sich abzumelden. Gilt nur für Mitarbeitende mit geplanter Schicht im Dienstplan.",
+		Label:           "Automatisch ausstempeln",
+		Description:     "Wer das Ausstempeln vergisst, wird zum geplanten Dienstende ausgestempelt. Gilt nur bei einer geplanten Schicht im Dienstplan.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -91,8 +98,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyTrackingAutoCheckoutGraceMinutes,
-		Label:           "Karenzzeit (Minuten)",
-		Description:     "Wartezeit nach dem geplanten Dienstende, bevor automatisch ausgestempelt wird",
+		Label:           "Wartezeit nach Dienstende (Minuten)",
+		Description:     "So lange wartet moto nach dem geplanten Dienstende, bevor es automatisch ausstempelt.",
 		Type:            config.FieldNumber,
 		Default:         15,
 		ReadPermission:  "config:read",

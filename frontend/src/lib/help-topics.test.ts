@@ -310,7 +310,7 @@ describe("getParentHelpTopicForPath", () => {
     expect(caregiverTopics[15]).toMatchObject({
       id: HELP_TOPICS.transferGroup,
     });
-    expect(caregiverTopics).toHaveLength(39);
+    expect(caregiverTopics).toHaveLength(40);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -480,7 +480,7 @@ describe("getParentHelpTopicForPath", () => {
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            39 -
+            40 -
             (nfcEnabled ? 0 : 7) -
             (presenceMode === "binary" ? (nfcEnabled ? 5 : 4) : 0) -
             (groupMode === "open_care" ? 2 : 0);
@@ -515,8 +515,9 @@ describe("getParentHelpTopicForPath", () => {
     // seit #3430 mit den Einverständnissen) plus die geteilten Artikel, deren
     // Ablauf fuer Leitung und Betreuung derselbe ist -- die eigene
     // Arbeitszeit, der eigene Kalender, der Aufbau der Navigation, die Seiten
-    // des Tagesbetriebs und der Umgang mit dem NFC-Tablet.
-    expect(leadTopics).toHaveLength(79);
+    // des Tagesbetriebs, der Umgang mit dem NFC-Tablet und die Notizen zu
+    // einem Kind.
+    expect(leadTopics).toHaveLength(82);
     expect(
       leadTopics.every(
         (topic) =>
@@ -660,9 +661,12 @@ describe("getParentHelpTopicForPath", () => {
   it("drops room and supervision hints from articles that stay", () => {
     const binary = getHelpTopics("binary", "fixed_groups", true);
 
-    expect(
-      binary.find((t) => t.id === HELP_TOPICS.carePlan)?.steps.join(" "),
-    ).not.toContain("Raum");
+    const carePlanSteps = binary
+      .find((t) => t.id === HELP_TOPICS.carePlan)
+      ?.steps.join(" ");
+    expect(carePlanSteps).not.toContain("Raum");
+    expect(carePlanSteps).toContain("Gruppe");
+    expect(carePlanSteps).toContain("Fachkräfte");
     expect(
       binary.find((t) => t.id === HELP_TOPICS.findStaff)?.result,
     ).not.toContain("Aufsicht");

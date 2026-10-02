@@ -96,6 +96,7 @@ func TestSeedMarketingProfileStep(t *testing.T) {
 	require.NotNil(t, profile)
 	assertMarketingProfile(t, profile)
 	assertMarketingAPIWrites(t, mock, profile)
+	assertMarketingDailyLife(t, mock, profile)
 }
 
 func assertMarketingProfile(t *testing.T, profile *SeedProfile) {
@@ -108,7 +109,7 @@ func assertMarketingProfile(t *testing.T, profile *SeedProfile) {
 	assert.Equal(t, definition.Settings, profile.Settings)
 	assert.JSONEq(t, `false`, string(profile.Settings[profileSettingAttendanceNFC].Value))
 	assert.JSONEq(t, `true`, string(profile.Settings[profileSettingAttendanceWeb].Value))
-	assert.JSONEq(t, `"binary"`, string(profile.Settings[profileSettingPresenceMode].Value))
+	assert.JSONEq(t, `"detailed"`, string(profile.Settings[profileSettingPresenceMode].Value), "rooms record where the children are")
 	assert.Equal(t, definition.Expected, profile.Expected)
 	assert.Equal(t, SeedStateScenarios{DefaultPlayer: "web", DefaultMode: "binary"}, profile.Scenarios)
 
@@ -170,6 +171,34 @@ func assertMarketingAPIWrites(t *testing.T, mock *marketingProfileAPIMock, profi
 	for _, group := range mock.groups {
 		assert.Len(t, group["teacher_ids"], 1, "each group has its caregiver")
 	}
+	assert.Len(t, mock.photos, 8, "two of three children get a picture, the rest keep initials")
+	for id, consent := range mock.photos {
+		assert.Equal(t, "true", consent, "student %d photo carries the parents' consent", id)
+	}
+	assert.ElementsMatch(t, []string{
+		marketingMockAdminToken,
+		marketingMockStaffPrefix + "miriam.sommer@example.test",
+		marketingMockStaffPrefix + "jonas.albrecht@example.test",
+	}, mock.avatars, "every staff member uploads their own picture while signed in")
+	distinct := map[string]bool{}
+	for _, picture := range mock.pictures {
+		distinct[picture] = true
+	}
+	assert.Len(t, distinct, len(mock.pictures), "no two people of the school share a picture")
+}
+
+// readMarketingPicture checks that an upload carries a PNG in field and
+// returns its consent flag and the picture.
+func readMarketingPicture(t *testing.T, r *seedHTTPRequest, field string) (string, string) {
+	t.Helper()
+	require.NoError(t, r.ParseMultipartForm(1<<20))
+	file, _, err := r.FormFile(field)
+	require.NoError(t, err)
+	defer func() { _ = file.Close() }()
+	content, err := io.ReadAll(file)
+	require.NoError(t, err)
+	assert.True(t, bytes.HasPrefix(content, []byte("\x89PNG\r\n\x1a\n")), "%s upload is a PNG", field)
+	return r.FormValue("consent_acknowledged"), string(content)
 }
 
 // marketingScheduleTimes returns the one arrival and pickup time a child has
@@ -199,6 +228,7 @@ const (
 	marketingMockAdminToken     = "marketing-admin-token"
 	marketingMockDeveloperToken = "marketing-developer-token"
 	marketingMockParentPrefix   = "marketing-parent-"
+	marketingMockStaffPrefix    = "marketing-staff-"
 )
 
 // marketingProfileAPIMock fakes the endpoints the marketing profile drives.
@@ -218,13 +248,36 @@ type marketingProfileAPIMock struct {
 	attendance      map[int64]string
 	parentPasswords map[string]string
 	parentGuardian  map[string]int64
+	photos          map[int64]string // student id → consent_acknowledged
+	avatars         []string         // signed-in accounts that uploaded one
+	pictures        []string         // every uploaded picture, children and staff
+	rooms           map[int64]string // room id → name
+	activities      map[int64]map[string]any
+	instances       map[int64]map[string]any // planned blocks, by id
+	started         map[int64]bool
+	inRoom          map[int64]int64 // student id → running block
+	notices         []map[string]any
+	news            map[int64]bool // announcement id → published
+	teamMessages    []marketingMockMessage
+	parentMessages  []marketingMockMessage
+	staffReplies    []marketingMockMessage
+	setupCompleted  bool
+	setupDismissed  bool
+}
+
+// marketingMockMessage is one message the fake received: who sent it
+// (bearer token), where to, and the text.
+type marketingMockMessage struct {
+	sender, target, body string
 }
 
 func newMarketingProfileAPIMock() *marketingProfileAPIMock {
 	return &marketingProfileAPIMock{
 		nextID: 7500, settings: make(map[string]json.RawMessage), students: make(map[int64]map[string]any),
 		guardianOf: make(map[int64]int64), guardianEmail: make(map[int64]string), attendance: make(map[int64]string),
-		parentPasswords: make(map[string]string), parentGuardian: make(map[string]int64),
+		parentPasswords: make(map[string]string), parentGuardian: make(map[string]int64), photos: make(map[int64]string),
+		rooms: make(map[int64]string), activities: make(map[int64]map[string]any), instances: make(map[int64]map[string]any),
+		started: make(map[int64]bool), inRoom: make(map[int64]int64), news: make(map[int64]bool),
 	}
 }
 
@@ -249,7 +302,8 @@ func (m *marketingProfileAPIMock) claims(r *seedHTTPRequest, body map[string]any
 		return true
 	case !m.active:
 		return false
-	case auth == marketingMockAdminToken || auth == marketingMockDeveloperToken || strings.HasPrefix(auth, marketingMockParentPrefix):
+	case auth == marketingMockAdminToken || auth == marketingMockDeveloperToken ||
+		strings.HasPrefix(auth, marketingMockParentPrefix) || strings.HasPrefix(auth, marketingMockStaffPrefix):
 		return true
 	case strings.HasPrefix(r.URL.Path, fmt.Sprintf("/operator/schools/%d/", marketingMockSchoolID)):
 		return true
@@ -257,7 +311,7 @@ func (m *marketingProfileAPIMock) claims(r *seedHTTPRequest, body map[string]any
 		return true
 	case strings.HasPrefix(r.URL.Path, "/auth/invitations/marketing-") || strings.HasPrefix(r.URL.Path, "/auth/guardian-invitations/marketing-"):
 		return true
-	case r.URL.Path == "/auth/login" && body["email"] == "marketing-admin@example.test":
+	case r.URL.Path == "/auth/login" && strings.HasSuffix(fmt.Sprint(body["email"]), "@example.test"):
 		return true
 	case r.URL.Path == "/parent/auth/login":
 		_, ok := m.parentGuardian[fmt.Sprint(body["email"])]
@@ -309,7 +363,16 @@ func (m *marketingProfileAPIMock) id() int64 {
 func (m *marketingProfileAPIMock) respond(t *testing.T, r *seedHTTPRequest, body map[string]any) (any, int) {
 	t.Helper()
 	path := r.URL.Path
+	if path == "/api/me/profile/avatar" {
+		_, picture := readMarketingPicture(t, r, "avatar")
+		m.avatars = append(m.avatars, strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+		m.pictures = append(m.pictures, picture)
+		return nil, 0
+	}
 	if data, ok := m.respondIdentity(r, body); ok {
+		return data, 0
+	}
+	if data, ok := m.respondDailyLife(t, r, body); ok {
 		return data, 0
 	}
 	if strings.HasPrefix(path, "/api/students/") || strings.HasPrefix(path, "/api/guardians/") || strings.HasPrefix(path, "/auth/guardian-invitations/") || strings.HasPrefix(path, "/parent/") {
@@ -360,7 +423,10 @@ func (m *marketingProfileAPIMock) respondIdentity(r *seedHTTPRequest, body map[s
 	case "/auth/invitations/marketing-admin-invite/accept":
 		return nil, true
 	case "/auth/login":
-		return marketingMockToken(marketingMockAdminToken), true
+		if body["email"] == "marketing-admin@example.test" {
+			return marketingMockToken(marketingMockAdminToken), true
+		}
+		return marketingMockToken(marketingMockStaffPrefix + fmt.Sprint(body["email"])), true
 	case "/api/me/profile":
 		m.adminName = fmt.Sprintf("%s %s", body["first_name"], body["last_name"])
 		return nil, true
@@ -411,6 +477,9 @@ func (m *marketingProfileAPIMock) studentRows() []map[string]any {
 		switch m.attendance[id] {
 		case "checked_in":
 			row["current_location"] = "Anwesend"
+			if block, ok := m.inRoom[id]; ok {
+				row["current_location"] = "Anwesend - " + m.rooms[int64(m.instances[block]["room_id"].(float64))]
+			}
 		case "checked_out":
 			row["current_location"], row["actual_pickup_time"] = "Abwesend", "2026-09-29T10:00:00+02:00"
 		}
@@ -425,6 +494,13 @@ func (m *marketingProfileAPIMock) respondFamily(t *testing.T, r *seedHTTPRequest
 	path := r.URL.Path
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 	switch {
+	case strings.HasSuffix(path, "/photo"):
+		id, err := strconv.ParseInt(parts[2], 10, 64)
+		require.NoError(t, err)
+		consent, picture := readMarketingPicture(t, r, "photo")
+		m.photos[id] = consent
+		m.pictures = append(m.pictures, picture)
+		return nil, 0
 	case path == "/api/students/arrival-settings":
 		return map[string]any{"care_days_source": "weekly_plan"}, 0
 	case strings.HasSuffix(path, "/school-checkin"):
@@ -461,6 +537,11 @@ func (m *marketingProfileAPIMock) respondFamily(t *testing.T, r *seedHTTPRequest
 			return nil, seedHTTPStatusUnauthorized
 		}
 		return map[string]any{"access_token": fmt.Sprintf("%s%d", marketingMockParentPrefix, m.parentGuardian[email])}, 0
+	case strings.HasPrefix(path, "/parent/me/messages/children/"):
+		m.parentMessages = append(m.parentMessages, marketingMockMessage{
+			sender: strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), target: parts[4], body: body["body"].(string),
+		})
+		return map[string]any{"thread_id": strconv.Itoa(8000 + len(m.parentMessages)), "messages": []map[string]any{{"id": "9001"}}}, 0
 	case path == "/parent/me/children":
 		guardianID, err := strconv.ParseInt(strings.TrimPrefix(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), marketingMockParentPrefix), 10, 64)
 		require.NoError(t, err)
@@ -474,4 +555,158 @@ func (m *marketingProfileAPIMock) respondFamily(t *testing.T, r *seedHTTPRequest
 	}
 	t.Errorf("marketing fake has no answer for %s %s", r.Method, path)
 	return nil, seedHTTPStatusNotFound
+}
+
+// respondDailyLife answers the rooms, the planned blocks, the messages, the
+// notice, the news, and the onboarding wizard of the marketing school.
+func (m *marketingProfileAPIMock) respondDailyLife(t *testing.T, r *seedHTTPRequest, body map[string]any) (any, bool) {
+	t.Helper()
+	path := r.URL.Path
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	sender := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	switch {
+	case path == "/api/rooms":
+		id := m.id()
+		m.rooms[id] = body["name"].(string)
+		return map[string]any{"id": id}, true
+	case path == "/api/activities/categories":
+		return []map[string]any{{"id": 51, "name": "Sport"}, {"id": 54, "name": "Spiele"}}, true
+	case path == "/api/activities":
+		id := m.id()
+		m.activities[id] = body
+		return map[string]any{"id": id}, true
+	case path == "/api/timetable/periods/bootstrap":
+		return nil, true
+	case path == "/api/timetable/instances":
+		id := m.id()
+		m.instances[id] = body
+		return map[string]any{"id": strconv.FormatInt(id, 10)}, true
+	case strings.HasPrefix(path, "/api/timetable/instances/") && strings.HasSuffix(path, "/start"):
+		m.started[mustParseID(t, parts[3])] = true
+		return nil, true
+	case strings.HasPrefix(path, "/api/timetable/operations/instances/") && strings.HasSuffix(path, "/check-in"):
+		block := mustParseID(t, parts[4])
+		require.True(t, m.started[block], "children check into a running block")
+		m.inRoom[mustParseID(t, parts[6])] = block
+		return map[string]any{}, true
+	case path == "/api/timetable/operations/planned-now":
+		return map[string]any{"instances": m.plannedNow()}, true
+	case path == "/api/staff-notices/":
+		m.notices = append(m.notices, body)
+		return map[string]any{"id": "8100"}, true
+	case path == "/api/parent-announcements/":
+		id := m.id()
+		m.news[id] = false
+		return map[string]any{"id": strconv.FormatInt(id, 10)}, true
+	case strings.HasPrefix(path, "/api/parent-announcements/") && strings.HasSuffix(path, "/publish"):
+		m.news[mustParseID(t, parts[2])] = true
+		return nil, true
+	case path == "/api/staff-messages/threads/open":
+		return map[string]any{"thread_id": "account-" + fmt.Sprint(body["account_id"])}, true
+	case strings.HasPrefix(path, "/api/staff-messages/threads/"):
+		m.teamMessages = append(m.teamMessages, marketingMockMessage{sender: sender, target: parts[3], body: body["body"].(string)})
+		return nil, true
+	case strings.HasPrefix(path, "/api/messages/threads/"):
+		m.staffReplies = append(m.staffReplies, marketingMockMessage{sender: sender, target: parts[3], body: body["body"].(string)})
+		return nil, true
+	case path == "/api/school-setup":
+		return map[string]any{"steps": []map[string]any{{"key": "invite_staff", "applies": true}}}, true
+	case strings.HasPrefix(path, "/api/school-setup/steps/"):
+		return nil, true
+	case path == "/api/school-setup/complete":
+		m.setupCompleted = true
+		return nil, true
+	case path == "/api/school-setup/dismissal":
+		m.setupDismissed = body["dismissed"] == true
+		return nil, true
+	}
+	return nil, false
+}
+
+func (m *marketingProfileAPIMock) plannedNow() []map[string]any {
+	instances := []map[string]any{}
+	for id, block := range m.instances {
+		present := 0
+		for _, running := range m.inRoom {
+			if running == id {
+				present++
+			}
+		}
+		status := "planned"
+		if m.started[id] {
+			status = "active"
+		}
+		instances = append(instances, map[string]any{"title": block["title"], "status": status, "present_students_count": present})
+	}
+	return instances
+}
+
+func mustParseID(t *testing.T, raw string) int64 {
+	t.Helper()
+	id, err := strconv.ParseInt(raw, 10, 64)
+	require.NoError(t, err)
+	return id
+}
+
+// assertMarketingDailyLife checks the everyday life at the reference clock:
+// every present child sits in a running block of its own group, the blocks
+// span the reference clock, the admin has unread messages from the team and
+// from a family, the families have news and a reply, and the onboarding
+// wizard is gone.
+func assertMarketingDailyLife(t *testing.T, mock *marketingProfileAPIMock, profile *SeedProfile) {
+	t.Helper()
+	require.Len(t, mock.rooms, len(marketingRooms()))
+	require.Len(t, mock.instances, len(marketingSessions()))
+	titles := []string{}
+	for id, block := range mock.instances {
+		assert.True(t, mock.started[id], "block %v runs", block["title"])
+		assert.Less(t, block["start_time"], marketingReferenceClock)
+		assert.Greater(t, block["end_time"], marketingReferenceClock)
+		activity := mock.activities[int64(block["activity_group_id"].(float64))]
+		require.NotNil(t, activity, "block %v has its own activity", block["title"])
+		assert.Equal(t, block["title"], activity["name"])
+		titles = append(titles, block["title"].(string))
+	}
+	assert.ElementsMatch(t, []string{"Bauecke", "Fußball"}, titles)
+
+	inRoom := map[string]int{}
+	for _, student := range profile.Entities.Students {
+		block, ok := mock.inRoom[student.ID]
+		if mock.attendance[student.ID] != "checked_in" {
+			assert.False(t, ok, "%s is not at school and sits in no room", student.Key)
+			continue
+		}
+		require.True(t, ok, "present child %s sits in a running block", student.Key)
+		assert.Contains(t, mock.instances[block]["student_ids"], float64(student.ID), "%s is planned for its block", student.Key)
+		inRoom[mock.rooms[int64(mock.instances[block]["room_id"].(float64))]]++
+	}
+	assert.Equal(t, map[string]int{"Bauraum": 3, "Turnhalle": 4}, inRoom)
+
+	require.Len(t, mock.notices, 1)
+	assert.Equal(t, marketingNoticeTitle, mock.notices[0]["title"])
+	assert.Equal(t, map[int64]bool{}, filterNews(mock.news, false), "every announcement is published")
+	assert.Len(t, mock.news, 1)
+
+	admin := profile.Credentials.Accounts.Admin[0]
+	assert.Equal(t, []marketingMockMessage{{
+		sender: marketingMockStaffPrefix + "miriam.sommer@example.test",
+		target: fmt.Sprintf("account-%d", admin.AccountID), body: marketingTeamMessage,
+	}}, mock.teamMessages, "a caregiver writes to the admin, who leaves it unread")
+	require.Len(t, mock.parentMessages, 2)
+	assert.Equal(t, strconv.FormatInt(profile.Entities.Students["emir-yilmaz"].ID, 10), mock.parentMessages[0].target)
+	assert.Equal(t, strconv.FormatInt(profile.Entities.Students["lina-becker"].ID, 10), mock.parentMessages[1].target)
+	require.Len(t, mock.staffReplies, 1, "the team answers one family and leaves the other message open")
+	assert.Equal(t, marketingMockAdminToken, mock.staffReplies[0].sender)
+
+	assert.True(t, mock.setupCompleted && mock.setupDismissed, "the onboarding checklist does not cover the home page")
+}
+
+func filterNews(news map[int64]bool, published bool) map[int64]bool {
+	out := map[int64]bool{}
+	for id, state := range news {
+		if state == published {
+			out[id] = state
+		}
+	}
+	return out
 }

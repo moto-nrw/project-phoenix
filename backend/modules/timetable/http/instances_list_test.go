@@ -18,6 +18,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -110,6 +111,19 @@ func buildListSetup(t *testing.T) *listSetup {
 		Templates:         data,
 		TimetableData:     data.TimetableData(),
 		ConflictDetection: data.ConflictDetection(),
+		SettingsService: &configtest.Mock{
+			ResolveBoolFn: func(context.Context, string) (bool, error) { return true, nil },
+			ResolveIntFn: func(_ context.Context, key string) (int, error) {
+				switch key {
+				case settings.KeyTimetableCompleteLeadMinutes:
+					return 0, nil
+				case settings.KeyTimetableChildrenPerStaffRatio:
+					return 12, nil
+				default:
+					return 0, fmt.Errorf("unexpected integer setting %q", key)
+				}
+			},
+		},
 	})
 
 	return &listSetup{res: res, db: db, ctx: ctx, roomID: room.ID, cleanupFn: cleanup}
@@ -186,7 +200,7 @@ func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *test
 		}},
 	}})
 	periodID := sourceID + 1
-	meta := templateMeta{sourceCareOfferingIDs: []int64{sourceID}}
+	metadata := timetable.BlockDisplayMetadata{SourceCareOfferingIDs: []int64{sourceID}}
 
 	tests := []struct {
 		name     string
@@ -200,7 +214,7 @@ func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *test
 		t.Run(tt.name, func(t *testing.T) {
 			instance := timetable.ScheduledInstance{Date: tt.date, CalendarPeriodID: &periodID}
 			reason := resource.resolveEmptyRosterReason(
-				context.Background(), instance, meta, nil,
+				context.Background(), instance, metadata, nil,
 				make(map[int64]timetable.EmptyOfferingRosterExplainer),
 			)
 			require.NotNil(t, reason)
@@ -213,7 +227,7 @@ func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *test
 	populated := resource.resolveEmptyRosterReason(
 		context.Background(),
 		timetable.ScheduledInstance{Date: calendar.NewDate(2026, 8, 10), CalendarPeriodID: &periodID},
-		meta,
+		metadata,
 		[]timetable.ScheduledParticipant{{StudentID: sourceID + 2}},
 		make(map[int64]timetable.EmptyOfferingRosterExplainer),
 	)
@@ -664,6 +678,77 @@ func TestEnforcePlannedEndPropagatesResolveError(t *testing.T) {
 	require.ErrorIs(t, err, timetable.ErrLifecycleSettings)
 }
 
+func TestCompleteLeadMinutesRejectsMissingSettings(t *testing.T) {
+	t.Parallel()
+
+	res := NewResource(Dependencies{})
+	_, err := res.completeLeadMinutes(context.Background())
+	require.ErrorIs(t, err, timetable.ErrLifecycleSettings)
+}
+
+func TestCompletionAvailabilityRejectsMissingSettings(t *testing.T) {
+	t.Parallel()
+
+	res := NewResource(Dependencies{})
+	_, err := res.completionAvailability(context.Background(), timetable.ScheduledInstance{})
+	require.ErrorIs(t, err, timetable.ErrLifecycleSettings)
+}
+
+func TestCompleteLeadMinutesResolvesZero(t *testing.T) {
+	t.Parallel()
+
+	res := NewResource(Dependencies{
+		SettingsService: &configtest.Mock{
+			ResolveIntFn: func(_ context.Context, key string) (int, error) {
+				require.Equal(t, settings.KeyTimetableCompleteLeadMinutes, key)
+				return 0, nil
+			},
+		},
+	})
+	got, err := res.completeLeadMinutes(context.Background())
+	require.NoError(t, err)
+	assert.Zero(t, got)
+}
+
+func TestCompleteLeadMinutesPropagatesResolveError(t *testing.T) {
+	t.Parallel()
+
+	res := NewResource(Dependencies{
+		SettingsService: &configtest.Mock{
+			ResolveIntFn: func(context.Context, string) (int, error) {
+				return 0, errors.New("settings down")
+			},
+		},
+	})
+	_, err := res.completeLeadMinutes(context.Background())
+	require.ErrorIs(t, err, timetable.ErrLifecycleSettings)
+}
+
+// The list payload announces the lead's earlier completion time, so the
+// "Beenden ab" label and the write path agree (#3809).
+func TestCompletionAvailabilityAppliesCompleteLead(t *testing.T) {
+	t.Parallel()
+
+	res := NewResource(Dependencies{
+		SettingsService: &configtest.Mock{
+			ResolveBoolFn: func(context.Context, string) (bool, error) { return true, nil },
+			ResolveIntFn: func(_ context.Context, key string) (int, error) {
+				require.Equal(t, settings.KeyTimetableCompleteLeadMinutes, key)
+				return 15, nil
+			},
+		},
+	})
+	inst := timetable.ScheduledInstance{
+		Date:      calendar.NewDate(2099, time.October, 2),
+		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
+	}
+	got, err := res.completionAvailability(context.Background(), inst)
+	require.NoError(t, err)
+	assert.False(t, got.CanComplete)
+	assert.True(t, got.CompleteAvailableAt.Equal(time.Date(2099, 10, 2, 15, 45, 0, 0, calendar.Berlin)))
+}
+
 func TestListInstances_IsLive(t *testing.T) {
 	t.Parallel()
 
@@ -835,6 +920,57 @@ func TestListInstances_SeriesNotesJoinedFromTemplate(t *testing.T) {
 	assert.Equal(t, seriesNote, *item.SeriesNotes)
 	require.NotNil(t, item.Notes, "per-occurrence Tagesnotiz must remain independent")
 	assert.Equal(t, dayNote, *item.Notes)
+}
+
+// TestListInstances_NamesTemplateEducationGroup covers #3817: every block of
+// a template that targets an education group carries the group's name, so
+// the Betreuungsplan can show it in the block; a block without a template
+// group carries none.
+func TestListInstances_NamesTemplateEducationGroup(t *testing.T) {
+	t.Parallel()
+
+	s := buildListSetup(t)
+	defer s.cleanupFn()
+
+	from, fromDate := listFutureDate(1)
+	to, _ := listFutureDate(7)
+
+	educationGroup := testpkg.CreateTestEducationGroup(t, s.db, "Plan-Gruppe")
+	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("Group-Template-%d", time.Now().UnixNano()))
+	_, err := s.db.NewUpdate().
+		TableExpr("activities.groups").
+		Set("is_template = TRUE").
+		Set("education_group_id = ?", educationGroup.ID).
+		Where("id = ?", group.ID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	for _, day := range []int{0, 1} {
+		testpkg.CreateTestActivityInstance(t, s.db, fromDate.AddDays(day), s.roomID, testpkg.ActivityInstanceOpts{
+			ActivityGroupID: &group.ID,
+			StartHHMM:       "14:00",
+			EndHHMM:         "15:00",
+			Title:           "Gruppenblock",
+		})
+	}
+	ungrouped := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "16:00", EndHHMM: "17:00", Title: "Ohne Gruppe",
+	})
+
+	router := listRouter(s.ctx, s.res)
+	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodeList(t, w)
+	require.Len(t, got.Instances, 3)
+	for _, item := range got.Instances {
+		if item.ID == ungrouped.ID {
+			assert.Empty(t, item.GroupName, "a block without a template group carries no group name")
+			continue
+		}
+		assert.Equal(t, educationGroup.Name, item.GroupName)
+	}
 }
 
 // TestListInstances_NoSeriesNotesWhenTemplateHasNone confirms an instance whose

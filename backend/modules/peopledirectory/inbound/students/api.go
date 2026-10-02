@@ -59,6 +59,15 @@ type FamilyProtectionCapability interface {
 	peopleModule.FamilyProtectionCommand
 }
 
+// StudentNotesCapability is the People Directory owner surface behind a
+// child's note card (#3632): the audience-filtered timeline and the writes.
+// Author names arrive resolved on the notes, so this resource never joins
+// accounts to persons itself.
+type StudentNotesCapability interface {
+	peopleModule.StudentNoteQuery
+	peopleModule.StudentNoteCommand
+}
+
 // ClassListEntryReader hands over the entries in the class-then-name display
 // order the "Klassenliste" export and the class dropdown both rely on. The
 // root binds it to the School Membership capability that owns them.
@@ -113,7 +122,7 @@ type StudentPresence interface {
 	GetActiveGroup(ctx context.Context, id int64) (*studentpresence.SessionDetail, error)
 	EndVisit(ctx context.Context, id int64) error
 	CheckInStudent(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*studentpresence.AttendanceResult, error)
-	CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*studentpresence.AttendanceResult, error)
+	CheckOutStudentWithNote(ctx context.Context, studentID, staffID int64, note string, skipAuthCheck bool) (*studentpresence.AttendanceResult, error)
 	ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action string) (*studentpresence.SchoolCheckinBatchResult, error)
 }
 
@@ -132,6 +141,7 @@ type ResourceConfig struct {
 	Persons                PersonRecords
 	SchoolGroups           SchoolGroups
 	UserContextService     CallerContext
+	StudentNotes           StudentNotesCapability
 	ActiveService          StudentPresence
 	PickupScheduleService  careplan.PickupScheduleService
 	WeekdayPickupNotes     WeekdayPickupNoteReplacer
@@ -280,6 +290,7 @@ func (rs *Resource) Router() chi.Router {
 	// Protected routes that require authentication and permissions
 	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		rs.mountStudentReadRoutes(r, withTx)
+		rs.mountStudentNoteRoutes(r, withTx)
 		rs.mountRequestDecisionRoutes(r, withTx)
 		rs.mountRequestQueueRoutes(r, withTx)
 		rs.mountStudentWriteRoutes(r, withTx)

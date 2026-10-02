@@ -100,37 +100,38 @@ func newTenantResolveResponse(school *TenantSchool, resolved tenantShellSettings
 	}
 
 	return &TenantResolveResponse{
-		TenantID:                   school.ID,
-		Slug:                       school.Slug,
-		Name:                       school.Name,
-		Subdomain:                  school.Subdomain,
-		OrganizationID:             school.OrganizationID,
-		OrganizationName:           school.OrganizationName,
-		Hidden:                     school.Hidden,
-		Settings:                   schoolSettings,
-		PresenceMode:               resolved.presenceMode,
-		StudentPhotosEnabled:       resolved.studentPhotosEnabled,
-		NFCEnabled:                 resolved.nfcEnabled,
-		ParentMessagingEnabled:     resolved.parentMessagingEnabled,
-		StaffMessagingEnabled:      resolved.staffMessagingEnabled,
-		DisplayEnabled:             resolved.displayEnabled,
-		CalDAVEnabled:              resolved.calDAVEnabled,
-		GradeLevelMax:              gradeLevelMax,
-		CareOfferingsEnabled:       resolved.careOfferingsEnabled,
-		AttendanceWebEnabled:       resolved.attendanceWebEnabled,
-		AttendanceLogEnabled:       resolved.attendanceLogEnabled,
-		GroupMode:                  resolved.groupMode,
-		OperationalOverviewScope:   resolved.overviewScope,
-		AttendanceEditScope:        resolved.attendanceEditScope,
-		ParentRequestReasonPolicy:  resolved.reasonPolicy,
-		ShowTimetableCounts:        resolved.showTimetableCounts,
-		TimetableEnabled:           resolved.timetableEnabled,
-		WaitlistEnabled:            resolved.waitlistEnabled,
-		EmergencyHealthInfoEnabled: resolved.emergencyHealthInfo,
-		AnalyticsFreigabe:          resolved.analyticsFreigabe,
+		TenantID:                  school.ID,
+		Slug:                      school.Slug,
+		Name:                      school.Name,
+		Subdomain:                 school.Subdomain,
+		OrganizationID:            school.OrganizationID,
+		OrganizationName:          school.OrganizationName,
+		Hidden:                    school.Hidden,
+		Settings:                  schoolSettings,
+		PresenceMode:              resolved.presenceMode,
+		StudentPhotosEnabled:      resolved.studentPhotosEnabled,
+		NFCEnabled:                resolved.nfcEnabled,
+		ParentMessagingEnabled:    resolved.parentMessagingEnabled,
+		StaffMessagingEnabled:     resolved.staffMessagingEnabled,
+		DisplayEnabled:            resolved.displayEnabled,
+		CalDAVEnabled:             resolved.calDAVEnabled,
+		GradeLevelMax:             gradeLevelMax,
+		CareOfferingsEnabled:      resolved.careOfferingsEnabled,
+		AttendanceWebEnabled:      resolved.attendanceWebEnabled,
+		AttendanceLogEnabled:      resolved.attendanceLogEnabled,
+		GroupMode:                 resolved.groupMode,
+		OperationalOverviewScope:  resolved.overviewScope,
+		AttendanceEditScope:       resolved.attendanceEditScope,
+		ParentRequestReasonPolicy: resolved.reasonPolicy,
+		ShowTimetableCounts:       resolved.showTimetableCounts,
+		TimetableEnabled:          resolved.timetableEnabled,
+		WaitlistEnabled:           resolved.waitlistEnabled,
+		AnalyticsFreigabe:         resolved.analyticsFreigabe,
 		// Without the Freigabe the sample has no effect; the client never sees
 		// a recording share for a school that did not agree.
-		AnalyticsRecordingSamplePercent: analyticsSamplePercent(resolved),
+		AnalyticsRecordingSamplePercent:   analyticsSamplePercent(resolved),
+		EarlyCheckoutNoteEnabled:          resolved.earlyCheckoutNote,
+		EarlyCheckoutNoteToleranceMinutes: resolved.earlyCheckoutTolerance,
 	}
 }
 
@@ -153,7 +154,8 @@ func defaultTenantShellSettings() tenantShellSettings {
 		showTimetableCounts:    true,
 		timetableEnabled:       true,
 		waitlistEnabled:        true,
-		emergencyHealthInfo:    false,
+		earlyCheckoutNote:      true,
+		earlyCheckoutTolerance: 15,
 	}
 }
 
@@ -177,10 +179,11 @@ func tenantShellSettingKeys() []string {
 		settings.KeyAttendanceEditScope,
 		settings.KeyParentRequestReasonPolicy,
 		settings.KeyParentNotesEnabled,
-		settings.KeyEmergencyListHealthInfo,
 		settings.KeyStaffMessagingEnabled,
 		settings.KeyAnalyticsFreigabe,
 		settings.KeyAnalyticsRecordingSamplePercent,
+		settings.KeyEarlyCheckoutNoteEnabled,
+		settings.KeyEarlyCheckoutNoteToleranceMinutes,
 		// Not read from this snapshot — prefetched so the hard-fail
 		// resolveTenantGradeLevelMax call hits the request cache instead of
 		// opening a second tenant transaction (issue #2065).
@@ -229,7 +232,6 @@ func (rs *Resource) resolveTenantShellSettingsOneByOne(ctx context.Context, tena
 	resolved.showTimetableCounts = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
 	resolved.timetableEnabled = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyTimetableEnabled, true, slog.LevelWarn)
 	resolved.waitlistEnabled = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
-	resolved.emergencyHealthInfo = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyEmergencyListHealthInfo, false, slog.LevelWarn)
 	resolved.groupMode = rs.resolveTenantGroupMode(ctx, tenantID)
 	resolved.overviewScope = rs.resolveTenantOverviewScope(ctx, tenantID)
 	resolved.attendanceEditScope = rs.resolveTenantAttendanceEditScope(ctx, tenantID)
@@ -254,6 +256,15 @@ func (rs *Resource) resolveTenantShellSettingsOneByOne(ctx context.Context, tena
 		return resolved, err
 	}
 	resolved.staffMessagingEnabled = staffMessagingEnabled
+	// The tolerance only matters while the prompt is on; it is read only then.
+	resolved.earlyCheckoutNote, resolved.earlyCheckoutTolerance = false, 0
+	if rs.resolveTenantShellBool(ctx, tenantID, settings.KeyEarlyCheckoutNoteEnabled, false, slog.LevelWarn) {
+		if value, err := rs.SettingsService.ResolveIntForTenant(ctx, tenantID, settings.KeyEarlyCheckoutNoteToleranceMinutes); err == nil {
+			resolved.earlyCheckoutNote, resolved.earlyCheckoutTolerance = true, value
+		} else {
+			logTenantResolveSettingFailure(ctx, tenantID, settings.KeyEarlyCheckoutNoteToleranceMinutes, err, slog.LevelWarn)
+		}
+	}
 	return resolved, nil
 }
 
@@ -291,8 +302,8 @@ func resolveTenantShellSnapshot(
 	resolved.timetableEnabled = resolveBool(settings.KeyTimetableEnabled, true, slog.LevelWarn)
 	resolved.waitlistEnabled = resolveBool(settings.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
 	resolved.parentMessagingEnabled = resolveBool(settings.KeyParentNotesEnabled, true, slog.LevelWarn)
-	resolved.emergencyHealthInfo = resolveBool(settings.KeyEmergencyListHealthInfo, false, slog.LevelWarn)
 	resolved.analyticsFreigabe, resolved.analyticsSamplePercent = resolveTenantAnalyticsSnapshot(ctx, tenantID, snapshot)
+	resolved.earlyCheckoutNote, resolved.earlyCheckoutTolerance = resolveTenantEarlyCheckoutNoteSnapshot(ctx, tenantID, snapshot)
 	staffMessagingEnabled, err := snapshot.Bool(settings.KeyStaffMessagingEnabled)
 	if err != nil {
 		logTenantResolveSettingFailure(ctx, tenantID, settings.KeyStaffMessagingEnabled, err, slog.LevelError)
@@ -335,6 +346,23 @@ func resolveTenantAnalyticsSnapshot(ctx context.Context, tenantID int64, snapsho
 		return freigabe, 0
 	}
 	return freigabe, percent
+}
+
+// resolveTenantEarlyCheckoutNoteSnapshot reads the early-checkout note pair
+// (#3324). Both fail closed: without a readable switch and tolerance the web
+// dialogs simply offer no note field.
+func resolveTenantEarlyCheckoutNoteSnapshot(ctx context.Context, tenantID int64, snapshot *settings.Snapshot) (bool, int) {
+	enabled, err := snapshot.Bool(settings.KeyEarlyCheckoutNoteEnabled)
+	if err != nil {
+		logTenantResolveSettingFailure(ctx, tenantID, settings.KeyEarlyCheckoutNoteEnabled, err, slog.LevelWarn)
+		return false, 0
+	}
+	tolerance, err := snapshot.Int(settings.KeyEarlyCheckoutNoteToleranceMinutes)
+	if err != nil {
+		logTenantResolveSettingFailure(ctx, tenantID, settings.KeyEarlyCheckoutNoteToleranceMinutes, err, slog.LevelWarn)
+		return false, 0
+	}
+	return enabled, tolerance
 }
 
 // normalizeOverviewScope keeps an unknown wire value from reaching the client

@@ -237,8 +237,8 @@ func (s *service) projectStaffCalendarEvents(ctx context.Context, owner staffFee
 			return ErrNotFound
 		}
 
-		from := todayDate().AddDays(-feedPastDays)
-		to := todayDate().AddDays(feedFutureDays)
+		from := s.today().AddDays(-feedPastDays)
+		to := s.today().AddDays(feedFutureDays)
 		appointments, err := s.listAppointmentsVisibleToStaff(txCtx, staff.ID, toCalendarDate(from), toCalendarDate(to))
 		if err != nil {
 			return err
@@ -275,7 +275,7 @@ func (s *service) projectStaffCalendarEvents(ctx context.Context, owner staffFee
 			emittedIDs[appointment.ID] = struct{}{}
 		}
 
-		tombstoneCutoff := todayDate().AddDays(-feedTombstoneDays).BerlinMidnight()
+		tombstoneCutoff := s.today().AddDays(-feedTombstoneDays).BerlinMidnight()
 		tombstones, err := s.listStaffCancellationTombstones(txCtx, staff.ID, tombstoneCutoff)
 		if err != nil {
 			return err
@@ -446,8 +446,8 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 	if err != nil {
 		return "", "", err
 	}
-	from := todayDate().AddDays(-feedPastDays)
-	to := todayDate().AddDays(feedFutureDays)
+	from := s.today().AddDays(-feedPastDays)
+	to := s.today().AddDays(feedFutureDays)
 
 	var events []CalendarEvent
 	for tenantID, tenantChildren := range groupChildrenByTenant(children) {
@@ -508,7 +508,7 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 			// still receives the cancellation and purges the stale event. Skip any
 			// already emitted above (a recently-cancelled appointment still inside
 			// the date window) to avoid a duplicate UID in the feed.
-			tombstoneCutoff := todayDate().AddDays(-feedTombstoneDays).BerlinMidnight()
+			tombstoneCutoff := s.today().AddDays(-feedTombstoneDays).BerlinMidnight()
 			tombstones, err := s.listGuardianCancellationTombstones(txCtx, guardianProfileIDs, studentIDs, tombstoneCutoff)
 			if err != nil {
 				return err
@@ -558,4 +558,14 @@ func feedURLs(portalURL, token string) (string, string) {
 
 func (s *service) feedTokenHash(token string) string {
 	return s.cfg.Digest([]byte(strings.TrimSpace(token)))
+}
+
+func (s *service) listStaffCancellationTombstones(ctx context.Context, staffID int64, since time.Time) ([]*appointmentcap.Appointment, error) {
+	values, err := s.cfg.Appointments.ListStaffCancellationTombstones(ctx, staffID, since)
+	return values, err
+}
+
+func (s *service) listGuardianCancellationTombstones(ctx context.Context, guardianIDs, studentIDs []int64, since time.Time) ([]*appointmentcap.Appointment, error) {
+	values, err := s.cfg.Appointments.ListGuardianCancellationTombstones(ctx, guardianIDs, studentIDs, since)
+	return values, err
 }

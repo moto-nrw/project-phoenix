@@ -15,7 +15,7 @@ const enrollmentWeeklyProfileKey = "anmeldung-wochenplan"
 func enrollmentWeeklyProfileDefinition() demoProfileDefinition {
 	settings := fullOperationSettings()
 	settings[profileSettingAttendanceNFC] = SeedSetting{Value: json.RawMessage(`false`), ManagedBy: SettingManagedByOperator}
-	settings[profileSettingCareConcept] = SeedSetting{Value: json.RawMessage(`"open_rooms"`), ManagedBy: SettingManagedByTenant}
+	settings[profileSettingWebSpontaneous] = SeedSetting{Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant}
 	return demoProfileDefinition{
 		Key: enrollmentWeeklyProfileKey, OrganizationName: "Demo-Träger Süd", OrganizationSlug: "demo-traeger-sued",
 		SchoolName: "Demo-Schule Anmeldung und Wochenplan", SchoolSlug: enrollmentWeeklyProfileKey,

@@ -157,7 +157,7 @@ func TestAttendanceSessionExportColumns_OmitsPlanColumns(t *testing.T) {
 	assert.NotContains(t, ids, attendanceColumnAssignment)
 	assert.Equal(t, []lists.ColumnID{
 		attendanceColumnDate, attendanceColumnWindow, attendanceColumnStatus,
-		attendanceColumnCheckIn, attendanceColumnCheckOut,
+		attendanceColumnCheckIn, attendanceColumnCheckOut, attendanceColumnNote,
 	}, ids)
 }
 

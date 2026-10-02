@@ -37,6 +37,7 @@ interface BackendAttendanceSession {
   check_in_time: string;
   check_out_time?: string | null;
   duration_minutes?: number | null;
+  check_out_note?: string | null;
 }
 
 interface BackendAttendanceSlot {
@@ -95,12 +96,18 @@ interface AttendanceRecord {
   checkedOutBy: number | null;
   deviceId: number;
   sessions: AttendanceSession[];
+  /**
+   * Reasons staff left when the child went home early (#3324), in the order
+   * of the day's stays; null when nobody wrote one.
+   */
+  checkOutNote: string | null;
 }
 
 interface AttendanceSession {
   checkInTime: Date;
   checkOutTime: Date | null;
   durationMinutes: number | null;
+  checkOutNote: string | null;
 }
 
 interface AttendanceSlot {
@@ -164,6 +171,10 @@ function mapAttendanceHistoryDay(
 }
 
 function mapAttendanceRecord(rec: BackendAttendanceRecord): AttendanceRecord {
+  const sessions = (rec.sessions ?? [rec]).map(mapAttendanceSession);
+  const notes = sessions
+    .map((session) => session.checkOutNote)
+    .filter((note): note is string => Boolean(note));
   return {
     checkInTime: new Date(rec.check_in_time),
     checkOutTime: rec.check_out_time ? new Date(rec.check_out_time) : null,
@@ -171,13 +182,21 @@ function mapAttendanceRecord(rec: BackendAttendanceRecord): AttendanceRecord {
     checkedInBy: rec.checked_in_by,
     checkedOutBy: rec.checked_out_by ?? null,
     deviceId: rec.device_id,
-    sessions: (rec.sessions ?? [rec]).map((session) => ({
-      checkInTime: new Date(session.check_in_time),
-      checkOutTime: session.check_out_time
-        ? new Date(session.check_out_time)
-        : null,
-      durationMinutes: session.duration_minutes ?? null,
-    })),
+    sessions,
+    checkOutNote: notes.length > 0 ? notes.join(" · ") : null,
+  };
+}
+
+function mapAttendanceSession(
+  session: BackendAttendanceSession,
+): AttendanceSession {
+  return {
+    checkInTime: new Date(session.check_in_time),
+    checkOutTime: session.check_out_time
+      ? new Date(session.check_out_time)
+      : null,
+    durationMinutes: session.duration_minutes ?? null,
+    checkOutNote: session.check_out_note ?? null,
   };
 }
 

@@ -2,6 +2,7 @@ package parentpostgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/uptrace/bun"
@@ -135,6 +136,36 @@ func (s *NotificationConsentStore) FilterOptedIn(ctx context.Context, notificati
 	query = withTenant(query, notificationPreferenceAlias, tenantID)
 	if err := query.Scan(ctx, &optedIn); err != nil {
 		return nil, fmt.Errorf("filter opted-in accounts: %w", err)
+	}
+	return optedIn, nil
+}
+
+// ListOptedIn returns every account of the current school that agreed to the
+// type, in ID order. It is the candidate set of an opt-in e-mail (#3780); the
+// consumer narrows it by membership and permission before addressing anyone.
+func (s *NotificationConsentStore) ListOptedIn(ctx context.Context, notificationType string) ([]int64, error) {
+	if notificationType == "" {
+		return nil, nil
+	}
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// Unlike the filters, this read has no candidate set to bound it: without
+	// a school it would list every school's subscribers.
+	if tenantID <= 0 {
+		return nil, errors.New("list opted-in accounts: school context is required")
+	}
+	var optedIn []int64
+	query := db.NewSelect().
+		TableExpr(notificationPreferenceTableExpr).
+		ColumnExpr(`"notification_preference".account_id`).
+		Where(`"notification_preference".notification_type = ?`, notificationType).
+		Where(`"notification_preference".enabled`).
+		OrderExpr(`"notification_preference".account_id ASC`)
+	query = withTenant(query, notificationPreferenceAlias, tenantID)
+	if err := query.Scan(ctx, &optedIn); err != nil {
+		return nil, fmt.Errorf("list opted-in accounts: %w", err)
 	}
 	return optedIn, nil
 }

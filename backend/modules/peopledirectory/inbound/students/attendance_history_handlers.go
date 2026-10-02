@@ -64,6 +64,8 @@ type attendanceSessionRecord struct {
 	CheckInTime     time.Time  `json:"check_in_time"`
 	CheckOutTime    *time.Time `json:"check_out_time,omitempty"`
 	DurationMinutes *int       `json:"duration_minutes,omitempty"`
+	// CheckOutNote is why the child went home earlier than planned (#3324).
+	CheckOutNote *string `json:"check_out_note,omitempty"`
 }
 
 // attendanceSlotEntry is one care-offering slot in a day's history. Synthetic
@@ -532,7 +534,7 @@ func attendanceVisitEntries(visits []*studentpresence.VisitHistoryEntry) []atten
 }
 
 func newAttendanceSession(row *studentpresence.Attendance) attendanceSessionRecord {
-	return attendanceSessionRecord{CheckInTime: row.CheckInTime, CheckOutTime: row.CheckOutTime}
+	return attendanceSessionRecord{CheckInTime: row.CheckInTime, CheckOutTime: row.CheckOutTime, CheckOutNote: row.CheckOutNote}
 }
 
 func calculateAttendanceDuration(attendance *attendanceDayRecord) {

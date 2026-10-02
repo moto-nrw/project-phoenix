@@ -232,8 +232,7 @@ type Settings interface {
 	// indicators are disabled.
 	TrackingIndicatorLabels(ctx context.Context) ([]string, error)
 	// SpontaneousActivitiesEnabled reports whether staff may start
-	// spontaneous activities from the web; false outside the open-rooms
-	// care concept.
+	// spontaneous activities from the web and the app.
 	SpontaneousActivitiesEnabled(ctx context.Context) (bool, error)
 }
 

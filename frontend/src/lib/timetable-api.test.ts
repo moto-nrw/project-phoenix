@@ -980,8 +980,6 @@ describe("timetableService", () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
         data: {
-          enabled: true,
-          default_on: false,
           child_count: 4,
           family_count: 3,
         },
@@ -994,8 +992,6 @@ describe("timetableService", () => {
       expect.objectContaining({ credentials: "include" }),
     );
     expect(reach).toEqual({
-      enabled: true,
-      defaultOn: false,
       childCount: 4,
       familyCount: 3,
     });

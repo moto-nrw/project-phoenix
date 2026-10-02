@@ -30,11 +30,11 @@ const block = {
 };
 
 const reachOn: GuardianNoticeReach = {
-  enabled: true,
-  defaultOn: true,
   childCount: 3,
   familyCount: 2,
 };
+
+const CHECKBOX_LABEL = "Eltern per App und E-Mail informieren";
 
 describe("suggestGuardianNotice", () => {
   it("names the block, the day and the time window", () => {
@@ -52,20 +52,20 @@ describe("guardianNoticePayload", () => {
     message: " Heute keine AG. ",
   };
 
-  it("trims the text when the notice is on and allowed", () => {
+  it("trims the text when the box is ticked and children are booked", () => {
     expect(guardianNoticePayload(draft, reachOn)).toEqual({
       title: "Entfällt",
       message: "Heute keine AG.",
     });
   });
 
-  it("sends nothing when the checkbox is off, the school disallows it, or text is missing", () => {
+  it("sends nothing when the checkbox is off, no child is booked, or text is missing", () => {
     expect(guardianNoticePayload({ ...draft, send: false }, reachOn)).toBe(
       undefined,
     );
-    expect(guardianNoticePayload(draft, { ...reachOn, enabled: false })).toBe(
-      undefined,
-    );
+    expect(
+      guardianNoticePayload(draft, { childCount: 0, familyCount: 0 }),
+    ).toBe(undefined);
     expect(guardianNoticePayload(draft, null)).toBe(undefined);
     expect(guardianNoticePayload({ ...draft, message: "  " }, reachOn)).toBe(
       undefined,
@@ -133,15 +133,15 @@ describe("GuardianNoticeFields", () => {
     );
   }
 
-  it("loads the reach, pre-ticks from the school default and prefills the text", async () => {
+  // #3731: no school settings any more; the box always starts ticked.
+  it("loads the reach, starts ticked and prefills the text", async () => {
     getGuardianNoticeReach.mockResolvedValue(reachOn);
     render(<Harness />);
 
-    expect(await screen.findByText("Eltern informieren")).toBeInTheDocument();
+    expect(await screen.findByText(CHECKBOX_LABEL)).toBeInTheDocument();
+    expect(screen.getByLabelText(CHECKBOX_LABEL)).toBeChecked();
     expect(getGuardianNoticeReach).toHaveBeenCalledWith("42");
-    expect(
-      screen.getByText("Erreicht 2 Familien im Elternportal."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Erreicht 2 Familien.")).toBeInTheDocument();
     expect(screen.getByLabelText("Betreff")).toHaveValue(
       "Fußball-AG am 15.09.2026 entfällt",
     );
@@ -153,15 +153,15 @@ describe("GuardianNoticeFields", () => {
   it("hides the text fields when the checkbox is unticked", async () => {
     getGuardianNoticeReach.mockResolvedValue(reachOn);
     render(<Harness />);
-    const checkbox = await screen.findByLabelText("Eltern informieren");
+    const checkbox = await screen.findByLabelText(CHECKBOX_LABEL);
     fireEvent.click(checkbox);
     await waitFor(() =>
       expect(screen.queryByLabelText("Betreff")).not.toBeInTheDocument(),
     );
   });
 
-  it("renders nothing when the school switched the notice off", async () => {
-    getGuardianNoticeReach.mockResolvedValue({ ...reachOn, enabled: false });
+  it("renders nothing for a block without booked children", async () => {
+    getGuardianNoticeReach.mockResolvedValue({ childCount: 0, familyCount: 0 });
     const { container } = render(<Harness />);
     await waitFor(() => expect(getGuardianNoticeReach).toHaveBeenCalled());
     expect(container).toBeEmptyDOMElement();

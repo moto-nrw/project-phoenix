@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMain(m *testing.M) { testutil.SeedTestJWTConfig(); testpkg.PerTestTenants(); testpkg.Run(m) }
+func TestMain(m *testing.M) { routetest.SeedTestJWTConfig(); testpkg.PerTestTenants(); testpkg.Run(m) }
 
 // Only the communication owner is replaced. Requests use the registered
 // router, authentication, permission gate and tenant transaction middleware.
@@ -101,16 +101,16 @@ func announcementRoute(t *testing.T) (*announcementContract, *announcement.Resou
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	staff := testpkg.CreateTestStaff(t, db, "Announcement", "Contract")
-	claims := testutil.DefaultTestClaims()
+	claims := routetest.DefaultTestClaims()
 	claims.Permissions = []string{permissions.AdminWildcard}
 	claims.IsAdmin = true
 	s := &announcementContract{t: t, id: staff.ID, tenantID: testpkg.Tenant(t), actorID: int64(claims.ID), row: communication.ParentAnnouncement{ID: staff.ID, Title: "Information", Body: "Text", Active: true, Targets: []communication.ParentAnnouncementTarget{{TargetType: "student", RefID: &staff.ID}}, Options: []communication.ParentAnnouncementOption{{ID: staff.ID, Label: "Ja"}}}}
-	return s, announcement.NewResource(s, nil, db), testutil.MintTestJWT(t, claims)
+	return s, announcement.NewResource(s, nil, db), routetest.MintTestJWT(t, claims)
 }
 func announcementRequest(t *testing.T, r *announcement.Resource, token, method, path string, body any) (int, string) {
 	t.Helper()
-	req := testutil.NewAuthenticatedRequest(t, method, path, body, testutil.WithJWTBearer(token))
-	out := testutil.ExecuteRequest(r.Router(), req)
+	req := routetest.NewAuthenticatedRequest(t, method, path, body, routetest.WithJWTBearer(token))
+	out := routetest.ExecuteRequest(r.Router(), req)
 	return out.Code, out.Body.String()
 }
 
@@ -174,10 +174,10 @@ func TestAnnouncementRoutesRejectUnauthorisedAndMalformedRequests(t *testing.T) 
 	t.Parallel()
 	s, r, token := announcementRoute(t)
 	id := strconv.FormatInt(s.id, 10)
-	claims := testutil.DefaultTestClaims()
+	claims := routetest.DefaultTestClaims()
 	claims.IsAdmin = false
 	claims.Permissions = []string{permissions.CommunicationsAnnounce}
-	limited := testutil.MintTestJWT(t, claims)
+	limited := routetest.MintTestJWT(t, claims)
 	for _, tc := range []struct{ method, path string }{{"GET", "/" + id}, {"POST", "/"}, {"PUT", "/" + id}, {"DELETE", "/" + id}, {"POST", "/" + id + "/publish"}, {"POST", "/" + id + "/unpublish"}, {"GET", "/" + id + "/recipients"}, {"GET", "/" + id + "/stats"}, {"GET", "/" + id + "/poll-results"}, {"GET", "/" + id + "/poll-children"}, {"GET", "/" + id + "/letter-status"}, {"POST", "/" + id + "/remind"}, {"POST", "/" + id + "/resend-failed"}, {"PUT", "/" + id + "/reminder"}} {
 		status, body := announcementRequest(t, r, limited, tc.method, tc.path, nil)
 		require.Equal(t, 403, status, body)

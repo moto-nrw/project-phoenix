@@ -53,6 +53,8 @@ import { StudentRecordActions } from "~/components/students/student-record-actio
 import { ParentMessagesCard } from "~/components/students/parent-messages-card";
 import { StudentEnrollmentsTab } from "~/components/students/student-enrollments-tab";
 import { StudentDokumenteTab } from "~/components/students/dokumente-tab";
+import { StudentNotizenTab } from "~/components/students/student-notizen-tab";
+import { StudentPermanentNotesCard } from "~/components/students/student-permanent-notes-card";
 import {
   AggregatedRequestList,
   type AggregatedRequestFilters,
@@ -100,6 +102,10 @@ import {
   fetchStudentPartialAbsences,
   saveStudentPartialAbsence,
 } from "~/lib/student-partial-absences-api";
+import {
+  EarlyCheckoutNoteField,
+  useEarlyCheckoutCheck,
+} from "~/components/students/early-checkout-note";
 import { StudentDetailLoadingPage } from "./page-skeleton";
 
 type TodayArrival = {
@@ -120,6 +126,7 @@ const EMPTY_GROUP_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [];
 // criterion: "navigate directly to the relevant section").
 type StudentTabId =
   | "stammdaten"
+  | "notizen"
   | "nachrichten"
   | "erziehungsberechtigte"
   | "betreuungsplan"
@@ -131,6 +138,7 @@ type StudentTabId =
 
 const TAB_LABELS: Record<StudentTabId, string> = {
   stammdaten: "Stammdaten",
+  notizen: "Notizen",
   nachrichten: "Nachrichten",
   erziehungsberechtigte: "Erziehungsberechtigte",
   betreuungsplan: "Betreuungsplan",
@@ -146,6 +154,7 @@ const TAB_LABELS: Record<StudentTabId, string> = {
 // parent-message overview (the backend gates per-child read access anyway).
 const FULL_ACCESS_BASE_TABS: StudentTabId[] = [
   "stammdaten",
+  "notizen",
   "nachrichten",
   "erziehungsberechtigte",
   "betreuungsplan",
@@ -162,6 +171,7 @@ const LIMITED_ACCESS_BASE_TABS: StudentTabId[] = [
 ];
 const FULL_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
   "stammdaten",
+  "notizen",
   "nachrichten",
   "erziehungsberechtigte",
   "betreuungsplan",
@@ -532,6 +542,11 @@ function StudentDetailPageContent() {
   // Checkout states
   const [showConfirmCheckout, setShowConfirmCheckout] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
+  // Early checkout (#3324): decided when the dialog opens, so the field does
+  // not appear or vanish while someone is typing.
+  const isEarlyCheckout = useEarlyCheckoutCheck();
+  const [checkoutIsEarly, setCheckoutIsEarly] = useState(false);
+  const [checkoutNote, setCheckoutNote] = useState("");
 
   // Check-in states
   const [showConfirmCheckin, setShowConfirmCheckin] = useState(false);
@@ -882,7 +897,6 @@ function StudentDetailPageContent() {
       confirmed_companion_extensions:
         editedStudent.confirmed_companion_extensions ?? [],
       health_info: editedStudent.health_info,
-      supervisor_notes: editedStudent.supervisor_notes,
       extra_info: editedStudent.extra_info,
       pickup_status: editedStudent.pickup_status,
       pickup_days: editedStudent.pickup_days,
@@ -897,7 +911,11 @@ function StudentDetailPageContent() {
 
     setCheckingOut(true);
     try {
-      await schoolCheckinStudent(studentId, "out");
+      await schoolCheckinStudent(
+        studentId,
+        "out",
+        checkoutIsEarly ? checkoutNote : undefined,
+      );
       refreshData();
       setShowConfirmCheckout(false);
       toast.success(`${student.name} wurde erfolgreich abgemeldet`);
@@ -1239,6 +1257,7 @@ function StudentDetailPageContent() {
             todayPickupPlannedTime={todayPickup.time}
             todayPickupActualTime={student.actual_pickup_time}
             todayPickupNote={todayPickup.note}
+            todayCheckoutNote={student.actual_pickup_note}
             isPickupException={todayPickup.isException}
             todayArrivalPlannedTime={todayArrival.time}
             todayArrivalActualTime={student.actual_arrival_time}
@@ -1257,7 +1276,11 @@ function StudentDetailPageContent() {
           showCheckin={showCheckin}
           hasAbsenceWriteAccess={hasAbsenceWriteAccess}
           hasSickExcusedWriteAccess={hasSickExcusedWriteAccess}
-          onCheckoutClick={() => setShowConfirmCheckout(true)}
+          onCheckoutClick={() => {
+            setCheckoutNote("");
+            setCheckoutIsEarly(isEarlyCheckout(todayPickup.time));
+            setShowConfirmCheckout(true);
+          }}
           onCheckinClick={() => setShowConfirmCheckin(true)}
           onSickClick={handleSickClick}
           sickLoading={sickLoading}
@@ -1289,6 +1312,14 @@ function StudentDetailPageContent() {
             <p>
               Möchten Sie <strong>{student.name}</strong> jetzt abmelden?
             </p>
+            {checkoutIsEarly && todayPickup.time ? (
+              <EarlyCheckoutNoteField
+                id="student-checkout-note"
+                plannedPickup={todayPickup.time}
+                value={checkoutNote}
+                onChange={setCheckoutNote}
+              />
+            ) : null}
           </ConfirmationModal>
 
           {/* Checkin Confirmation Modal */}
@@ -1818,6 +1849,12 @@ function FullAccessView({
   useEffect(() => {
     if (activeTab === "aenderungsprotokoll") setProtocolTabSeen(true);
   }, [activeTab]);
+  // Ebenso die Kartei (#3632): die Stammdaten zeigen die dauerhaften Hinweise
+  // ohnehin: die volle Chronik lädt erst, wenn jemand den Reiter öffnet.
+  const [notesTabSeen, setNotesTabSeen] = useState(activeTab === "notizen");
+  useEffect(() => {
+    if (activeTab === "notizen") setNotesTabSeen(true);
+  }, [activeTab]);
   return (
     <>
       <StudentTabPanel
@@ -1843,6 +1880,7 @@ function FullAccessView({
             onEditClick={hasWriteAccess ? onOpenPersonalInfoEdit : undefined}
           />
         )}
+        <StudentPermanentNotesCard studentId={studentId} />
         <StudentConsentsReadOnly consents={student.consents} />
         {canManageFamilyProtection ? (
           <SectionCard
@@ -1851,6 +1889,19 @@ function FullAccessView({
           >
             <FamilyProtectionControl studentId={studentId} canManage />
           </SectionCard>
+        ) : null}
+      </StudentTabPanel>
+
+      <StudentTabPanel
+        value="notizen"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        {notesTabSeen ? (
+          <StudentNotizenTab
+            studentId={studentId}
+            educationGroupId={student.group_id ?? ""}
+          />
         ) : null}
       </StudentTabPanel>
 

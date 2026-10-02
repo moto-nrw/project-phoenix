@@ -21,6 +21,7 @@ type (
 	IntakeCatalog                  = application.IntakeCatalog
 	IntakeOfferings                = application.IntakeOfferings
 	IntakeSettings                 = application.IntakeSettings
+	AdminMailSubscribers           = application.AdminMailSubscribers
 	LegalSettings                  = application.LegalSettings
 	SubmissionRateLimiter          = application.SubmissionRateLimiter
 	StudentMatches                 = application.StudentMatches

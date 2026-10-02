@@ -25,14 +25,15 @@ func (o testRoomOccupancy) RoomOccupied(ctx context.Context, roomID int64) (bool
 // an accidental dependency fails loudly; without Locks the attendance lock
 // and without a database the spontaneous-start locks are skipped.
 type unitDataDeps struct {
-	Instances    timetableCompose.DataInstances
-	Participants timetableCompose.DataParticipants
-	Templates    timetableCompose.DataTemplates
-	Groups       timetableCompose.DataGroups
-	Categories   timetableCompose.DataCategories
-	Rooms        timetableCompose.RoomNames
-	Sessions     studentpresence.SessionRecords
-	Locks        timetableCompose.AttendanceLocks
+	Instances     timetableCompose.DataInstances
+	Participants  timetableCompose.DataParticipants
+	Templates     timetableCompose.DataTemplates
+	Groups        timetableCompose.DataGroups
+	BlockMetadata timetableCompose.BlockDisplayMetadata
+	Categories    timetableCompose.DataCategories
+	Rooms         timetableCompose.RoomNames
+	Sessions      studentpresence.SessionRecords
+	Locks         timetableCompose.AttendanceLocks
 }
 
 type (
@@ -52,8 +53,11 @@ type (
 	stubDataVisits struct {
 		timetableCompose.OperationVisits
 	}
-	stubDataTemplates  struct{ timetableCompose.DataTemplates }
-	stubDataGroups     struct{ timetableCompose.DataGroups }
+	stubDataTemplates struct{ timetableCompose.DataTemplates }
+	stubDataGroups    struct{ timetableCompose.DataGroups }
+	stubBlockMetadata struct {
+		timetableCompose.BlockDisplayMetadata
+	}
 	stubDataCategories struct {
 		timetableCompose.DataCategories
 	}
@@ -81,6 +85,7 @@ func unitTimetableData(deps unitDataDeps) timetable.TimetableDataCapability {
 		Visits:            stubDataVisits{},
 		Templates:         stubDataTemplates{},
 		Groups:            stubDataGroups{},
+		BlockMetadata:     stubBlockMetadata{},
 		Categories:        stubDataCategories{},
 		Rooms:             stubDataRooms{},
 		RoomOccupancy:     testRoomOccupancy{sessions: stubDataSessions{}},
@@ -99,6 +104,9 @@ func unitTimetableData(deps unitDataDeps) timetable.TimetableDataCapability {
 	}
 	if deps.Groups != nil {
 		composed.Groups = deps.Groups
+	}
+	if deps.BlockMetadata != nil {
+		composed.BlockMetadata = deps.BlockMetadata
 	}
 	if deps.Categories != nil {
 		composed.Categories = deps.Categories

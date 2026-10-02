@@ -149,6 +149,15 @@ type IntakeSettings interface {
 	ChangeRequestMailsEnabled(ctx context.Context) bool
 }
 
+// AdminMailSubscribers adds the staff who switched on the "Neue Anmeldung"
+// mail (#3780) to the configured admin recipients.
+type AdminMailSubscribers interface {
+	// AdminNotificationRecipients returns configured plus every account of
+	// the school in context that switched the mail on and may still manage
+	// enrollments, deduplicated case-insensitively.
+	AdminNotificationRecipients(ctx context.Context, configured []string) ([]string, error)
+}
+
 // LegalSettings are the tenant-wide legal texts and their toggles as stored.
 type LegalSettings struct {
 	AGB                 string
@@ -189,7 +198,10 @@ type IntakeDependencies struct {
 	GuardianAuthorizer GuardianStudentAuthorizer
 	Outbox             MailOutbox
 	Settings           IntakeSettings
-	ManualDecider      ManualEnrollmentDecider
+	// AdminSubscribers widens the admin notification to the staff who
+	// switched it on (#3780). Nil keeps the configured list only.
+	AdminSubscribers AdminMailSubscribers
+	ManualDecider    ManualEnrollmentDecider
 	// ParentChanges makes a request unread for the staff again after a
 	// parent edit or renewal confirmation (#3778). Nil skips it (focused tests).
 	ParentChanges RequestParentChanges

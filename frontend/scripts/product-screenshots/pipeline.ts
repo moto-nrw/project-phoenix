@@ -113,19 +113,16 @@ async function stageImage(
   return files;
 }
 
-/** Ein Verzeichnis, das nicht von der Pipeline stammt, wird nie ersetzt. */
-export async function assertReplaceable(outDir: string): Promise<void> {
-  let entries: string[];
-  try {
-    entries = await readdir(outDir);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-    throw error;
-  }
-  if (entries.length === 0) return;
+/**
+ * Liest das Manifest einer vollständigen Ausgabe dieser Pipeline. Wirft, wenn
+ * das Verzeichnis fehlt, kein Manifest dieser Pipeline enthält, eine gelistete
+ * Datei fehlt oder ein nicht gelisteter Eintrag dazukommt.
+ */
+export async function readOutput(outDir: string): Promise<Manifest> {
+  const entries = await readdir(outDir);
   if (!entries.includes(MANIFEST_FILE)) {
     throw new Error(
-      `${outDir} ist nicht leer und enthält kein ${MANIFEST_FILE}. Die Pipeline ersetzt nur ihre eigene Ausgabe.`,
+      `${outDir} enthält kein ${MANIFEST_FILE} und ist keine Ausgabe dieser Pipeline.`,
     );
   }
   let manifest: Partial<Manifest>;
@@ -139,9 +136,7 @@ export async function assertReplaceable(outDir: string): Promise<void> {
     });
   }
   if (manifest?.format !== MANIFEST_FORMAT || !Array.isArray(manifest.shots)) {
-    throw new Error(
-      `${outDir} enthält kein Manifest dieser Pipeline und wird nicht ersetzt.`,
-    );
+    throw new Error(`${outDir} enthält kein Manifest dieser Pipeline.`);
   }
 
   const expectedFiles = new Set<string>([MANIFEST_FILE]);
@@ -175,7 +170,7 @@ export async function assertReplaceable(outDir: string): Promise<void> {
         await checkEntries(join(dir, entry.name), path);
       } else if (!entry.isFile() || !expectedFiles.delete(path)) {
         throw new Error(
-          `${outDir} enthält den nicht gelisteten Eintrag ${path} und wird nicht ersetzt.`,
+          `${outDir} enthält den nicht gelisteten Eintrag ${path}.`,
         );
       }
     }
@@ -183,7 +178,28 @@ export async function assertReplaceable(outDir: string): Promise<void> {
   await checkEntries(outDir);
   if (expectedFiles.size > 0 || expectedDirs.size > 0) {
     throw new Error(
-      `${outDir} enthält nicht alle im Pipeline-Manifest gelisteten Dateien und wird nicht ersetzt.`,
+      `${outDir} enthält nicht alle im Pipeline-Manifest gelisteten Dateien.`,
+    );
+  }
+  return manifest as Manifest;
+}
+
+/** Ein Verzeichnis, das nicht von der Pipeline stammt, wird nie ersetzt. */
+export async function assertReplaceable(outDir: string): Promise<void> {
+  let entries: string[];
+  try {
+    entries = await readdir(outDir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
+  if (entries.length === 0) return;
+  try {
+    await readOutput(outDir);
+  } catch (error) {
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)} Die Pipeline ersetzt nur ihre eigene, vollständige Ausgabe.`,
+      { cause: error },
     );
   }
 }

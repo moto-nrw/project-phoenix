@@ -6,15 +6,14 @@ import (
 	"testing"
 	"time"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type statusAuditCall struct {
 	studentID int64
-	before    userModels.StudentStatus
-	after     userModels.StudentStatus
+	before    string
+	after     string
 }
 
 type fakeStudentLifecycleAuditor struct {
@@ -25,8 +24,8 @@ type fakeStudentLifecycleAuditor struct {
 func (f *fakeStudentLifecycleAuditor) RecordSystemStatusChange(
 	_ context.Context,
 	studentID int64,
-	before userModels.StudentStatus,
-	after userModels.StudentStatus,
+	before string,
+	after string,
 ) error {
 	if f.err != nil {
 		return f.err
@@ -38,9 +37,8 @@ func (f *fakeStudentLifecycleAuditor) RecordSystemStatusChange(
 func TestRunActivateStudentsForTenant_AuditsSystemTransition(t *testing.T) {
 	t.Parallel()
 
-	student := &userModels.Student{Status: userModels.StudentStatusPending}
-	student.ID = 701
-	repo := &fakeStudentLifecycleRepo{pendingDue: []*userModels.Student{student}}
+	const studentID int64 = 701
+	repo := &fakeStudentLifecycleRepo{pendingDue: []int64{studentID}}
 	auditor := &fakeStudentLifecycleAuditor{}
 	s := unitScheduler(&Scheduler{
 		studentLifecycleRepo:  repo,
@@ -51,16 +49,15 @@ func TestRunActivateStudentsForTenant_AuditsSystemTransition(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, auditor.calls, 1)
 	assert.Equal(t, int64(701), auditor.calls[0].studentID)
-	assert.Equal(t, userModels.StudentStatusPending, auditor.calls[0].before)
-	assert.Equal(t, userModels.StudentStatusActive, auditor.calls[0].after)
+	assert.Equal(t, studentStatusPending, auditor.calls[0].before)
+	assert.Equal(t, studentStatusActive, auditor.calls[0].after)
 }
 
 func TestRunActivateStudentsForTenant_PropagatesAuditFailure(t *testing.T) {
 	t.Parallel()
 
-	student := &userModels.Student{Status: userModels.StudentStatusActive}
-	student.ID = 702
-	repo := &fakeStudentLifecycleRepo{activeDue: []*userModels.Student{student}}
+	const studentID int64 = 702
+	repo := &fakeStudentLifecycleRepo{activeDue: []int64{studentID}}
 	auditErr := errors.New("audit unavailable")
 	s := unitScheduler(&Scheduler{
 		studentLifecycleRepo: repo,
@@ -76,12 +73,11 @@ func TestRunActivateStudentsForTenant_PropagatesAuditFailure(t *testing.T) {
 func TestRunActivateStudentsForTenant_SkipsStaleTransitionAndAudit(t *testing.T) {
 	t.Parallel()
 
-	student := &userModels.Student{Status: userModels.StudentStatusPending}
-	student.ID = 703
+	const studentID int64 = 703
 	repo := &fakeStudentLifecycleRepo{
-		pendingDue: []*userModels.Student{student},
-		currentStatuses: map[int64]userModels.StudentStatus{
-			student.ID: userModels.StudentStatusInactive,
+		pendingDue: []int64{studentID},
+		currentStatuses: map[int64]string{
+			studentID: studentStatusInactive,
 		},
 	}
 	auditor := &fakeStudentLifecycleAuditor{}

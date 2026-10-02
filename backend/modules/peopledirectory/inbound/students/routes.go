@@ -68,6 +68,20 @@ func (rs *Resource) mountStudentReadRoutes(r chi.Router, withTx common.Middlewar
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/change-history", rs.getStudentChangeHistory)
 }
 
+// mountStudentNoteRoutes registers the child note card (Kartei) reads and writes.
+func (rs *Resource) mountStudentNoteRoutes(r chi.Router, withTx common.Middleware) {
+	// Child note card (#3632). users:read opens the door, exactly like the
+	// other per-child read surfaces; WHICH notes come back is decided per
+	// note by the caller's audience, and the write routes re-check
+	// authorship (edit) and group leadership (delete) inside the handler.
+	// Writing a note is not users:update: it adds a staff member's own
+	// entry, it does not change the child's master data.
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/notes", rs.listStudentNotes)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/{id}/notes", rs.createStudentNote)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Put("/{id}/notes/{noteId}", rs.updateStudentNote)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Delete("/{id}/notes/{noteId}", rs.deleteStudentNote)
+}
+
 // mountRequestDecisionRoutes registers the per-queue parent request decisions.
 func (rs *Resource) mountRequestDecisionRoutes(r chi.Router, withTx common.Middleware) {
 	// Parent Stammdaten change-request decision (Track B). Requests can

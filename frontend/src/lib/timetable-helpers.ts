@@ -551,6 +551,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     activityType: raw.activity_type,
     roomId: String(raw.room_id),
     roomName: raw.room_name,
+    groupName: raw.group_name,
     staff,
     studentIds,
     students,
@@ -945,8 +946,6 @@ export function mapGuardianNoticeReach(
   raw: BackendGuardianNoticeReach,
 ): GuardianNoticeReach {
   return {
-    enabled: raw.enabled,
-    defaultOn: raw.default_on,
     childCount: raw.child_count,
     familyCount: raw.family_count,
   };

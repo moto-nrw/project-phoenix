@@ -125,6 +125,8 @@ const (
 	KeyStudentDailyCheckoutTime              = "operations.student_daily_checkout_time"
 	KeyPerStudentCheckoutEnabled             = "operations.per_student_checkout_enabled"
 	KeyPerStudentCheckoutDeltaMinutes        = "operations.per_student_checkout_delta_minutes"
+	KeyEarlyCheckoutNoteEnabled              = "operations.early_checkout_note_enabled"
+	KeyEarlyCheckoutNoteToleranceMinutes     = "operations.early_checkout_note_tolerance_minutes"
 	KeySessionCleanupEnabled                 = "operations.session_cleanup_enabled"
 	KeySessionCleanupIntervalMinutes         = "operations.session_cleanup_interval_minutes"
 	KeySessionAbandonedThresholdMin          = "operations.session_abandoned_threshold_minutes"
@@ -139,21 +141,17 @@ const (
 	KeyParentRequestReasonPolicy             = "operations.parent_request_reason_policy"
 	KeyMealRegistrationEnabled               = "operations.meal_registration_enabled"
 	KeyMealRegistrationCutoffTime            = "operations.meal_registration_cutoff_time"
-	KeyStatusFlagClearTime                   = "operations.status_flag_clear_time"
 	KeySickClearMode                         = "operations.sick_clear_mode"
 	KeyExcusedClearMode                      = "operations.excused_clear_mode"
 	KeyPresenceMode                          = "operations.presence_mode"
 	KeyAttendanceWebEnabled                  = "attendance.web_enabled"
 	KeyAttendanceNFCEnabled                  = "attendance.nfc_enabled"
-	KeyStudentActivationIntervalMin          = "operations.student_activation_interval_minutes"
 	KeyWebSpontaneousActivities              = "attendance.web_spontaneous_activities_enabled"
 	KeyWebExceedParticipantLimit             = "attendance.web_exceed_participant_limit_enabled"
 	KeyStudentPhotosEnabled                  = "operations.student_photos_enabled"
 	KeyGroupMode                             = "operations.group_mode"
 	KeyBirthdayDisplayEnabled                = "operations.birthday_display_enabled"
 	KeyBirthdayDisplayIncludeStaff           = "operations.birthday_display_include_staff"
-	KeyEmergencyListHealthInfo               = "operations.emergency_list_health_info"
-	KeyCareConcept                           = "operations.care_concept"
 	KeyRequirePickupOfferingReview           = "operations.require_pickup_offering_review"
 	KeyParentSickNoteEnabled                 = "operations.parent_sick_note_enabled"
 	KeyParentSickReportsEnabled              = "operations.parent_sick_reports_enabled"
@@ -205,20 +203,9 @@ const (
 	// exists on top of the per-person opt-in.
 	KeyNotificationsAbsenceReportedEnabled = "notifications.absence_reported_enabled"
 	// KeyNotificationsOnDutyOnly restricts personal notifications to staff who
-	// are currently checked in. An empty presence map fails closed; schools
-	// without time tracking must disable this setting.
+	// are currently checked in. An empty presence map fails closed, so the
+	// default is off (#3736): only schools that use time tracking opt in.
 	KeyNotificationsOnDutyOnly = "notifications.on_duty_only"
-	// KeyNotificationsCareCancelledEnabled is the school-wide gate for the
-	// automatic parent notice when a care block is cancelled (#2601). It is
-	// independent of the parent-news feature flag on purpose: a school can keep
-	// its news feed off and still owe families the cancellation notice.
-	KeyNotificationsCareCancelledEnabled = "notifications.care_cancelled_enabled"
-	// KeyNotificationsCareCancelledDefaultOn pre-selects "Eltern informieren"
-	// in the cancel dialog. The person cancelling can always flip it.
-	KeyNotificationsCareCancelledDefaultOn = "notifications.care_cancelled_default_on"
-	// KeyNotificationsCareCancelledEmail additionally e-mails the notice through
-	// the shared outbox, next to the in-app feed entry and the push.
-	KeyNotificationsCareCancelledEmail = "notifications.care_cancelled_email"
 )
 
 // Inherit preserves the old cross-kind group-leader policy until a school
@@ -318,12 +305,6 @@ const (
 	ReasonPolicyStaff = "staff"
 	// ReasonPolicyBoth requires a reason on both sides; it is the default.
 	ReasonPolicyBoth = "both"
-)
-
-// CareConcept option values for KeyCareConcept.
-const (
-	CareConceptFixedSchedule = "fixed_schedule"
-	CareConceptOpenRooms     = "open_rooms"
 )
 
 // StatusFlagClearMode option values for KeySickClearMode and KeyExcusedClearMode.
@@ -440,6 +421,7 @@ const (
 	KeyTimetableAutoEndGraceMinutes       = "timetable.auto_end_grace_minutes"
 	KeyTimetableStartLeadMinutes          = "timetable.start_lead_minutes"
 	KeyTimetableEnforcePlannedEnd         = "timetable.enforce_planned_end"
+	KeyTimetableCompleteLeadMinutes       = "timetable.complete_lead_minutes"
 	KeyTimetableOverdueThresholdMinutes   = "timetable.overdue_threshold_minutes"
 	KeyTimetableShowExpectedChildrenCount = "timetable.show_expected_children_count"
 	// KeyTimetableChildrenPerStaffRatio is the Betreuungsschlüssel: the max

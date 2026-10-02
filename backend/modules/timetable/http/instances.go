@@ -65,10 +65,8 @@ type GuardianNoticeResponse struct {
 
 // GuardianNoticeReachResponse is the preview for the cancel dialog.
 type GuardianNoticeReachResponse struct {
-	Enabled     bool `json:"enabled"`
-	DefaultOn   bool `json:"default_on"`
-	ChildCount  int  `json:"child_count"`
-	FamilyCount int  `json:"family_count"`
+	ChildCount  int `json:"child_count"`
+	FamilyCount int `json:"family_count"`
 }
 
 func (req *GuardianNoticeRequest) toServiceInput() *timetable.GuardianNoticeInput {
@@ -93,8 +91,7 @@ func guardianNoticeResponseOf(result *timetable.GuardianNoticeResult) *GuardianN
 }
 
 // guardianNoticeReach handles GET /instances/{id}/guardian-notice: the cancel
-// dialog asks before sending whether the school allows the notice, whether
-// the checkbox starts ticked, and how many families it would reach.
+// dialog asks before sending how many children and families it would reach.
 func (rs *Resource) guardianNoticeReach(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseID(r)
 	if err != nil {
@@ -111,8 +108,6 @@ func (rs *Resource) guardianNoticeReach(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	common.Respond(w, r, http.StatusOK, GuardianNoticeReachResponse{
-		Enabled:     reach.Enabled,
-		DefaultOn:   reach.DefaultOn,
 		ChildCount:  reach.ChildCount,
 		FamilyCount: reach.FamilyCount,
 	}, "Guardian notice reach retrieved")
@@ -308,7 +303,6 @@ var instanceLifecycleErrorRules = []common.ErrorRule{
 		},
 		Render: common.ErrorInvalidRequest,
 	},
-	{Target: timetable.ErrGuardianNoticeDisabled, Render: conflictCode(common.CodeTimetableGuardianNoticeDisabled)},
 	{
 		Target: timetable.ErrInstanceMoved,
 		Render: staticConflict("block was changed concurrently; reopen it and try again", common.CodeTimetableInstanceMoved),

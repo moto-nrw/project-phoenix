@@ -123,6 +123,7 @@ func applyOptionalStudentFields(req *UpdateStudentRequest, student *Student) {
 	}
 	if req.SupervisorNotes != nil {
 		student.SupervisorNotes = req.SupervisorNotes
+		student.SupervisorNotesSupplied = true
 	}
 	if req.DepartureCompanionNote != nil {
 		student.DepartureCompanionNote = req.DepartureCompanionNote

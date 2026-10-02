@@ -163,6 +163,13 @@ func WithAfterCommitHooks(ctx context.Context) (context.Context, func()) {
 	return tenant.WithAfterCommitHooksForTest(ctx)
 }
 
+// RegisterAfterCommit queues fn after the surrounding tenant transaction
+// commits, and runs it at once outside a transaction, for doubles that stand
+// in for a committed side effect.
+func RegisterAfterCommit(ctx context.Context, fn func()) {
+	tenant.RegisterAfterCommit(ctx, fn)
+}
+
 // SetupClosableTestDB returns a PRIVATE pool against the package clone for
 // tests that deliberately close their database to provoke errors. Closing
 // the shared SetupTestDB pool would kill every later test in the binary;

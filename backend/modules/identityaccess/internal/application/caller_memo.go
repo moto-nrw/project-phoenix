@@ -42,21 +42,23 @@ import (
 // Each stage has its own loaded flag; a loaded stage with a zero value is a
 // clean "not linked" outcome, not an error.
 type callerEntry struct {
-	mu            sync.Mutex
-	accountLoaded bool
-	account       domain.AccountMetadata
-	personLoaded  bool
-	person        *domain.CallerPerson
-	staffLoaded   bool
-	staffID       int64
-	teacherLoaded bool
-	teacherID     int64
-	groupsLoaded  bool
-	groups        []int64
-	subsLoaded    bool
-	subs          map[int64]bool
-	classesLoaded bool
-	classes       []string
+	mu                  sync.Mutex
+	accountLoaded       bool
+	account             domain.AccountMetadata
+	personLoaded        bool
+	person              *domain.CallerPerson
+	staffLoaded         bool
+	staffID             int64
+	teacherLoaded       bool
+	teacherID           int64
+	groupsLoaded        bool
+	groups              []int64
+	teacherGroupsLoaded bool
+	teacherGroups       []int64
+	subsLoaded          bool
+	subs                map[int64]bool
+	classesLoaded       bool
+	classes             []string
 }
 
 // entry resolves the memo entry of the current caller, or nil when the
@@ -190,6 +192,27 @@ func (e *callerEntry) storeGroups(groups []int64) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.groups, e.groupsLoaded = slices.Clone(groups), true
+}
+
+func (e *callerEntry) cachedTeacherGroups() ([]int64, bool) {
+	if e == nil {
+		return nil, false
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if !e.teacherGroupsLoaded {
+		return nil, false
+	}
+	return slices.Clone(e.teacherGroups), true
+}
+
+func (e *callerEntry) storeTeacherGroups(groups []int64) {
+	if e == nil {
+		return
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.teacherGroups, e.teacherGroupsLoaded = slices.Clone(groups), true
 }
 
 // cachedSubstitutions returns a copy so the result is never a live alias of

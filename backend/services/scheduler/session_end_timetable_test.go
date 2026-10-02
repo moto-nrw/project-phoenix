@@ -2,93 +2,89 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// endedSessionSteps records the session-end pass over the retained slot rows
+// and the Timetable owner's completion. The row effects of both are covered
+// in workflows/sessionend and modules/timetable/compose; this suite pins the
+// order, the arguments and the error handling of the scheduler's pass.
+type endedSessionSteps struct {
+	steps          []string
+	closedGroups   []int64
+	completedGroup []int64
+	closedAt       time.Time
+	completedAt    time.Time
+	closeErr       error
+	completeErr    error
+}
+
+func (r *endedSessionSteps) CloseOpenCheckoutsByActiveGroupIDs(_ context.Context, activeGroupIDs []int64, checkedOutAt time.Time) (int, error) {
+	r.steps = append(r.steps, "close-checkouts")
+	r.closedGroups, r.closedAt = activeGroupIDs, checkedOutAt
+	return len(activeGroupIDs), r.closeErr
+}
+
+func (r *endedSessionSteps) CompleteActiveByActiveGroupIDs(_ context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error) {
+	r.steps = append(r.steps, "complete-instances")
+	r.completedGroup, r.completedAt = activeGroupIDs, completedAt
+	return int64(len(activeGroupIDs)), r.completeErr
+}
+
 func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.Ctx(t)
-
-	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Daily Sync Room %d", time.Now().UnixNano()))
-	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Daily Sync Activity %d", time.Now().UnixNano()))
-	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	student := testpkg.CreateTestStudent(t, db, "DailySync", "Student", "9z")
-
-	instance := testpkg.CreateTestActivityInstance(t, db, timezone.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
-		Status:        scheduleModels.InstanceStatusActive,
-		ActiveGroupID: &activeGroup.ID,
-		Title:         fmt.Sprintf("Daily Sync Instance %d", time.Now().UnixNano()),
-		IsSpontaneous: true,
-	})
-	instanceStudent := testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, scheduleModels.AttendanceStatusExpected)
-
-	// A second student who is checked in and still open — the bridge must
-	// stamp their slot checkout when the daily session end closes the visits.
-	presentStudent := testpkg.CreateTestStudent(t, db, "DailySync", "Present", "9z")
-	presentRow := testpkg.CreateTestInstanceStudent(t, db, instance.ID, presentStudent.ID, scheduleModels.AttendanceStatusPresent)
-	checkedInAt := time.Now().Add(-2 * time.Hour)
-	testpkg.UpdateSessionAttendance(t, ctx, db, presentRow.ID, map[string]any{"checked_in_at": checkedInAt})
-
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	instanceRepo := factory.ActivityInstance
-	instanceStudentRepo := factory.InstanceStudent
+	rows := &endedSessionSteps{}
 	s := unitScheduler(&Scheduler{
-		instanceRepo:        instanceRepo,
-		instanceStudentRepo: instanceStudentRepo,
+		instanceStudentRepo: rows,
+		timetableBridge:     rows,
+		logger:              slog.Default()})
 
-		timetableBridge: endedSessionRows{instances: instanceRepo, participants: instanceStudentRepo},
-		logger:          slog.Default()})
-
-	completed, err := s.completeTimetableInstancesForEndedSessions(ctx, &studentpresence.DailySessionCleanupResult{
-		EndedActiveGroupIDs: []int64{activeGroup.ID},
+	completed, err := s.completeTimetableInstancesForEndedSessions(context.Background(), &studentpresence.DailySessionCleanupResult{
+		EndedActiveGroupIDs: []int64{811, 812},
 	})
+
 	require.NoError(t, err)
-	assert.Equal(t, 1, completed)
-
-	reloaded := testpkg.ActivityInstanceByID(t, ctx, db, instance.ID)
-	assert.Equal(t, scheduleModels.InstanceStatusCompleted, reloaded.Status)
-	assert.NotNil(t, reloaded.CompletedAt)
-
-	reloadedStudent := testpkg.InstanceStudentByIDContext(t, ctx, db, instanceStudent.ID)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, reloadedStudent.Status)
-
-	reloadedPresent := testpkg.InstanceStudentByIDContext(t, ctx, db, presentRow.ID)
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, reloadedPresent.Status, "observed presence must be preserved")
-	require.NotNil(t, reloadedPresent.CheckedOutAt, "daily session end must close the open slot checkout")
-	assert.False(t, reloadedPresent.CheckedOutAt.Before(checkedInAt))
+	assert.Equal(t, 2, completed)
+	assert.Equal(t, []string{"close-checkouts", "complete-instances"}, rows.steps,
+		"open slot checkouts close before the blocks complete")
+	assert.Equal(t, []int64{811, 812}, rows.closedGroups)
+	assert.Equal(t, []int64{811, 812}, rows.completedGroup)
+	assert.Equal(t, rows.closedAt, rows.completedAt, "checkout and completion share one instant")
 }
 
-// endedSessionRows completes the blocks of ended sessions straight through
-// the retained rows, the way the Timetable owner's completion does without
-// Care Plan: nobody is spared, every still-expected child is stamped absent,
-// then the blocks complete. The owner's completion itself is covered in
-// modules/timetable/compose; this suite pins the scheduler's session-end
-// pass and the row effects it leaves behind.
-type endedSessionRows struct {
-	instances interface {
-		CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
+func TestCompleteTimetableInstancesForEndedSessionsPropagatesFailures(t *testing.T) {
+	t.Parallel()
+	for name, rows := range map[string]*endedSessionSteps{
+		"close checkouts":    {closeErr: errors.New("checkout close failed")},
+		"complete instances": {completeErr: errors.New("completion failed")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := unitScheduler(&Scheduler{instanceStudentRepo: rows, timetableBridge: rows, logger: slog.Default()})
+
+			_, err := s.completeTimetableInstancesForEndedSessions(context.Background(), &studentpresence.DailySessionCleanupResult{
+				EndedActiveGroupIDs: []int64{821},
+			})
+
+			require.Error(t, err, "a failed sync rolls the session end back with it")
+		})
 	}
-	participants scheduleModels.InstanceStudentRepository
 }
 
-func (r endedSessionRows) CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error) {
-	if err := r.participants.MarkNotScheduled(ctx, nil); err != nil {
-		return 0, err
-	}
-	if err := r.participants.MarkExpectedAbsentByActiveGroupIDs(ctx, activeGroupIDs, completedAt, nil); err != nil {
-		return 0, err
-	}
-	return r.instances.CompleteActiveByActiveGroupIDs(ctx, activeGroupIDs, completedAt)
+func TestCompleteTimetableInstancesForEndedSessionsSkipsWithoutEndedGroups(t *testing.T) {
+	t.Parallel()
+	rows := &endedSessionSteps{}
+	s := unitScheduler(&Scheduler{instanceStudentRepo: rows, timetableBridge: rows, logger: slog.Default()})
+
+	completed, err := s.completeTimetableInstancesForEndedSessions(context.Background(), &studentpresence.DailySessionCleanupResult{})
+
+	require.NoError(t, err)
+	assert.Zero(t, completed)
+	assert.Empty(t, rows.steps)
 }

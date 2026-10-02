@@ -312,6 +312,8 @@ interface StudentHeaderProps {
   todayPickupPlannedTime?: string;
   todayPickupActualTime?: string;
   todayPickupNote?: string;
+  /** Why the child went home early today (#3324), shown once it has left. */
+  todayCheckoutNote?: string;
   isPickupException?: boolean;
   todayArrivalPlannedTime?: string;
   todayArrivalActualTime?: string;
@@ -421,6 +423,7 @@ export function StudentHeaderStats({
   todayPickupPlannedTime,
   todayPickupActualTime,
   todayPickupNote,
+  todayCheckoutNote,
   isPickupException,
   todayArrivalPlannedTime,
   todayArrivalActualTime,
@@ -511,6 +514,20 @@ export function StudentHeaderStats({
             isException={isPickupException}
             note={todayPickupNote}
           />
+          {todayPickupActualTime && todayCheckoutNote ? (
+            <span
+              data-testid="today-checkout-note"
+              className="mt-1 flex items-start gap-2 text-sm text-gray-600"
+            >
+              <span className="w-4 shrink-0" aria-hidden="true" />
+              <span>
+                Grund für das frühe Gehen:{" "}
+                <span className="font-medium text-gray-900">
+                  {todayCheckoutNote}
+                </span>
+              </span>
+            </span>
+          ) : null}
         </>
       )}
     </span>
@@ -956,17 +973,6 @@ export function PersonalInfoReadOnly({
                 fields={["health_info"]}
               />
             </div>
-          </DataField>
-        )}
-        {student.supervisor_notes && (
-          <DataField label="Betreuernotizen" fullWidth>
-            <span className="flex items-start gap-1.5">
-              <span className="min-w-0 flex-1">{student.supervisor_notes}</span>
-              <FieldHistoryInfo
-                studentId={student.id}
-                fields={["supervisor_notes"]}
-              />
-            </span>
           </DataField>
         )}
         {student.extra_info && (

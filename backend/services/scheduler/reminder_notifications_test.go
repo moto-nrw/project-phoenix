@@ -11,14 +11,12 @@ import (
 	"testing"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
 	// Populates the settings registry, so the tick test can assert against the
 	// registered default instead of a literal copy of it.
-	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	reminders "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -142,7 +140,7 @@ func (c *captureBatchNotifier) NotifyBatch(ctx context.Context, events []notific
 	if c.err != nil {
 		return c.err
 	}
-	tenant.RegisterAfterCommit(ctx, func() {
+	testpkg.RegisterAfterCommit(ctx, func() {
 		c.events = append(c.events, events...)
 	})
 	return nil
@@ -188,6 +186,18 @@ type reminderTestSetup struct {
 // map. Both staff are on duty by default so tests that do not care about the
 // duty gate are unaffected.
 func buildReminderSched(results map[int64]*reminders.Result, consent map[string][]int64) *reminderTestSetup {
+	return buildReminderSchedWithSettings(results, consent, nil)
+}
+
+// buildOnDutyReminderSched is buildReminderSched with notifications.on_duty_only
+// switched on. Since #3736 the gate is off unless a school switches it on.
+func buildOnDutyReminderSched(results map[int64]*reminders.Result, consent map[string][]int64) *reminderTestSetup {
+	return buildReminderSchedWithSettings(results, consent, &fakeSettingsResolver{boolValues: map[string]bool{
+		settingNotificationsOnDutyOnly: true,
+	}})
+}
+
+func buildReminderSchedWithSettings(results map[int64]*reminders.Result, consent map[string][]int64, settings SettingsResolver) *reminderTestSetup {
 	setup := &reminderTestSetup{
 		computer: &fakeBatchComputer{results: results},
 		consent:  &fakeConsent{byType: consent},
@@ -203,8 +213,9 @@ func buildReminderSched(results map[int64]*reminders.Result, consent map[string]
 		notifier: &captureBatchNotifier{},
 	}
 	setup.sched = unitScheduler(&Scheduler{
-		tasks:  make(map[string]*ScheduledTask),
-		logger: slog.Default(),
+		tasks:    make(map[string]*ScheduledTask),
+		logger:   slog.Default(),
+		settings: settings,
 		reminderNotifications: ReminderNotificationDeps{
 			Computer:     setup.computer,
 			Notifier:     setup.notifier,
@@ -295,7 +306,7 @@ func TestPersonalRemindersIncludeStafflessEffectiveAdminsWhenDutyGateDisabled(t 
 func TestPersonalRemindersExcludeStafflessEffectiveAdminsWhenDutyGateEnabled(t *testing.T) {
 	t.Parallel()
 
-	setup := buildReminderSched(
+	setup := buildOnDutyReminderSched(
 		map[int64]*reminders.Result{-stafflessAdminID: resultOf(pickupFixture("11", "14:00"))},
 		map[string][]int64{notifications.TypePickupUpcoming: {stafflessAdminID}},
 	)
@@ -452,7 +463,7 @@ func TestPersonalRemindersOnDutyGate(t *testing.T) {
 	}
 
 	t.Run("only stamped-in people are addressed", func(t *testing.T) {
-		setup := buildReminderSched(results, consent)
+		setup := buildOnDutyReminderSched(results, consent)
 		setup.duty.presence = map[int64]string{
 			caregiverStaffID: workforce.WorkSessionStatusPresent,
 			adminStaffID:     "checked_out",
@@ -465,7 +476,7 @@ func TestPersonalRemindersOnDutyGate(t *testing.T) {
 	})
 
 	t.Run("home office counts as on duty", func(t *testing.T) {
-		setup := buildReminderSched(results, consent)
+		setup := buildOnDutyReminderSched(results, consent)
 		setup.duty.presence = map[int64]string{
 			caregiverStaffID: workforce.WorkSessionStatusHomeOffice,
 		}
@@ -477,7 +488,7 @@ func TestPersonalRemindersOnDutyGate(t *testing.T) {
 	})
 
 	t.Run("nobody clocked in fails closed", func(t *testing.T) {
-		setup := buildReminderSched(results, consent)
+		setup := buildOnDutyReminderSched(results, consent)
 		setup.duty.presence = nil
 
 		setup.sched.runReminderNotificationsForTenant(context.Background(), testTenant, time.Now())
@@ -488,7 +499,7 @@ func TestPersonalRemindersOnDutyGate(t *testing.T) {
 	})
 
 	t.Run("everybody stamped out stays quiet", func(t *testing.T) {
-		setup := buildReminderSched(results, consent)
+		setup := buildOnDutyReminderSched(results, consent)
 		setup.duty.presence = map[int64]string{
 			caregiverStaffID: "checked_out",
 			adminStaffID:     "checked_out",
@@ -499,6 +510,23 @@ func TestPersonalRemindersOnDutyGate(t *testing.T) {
 		assert.Empty(t, setup.notifier.events)
 		assert.Zero(t, setup.computer.calls)
 	})
+}
+
+// Without an own value the duty gate is off (#3736): a school without time
+// tracking reaches its team even though nobody is clocked in.
+func TestPersonalRemindersDutyGateOffByDefault(t *testing.T) {
+	t.Parallel()
+
+	setup := buildReminderSched(
+		map[int64]*reminders.Result{caregiverStaffID: resultOf(pickupFixture("11", "14:00"))},
+		map[string][]int64{notifications.TypePickupUpcoming: {caregiverAccountID}},
+	)
+	setup.duty.presence = nil
+
+	setup.sched.runReminderNotificationsForTenant(context.Background(), testTenant, time.Now())
+
+	require.Len(t, setup.notifier.events, 1)
+	assert.Equal(t, []int64{caregiverAccountID}, setup.notifier.events[0].Audience.StaffAccountIDs)
 }
 
 func TestPersonalRemindersSkipConditions(t *testing.T) {
@@ -579,7 +607,7 @@ func TestPersonalRemindersMarkOccurrencesAfterCommit(t *testing.T) {
 		accountID: caregiverAccountID,
 		reminder:  reminderIdentity(reminder),
 	}
-	ctx, commit := tenant.WithAfterCommitHooksForTest(context.Background())
+	ctx, commit := testpkg.WithAfterCommitHooks(context.Background())
 
 	setup.sched.runReminderNotificationsForTenant(ctx, testTenant, time.Now())
 
@@ -610,7 +638,7 @@ func TestPersonalRemindersRollbackLeavesOccurrencesUnmarked(t *testing.T) {
 		accountID: caregiverAccountID,
 		reminder:  reminderIdentity(reminder),
 	}
-	rolledBackCtx, _ := tenant.WithAfterCommitHooksForTest(context.Background())
+	rolledBackCtx, _ := testpkg.WithAfterCommitHooks(context.Background())
 
 	setup.sched.runReminderNotificationsForTenant(rolledBackCtx, testTenant, time.Now())
 
@@ -649,51 +677,34 @@ func TestPersonalRemindersTenantIsolationAndDayRotation(t *testing.T) {
 	assert.Len(t, setup.notifier.events, 3)
 }
 
-// registrySettingsResolver behaves like the real settings service for a school
-// that never touched a setting: no tenant override, and Resolve* answers with
-// the value registered in the settings registry. The other doubles in this
-// package invent their own "no value" behaviour, which is exactly what would let
-// a registry-default regression pass unnoticed.
-type registrySettingsResolver struct{}
+// registryDefaultSettings behaves like the real settings service for a
+// school that never touched a setting: no tenant override, and Resolve*
+// answers the registered default. The defaults it carries are the
+// registry's, pinned there by services/config/defaults; the other doubles in
+// this package invent their own "no value" behaviour, which is exactly what
+// would let a registry-default regression pass unnoticed.
+type registryDefaultSettings struct {
+	bools map[string]bool
+}
 
-func (registrySettingsResolver) HasTenantOverride(context.Context, string) (bool, error) {
+func (registryDefaultSettings) HasTenantOverride(context.Context, string) (bool, error) {
 	return false, nil
 }
 
-func (registrySettingsResolver) ResolveBool(_ context.Context, key string) (bool, error) {
-	def := configModel.GetDefinition(key)
-	if def == nil {
+func (r registryDefaultSettings) ResolveBool(_ context.Context, key string) (bool, error) {
+	value, ok := r.bools[key]
+	if !ok {
 		return false, fmt.Errorf("no definition registered for %s", key)
 	}
-	value, ok := def.Default.(bool)
-	if !ok {
-		return false, fmt.Errorf("%s is not a boolean setting", key)
-	}
 	return value, nil
 }
 
-func (registrySettingsResolver) ResolveInt(_ context.Context, key string) (int, error) {
-	def := configModel.GetDefinition(key)
-	if def == nil {
-		return 0, fmt.Errorf("no definition registered for %s", key)
-	}
-	value, ok := def.Default.(int)
-	if !ok {
-		return 0, fmt.Errorf("%s is not an integer setting", key)
-	}
-	return value, nil
+func (registryDefaultSettings) ResolveInt(_ context.Context, key string) (int, error) {
+	return 0, fmt.Errorf("no definition registered for %s", key)
 }
 
-func (registrySettingsResolver) ResolveString(_ context.Context, key string) (string, error) {
-	def := configModel.GetDefinition(key)
-	if def == nil {
-		return "", fmt.Errorf("no definition registered for %s", key)
-	}
-	value, ok := def.Default.(string)
-	if !ok {
-		return "", fmt.Errorf("%s is not a string setting", key)
-	}
-	return value, nil
+func (registryDefaultSettings) ResolveString(_ context.Context, key string) (string, error) {
+	return "", fmt.Errorf("no definition registered for %s", key)
 }
 
 // The tick's feature gate has to answer what the notification router answers.
@@ -703,17 +714,15 @@ func (registrySettingsResolver) ResolveString(_ context.Context, key string) (st
 func TestReminderNotificationTickHonoursRegistryDefault(t *testing.T) {
 	t.Parallel()
 
-	definition := configModel.GetDefinition(configModel.KeyNotificationsDispatchEnabled)
-	require.NotNil(t, definition, "the dispatch flag must be registered")
-	require.Equal(t, true, definition.Default,
-		"premise of this test: the registry default of the dispatch flag is on")
+	// Premise: the registry default of the dispatch flag is on, pinned by
+	// services/config/defaults.TestNotificationsDispatchDefaultsOn.
 
 	t.Run("no tenant override runs the tick", func(t *testing.T) {
 		setup := buildReminderSched(
 			map[int64]*reminders.Result{caregiverStaffID: resultOf(pickupFixture("11", "14:00"))},
 			map[string][]int64{notifications.TypePickupUpcoming: {caregiverAccountID}},
 		)
-		setup.sched.settings = registrySettingsResolver{}
+		setup.sched.settings = registryDefaultSettings{bools: map[string]bool{settingNotificationsDispatchEnabled: true}}
 
 		// No db/schoolRepo wired, so forEachTenantSettings runs the body once
 		// without tenant context, which is enough to exercise the gate.
