@@ -91,6 +91,9 @@ type lifecycleSettingsStub struct {
 	intErr  error
 	boolVal bool
 	boolErr error
+	// completeLead and completeLeadErr answer timetable.complete_lead_minutes.
+	completeLead    int
+	completeLeadErr error
 }
 
 func (s lifecycleSettingsStub) StartLeadMinutes(context.Context) (int, error) {
@@ -99,4 +102,8 @@ func (s lifecycleSettingsStub) StartLeadMinutes(context.Context) (int, error) {
 
 func (s lifecycleSettingsStub) EnforcePlannedEnd(context.Context) (bool, error) {
 	return s.boolVal, s.boolErr
+}
+
+func (s lifecycleSettingsStub) CompleteLeadMinutes(context.Context) (int, error) {
+	return s.completeLead, s.completeLeadErr
 }

@@ -148,6 +148,8 @@ func (s *helperSettings) StartLeadMinutes(context.Context) (int, error) { return
 
 func (s *helperSettings) EnforcePlannedEnd(context.Context) (bool, error) { return false, nil }
 
+func (s *helperSettings) CompleteLeadMinutes(context.Context) (int, error) { return 0, nil }
+
 func (s *helperSettings) ActionScopeKey(ScopedAction) (string, error) {
 	return "operations.attendance_edit_scope", nil
 }

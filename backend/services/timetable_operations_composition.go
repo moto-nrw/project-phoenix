@@ -142,6 +142,10 @@ func (s timetableOperationSettings) EnforcePlannedEnd(ctx context.Context) (bool
 	return s.settings.ResolveBool(ctx, configModels.KeyTimetableEnforcePlannedEnd)
 }
 
+func (s timetableOperationSettings) CompleteLeadMinutes(ctx context.Context) (int, error) {
+	return s.settings.ResolveInt(ctx, configModels.KeyTimetableCompleteLeadMinutes)
+}
+
 // timetableScopedActionKeys names the scope setting of each scoped action.
 var timetableScopedActionKeys = map[timetableCompose.ScopedAction]string{
 	timetableCompose.ScopedAttendance:    configModels.KeyAttendanceEditScope,

@@ -279,7 +279,11 @@ func (s *operations) rosterEnvelope(ctx context.Context, inst *scheduleModels.Ac
 	if err != nil {
 		return nil, fmt.Errorf("%w: resolve planned end policy: %v", timetable.ErrLifecycleSettings, err)
 	}
-	availability := timetable.EvaluateLifecycleAvailability(lifecycleWindow(inst), s.now(), 15, enforcePlannedEnd)
+	completeLead, err := s.deps.Settings.CompleteLeadMinutes(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: resolve complete lead: %v", timetable.ErrLifecycleSettings, err)
+	}
+	availability := timetable.EvaluateLifecycleAvailability(lifecycleWindow(inst), s.now(), 15, completeLead, enforcePlannedEnd)
 	return &timetable.OperationRoster{
 		Instance: timetable.OperationRosterInstance{
 			ID:                  inst.ID,

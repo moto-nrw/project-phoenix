@@ -542,6 +542,25 @@ describe("InstanceDetailModal", () => {
     expect(button).toBeDisabled();
   });
 
+  it("names the earlier completion time of a lead before the planned end", () => {
+    render(
+      <InstanceDetailModal
+        instance={instance({
+          status: "active",
+          isLive: true,
+          endTime: "16:00",
+          canComplete: false,
+          completeAvailableAt: "2099-10-02T15:45:00+02:00",
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: "Beenden ab 15:45" });
+    expect(button).toBeDisabled();
+  });
+
   it("completes an active instance", async () => {
     const onLifecycleAction = vi.fn().mockResolvedValue(undefined);
     render(
