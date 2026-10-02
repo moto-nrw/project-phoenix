@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  ArrowRightLeft,
-  CalendarClock,
-  Repeat,
-  TriangleAlert,
-} from "lucide-react";
+import { ArrowRightLeft, Repeat, TriangleAlert } from "lucide-react";
 import {
   useEffect,
   useId,
@@ -438,7 +433,7 @@ export function DienstplanResourceGrid({
     if (onOpenPersonWeek) {
       items.push({
         label: "Wochenraster öffnen",
-        icon: <CalendarClock className="h-4 w-4" aria-hidden />,
+        icon: <MotoConceptIcon concept="staffPlan" size={18} />,
         onClick: () => onOpenPersonWeek(member),
       });
     }

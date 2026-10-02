@@ -419,13 +419,16 @@ export function DienstplanPersonWeekGrid({
             Ziehen Sie über die Viertelstunden, um eine Schicht anzulegen.
             Klicken Sie auf eine Schicht, um sie zu ändern.
           </p>
+          <p className="w-full text-xs text-gray-500 sm:hidden">
+            Wischen Sie zur Seite, um weitere Tage zu sehen.
+          </p>
         </div>
 
         <div className="overflow-x-auto">
           <div className="min-w-[640px]">
             {/* Kopfzeile: Wochentage */}
             <div className="flex border-b border-gray-200 bg-gray-50">
-              <div className="w-28 shrink-0 border-r border-gray-200" />
+              <div className="sticky left-0 z-30 w-24 shrink-0 border-r border-gray-200 bg-gray-50 sm:w-36" />
               <div className="grid flex-1" style={columnTemplate}>
                 {weekDays.map((date, index) => {
                   const closingReason = closingDays?.get(date);
@@ -480,7 +483,7 @@ export function DienstplanPersonWeekGrid({
             {/* Raster: eine Zeile je Viertelstunde */}
             <div className="flex" style={{ height: bodyHeight }}>
               <div
-                className="relative w-28 shrink-0 border-r border-gray-200"
+                className="sticky left-0 z-30 w-24 shrink-0 border-r border-gray-200 bg-white sm:w-36"
                 aria-hidden
               >
                 {hourMarks.slice(0, -1).map((minute) => (
@@ -562,17 +565,20 @@ export function DienstplanPersonWeekGrid({
             <div className="border-t border-gray-200 bg-gray-50 text-xs">
               {sums.rows.map((row) => (
                 <div key={row.key} className="flex border-b border-gray-100">
-                  <div className="flex w-28 shrink-0 items-center gap-1.5 truncate border-r border-gray-200 px-2 py-1 text-gray-700">
+                  <div className="sticky left-0 z-30 flex w-24 shrink-0 items-start gap-1.5 border-r border-gray-200 bg-gray-50 px-2 py-1 text-gray-700 sm:w-36">
                     <span
                       aria-hidden
-                      className={`h-2.5 w-0.5 shrink-0 rounded-full ${
+                      className={`mt-0.5 h-3 w-0.5 shrink-0 rounded-full ${
                         row.color ? "" : "bg-gray-300"
                       }`}
                       style={
                         row.color ? { backgroundColor: row.color } : undefined
                       }
                     />
-                    <span className="truncate" title={row.label}>
+                    <span
+                      className="line-clamp-2 hyphens-auto"
+                      title={row.label}
+                    >
                       {row.label}
                     </span>
                   </div>
@@ -592,7 +598,7 @@ export function DienstplanPersonWeekGrid({
                 </div>
               ))}
               <div className="flex">
-                <div className="w-28 shrink-0 border-r border-gray-200 px-2 py-1.5 font-semibold text-gray-900">
+                <div className="sticky left-0 z-30 w-24 shrink-0 border-r border-gray-200 bg-gray-50 px-2 py-1.5 font-semibold text-gray-900 sm:w-36">
                   Tagessumme
                 </div>
                 <div className="grid flex-1" style={columnTemplate}>
@@ -682,7 +688,7 @@ function ShiftBlock({
     // Stoppt den Pointer-Start des Rasters: ein Klick auf einen Block
     // bearbeitet ihn und zieht keine neue Spanne auf.
     <div
-      className="absolute z-10"
+      className="absolute z-10 rounded-md bg-white"
       style={{
         top: ((start - windowStart) / SLOT_MINUTES) * SLOT_PX + 1,
         height: (duration / SLOT_MINUTES) * SLOT_PX - 2,
@@ -716,7 +722,7 @@ function ShiftBlock({
             </span>
           ) : undefined
         }
-        className={`h-full overflow-hidden ${isShort ? "py-0!" : ""}`}
+        className={`flex h-full flex-col overflow-hidden ${isShort ? "justify-center py-0!" : "justify-start"}`}
         onClick={onEdit}
         aria-label={ariaParts.join(", ")}
       />
