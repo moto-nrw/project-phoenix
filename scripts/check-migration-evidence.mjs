@@ -46,13 +46,13 @@ async function verifyFirstReleasePush(event, repository, execute) {
   for (const sha of candidates) {
     try {
       await checkRelease({ event: 'pull_request', baseRef: 'main', headRef: 'development',
-        repository, headRepository: repository, baseSha: event.before, headSha: sha }, execute, { timeoutMs: 0 });
+        repository, headRepository: repository, baseSha: event.before, headSha: sha }, execute);
       execute('git', ['merge-base', '--is-ancestor', sha, event.after]);
       execute('git', ['diff', '--exit-code', sha, '--']);
       return;
     } catch (error) {
       // Only failed promotion proofs permit trying another direct ancestor.
-      // The release is rejected if none proves successful, exact-tree CI.
+      // The release is rejected if none proves an exact, descended tree.
       if (sha === candidates.at(-1)) throw error;
     }
   }
