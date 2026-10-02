@@ -136,9 +136,42 @@ vi.mock("~/components/staff/dienstplan-halbjahr-grid", () => ({
   ),
 }));
 
+vi.mock("~/components/staff/dienstplan-person-week-grid", () => ({
+  DienstplanPersonWeekGrid: ({
+    member,
+    onCreate,
+  }: {
+    member: { id: string; firstName: string; lastName: string };
+    onCreate: (date: string, startTime: string, endTime: string) => void;
+  }) => (
+    <div data-testid="person-week-grid">
+      <span data-testid="person-week-member">{member.id}</span>
+      <button
+        type="button"
+        onClick={() => onCreate("2026-07-07", "09:00", "09:45")}
+      >
+        Spanne aufziehen
+      </button>
+    </div>
+  ),
+}));
+
 vi.mock("~/components/staff/shift-edit-modal", () => ({
-  ShiftEditModal: ({ onSaved }: { onSaved: () => void }) => (
-    <button type="button" data-testid="shift-modal" onClick={onSaved}>
+  ShiftEditModal: ({
+    onSaved,
+    initialStartTime,
+    initialEndTime,
+  }: {
+    onSaved: () => void;
+    initialStartTime?: string;
+    initialEndTime?: string;
+  }) => (
+    <button
+      type="button"
+      data-testid="shift-modal"
+      data-initial={`${initialStartTime ?? ""}-${initialEndTime ?? ""}`}
+      onClick={onSaved}
+    >
       Schicht speichern
     </button>
   ),
@@ -808,5 +841,69 @@ describe("DienstplanView", () => {
     expect(
       screen.queryByText("Noch keine Mitarbeitenden angelegt"),
     ).not.toBeInTheDocument();
+  });
+
+  it("renders the person week grid for view=person&staff and prefills a dragged span", () => {
+    mocks.useBerlinToday.mockReturnValue("2026-07-06");
+    mocks.search.value = "view=person&staff=7";
+    mockOverviewLoaded();
+
+    render(<DienstplanView />);
+
+    expect(screen.getByTestId("person-week-grid")).toBeInTheDocument();
+    expect(screen.queryByTestId("dienstplan-grid")).not.toBeInTheDocument();
+    expect(screen.getByTestId("person-week-member")).toHaveTextContent("7");
+
+    fireEvent.click(screen.getByRole("button", { name: "Spanne aufziehen" }));
+    expect(screen.getByTestId("shift-modal")).toHaveAttribute(
+      "data-initial",
+      "09:00-09:45",
+    );
+  });
+
+  it("falls back to the first person for an unknown staff id", () => {
+    mocks.search.value = "view=person&staff=999";
+    mockOverviewLoaded();
+
+    render(<DienstplanView />);
+
+    expect(screen.getByTestId("person-week-member")).toHaveTextContent("7");
+  });
+
+  it("writes view=person and the staff id when switching to Person", async () => {
+    mockOverviewLoaded();
+
+    render(<DienstplanView />);
+    fireEvent.click(screen.getByRole("button", { name: "Person" }));
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search);
+      expect(params.get("view")).toBe("person");
+      expect(params.get("staff")).toBe("7");
+    });
+  });
+
+  it("falls back to Woche for view=person without schedules:read", () => {
+    mocks.hasPermission.mockImplementation(
+      (_session: unknown, permission: string) =>
+        permission !== "schedules:read",
+    );
+    mocks.search.value = "view=person&staff=7";
+    mocks.useSWRAuth.mockImplementation((key: string | null) => {
+      if (key === "dienstplan-staff") {
+        return {
+          data: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
+          error: undefined,
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      return { data: [], error: undefined, isLoading: false, mutate: vi.fn() };
+    });
+
+    render(<DienstplanView />);
+
+    expect(screen.queryByTestId("person-week-grid")).not.toBeInTheDocument();
+    expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
   });
 });

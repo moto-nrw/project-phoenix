@@ -480,7 +480,7 @@ src/components/parent/parent-enroll-picker.tsx|text-[11px]@205 text-[11px]@209
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/planning/closing-day-marker.tsx|text-[10px]@53
 src/components/staff/absence-request-row.tsx|text-[11px]@107
-src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@468 text-[11px]@564 text-[11px]@573 text-[11px]@580 text-[10px]@714
+src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@485 text-[11px]@581 text-[11px]@590 text-[11px]@597 text-[10px]@731
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
 src/components/students/care-schedule-manager.tsx|text-[10px]@1201 text-[11px]@1362 text-[11px]@1451 text-[11px]@1461 text-[11px]@1491
 src/components/students/planned-status-days-modal.tsx|text-[10px]@927 text-[11px]@927

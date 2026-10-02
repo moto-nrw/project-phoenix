@@ -1,6 +1,11 @@
 "use client";
 
-import { ArrowRightLeft, Repeat, TriangleAlert } from "lucide-react";
+import {
+  ArrowRightLeft,
+  CalendarClock,
+  Repeat,
+  TriangleAlert,
+} from "lucide-react";
 import {
   useEffect,
   useId,
@@ -120,6 +125,8 @@ interface DienstplanResourceGridProps {
   /** Opens the "Krank melden" flow (#1843). Set only when the caller has
    *  `time_tracking:manage`; the menu item is hidden otherwise. */
   readonly onSickReport?: (staff: StaffScheduleStaff) => void;
+  /** Öffnet das Viertelstunden-Wochenraster dieser Person (#3818). */
+  readonly onOpenPersonWeek?: (staff: StaffScheduleStaff) => void;
 }
 
 // Row-header "krank" note: any absent assignment this week, or a cancelled
@@ -317,6 +324,7 @@ export function DienstplanResourceGrid({
   currentStaffId = null,
   onCellClick,
   onSickReport,
+  onOpenPersonWeek,
 }: DienstplanResourceGridProps) {
   const router = useTenantRouter();
   const scrollHintId = useId();
@@ -425,6 +433,15 @@ export function DienstplanResourceGrid({
 
   const buildMenuItems = (member: StaffScheduleStaff): OverflowMenuEntry[] => {
     const items: OverflowMenuEntry[] = [];
+    // Wochenraster je Person (#3818); die Ansicht setzt den Callback nur auf
+    // dem vollen Berechtigungspfad.
+    if (onOpenPersonWeek) {
+      items.push({
+        label: "Wochenraster öffnen",
+        icon: <CalendarClock className="h-4 w-4" aria-hidden />,
+        onClick: () => onOpenPersonWeek(member),
+      });
+    }
     // "Krank melden" (#1843) survives the reduced path — the row header there is
     // name-only otherwise, but the sick-report flow needs the same audience it
     // had before (Fertig-Kriterium 14). The navigation items are full-path only.

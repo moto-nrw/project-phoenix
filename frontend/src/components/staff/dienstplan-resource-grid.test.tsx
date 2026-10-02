@@ -135,6 +135,7 @@ interface RenderOverrides {
   reducedPath?: boolean;
   currentStaffId?: string | null;
   onSickReport?: (staff: StaffScheduleStaff) => void;
+  onOpenPersonWeek?: (staff: StaffScheduleStaff) => void;
   weekDays?: readonly string[];
   todayIso?: string;
 }
@@ -155,6 +156,7 @@ function renderGrid(overrides: RenderOverrides = {}) {
       currentStaffId={overrides.currentStaffId}
       onCellClick={onCellClick}
       onSickReport={overrides.onSickReport}
+      onOpenPersonWeek={overrides.onOpenPersonWeek}
     />,
   );
   return { onCellClick, ...renderResult };
@@ -708,5 +710,18 @@ describe("DienstplanResourceGrid row-header menu", () => {
     expect(
       screen.getByRole("menuitem", { name: "Zeiterfassung öffnen" }),
     ).toBeInTheDocument();
+  });
+
+  it("offers the person week grid when the view passes the callback", () => {
+    const onOpenPersonWeek = vi.fn();
+    renderGrid({ onOpenPersonWeek });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Ada Lovelace" }),
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Wochenraster öffnen" }),
+    );
+    expect(onOpenPersonWeek).toHaveBeenCalledWith(member);
   });
 });

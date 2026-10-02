@@ -141,6 +141,10 @@ interface ShiftEditModalProps {
   readonly existingReplacements?: readonly StaffShift[];
   /** All stored ranges, used to warn for every generated series occurrence. */
   readonly closingDayRanges?: readonly ClosingDayRange[];
+  /** Vorbelegte Zeiten für eine neue Schicht ("HH:MM"), z. B. aus der im
+   *  Viertelstunden-Raster aufgezogenen Spanne (#3818). Nur bei `create`. */
+  readonly initialStartTime?: string;
+  readonly initialEndTime?: string;
   readonly onClose: () => void;
   readonly onSaved: () => void;
 }
@@ -175,6 +179,8 @@ export function ShiftEditModal({
   staffOptions = EMPTY_STAFF_OPTIONS,
   existingReplacements = EMPTY_REPLACEMENTS,
   closingDayRanges = EMPTY_CLOSING_DAY_RANGES,
+  initialStartTime,
+  initialEndTime,
   onClose,
   onSaved,
 }: ShiftEditModalProps) {
@@ -187,13 +193,25 @@ export function ShiftEditModal({
         shiftTypeId: shift.shiftTypeId ?? "",
       };
     }
+    if (initialStartTime && initialEndTime) {
+      // Aufgezogene Spanne aus dem Viertelstunden-Raster: die Pause folgt der
+      // Länge (mehr als sechs Stunden: 30 Minuten), damit ein kurzer Block wie
+      // eine Randstunde nicht mit einer Pause startet, die länger ist als er.
+      const span = shiftDurationMinutes(initialStartTime, initialEndTime) ?? 0;
+      return {
+        startTime: initialStartTime,
+        endTime: initialEndTime,
+        breakMinutes: span > 360 ? 30 : 0,
+        shiftTypeId: "",
+      };
+    }
     return {
       startTime: "08:00",
       endTime: "16:00",
       breakMinutes: 30,
       shiftTypeId: "",
     };
-  }, [shift]);
+  }, [shift, initialStartTime, initialEndTime]);
 
   const [startTime, setStartTime] = useState(initial.startTime);
   const [endTime, setEndTime] = useState(initial.endTime);
