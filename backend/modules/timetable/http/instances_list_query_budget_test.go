@@ -40,9 +40,12 @@ func TestListInstancesQueryBudget(t *testing.T) {
 	created := 0
 	addInstances := func(n int) {
 		for range n {
+			startHour := 13 + created/3
 			inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate.AddDays(created%3), s.roomID, testpkg.ActivityInstanceOpts{
 				ActivityGroupID: &template.ID,
-				StartHHMM:       "13:00", EndHHMM: "14:00", Title: fmt.Sprintf("Budget-Block-%d", created),
+				StartHHMM:       fmt.Sprintf("%02d:00", startHour),
+				EndHHMM:         fmt.Sprintf("%02d:00", startHour+1),
+				Title:           fmt.Sprintf("Budget-Block-%d", created),
 			})
 			staff := testpkg.CreateTestStaff(t, s.db, "InstancesBudget", fmt.Sprintf("Staff%d", created))
 			student := testpkg.CreateTestStudent(t, s.db, "InstancesBudget", fmt.Sprintf("Kind%d", created), "1a")
