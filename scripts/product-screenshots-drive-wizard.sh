@@ -325,6 +325,8 @@ else
   say "Gleich öffnet sich die Google-Anmeldung. Mit dem Konto aus Stufe 1 anmelden und zustimmen."
   say "Der Wizard nimmt die Antwort auf 127.0.0.1 entgegen."
   oauth_dir=$(mktemp -d)
+  # Das Token liegt kurz in einer Datei; bei Abbruch nicht liegen lassen.
+  trap 'rm -rf "$oauth_dir"' EXIT
   DRIVE_CLIENT_ID="$DRIVE_CLIENT_ID" DRIVE_CLIENT_SECRET="$DRIVE_CLIENT_SECRET" SCOPE="$SCOPE" \
     URL_FILE="$oauth_dir/url" TOKEN_FILE="$oauth_dir/token" \
     node --input-type=module - <<'JS' &
@@ -411,6 +413,11 @@ DRIVE_FOLDER_ID=$(_existing DRIVE_FOLDER_ID || true)
 if [[ -n "$DRIVE_FOLDER_ID" ]] && drive_folder "$DRIVE_FOLDER_ID" >/dev/null; then
   say "Vorhandener Zielordner $DRIVE_FOLDER_ID ist erreichbar."
 else
+  if [[ -n "$DRIVE_FOLDER_ID" ]]; then
+    warn "Der gespeicherte Ordner $DRIVE_FOLDER_ID ist nicht erreichbar (Meldung oben)."
+    note "Bei einem Netzwerkfehler hier abbrechen und den Wizard erneut starten,"
+    note "sonst zeigen Secrets und vorhandene Links auf verschiedene Ordner."
+  fi
   say "Der Wizard legt den Ordner „$FOLDER_NAME“ in „Meine Ablage“ an."
   note "Ein von Hand angelegter Ordner geht nicht: drive.file sieht nur Ordner dieser App."
   confirm "Ordner jetzt anlegen?" || { warn "Ohne Zielordner kein Upload"; exit 1; }

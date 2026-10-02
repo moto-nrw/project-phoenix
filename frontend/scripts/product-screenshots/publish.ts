@@ -15,8 +15,9 @@ import { MANIFEST_FILE, readOutput } from "./pipeline";
 //
 // Andere Versionsordner bleiben unberührt. Ein erneuter Lauf derselben Version
 // gleicht deren Ordner an, statt einen zweiten anzulegen. Der Versionsordner
-// entsteht vor "Aktuell": bricht der Upload ab, zeigt "Aktuell" weiter den
-// vorigen Stand.
+// entsteht vor "Aktuell": bricht der Upload dort ab, zeigt "Aktuell" weiter
+// den vorigen Stand. Bricht er in "Aktuell" ab, mischt der Ordner alte und neue
+// Bilder, bis ein erneuter Lauf derselben Version ihn angleicht.
 
 const CURRENT_FOLDER = "Aktuell";
 
@@ -86,9 +87,9 @@ async function sync(
   const obsolete: StoreEntry[] = [];
   for (const entry of await store.list(folderId)) {
     const wanted = tree.get(entry.name);
-    const fits =
+    const sameKind =
       wanted !== undefined && (typeof wanted === "object") === entry.folder;
-    if (fits && !matching.has(entry.name)) matching.set(entry.name, entry);
+    if (sameKind && !matching.has(entry.name)) matching.set(entry.name, entry);
     else obsolete.push(entry);
   }
   for (const [name, wanted] of tree) {
@@ -133,17 +134,29 @@ export function storePublisher(store: PublishStore): Publisher {
         MANIFEST_FILE,
       ]);
 
-      const top = await store.list(store.rootId);
+      const rootEntries = await store.list(store.rootId);
+      /** Vorhandener Ordner, auf den `matches` passt, sonst ein neuer. */
+      async function rootFolder(
+        matches: (name: string) => boolean,
+        name: string,
+      ): Promise<string> {
+        const existing = rootEntries.find(
+          (entry) => entry.folder && matches(entry.name),
+        );
+        return existing?.id ?? store.createFolder(store.rootId, name);
+      }
+
       const prefix = `v${release.version} (`;
-      const versionFolder =
-        top.find((entry) => entry.folder && entry.name.startsWith(prefix))
-          ?.id ??
-        (await store.createFolder(store.rootId, versionFolderName(release)));
+      const versionFolder = await rootFolder(
+        (name) => name.startsWith(prefix),
+        versionFolderName(release),
+      );
       await sync(store, versionFolder, tree, outDir);
 
-      const currentFolder =
-        top.find((entry) => entry.folder && entry.name === CURRENT_FOLDER)
-          ?.id ?? (await store.createFolder(store.rootId, CURRENT_FOLDER));
+      const currentFolder = await rootFolder(
+        (name) => name === CURRENT_FOLDER,
+        CURRENT_FOLDER,
+      );
       await sync(store, currentFolder, tree, outDir);
     },
   };

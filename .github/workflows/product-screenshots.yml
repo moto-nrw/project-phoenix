@@ -12,7 +12,10 @@ name: Produkt-Screenshots
 #     release-Event nicht aus.
 #   - release: ein von Hand veröffentlichtes Release.
 #   - workflow_dispatch: von Hand, etwa nach einer Korrektur der Shot-Liste.
-#     Auf main starten; ohne Version gilt das neueste Release.
+#     Fotografiert den Stand, von dem aus der Lauf startet: main für den
+#     aktuellen Stand, der Tag vX.Y.Z für genau dieses Release. Ohne Version
+#     gilt das neueste Release mit einem Tag vX.Y.Z. Andere Branches erreichen
+#     die Environment nicht und laden nichts hoch.
 #   - pull_request: Änderungen an Pipeline oder Workflow fotografieren einmal
 #     zur Probe, ohne Upload.
 #
@@ -21,6 +24,12 @@ name: Produkt-Screenshots
 # kaputter Shot bricht die Pipeline vor jeder Ausgabe ab, Drive bleibt dann
 # unverändert. Die Drive-Zugangsdaten liegen in der GitHub-Environment
 # `product-screenshots` und kommen aus scripts/product-screenshots-drive-wizard.sh.
+# Bricht der Upload selbst ab, gleicht ein erneuter Lauf derselben Version die
+# Ordner an.
+#
+# Grenze: an Wochenenden (Berliner Zeit) bricht der Lauf ab, siehe den Schritt
+# "Require a Berlin weekday". Ein Release vom Wochenende am nächsten Werktag
+# von Hand nachholen, gestartet vom Tag des Releases.
 
 on:
   release:
@@ -56,8 +65,14 @@ env:
 jobs:
   capture:
     name: Fotografieren und rahmen
+    # Ältere Releases mit Tags wie pr-1768-… sind QA-Ablagen, keine Versionen.
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 90
+    # Ein neuer Push auf denselben PR ersetzt dessen Probelauf.
+    concurrency:
+      group: product-screenshots-capture-${{ github.event_name == 'pull_request' && github.head_ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     permissions:
       contents: read
     outputs:
@@ -154,10 +169,15 @@ jobs:
             tag="0.0.0-pr.${PR_NUMBER}"
             publish=false
           else
-            tag=$(gh release view --repo "${GITHUB_REPOSITORY}" --json tagName --jq .tagName) || {
-              echo "::error::Es gibt noch kein Release. Die Version beim Start angeben."
+            # Neuestes Release mit Versions-Tag; ältere QA-Releases tragen
+            # Tags wie pr-1768-… und zählen nicht.
+            tag=$(gh release list --repo "${GITHUB_REPOSITORY}" --exclude-drafts --limit 100 \
+              --json tagName,createdAt \
+              --jq '[.[] | select(.tagName | test("^v[0-9]+[.][0-9]+[.][0-9]+$"))] | sort_by(.createdAt) | last | .tagName // ""')
+            if [ -z "${tag}" ]; then
+              echo "::error::Es gibt noch kein Release vX.Y.Z. Die Version beim Start angeben."
               exit 1
-            }
+            fi
           fi
           version=${tag#v}
           if ! [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then

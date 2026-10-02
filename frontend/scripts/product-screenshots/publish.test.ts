@@ -110,8 +110,12 @@ interface FakeDriveFile {
 
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 
-/** Nachbildung der Drive-v3-Endpunkte, die der Adapter benutzt. */
-function driveTarget(): Target {
+/**
+ * Nachbildung der Drive-v3-Endpunkte, die der Adapter benutzt.
+ * `createdButFailed`: so viele Datei-Uploads legen die Datei an, antworten
+ * aber mit 500, wie Drive es bei einem Serverfehler nach dem Schreiben tut.
+ */
+function driveTarget({ createdButFailed = 0 } = {}): Target {
   const files = new Map<string, FakeDriveFile>();
   let nextId = 0;
   const root = "zielordner";
@@ -190,6 +194,10 @@ function driveTarget(): Target {
         data: dataPart!,
         trashed: false,
       });
+      if (createdButFailed > 0) {
+        createdButFailed--;
+        return reply(500, { error: "backendError" });
+      }
       return reply(200, { id: fileId });
     }
     const file = id ? files.get(id) : undefined;
@@ -213,6 +221,7 @@ function driveTarget(): Target {
       if (file.mimeType === FOLDER_MIME) {
         Object.assign(result, walk(fileId, path));
       } else {
+        if (path in result) throw new Error(`Doppelte Datei ${path}`);
         result[path] = { identity: fileId, content: file.data };
       }
     }
@@ -413,4 +422,25 @@ test("ein ungültiges Refresh-Token nennt den Wizard", async () => {
       { version: "1.0.0", date: "2026-10-01" },
     ),
   ).rejects.toThrow(/invalid_grant.*product-screenshots-drive-wizard\.sh/);
+});
+
+test("Drive: ein Serverfehler nach dem Anlegen erzeugt beim erneuten Lauf kein Duplikat", async () => {
+  const target = driveTarget({ createdButFailed: 1 });
+  const outDir = await writeOutput("1.0.0", {
+    anwesenheit: { "macbook.png": "bild" },
+  });
+  const release = { version: "1.0.0", date: "2026-10-01" };
+
+  await expect(target.publisher.publish(outDir, release)).rejects.toThrow(
+    /500/,
+  );
+  await target.publisher.publish(outDir, release);
+
+  const snap = await target.snapshot();
+  expect(contents(under(snap, "Aktuell"))["anwesenheit/macbook.png"]).toBe(
+    "bild",
+  );
+  expect(
+    contents(under(snap, "v1.0.0 (2026-10-01)"))["anwesenheit/macbook.png"],
+  ).toBe("bild");
 });

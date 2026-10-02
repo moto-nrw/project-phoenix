@@ -13,8 +13,8 @@ import { storePublisher, type Publisher, type StoreEntry } from "./publish";
 // landen im Papierkorb, nicht endgültig gelöscht.
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
-const API = "https://www.googleapis.com/drive/v3/files";
-const UPLOAD = "https://www.googleapis.com/upload/drive/v3/files";
+const FILES_API = "https://www.googleapis.com/drive/v3/files";
+const UPLOAD_API = "https://www.googleapis.com/upload/drive/v3/files";
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const DRIVE_ID = /^[A-Za-z0-9_-]+$/;
 const MAX_ATTEMPTS = 5;
@@ -57,13 +57,17 @@ function driveId(id: string): string {
   return id;
 }
 
-/** Ratenlimits und Serverfehler sind vorübergehend; alles andere nicht. */
-function retryable(status: number, body: string): boolean {
-  return (
-    status === 429 ||
-    status >= 500 ||
-    (status === 403 && /rateLimitExceeded/.test(body))
-  );
+/**
+ * Ein Ratenlimit weist die Anfrage ab, bevor Drive etwas schreibt; sie darf
+ * wiederholt werden. Ein Serverfehler kann nach dem Schreiben kommen: Ein
+ * wiederholtes Anlegen (POST) erzeugte dann eine zweite Datei gleichen Namens,
+ * deshalb wiederholen nur Lesen und Überschreiben. Ein abgebrochener Lauf wird
+ * durch einen neuen Lauf repariert, der vorhandene Dateien wiederverwendet.
+ */
+function retryable(method: string, status: number, body: string): boolean {
+  const rateLimited =
+    status === 429 || (status === 403 && /rateLimitExceeded/.test(body));
+  return rateLimited || (status >= 500 && method !== "POST");
 }
 
 export function drivePublisher(options: DrivePublisherOptions): Publisher {
@@ -122,7 +126,7 @@ export function drivePublisher(options: DrivePublisherOptions): Publisher {
         token = null;
         continue;
       }
-      if (retryable(response.status, text) && attempt < MAX_ATTEMPTS) {
+      if (retryable(method, response.status, text) && attempt < MAX_ATTEMPTS) {
         const delay = 2 ** attempt * 500;
         log(`Drive ${response.status}, neuer Versuch in ${delay} ms`);
         await new Promise((resolve) => setTimeout(resolve, delay));
@@ -134,7 +138,7 @@ export function drivePublisher(options: DrivePublisherOptions): Publisher {
     }
   }
 
-  function json(value: unknown) {
+  function jsonBody(value: unknown) {
     return { type: "application/json", data: JSON.stringify(value) };
   }
 
@@ -152,7 +156,7 @@ export function drivePublisher(options: DrivePublisherOptions): Publisher {
           includeItemsFromAllDrives: "true",
           ...(pageToken ? { pageToken } : {}),
         });
-        const page = (await request("GET", `${API}?${params}`)) as {
+        const page = (await request("GET", `${FILES_API}?${params}`)) as {
           files?: DriveFile[];
           nextPageToken?: string;
         };
@@ -171,8 +175,8 @@ export function drivePublisher(options: DrivePublisherOptions): Publisher {
       log(`Drive: Ordner ${name}`);
       const folder = (await request(
         "POST",
-        `${API}?supportsAllDrives=true&fields=id`,
-        json({ name, mimeType: FOLDER_MIME, parents: [driveId(parentId)] }),
+        `${FILES_API}?supportsAllDrives=true&fields=id`,
+        jsonBody({ name, mimeType: FOLDER_MIME, parents: [driveId(parentId)] }),
       )) as { id: string };
       return driveId(folder.id);
     },
@@ -193,14 +197,14 @@ export function drivePublisher(options: DrivePublisherOptions): Publisher {
       ]);
       await request(
         "POST",
-        `${UPLOAD}?uploadType=multipart&supportsAllDrives=true&fields=id`,
+        `${UPLOAD_API}?uploadType=multipart&supportsAllDrives=true&fields=id`,
         { type: `multipart/related; boundary=${boundary}`, data: multipart },
       );
     },
     async updateFile(file, data) {
       await request(
         "PATCH",
-        `${UPLOAD}/${driveId(file.id)}?uploadType=media&supportsAllDrives=true&fields=id`,
+        `${UPLOAD_API}/${driveId(file.id)}?uploadType=media&supportsAllDrives=true&fields=id`,
         // Kopie: fetch verlangt einen Puffer auf eigenem ArrayBuffer.
         { type: mimeType(file.name), data: new Uint8Array(data) },
       );
@@ -209,8 +213,8 @@ export function drivePublisher(options: DrivePublisherOptions): Publisher {
       log(`Drive: ${entry.name} in den Papierkorb`);
       await request(
         "PATCH",
-        `${API}/${driveId(entry.id)}?supportsAllDrives=true&fields=id`,
-        json({ trashed: true }),
+        `${FILES_API}/${driveId(entry.id)}?supportsAllDrives=true&fields=id`,
+        jsonBody({ trashed: true }),
       );
     },
   });
