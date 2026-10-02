@@ -971,7 +971,8 @@ function ClockInCard({
         ) : undefined
       }
     >
-      <div className="relative">
+      {/* Ziel der Tour „Arbeitszeit erfassen“ (#3748). */}
+      <div className="relative" data-setup-tour="time-clock">
         {/* Heute geplante Schichten (Dienstplan) — dezente Zeilen unter dem
             Titel: Schichtart als farbiger Chip, Vertretungen und entfallene
             Schichten sichtbar (#1844). Geteilte Dienste zeigen jede Schicht. */}

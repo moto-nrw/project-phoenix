@@ -4467,6 +4467,10 @@
     {
       "name": "config.school_setups",
       "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.staff_onboardings",
+      "write_owner": "settings-platform"
     }
   ],
   "read_projections": [

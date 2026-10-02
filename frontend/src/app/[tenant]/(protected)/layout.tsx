@@ -9,6 +9,7 @@ import { AnnouncementModal } from "~/components/platform/announcement-modal";
 import { PwaInstallHint } from "~/components/tenant/pwa-install-hint";
 import { PortalNotificationSetup } from "~/components/notifications/portal-notification-setup";
 import { SchoolSetupWizard } from "~/components/school-setup/school-setup-wizard";
+import { StaffOnboardingWizard } from "~/components/staff-onboarding/staff-onboarding-wizard";
 import { useSettingsCacheBridge } from "~/lib/hooks/use-settings-cache-bridge";
 
 export default function ProtectedLayout({
@@ -28,6 +29,10 @@ export default function ProtectedLayout({
           {/* Erste Schritte für neue Schulen (#2832). Nur für Personen, die
               die Einstellungen ändern dürfen, bis die Schule fertig ist. */}
           <SchoolSetupWizard />
+          {/* Erste Schritte für Betreuungskräfte (#3748): alle, die die
+              Einrichtung der Schule nicht sehen, sobald die Schule eine
+              Gruppe oder ein Kind hat. */}
+          <StaffOnboardingWizard />
           {/* Samsung Internet needs its own route to Chrome. All other mobile
               installation guidance belongs to the notification setup. */}
           <PwaInstallHint samsungOnly />

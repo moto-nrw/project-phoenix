@@ -2,15 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import type { SchoolSetupStepKey } from "~/lib/school-setup-api";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
   SETUP_TOUR_BRANCHES,
-  SETUP_TOURS,
   type SetupTour,
   type SetupTourBranch,
   type SetupTourStop,
 } from "./setup-tours";
+
+/** Die Touren einer Checkliste, je Schritt höchstens eine. */
+export type SetupTourSet<K extends string> = Readonly<
+  Partial<Record<K, SetupTour>>
+>;
 
 /** Nach dieser Zeit gilt eine Stelle als nicht vorhanden. */
 const MISSING_AFTER_MS = 4000;
@@ -18,6 +21,11 @@ const MISSING_AFTER_MS = 4000;
 const LEAVE_AFTER_MS = 800;
 /** Ohne sichtbare Seitenleiste öffnet die Tour die Seite schneller selbst. */
 const NAV_MISSING_AFTER_MS = 1500;
+/**
+ * Eine Station, die fehlen darf (etwa ein Reiter, den nur manche sehen),
+ * entfällt nach dieser Zeit. Ihre Seite ist dann schon geladen.
+ */
+const OPTIONAL_MISSING_AFTER_MS = 1500;
 const POLL_MS = 200;
 /** Ein Klick öffnet oft erst ein Fenster; kurz warten, bevor es weitergeht. */
 const ADVANCE_DELAY_MS = 250;
@@ -92,8 +100,8 @@ function closeOverlayLeftBehind(
   close?.click();
 }
 
-interface TourState {
-  step: SchoolSetupStepKey;
+interface TourState<K extends string> {
+  step: K;
   index: number;
   /** Mit „Zurück“ erreicht: keine Station wird automatisch übersprungen. */
   reviewing?: boolean;
@@ -101,10 +109,11 @@ interface TourState {
   branch?: SetupTourBranch;
 }
 
-function definitionOf(tour: TourState): SetupTour | undefined {
-  return tour.branch
-    ? SETUP_TOUR_BRANCHES[tour.branch]
-    : SETUP_TOURS[tour.step];
+function definitionOf<K extends string>(
+  tours: SetupTourSet<K>,
+  tour: TourState<K>,
+): SetupTour | undefined {
+  return tour.branch ? SETUP_TOUR_BRANCHES[tour.branch] : tours[tour.step];
 }
 
 export interface ActiveTourStop {
@@ -117,20 +126,26 @@ export interface ActiveTourStop {
   missing: boolean;
   /** Gibt es eine Station, zu der „Zurück“ führt? */
   canGoBack: boolean;
+  /** Was die Sprechblase sagt: der Text der Station oder seine Variante. */
+  text: string;
 }
 
 /**
  * Steuert eine geführte Tour (#2832): öffnet die Seite des Schritts, sucht
  * die Stelle jeder Station und geht weiter, wenn die Person sie anklickt
- * oder „Weiter“ wählt.
+ * oder „Weiter“ wählt. Die Touren kommen von der Checkliste, die sie
+ * startet: der Einrichtung der Schule oder den ersten Schritten im Team
+ * (#3748).
  */
-export function useSetupTour(
-  onFinished: () => void,
+export function useSetupTour<K extends string>(
+  tours: SetupTourSet<K>,
+  /** Die Person hat die letzte Station der Tour erreicht. */
+  onFinished: (step: K) => void,
   /** Die Person hat die Seite der Tour verlassen. */
-  onLeft: (step: SchoolSetupStepKey) => void,
+  onLeft: (step: K) => void,
 ): {
   active: ActiveTourStop | null;
-  start: (step: SchoolSetupStepKey) => void;
+  start: (step: K) => void;
   next: () => void;
   back: () => void;
   stop: () => void;
@@ -143,16 +158,18 @@ export function useSetupTour(
     routerRef.current = router;
   }, [router]);
   const pathname = usePathname();
-  const [tour, setTour] = useState<TourState | null>(null);
+  const [tour, setTour] = useState<TourState<K> | null>(null);
   // Das Suchergebnis gehört zu genau einer Station. So zeigt eine neue
   // Station nie auf die Stelle der vorigen, bevor ihre eigene gefunden ist.
   const [search, setSearch] = useState<{
     stop: SetupTourStop;
     element: Element | null;
     missing: boolean;
+    /** Die Stelle der Textvariante ist zu sehen. */
+    variant?: boolean;
   } | null>(null);
 
-  const definition = tour ? definitionOf(tour) : undefined;
+  const definition = tour ? definitionOf(tours, tour) : undefined;
   const stop = definition && tour ? definition.stops[tour.index] : undefined;
   const current = search && search.stop === stop ? search : null;
   // Stationen der Seitenleiste gelten überall. Alle anderen erst, wenn ihre
@@ -175,33 +192,70 @@ export function useSetupTour(
 
   const next = useCallback(() => {
     if (!tour) return;
-    const stops = definitionOf(tour)?.stops ?? [];
+    const stops = definitionOf(tours, tour)?.stops ?? [];
     if (tour.index + 1 >= stops.length) {
       setTour(null);
       setSearch(null);
-      onFinished();
+      onFinished(tour.step);
       return;
     }
     setTour({ ...tour, index: tour.index + 1, reviewing: false });
-  }, [tour, onFinished]);
+  }, [tours, tour, onFinished]);
+
+  // Stationen, die entfallen, können über das Ende hinausspringen, etwa wenn
+  // der letzte Reiter fehlt. Dann ist die Tour zu Ende, statt leer stehen zu
+  // bleiben.
+  const onFinishedRef = useRef(onFinished);
+  useEffect(() => {
+    onFinishedRef.current = onFinished;
+  }, [onFinished]);
+  const jump = useCallback(
+    (current: TourState<K>, index: number, length: number) => {
+      if (index >= length) {
+        setTour(null);
+        setSearch(null);
+        onFinishedRef.current(current.step);
+        return;
+      }
+      setTour({ ...current, index });
+    },
+    [],
+  );
 
   const onPage = definition ? pathname.endsWith(definition.path) : false;
   const pageStart = definition ? firstPageStop(definition.stops) : 0;
 
   // „Zurück“ geht immer eine Station zurück, auch in die Seitenleiste: So
-  // sieht man noch einmal, wo man hingeklickt hat.
-  const canGoBack = (tour?.index ?? 0) > 0;
+  // sieht man noch einmal, wo man hingeklickt hat. Liegt die vorige Station
+  // auf der Seite der Tour, die Person aber schon auf einer anderen (etwa der
+  // Kindakte), öffnet „Zurück“ diese Seite wieder. Eine vorige Station auf
+  // einer dritten Seite lässt sich nicht wieder öffnen; dann gibt es kein
+  // „Zurück“, statt dass die Tour auf eine Seite wartet, die nie kommt.
+  const previousStop =
+    definition && tour && tour.index > 0
+      ? definition.stops[tour.index - 1]
+      : undefined;
+  const previousNeedsPage =
+    previousStop !== undefined &&
+    definition !== undefined &&
+    !previousStop.nav &&
+    !(previousStop.pathPattern
+      ? previousStop.pathPattern.test(pathname)
+      : pathname.endsWith(definition.path));
+  const canGoBack =
+    previousStop !== undefined &&
+    !(previousNeedsPage && previousStop.pathPattern !== undefined);
 
   const back = useCallback(() => {
-    if (!tour || tour.index === 0) return;
-    const previous = definitionOf(tour)?.stops[tour.index - 1];
-    if (previous) closeOverlayLeftBehind(target, previous);
+    if (!tour || !canGoBack || !previousStop || !definition) return;
+    closeOverlayLeftBehind(target, previousStop);
+    if (previousNeedsPage) routerRef.current.push(definition.path);
     setTour({ ...tour, index: tour.index - 1, reviewing: true });
-  }, [tour, target]);
+  }, [tour, canGoBack, previousStop, previousNeedsPage, definition, target]);
 
   const start = useCallback(
-    (step: SchoolSetupStepKey) => {
-      const tourDefinition = SETUP_TOURS[step];
+    (step: K) => {
+      const tourDefinition = tours[step];
       if (!tourDefinition) return;
       // Wer schon auf der Seite eines Zweigs steht, etwa beim Import,
       // beginnt dort.
@@ -221,7 +275,7 @@ export function useSetupTour(
         : 0;
       setTour({ step, index });
     },
-    [pathname],
+    [tours, pathname],
   );
 
   // Ist die Seite erreicht, entfallen die übrigen Stationen der Leiste, auch
@@ -275,7 +329,20 @@ export function useSetupTour(
       // Rendert die Seite neu, wird es ersetzt; dann neu suchen, statt auf
       // ein Element zu zeigen, das es nicht mehr gibt.
       if (shown) {
-        if (shown.isConnected && isShown(shown)) return false;
+        if (shown.isConnected && isShown(shown)) {
+          // Die Seite lädt oft erst nach dem Fund zu Ende, etwa den Stand
+          // der Stempeluhr. Die Textvariante folgt dem, was jetzt zu sehen ist.
+          if (stop.textWhenVisible) {
+            const variant =
+              findVisibleTarget(stop.textWhenVisible.selector) !== null;
+            setSearch((current) =>
+              current && current.stop === stop && current.variant !== variant
+                ? { ...current, variant }
+                : current,
+            );
+          }
+          return false;
+        }
         shown = null;
         setSearch(null);
       }
@@ -284,13 +351,20 @@ export function useSetupTour(
         stop.skipWhenVisible &&
         findVisibleTarget(stop.skipWhenVisible)
       ) {
-        setTour({ ...tour, index: tour.index + (stop.skipCount ?? 1) });
+        jump(tour, tour.index + (stop.skipCount ?? 1), definition.stops.length);
         return true;
       }
       const found = findVisibleTarget(stop.target);
       if (found) {
         shown = found;
-        setSearch({ stop, element: found, missing: false });
+        setSearch({
+          stop,
+          element: found,
+          missing: false,
+          variant: stop.textWhenVisible
+            ? findVisibleTarget(stop.textWhenVisible.selector) !== null
+            : false,
+        });
         return false;
       }
       polls += 1;
@@ -299,6 +373,14 @@ export function useSetupTour(
         // Keine Seitenleiste (Handy, eingeklappt): die Seite direkt öffnen.
         routerRef.current.push(definition.path);
         setTour({ ...tour, index: firstPageStop(definition.stops) });
+        return true;
+      }
+      if (
+        stop.optional &&
+        !tour.reviewing &&
+        waited > OPTIONAL_MISSING_AFTER_MS
+      ) {
+        jump(tour, tour.index + (stop.skipCount ?? 1), definition.stops.length);
         return true;
       }
       if (waited > MISSING_AFTER_MS) {
@@ -315,7 +397,7 @@ export function useSetupTour(
       }, POLL_MS);
     }
     return () => window.clearInterval(timer);
-  }, [stop, tour, definition, pathname, onStopPage]);
+  }, [stop, tour, definition, pathname, onStopPage, jump]);
 
   // Die Person hat die Seite der Station verlassen, etwa über einen Link in
   // der Seitenleiste. Die Tour sucht dort nichts mehr und
@@ -376,6 +458,10 @@ export function useSetupTour(
             target,
             missing,
             canGoBack,
+            text:
+              current?.variant && stop.textWhenVisible
+                ? stop.textWhenVisible.text
+                : stop.text,
           }
         : null,
     start,

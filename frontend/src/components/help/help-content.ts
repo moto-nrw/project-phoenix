@@ -302,6 +302,56 @@ function installAppTopic(): HelpTopic {
   };
 }
 
+/**
+ * Die Checkliste „Erste Schritte“ für Betreuungskräfte (#3748). Sie öffnet
+ * sich nur Personen ohne `config:update`, die neu dazukommen, sobald die
+ * Schule eine Gruppe oder ein Kind hat. Die Beschriftungen stammen aus
+ * `components/staff-onboarding/`.
+ */
+function caregiverFirstStepsTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.caregiverFirstSteps,
+    title: "Erste Schritte im Arbeitsalltag",
+    question: "Wie zeigt mir moto die wichtigsten Handgriffe?",
+    summary:
+      "Eine Checkliste zeigt Ihnen Schritt für Schritt, wo Sie was in moto finden.",
+    group: "einstieg",
+    audience: "caregiver",
+    icon: "ClipboardList",
+    requirements: ["Sie sind neu im Team Ihrer OGS."],
+    steps: [
+      "Melden Sie sich an. Unten rechts öffnet sich die Checkliste `Erste Schritte mit moto`.",
+      "Der nächste Schritt ist aufgeklappt. Wählen Sie `Zeig es mir`.",
+      "moto zeigt Ihnen den Weg in der Seitenleiste und dann die wichtigen Stellen. Klicken Sie die hervorgehobene Stelle an oder wählen Sie `Weiter`.",
+      "Am Ende der Tour wählen Sie `Fertig`. Der Schritt bekommt einen Haken.",
+      "Sind alle Schritte erledigt, wählen Sie `Abschließen`.",
+    ],
+    result:
+      "Sie kennen die wichtigsten Handgriffe, und die Checkliste verschwindet. Alle Anleitungen bleiben hier in der Hilfe.",
+    notes: [
+      "Jeden Schritt können Sie mit `Überspringen` auslassen.",
+      "Einen erledigten Schritt sehen Sie sich mit `Noch einmal zeigen` wieder an.",
+      "Sie können die Checkliste einklappen. Unten rechts steht dann `Erste Schritte` mit der Zahl der offenen Schritte.",
+      "Die Tour zeigt nur. Sie meldet kein Kind an und stempelt Sie nicht ein.",
+    ],
+    differences: [
+      "Welche Schritte Sie sehen, hängt von Ihrer OGS ab. Ohne feste Gruppen fehlt zum Beispiel `Meine Gruppe ansehen`.",
+      "`Meine Gruppe ansehen` erscheint erst, wenn Ihnen eine Gruppe zugeordnet ist.",
+    ],
+    troubleshootingDetails: [
+      "Die Checkliste erscheint nicht? Sie kommt erst, wenn Ihre OGS eine Gruppe oder ein Kind in moto hat. Wer schon vor der Checkliste mit moto gearbeitet hat, bekommt sie nicht.",
+      "Die Tour ist plötzlich weg? Sie endet, wenn Sie eine andere Seite öffnen. Mit `Zeig es mir` starten Sie sie neu.",
+      "Sie haben `Nicht mehr anzeigen` gewählt? Die Checkliste kommt nicht wieder. Die Anleitungen stehen hier in der Hilfe.",
+    ],
+    related: [
+      HELP_TOPICS.appOverview,
+      HELP_TOPICS.studentSearch,
+      HELP_TOPICS.webAttendance,
+      HELP_TOPICS.trackWorkTime,
+    ],
+  };
+}
+
 function appOverviewTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.appOverview,
@@ -1340,7 +1390,7 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
           "Öffnen Sie `Aktuelle Aufsicht`.",
           "Wählen Sie unter `Als Nächstes` einen geplanten Termin.",
           "Starten Sie ihn, sobald die Schaltfläche freigegeben ist.",
-          "Oder wählen Sie bei einem freien Raum `Beaufsichtigen`.",
+          "Oder übernehmen Sie einen offenen Raum, zum Beispiel den Schulhof: Öffnen Sie ihn unter `Offene Räume` und wählen Sie oben `Beaufsichtigen`.",
           // Live geprueft: der gruene Streifen steht immer oben auf der
           // Seite, auch ohne geplanten Block und ohne NFC.
           "Oder wählen Sie `Spontane Aktivität starten`, wenn nichts geplant ist.",
@@ -1374,7 +1424,8 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Steht am Termin `Nur für Eingeplante`? Dann dürfen hier nur eingeplante Kräfte starten. Ihre OGS kann das Starten für das ganze Team freigeben.",
       "Sie starten einen Termin, für den Sie nicht eingeplant sind? Dann werden Sie nicht zur Aufsicht. Wer beenden darf, legt Ihre OGS fest.",
       "Fehlt `Beenden`? Dann dürfen hier nur eingeplante Kräfte beenden. Ihre OGS kann das Beenden für das ganze Team freigeben.",
-      "Welche freien Räume Sie übernehmen können, legt Ihre OGS fest.",
+      "Auf dem Handy stehen die offenen Räume nicht in der Seitenleiste, sondern oben auf der Seite `Aufsicht` als Reiter.",
+      "Welche Räume offen sind, legt Ihre OGS fest.",
       "Fehlt `Spontane Aktivität starten`? Dann hat Ihre OGS in den `Einstellungen` unter `Betrieb` den Schalter `Spontane Aktivitäten erlauben` ausgeschaltet.",
     ],
     troubleshooting: HELP_TOPICS.attendanceProblem,
@@ -7276,6 +7327,7 @@ export function getHelpTopics(
     loginTopic(presenceMode, groupMode),
     installAppTopic(),
     appOverviewTopic(),
+    caregiverFirstStepsTopic(),
     ...caregiverTopics(presenceMode, groupMode, nfcEnabled),
     ...leadTopics(presenceMode, groupMode, nfcEnabled),
     ...PARENT_DRAFT_TOPICS,
