@@ -1111,7 +1111,7 @@ function myScheduleTopic(): HelpTopic {
   };
 }
 
-function carePlanTopic(): HelpTopic {
+function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
   return {
     id: HELP_TOPICS.carePlan,
     title: "Den Betreuungsplan ansehen",
@@ -1126,7 +1126,9 @@ function carePlanTopic(): HelpTopic {
       "Wählen Sie den Tab `Betreuungsplan`.",
       "Wählen Sie oben `Tag` oder `Woche`.",
       "Nutzen Sie die Pfeile oder `Heute`, um zum passenden Tag zu wechseln.",
-      "Raum, Gruppe und Fachkräfte stehen im Block, wenn sie zugeordnet sind.",
+      presenceMode === "binary"
+        ? "Gruppe und Fachkräfte stehen im Block, wenn sie zugeordnet sind."
+        : "Raum, Gruppe und Fachkräfte stehen im Block, wenn sie zugeordnet sind.",
       "Ein durchgestrichener Name heißt: abwesend. `(Ersatz)` steht hinter einer Ersatzkraft.",
       "Wählen Sie einen Block, um alle Kinder zu sehen.",
     ],
@@ -2535,7 +2537,7 @@ function caregiverTopics(
 ): readonly HelpTopic[] {
   return [
     myScheduleTopic(),
-    carePlanTopic(),
+    carePlanTopic(presenceMode),
     dayPlanTopic(presenceMode),
     studentSearchTopic(presenceMode, groupMode),
     editStudentTopic(),

@@ -661,9 +661,12 @@ describe("getParentHelpTopicForPath", () => {
   it("drops room and supervision hints from articles that stay", () => {
     const binary = getHelpTopics("binary", "fixed_groups", true);
 
-    expect(
-      binary.find((t) => t.id === HELP_TOPICS.carePlan)?.steps.join(" "),
-    ).not.toContain("Raum");
+    const carePlanSteps = binary
+      .find((t) => t.id === HELP_TOPICS.carePlan)
+      ?.steps.join(" ");
+    expect(carePlanSteps).not.toContain("Raum");
+    expect(carePlanSteps).toContain("Gruppe");
+    expect(carePlanSteps).toContain("Fachkräfte");
     expect(
       binary.find((t) => t.id === HELP_TOPICS.findStaff)?.result,
     ).not.toContain("Aufsicht");
