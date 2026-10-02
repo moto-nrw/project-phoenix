@@ -231,6 +231,12 @@ function DienstplanContent() {
     sortedStaff.find((member) => member.id === currentStaffId) ??
     sortedStaff[0] ??
     null;
+  const personShiftCount = personMember
+    ? [...(shiftsByStaff.get(personMember.id)?.values() ?? [])].reduce(
+        (count, shifts) => count + shifts.length,
+        0,
+      )
+    : 0;
 
   const isOnCurrentWeek =
     toISODate(startOfWeek(parseISODate(today))) === toISODate(weekAnchor);
@@ -453,9 +459,11 @@ function DienstplanContent() {
   // Kein Zeitraum in der Statuszeile: den trägt das Bedienband direkt
   // darunter, mit Pfeilen. Zweimal dieselbe Woche in der Kopfkarte kostete
   // auf dem Telefon eine Zeile, die nichts sagte.
+  const displayedShiftCount =
+    view === "person" ? personShiftCount : allShifts.length;
   const statusLine = [
     view !== "halbjahr"
-      ? `${allShifts.length} ${allShifts.length === 1 ? "Dienst" : "Dienste"}`
+      ? `${displayedShiftCount} ${displayedShiftCount === 1 ? "Dienst" : "Dienste"}`
       : null,
     `${sortedStaff.length} ${sortedStaff.length === 1 ? "Person" : "Personen"}`,
   ]

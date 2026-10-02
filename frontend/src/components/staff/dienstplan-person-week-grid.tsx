@@ -15,6 +15,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { PlanBlock } from "~/components/ui/plan-block";
 import { PlanLegend, type PlanLegendEntry } from "~/components/ui/plan-legend";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   formatColumnDate,
   formatPlannedHours,
@@ -126,14 +127,14 @@ export function clickSpan(
   slotStart: number,
   windowEnd: number,
   dayShifts: readonly StaffShift[],
-): { start: number; end: number } {
+): { start: number; end: number } | null {
   let end = Math.min(slotStart + CLICK_DEFAULT_MINUTES, windowEnd);
   for (const shift of dayShifts) {
     if (shift.cancelled) continue;
     const s = clockToMinutes(shift.startTime);
     if (s !== null && s > slotStart && s < end) end = s;
   }
-  return { start: slotStart, end: Math.max(end, slotStart + SLOT_MINUTES) };
+  return end > slotStart ? { start: slotStart, end } : null;
 }
 
 interface PlacedShift {
@@ -377,7 +378,7 @@ export function DienstplanPersonWeekGrid({
         timeWindow.end,
         shiftsByDate?.get(drag.date) ?? [],
       );
-      requestCreate(drag.date, span.start, span.end);
+      if (span) requestCreate(drag.date, span.start, span.end);
       return;
     }
     requestCreate(
@@ -397,7 +398,12 @@ export function DienstplanPersonWeekGrid({
     gridTemplateColumns: `repeat(${weekDays.length}, minmax(0, 1fr))`,
   };
 
-  const plannedLabel = formatPlannedHours(sums.weekTotal);
+  // Der Server fasst die Vertragswoche Mo–So zusammen, obwohl das Raster
+  // absichtlich nur Mo–Fr zeigt. Für die Kopfzahl verwenden wir deshalb den
+  // serverseitigen Wochenwert, damit Ist und Soll denselben Zeitraum meinen.
+  const plannedLabel = formatPlannedHours(
+    summary?.plannedMinutes ?? sums.weekTotal,
+  );
   const targetLabel =
     summary?.targetMinutes != null
       ? formatPlannedHours(summary.targetMinutes)
@@ -405,7 +411,7 @@ export function DienstplanPersonWeekGrid({
 
   return (
     <div className="space-y-3">
-      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+      <SectionCard className="!p-0">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-gray-200 px-4 py-3">
           <h2 className="text-sm font-semibold text-gray-900">
             {member.lastName}, {member.firstName}
@@ -511,7 +517,7 @@ export function DienstplanPersonWeekGrid({
                     <div
                       key={date}
                       data-testid={`person-week-day-${date}`}
-                      className={`relative touch-none border-r border-gray-200 select-none last:border-r-0 ${
+                      className={`relative touch-pan-x border-r border-gray-200 select-none last:border-r-0 ${
                         isClosing ? "bg-gray-50" : ""
                       } ${closingDaysLoading ? "cursor-wait" : "cursor-cell"}`}
                       style={{ height: bodyHeight }}
@@ -623,7 +629,7 @@ export function DienstplanPersonWeekGrid({
             aria-label="Legende Schichtarten und Zustände"
           />
         </div>
-      </div>
+      </SectionCard>
 
       {closingDayPrompt && (
         <ClosingDayConfirmModal

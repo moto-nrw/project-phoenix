@@ -115,6 +115,12 @@ describe("clickSpan", () => {
     ).toEqual({ start: 600, end: 630 });
   });
 
+  it("keeps a sub-quarter-hour gap before the next shift", () => {
+    expect(
+      clickSpan(600, 960, [shift({ startTime: "10:05", endTime: "12:00" })]),
+    ).toEqual({ start: 600, end: 605 });
+  });
+
   it("ignores cancelled shifts and never passes the window end", () => {
     expect(
       clickSpan(930, 960, [
@@ -217,6 +223,30 @@ describe("DienstplanPersonWeekGrid", () => {
       },
     });
     expect(screen.getByText(/Soll 20 h/)).toBeInTheDocument();
+  });
+
+  it("uses the full weekly summary for the planned total", () => {
+    renderGrid([shift({ startTime: "08:00", endTime: "10:00" })], {
+      summary: {
+        staffId: member.id,
+        weekStart: WEEK_DAYS[0] ?? "",
+        plannedMinutes: 300,
+        targetMinutes: 300,
+        deltaMinutes: 0,
+      },
+    });
+
+    expect(screen.getByText("Diese Woche geplant:")).toHaveTextContent(
+      "5 h",
+    );
+  });
+
+  it("keeps horizontal touch panning available on each day column", () => {
+    renderGrid([]);
+
+    expect(
+      screen.getByTestId("person-week-day-2026-07-06"),
+    ).toHaveClass("touch-pan-x");
   });
 
   it("opens the edit flow when a block is clicked", () => {

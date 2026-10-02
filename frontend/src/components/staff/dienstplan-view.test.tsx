@@ -861,6 +861,53 @@ describe("DienstplanView", () => {
     );
   });
 
+  it("counts only the selected person's shifts in the Person status line", () => {
+    mocks.search.value = "view=person&staff=7";
+    mocks.useSWRAuth.mockImplementation((key: string | null) => {
+      if (key?.startsWith("dienstplan-overview-")) {
+        return {
+          data: {
+            from: "",
+            to: "",
+            dienstplanInUse: true,
+            staff: [
+              { id: "7", firstName: "Ada", lastName: "Lovelace" },
+              { id: "8", firstName: "Grace", lastName: "Hopper" },
+            ],
+            shifts: [
+              {
+                id: "shift-8",
+                staffId: "8",
+                date: "2026-07-06",
+                startTime: "08:00",
+                endTime: "12:00",
+                breakMinutes: 0,
+                shiftTypeId: null,
+                shiftTypeName: null,
+                shiftTypeColor: null,
+                notes: "",
+                seriesId: null,
+                detached: false,
+                cancelled: false,
+                changeReason: null,
+                originShiftId: null,
+              },
+            ],
+            assignments: [],
+          },
+          error: undefined,
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      return { data: [], error: undefined, isLoading: false, mutate: vi.fn() };
+    });
+
+    render(<DienstplanView />);
+
+    expect(screen.getByText(/0 Dienste · 2 Personen/)).toBeInTheDocument();
+  });
+
   it("falls back to the first person for an unknown staff id", () => {
     mocks.search.value = "view=person&staff=999";
     mockOverviewLoaded();
