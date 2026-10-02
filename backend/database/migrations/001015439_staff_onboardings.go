@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	staffOnboardingsVersion     = "1.15.437"
+	staffOnboardingsVersion     = "1.15.439"
 	staffOnboardingsDescription = "Create config.staff_onboardings - first steps of care workers (#3748)"
 )
 
@@ -18,8 +18,8 @@ func init() {
 		Version:     staffOnboardingsVersion,
 		Description: staffOnboardingsDescription,
 		DependsOn: []string{
-			schoolSetupsVersion,    // the school wizard this extends (ADR 0043)
-			settingsCleanupVersion, // previous head
+			schoolSetupsVersion, // the school wizard this extends (ADR 0043)
+			studentNotesVersion, // previous head
 		},
 	})
 

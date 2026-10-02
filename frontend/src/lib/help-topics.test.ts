@@ -314,7 +314,7 @@ describe("getParentHelpTopicForPath", () => {
     expect(caregiverTopics[16]).toMatchObject({
       id: HELP_TOPICS.transferGroup,
     });
-    expect(caregiverTopics).toHaveLength(40);
+    expect(caregiverTopics).toHaveLength(41);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -484,7 +484,7 @@ describe("getParentHelpTopicForPath", () => {
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            40 -
+            41 -
             (nfcEnabled ? 0 : 7) -
             (presenceMode === "binary" ? (nfcEnabled ? 5 : 4) : 0) -
             (groupMode === "open_care" ? 2 : 0);
