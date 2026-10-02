@@ -187,16 +187,6 @@ func WithTestTenantRuntime(tb testing.TB, ctx context.Context) context.Context {
 	return WithPackageTenantRuntime(ctx)
 }
 
-// PackageTenantRuntime returns the runtime bound to this test binary's shared
-// database. It is available after SetupTestDB has initialized the package.
-func PackageTenantRuntime() (tenant.UnitOfWork, bool) {
-	runtime := packageTenantRuntime.Load()
-	if runtime == nil {
-		return tenant.UnitOfWork{}, false
-	}
-	return *runtime, true
-}
-
 // TenantRuntimeMiddleware mirrors what the production API root installs for
 // every route, the tenant runtime and the session verifier, for tests that
 // exercise a domain router in isolation.
