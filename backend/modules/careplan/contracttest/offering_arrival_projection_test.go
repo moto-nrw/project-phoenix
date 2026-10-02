@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -96,10 +95,7 @@ func createArrivalOffering(t *testing.T, env *decisionTestEnv, name string, days
 
 func setArrivalClassTimes(t *testing.T, env *decisionTestEnv, class string, times map[string]string) {
 	t.Helper()
-	row := &educationModel.ClassArrivalTime{SchoolClass: class, ArrivalTimes: times}
-	row.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, row.Validate())
-	require.NoError(t, env.repos.ClassArrivalTime.Upsert(testpkg.Ctx(t), row))
+	testpkg.UpsertTestClassArrivalTime(t, env.db, class, times)
 }
 
 func setStudentClass(t *testing.T, env *decisionTestEnv, studentID int64, class string) {

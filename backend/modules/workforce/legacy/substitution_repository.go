@@ -21,8 +21,8 @@ type GroupsByID func(ctx context.Context, ids []int64) (map[int64]*educationMode
 // rows through School Membership, which owns users.staff.
 type SubstitutionStaffResolver func(ctx context.Context, rows []*educationModels.GroupSubstitution) error
 
-// groupSubstitutionRepository serves
-// educationModels.GroupSubstitutionRepository from the Workforce capability.
+// groupSubstitutionRepository serves the retained education.group_substitution
+// contract from the Workforce capability.
 // Group names come from the injected group lookup, the staff behind a
 // substitution from the injected School Membership resolver.
 type groupSubstitutionRepository struct {
@@ -33,7 +33,7 @@ type groupSubstitutionRepository struct {
 
 // NewGroupSubstitutionRepository binds the adapter to the capability and to
 // the two owner lookups every relation-loading read needs.
-func NewGroupSubstitutionRepository(capability workforce.Capability, groups GroupsByID, staff SubstitutionStaffResolver) educationModels.GroupSubstitutionRepository {
+func NewGroupSubstitutionRepository(capability workforce.Capability, groups GroupsByID, staff SubstitutionStaffResolver) *groupSubstitutionRepository {
 	if capability == nil || groups == nil || staff == nil {
 		panic("group substitution repository adapter: Workforce capability, group lookup and staff resolver are required")
 	}

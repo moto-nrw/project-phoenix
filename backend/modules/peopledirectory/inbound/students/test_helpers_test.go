@@ -157,14 +157,10 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 			}
 			views := make([]studentsAPI.GroupTeacher, 0, len(teachers))
 			for _, teacher := range teachers {
-				if teacher == nil || teacher.Staff == nil || teacher.Staff.Person == nil {
+				if teacher == nil || teacher.Person == nil {
 					continue
 				}
-				view := studentsAPI.GroupTeacher{ID: teacher.ID, FirstName: teacher.Staff.Person.FirstName, LastName: teacher.Staff.Person.LastName}
-				if teacher.Staff.Person.Account != nil {
-					view.Email = teacher.Staff.Person.Account.Email
-				}
-				views = append(views, view)
+				views = append(views, studentsAPI.GroupTeacher{ID: teacher.ID, FirstName: teacher.Person.FirstName, LastName: teacher.Person.LastName, Email: teacher.Person.Email})
 			}
 			return views, nil
 		},

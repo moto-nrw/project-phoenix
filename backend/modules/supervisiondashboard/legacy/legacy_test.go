@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
-	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -319,7 +318,7 @@ func TestMyGroupsResolvesRoomsOnlyForGroupsWithRooms(t *testing.T) {
 	education := &mockEducationService{getGroupsWithRoomsByIDsFn: func(ids []int64) (map[int64]*educationModels.Group, error) {
 		assert.Equal(t, []int64{41}, ids)
 		return map[int64]*educationModels.Group{
-			41: {ID: 41, Room: &facilitiesModels.Room{ID: 31, Name: "Igel"}},
+			41: {Model: educationModels.Model{ID: 41}, Room: &educationModels.GroupRoom{ID: 31, Name: "Igel"}},
 			42: nil,
 		}, nil
 	}}

@@ -4,9 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Helper function to create int64 pointer
@@ -17,7 +15,7 @@ func ptr(i int64) *int64 {
 func TestGroupSubstitution_Validate(t *testing.T) {
 	t.Parallel()
 
-	currentTime := timezone.TodayDate()
+	currentTime := calendar.TodayDate()
 	tomorrow := currentTime.AddDays(1)
 
 	tests := []struct {
@@ -91,7 +89,7 @@ func TestGroupSubstitution_Validate(t *testing.T) {
 				GroupID:           1,
 				RegularStaffID:    ptr(1),
 				SubstituteStaffID: 2,
-				StartDate:         timezone.Date(""), // Zero date
+				StartDate:         calendar.Date(""), // Zero date
 				EndDate:           tomorrow,
 			},
 			wantErr:      true,
@@ -104,7 +102,7 @@ func TestGroupSubstitution_Validate(t *testing.T) {
 				RegularStaffID:    ptr(1),
 				SubstituteStaffID: 2,
 				StartDate:         currentTime,
-				EndDate:           timezone.Date(""), // Zero date
+				EndDate:           calendar.Date(""), // Zero date
 			},
 			wantErr:      true,
 			errorMessage: "end date is required",
@@ -157,7 +155,7 @@ func TestGroupSubstitution_Duration(t *testing.T) {
 	t.Parallel()
 
 	// Use a fixed date to avoid DST edge cases
-	now := timezone.NewDate(2026, time.June, 15)
+	now := calendar.NewDate(2026, time.June, 15)
 
 	tests := []struct {
 		name         string
@@ -205,7 +203,7 @@ func TestGroupSubstitution_SetGroup(t *testing.T) {
 	t.Run("set group", func(t *testing.T) {
 		gs := &GroupSubstitution{SubstituteStaffID: 1}
 		group := &Group{
-			Model: base.Model{ID: 42},
+			Model: Model{ID: 42},
 			Name:  "Test Group",
 		}
 
@@ -232,124 +230,4 @@ func TestGroupSubstitution_SetGroup(t *testing.T) {
 			t.Error("GroupSubstitution.SetGroup(nil) did not clear Group reference")
 		}
 	})
-}
-
-func TestGroupSubstitution_SetRegularStaff(t *testing.T) {
-	t.Parallel()
-
-	t.Run("set regular staff", func(t *testing.T) {
-		gs := &GroupSubstitution{GroupID: 1, SubstituteStaffID: 2}
-		staff := &users.Staff{
-			Model:    base.Model{ID: 42},
-			PersonID: 1,
-		}
-
-		gs.SetRegularStaff(staff)
-
-		if gs.RegularStaff != staff {
-			t.Error("GroupSubstitution.SetRegularStaff() did not set RegularStaff reference")
-		}
-
-		if gs.RegularStaffID == nil || *gs.RegularStaffID != 42 {
-			t.Errorf("GroupSubstitution.RegularStaffID = %v, want 42", gs.RegularStaffID)
-		}
-	})
-
-	t.Run("set nil regular staff", func(t *testing.T) {
-		staffID := int64(42)
-		gs := &GroupSubstitution{
-			GroupID:           1,
-			RegularStaffID:    &staffID,
-			SubstituteStaffID: 2,
-		}
-
-		gs.SetRegularStaff(nil)
-
-		if gs.RegularStaff != nil {
-			t.Error("GroupSubstitution.SetRegularStaff(nil) did not clear RegularStaff reference")
-		}
-
-		if gs.RegularStaffID != nil {
-			t.Error("GroupSubstitution.SetRegularStaff(nil) did not clear RegularStaffID")
-		}
-	})
-}
-
-func TestGroupSubstitution_SetSubstituteStaff(t *testing.T) {
-	t.Parallel()
-
-	t.Run("set substitute staff", func(t *testing.T) {
-		gs := &GroupSubstitution{GroupID: 1}
-		staff := &users.Staff{
-			Model:    base.Model{ID: 42},
-			PersonID: 1,
-		}
-
-		gs.SetSubstituteStaff(staff)
-
-		if gs.SubstituteStaff != staff {
-			t.Error("GroupSubstitution.SetSubstituteStaff() did not set SubstituteStaff reference")
-		}
-
-		if gs.SubstituteStaffID != 42 {
-			t.Errorf("GroupSubstitution.SubstituteStaffID = %v, want 42", gs.SubstituteStaffID)
-		}
-	})
-
-	t.Run("set nil substitute staff", func(t *testing.T) {
-		gs := &GroupSubstitution{
-			GroupID:           1,
-			SubstituteStaffID: 42,
-		}
-
-		gs.SetSubstituteStaff(nil)
-
-		if gs.SubstituteStaff != nil {
-			t.Error("GroupSubstitution.SetSubstituteStaff(nil) did not clear SubstituteStaff reference")
-		}
-	})
-}
-
-func TestGroupSubstitution_GetID(t *testing.T) {
-	t.Parallel()
-
-	gs := &GroupSubstitution{
-		Model:             base.Model{ID: 42},
-		GroupID:           1,
-		SubstituteStaffID: 1,
-	}
-
-	if got, ok := gs.GetID().(int64); !ok || got != 42 {
-		t.Errorf("GetID() = %v, want 42", gs.GetID())
-	}
-}
-
-func TestGroupSubstitution_GetCreatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	gs := &GroupSubstitution{
-		Model:             base.Model{CreatedAt: now},
-		GroupID:           1,
-		SubstituteStaffID: 1,
-	}
-
-	if got := gs.GetCreatedAt(); !got.Equal(now) {
-		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
-	}
-}
-
-func TestGroupSubstitution_GetUpdatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	gs := &GroupSubstitution{
-		Model:             base.Model{UpdatedAt: now},
-		GroupID:           1,
-		SubstituteStaffID: 1,
-	}
-
-	if got := gs.GetUpdatedAt(); !got.Equal(now) {
-		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
-	}
 }

@@ -1,8 +1,8 @@
-// Package admin_test tests the admin API handlers with hermetic test pattern.
+// Package gradetransitionhttp_test tests the grade transition routes with hermetic test pattern.
 //
 // These tests verify HTTP request/response handling, status codes, and error responses.
 // They use real services with a test database (no mocks).
-package admin_test
+package gradetransitionhttp_test
 
 import (
 	"context"
@@ -17,12 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	gradetransitionhttp "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
 )
 
 func init() {
@@ -34,7 +33,7 @@ func init() {
 // testContext holds shared test resources
 type testContext struct {
 	db       *bun.DB
-	resource *adminAPI.GradeTransitionResource
+	resource *gradetransitionhttp.GradeTransitionResource
 }
 
 // setupGradeTransitionsModule creates test resources for grade transition handler tests
@@ -42,7 +41,7 @@ func setupGradeTransitionsModule(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupGradeTransitionModule(t)
-	resource := adminAPI.NewGradeTransitionResource(svc.GradeTransition, db)
+	resource := gradetransitionhttp.NewGradeTransitionResource(svc.GradeTransition)
 
 	return &testContext{
 		db:       db,
@@ -51,8 +50,8 @@ func setupGradeTransitionsModule(t *testing.T) *testContext {
 }
 
 // createAdminClaims creates admin JWT claims for testing
-func createAdminClaims(tb testing.TB, accountID int) jwt.AppClaims {
-	return jwt.AppClaims{
+func createAdminClaims(tb testing.TB, accountID int) testutil.Claims {
+	return testutil.Claims{
 		ID:          accountID,
 		TenantID:    testpkg.Tenant(tb),
 		Sub:         "admin@example.com",
@@ -611,7 +610,7 @@ func TestGradeTransitionResource_Apply(t *testing.T) {
 
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 		data := response["data"].(map[string]interface{})
-		assert.Equal(t, education.TransitionStatusApplied, data["status"])
+		assert.Equal(t, schoolstructure.TransitionStatusApplied, data["status"])
 	})
 
 	t.Run("apply requires permission", func(t *testing.T) {
@@ -749,7 +748,7 @@ func TestGradeTransitionResource_Revert(t *testing.T) {
 
 		response := testutil.ParseJSONResponse(t, revertRR.Body.Bytes())
 		data := response["data"].(map[string]interface{})
-		assert.Equal(t, education.TransitionStatusReverted, data["status"])
+		assert.Equal(t, schoolstructure.TransitionStatusReverted, data["status"])
 	})
 
 	t.Run("revert draft transition fails", func(t *testing.T) {

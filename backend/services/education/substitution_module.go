@@ -4,39 +4,49 @@ package education
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type GroupStore interface {
 	FindByTeacher(ctx context.Context, teacherID int64) ([]*educationModels.Group, error)
 	FindByIDForUpdate(ctx context.Context, id any) (*educationModels.Group, error)
-	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*educationModels.Group, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*educationModels.Group, error)
+	// List selects groups by the legacy map filters; the module filters by
+	// school only.
+	List(ctx context.Context, filters map[string]any) ([]*educationModels.Group, error)
 }
 
 type GroupHandoverStore interface {
+	// Create stores a handover and reports educationModels.ErrHandoverExists
+	// when an equal one already exists.
 	Create(ctx context.Context, handover *educationModels.GroupSubstitution) error
 	Delete(ctx context.Context, id any) error
 	FindByID(ctx context.Context, id any) (*educationModels.GroupSubstitution, error)
 	FindByIDForUpdate(ctx context.Context, id any) (*educationModels.GroupSubstitution, error)
-	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*educationModels.GroupSubstitution, error)
-	ListWithRelations(ctx context.Context, options *base.QueryOptions) ([]*educationModels.GroupSubstitution, error)
+	ListHandovers(ctx context.Context, query educationModels.HandoverQuery) ([]*educationModels.GroupSubstitution, error)
+	// ListHandoversWithRelations is ListHandovers with the group and the
+	// staff members attached.
+	ListHandoversWithRelations(ctx context.Context, query educationModels.HandoverQuery) ([]*educationModels.GroupSubstitution, error)
 }
 
 type StaffLockStore interface {
-	FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Staff, error)
+	// LockStaff locks the staff member's row until the transaction ends.
+	LockStaff(ctx context.Context, id int64) error
+}
+
+// CaregiverDirectory reads the active staff members who can take over a
+// group.
+type CaregiverDirectory interface {
+	FindActiveCaregiverByAccountID(ctx context.Context, accountID int64) (*educationModels.Caregiver, error)
+	ListActiveCaregivers(ctx context.Context) ([]*educationModels.Caregiver, error)
 }
 
 type ActiveSupervisorCreator interface {
@@ -48,12 +58,12 @@ type SubstitutionDependencies struct {
 	Substitutions GroupHandoverStore
 	// Persons resolves the staff names the overview shows (#2661).
 	Persons                 PersonQuery
-	Teachers                userModels.TeacherRepository
+	Teachers                CaregiverDirectory
 	Staff                   StaffLockStore
 	Actors                  ActorResolver
-	Audit                   auditModels.SubstitutionChangeCreator
-	DB                      *bun.DB
-	Broadcaster             realtime.Broadcaster
+	Audit                   SubstitutionAudit
+	Runtime                 Runtime
+	Broadcaster             realtimeevents.Publisher
 	Logger                  *slog.Logger
 	Now                     func() time.Time
 	CanSeeAll               func(ctx context.Context, assignmentBound, admin, hasStaff bool) (bool, error)
@@ -65,7 +75,6 @@ type SubstitutionDependencies struct {
 
 type substitutionModule struct {
 	deps SubstitutionDependencies
-	tx   *tenant.TransactionRunner
 }
 
 type substitutionAccess struct {
@@ -78,7 +87,10 @@ func NewSubstitutionModule(deps SubstitutionDependencies) SubstitutionModule {
 	if deps.Now == nil {
 		deps.Now = time.Now
 	}
-	return &substitutionModule{deps: deps, tx: tenant.NewTransactionRunner()}
+	if deps.Runtime == nil {
+		panic("substitution module: runtime is required")
+	}
+	return &substitutionModule{deps: deps}
 }
 
 func (s *substitutionModule) Overview(ctx context.Context, caller SubstitutionCaller, query OverviewQuery) (*OverviewResult, error) {
@@ -96,7 +108,7 @@ func (s *substitutionModule) scheduleOverview(ctx context.Context, caller Substi
 	if query.ScheduleFrom == nil || query.ScheduleTo == nil || s.deps.Schedule == nil {
 		return nil, ErrInvalidPeriod
 	}
-	if err := authorizeScheduleCaller(ctx, caller, "schedules:read"); err != nil {
+	if err := s.authorizeScheduleCaller(ctx, caller, "schedules:read"); err != nil {
 		return nil, err
 	}
 	overview, err := s.deps.Schedule.Overview(
@@ -134,13 +146,13 @@ func (s *substitutionModule) groupOverview(ctx context.Context, caller Substitut
 	return result, err
 }
 
-func (s *substitutionModule) groupOverviewScope(ctx context.Context, caller SubstitutionCaller, query OverviewQuery) (substitutionAccess, bool, []int64, timezone.Date, error) {
+func (s *substitutionModule) groupOverviewScope(ctx context.Context, caller SubstitutionCaller, query OverviewQuery) (substitutionAccess, bool, []int64, calendar.Date, error) {
 	access, err := s.resolveAccess(ctx, caller)
 	if err != nil {
-		return access, false, nil, timezone.Date(""), err
+		return access, false, nil, calendar.Date(""), err
 	}
 	broad, err := s.canSeeAll(ctx, caller, access)
-	today := timezone.DateFromTime(s.deps.Now())
+	today := calendar.DateFromTime(s.deps.Now())
 	visibleGroupIDs := access.ownedGroupIDs
 	if err == nil && !broad && query.GroupID == 0 {
 		visibleGroupIDs, err = s.visibleGroupIDs(ctx, access, caller.TenantID, today)
@@ -155,7 +167,7 @@ func emptyOverview() *OverviewResult {
 	}
 }
 
-func validateOverviewQuery(query OverviewQuery, admin bool, today timezone.Date) error {
+func validateOverviewQuery(query OverviewQuery, admin bool, today calendar.Date) error {
 	if query.GroupID < 0 || query.ActiveGroupID < 0 {
 		return ErrInvalidTarget
 	}
@@ -165,31 +177,24 @@ func validateOverviewQuery(query OverviewQuery, admin bool, today timezone.Date)
 	return nil
 }
 
-func (s *substitutionModule) listOverviewRows(ctx context.Context, tenantID int64, query OverviewQuery, admin, broad bool, visibleGroupIDs []int64, today timezone.Date) ([]*educationModels.GroupSubstitution, error) {
-	options := base.NewQueryOptions()
-	filter := base.NewFilter().Equal("tenant_id", tenantID).
-		Equal("target_type", educationModels.GroupSubstitutionTypeGroupHandover)
+func (s *substitutionModule) listOverviewRows(ctx context.Context, tenantID int64, query OverviewQuery, admin, broad bool, visibleGroupIDs []int64, today calendar.Date) ([]*educationModels.GroupSubstitution, error) {
+	selection := educationModels.HandoverQuery{TenantID: tenantID, TargetType: educationModels.GroupSubstitutionTypeGroupHandover}
 	if query.GroupID > 0 {
-		filter.Equal("group_id", query.GroupID)
+		selection.GroupID = query.GroupID
 	} else if !broad {
-		values := make([]any, len(visibleGroupIDs))
-		for i, id := range visibleGroupIDs {
-			values[i] = id
-		}
-		if len(values) == 0 {
+		if len(visibleGroupIDs) == 0 {
 			return []*educationModels.GroupSubstitution{}, nil
 		}
-		filter.In("group_id", values...)
+		selection.GroupIDs = visibleGroupIDs
 	}
 	if !admin {
-		filter.LessThanOrEqual("start_date", today).GreaterThanOrEqual("end_date", today)
+		selection.StartsOnOrBefore, selection.EndsOnOrAfter = &today, &today
 	} else if query.On != nil {
-		filter.LessThanOrEqual("start_date", *query.On).GreaterThanOrEqual("end_date", *query.On)
+		selection.StartsOnOrBefore, selection.EndsOnOrAfter = query.On, query.On
 	} else {
-		filter.GreaterThanOrEqual("end_date", today)
+		selection.EndsOnOrAfter = &today
 	}
-	options.Filter = filter
-	rows, err := s.deps.Substitutions.ListWithRelations(ctx, options)
+	rows, err := s.deps.Substitutions.ListHandoversWithRelations(ctx, selection)
 	if err != nil {
 		return nil, err
 	}
@@ -224,20 +229,7 @@ func (s *substitutionModule) projectOverview(ctx context.Context, tenantID int64
 }
 
 func (s *substitutionModule) listAssignableGroups(ctx context.Context, tenantID int64, access substitutionAccess) ([]GroupRef, error) {
-	options := base.NewQueryOptions()
-	filter := base.NewFilter().Equal("tenant_id", tenantID)
-	if !access.admin {
-		if len(access.ownedGroupIDs) == 0 {
-			return []GroupRef{}, nil
-		}
-		ids := make([]any, len(access.ownedGroupIDs))
-		for index, id := range access.ownedGroupIDs {
-			ids[index] = id
-		}
-		filter.In("id", ids...)
-	}
-	options.Filter = filter
-	rows, err := s.deps.Groups.ListWithOptions(ctx, options)
+	rows, err := s.assignableGroupRows(ctx, tenantID, access)
 	if err != nil {
 		return nil, err
 	}
@@ -250,6 +242,28 @@ func (s *substitutionModule) listAssignableGroups(ctx context.Context, tenantID 
 	}
 	sort.Slice(groups, func(i, j int) bool { return groups[i].Name < groups[j].Name })
 	return groups, nil
+}
+
+// assignableGroupRows reads the school's groups for an admin, otherwise the
+// caller's own groups.
+func (s *substitutionModule) assignableGroupRows(ctx context.Context, tenantID int64, access substitutionAccess) ([]*educationModels.Group, error) {
+	if access.admin {
+		return s.deps.Groups.List(ctx, map[string]any{"tenant_id": tenantID})
+	}
+	if len(access.ownedGroupIDs) == 0 {
+		return []*educationModels.Group{}, nil
+	}
+	byID, err := s.deps.Groups.FindByIDs(ctx, access.ownedGroupIDs)
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]*educationModels.Group, 0, len(byID))
+	for _, id := range access.ownedGroupIDs {
+		if row, found := byID[id]; found {
+			rows = append(rows, row)
+		}
+	}
+	return rows, nil
 }
 
 func canViewGroup(access substitutionAccess, rows []*educationModels.GroupSubstitution, groupID int64) bool {
@@ -294,7 +308,7 @@ func (s *substitutionModule) Assign(ctx context.Context, caller SubstitutionCall
 	}
 
 	var result AssignmentResult
-	err = s.tx.RunInTx(ctx, func(txCtx context.Context) error {
+	err = s.deps.Runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		created, group, target, createErr := s.assignLocked(txCtx, caller, access, request, start, end)
 		if createErr == nil {
 			result = projectAssignment(created, group, target)
@@ -312,25 +326,25 @@ func (s *substitutionModule) assignScheduleSubstitution(ctx context.Context, cal
 	if assignment == nil || s.deps.Schedule == nil {
 		return nil, ErrInvalidTarget
 	}
-	if err := authorizeScheduleCaller(ctx, caller, "schedules:manage"); err != nil {
+	if err := s.authorizeScheduleCaller(ctx, caller, "schedules:manage"); err != nil {
 		return nil, err
 	}
 	var result *ScheduleSubstitutionResult
-	err := s.tx.RunInTx(ctx, func(txCtx context.Context) error {
+	err := s.deps.Runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		var assignErr error
 		result, assignErr = s.deps.Schedule.Assign(txCtx, *assignment, caller.AccountID)
 		return assignErr
 	})
 	if err != nil {
-		tenant.MarkRollback(ctx)
+		s.deps.Runtime.MarkRollback(ctx)
 		return nil, err
 	}
 	notifyScheduleChange(ctx, result)
 	return &AssignmentResult{ScheduleSubstitution: result}, nil
 }
 
-func authorizeScheduleCaller(ctx context.Context, caller SubstitutionCaller, required string) error {
-	if caller.AccountID <= 0 || caller.TenantID <= 0 || caller.TenantID != tenant.FromContext(ctx) ||
+func (s *substitutionModule) authorizeScheduleCaller(ctx context.Context, caller SubstitutionCaller, required string) error {
+	if caller.AccountID <= 0 || caller.TenantID <= 0 || caller.TenantID != s.deps.Runtime.TenantID(ctx) ||
 		(caller.Scope != "" && caller.Scope != "org") {
 		return ErrForbidden
 	}
@@ -340,7 +354,7 @@ func authorizeScheduleCaller(ctx context.Context, caller SubstitutionCaller, req
 	return nil
 }
 
-func (s *substitutionModule) assignLocked(ctx context.Context, caller SubstitutionCaller, access substitutionAccess, request *GroupHandoverAssignment, start, end timezone.Date) (*educationModels.GroupSubstitution, *educationModels.Group, *userModels.ActiveCaregiver, error) {
+func (s *substitutionModule) assignLocked(ctx context.Context, caller SubstitutionCaller, access substitutionAccess, request *GroupHandoverAssignment, start, end calendar.Date) (*educationModels.GroupSubstitution, *educationModels.Group, *educationModels.Caregiver, error) {
 	group, err := s.lockTenantGroup(ctx, request.GroupID, caller.TenantID)
 	if err != nil {
 		return nil, nil, nil, err
@@ -361,27 +375,23 @@ func (s *substitutionModule) assignLocked(ctx context.Context, caller Substituti
 		StartDate: start, EndDate: end, Reason: "Gruppenübergabe",
 	}
 	if err := s.deps.Substitutions.Create(ctx, created); err != nil {
-		if base.IsUniqueViolation(err) {
+		if errors.Is(err, educationModels.ErrHandoverExists) {
 			return nil, nil, nil, ErrAlreadyAssigned
 		}
 		return nil, nil, nil, err
 	}
-	if err := s.deps.Audit.Create(ctx, auditChange(created, caller.AccountID, auditModels.SubstitutionAssigned)); err != nil {
+	if err := s.deps.Audit.RecordSubstitutionChange(ctx, auditChange(created, caller.AccountID, educationModels.SubstitutionAssigned)); err != nil {
 		return nil, nil, nil, err
 	}
 	return created, group, target, nil
 }
 
-func (s *substitutionModule) rejectDuplicate(ctx context.Context, tenantID int64, request *GroupHandoverAssignment, start, end timezone.Date) error {
-	filter := base.NewFilter().Equal("tenant_id", tenantID).
-		Equal("target_type", educationModels.GroupSubstitutionTypeGroupHandover).
-		Equal("group_id", request.GroupID).
-		Equal("substitute_staff_id", request.TargetStaffID).
-		LessThanOrEqual("start_date", end).
-		GreaterThanOrEqual("end_date", start)
-	options := base.NewQueryOptions()
-	options.Filter = filter
-	duplicates, err := s.deps.Substitutions.ListWithOptions(ctx, options)
+func (s *substitutionModule) rejectDuplicate(ctx context.Context, tenantID int64, request *GroupHandoverAssignment, start, end calendar.Date) error {
+	duplicates, err := s.deps.Substitutions.ListHandovers(ctx, educationModels.HandoverQuery{
+		TenantID: tenantID, TargetType: educationModels.GroupSubstitutionTypeGroupHandover,
+		GroupID: request.GroupID, SubstituteStaffID: request.TargetStaffID,
+		StartsOnOrBefore: &end, EndsOnOrAfter: &start,
+	})
 	if err != nil {
 		return err
 	}
@@ -402,7 +412,7 @@ func (s *substitutionModule) End(ctx context.Context, caller SubstitutionCaller,
 	if err != nil {
 		return err
 	}
-	err = s.tx.RunInTx(ctx, func(txCtx context.Context) error {
+	err = s.deps.Runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		return s.endLocked(txCtx, caller, access, request.ID)
 	})
 	if err != nil {
@@ -416,17 +426,17 @@ func (s *substitutionModule) endScheduleSubstitution(ctx context.Context, caller
 	if id <= 0 || s.deps.Schedule == nil {
 		return ErrInvalidTarget
 	}
-	if err := authorizeScheduleCaller(ctx, caller, "schedules:manage"); err != nil {
+	if err := s.authorizeScheduleCaller(ctx, caller, "schedules:manage"); err != nil {
 		return err
 	}
 	var result *ScheduleSubstitutionResult
-	err := s.tx.RunInTx(ctx, func(txCtx context.Context) error {
+	err := s.deps.Runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		var endErr error
 		result, endErr = s.deps.Schedule.End(txCtx, id, caller.AccountID)
 		return endErr
 	})
 	if err != nil {
-		tenant.MarkRollback(ctx)
+		s.deps.Runtime.MarkRollback(ctx)
 		return err
 	}
 	notifyScheduleChange(ctx, result)
@@ -465,7 +475,7 @@ func (s *substitutionModule) endLocked(ctx context.Context, caller SubstitutionC
 	}
 	current, err := s.deps.Substitutions.FindByIDForUpdate(ctx, id)
 	if err != nil {
-		if base.IsNoRows(err) {
+		if educationModels.IsNotFound(err) {
 			return ErrNotRunning
 		}
 		return err
@@ -473,11 +483,11 @@ func (s *substitutionModule) endLocked(ctx context.Context, caller SubstitutionC
 	if err := validateEndAccess(current, caller.TenantID, access); err != nil {
 		return err
 	}
-	today := timezone.DateFromTime(s.deps.Now())
+	today := calendar.DateFromTime(s.deps.Now())
 	if current.EndDate.Before(today) || (!access.admin && current.StartDate.After(today)) {
 		return ErrNotRunning
 	}
-	if err := s.deps.Audit.Create(ctx, auditChange(current, caller.AccountID, auditModels.SubstitutionEnded)); err != nil {
+	if err := s.deps.Audit.RecordSubstitutionChange(ctx, auditChange(current, caller.AccountID, educationModels.SubstitutionEnded)); err != nil {
 		return err
 	}
 	return s.deps.Substitutions.Delete(ctx, id)
@@ -522,7 +532,7 @@ func (s *substitutionModule) recheckOwnership(ctx context.Context, access substi
 }
 
 func notFoundError(err error) error {
-	if base.IsNoRows(err) {
+	if educationModels.IsNotFound(err) {
 		return ErrNotFound
 	}
 	return err
@@ -564,19 +574,15 @@ func (s *substitutionModule) resolveAccess(ctx context.Context, caller Substitut
 	return substitutionAccess{actor: actor, ownedGroupIDs: ids}, nil
 }
 
-func (s *substitutionModule) visibleGroupIDs(ctx context.Context, access substitutionAccess, tenantID int64, today timezone.Date) ([]int64, error) {
+func (s *substitutionModule) visibleGroupIDs(ctx context.Context, access substitutionAccess, tenantID int64, today calendar.Date) ([]int64, error) {
 	if access.admin {
 		return nil, nil
 	}
 	ids := append([]int64(nil), access.ownedGroupIDs...)
-	filter := base.NewFilter().Equal("tenant_id", tenantID).
-		Equal("target_type", educationModels.GroupSubstitutionTypeGroupHandover).
-		Equal("substitute_staff_id", access.actor.StaffID).
-		LessThanOrEqual("start_date", today).
-		GreaterThanOrEqual("end_date", today)
-	options := base.NewQueryOptions()
-	options.Filter = filter
-	rows, err := s.deps.Substitutions.ListWithOptions(ctx, options)
+	rows, err := s.deps.Substitutions.ListHandovers(ctx, educationModels.HandoverQuery{
+		TenantID: tenantID, TargetType: educationModels.GroupSubstitutionTypeGroupHandover,
+		SubstituteStaffID: access.actor.StaffID, StartsOnOrBefore: &today, EndsOnOrAfter: &today,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -594,7 +600,7 @@ func (s *substitutionModule) resolveActor(ctx context.Context, accountID int64) 
 	}
 	caregiver, err := s.deps.Teachers.FindActiveCaregiverByAccountID(ctx, accountID)
 	if err != nil {
-		if base.IsNoRows(err) {
+		if educationModels.IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -605,11 +611,11 @@ func (s *substitutionModule) resolveActor(ctx context.Context, accountID int64) 
 	return &Actor{StaffID: caregiver.StaffID, TeacherID: caregiver.TeacherID}, nil
 }
 
-func (s *substitutionModule) period(admin bool, requestedStart, requestedEnd *timezone.Date) (timezone.Date, timezone.Date, error) {
-	today := timezone.DateFromTime(s.deps.Now())
+func (s *substitutionModule) period(admin bool, requestedStart, requestedEnd *calendar.Date) (calendar.Date, calendar.Date, error) {
+	today := calendar.DateFromTime(s.deps.Now())
 	if !admin {
 		if requestedStart != nil && *requestedStart != today || requestedEnd != nil && *requestedEnd != today {
-			return timezone.Date(""), timezone.Date(""), ErrInvalidPeriod
+			return calendar.Date(""), calendar.Date(""), ErrInvalidPeriod
 		}
 		return today, today, nil
 	}
@@ -617,12 +623,12 @@ func (s *substitutionModule) period(admin bool, requestedStart, requestedEnd *ti
 		return today, today, nil
 	}
 	if requestedStart == nil || requestedEnd == nil || requestedStart.IsZero() || requestedEnd.IsZero() || requestedEnd.Before(*requestedStart) || requestedStart.Before(today) {
-		return timezone.Date(""), timezone.Date(""), ErrInvalidPeriod
+		return calendar.Date(""), calendar.Date(""), ErrInvalidPeriod
 	}
 	return *requestedStart, *requestedEnd, nil
 }
 
-func (s *substitutionModule) findTarget(ctx context.Context, staffID int64) (*userModels.ActiveCaregiver, error) {
+func (s *substitutionModule) findTarget(ctx context.Context, staffID int64) (*educationModels.Caregiver, error) {
 	caregivers, err := s.deps.Teachers.ListActiveCaregivers(ctx)
 	if err != nil {
 		return nil, err
@@ -635,8 +641,8 @@ func (s *substitutionModule) findTarget(ctx context.Context, staffID int64) (*us
 	return nil, ErrNotFound
 }
 
-func (s *substitutionModule) findAndLockTarget(ctx context.Context, staffID int64) (*userModels.ActiveCaregiver, error) {
-	if _, err := s.deps.Staff.FindByIDForUpdate(ctx, staffID); err != nil {
+func (s *substitutionModule) findAndLockTarget(ctx context.Context, staffID int64) (*educationModels.Caregiver, error) {
+	if err := s.deps.Staff.LockStaff(ctx, staffID); err != nil {
 		return nil, notFoundError(err)
 	}
 	return s.findTarget(ctx, staffID)
@@ -650,7 +656,7 @@ func (s *substitutionModule) listTargets(ctx context.Context, actor *Actor) ([]S
 	result := make([]StaffRef, 0, len(caregivers))
 	for _, caregiver := range caregivers {
 		if actor == nil || caregiver.StaffID != actor.StaffID {
-			result = append(result, StaffRef{ID: caregiver.StaffID, FullName: caregiver.FullName()})
+			result = append(result, StaffRef{ID: caregiver.StaffID, FullName: caregiver.FullName})
 		}
 	}
 	return result, nil
@@ -664,27 +670,26 @@ func project(row *educationModels.GroupSubstitution, canEnd bool) GroupHandover 
 		result.Group.Name = row.Group.Name
 	}
 	if row.SubstituteStaff != nil && row.SubstituteStaff.Person != nil {
-		person := row.SubstituteStaff.Person
-		result.Target.FullName = person.GetFullName()
+		result.Target.FullName = row.SubstituteStaff.Person.FullName()
 	}
 	return result
 }
 
-func projectAssignment(row *educationModels.GroupSubstitution, group *educationModels.Group, target *userModels.ActiveCaregiver) AssignmentResult {
+func projectAssignment(row *educationModels.GroupSubstitution, group *educationModels.Group, target *educationModels.Caregiver) AssignmentResult {
 	period := &Period{StartDate: row.StartDate.String(), EndDate: row.EndDate.String()}
 	return AssignmentResult{
 		ID: row.ID, Type: TargetGroupHandover, CanEnd: true,
 		Period: period,
 		Group:  &GroupRef{ID: group.ID, Name: group.Name},
-		Target: StaffRef{ID: target.StaffID, FullName: target.FullName()},
+		Target: StaffRef{ID: target.StaffID, FullName: target.FullName},
 	}
 }
 
-func auditChange(row *educationModels.GroupSubstitution, actorID int64, action string) *auditModels.SubstitutionChange {
-	endDate := auditModels.Date(row.EndDate)
-	return &auditModels.SubstitutionChange{SubstitutionID: row.ID, TargetType: string(TargetGroupHandover), Action: action,
+func auditChange(row *educationModels.GroupSubstitution, actorID int64, action educationModels.SubstitutionAction) educationModels.SubstitutionChange {
+	endDate := row.EndDate
+	return educationModels.SubstitutionChange{SubstitutionID: row.ID, TargetType: string(TargetGroupHandover), Action: action,
 		GroupID: row.GroupID, TargetStaffID: row.SubstituteStaffID, ActorAccountID: actorID,
-		StartDate: auditModels.Date(row.StartDate), EndDate: &endDate}
+		StartDate: row.StartDate, EndDate: &endDate}
 }
 
 func contains(ids []int64, id int64) bool {

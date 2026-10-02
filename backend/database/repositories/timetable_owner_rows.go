@@ -6,7 +6,6 @@ import (
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -30,7 +29,7 @@ type TimetableOwnerRows struct {
 	Templates         activitiesModels.GroupRepository
 	Categories        activitiesModels.CategoryRepository
 	Students          usersModels.StudentRepository
-	EducationGroups   educationModels.GroupRepository
+	EducationGroups   EducationGroupRepository
 	Rooms             facilitiesModels.RoomRepository
 	PickupExceptions  scheduleModels.StudentPickupExceptionRepository
 	ArrivalExceptions scheduleModels.StudentArrivalExceptionRepository
@@ -132,7 +131,7 @@ func (r SickCascadeTimetableRows) GetInstanceStaff(ctx context.Context, instance
 }
 
 type timetableEducationGroupNames struct {
-	groups educationModels.GroupRepository
+	groups EducationGroupRepository
 }
 
 func (g timetableEducationGroupNames) EducationGroupNames(ctx context.Context, ids []int64) (map[int64]string, error) {

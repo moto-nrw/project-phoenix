@@ -3,22 +3,36 @@ package education
 import (
 	"errors"
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"time"
 )
 
-// Group represents an educational group/class
+// Group represents an educational group/class (education.groups).
 type Group struct {
-	base.Model `bun:"schema:education,table:groups"`
-	base.TenantModel
+	Model
+	TenantModel
 	Name   string `bun:"name,notnull" json:"name"`
 	RoomID *int64 `bun:"room_id" json:"room_id,omitempty"`
 
-	// Relations not stored in the database
-	Room *facilities.Room `bun:"rel:belongs-to,join:room_id=id" json:"room,omitempty"`
+	// Room is the group's room as the Facilities owner resolves it; the
+	// room-enriched reads fill it, the others leave it nil.
+	Room *GroupRoom `bun:"-" json:"room,omitempty"`
 	// Teachers are linked through the GroupTeacher model
 	// Students will be a relationship from the Student model
+}
+
+// GroupRoom is the Facilities room a group is assigned to, as the
+// room-enriched group reads carry it (#2665). facilities.rooms belongs to
+// that owner; School Structure only keeps this projection.
+type GroupRoom struct {
+	ID        int64     `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Name      string    `json:"name"`
+	Building  string    `json:"building,omitempty"`
+	Floor     *int      `json:"floor,omitempty"`
+	Capacity  *int      `json:"capacity,omitempty"`
+	Category  *string   `json:"category,omitempty"`
+	Color     *string   `json:"color,omitempty"`
 }
 
 // GroupListQuery is the bounded read shape for the group overview. It exposes
@@ -33,25 +47,6 @@ type GroupListQuery struct {
 	Descending   bool
 }
 
-// Filter returns a fresh generic filter for the fields shared by the list and
-// count queries. Ordering and pagination remain list-only concerns.
-func (q *GroupListQuery) Filter() *base.Filter {
-	filter := base.NewFilter()
-	if q == nil {
-		return filter
-	}
-	if q.Name != "" {
-		filter.Equal("name", q.Name)
-	}
-	if q.NameContains != "" {
-		filter.ILike("name", "%"+q.NameContains+"%")
-	}
-	if q.RoomID != nil {
-		filter.Equal("room_id", *q.RoomID)
-	}
-	return filter
-}
-
 // Validate ensures group data is valid
 func (g *Group) Validate() error {
 	if g.Name == "" {
@@ -64,17 +59,14 @@ func (g *Group) Validate() error {
 	return nil
 }
 
-// SetRoom assigns this group to a room
-func (g *Group) SetRoom(room *facilities.Room) {
-	g.Room = room
-	if room != nil {
-		g.RoomID = &room.ID
-	} else {
-		g.RoomID = nil
-	}
-}
-
 // HasRoom checks if the group has a room assigned
 func (g *Group) HasRoom() bool {
 	return g.RoomID != nil && *g.RoomID > 0
+}
+
+// StaffGroupID pairs a staff member with one education group they supervise:
+// callers need the IDs, never the group rows themselves.
+type StaffGroupID struct {
+	StaffID int64 `bun:"staff_id"`
+	GroupID int64 `bun:"group_id"`
 }

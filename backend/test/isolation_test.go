@@ -17,7 +17,6 @@ import (
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	repoAudit "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	repoEducation "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -111,7 +110,7 @@ func TestTenantIsolation_EducationGroupVisibility(t *testing.T) {
 	gA := CreateTestEducationGroupForTenant(t, db, tenantA, "GroupA")
 	gB := CreateTestEducationGroupForTenant(t, db, tenantB, "GroupB")
 
-	repo := repoEducation.NewGroupRepository(db)
+	repo := repositories.NewEducationGroupRepository(db)
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
@@ -538,7 +537,7 @@ func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 	})
 
 	t.Run("education group update blocked", func(t *testing.T) {
-		repo := repoEducation.NewGroupRepository(db)
+		repo := repositories.NewEducationGroupRepository(db)
 		err := repo.Update(ctxB, groupA)
 		require.Error(t, err, "cross-tenant group update must fail")
 		assert.Contains(t, err.Error(), "rows affected",

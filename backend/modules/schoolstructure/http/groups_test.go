@@ -1,8 +1,8 @@
-// Package groups_test tests the groups API handlers with hermetic test pattern.
+// Package schoolstructurehttp_test tests the group routes with hermetic test pattern.
 //
 // These tests verify HTTP request/response handling, status codes, and error responses.
 // They use real services with a test database (no mocks).
-package groups_test
+package schoolstructurehttp_test
 
 import (
 	"context"
@@ -16,17 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	schoolstructurehttp "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // init seeds JWT viper defaults so jwt.MustNewTokenAuth (called by
-// groupsAPI.Resource.Router) succeeds in CI environments without a populated
+// schoolstructurehttp.Resource.Router) succeeds in CI environments without a populated
 // .env. Required because setupGroupsRoute constructs the resource, and the
 // tests mint real signed JWTs via testutil.MintTestJWT.
 func init() {
@@ -40,7 +37,7 @@ func init() {
 // exactly `permissions` — this mirrors the old testutil.WithPermissions option
 // (empty for the transfer routes, which mount no permission check). All other
 // claim fields come from `claims`.
-func newReq(t *testing.T, method, target string, body interface{}, claims jwt.AppClaims, permissions ...string) *http.Request {
+func newReq(t *testing.T, method, target string, body interface{}, claims testutil.Claims, permissions ...string) *http.Request {
 	t.Helper()
 	claims.Permissions = permissions
 	token := testutil.MintTestJWT(t, claims)
@@ -50,7 +47,7 @@ func newReq(t *testing.T, method, target string, body interface{}, claims jwt.Ap
 // testContext holds shared test resources
 type testContext struct {
 	db       *bun.DB
-	resource *groupsAPI.Resource
+	resource *schoolstructurehttp.Resource
 }
 
 // setupGroupsRoute creates test resources for groups handler tests
@@ -60,12 +57,11 @@ func setupGroupsRoute(t *testing.T) *testContext {
 	db, svc := testutil.SetupGroupsModule(t)
 
 	// Groups resource requires multiple services and repositories
-	resource := groupsAPI.NewResource(
+	resource := schoolstructurehttp.NewResource(
 		svc.Education,
 		svc.Active,
-		svc.Users,
+		svc.People,
 		svc.UserContext,
-		db,
 	)
 
 	return &testContext{
@@ -568,7 +564,7 @@ func TestGetGroupStudents_WithStudent(t *testing.T) {
 
 	// Assign student to group
 	_, err := tc.db.NewUpdate().
-		Model((*users.Student)(nil)).
+		Model((*testpkg.Student)(nil)).
 		ModelTableExpr("users.student_school_memberships").
 		Set("group_id = ?", group.ID).
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
@@ -721,7 +717,7 @@ func TestGetGroupStudentsRoomStatus_WithAdmin(t *testing.T) {
 
 	// Update group with room
 	_, err := tc.db.NewUpdate().
-		Model((*education.Group)(nil)).
+		Model((*testpkg.EducationGroup)(nil)).
 		ModelTableExpr("education.groups").
 		Set("room_id = ?", room.ID).
 		Where("id = ?", group.ID).
@@ -780,7 +776,7 @@ func TestGetGroupStudents_WithFullAccessAdmin(t *testing.T) {
 	guardian := testpkg.CreateTestGuardianProfileNamed(t, tc.db, "Test", "Guardian", "guardian@test.com")
 	testpkg.CreateTestStudentGuardianLink(t, tc.db, student.ID, guardian.ID, "parent")
 	_, err := tc.db.NewUpdate().
-		Model((*users.Student)(nil)).
+		Model((*testpkg.Student)(nil)).
 		ModelTableExpr("users.student_school_memberships").
 		Set("group_id = ?", group.ID).
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
@@ -810,7 +806,7 @@ func TestListGroups_WithRoomIDFilter(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "RoomFilterTest")
 
 	_, err := tc.db.NewUpdate().
-		Model((*education.Group)(nil)).
+		Model((*testpkg.EducationGroup)(nil)).
 		ModelTableExpr("education.groups").
 		Set("room_id = ?", room.ID).
 		Where("id = ?", group.ID).
@@ -884,7 +880,7 @@ func TestGetGroupStudentsRoomStatus_WithSubstitution(t *testing.T) {
 
 	// Update group with room
 	_, err := tc.db.NewUpdate().
-		Model((*education.Group)(nil)).
+		Model((*testpkg.EducationGroup)(nil)).
 		ModelTableExpr("education.groups").
 		Set("room_id = ?", room.ID).
 		Where("id = ?", group.ID).
@@ -895,7 +891,7 @@ func TestGetGroupStudentsRoomStatus_WithSubstitution(t *testing.T) {
 	staff, _ := testpkg.CreateTestStaffWithAccount(t, tc.db, "Substitute", "Supervisor")
 
 	// Create active substitution for today (grants access)
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	testpkg.CreateTestGroupSubstitution(t, tc.db, group.ID, nil, staff.ID, today, today)
 
 	// Staff should have access via substitution

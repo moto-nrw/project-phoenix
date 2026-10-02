@@ -6,51 +6,44 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // service implements the Education Service interface
 type service struct {
-	groupRepo        education.GroupRepository
-	groupTeacherRepo education.GroupTeacherRepository
-	classTeacherRepo education.ClassTeacherRepository
-	roomRepo         facilities.RoomRepository
-	teacherRepo      users.TeacherRepository
-	staffRepo        users.StaffRepository
-	studentRepo      users.StudentRepository
-	substitutionRepo education.GroupSubstitutionRepository
-	txHandler        *tenant.TransactionRunner
+	groupRepo        GroupRecords
+	groupTeacherRepo GroupTeacherStore
+	classTeacherRepo ClassTeacherStore
+	rooms            RoomDirectory
+	teachers         TeacherDirectory
+	staff            StaffDirectory
+	students         StudentCounter
+	substitutionRepo HandoverReader
+	runtime          Runtime
 
 	// broadcaster announces group_access_changed after a write to either table
 	// that decides group access (#2084). Optional: services constructed without
 	// one (tests, CLI) simply emit nothing, they never fail the write.
-	broadcaster realtime.Broadcaster
+	broadcaster realtimeevents.Publisher
 
 	// masterDataAudit records class assignment rewrites (#1772) in
 	// audit.staff_master_data_changes. Optional like the broadcaster.
-	masterDataAudit auditModels.StaffMasterDataChangeCreator
+	masterDataAudit ClassAssignmentAudit
 }
 
 // SetBroadcaster wires the SSE hub after construction, matching the
 // duck-typed SetBroadcaster block the service factory already uses for every
 // other broadcasting service.
-func (s *service) SetBroadcaster(b realtime.Broadcaster) { s.broadcaster = b }
+func (s *service) SetBroadcaster(b realtimeevents.Publisher) { s.broadcaster = b }
 
 // SetMasterDataAudit wires the append-only Stammdaten audit trail after
 // construction (#1772): class assignment rewrites scope the Lehrkraft student
 // day view, so SetStaffSchoolClasses records every change. Optional like the
 // broadcaster — services constructed without it (tests, CLI) skip the trail.
-func (s *service) SetMasterDataAudit(creator auditModels.StaffMasterDataChangeCreator) {
-	s.masterDataAudit = creator
+func (s *service) SetMasterDataAudit(audit ClassAssignmentAudit) {
+	s.masterDataAudit = audit
 }
 
 // announceGroupAccessChanged queues the tenant-wide invalidation for a write
@@ -62,26 +55,29 @@ func (s *service) announceGroupAccessChanged(ctx context.Context, source string)
 
 // NewService creates a new education service instance
 func NewService(
-	groupRepo education.GroupRepository,
-	groupTeacherRepo education.GroupTeacherRepository,
-	classTeacherRepo education.ClassTeacherRepository,
-	roomRepo facilities.RoomRepository,
-	teacherRepo users.TeacherRepository,
-	staffRepo users.StaffRepository,
-	studentRepo users.StudentRepository,
-	substitutionRepo education.GroupSubstitutionRepository,
-	db *bun.DB,
+	groupRepo GroupRecords,
+	groupTeacherRepo GroupTeacherStore,
+	classTeacherRepo ClassTeacherStore,
+	rooms RoomDirectory,
+	teachers TeacherDirectory,
+	staff StaffDirectory,
+	students StudentCounter,
+	substitutionRepo HandoverReader,
+	runtime Runtime,
 ) Service {
+	if runtime == nil {
+		panic("education service: runtime is required")
+	}
 	return &service{
 		groupRepo:        groupRepo,
 		groupTeacherRepo: groupTeacherRepo,
 		classTeacherRepo: classTeacherRepo,
-		roomRepo:         roomRepo,
-		teacherRepo:      teacherRepo,
-		staffRepo:        staffRepo,
-		studentRepo:      studentRepo,
+		rooms:            rooms,
+		teachers:         teachers,
+		staff:            staff,
+		students:         students,
 		substitutionRepo: substitutionRepo,
-		txHandler:        tenant.NewTransactionRunner(),
+		runtime:          runtime,
 	}
 }
 
@@ -125,7 +121,7 @@ func (s *service) CreateGroup(ctx context.Context, group *education.Group) error
 
 	// If room ID is specified, verify the room exists
 	if group.RoomID != nil && *group.RoomID > 0 {
-		room, err := s.roomRepo.FindByID(ctx, *group.RoomID)
+		room, err := s.rooms.FindRoom(ctx, *group.RoomID)
 		if err != nil {
 			return &EducationError{Op: "CreateGroup", Err: ErrRoomNotFound}
 		}
@@ -133,7 +129,7 @@ func (s *service) CreateGroup(ctx context.Context, group *education.Group) error
 	}
 
 	// Create the group
-	group.SetTenantID(tenant.FromContext(ctx))
+	group.TenantID = s.runtime.TenantID(ctx)
 	if err := s.groupRepo.Create(ctx, group); err != nil {
 		return &EducationError{Op: "CreateGroup", Err: err}
 	}
@@ -188,7 +184,7 @@ func (s *service) validateAndSetRoom(ctx context.Context, existing, updated *edu
 	}
 
 	if updated.RoomID != nil && *updated.RoomID > 0 {
-		room, err := s.roomRepo.FindByID(ctx, *updated.RoomID)
+		room, err := s.rooms.FindRoom(ctx, *updated.RoomID)
 		if err != nil {
 			return &EducationError{Op: "UpdateGroup", Err: ErrRoomNotFound}
 		}
@@ -217,7 +213,7 @@ func roomIDHasChanged(oldRoomID, newRoomID *int64) bool {
 // DeleteGroup deletes an education group by ID
 func (s *service) DeleteGroup(ctx context.Context, id int64) error {
 	removedTeacherLinks := false
-	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+	err := s.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		var deleteErr error
 		removedTeacherLinks, deleteErr = s.deleteGroupInTx(txCtx, id)
 		return deleteErr
@@ -253,7 +249,7 @@ func (s *service) validateGroupDeletion(ctx context.Context, id int64) error {
 
 	// Best-effort pre-check: students with group_id would lose their group (SET NULL).
 	// The real protection is this check; the DB allows the delete but silently orphans students.
-	counts, preCheckErr := s.studentRepo.CountByGroupIDs(ctx, []int64{id})
+	counts, preCheckErr := s.students.CountByGroupIDs(ctx, []int64{id})
 	if preCheckErr != nil {
 		slog.Warn("group_delete_precheck_failed",
 			"group_id", id,
@@ -267,7 +263,7 @@ func (s *service) validateGroupDeletion(ctx context.Context, id int64) error {
 	if err != nil {
 		return &EducationError{Op: "DeleteGroup", Err: err}
 	}
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	for _, handover := range handovers {
 		if handover.TargetType == education.GroupSubstitutionTypeGroupHandover && !handover.EndDate.Before(today) {
 			return &EducationError{Op: "DeleteGroup", Err: ErrGroupHasHandover}
@@ -302,9 +298,7 @@ func (s *service) ListGroups(ctx context.Context, query *education.GroupListQuer
 
 // CountGroups counts groups matching the list filters, ignoring pagination.
 func (s *service) CountGroups(ctx context.Context, query *education.GroupListQuery) (int, error) {
-	options := base.NewQueryOptions()
-	options.Filter = query.Filter()
-	count, err := s.groupRepo.CountWithOptions(ctx, options)
+	count, err := s.groupRepo.CountGroups(ctx, query)
 	if err != nil {
 		return 0, &EducationError{Op: "CountGroups", Err: err}
 	}
@@ -333,7 +327,7 @@ func (s *service) GetGroupsWithRoomsByIDs(ctx context.Context, ids []int64) (map
 
 // RemoveTeacherFromGroup removes a teacher from a group
 func (s *service) RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID int64) error {
-	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+	err := s.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		return s.removeTeacherFromGroupInTx(txCtx, groupID, teacherID)
 	})
 	if err != nil {
@@ -379,7 +373,7 @@ func (s *service) removeTeacherFromGroupInTx(ctx context.Context, groupID, teach
 // UpdateGroupTeachers updates the teacher assignments for a group
 func (s *service) UpdateGroupTeachers(ctx context.Context, groupID int64, teacherIDs []int64) error {
 	changed := false
-	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+	err := s.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		var updateErr error
 		changed, updateErr = s.updateGroupTeachersInTx(txCtx, groupID, teacherIDs)
 		return updateErr
@@ -466,7 +460,7 @@ func (s *service) addNewTeachersToGroup(ctx context.Context, groupID int64, curr
 
 // addTeacherToGroup adds a single teacher to a group
 func (s *service) addTeacherToGroup(ctx context.Context, groupID, teacherID int64) error {
-	if _, err := s.teacherRepo.FindByID(ctx, teacherID); err != nil {
+	if err := s.teachers.FindTeacher(ctx, teacherID); err != nil {
 		return &EducationError{Op: "UpdateGroupTeachers", Err: ErrTeacherNotFound}
 	}
 
@@ -474,7 +468,7 @@ func (s *service) addTeacherToGroup(ctx context.Context, groupID, teacherID int6
 		GroupID:   groupID,
 		TeacherID: teacherID,
 	}
-	relation.SetTenantID(tenant.FromContext(ctx))
+	relation.TenantID = s.runtime.TenantID(ctx)
 
 	if err := s.groupTeacherRepo.Create(ctx, relation); err != nil {
 		return &EducationError{Op: "UpdateGroupTeachers", Err: err}
@@ -484,7 +478,7 @@ func (s *service) addTeacherToGroup(ctx context.Context, groupID, teacherID int6
 }
 
 // GetGroupTeachers gets all teachers for a group
-func (s *service) GetGroupTeachers(ctx context.Context, groupID int64) ([]*users.Teacher, error) {
+func (s *service) GetGroupTeachers(ctx context.Context, groupID int64) ([]*Teacher, error) {
 	// Verify group exists
 	_, err := s.groupRepo.FindByID(ctx, groupID)
 	if err != nil {
@@ -494,7 +488,7 @@ func (s *service) GetGroupTeachers(ctx context.Context, groupID int64) ([]*users
 	// Find all group-teacher relationships
 	relations, err := s.groupTeacherRepo.FindByGroup(ctx, groupID)
 	if err != nil {
-		return []*users.Teacher{}, nil
+		return []*Teacher{}, nil
 	}
 
 	teacherIDs := make([]int64, 0, len(relations))
@@ -502,12 +496,12 @@ func (s *service) GetGroupTeachers(ctx context.Context, groupID int64) ([]*users
 		teacherIDs = append(teacherIDs, rel.TeacherID)
 	}
 	if len(teacherIDs) == 0 {
-		return []*users.Teacher{}, nil
+		return []*Teacher{}, nil
 	}
 
 	// Batch fetch teachers with staff+person in one query — same path as
 	// GetTeachersForGroups; replaces the per-teacher N+1 enrichment.
-	teachers, err := s.teacherRepo.FindWithStaffAndPersonByIDs(ctx, teacherIDs)
+	teachers, err := s.teachers.ListTeachers(ctx, teacherIDs)
 	if err != nil {
 		return nil, &EducationError{Op: "GetGroupTeachers", Err: err}
 	}
@@ -515,9 +509,9 @@ func (s *service) GetGroupTeachers(ctx context.Context, groupID int64) ([]*users
 }
 
 // GetTeachersForGroups batch-loads all teachers for multiple groups in 2 queries
-func (s *service) GetTeachersForGroups(ctx context.Context, groupIDs []int64) (map[int64][]*users.Teacher, error) {
+func (s *service) GetTeachersForGroups(ctx context.Context, groupIDs []int64) (map[int64][]*Teacher, error) {
 	if len(groupIDs) == 0 {
-		return make(map[int64][]*users.Teacher), nil
+		return make(map[int64][]*Teacher), nil
 	}
 
 	// 1. Batch fetch all group-teacher relationships (1 query)
@@ -535,27 +529,27 @@ func (s *service) GetTeachersForGroups(ctx context.Context, groupIDs []int64) (m
 	teacherIDs := slices.Collect(maps.Keys(teacherIDSet))
 
 	if len(teacherIDs) == 0 {
-		result := make(map[int64][]*users.Teacher)
+		result := make(map[int64][]*Teacher)
 		for _, gid := range groupIDs {
-			result[gid] = []*users.Teacher{}
+			result[gid] = []*Teacher{}
 		}
 		return result, nil
 	}
 
 	// 3. Batch fetch all teachers with staff+person (1 query)
-	teachers, err := s.teacherRepo.FindWithStaffAndPersonByIDs(ctx, teacherIDs)
+	teachers, err := s.teachers.ListTeachers(ctx, teacherIDs)
 	if err != nil {
 		return nil, &EducationError{Op: "GetTeachersForGroups", Err: err}
 	}
 
 	// 4. Build teacher lookup map
-	teacherMap := make(map[int64]*users.Teacher, len(teachers))
+	teacherMap := make(map[int64]*Teacher, len(teachers))
 	for _, t := range teachers {
 		teacherMap[t.ID] = t
 	}
 
 	// 5. Build result: groupID -> []Teacher
-	result := make(map[int64][]*users.Teacher, len(groupIDs))
+	result := make(map[int64][]*Teacher, len(groupIDs))
 	for _, rel := range relations {
 		if teacher, ok := teacherMap[rel.TeacherID]; ok {
 			result[rel.GroupID] = append(result[rel.GroupID], teacher)
@@ -565,7 +559,7 @@ func (s *service) GetTeachersForGroups(ctx context.Context, groupIDs []int64) (m
 	// Ensure all requested group IDs have an entry
 	for _, gid := range groupIDs {
 		if _, ok := result[gid]; !ok {
-			result[gid] = []*users.Teacher{}
+			result[gid] = []*Teacher{}
 		}
 	}
 
@@ -575,8 +569,7 @@ func (s *service) GetTeachersForGroups(ctx context.Context, groupIDs []int64) (m
 // GetTeacherGroups gets all groups for a teacher
 func (s *service) GetTeacherGroups(ctx context.Context, teacherID int64) ([]*education.Group, error) {
 	// Verify teacher exists
-	_, err := s.teacherRepo.FindByID(ctx, teacherID)
-	if err != nil {
+	if err := s.teachers.FindTeacher(ctx, teacherID); err != nil {
 		return nil, &EducationError{Op: "GetTeacherGroups", Err: ErrTeacherNotFound}
 	}
 

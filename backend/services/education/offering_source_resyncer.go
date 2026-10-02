@@ -3,7 +3,7 @@ package education
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // OfferingSourceResyncer re-reconciles every offering-sourced timetable
@@ -13,5 +13,5 @@ import (
 // Implemented by the enrollment decision service; the student handlers and
 // the grade transition workflow composition consume it.
 type OfferingSourceResyncer interface {
-	ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom timezone.Date) error
+	ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom calendar.Date) error
 }

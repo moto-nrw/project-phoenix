@@ -1,4 +1,6 @@
-package admin
+// Package gradetransitionhttp is the HTTP adapter of the grade transition
+// workflow under /api/admin/grade-transitions (#2711, #2742).
+package gradetransitionhttp
 
 import (
 	"encoding/json"
@@ -14,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
-	"github.com/uptrace/bun"
 )
 
 // Constants for error messages and time formatting
@@ -41,14 +42,12 @@ const (
 // order, the preview fingerprint and the owner commands.
 type GradeTransitionResource struct {
 	workflow *gradetransition.Workflow
-	db       *bun.DB
 }
 
 // NewGradeTransitionResource creates a new grade transition resource
-func NewGradeTransitionResource(workflow *gradetransition.Workflow, db *bun.DB) *GradeTransitionResource {
+func NewGradeTransitionResource(workflow *gradetransition.Workflow) *GradeTransitionResource {
 	return &GradeTransitionResource{
 		workflow: workflow,
-		db:       db,
 	}
 }
 
@@ -58,7 +57,7 @@ func (rs *GradeTransitionResource) Router() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// All routes require authentication
-	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
+	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 
 		// Read operations
 		r.With(common.RequiresPermission(permissions.GradeTransitionsRead), withTx).

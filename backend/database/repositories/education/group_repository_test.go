@@ -5,9 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,12 +24,12 @@ func TestGroupRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates group with valid data", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("TestGroup-%d", time.Now().UnixNano())
-		group := &education.Group{
+		group := &testpkg.EducationGroup{
 			Name: uniqueName,
 		}
 
@@ -46,7 +44,7 @@ func TestGroupRepository_Create(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "GroupRoom")
 
 		uniqueName := fmt.Sprintf("GroupWithRoom-%d", time.Now().UnixNano())
-		group := &education.Group{
+		group := &testpkg.EducationGroup{
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
@@ -68,7 +66,7 @@ func TestGroupRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing group", func(t *testing.T) {
@@ -92,7 +90,7 @@ func TestGroupRepository_FindByIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds multiple groups by IDs", func(t *testing.T) {
@@ -118,7 +116,7 @@ func TestGroupRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates group name", func(t *testing.T) {
@@ -141,7 +139,7 @@ func TestGroupRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing group", func(t *testing.T) {
@@ -164,7 +162,7 @@ func TestGroupRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all groups with no filters", func(t *testing.T) {
@@ -176,22 +174,20 @@ func TestGroupRepository_List(t *testing.T) {
 	})
 }
 
-func TestGroupRepository_ListWithOptions(t *testing.T) {
+func TestGroupRepository_ListWithRooms(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists groups with pagination", func(t *testing.T) {
 		testpkg.CreateTestEducationGroup(t, db, "PaginationTest")
 
-		options := base.NewQueryOptions()
-		options.WithPagination(1, 10)
-
-		groups, err := repo.ListWithOptions(ctx, options)
+		groups, err := repo.ListWithRooms(ctx, &testpkg.EducationGroupListQuery{Limit: 10})
 		require.NoError(t, err)
+		assert.NotEmpty(t, groups)
 		assert.LessOrEqual(t, len(groups), 10)
 	})
 }
@@ -201,7 +197,7 @@ func TestGroupRepository_FindByName(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds group by exact name", func(t *testing.T) {
@@ -223,7 +219,7 @@ func TestGroupRepository_FindByTeacher(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds groups by teacher ID", func(t *testing.T) {
@@ -269,14 +265,14 @@ func TestGroupRepository_FindWithRoom(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds group with room data loaded", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "WithRoomTest")
 
 		uniqueName := fmt.Sprintf("GroupWithRoom-%d", time.Now().UnixNano())
-		group := &education.Group{
+		group := &testpkg.EducationGroup{
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
@@ -308,7 +304,7 @@ func TestGroupRepository_Create_Validation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil group", func(t *testing.T) {
@@ -318,7 +314,7 @@ func TestGroupRepository_Create_Validation(t *testing.T) {
 	})
 
 	t.Run("returns error for empty name", func(t *testing.T) {
-		group := &education.Group{
+		group := &testpkg.EducationGroup{
 			Name: "",
 		}
 		err := repo.Create(ctx, group)
@@ -331,7 +327,7 @@ func TestGroupRepository_Update_Validation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil group", func(t *testing.T) {
@@ -358,7 +354,7 @@ func TestGroupRepository_List_WithFilters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("filters by name_like", func(t *testing.T) {
@@ -390,7 +386,7 @@ func TestGroupRepository_List_WithFilters(t *testing.T) {
 
 		// Create group with room
 		uniqueName := fmt.Sprintf("WithRoom-%d", time.Now().UnixNano())
-		groupWithRoom := &education.Group{
+		groupWithRoom := &testpkg.EducationGroup{
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
@@ -428,12 +424,12 @@ func TestGroupRepository_List_WithFilters(t *testing.T) {
 	})
 }
 
-func TestGroupRepository_ListWithOptions_Advanced(t *testing.T) {
+func TestGroupRepository_ListWithRooms_Advanced(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists with sorting by name", func(t *testing.T) {
@@ -441,17 +437,12 @@ func TestGroupRepository_ListWithOptions_Advanced(t *testing.T) {
 		group1 := testpkg.CreateTestEducationGroup(t, db, "AAA-First")
 		group2 := testpkg.CreateTestEducationGroup(t, db, "ZZZ-Last")
 
-		options := base.NewQueryOptions()
-		sorting := &base.Sorting{}
-		sorting.AddField("name", base.SortAsc)
-		options.Sorting = sorting
-
-		groups, err := repo.ListWithOptions(ctx, options)
+		groups, err := repo.ListWithRooms(ctx, &testpkg.EducationGroupListQuery{SortByName: true})
 		require.NoError(t, err)
 		assert.NotEmpty(t, groups)
 
 		// Verify first group comes before last (by name)
-		var foundFirst, foundLast int
+		foundFirst, foundLast := -1, -1
 		for i, g := range groups {
 			if g.ID == group1.ID {
 				foundFirst = i
@@ -460,23 +451,27 @@ func TestGroupRepository_ListWithOptions_Advanced(t *testing.T) {
 				foundLast = i
 			}
 		}
-		if foundFirst > 0 && foundLast > 0 {
-			assert.Less(t, foundFirst, foundLast)
-		}
+		require.GreaterOrEqual(t, foundFirst, 0)
+		require.GreaterOrEqual(t, foundLast, 0)
+		assert.Less(t, foundFirst, foundLast)
 	})
 
 	t.Run("lists with filter and pagination combined", func(t *testing.T) {
-		testpkg.CreateTestEducationGroup(t, db, "CombinedTest")
+		combined := testpkg.CreateTestEducationGroup(t, db, "CombinedTest")
 
-		options := base.NewQueryOptions()
-		filter := base.NewFilter()
-		filter.ILike("name", "%CombinedTest%")
-		options.Filter = filter
-		options.WithPagination(1, 5)
-
-		groups, err := repo.ListWithOptions(ctx, options)
+		groups, err := repo.ListWithRooms(ctx, &testpkg.EducationGroupListQuery{NameContains: "CombinedTest", Limit: 5})
 		require.NoError(t, err)
-		assert.LessOrEqual(t, len(groups), 5)
+		require.Len(t, groups, 1)
+		assert.Equal(t, combined.ID, groups[0].ID)
+	})
+
+	t.Run("counts the filtered groups without pagination", func(t *testing.T) {
+		testpkg.CreateTestEducationGroup(t, db, "CountedTest-1")
+		testpkg.CreateTestEducationGroup(t, db, "CountedTest-2")
+
+		count, err := repo.CountGroups(ctx, &testpkg.EducationGroupListQuery{NameContains: "countedtest", Limit: 1})
+		require.NoError(t, err)
+		assert.Equal(t, 2, count)
 	})
 }
 
@@ -485,12 +480,12 @@ func TestGroupRepository_FindByName_CaseInsensitive(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds group case-insensitively", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("CaseTest-%d", time.Now().UnixNano())
-		group := &education.Group{
+		group := &testpkg.EducationGroup{
 			Name: uniqueName,
 		}
 		err := repo.Create(ctx, group)
