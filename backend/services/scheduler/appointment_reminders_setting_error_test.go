@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,7 +17,7 @@ func TestRunAppointmentRemindersForTenantLeadSettingErrorDoesNotScan(t *testing.
 		logger:               slog.Default(),
 		appointmentReminders: queuer,
 		settings: &fakeSettingsResolver{boolValues: map[string]bool{
-			configModel.KeyCalendarAppointmentReminderEnabled: true,
+			settingCalendarAppointmentReminderEnabled: true,
 		}}})
 
 	err := s.runAppointmentRemindersForTenant(

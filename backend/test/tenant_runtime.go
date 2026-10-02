@@ -73,6 +73,12 @@ func WithinCurrentTenant(ctx context.Context, fn func(context.Context) error) er
 	return tenant.WithinCurrentTenant(ctx, fn)
 }
 
+// WithinAdminTransaction runs a test callback in the administrative
+// transaction of the bound runtime.
+func WithinAdminTransaction(ctx context.Context, fn func(context.Context) error) error {
+	return tenant.WithinAdmin(ctx, fn)
+}
+
 func AttachLockWaitEvidence(db *bun.DB) {
 	db.AddQueryHook(database.NewLockWaitQueryHook(tenant.ObserveLockWait))
 }
@@ -117,6 +123,47 @@ func TenantRuntime(tb testing.TB, db *bun.DB) tenant.UnitOfWork {
 		tb.Fatalf("create tenant runtime: %v", err)
 	}
 	return runtime
+}
+
+// PassthroughTenantRuntime is a tenant runtime without a database: every
+// unit of work runs its callback in place, with the runtime's tenant
+// scoping, after-commit hooks and observers. Unit tests use it where those
+// semantics matter but no row does.
+func PassthroughTenantRuntime() tenant.UnitOfWork {
+	return ScriptedTenantRuntime(nil, nil)
+}
+
+// ScriptedTenantRuntime is PassthroughTenantRuntime with a scripted tenant
+// transaction and retry decision, for tests of commit failures and
+// retries. A nil withinTenant runs the callback in place; a nil retryable
+// retries nothing.
+func ScriptedTenantRuntime(withinTenant func(context.Context, int64, func(context.Context, any) error) error, retryable func(error) bool) tenant.UnitOfWork {
+	if withinTenant == nil {
+		withinTenant = func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
+			return fn(ctx, struct{}{})
+		}
+	}
+	if retryable == nil {
+		retryable = func(error) bool { return false }
+	}
+	runtime, err := tenant.NewUnitOfWork(
+		withinTenant,
+		func(ctx context.Context, fn func(context.Context, any) error) error {
+			return fn(ctx, struct{}{})
+		},
+		func(context.Context, tenant.SavepointAction) error { return nil },
+		retryable,
+	)
+	if err != nil {
+		panic(fmt.Sprintf("create scripted tenant runtime: %v", err))
+	}
+	return runtime
+}
+
+// TenantIDFromContext returns the tenant a unit of work runs for, or zero
+// outside one.
+func TenantIDFromContext(ctx context.Context) int64 {
+	return tenant.FromContext(ctx)
 }
 
 // WithPackageTenantRuntime mirrors the runtime middleware installed by the
