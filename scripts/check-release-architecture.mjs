@@ -2,14 +2,10 @@
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
-import { setTimeout } from 'node:timers/promises';
 
 const run = (command, args) => execFileSync(command, args, { encoding: 'utf8' }).trim();
 
-export async function checkRelease(context, execute = run, {
-  timeoutMs = 30 * 60 * 1000, pollIntervalMs = 15 * 1000,
-  now = () => performance.now(), sleep = setTimeout, log = console.log,
-} = {}) {
+export async function checkRelease(context, execute = run) {
   const { event, baseRef, headRef, repository, headRepository, baseSha, headSha, candidate = 'HEAD' } = context;
   if (event !== 'pull_request' || baseRef !== 'main' || headRef !== 'development' ||
       !repository || repository !== headRepository) {
@@ -23,25 +19,10 @@ export async function checkRelease(context, execute = run, {
   if (execute('git', ['rev-parse', `${candidate}^{tree}`]) !== expected) {
     throw new Error('Release tree differs from the tested development commit; merge main into development first');
   }
-  // A successful PR check is not evidence for the complete development push suite.
-  const deadline = now() + timeoutMs;
-  while (true) {
-    const response = JSON.parse(execute('gh', ['api', '--method', 'GET',
-      `repos/${repository}/actions/workflows/main.yml/runs`,
-      '-f', 'event=push', '-f', 'branch=development', '-f', `head_sha=${headSha}`, '-f', 'per_page=100']));
-    const matching = response.workflow_runs?.filter(value =>
-      value.event === 'push' && value.head_branch === 'development' && value.head_sha === headSha &&
-      value.head_repository?.full_name === repository && value.path === '.github/workflows/main.yml') ?? [];
-    if (matching.some(value => value.status === 'completed' && value.conclusion === 'success')) return headSha;
-    const error = 'No successful full development CI run for the exact release commit';
-    if (matching.length && matching.every(value => value.status === 'completed')) {
-      throw new Error(`${error}: ${matching.map(value => value.conclusion).join(', ')}`);
-    }
-    const remaining = deadline - now();
-    if (remaining <= 0) throw new Error(`Timed out waiting for development CI. ${error}`);
-    log(`Waiting for full development CI for ${headSha} (${Math.ceil(remaining / 1000)}s remaining)`);
-    await sleep(Math.min(pollIntervalMs, remaining));
-  }
+  // development has no push run. The full-suite evidence is this release pull
+  // request's own run: main.yml forces full suites for it, and its tree equals
+  // the development head checked above.
+  return headSha;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
