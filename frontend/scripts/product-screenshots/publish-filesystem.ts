@@ -1,4 +1,4 @@
-import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { storePublisher, type Publisher } from "./publish";
@@ -23,6 +23,9 @@ export function filesystemPublisher(rootDir: string): Publisher {
         if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
         throw error;
       }
+    },
+    async readJson(file) {
+      return JSON.parse(await readFile(file.id, "utf8")) as unknown;
     },
     async createFolder(parentId, name) {
       const path = join(parentId, name);

@@ -66,7 +66,9 @@ function driveId(id: string): string {
  */
 function retryable(method: string, status: number, body: string): boolean {
   const rateLimited =
-    status === 429 || (status === 403 && /rateLimitExceeded/.test(body));
+    status === 429 ||
+    (status === 403 &&
+      /(?:rateLimitExceeded|userRateLimitExceeded)/.test(body));
   return rateLimited || (status >= 500 && method !== "POST");
 }
 
@@ -170,6 +172,12 @@ export function drivePublisher(options: DrivePublisherOptions): Publisher {
         pageToken = page.nextPageToken ?? "";
       } while (pageToken);
       return files;
+    },
+    async readJson(file) {
+      return request(
+        "GET",
+        `${FILES_API}/${driveId(file.id)}?alt=media&supportsAllDrives=true`,
+      );
     },
     async createFolder(parentId, name) {
       log(`Drive: Ordner ${name}`);

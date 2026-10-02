@@ -115,7 +115,13 @@ const FOLDER_MIME = "application/vnd.google-apps.folder";
  * `createdButFailed`: so viele Datei-Uploads legen die Datei an, antworten
  * aber mit 500, wie Drive es bei einem Serverfehler nach dem Schreiben tut.
  */
-function driveTarget({ createdButFailed = 0 } = {}): Target {
+function driveTarget({
+  createdButFailed = 0,
+  rejectedRequest = undefined,
+}: {
+  createdButFailed?: number;
+  rejectedRequest?: { method: string; status: number; reason: string };
+} = {}): Target {
   const files = new Map<string, FakeDriveFile>();
   let nextId = 0;
   const root = "zielordner";
@@ -139,6 +145,11 @@ function driveTarget({ createdButFailed = 0 } = {}): Target {
     const headers = new Headers(init?.headers);
     if (headers.get("Authorization") !== "Bearer zugang") {
       return reply(401, { error: "unauthenticated" });
+    }
+    if (rejectedRequest?.method === method) {
+      const { status, reason } = rejectedRequest;
+      rejectedRequest = undefined;
+      return reply(status, { error: { errors: [{ reason }] } });
     }
     const id = /\/files\/([^/]+)$/.exec(url.pathname)?.[1];
 
@@ -202,6 +213,9 @@ function driveTarget({ createdButFailed = 0 } = {}): Target {
     }
     const file = id ? files.get(id) : undefined;
     if (!file) return reply(404, { error: "notFound" });
+    if (method === "GET" && url.searchParams.get("alt") === "media") {
+      return new Response(file.data, { status: 200 });
+    }
     if (method === "PATCH" && url.pathname.startsWith("/upload/")) {
       file.data = Buffer.from(init?.body as Uint8Array).toString("utf8");
       return reply(200, { id });
@@ -365,6 +379,49 @@ describe.each([
     expect(contents(snap)["Aktuell/anwesenheit/macbook.png"]).toBe("zweiter");
   });
 
+  test.each([
+    ["1.10.0", "1.9.0"],
+    ["2.0.0", "1.99.99"],
+    ["1.1.10", "1.1.9"],
+    ["1.0.0", "1.0.0-rc.1"],
+    ["1.0.0-rc.10", "1.0.0-rc.9"],
+    ["1.0.0-beta", "1.0.0-alpha"],
+    ["1.0.0-alpha.beta", "1.0.0-alpha.1"],
+    ["1.0.0-alpha.1", "1.0.0-alpha"],
+  ])(
+    "Version %s bleibt aktuell beim Nachholen von %s",
+    async (newer, older) => {
+      const target = await createTarget();
+      await target.publisher.publish(
+        await writeOutput(newer, {
+          anwesenheit: { "macbook.png": "neu" },
+          raeume: { "ipad.png": "neuer Shot" },
+        }),
+        { version: newer, date: "2026-10-01" },
+      );
+      const before = await target.snapshot();
+      const oldOutput = await writeOutput(older, {
+        anwesenheit: { "macbook.png": "alt" },
+      });
+      await target.publisher.publish(oldOutput, {
+        version: older,
+        date: "2026-10-02",
+      });
+      const after = await target.snapshot();
+      expect(under(after, "Aktuell")).toEqual(under(before, "Aktuell"));
+      expect(under(after, `v${newer} (2026-10-01)`)).toEqual(
+        under(before, `v${newer} (2026-10-01)`),
+      );
+      expect(contents(under(after, `v${older} (2026-10-02)`))).toEqual({
+        "anwesenheit/macbook.png": "alt",
+        "manifest.json": await readFile(
+          join(oldOutput, "manifest.json"),
+          "utf8",
+        ),
+      });
+    },
+  );
+
   test("eine unvollständige oder fremde Ausgabe lässt das Ziel unverändert", async () => {
     const target = await createTarget();
     await target.publisher.publish(
@@ -444,3 +501,78 @@ test("Drive: ein Serverfehler nach dem Anlegen erzeugt beim erneuten Lauf kein D
     contents(under(snap, "v1.0.0 (2026-10-01)"))["anwesenheit/macbook.png"],
   ).toBe("bild");
 });
+
+test.each(["rateLimitExceeded", "userRateLimitExceeded"])(
+  "Drive: %s wiederholt abgewiesene Lese-, Anlege- und Update-Anfragen",
+  async (reason) => {
+    for (const method of ["GET", "POST", "PATCH"]) {
+      const target = driveTarget({
+        rejectedRequest: { method, status: 403, reason },
+      });
+      const release = { version: "1.0.0", date: "2026-10-01" };
+      await target.publisher.publish(
+        await writeOutput("1.0.0", {
+          anwesenheit: { "macbook.png": "erster" },
+        }),
+        release,
+      );
+      await target.publisher.publish(
+        await writeOutput("1.0.0", {
+          anwesenheit: { "macbook.png": "zweiter" },
+        }),
+        release,
+      );
+      const snap = await target.snapshot();
+      for (const folder of ["Aktuell", "v1.0.0 (2026-10-01)"]) {
+        expect(contents(under(snap, folder))["anwesenheit/macbook.png"]).toBe(
+          "zweiter",
+        );
+      }
+    }
+  },
+);
+
+test("Drive: andere 403-Fehler werden nicht wiederholt", async () => {
+  const target = driveTarget({
+    rejectedRequest: {
+      method: "POST",
+      status: 403,
+      reason: "insufficientFilePermissions",
+    },
+  });
+  await expect(
+    target.publisher.publish(
+      await writeOutput("1.0.0", { anwesenheit: { "macbook.png": "bild" } }),
+      { version: "1.0.0", date: "2026-10-01" },
+    ),
+  ).rejects.toThrow(/403.*insufficientFilePermissions/);
+  expect(await target.snapshot()).toEqual({});
+});
+
+test.each(["kein JSON", "null", '{"version":"fremd"}'])(
+  "ein ungültiges aktuelles Manifest schützt Aktuell vor Änderungen: %s",
+  async (manifest) => {
+    const root = await tempDir();
+    const publisher = filesystemPublisher(root);
+    await publisher.publish(
+      await writeOutput("1.0.0", { anwesenheit: { "macbook.png": "alt" } }),
+      { version: "1.0.0", date: "2026-10-01" },
+    );
+    await writeFile(join(root, "Aktuell", "manifest.json"), manifest);
+    await expect(
+      publisher.publish(
+        await writeOutput("1.1.0", { anwesenheit: { "macbook.png": "neu" } }),
+        { version: "1.1.0", date: "2026-10-02" },
+      ),
+    ).rejects.toThrow();
+    expect(await readFile(join(root, "Aktuell", "manifest.json"), "utf8")).toBe(
+      manifest,
+    );
+    expect(
+      await readFile(
+        join(root, "Aktuell", "anwesenheit", "macbook.png"),
+        "utf8",
+      ),
+    ).toBe("alt");
+  },
+);

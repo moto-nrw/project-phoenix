@@ -9,7 +9,7 @@ import { MANIFEST_FILE, readOutput } from "./pipeline";
 // was im Ziel entsteht, legt storePublisher für alle gleich fest:
 //
 //   v<version> (<datum>)/   die Ausgabe dieser Version
-//   Aktuell/                dieselbe Ausgabe; vorhandene Dateien werden
+//   Aktuell/                die höchste veröffentlichte Version; Dateien werden
 //                           überschrieben und behalten ihre Identität, damit
 //                           Links stabil bleiben; entfernte Shots verschwinden
 //
@@ -42,6 +42,7 @@ export interface StoreEntry {
 export interface PublishStore {
   readonly rootId: string;
   list(folderId: string): Promise<StoreEntry[]>;
+  readJson(file: StoreEntry): Promise<unknown>;
   createFolder(parentId: string, name: string): Promise<string>;
   createFile(parentId: string, name: string, data: Buffer): Promise<void>;
   /** Neuer Inhalt für dieselbe Datei; ihre Kennung bleibt. */
@@ -51,6 +52,40 @@ export interface PublishStore {
 
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** SemVer-Reihenfolge für das unterstützte Format, einschließlich Vorabversionen. */
+function compareVersions(left: string, right: string): number {
+  const [leftCore, leftPre] = left.split(/-(.*)/s);
+  const [rightCore, rightPre] = right.split(/-(.*)/s);
+  const leftParts = leftCore!.split(".").map(BigInt);
+  const rightParts = rightCore!.split(".").map(BigInt);
+  for (let i = 0; i < 3; i++) {
+    if (leftParts[i] !== rightParts[i]) {
+      return leftParts[i]! < rightParts[i]! ? -1 : 1;
+    }
+  }
+  if (leftPre === rightPre) return 0;
+  if (leftPre === undefined) return 1;
+  if (rightPre === undefined) return -1;
+  const leftIds = leftPre.split(".");
+  const rightIds = rightPre.split(".");
+  for (let i = 0; i < Math.max(leftIds.length, rightIds.length); i++) {
+    const a = leftIds[i];
+    const b = rightIds[i];
+    if (a === b) continue;
+    if (a === undefined) return -1;
+    if (b === undefined) return 1;
+    const aNumeric = /^\d+$/.test(a);
+    const bNumeric = /^\d+$/.test(b);
+    if (aNumeric && bNumeric) {
+      if (BigInt(a) === BigInt(b)) continue;
+      return BigInt(a) < BigInt(b) ? -1 : 1;
+    }
+    if (aNumeric !== bNumeric) return aNumeric ? -1 : 1;
+    return a < b ? -1 : 1;
+  }
+  return 0;
+}
 
 function versionFolderName(release: Release): string {
   return `v${release.version} (${release.date})`;
@@ -157,6 +192,24 @@ export function storePublisher(store: PublishStore): Publisher {
         (name) => name === CURRENT_FOLDER,
         CURRENT_FOLDER,
       );
+      const currentManifest = (await store.list(currentFolder)).find(
+        (entry) => !entry.folder && entry.name === MANIFEST_FILE,
+      );
+      if (currentManifest) {
+        const current = await store.readJson(currentManifest);
+        if (
+          typeof current !== "object" ||
+          current === null ||
+          !("version" in current) ||
+          typeof current.version !== "string" ||
+          !VERSION_PATTERN.test(current.version)
+        ) {
+          throw new Error(
+            "Das Manifest in Aktuell enthält keine gültige Version.",
+          );
+        }
+        if (compareVersions(release.version, current.version) < 0) return;
+      }
       await sync(store, currentFolder, tree, outDir);
     },
   };
