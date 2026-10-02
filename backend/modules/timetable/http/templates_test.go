@@ -234,6 +234,11 @@ func fixedTemplateClock() time.Time {
 func templateGradeSettings(value int, resolveErr error) *configtest.Mock {
 	return &configtest.Mock{
 		ResolveIntFn: func(_ context.Context, key string) (int, error) {
+			if key == settings.KeyTimetableCompleteLeadMinutes {
+				// The instance list announces completion with the registry
+				// default lead (#3809).
+				return 0, nil
+			}
 			if key != settings.KeyEnrollmentGradeLevelMax {
 				return 0, fmt.Errorf("unexpected integer setting %q", key)
 			}

@@ -95,6 +95,28 @@ func TestValidateCompleteTime(t *testing.T) {
 	require.ErrorIs(t, svc.validateCompleteTime(context.Background(), inst, atEnd), timetable.ErrLifecycleSettings)
 }
 
+// The tenant's lead lets a planned block complete before its planned end
+// (#3809); the write path refuses one second earlier and surfaces a failed
+// lookup instead of assuming no lead.
+func TestValidateCompleteTimeHonorsCompleteLead(t *testing.T) {
+	t.Parallel()
+
+	inst := plannedLifecycleInstance()
+	leadBoundary := time.Date(2026, 8, 13, 14, 45, 0, 0, timezone.Berlin)
+	svc := &InstanceLifecycleService{deps: InstanceLifecycleDependencies{
+		EnforceTimePolicy: true,
+		Settings:          lifecycleSettingsStub{boolVal: true, completeLead: 15},
+	}}
+
+	err := svc.validateCompleteTime(context.Background(), inst, leadBoundary.Add(-time.Second))
+	require.ErrorIs(t, err, timetable.ErrInstanceCompleteEarly)
+	assert.Contains(t, err.Error(), leadBoundary.Format(time.RFC3339))
+	require.NoError(t, svc.validateCompleteTime(context.Background(), inst, leadBoundary))
+
+	svc.deps.Settings = lifecycleSettingsStub{boolVal: true, completeLeadErr: errors.New("settings unavailable")}
+	require.ErrorIs(t, svc.validateCompleteTime(context.Background(), inst, leadBoundary), timetable.ErrLifecycleSettings)
+}
+
 func TestInstanceNowUsesWallClockWhenUnset(t *testing.T) {
 	t.Parallel()
 

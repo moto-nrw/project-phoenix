@@ -654,6 +654,11 @@ type fakeOpsSettings struct {
 	scope           string
 	stringErr       error
 	leadMinutes     int
+	// enforcePlannedEnd, completeLead and completeLeadErr answer the
+	// planned-end policy (#3809); zero values keep the end unenforced.
+	enforcePlannedEnd bool
+	completeLead      int
+	completeLeadErr   error
 }
 
 func (s *fakeOpsSettings) ResolveString(_ context.Context, key string) (string, error) {
@@ -693,7 +698,14 @@ func (s *fakeOpsSettings) StartLeadMinutes(context.Context) (int, error) {
 }
 
 func (s *fakeOpsSettings) EnforcePlannedEnd(context.Context) (bool, error) {
-	return false, s.err
+	return s.enforcePlannedEnd, s.err
+}
+
+func (s *fakeOpsSettings) CompleteLeadMinutes(context.Context) (int, error) {
+	if s.completeLeadErr != nil {
+		return 0, s.completeLeadErr
+	}
+	return s.completeLead, s.err
 }
 
 func (s *fakeOpsSettings) StudentAbsenceEditAllStaff(context.Context) (bool, error) {

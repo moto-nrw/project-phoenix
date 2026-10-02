@@ -625,3 +625,14 @@ func (rs *Resource) enforcePlannedEnd(ctx context.Context) (bool, error) {
 	}
 	return enforce, nil
 }
+
+func (rs *Resource) completeLeadMinutes(ctx context.Context) (int, error) {
+	if rs.SettingsService == nil {
+		return 0, fmt.Errorf("%w: settings service is not configured", timetable.ErrLifecycleSettings)
+	}
+	lead, err := rs.SettingsService.ResolveInt(ctx, settings.KeyTimetableCompleteLeadMinutes)
+	if err != nil {
+		return 0, fmt.Errorf("%w: resolve complete lead: %v", timetable.ErrLifecycleSettings, err)
+	}
+	return lead, nil
+}

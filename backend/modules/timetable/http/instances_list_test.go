@@ -18,6 +18,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -110,6 +111,19 @@ func buildListSetup(t *testing.T) *listSetup {
 		Templates:         data,
 		TimetableData:     data.TimetableData(),
 		ConflictDetection: data.ConflictDetection(),
+		SettingsService: &configtest.Mock{
+			ResolveBoolFn: func(context.Context, string) (bool, error) { return true, nil },
+			ResolveIntFn: func(_ context.Context, key string) (int, error) {
+				switch key {
+				case settings.KeyTimetableCompleteLeadMinutes:
+					return 0, nil
+				case settings.KeyTimetableChildrenPerStaffRatio:
+					return 12, nil
+				default:
+					return 0, fmt.Errorf("unexpected integer setting %q", key)
+				}
+			},
+		},
 	})
 
 	return &listSetup{res: res, db: db, ctx: ctx, roomID: room.ID, cleanupFn: cleanup}
@@ -662,6 +676,77 @@ func TestEnforcePlannedEndPropagatesResolveError(t *testing.T) {
 	})
 	_, err := res.enforcePlannedEnd(context.Background())
 	require.ErrorIs(t, err, timetable.ErrLifecycleSettings)
+}
+
+func TestCompleteLeadMinutesRejectsMissingSettings(t *testing.T) {
+	t.Parallel()
+
+	res := NewResource(Dependencies{})
+	_, err := res.completeLeadMinutes(context.Background())
+	require.ErrorIs(t, err, timetable.ErrLifecycleSettings)
+}
+
+func TestCompletionAvailabilityRejectsMissingSettings(t *testing.T) {
+	t.Parallel()
+
+	res := NewResource(Dependencies{})
+	_, err := res.completionAvailability(context.Background(), timetable.ScheduledInstance{})
+	require.ErrorIs(t, err, timetable.ErrLifecycleSettings)
+}
+
+func TestCompleteLeadMinutesResolvesZero(t *testing.T) {
+	t.Parallel()
+
+	res := NewResource(Dependencies{
+		SettingsService: &configtest.Mock{
+			ResolveIntFn: func(_ context.Context, key string) (int, error) {
+				require.Equal(t, settings.KeyTimetableCompleteLeadMinutes, key)
+				return 0, nil
+			},
+		},
+	})
+	got, err := res.completeLeadMinutes(context.Background())
+	require.NoError(t, err)
+	assert.Zero(t, got)
+}
+
+func TestCompleteLeadMinutesPropagatesResolveError(t *testing.T) {
+	t.Parallel()
+
+	res := NewResource(Dependencies{
+		SettingsService: &configtest.Mock{
+			ResolveIntFn: func(context.Context, string) (int, error) {
+				return 0, errors.New("settings down")
+			},
+		},
+	})
+	_, err := res.completeLeadMinutes(context.Background())
+	require.ErrorIs(t, err, timetable.ErrLifecycleSettings)
+}
+
+// The list payload announces the lead's earlier completion time, so the
+// "Beenden ab" label and the write path agree (#3809).
+func TestCompletionAvailabilityAppliesCompleteLead(t *testing.T) {
+	t.Parallel()
+
+	res := NewResource(Dependencies{
+		SettingsService: &configtest.Mock{
+			ResolveBoolFn: func(context.Context, string) (bool, error) { return true, nil },
+			ResolveIntFn: func(_ context.Context, key string) (int, error) {
+				require.Equal(t, settings.KeyTimetableCompleteLeadMinutes, key)
+				return 15, nil
+			},
+		},
+	})
+	inst := timetable.ScheduledInstance{
+		Date:      calendar.NewDate(2099, time.October, 2),
+		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
+	}
+	got, err := res.completionAvailability(context.Background(), inst)
+	require.NoError(t, err)
+	assert.False(t, got.CanComplete)
+	assert.True(t, got.CompleteAvailableAt.Equal(time.Date(2099, 10, 2, 15, 45, 0, 0, calendar.Berlin)))
 }
 
 func TestListInstances_IsLive(t *testing.T) {
