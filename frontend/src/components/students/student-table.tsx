@@ -113,6 +113,7 @@ export function classColumn<T extends Student>(
     key: "class",
     header: "Klasse",
     className: "whitespace-nowrap",
+    stackedLabel: false,
     defaultVisible: options.defaultVisible,
     render: (student) => student.school_class || EMPTY,
     sortValue: (student) => student.school_class ?? "",
@@ -124,6 +125,7 @@ export function groupColumn<T extends Student>(): StudentTableColumn<T> {
     key: "group",
     header: "Gruppe",
     className: "whitespace-nowrap",
+    stackedLabel: false,
     render: (student) => student.group_name || EMPTY,
     sortValue: (student) => student.group_name ?? "",
   };
@@ -186,6 +188,21 @@ export function arrivalColumn<T extends Student>(
       }
       return <ArrivalTimeRow {...day.arrival} variant="cell" />;
     },
+    // Short form under the name in the phone list (#3834).
+    stackedRender: (student) => {
+      if (!canSeeDay(student)) return EMPTY;
+      const day = getDay(student);
+      if (day.absence) {
+        return (
+          <StudentAbsenceRow
+            label={day.absence.label}
+            wording={day.absence.wording}
+            variant="compact"
+          />
+        );
+      }
+      return <ArrivalTimeRow {...day.arrival} variant="compact" />;
+    },
     // Planned time; children without one sort last.
     sortValue: (student) =>
       canSeeDay(student) && !getDay(student).absence
@@ -200,8 +217,7 @@ export function pickupColumn<T extends Student>(
   return {
     key: "pickup",
     header: "Gehzeit",
-    // The bare time at the right edge of a phone row (#3834).
-    stacked: "end",
+    // Short form under the name in the phone list (#3834).
     stackedRender: (student) => {
       if (!canSeeDay(student)) return EMPTY;
       const day = getDay(student);
@@ -291,6 +307,8 @@ interface StudentTableProps<T extends Student> {
   };
   /** Heading above the table, e.g. a grouping label with its count. */
   readonly caption?: string;
+  /** Column shown under each name in the phone list; null for none. */
+  readonly phoneDetail?: string | null;
 }
 
 /**
@@ -304,6 +322,7 @@ export function StudentTable<T extends Student>({
   onOpen,
   selection,
   caption,
+  phoneDetail = null,
 }: StudentTableProps<T>) {
   return (
     <DataTable<T>
@@ -313,10 +332,11 @@ export function StudentTable<T extends Student>({
       onRowClick={onOpen}
       hiddenColumns={hiddenColumns}
       caption={caption}
-      // On a phone one line per child (#3834): name, status and pickup
-      // time; the other columns live on the computer and on the child page.
+      // On a phone one line per child (#3834): name and status, plus the
+      // one detail the user chose under the name ("In der Zeile zeigen").
       stackedOnMobile
       stackedLayout="row"
+      stackedDetailKey={phoneDetail}
       selection={
         selection
           ? {

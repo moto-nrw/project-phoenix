@@ -16,6 +16,8 @@ interface StoredCollectionView {
   view?: CollectionView;
   /** Only the columns the user switched; every other column keeps its default. */
   columns?: Record<string, boolean>;
+  /** Column shown under the name in the phone list, or "none". */
+  phoneDetail?: string;
 }
 
 const STORAGE_PREFIX = "collection-view";
@@ -53,7 +55,11 @@ function parseStored(raw: string | null): StoredCollectionView {
         if (typeof visible === "boolean") columns[id] = visible;
       }
     }
-    return { view, columns };
+    const phoneDetail =
+      typeof candidate.phoneDetail === "string"
+        ? candidate.phoneDetail
+        : undefined;
+    return { view, columns, phoneDetail };
   } catch {
     return {};
   }
@@ -107,6 +113,12 @@ export interface CollectionViewPreference {
   /** Table columns currently switched off. */
   readonly hiddenColumns: ReadonlySet<string>;
   readonly setColumnVisible: (id: string, visible: boolean) => void;
+  /**
+   * The column the phone list shows under each name (#3834), or null for
+   * name and status only.
+   */
+  readonly phoneDetail: string | null;
+  readonly setPhoneDetail: (id: string | null) => void;
 }
 
 /**
@@ -117,6 +129,8 @@ export interface CollectionViewPreference {
 export function useCollectionView(
   pageKey: string,
   columns: readonly CollectionColumnDefault[],
+  /** Phone-list detail before any choice; null shows name and status only. */
+  defaultPhoneDetail: string | null = null,
 ): CollectionViewPreference {
   const { data: session } = useSession();
   const storageKey = buildStorageKey(pageKey, session?.user);
@@ -157,10 +171,33 @@ export function useCollectionView(
     [storageKey],
   );
 
+  const setPhoneDetail = useCallback(
+    (id: string | null) => {
+      if (!storageKey) return;
+      writeStored(storageKey, {
+        ...parseStored(readRaw(storageKey)),
+        phoneDetail: id ?? "none",
+      });
+    },
+    [storageKey],
+  );
+
+  // A stored column the page no longer offers falls back to the default.
+  const storedDetail = stored.phoneDetail;
+  const phoneDetail =
+    storedDetail === "none"
+      ? null
+      : storedDetail !== undefined &&
+          columns.some((column) => column.id === storedDetail)
+        ? storedDetail
+        : defaultPhoneDetail;
+
   return {
     view: stored.view ?? "tiles",
     setView,
     hiddenColumns,
     setColumnVisible,
+    phoneDetail,
+    setPhoneDetail,
   };
 }

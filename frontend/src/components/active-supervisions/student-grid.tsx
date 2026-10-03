@@ -148,6 +148,7 @@ export function buildSupervisionTableColumns({
 export interface SupervisionStudentTable {
   readonly columns: StudentTableColumn<ActiveSupervisionStudent>[];
   readonly hiddenColumns: ReadonlySet<string>;
+  readonly phoneDetail: string | null;
   readonly selection: {
     readonly selectedIds: ReadonlySet<string>;
     readonly onChange: (ids: readonly string[], selected: boolean) => void;
@@ -217,6 +218,7 @@ export function SupervisionStudentGrid({
         rows={filteredStudents}
         columns={table.columns}
         hiddenColumns={table.hiddenColumns}
+        phoneDetail={table.phoneDetail}
         onOpen={(student) => onOpenStudent(student.id.toString())}
         selection={table.selection}
       />

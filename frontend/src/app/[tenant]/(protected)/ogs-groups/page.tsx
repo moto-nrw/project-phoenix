@@ -79,6 +79,7 @@ import { StudentSelectionScope } from "~/components/students/student-selection-s
 import {
   CollectionViewSwitch,
   columnMenuEntries,
+  phoneDetailMenuEntries,
 } from "~/components/ui/collection-view-switch";
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
@@ -967,7 +968,12 @@ function OGSGroupPageContent() {
     () => columnDefaults(tableColumns),
     [tableColumns],
   );
-  const collectionView = useCollectionView("ogs-groups", tableColumnDefaults);
+  const collectionView = useCollectionView(
+    "ogs-groups",
+    tableColumnDefaults,
+    // Ohne eigene Wahl zeigt die Handy-Liste unter dem Namen die Gehzeit.
+    "pickup",
+  );
   const showTable = collectionView.view === "table";
   // Die Spaltenwahl wirkt nur am Computer: auf dem Handy zeigt die Liste
   // je Kind eine Zeile mit Name, Status und Gehzeit (#3834).
@@ -1030,6 +1036,13 @@ function OGSGroupPageContent() {
           collectionView.setColumnVisible,
         )
       : []),
+    ...(showTable && isPhone
+      ? phoneDetailMenuEntries(
+          tableColumns,
+          collectionView.phoneDetail,
+          collectionView.setPhoneDetail,
+        )
+      : []),
   ];
 
   // Render helper for student grid content
@@ -1051,6 +1064,7 @@ function OGSGroupPageContent() {
               rows={sortedStudents}
               columns={tableColumns}
               hiddenColumns={collectionView.hiddenColumns}
+              phoneDetail={collectionView.phoneDetail}
               onOpen={(student) =>
                 router.push(`/students/${student.id}?from=/ogs-groups`)
               }

@@ -28,14 +28,16 @@ export interface DataTableColumn<T> {
   // "title" is the headline of a stacked row, "meta" the muted value beside
   // it, "field" a labelled line below, "hidden" is dropped on phones.
   // Defaults to "field".
-  // "end" sits at the right edge of a "row" phone line (#3834).
-  stacked?: "title" | "meta" | "field" | "end" | "hidden";
+  stacked?: "title" | "meta" | "field" | "hidden";
   // Extra classes for the cell in the "row" phone line, e.g. to lay a
   // stacked badge out side by side.
   stackedClassName?: string;
   // What the "row" phone line shows for this column, when it needs a
   // shorter form than the table cell ("15:30" instead of "🕒 15:30 Uhr").
   stackedRender?: (row: T) => ReactNode;
+  // In the "row" phone line, false drops the header in front of the value
+  // where the value names itself (a class, a group). Defaults to true.
+  stackedLabel?: boolean;
 }
 
 /**
@@ -88,9 +90,14 @@ interface DataTableProps<T> {
   // per-column roles come from `DataTableColumn.stacked`.
   stackedOnMobile?: boolean;
   // "lines" (default) gives every field its own labelled line; "row" shows
-  // one line per entry with title, meta and the "end" column only, so a
-  // phone still reads a list (#3834). Only with stackedOnMobile.
+  // one entry per line with title, meta and the stackedDetailKey column
+  // under the title, so a phone still reads a list (#3834). Only with
+  // stackedOnMobile.
   stackedLayout?: "lines" | "row";
+  // The column the "row" phone line shows under the title; null or unset
+  // shows title and meta only. Independent of hiddenColumns: the column
+  // choice is a computer setting.
+  stackedDetailKey?: string | null;
   // Column keys left out of the table. The caller keeps the full column list
   // so a column menu can offer the hidden ones again.
   hiddenColumns?: ReadonlySet<string>;
@@ -168,24 +175,24 @@ function StackedField({
 const STACKED_ROW_CONTROL = "[data-row-control]";
 
 /**
- * The phone list row (#3834): one line per entry. Optional checkbox, the
- * title (truncated), the meta value and the column marked "end" at the right
- * edge. Every other column stays off the phone: a list that grows back into
- * several lines per entry reads like cards again.
+ * The phone list row (#3834): one entry per line. Optional checkbox, the
+ * title with one chosen detail column under it, the meta value at the
+ * right. Every other column stays off the phone: a list that grows back
+ * into several lines per entry reads like cards again.
  */
 function RowStackedRow<T>({
   row,
   rowKey,
   title,
   meta,
-  end,
+  detail,
   selection,
 }: Readonly<{
   row: T;
   rowKey: string;
   title: DataTableColumn<T> | undefined;
   meta: DataTableColumn<T> | undefined;
-  end: DataTableColumn<T> | undefined;
+  detail: DataTableColumn<T> | undefined;
   selection?: DataTableSelection<T>;
 }>) {
   const selected = selection?.selectedKeys.has(rowKey) ?? false;
@@ -206,24 +213,28 @@ function RowStackedRow<T>({
           <span className="sr-only">{`${selection.rowLabel(row)} auswählen`}</span>
         </label>
       ) : null}
-      {/* The title keeps at least 5rem: a long meta value wraps onto a
-          second line instead of pushing the name out, and the name may use
-          that second line too rather than being cut. */}
-      <span className="line-clamp-2 min-w-20 flex-1 break-words">
-        {title?.render(row)}
-      </span>
+      {/* The title keeps at least 5rem and the meta value at most 9.5rem
+          (one badge): a second badge wraps below the first instead of
+          taking the name's room, and the name may use that second line too
+          rather than being cut. */}
+      <div className="min-w-20 flex-1">
+        <span className="line-clamp-2 break-words">{title?.render(row)}</span>
+        {detail ? (
+          <div className="mt-0.5 flex min-w-0 items-center gap-1 text-sm">
+            {detail.stackedLabel === false ? null : (
+              <span className="shrink-0 text-gray-500">{detail.header}</span>
+            )}
+            <span className="min-w-0">
+              {(detail.stackedRender ?? detail.render)(row)}
+            </span>
+          </div>
+        ) : null}
+      </div>
       {meta ? (
         <span
-          className={`flex min-w-0 justify-end ${meta.stackedClassName ?? ""}`}
+          className={`flex max-w-[9.5rem] min-w-0 justify-end ${meta.stackedClassName ?? ""}`}
         >
           {(meta.stackedRender ?? meta.render)(row)}
-        </span>
-      ) : null}
-      {end ? (
-        <span
-          className={`max-w-20 shrink-0 text-right ${end.stackedClassName ?? ""}`}
-        >
-          {(end.stackedRender ?? end.render)(row)}
         </span>
       ) : null}
     </div>
@@ -249,6 +260,7 @@ function StackedRows<T>({
   totalCount,
   layout,
   selection,
+  detail,
 }: Readonly<{
   columns: DataTableColumn<T>[];
   rows: T[];
@@ -264,10 +276,11 @@ function StackedRows<T>({
   totalCount: number;
   layout: "lines" | "row";
   selection?: DataTableSelection<T>;
+  detail?: DataTableColumn<T>;
 }>) {
   const title = columns.find((c) => c.stacked === "title") ?? columns[0];
   const meta = columns.find((c) => c.stacked === "meta");
-  const end = columns.find((c) => c.stacked === "end");
+
   const fields = columns.filter(
     (c) => c !== title && c !== meta && c.stacked !== "hidden",
   );
@@ -344,7 +357,7 @@ function StackedRows<T>({
                   rowKey={String(getRowKey(row))}
                   title={title}
                   meta={meta}
-                  end={end}
+                  detail={detail}
                   selection={selection}
                 />
               ) : (
@@ -444,6 +457,7 @@ export function DataTable<T>({
   paginationResetKey,
   stackedOnMobile = false,
   stackedLayout = "lines",
+  stackedDetailKey,
   hiddenColumns,
   selection,
 }: Readonly<DataTableProps<T>>) {
@@ -458,6 +472,10 @@ export function DataTable<T>({
   // Selection checkboxes are controls inside the row, so the row itself must
   // not also become an ARIA button (see rowHasInteractiveControls).
   const rowControls = rowHasInteractiveControls || selection !== undefined;
+  const stackedDetail =
+    stackedDetailKey == null
+      ? undefined
+      : columns.find((col) => col.key === stackedDetailKey);
   const cellCount = shownColumns.length + (selection ? 1 : 0);
   const selectAllId = useId();
   const keyboardClickable = clickable && !rowControls;
@@ -568,6 +586,7 @@ export function DataTable<T>({
             totalCount={sortedRows.length}
             layout={stackedLayout}
             selection={selection}
+            detail={stackedDetail}
           />
         </div>
       )}

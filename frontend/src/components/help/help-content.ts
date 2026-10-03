@@ -446,6 +446,7 @@ function studentSearchTopic(
         steps: [
           "Wählen Sie oben rechts das Listensymbol (drei Striche). Mit dem Kachelsymbol (vier Kästchen) kommen die Karten zurück.",
           "Spalten ein- oder ausblenden? Öffnen Sie oben rechts das Menü mit den drei Punkten. Wählen Sie unter `Spalten in der Liste` die Spalten.",
+          "Auf dem Handy zeigt die Liste je Kind eine Zeile. Was unter dem Namen steht, wählen Sie im Menü mit den drei Punkten unter `In der Zeile zeigen`, zum Beispiel `Gehzeit` oder `Gruppe`.",
           "Kreuzen Sie links in der Zeile Kinder an. Oben erscheint eine Leiste mit `Exportieren`, `Anmelden` und `Abmelden`.",
           "Wählen Sie `Aufheben`, um alle Kreuze zu entfernen.",
         ],

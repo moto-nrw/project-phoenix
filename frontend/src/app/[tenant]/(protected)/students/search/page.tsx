@@ -90,6 +90,7 @@ import { StudentSelectionScope } from "~/components/students/student-selection-s
 import {
   CollectionViewSwitch,
   columnMenuEntries,
+  phoneDetailMenuEntries,
 } from "~/components/ui/collection-view-switch";
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
@@ -2894,6 +2895,8 @@ function SearchPageContent() {
   const collectionView = useCollectionView(
     "student-search",
     tableColumnDefaults,
+    // Ohne eigene Wahl zeigt die Handy-Liste unter dem Namen die Gehzeit.
+    "pickup",
   );
   const showTable = collectionView.view === "table";
   // Die Spaltenwahl wirkt nur am Computer: auf dem Handy zeigt die Liste
@@ -3010,6 +3013,13 @@ function SearchPageContent() {
                       tableColumns,
                       collectionView.hiddenColumns,
                       collectionView.setColumnVisible,
+                    )
+                  : []),
+                ...(showTable && isPhone
+                  ? phoneDetailMenuEntries(
+                      tableColumns,
+                      collectionView.phoneDetail,
+                      collectionView.setPhoneDetail,
                     )
                   : []),
               ]}
@@ -3263,6 +3273,7 @@ function SearchPageContent() {
                             rows={sortedStudents}
                             columns={tableColumns}
                             hiddenColumns={collectionView.hiddenColumns}
+                            phoneDetail={collectionView.phoneDetail}
                             onOpen={handleOpenStudent}
                             selection={tableSelection}
                           />
@@ -3275,6 +3286,7 @@ function SearchPageContent() {
                                   rows={group.items}
                                   columns={tableColumns}
                                   hiddenColumns={collectionView.hiddenColumns}
+                                  phoneDetail={collectionView.phoneDetail}
                                   onOpen={handleOpenStudent}
                                   selection={tableSelection}
                                 />

@@ -76,6 +76,43 @@ export interface ColumnMenuColumn {
   readonly header: string;
   /** Columns that carry the row (the name) stay out of the menu. */
   readonly hideable?: boolean;
+  /** The phone row's own parts (title, meta) are not offered as its detail. */
+  readonly stacked?: string;
+}
+
+/**
+ * The phone list's "In der Zeile zeigen" choice (#3834), as entries for the
+ * page's ⋮ menu: which one column shows under each name, or none. A phone
+ * has room for name, status and one more fact per line; this lets each
+ * person pick the fact their round needs (Gehzeit, Heimweg, Mensa …).
+ */
+export function phoneDetailMenuEntries(
+  columns: readonly ColumnMenuColumn[],
+  current: string | null,
+  onChange: (key: string | null) => void,
+): OverflowMenuEntry[] {
+  const choices = columns.filter(
+    (column) =>
+      column.hideable !== false &&
+      column.stacked !== "title" &&
+      column.stacked !== "meta",
+  );
+  if (choices.length === 0) return [];
+  return [
+    { kind: "header", label: "In der Zeile zeigen" },
+    {
+      kind: "radio",
+      label: "Nur Name und Status",
+      checked: current === null,
+      onClick: () => onChange(null),
+    },
+    ...choices.map((column) => ({
+      kind: "radio" as const,
+      label: column.header,
+      checked: current === column.key,
+      onClick: () => onChange(column.key),
+    })),
+  ];
 }
 
 /**

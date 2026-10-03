@@ -70,6 +70,7 @@ import {
 import {
   CollectionViewSwitch,
   columnMenuEntries,
+  phoneDetailMenuEntries,
 } from "~/components/ui/collection-view-switch";
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
@@ -504,6 +505,8 @@ function MeinRaumPageContent() {
   const collectionView = useCollectionView(
     "active-supervisions",
     tableColumnDefaults,
+    // Ohne eigene Wahl zeigt die Handy-Liste unter dem Namen die Gehzeit.
+    "pickup",
   );
   const tableApplies = openRoomLayout !== null || !currentTimetableRoster;
   const showTable = collectionView.view === "table" && tableApplies;
@@ -536,6 +539,7 @@ function MeinRaumPageContent() {
       ? {
           columns: tableColumns,
           hiddenColumns: collectionView.hiddenColumns,
+          phoneDetail: collectionView.phoneDetail,
           selection: tableSelection,
         }
       : null,
@@ -663,13 +667,21 @@ function MeinRaumPageContent() {
             {releaseAction}
             {/* Die Spaltenwahl der Liste (#3834) im ⋮-Menü, nicht als
                 eigener Knopf neben dem Umschalter. */}
-            {showTable && !isPhone ? (
+            {showTable ? (
               <OverflowMenu
-                items={columnMenuEntries(
-                  tableColumns,
-                  collectionView.hiddenColumns,
-                  collectionView.setColumnVisible,
-                )}
+                items={
+                  isPhone
+                    ? phoneDetailMenuEntries(
+                        tableColumns,
+                        collectionView.phoneDetail,
+                        collectionView.setPhoneDetail,
+                      )
+                    : columnMenuEntries(
+                        tableColumns,
+                        collectionView.hiddenColumns,
+                        collectionView.setColumnVisible,
+                      )
+                }
                 ariaLabel="Weitere Aktionen"
               />
             ) : null}

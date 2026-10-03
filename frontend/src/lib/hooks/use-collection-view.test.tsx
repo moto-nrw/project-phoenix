@@ -75,4 +75,29 @@ describe("useCollectionView (#3834)", () => {
     expect(result.current.view).toBe("tiles");
     expect([...result.current.hiddenColumns]).toEqual(["notes"]);
   });
+
+  it("remembers the phone-list detail and falls back to the page default", () => {
+    const { result } = renderHook(() =>
+      useCollectionView("page", COLUMNS, "class"),
+    );
+    expect(result.current.phoneDetail).toBe("class");
+
+    act(() => result.current.setPhoneDetail("notes"));
+    expect(result.current.phoneDetail).toBe("notes");
+
+    act(() => result.current.setPhoneDetail(null));
+    expect(result.current.phoneDetail).toBeNull();
+  });
+
+  it("ignores a stored phone-list detail the page no longer offers", () => {
+    localStorage.setItem(
+      "collection-view:page:tenant-3:7",
+      '{"phoneDetail":"gone"}',
+    );
+    const { result } = renderHook(() =>
+      useCollectionView("page", COLUMNS, "class"),
+    );
+
+    expect(result.current.phoneDetail).toBe("class");
+  });
 });

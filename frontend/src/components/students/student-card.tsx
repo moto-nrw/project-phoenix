@@ -594,7 +594,8 @@ export function StudentAbsenceRow({
       <StudentInfoRow icon={<AbsenceIcon />} variant={variant}>
         {`${wording} (${label})`}
       </StudentInfoRow>
-      {note ? (
+      {/* The one-line phone list has no room for the note (#3834). */}
+      {note && variant !== "compact" ? (
         <StudentInfoRow
           icon={<StickyNote className="h-3.5 w-3.5 text-gray-400" />}
           wrap

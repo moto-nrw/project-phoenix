@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { columnMenuEntries } from "./collection-view-switch";
+import {
+  columnMenuEntries,
+  phoneDetailMenuEntries,
+} from "./collection-view-switch";
 
 const COLUMNS = [
   { key: "name", header: "Name", hideable: false },
@@ -40,5 +43,36 @@ describe("columnMenuEntries (#3834)", () => {
 
   it("adds nothing when no column can be hidden", () => {
     expect(columnMenuEntries([COLUMNS[0]!], new Set(), vi.fn())).toEqual([]);
+  });
+});
+
+describe("phoneDetailMenuEntries (#3834)", () => {
+  const columns = [
+    { key: "name", header: "Name", hideable: false, stacked: "title" },
+    { key: "status", header: "Aufenthalt", stacked: "meta" },
+    { key: "class", header: "Klasse" },
+    { key: "pickup", header: "Gehzeit" },
+  ];
+
+  it("offers none plus every column that is not part of the row itself", () => {
+    const entries = phoneDetailMenuEntries(columns, "pickup", vi.fn());
+
+    expect(entries).toMatchObject([
+      { kind: "header", label: "In der Zeile zeigen" },
+      { kind: "radio", label: "Nur Name und Status", checked: false },
+      { kind: "radio", label: "Klasse", checked: false },
+      { kind: "radio", label: "Gehzeit", checked: true },
+    ]);
+  });
+
+  it("reports the chosen column, or null for none", () => {
+    const onChange = vi.fn();
+    const entries = phoneDetailMenuEntries(columns, "pickup", onChange);
+
+    for (const entry of entries) {
+      if ("kind" in entry && entry.kind === "radio") entry.onClick();
+    }
+
+    expect(onChange.mock.calls).toEqual([[null], ["class"], ["pickup"]]);
   });
 });

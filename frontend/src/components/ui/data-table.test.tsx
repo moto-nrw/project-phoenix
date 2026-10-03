@@ -474,7 +474,6 @@ describe("DataTable one-line phone list (#3834)", () => {
       key: "end",
       header: "Ende",
       render: (row) => `bis ${row.id}`,
-      stacked: "end",
     },
   ];
 
@@ -489,6 +488,7 @@ describe("DataTable one-line phone list (#3834)", () => {
         onRowClick={onRowClick}
         stackedOnMobile
         stackedLayout="row"
+        stackedDetailKey="end"
         selection={{
           selectedKeys: new Set(["1"]),
           onChange,
@@ -523,10 +523,11 @@ describe("DataTable one-line phone list (#3834)", () => {
     expect(onRowClick).toHaveBeenCalledWith(rows[1]);
   });
 
-  it("shows only title and end column, one line per row", () => {
+  it("shows only title and the chosen detail column", () => {
     const { list } = renderPhoneList();
 
     expect(list.getByText("bis 2")).toBeInTheDocument();
+    expect(list.getAllByText("Ende")).toHaveLength(2);
     expect(list.queryByText("#2")).not.toBeInTheDocument();
     expect(list.queryByText("Nummer")).not.toBeInTheDocument();
   });
