@@ -37,7 +37,7 @@ describe("demo access routes", () => {
 
   it("redeems by POST and passes the backend status through", async () => {
     fetchMock.mockResolvedValue(
-      Response.json({ code: "demo_access_expired" }, { status: 410 }),
+      Response.json({ code: "identity.demo_access_expired" }, { status: 410 }),
     );
 
     const response = await sessions(request({ token: "secret-token" }));
@@ -98,7 +98,7 @@ describe("demo access routes", () => {
 
   it("sets no cookie when the backend refuses the token", async () => {
     fetchMock.mockResolvedValue(
-      Response.json({ code: "demo_access_unknown" }, { status: 404 }),
+      Response.json({ code: "identity.demo_access_unknown" }, { status: 404 }),
     );
 
     const response = await sessions(request({ token: "wrong-token" }));

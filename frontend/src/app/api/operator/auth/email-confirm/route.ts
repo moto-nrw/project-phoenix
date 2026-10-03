@@ -6,10 +6,13 @@ export const POST = createPublicJsonProxy({
   path: "/operator/auth/email-confirm",
   forwardClientHeaders: true,
   invalidJsonResponse: () =>
-    NextResponse.json({ message: "Ungültige Anfrage" }, { status: 400 }),
+    NextResponse.json(
+      { status: "error", error: "Ungültige Anfrage" },
+      { status: 400 },
+    ),
   networkErrorResponse: () =>
     NextResponse.json(
-      { message: "Ein interner Fehler ist aufgetreten" },
+      { status: "error", error: "Ein interner Fehler ist aufgetreten" },
       { status: 500 },
     ),
 });

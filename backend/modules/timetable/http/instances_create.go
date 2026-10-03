@@ -279,10 +279,10 @@ var createInstanceErrorRules = []common.ErrorRule{
 		},
 		Render: common.ErrorInvalidRequest,
 	},
-	{Target: timetable.ErrIdempotencyKeyReuse, Render: conflictCode("idempotency_key_reused")},
+	{Target: timetable.ErrIdempotencyKeyReuse, Render: conflictCode(common.CodeTimetableIdempotencyKeyReused)},
 	{
 		Target: timetable.ErrDuplicateTemplateInstance,
-		Render: staticConflict("instance already exists for this template/date/start_time", "duplicate_instance"),
+		Render: staticConflict("instance already exists for this template/date/start_time", common.CodeTimetableDuplicateInstance),
 	},
 }
 

@@ -699,7 +699,7 @@ describe("tenant-api", () => {
           JSON.stringify({
             status: "error",
             error: "school portal accounts must log in at the school portal",
-            code: "use_school_portal",
+            code: "identity.use_school_portal",
           }),
           {
             status: 403,

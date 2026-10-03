@@ -203,7 +203,10 @@ function LoginForm() {
       // Konto ohne Schul-Portal-Rolle: das Passwort war korrekt, die
       // Ablehnung kommt von der Rolle — die spezifische Meldung verrät
       // also nichts über fremde Konten und erspart Passwort-Reset-Schleifen.
-      if (err instanceof MFAApiError && err.code === "no_school_portal_role") {
+      if (
+        err instanceof MFAApiError &&
+        err.code === "school.no_school_portal_role"
+      ) {
         setNoPortalRole(true);
         return;
       }
@@ -211,7 +214,10 @@ function LoginForm() {
       // Ausgeschaltetes Konto: gleiche Begründung wie oben, das Passwort war
       // korrekt. Die generische 401-Meldung schickt sonst in eine
       // Passwort-Reset-Schleife, die nichts ändern kann (#3376).
-      if (err instanceof MFAApiError && err.code === "account_inactive") {
+      if (
+        err instanceof MFAApiError &&
+        err.code === "identity.session_account_inactive"
+      ) {
         setError(
           "Ihr Konto ist ausgeschaltet. Bitte wenden Sie sich an die OGS-Leitung.",
         );

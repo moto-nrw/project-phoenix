@@ -1,9 +1,5 @@
 package education
 
-import (
-	"github.com/moto-nrw/project-phoenix/models/base"
-)
-
 // Action constants for grade transition history
 const (
 	ActionPromoted  = "promoted"
@@ -15,8 +11,8 @@ const (
 // transition's history. The owner capability lives in
 // modules/schoolstructure (#2711); this struct remains for row fixtures.
 type GradeTransitionHistory struct {
-	base.Model `bun:"schema:education,table:grade_transition_history"`
-	base.TenantModel
+	Model
+	TenantModel
 	TransitionID int64   `bun:"transition_id,notnull" json:"transition_id"`
 	StudentID    int64   `bun:"student_id,notnull" json:"student_id"`   // Keep even if student deleted
 	PersonName   string  `bun:"person_name,notnull" json:"person_name"` // Snapshot for audit trail

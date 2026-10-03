@@ -689,13 +689,13 @@ describe("pickup-schedule-api", () => {
       global.fetch = vi.fn().mockResolvedValue(
         createMockResponse(false, 403, {
           error: "a staff profile is required to change a parent-set time",
-          code: "staff_profile_required",
+          code: "students.staff_profile_required",
         }),
       );
 
       await expect(
         updateStudentPickupException("123", "456", exceptionData),
-      ).rejects.toThrow("staff_profile_required");
+      ).rejects.toThrow("students.staff_profile_required");
     });
 
     it("throws translated error when JSON parse fails", async () => {

@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 
@@ -348,11 +349,13 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		return StudentTestModule{}, err
 	}
 	substitutionService := education.NewSubstitutionModule(education.SubstitutionDependencies{
-		Groups: repos.Group, Substitutions: contextRepos.Substitutions, Persons: newEducationPersonQuery(persons),
-		Teachers: repos.Teacher, Staff: repos.Staff, Actors: substitutionActorResolver{identity: userContextService.Caller()},
+		Groups: repos.Group, Substitutions: repositories.NewEducationHandovers(contextRepos.Substitutions),
+		Persons: newEducationPersonQuery(persons), Teachers: repositories.NewEducationCaregivers(repos.Teacher),
+		Staff: repositories.NewEducationStaff(repos.Staff), Actors: substitutionActorResolver{identity: userContextService.Caller()},
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
-		Audit:                   repos.SubstitutionChange, DB: db, Broadcaster: realtimeHub,
+		Audit:                   repositories.NewEducationSubstitutionAudit(repos.SubstitutionChange),
+		Runtime:                 schoolStructure.NewLegacyRepositoryRuntime(db), Broadcaster: realtimeHub,
 		Logger:   logger.With("service", "substitution"),
 		Schedule: scheduleSubstitution,
 		CanSeeAll: func(ctx context.Context, assignmentBound, admin, hasStaff bool) (bool, error) {

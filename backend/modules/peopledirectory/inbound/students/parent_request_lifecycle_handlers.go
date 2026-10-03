@@ -104,10 +104,10 @@ var parentRequestLifecycleErrorRenderer = common.RulesRenderer(parentRequestRule
 	common.ErrorRule{Match: isParentRequestNotDecided, Render: func(error) render.Renderer {
 		return common.ErrorConflictMessageWithCode(
 			"Diese Anfrage ist noch nicht entschieden. Es gibt nichts zu korrigieren.",
-			codeRequestNotDecided,
+			common.CodeStudentsRequestNotDecided,
 		)
 	}},
-	common.ErrorRule{Match: isParentRequestNotPending, Render: conflictWithCode("change_request_not_pending")},
+	common.ErrorRule{Match: isParentRequestNotPending, Render: conflictWithCode(common.CodeStudentsChangeRequestNotPending)},
 	common.ErrorRule{Match: isParentRequestForbidden, Render: common.ErrorForbidden},
 ), common.ErrorInternalServer)
 
@@ -191,7 +191,7 @@ func (rs *Resource) correctParentRequestDecision(w http.ResponseWriter, r *http.
 		if message == "" {
 			message = "Diese Entscheidung kann nicht korrigiert werden."
 		}
-		renderError(w, r, common.ErrorConflictMessageWithCode(message, codeCorrectionUnsupp))
+		renderError(w, r, common.ErrorConflictMessageWithCode(message, common.CodeStudentsCorrectionUnsupported))
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())

@@ -109,7 +109,7 @@ func TestMarkParentRequestDone_MasterDataIsNeverPast(t *testing.T) {
 	rs.markParentRequestDone(rr, lifecycleRequest(t, "master_data", "42", `{}`))
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
-	assert.Equal(t, "request_not_past", decodeErrorCode(t, rr))
+	assert.Equal(t, "students.request_not_past", decodeErrorCode(t, rr))
 	assert.Zero(t, fake.markDoneCalls)
 }
 
@@ -132,8 +132,8 @@ func TestMarkParentRequestDone_MapsLifecycleSentinels(t *testing.T) {
 		code string
 		want int
 	}{
-		{"stale version", parentrequests.ErrStale, "change_request_stale", http.StatusConflict},
-		{"still in the future", parentrequests.ErrNotPast, "request_not_past", http.StatusConflict},
+		{"stale version", parentrequests.ErrStale, "students.change_request_stale", http.StatusConflict},
+		{"still in the future", parentrequests.ErrNotPast, "students.request_not_past", http.StatusConflict},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -189,7 +189,7 @@ func TestCorrectParentRequestDecision_UnsupportedKindsNameTheReason(t *testing.T
 			rs.correctParentRequestDecision(rr, lifecycleRequest(t, kind, "7", `{"approve":true}`))
 
 			assert.Equal(t, http.StatusConflict, rr.Code)
-			assert.Equal(t, "correction_unsupported", decodeErrorCode(t, rr))
+			assert.Equal(t, "students.correction_unsupported", decodeErrorCode(t, rr))
 			var body struct {
 				Error string `json:"error"`
 			}
@@ -208,5 +208,5 @@ func TestCorrectParentRequestDecision_MapsNotDecided(t *testing.T) {
 	rs.correctParentRequestDecision(rr, lifecycleRequest(t, "excused", "7", `{"approve":true}`))
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
-	assert.Equal(t, "request_not_decided", decodeErrorCode(t, rr))
+	assert.Equal(t, "students.request_not_decided", decodeErrorCode(t, rr))
 }

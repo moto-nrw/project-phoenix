@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	groupsHTTP "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http"
+
 	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	schoolSetupCompose "github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
@@ -29,11 +31,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/analytics"
 	absencetypesAPI "github.com/moto-nrw/project-phoenix/api/absence-types"
-	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
-	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot/compose"
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
@@ -122,6 +122,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
+	gradeTransitionHTTP "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 )
 
@@ -660,7 +661,7 @@ func newFeedbackResource(module *feedbackModule.Module, db *bun.DB) *feedbackAPI
 		Failure: func(w http.ResponseWriter, r *http.Request, failure feedbackAPI.Failure) {
 			apiCommon.RenderError(w, r, &apiCommon.ErrResponse{
 				Err: failure.Err, HTTPStatusCode: failure.Status,
-				Status: failure.Classification, ErrorText: failure.Err.Error(),
+				Status: "error", ErrorText: failure.Err.Error(),
 			})
 		},
 		ObserveResponse: func(status int, code string) {
@@ -692,7 +693,7 @@ type API struct {
 	Rooms            *roomsHTTPAdapter.Resource
 	Students         *studentsAPI.Resource
 	Statistics       *statisticsAPI.Resource
-	Groups           *groupsAPI.Resource
+	Groups           *groupsHTTP.Resource
 	Guardians        *usersAPI.GuardianResource
 	Import           *importAPI.Resource
 	Activities       *timetableHTTPAdapter.Resource
@@ -718,7 +719,7 @@ type API struct {
 	School           *schoolPortal.Resource
 	UserContext      *meAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
-	GradeTransitions *adminAPI.GradeTransitionResource
+	GradeTransitions *gradeTransitionHTTP.GradeTransitionResource
 	TimeTracking     *timeTrackingHTTP.Resource
 	Timetable        *timetableAPI.Resource
 	Emergency        *emergencyAPI.Resource
@@ -1460,7 +1461,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Logger: logger.With("service", "staffnotice"),
 	}), func(ctx context.Context) int64 { return timeTrackingIdentity(ctx).AccountID }, db)
 	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, db, logger.With("handler", "filestore"))
-	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
+	api.Groups = groupsHTTP.NewResource(api.Services.Education, api.Services.Active, services.NewGroupRoutePeople(api.Services.Users), api.Services.UserContext)
 	api.Guardians = newGuardiansResource(api.Services.PeopleDirectory, api.Services.NewGuardianDirectoryRuntime(db), db, viper.GetString("app_env"), logger.With("handler", "guardians"))
 	api.Import = importAPI.NewResource(importAPI.Dependencies{
 		Students: api.Services.Import, Staff: api.Services.StaffImport, ClassList: api.Services.ClassListImport,
@@ -1591,7 +1592,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.ClassDay = classdayHTTP.NewResource(api.Services.ClassDayArrivalExceptions, db, logger.With("handler", "class-day"))
 	api.ClassListEntries = newClassListEntriesResource(api.membership, db, logger.With("handler", "class-list-entries"))
 	api.Substitutions = workforceInbound.NewSubstitutionsResource(services.SubstitutionCapability(api.Services.Substitution), db)
-	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
+	api.GradeTransitions = gradeTransitionHTTP.NewGradeTransitionResource(api.Services.GradeTransition)
 	api.TimeTracking = newTimeTrackingResource(api.Services, modules.calendar, db)
 	pickupExtensions, err := newPickupExtensions(modules.timetable, presence)
 	if err != nil {

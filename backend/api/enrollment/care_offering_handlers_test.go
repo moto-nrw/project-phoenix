@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/chi/v5"
@@ -329,7 +330,7 @@ func TestCreateCareOfferingHandler_MissingDaysReturnsStableCode(t *testing.T) {
 		validOfferingBody(5678, "OGS"))
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), ErrCodeCareOfferingDaysRequired)
+	assert.Contains(t, w.Body.String(), common.CodeEnrollmentCareOfferingDaysRequired)
 }
 
 func TestCreateCareOfferingHandler_MissingPickupTimesReturnsStableCode(t *testing.T) {
@@ -342,7 +343,7 @@ func TestCreateCareOfferingHandler_MissingPickupTimesReturnsStableCode(t *testin
 		validOfferingBody(5678, "OGS"))
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), ErrCodeCareOfferingPickupTimesRequired)
+	assert.Contains(t, w.Body.String(), common.CodeEnrollmentCareOfferingPickupTimesRequired)
 }
 
 // --- updateCareOffering ---------------------------------------------

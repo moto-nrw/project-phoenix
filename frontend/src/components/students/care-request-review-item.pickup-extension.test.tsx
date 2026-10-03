@@ -184,7 +184,11 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
       .mockResolvedValueOnce([changedTask]);
     mockResolve
       .mockRejectedValueOnce(
-        new PickupExtensionApiError("gone", 409, "pickup_extension_block_gone"),
+        new PickupExtensionApiError(
+          "gone",
+          409,
+          "timetable.pickup_extension_block_gone",
+        ),
       )
       .mockResolvedValueOnce(undefined);
     render(
@@ -211,7 +215,11 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     const reload = deferred<PickupExtension[]>();
     mockFetch.mockResolvedValueOnce([task]).mockReturnValueOnce(reload.promise);
     mockResolve.mockRejectedValueOnce(
-      new PickupExtensionApiError("gone", 409, "pickup_extension_block_gone"),
+      new PickupExtensionApiError(
+        "gone",
+        409,
+        "timetable.pickup_extension_block_gone",
+      ),
     );
     render(
       <PickupExtensionAccessProvider value>
@@ -269,7 +277,11 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     mockResolve
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(
-        new PickupExtensionApiError("gone", 409, "pickup_extension_block_gone"),
+        new PickupExtensionApiError(
+          "gone",
+          409,
+          "timetable.pickup_extension_block_gone",
+        ),
       );
     render(
       <PickupExtensionAccessProvider value>

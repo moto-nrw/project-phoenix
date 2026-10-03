@@ -45,7 +45,7 @@ function makeInstance(
 
 function renderBlock(
   instance: EnrichedInstance,
-  extra: { isGap?: boolean } = {},
+  extra: { isGap?: boolean; staffNames?: ReadonlyMap<string, string> } = {},
   height = 90,
 ) {
   return render(
@@ -59,6 +59,7 @@ function renderBlock(
         isSelected={false}
         onClick={vi.fn()}
         isGap={extra.isGap}
+        staffNames={extra.staffNames}
       />
     </div>,
   );
@@ -155,6 +156,112 @@ describe("InstanceBlock -> PlanBlock mapping", () => {
 
     expect(screen.queryByLabelText("Offene Lücke")).not.toBeInTheDocument();
     expect(screen.getByText("Mensa")).toHaveClass("line-through");
+  });
+
+  // #3817: Raum, Gruppe und Fachkräfte stehen im Block selbst.
+  describe("Raum, Gruppe und Fachkräfte im Block", () => {
+    const names = new Map([
+      ["1", "Anna Kowalski"],
+      ["2", "Ben Müller"],
+    ]);
+    const staffed = (overrides: Partial<EnrichedInstance> = {}) =>
+      makeInstance({
+        title: "Hausaufgaben",
+        roomName: "Raum 104",
+        groupName: "Sonne",
+        absentStaffCount: 1,
+        staff: [
+          {
+            staffId: "1",
+            isPrimary: true,
+            isAbsent: true,
+            isSubstitute: false,
+          },
+          {
+            staffId: "2",
+            isPrimary: false,
+            isAbsent: false,
+            isSubstitute: true,
+          },
+        ],
+        ...overrides,
+      });
+
+    it("zeigt in einem hohen Block Raum, Gruppe und Namen in zwei Zeilen", () => {
+      renderBlock(staffed(), { staffNames: names }, 130);
+
+      expect(screen.getByText("Raum 104 · Sonne")).toBeInTheDocument();
+      expect(screen.getByText("Ben M. (Ersatz)")).toBeInTheDocument();
+      expect(screen.getByText("Anna K.", { exact: false })).toHaveClass(
+        "line-through",
+      );
+      // Die Namen zeigen Abwesenheit und Ersatz schon; die Sammelzeile entfällt.
+      expect(screen.queryByText("1 abwesend")).not.toBeInTheDocument();
+    });
+
+    it("fasst Ort und Namen in einem 60-Minuten-Block zusammen und behält die Besetzung", () => {
+      renderBlock(
+        staffed({ assignedStaffCount: 1, requiredStaffCount: 2 }),
+        { staffNames: names },
+        90,
+      );
+
+      expect(screen.getByText("Raum 104 · Sonne ·")).toBeInTheDocument();
+      expect(screen.getByText("Ben M. (Ersatz)")).toBeInTheDocument();
+      // Die Besetzung folgt direkt auf die Infozeile.
+      expect(screen.getByText("/2")).toBeInTheDocument();
+    });
+
+    it("trägt den vollständigen Inhalt im Tooltip und im Screenreader-Namen", () => {
+      renderBlock(staffed(), { staffNames: names });
+
+      const button = screen.getByRole("button");
+      expect(button).toHaveAttribute(
+        "title",
+        [
+          "Hausaufgaben, 12:00 – 13:00",
+          "Raum: Raum 104",
+          "Gruppe: Sonne",
+          "Fachkräfte: Anna Kowalski (abwesend), Ben Müller (Ersatz)",
+        ].join("\n"),
+      );
+      expect(button).toHaveAccessibleName(
+        /Gruppe: Sonne, Fachkräfte: Anna Kowalski \(abwesend\), Ben Müller \(Ersatz\)/,
+      );
+    });
+
+    it("zeigt in einem kurzen Block eine Infozeile unter Zeit und Titel", () => {
+      renderBlock(staffed(), { staffNames: names }, 45);
+
+      expect(screen.getByText("Raum 104 · Sonne ·")).toBeInTheDocument();
+      expect(screen.getByText("Ben M. (Ersatz)")).toBeInTheDocument();
+      expect(screen.getByText("Hausaufgaben")).toBeInTheDocument();
+    });
+
+    it("zeigt in einem sehr kurzen Block nur Zeit und Titel", () => {
+      renderBlock(staffed(), { staffNames: names }, 28);
+
+      expect(screen.queryByText(/Raum 104/)).not.toBeInTheDocument();
+      expect(screen.getByRole("button")).toHaveAttribute(
+        "title",
+        expect.stringContaining("Raum: Raum 104"),
+      );
+    });
+
+    it("behält ohne bekannte Namen die Sammelzeile für Abwesenheit und Ersatz", () => {
+      renderBlock(staffed());
+
+      expect(screen.getByText("Raum 104 · Sonne")).toBeInTheDocument();
+      expect(screen.getByText("1 abwesend")).toBeInTheDocument();
+      expect(screen.getByText("Ersatz")).toBeInTheDocument();
+    });
+
+    it("zeigt bei einem abgesagten Block weder Ort noch Namen", () => {
+      renderBlock(staffed({ status: "cancelled" }), { staffNames: names });
+
+      expect(screen.queryByText(/Raum 104/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Ben M\./)).not.toBeInTheDocument();
+    });
   });
 
   // #3634: a running block compares the children still there with the

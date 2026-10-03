@@ -264,7 +264,12 @@ func (p staffShiftPlanning) ExportPlan(ctx context.Context, request workforce.Pl
 	if params.Variant == planexport.VariantInternal && !request.AllowInternal {
 		return workforce.PlanExportFile{}, workforce.ErrPlanExportForbidden
 	}
-	file, err := p.deps.PlanExport.ExportDienstplan(ctx, params)
+	var file planexport.File
+	if params.Template == planexport.TemplateByHours {
+		file, err = p.deps.PlanExport.ExportDienstplanHours(ctx, params, planExportHours{overview: p.deps.Overview})
+	} else {
+		file, err = p.deps.PlanExport.ExportDienstplan(ctx, params)
+	}
 	if err != nil {
 		if errors.Is(err, planexport.ErrInvalidParams) {
 			return workforce.PlanExportFile{}, &capabilityError{kind: workforce.ErrPlanExportInvalid, cause: err}
@@ -428,9 +433,13 @@ func overviewToCapability(overview *StaffScheduleOverview) workforce.StaffSchedu
 	}
 	summaries := make([]workforce.WeeklySummary, 0, len(overview.WeeklySummaries))
 	for _, summary := range overview.WeeklySummaries {
+		byType := make([]workforce.ShiftTypeMinutes, 0, len(summary.ByShiftType))
+		for _, entry := range summary.ByShiftType {
+			byType = append(byType, workforce.ShiftTypeMinutes{ShiftTypeID: entry.ShiftTypeID, Minutes: entry.Minutes})
+		}
 		summaries = append(summaries, workforce.WeeklySummary{
 			StaffID: summary.StaffID, WeekStart: summary.WeekStart.String(), PlannedMinutes: summary.PlannedMinutes,
-			TargetMinutes: summary.TargetMinutes, DeltaMinutes: summary.DeltaMinutes,
+			TargetMinutes: summary.TargetMinutes, DeltaMinutes: summary.DeltaMinutes, ByShiftType: byType,
 		})
 	}
 	return workforce.StaffScheduleOverview{

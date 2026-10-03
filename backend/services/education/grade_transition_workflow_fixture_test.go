@@ -3,12 +3,11 @@ package education_test
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	gradetransitioncompose "github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose"
@@ -28,36 +27,30 @@ type transitionFixture struct {
 	tenantID   int64
 	people     gradetransition.Directory
 	membership gradetransition.Membership
-	timetable  repositories.TimetableTestRepositories
 	deps       gradetransition.Dependencies
 	actorID    int64
 	now        time.Time
 	// resyncCalls records every offering-roster resync the workflow triggers.
-	resyncCalls []timezone.Date
+	resyncCalls []calendar.Date
 }
 
 // newTransitionFixture composes the workflow with the clock pinned to a fixed
 // Berlin instant.
 func newTransitionFixture(t *testing.T, db *bun.DB) *transitionFixture {
 	t.Helper()
-	f := &transitionFixture{db: db, tenantID: testpkg.Tenant(t), now: time.Date(2026, 8, 24, 12, 0, 0, 0, timezone.Berlin)}
+	f := &transitionFixture{db: db, tenantID: testpkg.Tenant(t), now: time.Date(2026, 8, 24, 12, 0, 0, 0, calendar.Berlin)}
 	clock := func() time.Time { return f.now }
-	timetable, err := repositories.NewTimetableTestRepositories(db, clock)
+	owners, err := testutil.NewGradeTransitionSuiteOwners(db, clock)
 	require.NoError(t, err)
-	f.timetable = timetable
-	people, err := repositories.NewPeopleDirectory(db)
-	require.NoError(t, err)
-	f.people = people
-	membership, err := repositories.NewSchoolMembership(db)
-	require.NoError(t, err)
-	f.membership = membership
+	f.people = owners.People
+	f.membership = owners.Membership
 	actor := testpkg.CreateTestAccount(t, db, fmt.Sprintf("grade-transition-actor-%d", f.tenantID))
 	f.actorID = actor.ID
 	deps, err := gradetransitioncompose.Assemble(gradetransitioncompose.Dependencies{
 		DB: db, Directory: f.people, Membership: f.membership,
-		Rosters:              timetable.RosterMaintenance(slog.Default(), clock),
-		LockRecurrenceWrites: repositories.MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites,
-		ResyncOfferingRosters: func(_ context.Context, effectiveFrom timezone.Date) error {
+		Rosters:              owners.Rosters,
+		LockRecurrenceWrites: owners.LockRecurrenceWrites,
+		ResyncOfferingRosters: func(_ context.Context, effectiveFrom calendar.Date) error {
 			f.resyncCalls = append(f.resyncCalls, effectiveFrom)
 			return nil
 		},
@@ -72,7 +65,7 @@ func newTransitionFixture(t *testing.T, db *bun.DB) *transitionFixture {
 }
 
 // today is the calendar day the workflow sees.
-func (f *transitionFixture) today() timezone.Date { return timezone.DateFromTime(f.now) }
+func (f *transitionFixture) today() calendar.Date { return calendar.DateFromTime(f.now) }
 
 // workflow constructs the workflow over the current deps.
 func (f *transitionFixture) workflow(t *testing.T) *gradetransition.Workflow {

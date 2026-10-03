@@ -22,6 +22,8 @@ export const ERROR_CATALOG = {
       fieldCheck: "Bitte prüfen Sie dieses Feld.",
     },
     codes: {
+      "attendance.web_disabled":
+        "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "care.announcement_stale":
         "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
       "care.care_exception_conflict":
@@ -163,6 +165,18 @@ export const ERROR_CATALOG = {
         "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
       "grade_transition.preview_stale":
         "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
+      "identity.demo_access_expired":
+        "Der Demo-Zugang ist abgelaufen. Bitte fordern Sie einen neuen Zugang an.",
+      "identity.demo_access_invalid":
+        "Der Demo-Link ist ungültig. Bitte fordern Sie einen neuen Link an.",
+      "identity.demo_access_rate_limited":
+        "Das waren zu viele Versuche. Bitte warten Sie kurz und versuchen Sie es dann erneut.",
+      "identity.demo_access_unknown":
+        "Diesen Demo-Link gibt es nicht. Bitte fordern Sie einen neuen Link an.",
+      "identity.demo_capacity_reached":
+        "Gerade sind alle Demo-Plätze belegt. Bitte versuchen Sie es später erneut.",
+      "identity.demo_school_preparing":
+        "Die Demo-Schule wird gerade vorbereitet. Bitte versuchen Sie es gleich noch einmal.",
       "identity.invitation_account_login_required":
         "Für {object} müssen Sie angemeldet sein. Bitte melden Sie sich an.",
       "identity.preview_token_invalid":
@@ -211,6 +225,12 @@ export const ERROR_CATALOG = {
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "rollover.review_invalid":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+      "rooms.color_already_in_use":
+        "Diese Farbe hat schon ein anderer Raum. Bitte wählen Sie eine andere Farbe.",
+      "school.setup_completed":
+        "Die Einrichtung der Schule ist schon abgeschlossen. Bitte laden Sie die Seite neu.",
+      "school.setup_incomplete":
+        "Die Einrichtung ist noch nicht fertig. Bitte schließen Sie zuerst die offenen Schritte ab.",
       "students.absence_read_required":
         "Für {object} fehlt die Bestätigung. Bitte bestätigen Sie den Hinweis.",
       "students.care_exception_raced":
@@ -223,6 +243,8 @@ export const ERROR_CATALOG = {
         "{object} ist nicht mehr offen. Bitte laden Sie die Seite neu.",
       "students.change_request_stale":
         "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
+      "students.child_quota_reached":
+        "Das Kinderkontingent Ihrer Schule ist voll ({occupied_places} von {booked_places} Kindern). Bitte melden Sie sich beim moto-Team.",
       "students.companions_changed":
         "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
       "students.deletion_acknowledgement_required":
@@ -261,12 +283,30 @@ export const ERROR_CATALOG = {
         "Der Stand von {object} hat sich geändert. Bitte prüfen Sie Ihre Angaben erneut.",
       "timetable.calendar_period_overlap_conflict":
         "{object} überschneidet sich mit anderen Zeiträumen. Bitte prüfen Sie die Termine.",
+      "timetable.complete_too_early":
+        "Der Termin kann erst nach seinem Ende abgeschlossen werden.",
       "timetable.completion_confirmation_stale":
         "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
+      "timetable.duplicate_instance":
+        "Diesen Termin gibt es schon. Bitte laden Sie die Seite neu.",
+      "timetable.guardian_notice_disabled":
+        "Hinweise an Eltern sind hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "timetable.instance_moved":
+        "Der Termin wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
       "timetable.only_supervisor_replacement_required":
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
       "timetable.pickup_extension_not_found":
         "{object} wurde nicht gefunden. Bitte laden Sie die Seite neu.",
+      "timetable.staff_absent_on_date":
+        "Die Person ist an diesem Tag abwesend. Bitte wählen Sie eine andere Person.",
+      "timetable.staff_absent_on_target":
+        "Die Person ist an diesem Tag abwesend. Bitte wählen Sie eine andere Person.",
+      "timetable.staff_already_on_target":
+        "Die Person ist für diesen Termin schon eingeteilt.",
+      "timetable.start_too_early":
+        "Der Termin kann noch nicht gestartet werden. Bitte versuchen Sie es kurz vor Beginn erneut.",
+      "timetable.start_window_expired":
+        "Der Termin kann nicht mehr gestartet werden. Die Startzeit ist vorbei.",
       "timetable.template_care_offering_conflict":
         "Der Stand von {object} hat sich geändert. Bitte prüfen Sie Ihre Angaben erneut.",
       "timetable.template_roster_rebase_conflict":
@@ -275,6 +315,8 @@ export const ERROR_CATALOG = {
         "Das Datum für {object} liegt in der Vergangenheit. Bitte wählen Sie ein anderes Datum.",
       "timetable.template_start_predecessor_overlap":
         "Die Zeiten für {object} überschneiden sich. Bitte prüfen Sie die Angaben.",
+      "timetable.understaffed_still_staffed":
+        "Für den Termin ist noch Personal eingeteilt. Bitte nehmen Sie das Personal zuerst heraus.",
       "workforce.later_month_closed":
         "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
       "workforce.month_not_closed":

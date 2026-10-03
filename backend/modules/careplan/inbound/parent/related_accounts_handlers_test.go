@@ -237,5 +237,5 @@ func TestRelatedAccountsEndpoint_SocialWorkerRefusedWithCode(t *testing.T) {
 	rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid+"/related-accounts", token,
 		map[string]any{"email": "sozialdienst@example.test", "confirm_role_upgrade": true})
 	require.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
-	assert.Contains(t, rr.Body.String(), `"code":"guardian_social_worker_managed"`)
+	assert.Contains(t, rr.Body.String(), `"code":"care.guardian_social_worker_managed"`)
 }

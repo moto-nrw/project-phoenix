@@ -8,8 +8,6 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 )
 
-const ErrCodeAttendanceWebDisabled = "attendance.web_disabled"
-
 // RequireWebAttendanceEnabled makes attendance.web_enabled authoritative for
 // staff-initiated HTTP mutations. It must run after TenantTxMiddleware so the
 // setting is resolved in the request tenant. IoT, scheduler, and other system
@@ -29,7 +27,7 @@ func RequireWebAttendanceEnabled(settings interface {
 				return
 			}
 			if !enabled {
-				RenderError(w, r, ErrorForbiddenWithCode(errors.New("web attendance is disabled"), ErrCodeAttendanceWebDisabled))
+				RenderError(w, r, ErrorForbiddenWithCode(errors.New("web attendance is disabled"), CodeAttendanceWebDisabled))
 				return
 			}
 			next.ServeHTTP(w, r)

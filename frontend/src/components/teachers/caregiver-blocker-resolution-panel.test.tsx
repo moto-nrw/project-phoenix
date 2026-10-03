@@ -268,7 +268,7 @@ describe("CaregiverBlockerResolutionPanel", () => {
       status: 409,
       json: async () => ({
         error: "cannot remove the only supervisor",
-        code: "ONLY_SUPERVISOR_REPLACEMENT_REQUIRED",
+        code: "timetable.only_supervisor_replacement_required",
       }),
     });
 

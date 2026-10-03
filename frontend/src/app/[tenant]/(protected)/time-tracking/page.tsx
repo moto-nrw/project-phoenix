@@ -1,5 +1,6 @@
 "use client";
 
+import { wireErrorCode } from "~/lib/api-error";
 import React, {
   useState,
   useEffect,
@@ -168,8 +169,8 @@ function friendlyError(err: unknown, fallback: string): string {
 
   // Stable machine codes win over the human-readable message: their text can
   // carry dynamic content (e.g. the conflicting interval of an overlap).
-  const stableCode = getErrorCode(err);
-  if (stableCode === "work_session_overlap") {
+  const stableCode = wireErrorCode(getErrorCode(err));
+  if (stableCode === "workforce.work_session_overlap") {
     return "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.";
   }
 

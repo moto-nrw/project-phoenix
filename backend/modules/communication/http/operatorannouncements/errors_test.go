@@ -16,9 +16,9 @@ import (
 // Helper to extract the operator error body from render.Renderer
 func extractErrResponse(t *testing.T, renderer render.Renderer) (int, string, string) {
 	t.Helper()
-	errResp, ok := renderer.(*common.OperatorErrResponse)
-	require.True(t, ok, "Expected *common.OperatorErrResponse")
-	return errResp.HTTPStatusCode, errResp.StatusText, errResp.ErrorText
+	errResp, ok := renderer.(*common.ErrResponse)
+	require.True(t, ok, "Expected *common.ErrResponse")
+	return errResp.HTTPStatusCode, errResp.Status, errResp.ErrorText
 }
 
 func TestAnnouncementErrorRenderer_NotFound(t *testing.T) {

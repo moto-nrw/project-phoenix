@@ -1176,10 +1176,11 @@ function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Wählen Sie den Tab `Betreuungsplan`.",
       "Wählen Sie oben `Tag` oder `Woche`.",
       "Nutzen Sie die Pfeile oder `Heute`, um zum passenden Tag zu wechseln.",
-      // Ohne Raumzuordnung steht im Block auch kein Raum.
       presenceMode === "binary"
-        ? "Wählen Sie einen Block, um Zeit, Betreuungsteam und Kinder zu sehen."
-        : "Wählen Sie einen Block, um Zeit, Raum, Betreuungsteam und Kinder zu sehen.",
+        ? "Gruppe und Fachkräfte stehen im Block, wenn sie zugeordnet sind."
+        : "Raum, Gruppe und Fachkräfte stehen im Block, wenn sie zugeordnet sind.",
+      "Ein durchgestrichener Name heißt: abwesend. `(Ersatz)` steht hinter einer Ersatzkraft.",
+      "Wählen Sie einen Block, um alle Kinder zu sehen.",
     ],
     result:
       "Sie sehen, was die OGS geplant hat und wo Sie eingesetzt sind. Als Betreuungskraft können Sie den Plan nicht verändern.",
@@ -4841,7 +4842,7 @@ function leadCancelBlockTopic(): HelpTopic {
   };
 }
 
-/** `/dienstplan`. Ansichten `Woche` und `Halbjahr`, Schichten je Person. */
+/** `/dienstplan`. Ansichten `Woche`, `Person` und `Halbjahr`, Schichten je Person. */
 function dutyRosterTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadDutyRoster,
@@ -4854,7 +4855,7 @@ function dutyRosterTopic(): HelpTopic {
     steps: [
       "Klappen Sie in der Seitenleiste `Planung` auf.",
       "Öffnen Sie `Dienstplan`.",
-      "Wählen Sie oben `Woche` oder `Halbjahr`.",
+      "Wählen Sie oben `Woche`, `Person` oder `Halbjahr`.",
       "Blättern Sie zur gewünschten Woche.",
       "Wählen Sie in der Zeile einer Person den passenden Tag.",
       "Tragen Sie die Schicht ein und speichern Sie sie.",
@@ -4863,7 +4864,11 @@ function dutyRosterTopic(): HelpTopic {
     notes: [
       "Jede Schicht kann eine Schichtart tragen. Die Farbe kommt von der Schichtart.",
       "Über `Schichtarten verwalten` pflegen Sie die Arten.",
+      "Unter dem Plan steht `Stunden der Woche`. Dort sehen Sie je Person die Stunden je Schichtart und das Soll.",
+      "Unter `Person` sehen Sie die Woche einer Person in Viertelstunden. Darunter stehen die Stunden je Tag und Schichtart.",
+      "Ziehen Sie dort über die Viertelstunden, um eine Schicht anzulegen.",
       "Über das Menü mit den drei Punkten geht `Drucken oder exportieren`.",
+      "Die Vorlage `Stundenübersicht` druckt diese Stunden als Liste.",
     ],
     differences: [
       "Eine neue Schicht auf einem Schließtag löst eine Rückfrage aus.",

@@ -122,13 +122,12 @@ type Factory struct {
 	Room facilityModels.RoomRepository
 
 	// Education domain
-	Group            educationModels.GroupRepository
-	GroupTeacher     educationModels.GroupTeacherRepository
-	ClassTeacher     educationModels.ClassTeacherRepository
-	ClassArrivalTime educationModels.ClassArrivalTimeRepository
+	Group        EducationGroupRepository
+	GroupTeacher GroupTeacherRepository
+	ClassTeacher ClassTeacherRepository
 	// ClassArrivalException holds class-wide arrival day exceptions (#2962).
 	ClassArrivalException scheduleModels.ClassArrivalExceptionRepository
-	GroupSubstitution     educationModels.GroupSubstitutionRepository
+	GroupSubstitution     GroupSubstitutionRepository
 
 	// Schedule domain
 	Dateframe                 scheduleModels.DateframeRepository
@@ -486,7 +485,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	identity := newIdentityAccess(db, timetableDependencies.ObserveIdentityAccess)
 	personRepo := NewPersonRepository(db)
 	studentRepo := NewStudentRepository(db)
-	groupRepo := education.NewGroupRepository(db)
+	groupRepo := NewEducationGroupRepository(db)
 	factory := &Factory{
 		db: db,
 		// Users repositories
@@ -526,7 +525,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 
 		// Education repositories
 		Group:                 groupRepo,
-		ClassArrivalTime:      education.NewClassArrivalTimeRepository(db),
 		ClassArrivalException: timetableCompose.NewClassArrivalExceptionRepository(db),
 		GroupSubstitution:     nil, // bound to Workforce below
 
@@ -672,7 +670,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		}
 		return ids, nil
 	})
-	groupRepo.(*education.GroupRepository).BindTeachingAssignments(func(ctx context.Context, groupIDs, teacherIDs []int64) ([]education.TeacherGroupID, error) {
+	groupRepo.BindTeachingAssignments(func(ctx context.Context, groupIDs, teacherIDs []int64) ([]education.TeacherGroupID, error) {
 		assignments, err := factory.schoolMembership.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{GroupIDs: groupIDs, TeacherIDs: teacherIDs})
 		if err != nil {
 			return nil, err
@@ -711,7 +709,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	if err != nil {
 		panic(fmt.Sprintf("repository factory: compose school membership: %v", err))
 	}
-	factory.membershipDeps.groupTeachers = func() educationModels.GroupTeacherRepository { return factory.GroupTeacher }
+	factory.membershipDeps.groupTeachers = func() GroupTeacherRepository { return factory.GroupTeacher }
 	factory.bindStaffMembershipAdapters(membership)
 	// Calendar periods, closing days and dateframes belong to School
 	// Calendar; the unobserved default keeps every legacy consumer on the

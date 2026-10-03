@@ -12,18 +12,12 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Compile-time assertions for base.Entity interface compliance
 var (
 	// activities package
-
-	// education package
-	_ base.Entity = (*education.Group)(nil)
-	_ base.Entity = (*education.GroupSubstitution)(nil)
-	_ base.Entity = (*education.GroupTeacher)(nil)
 
 	// schedule package
 

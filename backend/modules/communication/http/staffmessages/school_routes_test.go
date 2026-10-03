@@ -176,5 +176,5 @@ func TestSchoolStaffMessagesDisabledSchool(t *testing.T) {
 	// Same stable code as the tenant portal, so the school page can render the
 	// off-state instead of a technical error.
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), staffmessaging.ErrCodeStaffMessagingDisabled)
+	assert.Contains(t, rec.Body.String(), "communication.staff_messaging_disabled")
 }

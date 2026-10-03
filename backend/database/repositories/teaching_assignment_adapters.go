@@ -12,9 +12,9 @@ import (
 
 type classTeacherRepository struct{ membership schoolmembership.Capability }
 
-var _ educationModels.ClassTeacherRepository = (*classTeacherRepository)(nil)
+var _ ClassTeacherRepository = (*classTeacherRepository)(nil)
 
-func newClassTeacherRepository(membership schoolmembership.Capability) educationModels.ClassTeacherRepository {
+func newClassTeacherRepository(membership schoolmembership.Capability) ClassTeacherRepository {
 	return &classTeacherRepository{membership: membership}
 }
 
@@ -96,12 +96,12 @@ func (r *classTeacherRepository) FindByStaff(ctx context.Context, staffID int64)
 
 type groupTeacherRepository struct {
 	membership schoolmembership.Capability
-	groups     educationModels.GroupRepository
+	groups     EducationGroupRepository
 }
 
-var _ educationModels.GroupTeacherRepository = (*groupTeacherRepository)(nil)
+var _ GroupTeacherRepository = (*groupTeacherRepository)(nil)
 
-func newGroupTeacherRepository(membership schoolmembership.Capability, groups educationModels.GroupRepository) educationModels.GroupTeacherRepository {
+func newGroupTeacherRepository(membership schoolmembership.Capability, groups EducationGroupRepository) GroupTeacherRepository {
 	return &groupTeacherRepository{membership: membership, groups: groups}
 }
 

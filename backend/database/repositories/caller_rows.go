@@ -19,7 +19,7 @@ import (
 // they reach" answer comes from the caller context.
 type CallerRows struct {
 	caller     identityaccess.CallerContext
-	groups     educationModels.GroupRepository
+	groups     EducationGroupRepository
 	staff      userModels.StaffRepository
 	teachers   userModels.TeacherRepository
 	students   userModels.StudentRepository
@@ -37,7 +37,7 @@ type CallerSessions interface {
 // CallerRowSources names the retained repositories the rows load from. A
 // nil Logger logs through slog.Default.
 type CallerRowSources struct {
-	Groups     educationModels.GroupRepository
+	Groups     EducationGroupRepository
 	Staff      userModels.StaffRepository
 	Teachers   userModels.TeacherRepository
 	Students   userModels.StudentRepository

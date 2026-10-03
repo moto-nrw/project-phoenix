@@ -1,5 +1,6 @@
 "use client";
 
+import { wireErrorCode } from "~/lib/api-error";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowRightLeft, Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
@@ -89,10 +90,9 @@ async function removeActivitySupervisor(
     try {
       const payload = (await response.json()) as {
         error?: string;
-        message?: string;
         code?: string;
       };
-      errorMessage = payload.message ?? payload.error ?? errorMessage;
+      errorMessage = payload.error ?? errorMessage;
       errorCode = payload.code;
     } catch {
       // Fall back to the generic status-based message when the proxy did not
@@ -387,7 +387,8 @@ export function CaregiverBlockerResolutionPanel({
         errorCode,
       });
       setErrorMessage(
-        errorCode === "ONLY_SUPERVISOR_REPLACEMENT_REQUIRED"
+        wireErrorCode(errorCode) ===
+          "timetable.only_supervisor_replacement_required"
           ? `"${item.activityName}": Einzige Leitung — bitte Ersatzkraft auswählen.`
           : error instanceof Error
             ? error.message

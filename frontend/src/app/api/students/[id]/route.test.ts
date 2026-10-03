@@ -261,7 +261,7 @@ describe("PUT /api/students/[id]", () => {
   });
 
   // The student PUT carries the companion fingerprint (#1694): once it commits,
-  // resending it is refused as `companions_changed`. So a failing consent write
+  // resending it is refused as `students.companions_changed`. So a failing consent write
   // must happen while the student is still untouched — otherwise the client
   // reports a failure for links that are already stored and its retry conflicts.
   it("rejects retired contact input before saving privacy consent", async () => {
@@ -312,7 +312,7 @@ describe("PUT /api/students/[id]", () => {
       new Error(
         `API error (409): ${JSON.stringify({
           error: "Die Laufgemeinschaft wurde zwischenzeitlich geändert.",
-          code: "companions_changed",
+          code: "students.companions_changed",
           conflicts: [{ companion_student_id: "7" }],
         })}`,
       ),
@@ -340,7 +340,7 @@ describe("PUT /api/students/[id]", () => {
     };
     expect(payload.details?.privacy_consent_saved).toBe(true);
     // Everything the browser branches on has to survive the re-shaping.
-    expect(payload.code).toBe("companions_changed");
+    expect(payload.code).toBe("students.companions_changed");
     expect(payload.conflicts).toHaveLength(1);
     expect(json.error).toContain("API error (409)");
   });

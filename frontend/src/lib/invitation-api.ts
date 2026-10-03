@@ -1,4 +1,5 @@
 import type { ApiError } from "~/lib/auth-api";
+import { wireErrorCode } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "InvitationAPI" });
@@ -61,7 +62,7 @@ const createApiError = async (
 
   const apiError = new Error(message) as ApiError;
   apiError.status = response.status;
-  apiError.code = code;
+  apiError.code = wireErrorCode(code);
   const retry = parseRetryAfter(response.headers.get("Retry-After"));
   if (retry !== undefined) {
     apiError.retryAfterSeconds = retry;

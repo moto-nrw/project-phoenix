@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,18 +24,18 @@ func TestWithdrawalDeletionErrorRendererUsesStableCodes(t *testing.T) {
 		status int
 		code   string
 	}{
-		{"stale preview", studentdeletion.ErrPreviewChanged, http.StatusConflict, errCodeStudentDeletionPreviewChanged},
-		{"confirmation mismatch", studentdeletion.ErrConfirmationMismatch, http.StatusBadRequest, errCodeStudentDeletionConfirmationMismatch},
-		{"acknowledgement missing", studentdeletion.ErrNotAcknowledged, http.StatusBadRequest, errCodeStudentDeletionAcknowledgement},
-		{"invalid reason", studentdeletion.ErrInvalidReason, http.StatusBadRequest, errCodeStudentDeletionInvalidReason},
-		{"alumnus", studentdeletion.ErrAlumnus, http.StatusConflict, errCodeStudentDeletionAlumnus},
-		{"retention not ended", studentdeletion.ErrRetentionNotEnded, http.StatusBadRequest, errCodeStudentDeletionRetentionNotEnded},
-		{"companion blocker", studentdeletion.ErrCompanionWouldLoseDeparture, http.StatusConflict, errCodeStudentDeletionCompanionBlocked},
-		{"companion lock", studentdeletion.ErrCompanionLockBusy, http.StatusConflict, errCodeStudentDeletionCompanionLockBusy},
-		{"completion missing", careplan.ErrCareWithdrawalNotFound, http.StatusNotFound, errCodeCareWithdrawalNotFound},
-		{"completion missing under lock", studentdeletion.ErrWithdrawalNotFound, http.StatusNotFound, errCodeCareWithdrawalNotFound},
-		{"completion resolved", careplan.ErrCareWithdrawalAlreadyResolved, http.StatusConflict, errCodeCareWithdrawalAlreadyResolved},
-		{"completion resolved under lock", studentdeletion.ErrWithdrawalAlreadyResolved, http.StatusConflict, errCodeCareWithdrawalAlreadyResolved},
+		{"stale preview", studentdeletion.ErrPreviewChanged, http.StatusConflict, common.CodeStudentsDeletionPreviewChanged},
+		{"confirmation mismatch", studentdeletion.ErrConfirmationMismatch, http.StatusBadRequest, common.CodeStudentsDeletionConfirmationMismatch},
+		{"acknowledgement missing", studentdeletion.ErrNotAcknowledged, http.StatusBadRequest, common.CodeStudentsDeletionAcknowledgementRequired},
+		{"invalid reason", studentdeletion.ErrInvalidReason, http.StatusBadRequest, common.CodeStudentsDeletionInvalidReason},
+		{"alumnus", studentdeletion.ErrAlumnus, http.StatusConflict, common.CodeStudentsDeletionAlumnus},
+		{"retention not ended", studentdeletion.ErrRetentionNotEnded, http.StatusBadRequest, common.CodeStudentsDeletionRetentionNotEnded},
+		{"companion blocker", studentdeletion.ErrCompanionWouldLoseDeparture, http.StatusConflict, common.CodeStudentsDeletionCompanionBlocked},
+		{"companion lock", studentdeletion.ErrCompanionLockBusy, http.StatusConflict, common.CodeStudentsDeletionCompanionLockBusy},
+		{"completion missing", careplan.ErrCareWithdrawalNotFound, http.StatusNotFound, common.CodeStudentsCareWithdrawalNotFound},
+		{"completion missing under lock", studentdeletion.ErrWithdrawalNotFound, http.StatusNotFound, common.CodeStudentsCareWithdrawalNotFound},
+		{"completion resolved", careplan.ErrCareWithdrawalAlreadyResolved, http.StatusConflict, common.CodeStudentsCareWithdrawalAlreadyResolved},
+		{"completion resolved under lock", studentdeletion.ErrWithdrawalAlreadyResolved, http.StatusConflict, common.CodeStudentsCareWithdrawalAlreadyResolved},
 	}
 
 	for _, tt := range tests {

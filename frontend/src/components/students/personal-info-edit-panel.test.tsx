@@ -370,7 +370,7 @@ describe("PersonalInfoEditPanel", () => {
             status: "error",
             error:
               "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
-            code: "companion_would_lose_departure",
+            code: "students.companion_would_lose_departure",
           }),
         ),
       );

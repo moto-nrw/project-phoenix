@@ -1,3 +1,4 @@
+import type { ErrorCode } from "~/lib/error-codes.generated";
 import { ApiError, apiErrorFromBody, enrichApiError } from "./api-error";
 // grade-transition-api.ts
 // Client for the Jahrgangsstufenwechsel (grade transition) admin flow (#405).
@@ -326,7 +327,8 @@ function toBackendMappings(mappings: MappingInput[]) {
  * graduating children are still checked in. Mirrors the code the Go handler
  * sets via ErrorConflictWithCode (#405).
  */
-export const GRADUATES_CHECKED_IN_CODE = "graduates_checked_in";
+export const GRADUATES_CHECKED_IN_CODE: ErrorCode =
+  "grade_transition.graduates_checked_in";
 
 /**
  * Stable backend error code returned (409) when a revert is refused because the
@@ -335,7 +337,8 @@ export const GRADUATES_CHECKED_IN_CODE = "graduates_checked_in";
  * the caller must reload the list and revert the new latest first. Mirrors the
  * code the Go handler sets via ErrorConflictWithCode (#405).
  */
-export const NOT_LATEST_TRANSITION_CODE = "not_latest_transition";
+export const NOT_LATEST_TRANSITION_CODE: ErrorCode =
+  "grade_transition.not_latest_transition";
 
 /**
  * Stable backend error code returned (409) when an apply is refused because the
@@ -343,7 +346,7 @@ export const NOT_LATEST_TRANSITION_CODE = "not_latest_transition";
  * edited the mappings or moved a child between classes. The UI must reload the
  * preview and ask for a fresh confirmation instead of retrying blindly (#405).
  */
-export const PREVIEW_STALE_CODE = "preview_stale";
+export const PREVIEW_STALE_CODE: ErrorCode = "grade_transition.preview_stale";
 
 /**
  * Stable backend error code returned (409) when an update or delete targets a
@@ -351,7 +354,7 @@ export const PREVIEW_STALE_CODE = "preview_stale";
  * this page loaded. Retrying is pointless; the caller must reload the list.
  * Mirrors the code the Go handler sets via ErrorConflictWithCode (#405).
  */
-export const NOT_DRAFT_CODE = "not_draft";
+export const NOT_DRAFT_CODE: ErrorCode = "grade_transition.not_draft";
 
 /**
  * Stable backend error code returned (409) when a revert targets a transition
@@ -360,7 +363,7 @@ export const NOT_DRAFT_CODE = "not_draft";
  * pointless; the caller must reload the list. Mirrors the code the Go handler
  * sets via ErrorConflictWithCode (#405 review).
  */
-export const NOT_APPLIED_CODE = "not_applied";
+export const NOT_APPLIED_CODE: ErrorCode = "grade_transition.not_applied";
 
 /**
  * Error thrown by {@link applyGradeTransition} and {@link revertGradeTransition}

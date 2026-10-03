@@ -1,5 +1,6 @@
 "use client";
 
+import { wireErrorCode } from "~/lib/api-error";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CalendarClock,
@@ -1480,7 +1481,7 @@ export function ChildOfferingAdjustment({
       await saveAdjustment(input, false);
     } catch (err) {
       if (
-        (err as { code?: string } | undefined)?.code ===
+        wireErrorCode((err as { code?: unknown } | undefined)?.code) ===
         "enrollment.complete_withdrawal_confirmation_required"
       ) {
         setPendingWithdrawalInput(input);

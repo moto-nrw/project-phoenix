@@ -104,8 +104,9 @@ func renderFailure(w http.ResponseWriter, r *http.Request, kind roomsHTTP.Failur
 }
 
 func renderConflict(w http.ResponseWriter, r *http.Request, err error, code string) {
+	// code is the module's metric label; only this conflict names itself on the wire.
 	if code == "color_already_in_use" {
-		apiCommon.RenderError(w, r, apiCommon.ErrorConflictWithCode(err, code))
+		apiCommon.RenderError(w, r, apiCommon.ErrorConflictWithCode(err, apiCommon.CodeRoomsColorAlreadyInUse))
 		return
 	}
 	apiCommon.RenderError(w, r, apiCommon.ErrorConflict(err))

@@ -14,8 +14,8 @@ interface BackendEnvelope<T> {
  * Proxy POST /api/students/excused-absence-requests/{requestId}/decide →
  * backend. Approves (marks the child excused for the requested days) or rejects
  * (reason required) one parent "entschuldigt" absence request. A 409 with code
- * `change_request_not_pending` means the request was already decided/withdrawn;
- * `guardian_access_revoked` means the submitting guardian lost access to the
+ * `students.change_request_not_pending` means the request was already decided/withdrawn;
+ * `students.guardian_access_revoked` means the submitting guardian lost access to the
  * child before approval (staff should reject it instead).
  */
 export const POST = createPostHandler<unknown, DecideBody>(

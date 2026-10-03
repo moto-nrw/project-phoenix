@@ -294,11 +294,11 @@ describe("EmailConfirmContent", () => {
     });
   });
 
-  it("falls back to message field for 5xx errors", async () => {
+  it("shows the backend error of a 502", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 502,
-      json: async () => ({ message: "Bad Gateway" }),
+      json: async () => ({ status: "error", error: "Bad Gateway" }),
     });
 
     setQueryToken("test-token");

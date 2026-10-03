@@ -5662,7 +5662,7 @@ describe("TimetableEventModal", () => {
       mockGetTemplate.mockRejectedValue(
         Object.assign(new Error("template not found"), {
           httpStatus: 404,
-          code: "template_not_found",
+          code: "timetable.template_not_found",
         }),
       );
       const { onClose } = renderModal({ initialInstance: chainInstance });

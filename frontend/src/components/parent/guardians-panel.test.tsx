@@ -342,7 +342,7 @@ describe("GuardiansPanel", () => {
       new ParentApiError(
         "parent: guardian with own portal account cannot be edited by another parent",
         403,
-        "guardian_has_own_account",
+        "care.guardian_has_own_account",
       ),
     );
 

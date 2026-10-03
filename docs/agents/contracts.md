@@ -11,8 +11,10 @@ React). The Phoenix backend runs on the server, never on the Pi. PRs target
 `development`.
 
 PyrePortal consumes `/api/iot/*` using a device API key and staff PIN.
-`../PyrePortal/src/services/apiErrors.ts` maps backend error strings and
-staff-clock error codes to German UI text. Coordinate endpoint, error-string,
+`../PyrePortal/src/services/apiErrors.ts` maps registry error codes (its
+`errorCodes.generated.ts` comes from `error-registry.json` via
+`pnpm run sync:error-codes`) and, until #2508, backend error strings to German
+UI text. Coordinate endpoint, error-string,
 and auth-header changes across repos. Changing a mapped string or code is a
 two-repo change: `backend/api/testdata/iot_error_strings.golden`
 (`TestFullProductionRouterGolden`) and `TestPyrePortalErrorStringsGuard`
@@ -80,11 +82,11 @@ second scan or supervision in the destination. It never joins an activity
 that runs in that room. A repeated booking answers `moved: false`.
 
 Refusals carry stable codes PyrePortal maps:
-- `room_not_found` (404, also a foreign tenant's room)
-- `room_not_released` (409)
-- `student_not_present` (409)
-- `open_room_binary_mode` (409)
-- the check-in capacity and `STUDENT_ALREADY_ACTIVE` bodies
+- `iot.room_not_found` (404, also a foreign tenant's room)
+- `rooms.not_released` (409)
+- `iot.student_not_present` (409)
+- `iot.open_room_binary_mode` (409)
+- the check-in capacity and `iot.student_already_active` bodies
 
 `backend/api/iot/pyreportal_error_strings_test.go` pins the codes. Deploy the
 backend first. A kiosk that finds neither flag nor route (404) keeps the old
@@ -128,7 +130,7 @@ Backend paths in this section are relative to `backend/`:
 
 - Tenant login rejects guardian-only accounts with `ErrParentMustUseParentPortal`
   (403) and school-portal-only accounts with `ErrMustUseSchoolPortal` (403,
-  `use_school_portal`). Dual-role accounts remain eligible. The school-only
+  `identity.use_school_portal`). Dual-role accounts remain eligible. The school-only
   guard applies at all four tenant-session mint/renew sites, including refresh.
 - Parents login requires a guardian role on at least one tenant mapping
   (`ErrAccountNoGuardianRole`, 403). `ParentMiddleware` accepts only `scope=parent`.

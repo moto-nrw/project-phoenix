@@ -23,6 +23,16 @@ func TestListInstancesQueryBudget(t *testing.T) {
 
 	from, fromDate := listFutureDate(1)
 	to, _ := listFutureDate(7)
+	educationGroup := testpkg.CreateTestEducationGroup(t, s.db, "Budget-Gruppe")
+	template := testpkg.CreateTestActivityGroup(t, s.db, "Budget-Vorlage")
+	_, err := s.db.NewUpdate().
+		TableExpr("activities.groups").
+		Set("is_template = TRUE").
+		Set("education_group_id = ?", educationGroup.ID).
+		Where("id = ?", template.ID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Exec(s.ctx)
+	require.NoError(t, err)
 
 	// Pickup cutoffs are read once per distinct date (bounded by the range
 	// cap), so both runs spread their instances over the same three days and
@@ -30,8 +40,12 @@ func TestListInstancesQueryBudget(t *testing.T) {
 	created := 0
 	addInstances := func(n int) {
 		for range n {
+			startHour := 13 + created/3
 			inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate.AddDays(created%3), s.roomID, testpkg.ActivityInstanceOpts{
-				StartHHMM: "13:00", EndHHMM: "14:00", Title: fmt.Sprintf("Budget-Block-%d", created),
+				ActivityGroupID: &template.ID,
+				StartHHMM:       fmt.Sprintf("%02d:00", startHour),
+				EndHHMM:         fmt.Sprintf("%02d:00", startHour+1),
+				Title:           fmt.Sprintf("Budget-Block-%d", created),
 			})
 			staff := testpkg.CreateTestStaff(t, s.db, "InstancesBudget", fmt.Sprintf("Staff%d", created))
 			student := testpkg.CreateTestStudent(t, s.db, "InstancesBudget", fmt.Sprintf("Kind%d", created), "1a")

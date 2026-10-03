@@ -619,7 +619,7 @@ func TestProvisioningErrorRenderer_NotFoundAndFallbacks(t *testing.T) {
 
 	for _, tc := range cases {
 		renderer := ProvisioningErrorRenderer(tc.err)
-		resp, ok := renderer.(*common.OperatorErrResponse)
+		resp, ok := renderer.(*common.ErrResponse)
 		require.True(t, ok)
 		assert.Equal(t, tc.statusCode, resp.HTTPStatusCode)
 	}
@@ -754,7 +754,7 @@ func TestProvisioningResource_UpdateOrganization_ProvisioningConflict(t *testing
 
 	resource.UpdateOrganization(rr, req)
 	assert.Equal(t, http.StatusConflict, rr.Code)
-	assert.Equal(t, "slug taken", decodeBody(t, rr)["message"])
+	assert.Equal(t, "slug taken", decodeBody(t, rr)["error"])
 }
 
 func TestProvisioningResource_UpdateSchool(t *testing.T) {
@@ -938,7 +938,7 @@ func TestProvisioningResource_UpdateSchool_ProvisioningConflict(t *testing.T) {
 
 	resource.UpdateSchool(rr, req)
 	assert.Equal(t, http.StatusConflict, rr.Code)
-	assert.Equal(t, "subdomain taken", decodeBody(t, rr)["message"])
+	assert.Equal(t, "subdomain taken", decodeBody(t, rr)["error"])
 }
 
 // --- Bind method tests ---
@@ -1504,7 +1504,7 @@ func TestProvisioningResource_CreateDevice_ProvisioningConflict(t *testing.T) {
 	resource.CreateDevice(rr, req)
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
-	assert.Equal(t, "api_key already exists", decodeBody(t, rr)["message"])
+	assert.Equal(t, "api_key already exists", decodeBody(t, rr)["error"])
 }
 
 func TestProvisioningResource_SetDeviceAPIKey(t *testing.T) {
@@ -1882,7 +1882,7 @@ func TestProvisioningErrorRenderer_SchoolInactive(t *testing.T) {
 	t.Parallel()
 
 	renderer := ProvisioningErrorRenderer(&organizationtenancy.SchoolInactiveError{SchoolID: 1})
-	resp, ok := renderer.(*common.OperatorErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusForbidden, resp.HTTPStatusCode)
 	assert.Contains(t, resp.ErrorText, "inactive")
@@ -1892,7 +1892,7 @@ func TestProvisioningErrorRenderer_DeviceNotFound(t *testing.T) {
 	t.Parallel()
 
 	renderer := ProvisioningErrorRenderer(&organizationtenancy.OperatorDeviceNotFoundError{DeviceID: 42})
-	resp, ok := renderer.(*common.OperatorErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusNotFound, resp.HTTPStatusCode)
 }
@@ -1901,7 +1901,7 @@ func TestProvisioningErrorRenderer_AuthEmailAlreadyExists(t *testing.T) {
 	t.Parallel()
 
 	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{Op: "create", Err: organizationtenancy.ErrAccountEmailExists})
-	resp, ok := renderer.(*common.OperatorErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 }
@@ -1910,7 +1910,7 @@ func TestProvisioningErrorRenderer_AuthUsernameAlreadyExists(t *testing.T) {
 	t.Parallel()
 
 	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{Op: "create", Err: organizationtenancy.ErrAccountUsernameExists})
-	resp, ok := renderer.(*common.OperatorErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 }
@@ -1919,7 +1919,7 @@ func TestProvisioningErrorRenderer_AuthPasswordMismatch(t *testing.T) {
 	t.Parallel()
 
 	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{Op: "create", Err: organizationtenancy.ErrPasswordMismatch})
-	resp, ok := renderer.(*common.OperatorErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
 }
@@ -1928,7 +1928,7 @@ func TestProvisioningErrorRenderer_AuthPasswordTooWeak(t *testing.T) {
 	t.Parallel()
 
 	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{Op: "create", Err: organizationtenancy.ErrPasswordTooWeak})
-	resp, ok := renderer.(*common.OperatorErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
 }
@@ -1937,7 +1937,7 @@ func TestProvisioningErrorRenderer_AuthInvitationNameRequired(t *testing.T) {
 	t.Parallel()
 
 	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{Op: "create invitation", Err: organizationtenancy.ErrInvitationNameRequired})
-	resp, ok := renderer.(*common.OperatorErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
 }
@@ -1946,7 +1946,7 @@ func TestProvisioningErrorRenderer_AuthGenericInvitationError(t *testing.T) {
 	t.Parallel()
 
 	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{Op: "create invitation", Err: errors.New("some validation error")})
-	resp, ok := renderer.(*common.OperatorErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
 }
@@ -1955,7 +1955,7 @@ func TestProvisioningErrorRenderer_AuthDefaultError(t *testing.T) {
 	t.Parallel()
 
 	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{Op: "some op", Err: errors.New("db error")})
-	resp, ok := renderer.(*common.OperatorErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusInternalServerError, resp.HTTPStatusCode)
 }
@@ -2114,7 +2114,7 @@ func TestProvisioningErrorRenderer_PersonNotFound(t *testing.T) {
 	t.Parallel()
 
 	renderer := ProvisioningErrorRenderer(&organizationtenancy.PersonNotFoundError{PersonID: 42})
-	resp, ok := renderer.(*common.OperatorErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusNotFound, resp.HTTPStatusCode)
 	assert.Equal(t, "Person not found", resp.ErrorText)
@@ -2124,7 +2124,7 @@ func TestProvisioningErrorRenderer_PersonActiveSupervisors(t *testing.T) {
 	t.Parallel()
 
 	renderer := ProvisioningErrorRenderer(&organizationtenancy.PersonHasActiveSupervisionsError{PersonID: 42, Count: 3})
-	resp, ok := renderer.(*common.OperatorErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 	assert.Equal(t, "Person has active supervisions and cannot be deleted", resp.ErrorText)
@@ -2309,7 +2309,7 @@ func TestProvisioningErrorRenderer_SchoolAlreadyDeleted(t *testing.T) {
 	t.Parallel()
 
 	renderer := ProvisioningErrorRenderer(&organizationtenancy.SchoolAlreadyDeletedError{SchoolID: 55})
-	resp, ok := renderer.(*common.OperatorErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 	assert.Contains(t, resp.ErrorText, "already deleted")
@@ -2319,7 +2319,7 @@ func TestProvisioningErrorRenderer_SchoolNotDeleted(t *testing.T) {
 	t.Parallel()
 
 	renderer := ProvisioningErrorRenderer(&organizationtenancy.SchoolNotDeletedError{SchoolID: 55})
-	resp, ok := renderer.(*common.OperatorErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 	assert.Contains(t, resp.ErrorText, "not deleted")
@@ -2476,7 +2476,7 @@ func TestProvisioningErrorRenderer_OrganizationAlreadyDeleted(t *testing.T) {
 	t.Parallel()
 
 	renderer := ProvisioningErrorRenderer(&organizationtenancy.OrganizationAlreadyDeletedError{OrganizationID: 10})
-	resp, ok := renderer.(*common.OperatorErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 	assert.Contains(t, resp.ErrorText, "already deleted")
@@ -2486,7 +2486,7 @@ func TestProvisioningErrorRenderer_OrganizationNotDeleted(t *testing.T) {
 	t.Parallel()
 
 	renderer := ProvisioningErrorRenderer(&organizationtenancy.OrganizationNotDeletedError{OrganizationID: 10})
-	resp, ok := renderer.(*common.OperatorErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 	assert.Contains(t, resp.ErrorText, "not deleted")
@@ -2496,7 +2496,7 @@ func TestProvisioningErrorRenderer_OrganizationHasSchools(t *testing.T) {
 	t.Parallel()
 
 	renderer := ProvisioningErrorRenderer(&organizationtenancy.OrganizationHasSchoolsError{SchoolCount: 3})
-	resp, ok := renderer.(*common.OperatorErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 	assert.Contains(t, resp.ErrorText, "3 existing school(s)")
@@ -2506,7 +2506,7 @@ func TestProvisioningErrorRenderer_OrganizationDeleted(t *testing.T) {
 	t.Parallel()
 
 	renderer := ProvisioningErrorRenderer(&organizationtenancy.OrganizationDeletedError{OrganizationID: 10})
-	resp, ok := renderer.(*common.OperatorErrResponse)
+	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 	assert.Contains(t, resp.ErrorText, "deleted")
@@ -2550,7 +2550,7 @@ func TestCaregiverCapabilityProvisioningErrorRenderer(t *testing.T) {
 			error: errors.New("account 77 is not assigned to tenant 4"),
 		})
 
-		resp, ok := renderer.(*common.OperatorErrResponse)
+		resp, ok := renderer.(*common.ErrResponse)
 		require.True(t, ok)
 		assert.Equal(t, http.StatusNotFound, resp.HTTPStatusCode)
 		assert.Equal(t, "Account not found", resp.ErrorText)
@@ -2561,7 +2561,7 @@ func TestCaregiverCapabilityProvisioningErrorRenderer(t *testing.T) {
 			Err: errors.New("invalid caregiver input"),
 		})
 
-		resp, ok := renderer.(*common.OperatorErrResponse)
+		resp, ok := renderer.(*common.ErrResponse)
 		require.True(t, ok)
 		assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
 		assert.Equal(t, "invalid caregiver input", resp.ErrorText)
@@ -2572,7 +2572,7 @@ func TestCaregiverCapabilityProvisioningErrorRenderer(t *testing.T) {
 			Err: errors.New("invalid caregiver input"),
 		})
 
-		resp, ok := renderer.(*common.OperatorErrResponse)
+		resp, ok := renderer.(*common.ErrResponse)
 		require.True(t, ok)
 		assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
 		assert.Equal(t, "invalid caregiver input", resp.ErrorText)
@@ -2585,7 +2585,7 @@ func TestCaregiverCapabilityProvisioningErrorRenderer(t *testing.T) {
 			invalid: invalid,
 		})
 
-		resp, ok := renderer.(*common.OperatorErrResponse)
+		resp, ok := renderer.(*common.ErrResponse)
 		require.True(t, ok)
 		assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
 		assert.Equal(t, "first_name is required", resp.ErrorText)
@@ -2598,7 +2598,7 @@ func TestCaregiverCapabilityProvisioningErrorRenderer(t *testing.T) {
 			cause: cause,
 		})
 
-		resp, ok := renderer.(*common.OperatorErrResponse)
+		resp, ok := renderer.(*common.ErrResponse)
 		require.True(t, ok)
 		assert.Equal(t, http.StatusInternalServerError, resp.HTTPStatusCode)
 		assert.Equal(t, "An error occurred", resp.ErrorText)
@@ -2788,7 +2788,7 @@ func TestProvisioningResource_EnableSchoolAccountCaregiverCapability_EmptyBody(t
 	var responseBody map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &responseBody))
 	assert.Equal(t, "error", responseBody["status"])
-	assert.Equal(t, "EOF", responseBody["message"])
+	assert.Equal(t, "EOF", responseBody["error"])
 }
 
 func TestProvisioningResource_DisableSchoolAccountCaregiverCapability(t *testing.T) {

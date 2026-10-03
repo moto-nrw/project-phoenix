@@ -23,9 +23,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-const errCodeApprovalCareOfferingMissing = "enrollment.approval_care_offering_missing"
-const errCodeApprovalCareOfferingExactlyOne = "enrollment.approval_care_offering_exactly_one"
-
 // AdminRequestSummary is the wire shape for admin list-style responses.
 // Carries the request + per-child overview + the phase name so the
 // list can render without a second fetch. It must not carry status_token:
@@ -576,15 +573,15 @@ func renderRestoreError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, capability.ErrRestoreNothingWithdrawn):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, capability.ErrRestorePhaseInactive):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.restore_phase_inactive"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentRestorePhaseInactive))
 	case errors.Is(err, capability.ErrRestoreDuplicateActive):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.restore_duplicate"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentRestoreDuplicate))
 	case errors.Is(err, capability.ErrCareOfferingFull):
 		// Reject-mode phase: the capacity gate refuses the restore because
 		// an offering is meanwhile full. Same code the submit path uses.
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeEnrollmentCareOfferingFull))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentCareOfferingFull))
 	case errors.Is(err, capability.ErrCareOfferingClosed):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.restore_offering_closed"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentRestoreOfferingClosed))
 	case common.IsTransientDatabaseError(err):
 		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
 	default:
@@ -638,16 +635,16 @@ var decideErrorRules = []common.ErrorRule{
 	{Target: capability.ErrDecisionAlreadyTerminal, Render: common.ErrorInvalidRequest},
 	{Target: capability.ErrDecisionInvalidData, Render: common.ErrorInvalidRequest},
 	{Target: capability.ErrWaitlistDisabled, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, "enrollment.waitlist_disabled")
+		return common.ErrorConflictWithCode(err, common.CodeEnrollmentWaitlistDisabled)
 	}},
 	{Target: capability.ErrCareOfferingMissing, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, errCodeApprovalCareOfferingMissing)
+		return common.ErrorConflictWithCode(err, common.CodeEnrollmentApprovalCareOfferingMissing)
 	}},
 	{Target: capability.ErrCareOfferingExactlyOneRequired, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, errCodeApprovalCareOfferingExactlyOne)
+		return common.ErrorConflictWithCode(err, common.CodeEnrollmentApprovalCareOfferingExactlyOne)
 	}},
 	{Target: capability.ErrGuardianAccountMismatch, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, "enrollment.guardian_account_mismatch")
+		return common.ErrorConflictWithCode(err, common.CodeEnrollmentGuardianAccountMismatch)
 	}},
 	{Match: common.IsTransientDatabaseError, Render: common.ErrorServiceUnavailable},
 }
@@ -702,10 +699,10 @@ var updateAdminOfferingsErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: capability.ErrCareOfferingMissing, Render: common.ErrorInvalidRequest},
 	{Target: capability.ErrCareOfferingExactlyOneRequired, Render: common.ErrorInvalidRequest},
 	{Target: capability.ErrCareOfferingsDisabled, Render: func(err error) render.Renderer {
-		return common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingsDisabled)
+		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingsDisabled)
 	}},
 	{Target: capability.ErrCompleteWithdrawalConfirmationRequired, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, "enrollment.complete_withdrawal_confirmation_required")
+		return common.ErrorConflictWithCode(err, common.CodeEnrollmentCompleteWithdrawalConfirmationRequired)
 	}},
 }, common.ErrorInternalServer)
 

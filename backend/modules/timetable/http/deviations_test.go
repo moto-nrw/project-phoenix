@@ -296,7 +296,7 @@ func TestApplyDeviations_OverstaffConflict_NoPartialWrites(t *testing.T) {
 		"substitutions": []map[string]any{{"absent_staff_id": s.staffA, "substitute_staff_id": s.staffY}},
 	})
 	require.Equal(t, http.StatusConflict, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, w.Body.String(), "substitute_conflict")
+	assert.Contains(t, w.Body.String(), "timetable.substitute_conflict")
 
 	rowBAfter := readInstanceStaff(t, s.db, s.ctx, rowB.ID)
 	assert.False(t, rowBAfter.IsAbsent, "B's absence must NOT be committed after the 409")
@@ -343,7 +343,7 @@ func TestApplyDeviations_AckWhileStaffed_Rejected(t *testing.T) {
 
 	w := doDev(t, router, inst.ID, map[string]any{"understaffed_ack": true})
 	require.Equal(t, http.StatusConflict, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, w.Body.String(), "understaffed_still_staffed")
+	assert.Contains(t, w.Body.String(), "timetable.understaffed_still_staffed")
 	assert.False(t, readInstance(t, s.db, s.ctx, inst.ID).UnderstaffedAck,
 		"a rejected acknowledgement must not be written")
 }
@@ -539,7 +539,7 @@ func TestApplyDeviations_RestorePlannedStaffOverActiveSubstitute_NoPartialWrites
 		"absences":  []map[string]any{{"staff_id": s.staffB, "instance_ids": []int64{other.ID}}},
 	})
 	require.Equal(t, http.StatusConflict, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, w.Body.String(), "presence_would_overstaff")
+	assert.Contains(t, w.Body.String(), "timetable.presence_would_overstaff")
 
 	assert.True(t, readInstanceStaff(t, s.db, s.ctx, plannedRow.ID).IsAbsent, "planned staff must remain absent")
 	assert.False(t, readInstanceStaff(t, s.db, s.ctx, substituteRow.ID).IsAbsent, "active substitute must remain present")

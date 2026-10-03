@@ -140,7 +140,7 @@ export function InvitationForm({
 
       // Handle specific error cases with user-friendly messages
       if (apiError?.status === 409) {
-        if (apiError.code === "ACCOUNT_ALREADY_HAS_TENANT_ACCESS") {
+        if (apiError.code === "identity.account_already_has_tenant_access") {
           setError("Dieser Account hat bereits Zugang zu dieser Einrichtung.");
         } else {
           setError(

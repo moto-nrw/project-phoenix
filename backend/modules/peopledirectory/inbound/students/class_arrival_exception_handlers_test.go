@@ -93,7 +93,7 @@ func TestClassArrivalExceptionsRejectBadInput(t *testing.T) {
 		path := fmt.Sprintf("/class-arrival-exceptions/CAE2/%s", timezone.TodayDate().AddDays(-1).String())
 		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "PUT", path, map[string]any{"arrival_time": "12:45"}), claims, []string{"admin:*"})
 		assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
-		assert.Contains(t, rr.Body.String(), "class_arrival_exception_past_date")
+		assert.Contains(t, rr.Body.String(), "classday.arrival_exception_past_date")
 	})
 
 	t.Run("unknown class", func(t *testing.T) {
@@ -118,7 +118,7 @@ func TestClassArrivalExceptionsRejectBadInput(t *testing.T) {
 		path := fmt.Sprintf("/class-arrival-exceptions/CAE2/%s", date)
 		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "PUT", path, map[string]any{"arrival_time": "12:45"}), claims, []string{"admin:*"})
 		assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
-		assert.Contains(t, rr.Body.String(), "class_arrival_exception_weekend")
+		assert.Contains(t, rr.Body.String(), "classday.arrival_exception_weekend")
 	})
 
 	t.Run("255 multibyte characters", func(t *testing.T) {
@@ -158,7 +158,7 @@ func TestClassArrivalExceptionsEditorsSettingGatesStaff(t *testing.T) {
 
 	rr = authExec(t, tc, testutil.NewAuthenticatedRequest(t, "PUT", path, body), claims, staffPerms)
 	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
-	assert.Contains(t, rr.Body.String(), "class_arrival_exception_editor_required")
+	assert.Contains(t, rr.Body.String(), "classday.arrival_exception_editor_required")
 
 	rr = authExec(t, tc, testutil.NewRequest("DELETE", path, nil), claims, staffPerms)
 	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())

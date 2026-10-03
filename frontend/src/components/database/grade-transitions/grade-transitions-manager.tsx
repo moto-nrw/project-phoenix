@@ -340,7 +340,7 @@ export function GradeTransitionsManager({
         transition_id: deleteTarget.id,
         error: error instanceof Error ? error.message : String(error),
       });
-      // A not_draft conflict means another admin applied this draft since the
+      // A grade_transition.not_draft conflict means another admin applied this draft since the
       // list was fetched. Retrying the delete can never succeed, so reload the
       // list and close the dialog instead of suggesting a retry (#405 review).
       if (

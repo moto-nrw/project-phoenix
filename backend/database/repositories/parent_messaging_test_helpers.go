@@ -1,9 +1,7 @@
 package repositories
 
 import (
-	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -37,8 +35,8 @@ func NewParentMessagingTestRepositories(db *bun.DB) (ParentMessagingTestReposito
 		return ParentMessagingTestRepositories{}, err
 	}
 	deps := newStaffMembershipDeps(NewPersonRepository(db), newIdentityAccess(db, nil), MustNewStaffEmployment(db))
-	groupTeachers := newGroupTeacherRepository(membership, educationRepo.NewGroupRepository(db))
-	deps.groupTeachers = func() educationModels.GroupTeacherRepository { return groupTeachers }
+	groupTeachers := newGroupTeacherRepository(membership, NewEducationGroupRepository(db))
+	deps.groupTeachers = func() GroupTeacherRepository { return groupTeachers }
 	return ParentMessagingTestRepositories{
 		Thread:  parentStore.NewParentMessageThreadRepository(db, NewMessageableGuardianRepository(db)),
 		Message: parentStore.NewParentMessageRepository(db),

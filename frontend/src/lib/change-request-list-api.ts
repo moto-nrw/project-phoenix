@@ -1,3 +1,5 @@
+import { wireErrorCode } from "~/lib/api-error";
+import type { ErrorCode } from "~/lib/error-codes.generated";
 import { createLogger } from "~/lib/logger";
 import type {
   StaffCareRequest,
@@ -271,8 +273,8 @@ async function fetchPage<T>(
       // Nur das Recht „Abwesenheiten" reicht nicht: ohne „Kinder sehen" darf
       // niemand die Liste öffnen. Das muss dastehen, sonst sieht es aus wie
       // ein Fehler der App (#2267).
-      if (body.code === "absence_read_required") {
-        message = WRITE_ERROR_MESSAGES.absence_read_required!;
+      if (wireErrorCode(body.code) === "students.absence_read_required") {
+        message = WRITE_ERROR_MESSAGES["students.absence_read_required"]!;
       } else if (body.error) message = body.error;
     } catch {
       // Nicht-JSON-Fehlerantworten behalten die generische Meldung.
@@ -303,7 +305,7 @@ export function listAggregatedRequestHistory(
 
 /**
  * Die Anfrage wurde geändert, seit die Liste sie geladen hat (409
- * `change_request_stale`). Eigener Fehlertyp, damit die Oberfläche neu laden
+ * `students.change_request_stale`). Eigener Fehlertyp, damit die Oberfläche neu laden
  * kann, statt die Person eine verlorene Entscheidung wiederholen zu lassen
  * (#2267).
  */
@@ -346,33 +348,36 @@ async function throwWriteError(
   } catch {
     // Eine Nicht-JSON-Antwort behält den Rückfalltext.
   }
-  if (body.code === "change_request_stale") throw new ChangeRequestStaleError();
+  const code = wireErrorCode(body.code);
+  if (code === "students.change_request_stale") {
+    throw new ChangeRequestStaleError();
+  }
   logger.warn("change_request_write_failed", {
     status: response.status,
     ...(body.code ? { code: body.code } : {}),
   });
   throw new Error(
-    body.error ?? WRITE_ERROR_MESSAGES[body.code ?? ""] ?? fallback,
+    body.error ?? (code && WRITE_ERROR_MESSAGES[code]) ?? fallback,
   );
 }
 
 /** Verständliche Sätze zu den stabilen Fehlercodes des Backends (#2267). */
-const WRITE_ERROR_MESSAGES: Record<string, string> = {
-  reason_required: "Bitte tragen Sie eine Begründung ein.",
-  request_past:
+const WRITE_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
+  "students.reason_required": "Bitte tragen Sie eine Begründung ein.",
+  "students.request_past":
     "Diese Anfrage betrifft nur vergangene Tage. Sie kann nur noch abgelehnt oder als erledigt markiert werden.",
-  request_not_past:
+  "students.request_not_past":
     "Diese Anfrage betrifft noch kommende Tage. Bitte entscheiden Sie sie.",
-  request_not_decided: "Diese Anfrage ist noch nicht entschieden.",
-  correction_unsupported:
+  "students.request_not_decided": "Diese Anfrage ist noch nicht entschieden.",
+  "students.correction_unsupported":
     "Diese Entscheidung lässt sich nicht zurücknehmen. Bitte tragen Sie den richtigen Stand direkt ein.",
-  absence_read_required:
+  "students.absence_read_required":
     "Sie brauchen zusätzlich das Recht „Kinder sehen“, um Elternanfragen zu entscheiden.",
-  conflict_kind_unsupported:
+  "students.conflict_kind_unsupported":
     "Für diese Art lässt sich kein gemeinsames Ergebnis festlegen. Bitte entscheiden Sie die Anfragen einzeln.",
-  staff_value_unsupported:
+  "students.staff_value_unsupported":
     "Für diese Art können Sie keinen eigenen Wert eintragen. Wählen Sie einen der Wünsche oder „Keine Änderung“.",
-  staff_value_invalid:
+  "students.staff_value_invalid":
     "Der eingetragene Wert passt nicht. Bitte prüfen Sie ihn und tragen Sie ihn erneut ein.",
 };
 
@@ -427,7 +432,7 @@ export function markRequestDone(
  * `kind` ist die Art der WARTESCHLANGE, nicht die des Vorgangs: eine
  * Abholzeit-Änderung wird als `care_schedule` korrigiert, weil sie dort
  * liegt. Das Backend unterscheidet die beiden selbst und antwortet für einen
- * echten Wochenplan mit 409 `correction_unsupported` plus einem deutschen
+ * echten Wochenplan mit 409 `students.correction_unsupported` plus einem deutschen
  * Satz. Der wird unverändert durchgereicht: er sagt genauer, warum es dort
  * nicht geht, als jeder Ersatztext hier.
  */
@@ -522,21 +527,23 @@ export async function bulkApproveParentRequests(
     body: JSON.stringify({ requests, reason }),
   });
   if (!response.ok) {
-    let code: string | undefined;
+    let code: ErrorCode | undefined;
     try {
-      code = ((await response.json()) as { code?: string }).code;
+      code = wireErrorCode(
+        ((await response.json()) as { code?: unknown }).code,
+      );
     } catch {
       // Eine Nicht-JSON-Antwort behält die verständliche Standardmeldung.
     }
-    if (code === "change_request_stale") {
+    if (code === "students.change_request_stale") {
       throw new ChangeRequestStaleError(
         "Mindestens eine Anfrage wurde geändert. Die Liste wird neu geladen.",
       );
     }
     let message = "Die Sammelfreigabe konnte nicht gespeichert werden.";
-    if (code === "reason_required") {
+    if (code === "students.reason_required") {
       message = "Bitte tragen Sie eine Begründung ein.";
-    } else if (code === "bulk_approval_ineligible") {
+    } else if (code === "students.bulk_approval_ineligible") {
       message =
         "Mindestens eine Anfrage muss einzeln geprüft werden. Es wurde nichts freigegeben.";
     } else if (response.status === 403) {

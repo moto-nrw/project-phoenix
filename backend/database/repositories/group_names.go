@@ -2,19 +2,17 @@ package repositories
 
 import (
 	"context"
-
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 )
 
 // GroupNames resolves education group names by id for the enrollment class
 // roster, which prints a child's group next to its name (#3563). A group id
 // without a row is absent from the result.
 type GroupNames struct {
-	groups educationModels.GroupRepository
+	groups EducationGroupRepository
 }
 
 // NewGroupNames binds the lookup to the retained group repository.
-func NewGroupNames(groups educationModels.GroupRepository) GroupNames {
+func NewGroupNames(groups EducationGroupRepository) GroupNames {
 	return GroupNames{groups: groups}
 }
 

@@ -3,8 +3,7 @@ package education_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,13 +14,13 @@ func TestClassTeacherRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ClassTeacher
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).ClassTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates class assignment", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTCreate", "Staff")
 
-		ct := &education.ClassTeacher{
+		ct := &testpkg.EducationClassTeacher{
 			StaffID:     staff.ID,
 			SchoolClass: "1a",
 		}
@@ -37,7 +36,7 @@ func TestClassTeacherRepository_Create(t *testing.T) {
 
 		testpkg.CreateTestClassTeacher(t, db, staff.ID, "1a")
 
-		dupe := &education.ClassTeacher{
+		dupe := &testpkg.EducationClassTeacher{
 			StaffID:     staff.ID,
 			SchoolClass: " 1A ",
 		}
@@ -51,7 +50,7 @@ func TestClassTeacherRepository_FindByStaff(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ClassTeacher
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).ClassTeacher
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "CTFind", "Staff")
@@ -73,8 +72,8 @@ func TestClassTeacherRepository_DeleteByStaffID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	dependencies := repositories.NewUnobservedTimetableDependencies(db)
-	repo := repositories.NewFactory(db, dependencies).ClassTeacher
+	factory, dependencies := testutil.NewSchoolStructureRepositorySuiteGraph(db)
+	repo := factory.ClassTeacher
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "CTDelete", "Offboarded")

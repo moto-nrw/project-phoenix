@@ -1,5 +1,7 @@
 "use client";
 
+import type { ErrorCode } from "~/lib/error-codes.generated";
+import { wireErrorCode } from "~/lib/api-error";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -31,11 +33,11 @@ const logger = createLogger({ component: "OfferingRequestReviewItem" });
 // von selbst: erneut klicken hilft nicht, es braucht ein anderes Datum, eine
 // andere Auswahl oder eine Ablehnung. Alles andere (Netz, Serverfehler) ist ein
 // vorübergehender Fehler und bleibt wiederholbar.
-const CONFLICT_CODES = new Set([
-  "offering_change_capacity_full",
-  "change_request_not_pending",
-  "offering_changes_no_enrollment",
-  "offering_change_date_out_of_range",
+const CONFLICT_CODES: ReadonlySet<string> = new Set<ErrorCode>([
+  "students.offering_change_capacity_full",
+  "students.change_request_not_pending",
+  "students.offering_changes_no_enrollment",
+  "students.offering_change_date_out_of_range",
 ]);
 
 // An approval genuinely applies the switch, so it can fail for reasons the
@@ -47,14 +49,14 @@ function decideErrorMessage(
   code: string | undefined,
   fallback = "Die Entscheidung konnte nicht gespeichert werden.",
 ): string {
-  switch (code) {
-    case "offering_change_capacity_full":
+  switch (wireErrorCode(code)) {
+    case "students.offering_change_capacity_full":
       return "Für ein gewünschtes Angebot ist kein Platz mehr frei. Die Anfrage bleibt offen: Bitte mit der Familie eine Alternative klären oder die Anfrage mit Begründung ablehnen.";
-    case "change_request_not_pending":
+    case "students.change_request_not_pending":
       return "Diese Anfrage wurde bereits entschieden oder von den Eltern zurückgezogen. Bitte die Seite neu laden.";
-    case "offering_changes_no_enrollment":
+    case "students.offering_changes_no_enrollment":
       return "Für dieses Kind liegt keine gültige Anmeldung mehr vor, auf die die Änderung angewendet werden könnte. Bitte die Anfrage ablehnen.";
-    case "offering_change_date_out_of_range":
+    case "students.offering_change_date_out_of_range":
       return "Zu diesem Datum kann die Änderung nicht gelten. Bitte ein Datum innerhalb der Betreuungszeit wählen, frühestens heute.";
     default:
       return fallback;
@@ -65,14 +67,14 @@ function decideErrorMessage(
 // gesperrt ist — ein ausgegrauter Knopf ohne Grund ist eine Sackgasse. Der
 // vollständige Text mit dem nächsten Schritt läuft als Toast.
 function blockedReason(code: string | undefined): string {
-  switch (code) {
-    case "offering_change_capacity_full":
+  switch (wireErrorCode(code)) {
+    case "students.offering_change_capacity_full":
       return "Zu diesem Datum ist ein Angebot voll.";
-    case "offering_change_date_out_of_range":
+    case "students.offering_change_date_out_of_range":
       return "Zu diesem Datum kann die Änderung nicht gelten.";
-    case "offering_changes_no_enrollment":
+    case "students.offering_changes_no_enrollment":
       return "Für dieses Kind liegt keine gültige Anmeldung mehr vor.";
-    case "change_request_not_pending":
+    case "students.change_request_not_pending":
       return "Diese Anfrage wurde bereits entschieden.";
     default:
       return "Mit diesem Datum ist keine Freigabe möglich.";

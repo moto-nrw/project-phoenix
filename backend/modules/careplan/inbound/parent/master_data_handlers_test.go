@@ -179,5 +179,5 @@ func TestSubmitMasterDataRequest_MapsServiceErrors(t *testing.T) {
 	rs.submitMasterDataRequest(w, req)
 
 	assert.Equal(t, http.StatusConflict, w.Code)
-	assert.Contains(t, w.Body.String(), "master_data_duplicate_pending")
+	assert.Contains(t, w.Body.String(), "care.master_data_duplicate_pending")
 }

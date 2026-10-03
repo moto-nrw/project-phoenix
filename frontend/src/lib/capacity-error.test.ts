@@ -104,7 +104,7 @@ describe("capacityErrorMessage", () => {
   });
 
   it("ignores every other error, whatever its text says", () => {
-    expect(capacityErrorMessage(codedError("room_not_released"))).toBeNull();
+    expect(capacityErrorMessage(codedError("rooms.not_released"))).toBeNull();
     expect(
       capacityErrorMessage(new Error("room capacity exceeded: Turnhalle")),
     ).toBeNull();

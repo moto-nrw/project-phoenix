@@ -94,15 +94,15 @@ func (rs *Resource) grantPhotoConsent(w http.ResponseWriter, r *http.Request) {
 
 var grantPhotoConsentErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: parentService.ErrChildNotLinked, Render: func(err error) render.Renderer {
-		return common.ErrorForbiddenWithCode(err, "child_not_linked")
+		return common.ErrorForbiddenWithCode(err, common.CodeCareChildNotLinked)
 	}},
 	{Target: parentService.ErrGuardianPermissionDenied, Render: func(err error) render.Renderer {
-		return common.ErrorForbiddenWithCode(err, "guardian_permission_denied")
+		return common.ErrorForbiddenWithCode(err, common.CodeCareGuardianPermissionDenied)
 	}},
 	{Target: parentService.ErrChildCareEnded, Render: func(err error) render.Renderer {
-		return common.ErrorForbiddenWithCode(err, "child_care_ended")
+		return common.ErrorForbiddenWithCode(err, common.CodeCareChildCareEnded)
 	}},
 	{Target: parentService.ErrPhotoConsentNotWithdrawn, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, "photo_consent_not_withdrawn")
+		return common.ErrorConflictWithCode(err, common.CodeCarePhotoConsentNotWithdrawn)
 	}},
 }, common.ErrorInternalServer)

@@ -124,8 +124,14 @@ describe("staffMonthCloseService", () => {
   });
 
   it.each([
-    ["month_not_closable", "Dieser Monat kann noch nicht abgeschlossen werden"],
-    ["later_month_closed", "Ein späterer Monat ist bereits abgeschlossen"],
+    [
+      "workforce.month_not_closable",
+      "Dieser Monat kann noch nicht abgeschlossen werden",
+    ],
+    [
+      "workforce.later_month_closed",
+      "Ein späterer Monat ist bereits abgeschlossen",
+    ],
     ["unexpected_code", "backend error"],
   ])("maps close error %s", async (code, message) => {
     mockedSessionFetch.mockResolvedValueOnce(errorResponse(code));
@@ -163,9 +169,9 @@ describe("staffMonthCloseService", () => {
   });
 
   it.each([
-    ["month_not_closed", "Dieser Monat ist nicht abgeschlossen."],
+    ["workforce.month_not_closed", "Dieser Monat ist nicht abgeschlossen."],
     [
-      "later_month_closed",
+      "workforce.later_month_closed",
       "Für diese Person ist ein späterer Monat noch abgeschlossen",
     ],
     ["unexpected_code", "backend error"],
@@ -189,7 +195,7 @@ describe("staffBalanceAdjustmentService closed-month errors", () => {
 
   it("explains a rejected adjustment in a closed month", async () => {
     mockedSessionFetch.mockResolvedValueOnce(
-      errorResponse("adjustment_in_closed_month"),
+      errorResponse("workforce.adjustment_in_closed_month"),
     );
 
     await expect(
@@ -206,7 +212,7 @@ describe("staffBalanceAdjustmentService closed-month errors", () => {
 
   it("explains a rejected reset in a closed month", async () => {
     mockedSessionFetch.mockResolvedValueOnce(
-      errorResponse("adjustment_in_closed_month"),
+      errorResponse("workforce.adjustment_in_closed_month"),
     );
 
     await expect(
@@ -222,7 +228,7 @@ describe("staffBalanceAdjustmentService closed-month errors", () => {
 
   it("explains a rejected deletion in a closed month", async () => {
     mockedSessionFetch.mockResolvedValueOnce(
-      errorResponse("adjustment_in_closed_month"),
+      errorResponse("workforce.adjustment_in_closed_month"),
     );
 
     await expect(

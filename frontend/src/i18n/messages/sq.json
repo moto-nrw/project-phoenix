@@ -1990,6 +1990,9 @@
       "server": "Nuk u përpunua: {object}. Provoni përsëri më vonë."
     },
     "codes": {
+      "attendance": {
+        "web_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
+      },
       "care": {
         "announcement_ack_not_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "announcement_not_a_poll": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
@@ -2149,6 +2152,12 @@
       "identity": {
         "account_already_has_tenant_access": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "account_inactive": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "demo_access_expired": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "demo_access_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "demo_access_rate_limited": "{object} nuk është i disponueshëm tani. Provoni përsëri.",
+        "demo_access_unknown": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "demo_capacity_reached": "{object} nuk është i disponueshëm tani. Provoni përsëri.",
+        "demo_school_preparing": "{object} nuk është i disponueshëm tani. Provoni përsëri.",
         "demo_session": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "invitation_account_login_required": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "invitation_account_mismatch": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
@@ -2211,10 +2220,13 @@
         "source_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "rooms": {
+        "color_already_in_use": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "not_released": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "school": {
-        "no_school_portal_role": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
+        "no_school_portal_role": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "setup_completed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "setup_incomplete": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "students": {
         "absence_read_required": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
@@ -2226,6 +2238,7 @@
         "care_withdrawal_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "change_request_not_pending": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "change_request_stale": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "child_quota_reached": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "companion_lock_busy": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "companion_would_lose_departure": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "companions_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -2273,19 +2286,36 @@
         "self_assignment": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
       },
       "timetable": {
+        "ambiguous_template_instance_delete": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "calendar_period_care_offering_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "calendar_period_overlap_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "complete_too_early": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "completion_confirmation_stale": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "duplicate_instance": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "guardian_notice_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "idempotency_key_reused": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "instance_moved": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "instance_not_convertible": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "instance_not_editable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "invalid_transition": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "only_supervisor_replacement_required": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "pickup_extension_block_gone": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "pickup_extension_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "presence_would_overstaff": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "sick_absence_scope_locked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "staff_absent_on_date": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "staff_absent_on_target": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "staff_already_on_target": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "start_too_early": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "start_window_expired": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "substitute_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "template_care_offering_conflict": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "template_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "template_roster_rebase_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "template_start_in_past": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "template_start_not_earlier": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "template_start_predecessor_overlap": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
+        "template_start_predecessor_overlap": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "understaffed_still_staffed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "workforce": {
         "absence_allowance_exceeded": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

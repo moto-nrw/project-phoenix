@@ -626,10 +626,10 @@ var careExitErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 
 func withdrawalDeletionErrorRenderer(err error) render.Renderer {
 	if errors.Is(err, careplan.ErrCareWithdrawalNotFound) {
-		return common.ErrorNotFoundWithCode(err, errCodeCareWithdrawalNotFound)
+		return common.ErrorNotFoundWithCode(err, common.CodeStudentsCareWithdrawalNotFound)
 	}
 	if errors.Is(err, careplan.ErrCareWithdrawalAlreadyResolved) {
-		return common.ErrorConflictWithCode(err, errCodeCareWithdrawalAlreadyResolved)
+		return common.ErrorConflictWithCode(err, common.CodeStudentsCareWithdrawalAlreadyResolved)
 	}
 	return studentDeletionErrorRenderer(err)
 }

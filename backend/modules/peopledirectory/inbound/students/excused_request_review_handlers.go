@@ -32,13 +32,13 @@ type DecideExcusedRequestBody struct {
 var excusedDecideErrorRenderer = common.RulesRenderer(parentRequestRules(
 	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestNotFound, Render: common.ErrorNotFound},
 	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestNotPending, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, "change_request_not_pending")
+		return common.ErrorConflictWithCode(err, common.CodeStudentsChangeRequestNotPending)
 	}},
 	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestGuardianAccessRevoked, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, "guardian_access_revoked")
+		return common.ErrorConflictWithCode(err, common.CodeStudentsGuardianAccessRevoked)
 	}},
 	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestStatusConflict, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, "excused_request_status_conflict")
+		return common.ErrorConflictWithCode(err, common.CodeStudentsExcusedRequestStatusConflict)
 	}},
 	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestForbidden, Render: common.ErrorForbidden},
 	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestRejectReasonRequired, Render: common.ErrorInvalidRequest},

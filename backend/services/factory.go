@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
 	"github.com/moto-nrw/project-phoenix/analytics"
@@ -34,6 +35,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicefleetModule "github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
@@ -695,25 +697,25 @@ func newFactory(
 		repos.Group,
 		repos.GroupTeacher,
 		repos.ClassTeacher,
-		repos.Room,
-		repos.Teacher,
-		repos.Staff,
+		repositories.NewEducationRooms(repos.Room),
+		NewEducationTeachers(repos.Teacher),
+		repositories.NewEducationStaff(repos.Staff),
 		repos.Student,
 		repos.GroupSubstitution,
-		db,
+		schoolStructure.NewLegacyRepositoryRuntime(db),
 	)
 	// Announces group_access_changed after a group-leader change (#2084).
 	if broadcastAware, ok := educationService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
+		SetBroadcaster(realtimeevents.Publisher)
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}
 	// Class assignment rewrites scope the Lehrkraft student day view (#1772)
 	// and land in the Stammdaten audit trail.
 	if auditAware, ok := educationService.(interface {
-		SetMasterDataAudit(auditModels.StaffMasterDataChangeCreator)
+		SetMasterDataAudit(education.ClassAssignmentAudit)
 	}); ok {
-		auditAware.SetMasterDataAudit(repos.StaffMasterDataChange)
+		auditAware.SetMasterDataAudit(repositories.NewEducationClassAssignmentAudit(repos.StaffMasterDataChange))
 	}
 
 	// Reconciles already-materialized future timetable rosters when a grade
@@ -1799,11 +1801,13 @@ func newFactory(
 		return nil, err
 	}
 	substitutionService := education.NewSubstitutionModule(education.SubstitutionDependencies{
-		Groups: repos.Group, Substitutions: repos.GroupSubstitution, Persons: newEducationPersonQuery(persons),
-		Teachers: repos.Teacher, Staff: repos.Staff, Actors: substitutionActorResolver{identity: callerContext},
+		Groups: repos.Group, Substitutions: repositories.NewEducationHandovers(repos.GroupSubstitution),
+		Persons: newEducationPersonQuery(persons), Teachers: repositories.NewEducationCaregivers(repos.Teacher),
+		Staff: repositories.NewEducationStaff(repos.Staff), Actors: substitutionActorResolver{identity: callerContext},
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
-		Audit:                   repos.SubstitutionChange, DB: db, Broadcaster: realtimeHub,
+		Audit:                   repositories.NewEducationSubstitutionAudit(repos.SubstitutionChange),
+		Runtime:                 schoolStructure.NewLegacyRepositoryRuntime(db), Broadcaster: realtimeHub,
 		Logger:   logger.With("service", "substitution"),
 		Schedule: scheduleSubstitution,
 		CanSeeAll: func(ctx context.Context, assignmentBound, admin, hasStaff bool) (bool, error) {
@@ -2733,6 +2737,7 @@ func newFactory(
 		Groups:           timetableCapability,
 		Sessions:         repos.ActiveGroup,
 		ConflictAcks:     timetableCapability,
+		DB:               db,
 		Transactional:    true,
 		Logger:           logger.With("service", "timetable-data"),
 	})

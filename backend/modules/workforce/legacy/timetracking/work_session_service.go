@@ -180,7 +180,7 @@ func (e *PlannedStartNotReachedError) Error() string {
 // DeviationReasonRequiredError is returned by CheckIn/CheckOut when the
 // tenant requires a reason for stamping outside the tolerance window around
 // the planned shift window (F9) and the request carried none. The API layer
-// renders it as HTTP 409 with the stable code "deviation_reason_required"
+// renders it as HTTP 409 with the stable code "iot.deviation_reason_required"
 // produced by api/time-tracking/errors.go.
 type DeviationReasonRequiredError struct {
 	Action           string // deviationActionCheckIn or deviationActionCheckOut

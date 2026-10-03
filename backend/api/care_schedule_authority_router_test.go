@@ -47,7 +47,7 @@ func TestCareScheduleAuthorityHTTPFlow(t *testing.T) {
 	setAuthority(true)
 	rejected := doCareScheduleJSON(t, router, http.MethodPost, path, parentToken, careScheduleRequestBody())
 	require.Equal(t, http.StatusForbidden, rejected.Code, rejected.Body.String())
-	assert.Contains(t, rejected.Body.String(), `"code":"care_request_bookings_authoritative"`)
+	assert.Contains(t, rejected.Body.String(), `"code":"care.care_request_bookings_authoritative"`)
 
 	setAuthority(false)
 	created := doCareScheduleJSON(t, router, http.MethodPost, path, parentToken, careScheduleRequestBody())

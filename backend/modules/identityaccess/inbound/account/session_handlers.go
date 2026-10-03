@@ -100,7 +100,7 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 			// account as "wrong password" and sends the owner into a reset
 			// loop that cannot help.
 			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
-				identityaccess.ErrAccountInactive, "account_inactive"))
+				identityaccess.ErrAccountInactive, common.CodeIdentitySessionAccountInactive))
 		case errors.Is(err, identityaccess.ErrTenantNotFound):
 			common.RenderError(w, r, common.ErrorNotFound(identityaccess.ErrTenantNotFound))
 		case errors.Is(err, identityaccess.ErrTenantAccessDenied):
@@ -113,13 +113,13 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 			// check has already accepted the password, so it tells the caller
 			// nothing about an account they don't own.
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(
-				identityaccess.ErrParentMustUseParentPortal, "use_parent_portal"))
+				identityaccess.ErrParentMustUseParentPortal, common.CodeIdentityUseParentPortal))
 		case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
 			// School-portal-only account at the staff login (#2207). Same
 			// shape as the guardian split above: a stable code the frontend
 			// switches on to point the user at moto schule.
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(
-				identityaccess.ErrMustUseSchoolPortal, "use_school_portal"))
+				identityaccess.ErrMustUseSchoolPortal, common.CodeIdentityUseSchoolPortal))
 		case errors.Is(err, identityaccess.ErrMFARateLimited):
 			// MFA challenge initiation tripped the 3/15min sliding-window
 			// cap. Surface as 429 so the frontend shows the dedicated "too

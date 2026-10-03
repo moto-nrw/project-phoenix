@@ -1,41 +1,27 @@
 // This file pins the exact wire format (HTTP status code + raw JSON response
-// bytes) of the operator error body, OperatorErrResponse, and its Operator*
-// constructors. It started in api/operator against that package's Err*
-// helpers, which were thin delegations to these constructors; it moved here
-// when those delegations were removed (#3231). The subtest names keep the
-// old helper names.
-//
-// These are B0 wire-format golden tests for issue #575 (API layer
-// technical-debt / error-response consolidation). The upcoming B1 refactor
-// collapses the per-package ErrResponse/ErrorRenderer duplication (active,
-// feedback, operator, ...) into shared helpers in api/common.
-// That refactor MUST NOT change a single byte of what a client currently
-// receives on the wire. This file is the oracle: it renders through the
-// real render.Render(...) pipeline (go-chi/render's json.NewEncoder, which
+// bytes) of the Operator* constructors. It renders through the real
+// render.Render(...) pipeline (go-chi/render's json.NewEncoder, which
 // HTML-escapes, emits compact JSON, and appends a trailing newline) and
-// asserts the literal body string.
+// asserts the literal body string. The subtest names keep the old api/operator
+// helper names (#3231).
 //
-// Note: OperatorErrResponse (formerly operator.ErrResponse) diverges from every other package's
-// ErrResponse in two ways that B1 must reconcile or deliberately preserve:
-//  1. The error-text field is tagged json:"message" here, not json:"error"
-//     like api/active, api/feedback, api/iot/common.
-//  2. Most helpers hardcode StatusText to the literal string "error"
-//     (lowercase, not human text like "Forbidden"), except
-//     ErrTooManyRequests ("Too Many Requests") and ErrServiceUnavailable
-//     ("Service Unavailable"), which use human text.
+// Until #2507 the operator surface had its own body: the text in "message"
+// instead of "error", and the status texts "Too Many Requests" and
+// "Service Unavailable". ADR 0006 moved it deliberately to the shared error
+// envelope that every other surface answers with.
 //
 // Changing an expectation in this file requires proof that the wire format
-// change is intentional — not just "the refactor made the test fail."
+// change is intentional, not just "the refactor made the test fail."
 package common_test
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -61,55 +47,55 @@ func TestWireFormat_Operator_ErrHelpers(t *testing.T) {
 			name:       "ErrInvalidRequest",
 			renderer:   common.OperatorInvalidRequest(errors.New("bad")),
 			wantStatus: 400,
-			wantBody:   "{\"status\":\"error\",\"message\":\"bad\"}\n",
+			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Bad Request","detail":"bad","instance":"","error":"bad","code":"general.input"}` + "\n",
 		},
 		{
 			name:       "ErrInvalidCredentials",
 			renderer:   common.OperatorInvalidCredentials(),
 			wantStatus: 401,
-			wantBody:   "{\"status\":\"error\",\"message\":\"Invalid email or password\"}\n",
+			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen","title":"Unauthorized","detail":"Invalid email or password","instance":"","error":"Invalid email or password","code":"general.permission"}` + "\n",
 		},
 		{
 			name:       "ErrUnauthorized",
 			renderer:   common.OperatorUnauthorized(),
 			wantStatus: 401,
-			wantBody:   "{\"status\":\"error\",\"message\":\"Unauthorized\"}\n",
+			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen","title":"Unauthorized","detail":"Unauthorized","instance":"","error":"Unauthorized","code":"general.permission"}` + "\n",
 		},
 		{
 			name:       "ErrNotFound",
 			renderer:   common.OperatorNotFound("thing missing"),
 			wantStatus: 404,
-			wantBody:   "{\"status\":\"error\",\"message\":\"thing missing\"}\n",
+			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Not Found","detail":"thing missing","instance":"","error":"thing missing","code":"general.input"}` + "\n",
 		},
 		{
 			name:       "ErrConflict",
 			renderer:   common.OperatorConflict("duplicate"),
 			wantStatus: 409,
-			wantBody:   "{\"status\":\"error\",\"message\":\"duplicate\"}\n",
+			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich","title":"Conflict","detail":"duplicate","instance":"","error":"duplicate","code":"general.business_rejection"}` + "\n",
 		},
 		{
 			name:       "ErrForbidden",
 			renderer:   common.OperatorForbidden("no access"),
 			wantStatus: 403,
-			wantBody:   "{\"status\":\"error\",\"message\":\"no access\"}\n",
+			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen","title":"Forbidden","detail":"no access","instance":"","error":"no access","code":"general.permission"}` + "\n",
 		},
 		{
 			name:       "ErrTooManyRequests",
 			renderer:   common.OperatorTooManyRequests("slow down"),
 			wantStatus: 429,
-			wantBody:   "{\"status\":\"Too Many Requests\",\"message\":\"slow down\"}\n",
+			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-gerade-nicht-erreichbar","title":"Too Many Requests","detail":"slow down","instance":"","error":"slow down","code":"general.unavailable"}` + "\n",
 		},
 		{
 			name:       "ErrInternal",
 			renderer:   common.OperatorInternal("oops"),
 			wantStatus: 500,
-			wantBody:   "{\"status\":\"error\",\"message\":\"oops\"}\n",
+			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-unerwarteter-fehler","title":"Internal Server Error","detail":"oops","instance":"","error":"oops","code":"general.server"}` + "\n",
 		},
 		{
 			name:       "ErrServiceUnavailable",
 			renderer:   common.OperatorServiceUnavailable("try later"),
 			wantStatus: 503,
-			wantBody:   "{\"status\":\"Service Unavailable\",\"message\":\"try later\"}\n",
+			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-gerade-nicht-erreichbar","title":"Service Unavailable","detail":"try later","instance":"","error":"try later","code":"general.unavailable"}` + "\n",
 		},
 	}
 
@@ -117,17 +103,8 @@ func TestWireFormat_Operator_ErrHelpers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gotStatus, gotBody := renderWireOperator(t, tt.renderer)
 			assert.Equal(t, tt.wantStatus, gotStatus)
-			var legacy, actual map[string]any
-			assert.NoError(t, json.Unmarshal([]byte(tt.wantBody), &legacy))
-			assert.NoError(t, json.Unmarshal([]byte(gotBody), &actual))
-			assert.Regexp(t, `^https://moto-app\.de/help/fehlermeldungen#anleitung-[a-z-]+$`, actual["type"])
-			assert.Equal(t, tt.renderer.(*common.OperatorErrResponse).ErrorText, actual["detail"])
-			assert.Contains(t, actual, "title")
-			assert.Contains(t, actual, "instance")
-			for _, key := range []string{"type", "title", "detail", "instance", "code"} {
-				delete(actual, key)
-			}
-			assert.Equal(t, legacy, actual, "legacy operator fields must remain unchanged")
+			assert.Equal(t, tt.wantBody, gotBody)
+			assert.Empty(t, routetest.ProblemEnvelopeViolations([]byte(gotBody), false))
 		})
 	}
 }

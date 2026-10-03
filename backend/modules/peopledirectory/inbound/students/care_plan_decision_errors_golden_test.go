@@ -31,12 +31,12 @@ func TestCarePlanDecisionErrorsGolden(t *testing.T) {
 		t.Parallel()
 		for _, tt := range []decisionErrorGolden{
 			{careplan.ErrOfferingChangeNotFound, http.StatusNotFound, "", "enrollment: offering change request not found"},
-			{careplan.ErrOfferingChangeNotPending, http.StatusConflict, "change_request_not_pending", "enrollment: offering change request is not pending"},
+			{careplan.ErrOfferingChangeNotPending, http.StatusConflict, "students.change_request_not_pending", "enrollment: offering change request is not pending"},
 			{careplan.ErrOfferingChangeForbidden, http.StatusForbidden, "", "enrollment: offering change request forbidden"},
-			{careplan.ErrCareOfferingsDisabled, http.StatusForbidden, "care_offerings_disabled", "care offerings are disabled for this tenant"},
-			{careplan.ErrOfferingChangeCapacityFull, http.StatusConflict, "offering_change_capacity_full", "enrollment: care offering is at capacity"},
-			{careplan.ErrOfferingChangeNoEnrollment, http.StatusConflict, "offering_changes_no_enrollment", "enrollment: child has no approved enrollment"},
-			{careplan.ErrOfferingChangeDateOutOfRange, http.StatusBadRequest, "offering_change_date_out_of_range", "enrollment: confirmed effective date is out of range"},
+			{careplan.ErrCareOfferingsDisabled, http.StatusForbidden, "students.care_offerings_disabled", "care offerings are disabled for this tenant"},
+			{careplan.ErrOfferingChangeCapacityFull, http.StatusConflict, "students.offering_change_capacity_full", "enrollment: care offering is at capacity"},
+			{careplan.ErrOfferingChangeNoEnrollment, http.StatusConflict, "students.offering_changes_no_enrollment", "enrollment: child has no approved enrollment"},
+			{careplan.ErrOfferingChangeDateOutOfRange, http.StatusBadRequest, "students.offering_change_date_out_of_range", "enrollment: confirmed effective date is out of range"},
 			{careplan.ErrCompleteWithdrawalConfirmationRequired, http.StatusConflict, "enrollment.complete_withdrawal_confirmation_required", "Alle Betreuungstage werden entfernt. Bitte bestätigen Sie die Komplett-Abmeldung."},
 			{careplan.ErrOfferingChangeInvalid, http.StatusBadRequest, "", "enrollment: invalid offering change request"},
 			{careplan.ErrOfferingAdjustmentInvalid, http.StatusBadRequest, "", "offering adjustment is invalid"},
@@ -85,7 +85,7 @@ func TestCarePlanDecisionErrorsGolden(t *testing.T) {
 
 	t.Run("pickup reset", func(t *testing.T) {
 		t.Parallel()
-		tt := decisionErrorGolden{careplan.ErrPickupResetNoOffering, http.StatusConflict, "pickup_reset_requires_offering", "für diesen Tag gibt es keine Angebots-Gehzeit"}
+		tt := decisionErrorGolden{careplan.ErrPickupResetNoOffering, http.StatusConflict, "students.pickup_reset_requires_offering", "für diesen Tag gibt es keine Angebots-Gehzeit"}
 		assertDecisionErrorGolden(t, tt, rendererStatus(t, pickupResetErrorRenderer(tt.err)))
 	})
 
@@ -93,9 +93,9 @@ func TestCarePlanDecisionErrorsGolden(t *testing.T) {
 		t.Parallel()
 		for _, tt := range []decisionErrorGolden{
 			{careplan.ErrOfferingChangeNotFound, http.StatusNotFound, "", "enrollment: offering change request not found"},
-			{careplan.ErrOfferingChangeNotPending, http.StatusConflict, "change_request_not_pending", "enrollment: offering change request is not pending"},
+			{careplan.ErrOfferingChangeNotPending, http.StatusConflict, "students.change_request_not_pending", "enrollment: offering change request is not pending"},
 			{careplan.ErrOfferingChangeForbidden, http.StatusForbidden, "", "enrollment: offering change request forbidden"},
-			{careplan.ErrOfferingChangeInvalid, http.StatusBadRequest, codeStaffValueInvalid, "Der eingetragene Wert passt nicht zu diesen Anfragen. Bitte prüfen Sie ihn."},
+			{careplan.ErrOfferingChangeInvalid, http.StatusBadRequest, common.CodeStudentsStaffValueInvalid, "Der eingetragene Wert passt nicht zu diesen Anfragen. Bitte prüfen Sie ihn."},
 		} {
 			assertDecisionErrorGolden(t, tt, rendererStatus(t, resolveConflictErrorRenderer(tt.err)))
 		}

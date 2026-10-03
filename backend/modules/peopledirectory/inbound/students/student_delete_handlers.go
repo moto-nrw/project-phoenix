@@ -205,40 +205,40 @@ var studentDeletionErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 		return common.ErrorForbidden(err)
 	}},
 	{Target: studentdeletion.ErrPreviewChanged, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, errCodeStudentDeletionPreviewChanged)
+		return common.ErrorConflictWithCode(err, common.CodeStudentsDeletionPreviewChanged)
 	}},
 	{Target: studentdeletion.ErrConfirmationMismatch, Render: func(err error) render.Renderer {
-		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionConfirmationMismatch)
+		return common.ErrorInvalidRequestWithCode(err, common.CodeStudentsDeletionConfirmationMismatch)
 	}},
 	{Target: studentdeletion.ErrNotAcknowledged, Render: func(err error) render.Renderer {
-		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionAcknowledgement)
+		return common.ErrorInvalidRequestWithCode(err, common.CodeStudentsDeletionAcknowledgementRequired)
 	}},
 	{Target: studentdeletion.ErrInvalidReason, Render: func(err error) render.Renderer {
-		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionInvalidReason)
+		return common.ErrorInvalidRequestWithCode(err, common.CodeStudentsDeletionInvalidReason)
 	}},
 	{Target: studentdeletion.ErrAlumnus, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, errCodeStudentDeletionAlumnus)
+		return common.ErrorConflictWithCode(err, common.CodeStudentsDeletionAlumnus)
 	}},
 	{Target: studentdeletion.ErrRetentionNotEnded, Render: func(err error) render.Renderer {
-		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionRetentionNotEnded)
+		return common.ErrorInvalidRequestWithCode(err, common.CodeStudentsDeletionRetentionNotEnded)
 	}},
 	{Target: studentdeletion.ErrCompanionWouldLoseDeparture, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, errCodeStudentDeletionCompanionBlocked)
+		return common.ErrorConflictWithCode(err, common.CodeStudentsDeletionCompanionBlocked)
 	}},
 	{Target: studentdeletion.ErrCompanionLockBusy, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, errCodeStudentDeletionCompanionLockBusy)
+		return common.ErrorConflictWithCode(err, common.CodeStudentsDeletionCompanionLockBusy)
 	}},
 	{Target: studentdeletion.ErrWithdrawalNotFound, Render: func(err error) render.Renderer {
-		return common.ErrorNotFoundWithCode(err, errCodeCareWithdrawalNotFound)
+		return common.ErrorNotFoundWithCode(err, common.CodeStudentsCareWithdrawalNotFound)
 	}},
 	{Target: studentdeletion.ErrWithdrawalAlreadyResolved, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, errCodeCareWithdrawalAlreadyResolved)
+		return common.ErrorConflictWithCode(err, common.CodeStudentsCareWithdrawalAlreadyResolved)
 	}},
 	{Match: common.IsConstraintViolation, Render: func(error) render.Renderer {
 		return common.ErrorConflictWithCode(
 			//nolint:staticcheck // ST1005: user-facing German message
 			errors.New("Kind konnte wegen gleichzeitig geänderter Verknüpfungen nicht gelöscht werden. Bitte erneut prüfen."),
-			errCodeStudentDeletionConstraintsChanged,
+			common.CodeStudentsDeletionConstraintsChanged,
 		)
 	}},
 }, common.ErrorInternalServer)

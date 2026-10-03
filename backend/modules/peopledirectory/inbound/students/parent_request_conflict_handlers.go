@@ -125,24 +125,24 @@ var resolveConflictErrorRenderer = common.RulesRenderer(parentRequestRules(
 	common.ErrorRule{Target: parentrequests.ErrConflictKindUnsupported, Render: func(error) render.Renderer {
 		return common.ErrorInvalidRequestMessageWithCode(
 			"Für diese Art von Anfrage kann kein gemeinsames Ergebnis festgelegt werden.",
-			codeConflictKindUnsupported,
+			common.CodeStudentsConflictKindUnsupported,
 		)
 	}},
 	common.ErrorRule{Target: parentrequests.ErrStaffValueUnsupported, Render: func(error) render.Renderer {
 		return common.ErrorInvalidRequestMessageWithCode(
 			"Für diese Anfragen können Sie keinen eigenen Wert eintragen.",
-			codeStaffValueUnsupported,
+			common.CodeStudentsStaffValueUnsupported,
 		)
 	}},
 	common.ErrorRule{Match: isConflictStaffValueInvalid, Render: func(error) render.Renderer {
 		return common.ErrorInvalidRequestMessageWithCode(
 			"Der eingetragene Wert passt nicht zu diesen Anfragen. Bitte prüfen Sie ihn.",
-			codeStaffValueInvalid,
+			common.CodeStudentsStaffValueInvalid,
 		)
 	}},
 	common.ErrorRule{Target: parentrequests.ErrNotFound, Render: common.ErrorNotFound},
 	common.ErrorRule{Match: isParentRequestMissing, Render: common.ErrorNotFound},
-	common.ErrorRule{Match: isParentRequestNotPending, Render: conflictWithCode("change_request_not_pending")},
+	common.ErrorRule{Match: isParentRequestNotPending, Render: conflictWithCode(common.CodeStudentsChangeRequestNotPending)},
 	common.ErrorRule{Match: isParentRequestForbidden, Render: common.ErrorForbidden},
 	common.ErrorRule{Target: parentrequests.ErrForbidden, Render: common.ErrorForbidden},
 ), common.ErrorInternalServer)

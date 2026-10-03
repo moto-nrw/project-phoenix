@@ -155,7 +155,7 @@ func TestDemoRoleSwitchRejectsAnUnknownRole(t *testing.T) {
 
 	rr := env.post(t, "/demo/access/sessions", map[string]string{"token": token, "role": "operator"})
 	assert.Equal(t, http.StatusUnprocessableEntity, rr.Code, rr.Body.String())
-	assert.Contains(t, rr.Body.String(), "demo_access_invalid")
+	assert.Contains(t, rr.Body.String(), "identity.demo_access_invalid")
 	assert.Equal(t, []string{"user"}, env.schoolRoles(t, visitor.ID), "a rejected switch changes no role")
 }
 
@@ -236,7 +236,7 @@ func TestDemoRoleParentNeedsTheSchoolsVisitorParent(t *testing.T) {
 
 	rr := env.post(t, "/demo/access/sessions", map[string]string{"token": token, "role": "parent"})
 	assert.Equal(t, http.StatusUnprocessableEntity, rr.Code, rr.Body.String())
-	assert.Contains(t, rr.Body.String(), "demo_access_invalid")
+	assert.Contains(t, rr.Body.String(), "identity.demo_access_invalid")
 }
 
 // The standing school is shared and has no parent of its own; a parent

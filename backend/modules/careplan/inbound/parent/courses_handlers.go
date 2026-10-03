@@ -127,7 +127,7 @@ func (rs *Resource) createCourseRequest(w http.ResponseWriter, r *http.Request) 
 	courseID, convErr := strconv.ParseInt(strings.TrimSpace(body.CourseID), 10, 64)
 	if convErr != nil || courseID <= 0 {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
-			errors.New("course_id must be a numeric id"), "course_request_invalid"))
+			errors.New("course_id must be a numeric id"), common.CodeCareCourseRequestInvalid))
 		return
 	}
 	catalog, err := rs.ParentService.RequestChildCourse(r.Context(), accountID, studentID, courseID, body.Note)
@@ -165,13 +165,13 @@ func (rs *Resource) withdrawCourseRequest(w http.ResponseWriter, r *http.Request
 func renderCourseError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, careplan.ErrCourseRequestsDisabled):
-		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "course_requests_disabled"))
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCareCourseRequestsDisabled))
 	case errors.Is(err, careplan.ErrCourseNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, careplan.ErrCourseAlreadyBooked):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "course_already_booked"))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareCourseAlreadyBooked))
 	case errors.Is(err, careplan.ErrCourseRequestNotOwn):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "course_request_not_own"))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareCourseRequestNotOwn))
 	default:
 		renderParentWriteError(w, r, err)
 	}

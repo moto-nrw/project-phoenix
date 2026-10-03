@@ -71,12 +71,12 @@ func (rs *Resource) setRequestSharing(w http.ResponseWriter, r *http.Request) {
 	}
 	var body requestSharingBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "request_sharing_invalid"))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareRequestSharingInvalid))
 		return
 	}
 	recipients, err := parseRecipientGuardianProfileIDs(body.RecipientGuardianProfileIDs)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "request_sharing_invalid"))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareRequestSharingInvalid))
 		return
 	}
 	state, err := rs.RequestSharing.SetRequestSharing(r.Context(), accountID, studentID, requestType, requestID, recipients)
@@ -137,16 +137,16 @@ func toRequestSharingResponse(state *parentService.RequestSharingState) requestS
 
 var requestSharingErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: parentService.ErrRequestSharingInvalid, Render: func(err error) render.Renderer {
-		return common.ErrorInvalidRequestWithCode(err, "request_sharing_invalid")
+		return common.ErrorInvalidRequestWithCode(err, common.CodeCareRequestSharingInvalid)
 	}},
 	{Target: parentService.ErrRequestSharingForbidden, Render: func(err error) render.Renderer {
-		return common.ErrorForbiddenWithCode(err, "family_protection")
+		return common.ErrorForbiddenWithCode(err, common.CodeCareFamilyProtection)
 	}},
 	{Target: parentService.ErrRequestSharingNotFound, Render: func(err error) render.Renderer {
-		return common.ErrorNotFoundWithCode(err, "request_not_found")
+		return common.ErrorNotFoundWithCode(err, common.CodeCareRequestNotFound)
 	}},
 	{Target: parentService.ErrChildNotLinked, Render: func(err error) render.Renderer {
-		return common.ErrorNotFoundWithCode(err, "request_not_found")
+		return common.ErrorNotFoundWithCode(err, common.CodeCareRequestNotFound)
 	}},
 }, common.ErrorInternalServer)
 

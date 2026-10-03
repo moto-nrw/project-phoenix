@@ -396,6 +396,7 @@ func TestStaffShiftsRouteOverviewPermissionsAndWireContract(t *testing.T) {
 	t.Parallel()
 	reason := "krank"
 	target := 1500
+	shiftTypeID := int64(41)
 	fake := &fakePlanning{overviewFn: func(_ context.Context, from, to string) (workforce.StaffScheduleOverview, error) {
 		return workforce.StaffScheduleOverview{
 			From: from, To: to, DienstplanInUse: true, UsedWeeks: []string{"2070-11-03"},
@@ -406,7 +407,8 @@ func TestStaffShiftsRouteOverviewPermissionsAndWireContract(t *testing.T) {
 				RoomID: 2, RoomName: "Raum 1", Status: "planned", IsAbsent: true, AbsenceReason: &reason, CoverageStatus: "uncovered",
 				UncoveredIntervals: []workforce.CoverageInterval{{StartTime: "09:00:00", EndTime: "10:30:00"}},
 			}},
-			WeeklySummaries: []workforce.WeeklySummary{{StaffID: 3, WeekStart: "2070-11-03", PlannedMinutes: 240, TargetMinutes: &target}},
+			WeeklySummaries: []workforce.WeeklySummary{{StaffID: 3, WeekStart: "2070-11-03", PlannedMinutes: 240, TargetMinutes: &target,
+				ByShiftType: []workforce.ShiftTypeMinutes{{ShiftTypeID: &shiftTypeID, Minutes: 180}, {Minutes: 60}}}},
 		}, nil
 	}}
 	route := setupStaffShiftsRoute(t, fake)
@@ -435,7 +437,7 @@ func TestStaffShiftsRouteOverviewPermissionsAndWireContract(t *testing.T) {
 	assert.JSONEq(t, `[{"id":3,"first_name":"Lea","last_name":"Leitung"}]`, string(envelope.Data["staff"]))
 	assert.JSONEq(t, `[{"id":"9","staff_id":3,"date":"2070-11-03","start_time":"08:00","end_time":"12:00","break_minutes":0,"shift_type_name":"Betreuung","shift_type_color":"#83CD2D","detached":false,"cancelled":false}]`, string(envelope.Data["shifts"]))
 	assert.JSONEq(t, `[{"instance_id":4,"staff_id":3,"date":"2070-11-03","start_time":"09:00","end_time":"10:30","activity_title":"Lesen","room_id":2,"room_name":"Raum 1","status":"planned","is_absent":true,"is_substitute":false,"absence_reason":"krank","coverage_status":"uncovered","coverage_reason":null,"uncovered_intervals":[{"start_time":"09:00","end_time":"10:30"}]}]`, string(envelope.Data["assignments"]))
-	assert.JSONEq(t, `[{"staff_id":3,"week_start":"2070-11-03","planned_minutes":240,"target_minutes":1500,"delta_minutes":null}]`, string(envelope.Data["weekly_summaries"]))
+	assert.JSONEq(t, `[{"staff_id":3,"week_start":"2070-11-03","planned_minutes":240,"target_minutes":1500,"delta_minutes":null,"planned_by_shift_type":[{"shift_type_id":"41","planned_minutes":180},{"shift_type_id":null,"planned_minutes":60}]}]`, string(envelope.Data["weekly_summaries"]))
 
 	// Empty projections stay arrays, a bad range is a bad request, and an
 	// unexpected failure hides its cause behind the stable message.

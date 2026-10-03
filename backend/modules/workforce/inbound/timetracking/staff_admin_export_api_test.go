@@ -98,7 +98,7 @@ func TestTimeTrackingExportAPI_Datev(t *testing.T) {
 
 	rec = ctx.get(reportPath, "time_tracking:manage")
 	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), "payroll_config_incomplete")
+	assert.Contains(t, rec.Body.String(), "workforce.payroll_config_incomplete")
 
 	rec = ctx.get("/staff/time-tracking/export?year=2026&month=1&format=datev_lug", "time_tracking:manage")
 	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())

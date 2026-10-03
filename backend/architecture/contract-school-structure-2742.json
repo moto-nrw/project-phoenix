@@ -1,0 +1,200 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2664",
+    "#2667",
+    "#2668",
+    "#2669",
+    "#2683",
+    "#2688",
+    "#2711"
+  ],
+  "owner_and_capability": "Legacy composition — bounded Contract step of #2742 for the retained School Structure packages (school-structure): the group routes become the owner's HTTP adapter (modules/schoolstructure/http), the grade transition routes the workflow's (workflows/gradetransition/http), services/education reaches the tenant runtime and the foreign owners only through its own ports over the models/education vocabulary, database/repositories/education runs on a consumer-owned runtime and reads and writes only education.groups, and models/education names no foreign model and no shared base shape",
+  "affected_packages": [
+    "api",
+    "api/testutil",
+    "database/repositories",
+    "database/repositories/education",
+    "models",
+    "models/education",
+    "modules/careplan/contracttest",
+    "modules/delivery/application/notifications",
+    "modules/peopledirectory/inbound/students",
+    "modules/schoolstructure/compose",
+    "modules/schoolstructure/http",
+    "modules/supervisiondashboard/legacy",
+    "modules/workforce/legacy",
+    "services",
+    "services/education",
+    "services/users",
+    "test",
+    "workflows/gradetransition/http",
+    "workflows/shiftplansync/compose"
+  ],
+  "affected_tables": [
+    "education.groups",
+    "education.group_teacher",
+    "education.class_teachers",
+    "education.group_substitution",
+    "education.grade_transitions",
+    "education.grade_transition_mappings",
+    "education.grade_transition_history",
+    "education.class_arrival_times"
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/admin|github.com/moto-nrw/project-phoenix/models/education",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/admin|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/groups|github.com/moto-nrw/project-phoenix/api/common",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/groups|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/groups|github.com/moto-nrw/project-phoenix/models/education",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/groups|github.com/moto-nrw/project-phoenix/models/users",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/groups|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/groups|github.com/moto-nrw/project-phoenix/services/education",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/education|github.com/moto-nrw/project-phoenix/database/repositories",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/education|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/education|github.com/moto-nrw/project-phoenix/models/base",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/education|github.com/moto-nrw/project-phoenix/models/education",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/models/education|github.com/moto-nrw/project-phoenix/models/education",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/models/education|github.com/moto-nrw/project-phoenix/models/schedule",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/education|github.com/moto-nrw/project-phoenix/database/repositories",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/education|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/education|github.com/moto-nrw/project-phoenix/models/activities",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/education|github.com/moto-nrw/project-phoenix/models/audit",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/education|github.com/moto-nrw/project-phoenix/models/education",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/education|github.com/moto-nrw/project-phoenix/models/schedule",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/education|github.com/moto-nrw/project-phoenix/models/users",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/education|github.com/moto-nrw/project-phoenix/services/education",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/groups|github.com/moto-nrw/project-phoenix/models/base",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/groups|github.com/moto-nrw/project-phoenix/models/users",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/models/education|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/models/education|github.com/moto-nrw/project-phoenix/models/base",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/models/education|github.com/moto-nrw/project-phoenix/models/facilities",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/models/education|github.com/moto-nrw/project-phoenix/models/users",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/models|github.com/moto-nrw/project-phoenix/models/education",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/test|github.com/moto-nrw/project-phoenix/database/repositories/education",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/admin|github.com/moto-nrw/project-phoenix/api/common",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/admin|github.com/moto-nrw/project-phoenix/auth/authorize/permissions",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/admin|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/admin|github.com/uptrace/bun",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/groups|github.com/moto-nrw/project-phoenix/api/common",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/groups|github.com/moto-nrw/project-phoenix/auth/authorize",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/groups|github.com/moto-nrw/project-phoenix/auth/authorize/permissions",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/groups|github.com/moto-nrw/project-phoenix/models/education",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/groups|github.com/moto-nrw/project-phoenix/models/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/groups|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/groups|github.com/moto-nrw/project-phoenix/services/education",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/groups|github.com/moto-nrw/project-phoenix/services/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/groups|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/groups|github.com/uptrace/bun",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/api/admin",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/api/groups",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/education|github.com/moto-nrw/project-phoenix/database/repositories/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/education|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/education|github.com/moto-nrw/project-phoenix/models/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/education|github.com/moto-nrw/project-phoenix/models/facilities",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/education|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/models/education|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/models/education|github.com/moto-nrw/project-phoenix/models/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/models/education|github.com/moto-nrw/project-phoenix/models/enrollment",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/models/education|github.com/moto-nrw/project-phoenix/models/facilities",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/models/education|github.com/moto-nrw/project-phoenix/models/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/education|database/sql",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/education|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/education|github.com/moto-nrw/project-phoenix/models/audit",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/education|github.com/moto-nrw/project-phoenix/models/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/education|github.com/moto-nrw/project-phoenix/models/facilities",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/education|github.com/moto-nrw/project-phoenix/models/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/education|github.com/moto-nrw/project-phoenix/realtime",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/education|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/education|github.com/uptrace/bun",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/models/education",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/education|education.class_arrival_times",
+    "production|tables.foreign-write|github.com/moto-nrw/project-phoenix/database/repositories/education|education.class_arrival_times"
+  ],
+  "atomic_cutover": "One code-only change. api/groups moves file for file to modules/schoolstructure/http (package schoolstructurehttp, school-structure/http) and api/admin to workflows/gradetransition/http (package gradetransitionhttp, grade-transition/http); the owners inbound-groups and inbound-admin are deleted with their package entries and their two rules move to the new points, which carry their own rules for the shared HTTP runtime (api/common), the token adapter, the permission registry, the tenant runtime, the Security Runtime and, for the group routes, their own group service and rows and the People Directory's public types; the root mounts both. The routes use common.ProtectedTenantRoutes instead of the unused *bun.DB and tenant.WithinCurrentTenant instead of tenant.WithTenantTx; the group routes read the children and persons of a group through the GroupPeople port that services.NewGroupRoutePeople binds over the retained person service, and the admin wildcard through securityruntime.HasAdminWildcard. services/education drops database/sql, internal/timezone, models/audit, models/base, models/facilities, models/users, realtime, tenant and bun: its writes run on its Runtime port (schoolStructureCompose.LegacyRepositoryRuntime), the group, teacher-link, class-assignment and handover stores, the room, teacher, staff and caregiver directories and both audit trails are its own ports over the models/education vocabulary (Teacher, Caregiver, HandoverQuery, SubstitutionChange, SchoolClassChange, ErrHandoverExists), bound by database/repositories (EducationRooms, EducationStaff, EducationCaregivers, EducationHandovers, EducationSubstitutionAudit, EducationClassAssignmentAudit) and services (EducationTeachers); the broadcaster is the Delivery realtimeevents.Publisher. models/education carries its id, timestamp and tenant columns itself (Model, TenantModel with the same tags), keeps the room as its GroupRoom projection and a substitution's staff as SubstitutionStaff, classifies a missing row through its own RepositoryNotFound-marked ErrNotFound and DatabaseError, and its repository contracts move to database/repositories (education_repositories.go) and the consumer ports of services/users and the notification resolver; the unused setters SetRoom, SetTeacher, SetRegularStaff and SetSubstituteStaff and the Timetable owner's ClassArrivalTime model are deleted. database/repositories/education runs on a consumer-owned Runtime, replaces the generic base repository with explicit statements on education.groups (CountGroups replaces CountWithOptions, the generic ListWithOptions is gone) and deletes ClassArrivalTimeRepository, whose rows the Timetable owner serves; the fixtures write and read class arrival times directly. The suites compose through api/testutil (services/school_structure_suite_test_helpers.go) and name rows through test. The stale rules calendar-view.adapter-test.facilities-domain and care-plan.contracttest.school-structure.domain are deleted. No fallback provider, no second route surface, no capability behavior added.",
+  "tests": [
+    "models/education: 11 top-level tests (24 before). TestModelMapsTheSharedRowColumns pins the id, created_at, updated_at and tenant_id bun and json tags of all seven rows to the shared base shape, TestTenantModelAccessors and TestIsNotFoundRecognisesTheMarker cover the tenant accessors and the RepositoryNotFound-marked sentinel. Removed with the code they covered: the SetRoom, SetTeacher, SetRegularStaff and SetSubstituteStaff setter tests, the nine GetID/GetCreatedAt/GetUpdatedAt tests of the dropped base embedding and the three ClassArrivalTime model tests (the normalization stays covered in modules/careplan/internal/domain).",
+    "database/repositories/education: all 46 top-level tests pass against the isolated PostgreSQL test database, the same set as before; the two generic ListWithOptions tests now drive ListWithRooms with the same pagination, sorting and filter-plus-pagination cases, assert the order and the single match strictly and add a CountGroups case.",
+    "services/education: all 98 top-level tests pass (98 before), composed through api/testutil instead of the repository factory; the substitution, handover, additional-supervision, class-assignment audit, group deletion guard and grade transition workflow suites keep their assertions.",
+    "modules/schoolstructure/http: all 65 top-level route tests of the former api/groups pass, the error renderer cases render through a recorder; workflows/gradetransition/http: all 16 top-level route tests of the former api/admin pass.",
+    "Affected consumers: modules/careplan/contracttest (class arrival fixtures), workflows/shiftplansync/compose (module over testpkg.TenantTransactionRuntime), modules/peopledirectory/inbound/students, modules/delivery/application/notifications, modules/supervisiondashboard/legacy, api (route and middleware goldens), test (ratchets incl. TestCompositionInventory regenerated with only removals: direct NewFactory constructor calls 152 -> 93), internal/architecture (composition legacy caller inventory: 6 keys, 28 locations, unchanged).",
+    "Caller inventory: go build ./... passes and a repository-wide search finds zero callers of ClassArrivalTimeRepository, NewClassArrivalTimeRepository, education.ClassArrivalTime, SetRoom, SetTeacher, SetRegularStaff, SetSubstituteStaff, GroupListQuery.Filter and the deleted models/education repository interfaces; the remaining inbound-groups and api/groups hits are route URLs and the evaluator's self-contained historical fixture.",
+    "scripts/test-changed.sh origin/development without --fast: 134 packages passed; five packages whose test-database connection timed out under parallel load (database/migrations, modules/settings/inbound/operator, modules/statistics/http, modules/studentpresence/compose, services/import/integration) passed on rerun, and internal/architecture failed only on this ticket's then-incomplete evidence. go test ./test, golangci-lint on the affected packages (0 issues), node scripts/check-agent-context.mjs.",
+    "scripts/backend-architecture.sh check with exactly the listed keys absent from legacy.jsonl and none added (350 -> 282); scripts/backend-architecture.sh validate-ticket --all."
+  ],
+  "runtime_evidence": {
+    "source": "Local runs on the #2742 branch on 2026-10-02 against the local postgres-test server and the worktree's local development database.",
+    "sources": [
+      "backend/database/repositories/education/group.go",
+      "backend/database/repositories/education/runtime.go",
+      "backend/database/repositories/education_service_ports.go",
+      "backend/modules/schoolstructure/compose/legacy_repository_runtime.go",
+      "backend/modules/schoolstructure/http/api.go",
+      "backend/services/education/ports.go",
+      "backend/services/group_route_people.go",
+      "backend/workflows/gradetransition/http/grade_transitions.go"
+    ],
+    "workload": "No load run. Go suites through scripts/run-go-toolchain.sh and scripts/test-changed.sh origin/development against the local postgres-test server, per-test tenants, default package parallelism; one serve start against the migrated, unseeded local database.",
+    "thresholds": "Code-only contract: every affected suite passes, and scripts/backend-architecture.sh check passes with exactly the listed keys removed, no key added and a composition surface that does not grow.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "The routes, services and repositories run the same statements on the same rows; only the types and packages through which they are named changed."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "The explicit group statements replace the generic ones one for one (one SELECT, INSERT, UPDATE or DELETE each, one COUNT for the overview); no query budget scenario covers these routes."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #2742 names zero old callers and zero listed keys as the gate for a code-only contract."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #2742 names zero old callers and zero listed keys as the gate for a code-only contract."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed with 282 remaining keys (350 before) and a composition surface of 597 -> 596; golangci-lint on the affected packages reported 0 issues; the serve smoke run logged no ERROR."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "The writes run in the same tenant transactions through the same runtime; the runtime adapter acquires no extra connection."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No statement or lock order changed; FindByIDForUpdate keeps its FOR UPDATE."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No transaction boundary changed: the route-level write and its teacher assignment still share one tenant transaction (tenant.WithinCurrentTenant for the former tenant.WithTenantTx with the request's school)."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "No job is affected."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "No job is affected."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No job is affected."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The failure paths keep their results in the suites: a missing group, teacher, room or staff member, a duplicate group name, a group with children or a running handover, a duplicate or self handover, an audit failure rolling the handover back and a concurrent session end; the error renderer maps every education sentinel to the same status and message."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data write path or schema change. Reverting the change restores the packages, the policy entries and the baseline entries."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "go build ./... passed. A serve start (go run . serve against the migrated, unseeded local database) answered /health with 200 and /api/groups, /api/groups/1, /api/admin/grade-transitions/ and /api/admin/grade-transitions/1/preview with 401 behind the authenticator, and logged no ERROR. No authenticated HTTP smoke was made; the route suites cover the authenticated paths."
+    }
+  },
+  "rollback_and_cleanup": "Revert the code-only change if a hidden caller appears. No table, migration or configuration is touched; nothing remains to clean up.",
+  "exit_criterion": "services/education, database/repositories/education, models/education and the moved group and grade transition routes import none of the listed targets, every listed key is absent from legacy.jsonl, and scripts/backend-architecture.sh check passes with no key added, no data object ownership changed, the rules of the deleted inbound owners moved to the new HTTP points and a composition surface of 597 -> 596."
+}

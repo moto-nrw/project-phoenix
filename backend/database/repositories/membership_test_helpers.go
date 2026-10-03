@@ -4,7 +4,6 @@ import (
 	"context"
 
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/uptrace/bun"
@@ -15,9 +14,9 @@ type MembershipTestRepositories struct {
 	Staff        usersModels.StaffRepository
 	Teacher      usersModels.TeacherRepository
 	Guest        usersModels.GuestRepository
-	Group        educationModels.GroupRepository
-	GroupTeacher educationModels.GroupTeacherRepository
-	ClassTeacher educationModels.ClassTeacherRepository
+	Group        EducationGroupRepository
+	GroupTeacher GroupTeacherRepository
+	ClassTeacher ClassTeacherRepository
 	// Membership is the owner capability itself; the class-list entries
 	// (#2382) are read and written through it.
 	Membership schoolmembership.Capability
@@ -38,7 +37,7 @@ func NewMembershipTestRepositories(db *bun.DB) (MembershipTestRepositories, erro
 	if err != nil {
 		return MembershipTestRepositories{}, err
 	}
-	group := educationRepo.NewGroupRepository(db).(*educationRepo.GroupRepository)
+	group := NewEducationGroupRepository(db)
 	group.BindRoomDirectory(educationRoomDirectory{rooms})
 	group.BindTeachingAssignments(func(ctx context.Context, groupIDs, teacherIDs []int64) ([]educationRepo.TeacherGroupID, error) {
 		assignments, err := membership.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{GroupIDs: groupIDs, TeacherIDs: teacherIDs})
@@ -56,7 +55,7 @@ func NewMembershipTestRepositories(db *bun.DB) (MembershipTestRepositories, erro
 		Person: NewPersonRepository(db),
 	}
 	repos.membershipDeps = newStaffMembershipDeps(repos.Person, newIdentityAccess(db, nil), MustNewStaffEmployment(db))
-	repos.membershipDeps.groupTeachers = func() educationModels.GroupTeacherRepository { return repos.GroupTeacher }
+	repos.membershipDeps.groupTeachers = func() GroupTeacherRepository { return repos.GroupTeacher }
 	repos.bindStaffMembershipAdapters(membership)
 	workTime, err := NewWorkforce(db, membership)
 	if err != nil {

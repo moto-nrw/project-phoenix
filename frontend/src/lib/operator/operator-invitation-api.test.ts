@@ -203,7 +203,8 @@ describe("validateOperatorInvitation", () => {
       ok: false,
       status: 404,
       json: async () => ({
-        message: "Dieser Link ist abgelaufen oder ungültig",
+        status: "error",
+        error: "Dieser Link ist abgelaufen oder ungültig",
       }),
     });
 
@@ -212,7 +213,7 @@ describe("validateOperatorInvitation", () => {
     );
   });
 
-  it("throws default message when error JSON has no message", async () => {
+  it("throws default message when error JSON has no error", async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 500,
@@ -290,7 +291,7 @@ describe("acceptOperatorInvitation", () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 400,
-      json: async () => ({ message: "Passwort zu schwach" }),
+      json: async () => ({ status: "error", error: "Passwort zu schwach" }),
     });
 
     await expect(

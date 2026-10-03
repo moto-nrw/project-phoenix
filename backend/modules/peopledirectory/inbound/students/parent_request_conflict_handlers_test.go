@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
@@ -125,15 +127,15 @@ func TestResolveRequestConflictErrorCodes(t *testing.T) {
 		want int
 		code string
 	}{
-		{name: "stale group", err: parentrequests.ErrStale, want: http.StatusConflict, code: codeChangeRequestStale},
-		{name: "missing reason (Care Plan coordinator)", err: parentrequests.ErrReasonRequired, want: http.StatusBadRequest, code: codeReasonRequired},
+		{name: "stale group", err: parentrequests.ErrStale, want: http.StatusConflict, code: common.CodeStudentsChangeRequestStale},
+		{name: "missing reason (Care Plan coordinator)", err: parentrequests.ErrReasonRequired, want: http.StatusBadRequest, code: common.CodeStudentsReasonRequired},
 		{name: "malformed command", err: parentrequests.ErrInvalidConflictResolution, want: http.StatusBadRequest},
-		{name: "kind without a domain", err: parentrequests.ErrConflictKindUnsupported, want: http.StatusBadRequest, code: codeConflictKindUnsupported},
-		{name: "domain takes no typed value", err: parentrequests.ErrStaffValueUnsupported, want: http.StatusBadRequest, code: codeStaffValueUnsupported},
-		{name: "absence value invalid", err: excusedrequests.ErrAbsenceRequestInvalidStatus, want: http.StatusBadRequest, code: codeStaffValueInvalid},
-		{name: "care value invalid", err: carerequests.ErrInvalidPayload, want: http.StatusBadRequest, code: codeStaffValueInvalid},
-		{name: "offering value invalid", err: careplan.ErrOfferingChangeInvalid, want: http.StatusBadRequest, code: codeStaffValueInvalid},
-		{name: "Stammdaten value invalid", err: masterdatarequests.ErrReviewInvalidValue, want: http.StatusBadRequest, code: codeStaffValueInvalid},
+		{name: "kind without a domain", err: parentrequests.ErrConflictKindUnsupported, want: http.StatusBadRequest, code: common.CodeStudentsConflictKindUnsupported},
+		{name: "domain takes no typed value", err: parentrequests.ErrStaffValueUnsupported, want: http.StatusBadRequest, code: common.CodeStudentsStaffValueUnsupported},
+		{name: "absence value invalid", err: excusedrequests.ErrAbsenceRequestInvalidStatus, want: http.StatusBadRequest, code: common.CodeStudentsStaffValueInvalid},
+		{name: "care value invalid", err: carerequests.ErrInvalidPayload, want: http.StatusBadRequest, code: common.CodeStudentsStaffValueInvalid},
+		{name: "offering value invalid", err: careplan.ErrOfferingChangeInvalid, want: http.StatusBadRequest, code: common.CodeStudentsStaffValueInvalid},
+		{name: "Stammdaten value invalid", err: masterdatarequests.ErrReviewInvalidValue, want: http.StatusBadRequest, code: common.CodeStudentsStaffValueInvalid},
 		{name: "request gone", err: parentrequests.ErrNotFound, want: http.StatusNotFound},
 		{name: "kind not permitted", err: parentrequests.ErrForbidden, want: http.StatusForbidden},
 	}

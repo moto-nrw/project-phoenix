@@ -214,7 +214,7 @@ func TestSchoolLoginHandler_PortalRoleGate(t *testing.T) {
 	rec := httptest.NewRecorder()
 	schoolRouter.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), "no_school_portal_role")
+	assert.Contains(t, rec.Body.String(), "school.no_school_portal_role")
 
 	// With the lehrkraft system role the same credentials authenticate and
 	// the response carries the token pair.
@@ -234,7 +234,7 @@ func TestSchoolLoginHandler_PortalRoleGate(t *testing.T) {
 	rec = httptest.NewRecorder()
 	schoolRouter.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), "invalid_credentials")
+	assert.Contains(t, rec.Body.String(), "care.invalid_credentials")
 }
 
 func TestSchoolMFAEndpoints_RejectForeignScopes(t *testing.T) {

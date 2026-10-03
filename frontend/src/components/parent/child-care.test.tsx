@@ -488,7 +488,7 @@ describe("PickupTimeModal — Änderung zurücknehmen", () => {
     const onRemove = vi
       .fn()
       .mockRejectedValue(
-        new parentApi.ParentApiError("x", 409, "care_exception_raced"),
+        new parentApi.ParentApiError("x", 409, "students.care_exception_raced"),
       );
     const { onClose, dialog } = openResetDialog({ onRemove });
 
@@ -663,7 +663,11 @@ describe("PickupTimeModal — Änderungsfrist für heute", () => {
     const onSubmit = vi
       .fn()
       .mockRejectedValue(
-        new parentApi.ParentApiError("x", 409, "pickup_change_cutoff_passed"),
+        new parentApi.ParentApiError(
+          "x",
+          409,
+          "care.pickup_change_cutoff_passed",
+        ),
       );
     const { pickupInput, reasonInput } = renderModal({
       cutoffTime: "11:00",

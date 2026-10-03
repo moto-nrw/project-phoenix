@@ -243,7 +243,7 @@ func TestScheduleSubstitutionExternalInterfacePreservesStaffingRules(t *testing.
 	require.ErrorIs(t, err, substitution.ErrConflict)
 	var operationError *substitution.OperationError
 	require.ErrorAs(t, err, &operationError)
-	require.Equal(t, "presence_would_overstaff", operationError.Code)
+	require.Equal(t, "timetable.presence_would_overstaff", operationError.Code)
 }
 
 func TestScheduleSubstitutionExternalInterfaceReportsTimeConflicts(t *testing.T) {
@@ -508,6 +508,7 @@ func newScheduleSubstitutionModule(t *testing.T) (*bun.DB, repositories.Timetabl
 	env := newPlanSyncEnv(t, nil, nil)
 	return env.db, env.repos, substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
 		Schedule: env.substitution,
+		Runtime:  testpkg.TenantTransactionRuntime{},
 		Logger:   slog.Default(),
 	})
 }

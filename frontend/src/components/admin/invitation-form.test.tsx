@@ -363,7 +363,7 @@ describe("InvitationForm", () => {
   it("shows error for account already has tenant access (409 with code)", async () => {
     mockCreateInvitation.mockRejectedValue({
       status: 409,
-      code: "ACCOUNT_ALREADY_HAS_TENANT_ACCESS",
+      code: "identity.account_already_has_tenant_access",
       message: "account already has access to tenant",
     });
 

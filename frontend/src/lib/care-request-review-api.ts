@@ -53,8 +53,8 @@ function unwrap<T>(json: Envelope<T>): T {
 
 /**
  * Error thrown by the care-request client. Carries the backend's stable 409
- * `code` (e.g. "messaging_disabled", "guardian_access_revoked",
- * "change_request_not_pending") so the review UI can name the concrete recovery
+ * `code` (e.g. "students.guardian_access_revoked",
+ * "students.change_request_not_pending") so the review UI can name the concrete recovery
  * action instead of collapsing every failure into one generic message. The raw
  * `error` string stays the Error message for logging.
  */

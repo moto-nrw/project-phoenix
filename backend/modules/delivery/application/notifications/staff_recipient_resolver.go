@@ -38,11 +38,17 @@ type StaffRecipientResolver interface {
 type staffRecipientResolver struct {
 	preferences  PreferenceService
 	students     userModel.StudentRepository
-	groups       educationModel.GroupRepository
+	groups       groupSupervisors
 	staff        userModel.StaffRepository
 	accounts     authAccountReader
 	settings     settingsBoolReader
 	workSessions dutyReader
+}
+
+// groupSupervisors answers who supervises the given education groups on a
+// day, the slice of the retained group repository this resolver needs.
+type groupSupervisors interface {
+	ListStaffIDsByEducationGroupIDs(ctx context.Context, groupIDs []int64, on timezone.Date) ([]educationModel.StaffGroupID, error)
 }
 
 // authAccountReader is the slice of the account repository this resolver needs.
@@ -63,7 +69,7 @@ type dutyReader interface {
 func NewStaffRecipientResolver(
 	preferences PreferenceService,
 	students userModel.StudentRepository,
-	groups educationModel.GroupRepository,
+	groups groupSupervisors,
 	staff userModel.StaffRepository,
 	accounts authAccountReader,
 	settings settingsBoolReader,

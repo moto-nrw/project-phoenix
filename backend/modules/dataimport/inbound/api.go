@@ -232,6 +232,11 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 	rs.runtime.Success(w, r, http.StatusOK, result, message)
 }
 
+// codeImportBatchFailed is the registered code of a batch that stopped after
+// earlier batches were saved (error-registry.json). This package does not
+// import api/common, so it names the code once here.
+const codeImportBatchFailed = "import.import_batch_failed"
+
 // A failed batch may follow committed batches. Keep that progress and the
 // stable row errors available without reporting the upload as successful.
 func renderBatchImportError[T any](runtime Runtime, w http.ResponseWriter, r *http.Request, result *importModels.ImportResult[T], err error) {
@@ -240,5 +245,5 @@ func renderBatchImportError[T any](runtime Runtime, w http.ResponseWriter, r *ht
 		return
 	}
 	runtime.Failure(w, r, Failure{Status: http.StatusInternalServerError, Cause: err,
-		Message: "Import fehlgeschlagen", Code: "import_batch_failed", Result: result})
+		Message: "Import fehlgeschlagen", Code: codeImportBatchFailed, Result: result})
 }

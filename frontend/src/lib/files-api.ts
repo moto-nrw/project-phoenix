@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { ApiError, enrichApiError, wireErrorCode } from "./api-error";
 // Dateiablage (#2596): API client + type mapping for the school file
 // storage. The backend decides everything about authority (folder
 // visibility, files:manage, files.staff_upload_enabled) and tells the UI what
@@ -161,13 +161,14 @@ class FilesApiError extends ApiError {
  * the calling method passes in.
  */
 function filesErrorMessage(
-  code: string | undefined,
+  wireCode: string | undefined,
   status: number,
 ): string | null {
-  if (code === "folder_name_taken") {
+  const code = wireErrorCode(wireCode);
+  if (code === "files.folder_name_taken") {
     return "Es gibt schon einen Ordner mit diesem Namen.";
   }
-  if (code === "quota_exceeded") {
+  if (code === "files.quota_exceeded") {
     return "Der Speicherplatz der Dateiablage ist voll. Löschen Sie Dateien, die Sie nicht mehr brauchen. Für mehr Speicherplatz melden Sie sich bitte beim moto-Team.";
   }
   switch (status) {

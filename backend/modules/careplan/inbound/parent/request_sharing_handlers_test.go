@@ -31,7 +31,7 @@ func TestRenderRequestSharingErrorUsesStableFamilyProtectionCode(t *testing.T) {
 	renderRequestSharingError(recorder, request, parentService.ErrRequestSharingForbidden)
 
 	assert.Equal(t, http.StatusForbidden, recorder.Code)
-	assert.Contains(t, recorder.Body.String(), `"code":"family_protection"`)
+	assert.Contains(t, recorder.Body.String(), `"code":"care.family_protection"`)
 }
 
 func TestRequestSharingResponseNeverExposesAccountIDs(t *testing.T) {

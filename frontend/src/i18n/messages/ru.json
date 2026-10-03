@@ -1990,6 +1990,9 @@
       "server": "Не удалось обработать: {object}. Повторите попытку позже."
     },
     "codes": {
+      "attendance": {
+        "web_disabled": "У вас нет доступа к: {object}. Обратитесь в школу."
+      },
       "care": {
         "announcement_ack_not_required": "Не удалось сохранить: {object}. Проверьте введённые данные.",
         "announcement_not_a_poll": "Не удалось сохранить: {object}. Проверьте введённые данные.",
@@ -2149,6 +2152,12 @@
       "identity": {
         "account_already_has_tenant_access": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "account_inactive": "У вас нет доступа к: {object}. Обратитесь в школу.",
+        "demo_access_expired": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "demo_access_invalid": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+        "demo_access_rate_limited": "{object} сейчас недоступен. Повторите попытку.",
+        "demo_access_unknown": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+        "demo_capacity_reached": "{object} сейчас недоступен. Повторите попытку.",
+        "demo_school_preparing": "{object} сейчас недоступен. Повторите попытку.",
         "demo_session": "У вас нет доступа к: {object}. Обратитесь в школу.",
         "invitation_account_login_required": "У вас нет доступа к: {object}. Обратитесь в школу.",
         "invitation_account_mismatch": "У вас нет доступа к: {object}. Обратитесь в школу.",
@@ -2211,10 +2220,13 @@
         "source_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние."
       },
       "rooms": {
+        "color_already_in_use": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "not_released": "Не удалось изменить: {object}. Проверьте текущее состояние."
       },
       "school": {
-        "no_school_portal_role": "У вас нет доступа к: {object}. Обратитесь в школу."
+        "no_school_portal_role": "У вас нет доступа к: {object}. Обратитесь в школу.",
+        "setup_completed": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "setup_incomplete": "Не удалось изменить: {object}. Проверьте текущее состояние."
       },
       "students": {
         "absence_read_required": "У вас нет доступа к: {object}. Обратитесь в школу.",
@@ -2226,6 +2238,7 @@
         "care_withdrawal_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "change_request_not_pending": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "change_request_stale": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "child_quota_reached": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "companion_lock_busy": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "companion_would_lose_departure": "Не удалось сохранить: {object}. Проверьте введённые данные.",
         "companions_changed": "Не удалось изменить: {object}. Проверьте текущее состояние.",
@@ -2273,19 +2286,36 @@
         "self_assignment": "Не удалось сохранить: {object}. Проверьте введённые данные."
       },
       "timetable": {
+        "ambiguous_template_instance_delete": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "calendar_period_care_offering_conflict": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "calendar_period_overlap_conflict": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "complete_too_early": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "completion_confirmation_stale": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "duplicate_instance": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "guardian_notice_disabled": "У вас нет доступа к: {object}. Обратитесь в школу.",
+        "idempotency_key_reused": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "instance_moved": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "instance_not_convertible": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "instance_not_editable": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "invalid_transition": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "only_supervisor_replacement_required": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "pickup_extension_block_gone": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "pickup_extension_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "presence_would_overstaff": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "sick_absence_scope_locked": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "staff_absent_on_date": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "staff_absent_on_target": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "staff_already_on_target": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "start_too_early": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "start_window_expired": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "substitute_conflict": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "template_care_offering_conflict": "Не удалось сохранить: {object}. Проверьте введённые данные.",
         "template_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "template_roster_rebase_conflict": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "template_start_in_past": "Не удалось сохранить: {object}. Проверьте введённые данные.",
         "template_start_not_earlier": "Не удалось сохранить: {object}. Проверьте введённые данные.",
-        "template_start_predecessor_overlap": "Не удалось сохранить: {object}. Проверьте введённые данные."
+        "template_start_predecessor_overlap": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+        "understaffed_still_staffed": "Не удалось изменить: {object}. Проверьте текущее состояние."
       },
       "workforce": {
         "absence_allowance_exceeded": "Не удалось изменить: {object}. Проверьте текущее состояние.",

@@ -21,7 +21,9 @@ export interface DataTableColumn<T> {
   align?: "left" | "right" | "center";
   className?: string;
   headerClassName?: string;
-  sortValue?: (row: T) => string | number;
+  // null is a missing value and sorts after all present values, independent
+  // of direction.
+  sortValue?: (row: T) => string | number | null;
   // Role this column plays in the stacked phone layout (`stackedOnMobile`).
   // "title" is the headline of a stacked row, "meta" the muted value beside
   // it, "field" a labelled line below, "hidden" is dropped on phones.
@@ -341,6 +343,8 @@ export function DataTable<T>({
     return [...rows].sort((a, b) => {
       const av = getValue(a);
       const bv = getValue(b);
+      if (av === null) return bv === null ? 0 : 1;
+      if (bv === null) return -1;
       // Branch on type so mixed string/number columns don't fall back to
       // lexicographic compare and so numeric sort doesn't run through the
       // `<` operator (which coerces undefined to NaN and shuffles rows).

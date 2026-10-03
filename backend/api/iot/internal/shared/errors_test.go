@@ -13,5 +13,5 @@ func TestErrorMessageConstants(t *testing.T) {
 
 	assert.Equal(t, "person is not a student", shared.ErrMsgPersonNotStudent)
 	assert.Equal(t, "RFID tag not found", shared.ErrMsgRFIDTagNotFound)
-	assert.Equal(t, "rfid_tag_not_found", shared.ErrCodeRFIDTagNotFound)
+	assert.Equal(t, "iot.rfid_tag_not_found", shared.ErrCodeRFIDTagNotFound)
 }

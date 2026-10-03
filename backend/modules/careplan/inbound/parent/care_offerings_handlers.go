@@ -331,7 +331,7 @@ func (rs *Resource) getChildOfferingCatalog(w http.ResponseWriter, r *http.Reque
 		parsed, parseErr := timezone.ParseDate(raw)
 		if parseErr != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
-				errors.New("effective_from must be a date in YYYY-MM-DD form"), "offering_change_invalid"))
+				errors.New("effective_from must be a date in YYYY-MM-DD form"), common.CodeCareOfferingChangeInvalid))
 			return
 		}
 		effectiveFrom = parsed
@@ -362,7 +362,7 @@ func (rs *Resource) createOfferingChangeRequest(w http.ResponseWriter, r *http.R
 	effectiveFrom, err := timezone.ParseDate(strings.TrimSpace(body.EffectiveFrom))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
-			errors.New("effective_from must be a date in YYYY-MM-DD form"), "offering_change_invalid"))
+			errors.New("effective_from must be a date in YYYY-MM-DD form"), common.CodeCareOfferingChangeInvalid))
 		return
 	}
 	selections := make([]careplan.OfferingChangeSelection, 0, len(body.Offerings))
@@ -370,7 +370,7 @@ func (rs *Resource) createOfferingChangeRequest(w http.ResponseWriter, r *http.R
 		offeringID, convErr := strconv.ParseInt(strings.TrimSpace(entry.OfferingID), 10, 64)
 		if convErr != nil || offeringID <= 0 {
 			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
-				errors.New("offering_id must be a numeric id"), "offering_change_invalid"))
+				errors.New("offering_id must be a numeric id"), common.CodeCareOfferingChangeInvalid))
 			return
 		}
 		selections = append(selections, careplan.OfferingChangeSelection{

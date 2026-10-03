@@ -263,7 +263,7 @@ describe("handleApiError", () => {
     const backendJson = JSON.stringify({
       status: "error",
       error: "account already has access to tenant",
-      code: "ACCOUNT_ALREADY_HAS_TENANT_ACCESS",
+      code: "identity.account_already_has_tenant_access",
     });
     const error = new Error(`API error (409): ${backendJson}`);
 
@@ -272,7 +272,7 @@ describe("handleApiError", () => {
 
     expect(response.status).toBe(409);
     expect(body.error).toBe("account already has access to tenant");
-    expect(body.code).toBe("ACCOUNT_ALREADY_HAS_TENANT_ACCESS");
+    expect(body.code).toBe("identity.account_already_has_tenant_access");
   });
 
   it("omits code field when backend JSON has no code", async () => {
@@ -331,9 +331,10 @@ describe("handleApiError", () => {
   // empty and "Ergänzen und speichern" loops on the same 409 forever.
   it("forwards the top-level conflicts array of a companion-plan 409", async () => {
     const backendJson = JSON.stringify({
-      conflicts: [{ student_id: 42, weekdays: ["mon", "tue"] }],
-      message:
+      status: "error",
+      error:
         "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+      conflicts: [{ student_id: 42, weekdays: ["mon", "tue"] }],
     });
     const error = new Error(`API error (409): ${backendJson}`);
 

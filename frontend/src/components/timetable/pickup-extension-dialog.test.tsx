@@ -162,7 +162,11 @@ describe("PickupExtensionDialog (#3261)", () => {
 
   it("bleibt offen und erklärt, wenn sich der Termin geändert hat", async () => {
     mockResolve.mockRejectedValue(
-      new PickupExtensionApiError("gone", 409, "pickup_extension_block_gone"),
+      new PickupExtensionApiError(
+        "gone",
+        409,
+        "timetable.pickup_extension_block_gone",
+      ),
     );
     const onClose = vi.fn();
     const onStale = vi.fn();

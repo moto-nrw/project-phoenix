@@ -4,7 +4,6 @@ import (
 	"context"
 
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Person is the display projection of a staff member's person row.
@@ -28,9 +27,9 @@ func attachSubstitutionPersons(ctx context.Context, persons PersonQuery, rows []
 	if persons == nil || len(rows) == 0 {
 		return nil
 	}
-	staff := make([]*userModels.Staff, 0, 2*len(rows))
-	seen := make(map[*userModels.Staff]struct{}, 2*len(rows))
-	add := func(member *userModels.Staff) {
+	staff := make([]*educationModels.SubstitutionStaff, 0, 2*len(rows))
+	seen := make(map[*educationModels.SubstitutionStaff]struct{}, 2*len(rows))
+	add := func(member *educationModels.SubstitutionStaff) {
 		if member == nil {
 			return
 		}
@@ -67,9 +66,7 @@ func attachSubstitutionPersons(ctx context.Context, persons PersonQuery, rows []
 		if !found {
 			continue
 		}
-		person := &userModels.Person{FirstName: value.FirstName, LastName: value.LastName}
-		person.ID = value.ID
-		member.Person = person
+		member.Person = &educationModels.SubstitutionPerson{ID: value.ID, FirstName: value.FirstName, LastName: value.LastName}
 	}
 	return nil
 }

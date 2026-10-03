@@ -133,11 +133,11 @@ func renderStaffPreviewError(w http.ResponseWriter, r *http.Request, err error) 
 		case errors.Is(authErr.Err, identityaccess.ErrAccountInactive),
 			errors.Is(authErr.Err, identityaccess.ErrTenantAccessDenied),
 			errors.Is(authErr.Err, identityaccess.ErrPreviewTargetNotStaff):
-			common.RenderError(w, r, common.ErrorForbiddenWithCode(authErr.Err, "preview_target_not_previewable"))
+			common.RenderError(w, r, common.ErrorForbiddenWithCode(authErr.Err, common.CodeIdentityPreviewTargetNotPreviewable))
 		case errors.Is(authErr.Err, identityaccess.ErrMustUseSchoolPortal):
-			common.RenderError(w, r, common.ErrorForbiddenWithCode(authErr.Err, "preview_target_school_portal"))
+			common.RenderError(w, r, common.ErrorForbiddenWithCode(authErr.Err, common.CodeIdentityPreviewTargetSchoolPortal))
 		case errors.Is(authErr.Err, identityaccess.ErrPreviewTokenInvalid):
-			common.RenderError(w, r, common.ErrorForbiddenWithCode(identityaccess.ErrPreviewTokenInvalid, "preview_token_invalid"))
+			common.RenderError(w, r, common.ErrorForbiddenWithCode(identityaccess.ErrPreviewTokenInvalid, common.CodeIdentityPreviewTokenInvalid))
 		case errors.Is(authErr.Err, identityaccess.ErrPreviewSelf):
 			common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrPreviewSelf))
 		case errors.Is(authErr.Err, identityaccess.ErrTenantNotFound):

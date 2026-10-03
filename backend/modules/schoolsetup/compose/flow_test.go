@@ -36,7 +36,7 @@ func TestWizardRunsFromFirstStepToCompletion(t *testing.T) {
 
 	response, _ = h.do(t, admin.ID, http.MethodPost, "/complete", nil)
 	require.Equal(t, http.StatusConflict, response.Code)
-	assert.Equal(t, "school_setup_incomplete", response.Header().Get("X-Conflict-Code"))
+	assert.Equal(t, "school.setup_incomplete", response.Header().Get("X-Conflict-Code"))
 
 	for _, key := range []string{"team", "rooms", "groups", "guardians"} {
 		response, _ = h.do(t, admin.ID, http.MethodPut, "/steps/"+key, map[string]any{"skipped": true})
@@ -48,7 +48,7 @@ func TestWizardRunsFromFirstStepToCompletion(t *testing.T) {
 
 	response, _ = h.do(t, admin.ID, http.MethodPut, "/steps/team", map[string]any{"skipped": false})
 	require.Equal(t, http.StatusConflict, response.Code)
-	assert.Equal(t, "school_setup_completed", response.Header().Get("X-Conflict-Code"))
+	assert.Equal(t, "school.setup_completed", response.Header().Get("X-Conflict-Code"))
 }
 
 func TestWizardDismissalIsPersonal(t *testing.T) {

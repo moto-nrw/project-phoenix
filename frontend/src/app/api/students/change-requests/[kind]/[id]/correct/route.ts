@@ -15,8 +15,8 @@ interface BackendEnvelope<T> {
  * Proxy POST /api/students/change-requests/{kind}/{id}/correct → backend
  * (#2267). Nimmt eine bereits gefallene Entscheidung zurück und ersetzt sie.
  * Die alte Entscheidung bleibt im Verlauf stehen. Ein 409
- * `correction_unsupported` heißt, dass sich diese Art nicht zurücknehmen
- * lässt; `request_not_decided`, dass die Anfrage noch offen ist.
+ * `students.correction_unsupported` heißt, dass sich diese Art nicht zurücknehmen
+ * lässt; `students.request_not_decided`, dass die Anfrage noch offen ist.
  */
 export const POST = createPostHandler<unknown, CorrectBody>(
   async (_request, body, token, params) => {

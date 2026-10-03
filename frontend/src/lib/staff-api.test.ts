@@ -1942,11 +1942,11 @@ describe("staff-api", () => {
 
     it.each([
       [
-        "vacation_opening_already_exists",
+        "workforce.vacation_opening_already_exists",
         "Für dieses Jahr existiert bereits eine Urlaubs-Übernahme. Lösche zuerst die bestehende Übernahme.",
       ],
       [
-        "vacation_opening_absences_before_cutoff",
+        "workforce.vacation_opening_absences_before_cutoff",
         "Es existieren bereits Urlaubs-Abwesenheiten vor dem Stichtag. Die Übernahme würde diese Tage doppelt zählen.",
       ],
     ])("explains the takeover rejection %s", async (code, message) => {
@@ -2010,7 +2010,7 @@ describe("staff-api", () => {
             Promise.resolve(
               JSON.stringify({
                 error: "vacation quota exceeded: 2026: remaining -2",
-                code: "vacation_quota_below_used",
+                code: "workforce.vacation_quota_below_used",
               }),
             ),
         } as Response);
@@ -2087,7 +2087,7 @@ describe("staff-api", () => {
           Promise.resolve(
             JSON.stringify({
               error: "vacation quota exceeded: 2026: remaining 1, needed 3",
-              code: "vacation_quota_exceeded",
+              code: "workforce.vacation_quota_exceeded",
             }),
           ),
       } as Response);
@@ -2232,12 +2232,15 @@ describe("staff-api", () => {
 
     it.each([
       [
-        { code: "vacation_quota_exceeded", error: "vacation quota exceeded" },
+        {
+          code: "workforce.vacation_quota_exceeded",
+          error: "vacation quota exceeded",
+        },
         "Dafür reicht der Resturlaub nicht. Erhöhen Sie zuerst den Urlaubsanspruch.",
       ],
       [
         {
-          code: "absence_allowance_exceeded",
+          code: "workforce.absence_allowance_exceeded",
           error: "staff absence type allowance exceeded",
         },
         "Für diese Art sind nicht mehr genug Tage übrig. Erhöhen Sie zuerst den Anspruch.",
@@ -2323,7 +2326,7 @@ describe("staff-api", () => {
         text: () =>
           Promise.resolve(
             JSON.stringify({
-              code: "absence_rebooking_blocked",
+              code: "workforce.absence_rebooking_blocked",
               error: "Der August 2026 ist abgeschlossen.",
             }),
           ),
@@ -2349,7 +2352,7 @@ describe("staff-api", () => {
         text: () =>
           Promise.resolve(
             JSON.stringify({
-              code: "absence_allowance_exceeded",
+              code: "workforce.absence_allowance_exceeded",
               error: "staff absence type allowance exceeded",
             }),
           ),
@@ -2535,7 +2538,7 @@ describe("staff-api", () => {
       const overlapBody = JSON.stringify({
         status: "error",
         error: "work session overlaps an existing block (08:00-12:00)",
-        code: "work_session_overlap",
+        code: "workforce.work_session_overlap",
       });
       mockFetch
         .mockResolvedValueOnce({
@@ -2701,7 +2704,7 @@ describe("staff-api", () => {
           Promise.resolve(
             JSON.stringify({
               error: "balance adjustment exceeds accrued balance",
-              code: "balance_adjustment_exceeds_balance",
+              code: "workforce.balance_adjustment_exceeds_balance",
             }),
           ),
       } as Response);
@@ -2727,7 +2730,7 @@ describe("staff-api", () => {
           Promise.resolve(
             JSON.stringify({
               error: "balance adjustment exceeds accrued balance",
-              code: "balance_adjustment_exceeds_balance",
+              code: "workforce.balance_adjustment_exceeds_balance",
             }),
           ),
       } as Response);
@@ -2752,7 +2755,7 @@ describe("staff-api", () => {
           Promise.resolve(
             JSON.stringify({
               error: "balance adjustment exceeds accrued balance",
-              code: "balance_adjustment_exceeds_balance",
+              code: "workforce.balance_adjustment_exceeds_balance",
             }),
           ),
       } as Response);
@@ -2786,7 +2789,7 @@ describe("staff-api", () => {
             Promise.resolve(
               JSON.stringify({
                 error: "duplicate",
-                code: "balance_already_reset",
+                code: "workforce.balance_already_reset",
               }),
             ),
         } as Response)
@@ -2797,7 +2800,7 @@ describe("staff-api", () => {
             Promise.resolve(
               JSON.stringify({
                 error: "dependent",
-                code: "dependent_balance_reset",
+                code: "workforce.dependent_balance_reset",
               }),
             ),
         } as Response)
@@ -2884,15 +2887,15 @@ describe("staff-api", () => {
 
     it.each([
       [
-        "opening_balance_already_exists",
+        "workforce.opening_balance_already_exists",
         "Für diese Person existiert bereits ein Eröffnungssaldo. Lösche zuerst die bestehende Buchung.",
       ],
       [
-        "dependent_balance_reset",
+        "workforce.dependent_balance_reset",
         "Es existieren bereits spätere Buchungen (Reset), die vom Stichtag abhängen.",
       ],
       [
-        "adjustment_in_closed_month",
+        "workforce.adjustment_in_closed_month",
         "Der gewählte Monat ist abgeschlossen. Wähle ein Datum im offenen Monat oder öffne den Monatsabschluss wieder.",
       ],
     ])("explains the opening rejection %s", async (code, message) => {
@@ -3223,7 +3226,7 @@ describe("staff-api", () => {
         text: () =>
           Promise.resolve(
             JSON.stringify({
-              code: "stammdaten_invalid",
+              code: "workforce.stammdaten_invalid",
               error: "invalid IBAN checksum",
             }),
           ),
