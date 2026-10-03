@@ -115,7 +115,7 @@ export function SegmentedControl<T extends string>({
   // dieselbe Touch-Höhe wie die Nachbarn.
   // Schriftgröße `text-sm`, nicht `text-xs`: ein Bedienelement ist kein
   // Kleingedrucktes (Typo-Boden, TENANT-PAGE-SPEC).
-  const base = `flex h-8! ${iconOnly ? "w-9 max-sm:w-10" : "min-w-[84px] px-3"} items-center justify-center text-sm font-medium transition-[background-color,box-shadow,color,opacity] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none max-sm:h-9!`;
+  const base = `flex h-8! ${iconOnly ? "w-9" : "min-w-[84px] px-3"} items-center justify-center text-sm font-medium transition-[background-color,box-shadow,color,opacity] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none max-sm:h-9!`;
 
   // Die frühere „pills"-Fassung (runde, einzeln getönte Pillen ohne Spur) ist
   // aufgegangen: sie war 32 px hoch, die andere 36, und beide standen im

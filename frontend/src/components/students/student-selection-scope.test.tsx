@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "~/contexts/ToastContext";
@@ -67,6 +73,12 @@ function renderScope(
   return { ...view, rerenderScope: (key: string) => view.rerender(ui(key)) };
 }
 
+// The DataTable keeps its phone list in the DOM next to the table (CSS picks
+// one), so row checkboxes exist twice in jsdom; the tests use the table.
+function table() {
+  return within(screen.getByTestId("data-table-table"));
+}
+
 describe("StudentSelectionScope (#3834)", () => {
   beforeEach(() => {
     mocks.attendanceWebEnabled = true;
@@ -80,7 +92,7 @@ describe("StudentSelectionScope (#3834)", () => {
     ).not.toBeInTheDocument();
 
     fireEvent.click(
-      screen.getByRole("checkbox", { name: "Mia Kaya auswählen" }),
+      table().getByRole("checkbox", { name: "Mia Kaya auswählen" }),
     );
 
     expect(
@@ -100,7 +112,7 @@ describe("StudentSelectionScope (#3834)", () => {
     });
     renderScope();
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "Alle auswählen" }));
+    fireEvent.click(table().getByRole("checkbox", { name: "Alle auswählen" }));
     fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
 
     await waitFor(() => expect(mocks.batch).toHaveBeenCalledTimes(1));
@@ -112,7 +124,7 @@ describe("StudentSelectionScope (#3834)", () => {
     renderScope();
 
     fireEvent.click(
-      screen.getByRole("checkbox", { name: "Ben Kaya auswählen" }),
+      table().getByRole("checkbox", { name: "Ben Kaya auswählen" }),
     );
 
     expect(
@@ -127,7 +139,7 @@ describe("StudentSelectionScope (#3834)", () => {
     renderScope({ checkinAllowed: false });
 
     fireEvent.click(
-      screen.getByRole("checkbox", { name: "Ben Kaya auswählen" }),
+      table().getByRole("checkbox", { name: "Ben Kaya auswählen" }),
     );
 
     expect(
@@ -138,16 +150,16 @@ describe("StudentSelectionScope (#3834)", () => {
   it("drops the marks when the list on screen changes", () => {
     const { rerenderScope } = renderScope({ scopeKey: "a" });
     fireEvent.click(
-      screen.getByRole("checkbox", { name: "Mia Kaya auswählen" }),
+      table().getByRole("checkbox", { name: "Mia Kaya auswählen" }),
     );
     expect(
-      screen.getByRole("checkbox", { name: "Mia Kaya auswählen" }),
+      table().getByRole("checkbox", { name: "Mia Kaya auswählen" }),
     ).toBeChecked();
 
     rerenderScope("b");
 
     expect(
-      screen.getByRole("checkbox", { name: "Mia Kaya auswählen" }),
+      table().getByRole("checkbox", { name: "Mia Kaya auswählen" }),
     ).not.toBeChecked();
     expect(
       screen.queryByRole("region", { name: "Ausgewählte Kinder" }),

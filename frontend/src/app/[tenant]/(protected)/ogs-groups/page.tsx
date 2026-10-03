@@ -81,7 +81,6 @@ import {
   columnMenuEntries,
 } from "~/components/ui/collection-view-switch";
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
-import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { fetchOgsGroupLive } from "~/lib/ogs-group-live-api";
 import type {
@@ -968,8 +967,7 @@ function OGSGroupPageContent() {
     [tableColumns],
   );
   const collectionView = useCollectionView("ogs-groups", tableColumnDefaults);
-  const isPhone = useMediaQuery(BELOW_MD);
-  const showTable = collectionView.view === "table" && !isPhone;
+  const showTable = collectionView.view === "table";
   const changeView = useCallback(
     (next: "tiles" | "table") => {
       if (next === collectionView.view) return;
@@ -1255,7 +1253,7 @@ function OGSGroupPageContent() {
             {/* Der An- und Abmelde-Modus ist ab 1024px eine Kopfaktion;
                 darunter tragen ihn die Leiste am unteren Rand (Phone) und
                 der schwebende Knopf (Tablet). */}
-            <div className="hidden md:block">
+            <div data-icon-only="">
               <CollectionViewSwitch
                 value={collectionView.view}
                 onChange={changeView}
@@ -1379,7 +1377,9 @@ function OGSGroupPageContent() {
             the card list when OFF; switches to a sticky bottom bar above
             the mobile nav when ON. Tablet keeps the floating FAB and
             desktop the header inline pill, both rendered below. */}
-        {isBinaryMode && (
+        {/* In der Liste markieren die Kästchen; der Modus gehört zu den
+            Kacheln (#3834). */}
+        {isBinaryMode && !showTable && (
           <div className="md:hidden">
             <SchoolCheckinModeMobile
               isActive={schoolCheckin.isActive}

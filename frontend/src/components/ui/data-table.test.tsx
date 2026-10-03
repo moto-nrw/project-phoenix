@@ -5,7 +5,7 @@
  * suppression of bubbled keydown from inner elements, and the loading
  * placeholder rendering path.
  */
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 
 import { DataTable } from "./data-table";
@@ -458,5 +458,69 @@ describe("DataTable selection and hidden columns (#3834)", () => {
     expect(screen.getByText("Name")).toBeInTheDocument();
     expect(screen.queryByText("Nummer")).not.toBeInTheDocument();
     expect(screen.queryByText("#1")).not.toBeInTheDocument();
+  });
+});
+
+describe("DataTable inline phone list (#3834)", () => {
+  const phoneColumns: DataTableColumn<Row>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (row) => row.name,
+      stacked: "title",
+    },
+    { key: "id", header: "Nummer", render: (row) => `#${row.id}` },
+  ];
+
+  function renderPhoneList() {
+    const onChange = vi.fn();
+    const onRowClick = vi.fn();
+    render(
+      <DataTable
+        columns={phoneColumns}
+        rows={rows}
+        getRowKey={(row) => row.id}
+        onRowClick={onRowClick}
+        stackedOnMobile
+        stackedLayout="inline"
+        selection={{
+          selectedKeys: new Set(["1"]),
+          onChange,
+          rowLabel: (row) => row.name,
+        }}
+      />,
+    );
+    return {
+      onChange,
+      onRowClick,
+      list: within(screen.getByTestId("data-table-stacked")),
+    };
+  }
+
+  it("marks a row from its checkbox without opening it", () => {
+    const { onChange, onRowClick, list } = renderPhoneList();
+
+    expect(
+      list.getByRole("checkbox", { name: "Alpha auswählen" }),
+    ).toBeChecked();
+    fireEvent.click(list.getByRole("checkbox", { name: "Beta auswählen" }));
+
+    expect(onChange).toHaveBeenCalledWith(["2"], true);
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
+  it("opens the row from anywhere else", () => {
+    const { onRowClick, list } = renderPhoneList();
+
+    fireEvent.click(list.getByText("Beta"));
+
+    expect(onRowClick).toHaveBeenCalledWith(rows[1]);
+  });
+
+  it("puts the other columns as labelled pairs under the title", () => {
+    const { list } = renderPhoneList();
+
+    expect(list.getAllByText("Nummer")).toHaveLength(2);
+    expect(list.getByText("#2")).toBeInTheDocument();
   });
 });

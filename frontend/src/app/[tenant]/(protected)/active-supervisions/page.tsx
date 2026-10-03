@@ -72,7 +72,6 @@ import {
   columnMenuEntries,
 } from "~/components/ui/collection-view-switch";
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
-import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { OpenRoomSections } from "~/components/active-supervisions/open-room-sections";
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
@@ -505,9 +504,8 @@ function MeinRaumPageContent() {
     "active-supervisions",
     tableColumnDefaults,
   );
-  const isPhone = useMediaQuery(BELOW_MD);
   const tableApplies = openRoomLayout !== null || !currentTimetableRoster;
-  const showTable = collectionView.view === "table" && !isPhone && tableApplies;
+  const showTable = collectionView.view === "table" && tableApplies;
   // Eine Markierung gilt nur für die Liste, in der sie gesetzt wurde: ein
   // anderer Raum, eine andere Suche oder ein anderer Filter leeren sie (wie
   // in der Kindersuche, review #2372).
@@ -640,7 +638,7 @@ function MeinRaumPageContent() {
         hasHeadActions || tableApplies ? (
           <>
             {tableApplies ? (
-              <div className="hidden md:block">
+              <div data-icon-only="">
                 <CollectionViewSwitch
                   value={collectionView.view}
                   onChange={changeView}

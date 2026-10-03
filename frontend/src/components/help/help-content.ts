@@ -439,7 +439,7 @@ function studentSearchTopic(
       },
       {
         // #3834: derselbe Umschalter steht auch in `Meine Gruppen` und in der
-        // aktuellen Aufsicht. Auf dem Handy gibt es nur Karten.
+        // aktuellen Aufsicht, auch auf dem Handy.
         title: "Als Liste ansehen",
         description:
           "Die Liste zeigt dieselben Angaben wie die Karten, ein Kind pro Zeile.",
@@ -455,7 +455,6 @@ function studentSearchTopic(
       "Sie sehen jetzt die Angaben des Kindes. Auf dem Handy wählen Sie `Zurück`. Am Computer nutzen Sie die Navigation oben.",
     differences: [
       "Haben Sie einen anderen Tag gewählt? Dann sehen Sie die geplante Anwesenheit. Ein aktueller Aufenthaltsort wird nicht gezeigt.",
-      "Kein Listensymbol zu sehen? Auf dem Handy gibt es nur Karten.",
       "Ansicht und Spalten bleiben auf diesem Gerät so, wie Sie sie gewählt haben.",
       "Einige Bereiche brauchen zusätzliche Rechte: `Betreuungsplan`, `Dokumente` und `Änderungsprotokoll`. Fehlt ein Bereich? Fragen Sie Ihre Leitung.",
       ...(presenceDifference ? [presenceDifference] : []),

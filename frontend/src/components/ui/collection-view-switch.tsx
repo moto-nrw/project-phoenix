@@ -2,6 +2,7 @@
 
 import { LayoutGrid, List } from "lucide-react";
 
+import { Button } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
 import type { CollectionView } from "~/lib/hooks/use-collection-view";
@@ -22,8 +23,12 @@ const VIEW_ITEMS = [
 /**
  * Switch between the tile grid and the table of a collection page (#3834):
  * a grid and a list symbol, the familiar pair from file managers. A value
- * choice, so it is a SegmentedControl, not a tab bar. Phones always show
- * tiles; the caller hides the switch below `md`.
+ * choice, so it is a SegmentedControl, not a tab bar.
+ *
+ * Below `sm` the head row has no room for the pair next to the title and the
+ * ⋮ menu, so a phone gets ONE symbol button that shows the other view (list
+ * symbol while tiles show, and back). The caller marks its wrapper
+ * `data-icon-only`, so either form stays beside the title.
  */
 export function CollectionViewSwitch({
   value,
@@ -34,15 +39,35 @@ export function CollectionViewSwitch({
   onChange: (view: CollectionView) => void;
   className?: string;
 }>) {
+  const next = value === "tiles" ? "table" : "tiles";
+  const nextLabel =
+    value === "tiles" ? "Als Liste zeigen" : "Als Kacheln zeigen";
   return (
-    <SegmentedControl
-      ariaLabel="Ansicht"
-      iconOnly
-      items={VIEW_ITEMS}
-      value={value}
-      onChange={onChange}
-      className={className}
-    />
+    <>
+      <SegmentedControl
+        ariaLabel="Ansicht"
+        iconOnly
+        items={VIEW_ITEMS}
+        value={value}
+        onChange={onChange}
+        className={`max-sm:hidden ${className ?? ""}`}
+      />
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="sm:hidden"
+        aria-label={nextLabel}
+        title={nextLabel}
+        onClick={() => onChange(next)}
+      >
+        {next === "table" ? (
+          <List className="h-5 w-5" aria-hidden />
+        ) : (
+          <LayoutGrid className="h-5 w-5" aria-hidden />
+        )}
+      </Button>
+    </>
   );
 }
 

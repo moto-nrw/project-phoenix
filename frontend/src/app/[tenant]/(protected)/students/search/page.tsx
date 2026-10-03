@@ -92,7 +92,6 @@ import {
   columnMenuEntries,
 } from "~/components/ui/collection-view-switch";
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
-import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { StudentCardClockProvider } from "~/components/students/student-card-clock";
 import { StudentExportModal } from "~/components/students/student-export-modal";
@@ -2853,7 +2852,7 @@ function SearchPageContent() {
 
   // Kacheln oder Tabelle (#3834). Die Tabelle trägt dieselben Angaben wie
   // die Karte, eine Spalte je Angabe, und markiert Kinder per Kästchen für
-  // die Sammelaktionen. Auf dem Telefon bleibt es bei den Kacheln.
+  // die Sammelaktionen. Auf dem Telefon wird sie zur dichten Zeilenliste.
   const tableColumns = useMemo(
     () =>
       compactColumns<Student>([
@@ -2895,8 +2894,7 @@ function SearchPageContent() {
     "student-search",
     tableColumnDefaults,
   );
-  const isPhone = useMediaQuery(BELOW_MD);
-  const showTable = collectionView.view === "table" && !isPhone;
+  const showTable = collectionView.view === "table";
   const changeView = useCallback(
     (next: "tiles" | "table") => {
       if (next === collectionView.view) return;
@@ -2979,7 +2977,7 @@ function SearchPageContent() {
         statsLoading={!hasFetchedOnce || isDateTransition}
         actions={
           <>
-            <div className="hidden md:block">
+            <div data-icon-only="">
               <CollectionViewSwitch
                 value={collectionView.view}
                 onChange={changeView}
@@ -3192,7 +3190,9 @@ function SearchPageContent() {
 
           {/* Mobile (<md) check-in mode trigger, inline pill / sticky bar.
           Check-in toggles TODAY's attendance, so it hides on other dates. */}
-          {checkinModeAvailable && (
+          {/* In der Liste markieren die Kästchen; der Modus gehört zu den
+              Kacheln (#3834). */}
+          {checkinModeAvailable && !showTable && (
             <div className="mb-3 md:hidden">
               <SchoolCheckinModeMobile
                 isActive={schoolCheckin.isActive}

@@ -93,6 +93,7 @@ export function nameColumn<T extends Student>(
     header: "Name",
     className: "whitespace-nowrap",
     hideable: false,
+    stacked: "title",
     render: (student) => (
       <NameCell
         student={student}
@@ -112,6 +113,7 @@ export function classColumn<T extends Student>(
     key: "class",
     header: "Klasse",
     className: "whitespace-nowrap",
+    stackedLabel: false,
     defaultVisible: options.defaultVisible,
     render: (student) => student.school_class || EMPTY,
     sortValue: (student) => student.school_class ?? "",
@@ -123,6 +125,7 @@ export function groupColumn<T extends Student>(): StudentTableColumn<T> {
     key: "group",
     header: "Gruppe",
     className: "whitespace-nowrap",
+    stackedLabel: false,
     render: (student) => student.group_name || EMPTY,
     sortValue: (student) => student.group_name ?? "",
   };
@@ -140,6 +143,7 @@ export function statusColumn<T extends Student>(
     key: "status",
     header,
     className: "whitespace-nowrap",
+    stacked: "meta",
     render: (student) => (
       // The badge stacks right-aligned for the card's top-right corner; in a
       // left-aligned column its stack starts at the left edge instead.
@@ -299,6 +303,10 @@ export function StudentTable<T extends Student>({
       onRowClick={onOpen}
       hiddenColumns={hiddenColumns}
       caption={caption}
+      // On a phone the same rows as a dense list (#3834): name and status
+      // on one line, the other shown columns as short pairs below.
+      stackedOnMobile
+      stackedLayout="inline"
       selection={
         selection
           ? {
