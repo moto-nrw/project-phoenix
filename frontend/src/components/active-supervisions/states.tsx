@@ -112,14 +112,18 @@ export function EmptyRoomsView({
         currentStaffId={currentStaffId}
       />
 
-      {/* Der Zustand sitzt auf einer Fläche, nicht frei auf dem Grund. */}
-      <SectionCard>
-        <EmptyState
-          icon={<MotoConceptIcon concept="rooms" size={48} />}
-          title="Keine aktive Raum-Aufsicht"
-          description="Sie beaufsichtigen aktuell keinen Raum."
-        />
-      </SectionCard>
+      {/* Der Zustand sitzt auf einer Fläche, nicht frei auf dem Grund. Die
+          Hülle trägt nur das Ziel der Tour „Eine Aufsicht starten“ (#3748)
+          und ist eine Flex-Spalte, damit die Fläche weiter wachsen darf. */}
+      <div className="flex flex-col" data-setup-tour="supervision-empty">
+        <SectionCard>
+          <EmptyState
+            icon={<MotoConceptIcon concept="rooms" size={48} />}
+            title="Keine aktive Raum-Aufsicht"
+            description="Sie beaufsichtigen aktuell keinen Raum."
+          />
+        </SectionCard>
+      </div>
     </>
   );
 }

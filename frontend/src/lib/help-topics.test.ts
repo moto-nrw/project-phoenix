@@ -244,73 +244,77 @@ describe("getParentHelpTopicForPath", () => {
     // Tablet, Hilfe öffnen.
     expect(caregiverTopics[3]?.instructionGroups).toHaveLength(4);
     expect(caregiverTopics[4]).toMatchObject({
+      id: HELP_TOPICS.caregiverFirstSteps,
+      group: "einstieg",
+    });
+    expect(caregiverTopics[5]).toMatchObject({
       id: HELP_TOPICS.mySchedule,
       group: "tagesplanung",
     });
     expect(
-      caregiverTopics[4]?.instructionGroups?.map((group) => group.title),
+      caregiverTopics[5]?.instructionGroups?.map((group) => group.title),
     ).toEqual([
       "Termine und Einsätze ansehen",
       "Die Farben verstehen",
       "Den Kalender abonnieren",
     ]);
-    expect(caregiverTopics[4]?.instructionGroups?.[2]?.description).toBe(
+    expect(caregiverTopics[5]?.instructionGroups?.[2]?.description).toBe(
       "Nutzen Sie das Abo, wenn Sie hauptsächlich Ihren persönlichen Kalender verwenden. Neue und geänderte Einträge aus moto erscheinen dort automatisch.",
     );
-    expect(caregiverTopics[4]?.result).toContain(
+    expect(caregiverTopics[5]?.result).toContain(
       "Das Kalender-Abo übernimmt neue, geänderte und abgesagte Einträge automatisch.",
     );
-    expect(caregiverTopics[5]).toMatchObject({
+    expect(caregiverTopics[6]).toMatchObject({
       id: HELP_TOPICS.carePlan,
       group: "tagesplanung",
     });
-    expect(caregiverTopics[5]?.troubleshooting).toBeUndefined();
-    expect(caregiverTopics[5]?.troubleshootingDetails).toEqual([
+    expect(caregiverTopics[6]?.troubleshooting).toBeUndefined();
+    expect(caregiverTopics[6]?.troubleshootingDetails).toEqual([
       "Der Tab `Betreuungsplan` fehlt? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
       "Steht dort `Noch kein Planungszeitraum`? Dann hat Ihre Leitung den Zeitraum noch nicht angelegt.",
     ]);
-    expect(caregiverTopics[5]?.differences).toEqual([
+    expect(caregiverTopics[6]?.differences).toEqual([
       "Steht oben rechts `Nur ansehen`? Dann dürfen Sie den Plan lesen, aber nicht ändern.",
     ]);
     // Der Tagesplan steht in der App ganz oben im Tagesbetrieb und folgt in
     // der Hilfe auf den Betreuungsplan (#2383).
-    expect(caregiverTopics[6]).toMatchObject({
+    expect(caregiverTopics[7]).toMatchObject({
       id: HELP_TOPICS.dayPlan,
       group: "tagesplanung",
     });
-    expect(caregiverTopics[7]).toMatchObject({
+    expect(caregiverTopics[8]).toMatchObject({
       id: HELP_TOPICS.studentSearch,
       group: "kinder",
     });
-    expect(caregiverTopics[7]?.instructionGroups).toHaveLength(4);
-    expect(caregiverTopics[7]?.troubleshooting).toBe(
+    expect(caregiverTopics[8]?.instructionGroups).toHaveLength(4);
+    expect(caregiverTopics[8]?.troubleshooting).toBe(
       HELP_TOPICS.missingChildOrGroup,
     );
-    expect(caregiverTopics[8]).toMatchObject({
+    expect(caregiverTopics[9]).toMatchObject({
       id: HELP_TOPICS.editStudent,
     });
-    expect(caregiverTopics[9]).toMatchObject({
+    expect(caregiverTopics[10]).toMatchObject({
       id: HELP_TOPICS.webAttendance,
     });
-    expect(caregiverTopics[10]).toMatchObject({
+    expect(caregiverTopics[11]).toMatchObject({
       id: HELP_TOPICS.changeLocation,
     });
-    expect(caregiverTopics[11]).toMatchObject({
+    expect(caregiverTopics[12]).toMatchObject({
       id: HELP_TOPICS.absences,
     });
-    expect(caregiverTopics[12]).toMatchObject({
+    expect(caregiverTopics[13]).toMatchObject({
       id: HELP_TOPICS.dayLog,
     });
-    expect(caregiverTopics[13]).toMatchObject({
+    expect(caregiverTopics[14]).toMatchObject({
       id: HELP_TOPICS.emergency,
     });
-    expect(caregiverTopics[14]).toMatchObject({
+    expect(caregiverTopics[15]).toMatchObject({
       id: HELP_TOPICS.ownGroups,
     });
-    expect(caregiverTopics[15]).toMatchObject({
+    expect(caregiverTopics[16]).toMatchObject({
       id: HELP_TOPICS.transferGroup,
     });
-    expect(caregiverTopics).toHaveLength(40);
+    expect(caregiverTopics).toHaveLength(41);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -480,7 +484,7 @@ describe("getParentHelpTopicForPath", () => {
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            40 -
+            41 -
             (nfcEnabled ? 0 : 7) -
             (presenceMode === "binary" ? (nfcEnabled ? 5 : 4) : 0) -
             (groupMode === "open_care" ? 2 : 0);

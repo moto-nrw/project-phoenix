@@ -190,6 +190,7 @@ export function StudentCard({
       aria-busy={isCheckinPending}
       aria-pressed={selectMode ? isCheckinSelected : undefined}
       data-checkin-mode={checkinMode || undefined}
+      data-setup-tour="student-card"
       data-checkin-state={checkinMode ? checkinState : undefined}
       data-checkin-selected={(selectMode && isCheckinSelected) || undefined}
       style={selectedRingStyle}

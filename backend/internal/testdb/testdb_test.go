@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -134,6 +135,40 @@ func TestEnsureServerStartsContainerForRefusedConnection(t *testing.T) {
 
 	require.ErrorContains(t, err, "auto-start failed")
 	assert.Equal(t, 1, starts)
+}
+
+func TestEnsureServerWaitsForTransientConnectionTimeout(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := NewConfig("postgres://postgres:test@localhost:5433/phoenix_test?sslmode=disable")
+	require.NoError(t, err)
+
+	starts := 0
+	pings := 0
+	err = ensureServerWithDependencies(
+		context.Background(),
+		cfg,
+		func(context.Context) error {
+			starts++
+			return nil
+		},
+		func(context.Context, *Config) error {
+			t.Fatal("connection timeout must not trigger authentication repair")
+			return nil
+		},
+		func(context.Context, *Config) error {
+			pings++
+			if pings == 1 {
+				return &net.OpError{Op: "read", Err: os.ErrDeadlineExceeded}
+			}
+			return nil
+		},
+		func(error) bool { return false },
+	)
+
+	require.NoError(t, err)
+	assert.Zero(t, starts, "a slow running server must not be restarted")
+	assert.Equal(t, 2, pings)
 }
 
 func TestTestContainerCommandUsesDSNConnectionSettings(t *testing.T) {

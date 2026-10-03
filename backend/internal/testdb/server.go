@@ -62,7 +62,7 @@ func ensureServerWithDependencies(
 		return nil
 	}
 
-	if isPostgresStarting(pingErr) {
+	if isPostgresStarting(pingErr) || isConnectionTimeout(pingErr) {
 		return waitForServer(ctx, cfg, repairAuthentication, ping, isAuthenticationFailure)
 	}
 	if isAuthenticationFailure(pingErr) {
@@ -123,6 +123,11 @@ func waitForServer(
 func isPostgresStarting(err error) bool {
 	var pgErr pgdriver.Error
 	return errors.As(err, &pgErr) && pgErr.Field('C') == "57P03"
+}
+
+func isConnectionTimeout(err error) bool {
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 func isPostgresAuthenticationFailure(err error) bool {
