@@ -57,7 +57,7 @@ func TestWireFormat_RoomCapacityExceeded(t *testing.T) {
 	rr := scanWith(t, &fakeScanner{scanErr: &devicescan.RoomCapacityExceededError{RoomID: 42, RoomName: "Room A", CurrentOccupancy: 15, MaxCapacity: 10, Details: true}})
 	assert.Equal(t, 409, rr.Code)
 	assert.Equal(t,
-		"{\"status\":\"error\",\"message\":\"Room capacity exceeded\",\"code\":\"iot.room_capacity_exceeded\",\"details\":{\"room_id\":42,\"room_name\":\"Room A\",\"current_occupancy\":15,\"max_capacity\":10}}\n",
+		"{\"status\":\"error\",\"error\":\"Room capacity exceeded\",\"code\":\"iot.room_capacity_exceeded\",\"details\":{\"room_id\":42,\"room_name\":\"Room A\",\"current_occupancy\":15,\"max_capacity\":10}}\n",
 		rr.Body.String(),
 	)
 }
@@ -76,7 +76,7 @@ func TestWireFormat_RoomCapacityExceeded_NoDetails(t *testing.T) {
 	t.Parallel()
 	rr := scanWith(t, &fakeScanner{scanErr: &devicescan.RoomCapacityExceededError{RoomID: 42, RoomName: "Room A", CurrentOccupancy: 15, MaxCapacity: 10}})
 	assert.Equal(t, 409, rr.Code)
-	assert.Equal(t, "{\"status\":\"error\",\"message\":\"Room capacity exceeded\",\"code\":\"iot.room_capacity_exceeded\"}\n", rr.Body.String())
+	assert.Equal(t, "{\"status\":\"error\",\"error\":\"Room capacity exceeded\",\"code\":\"iot.room_capacity_exceeded\"}\n", rr.Body.String())
 }
 
 func TestWireFormat_ActivityCapacityExceeded(t *testing.T) {
@@ -84,7 +84,7 @@ func TestWireFormat_ActivityCapacityExceeded(t *testing.T) {
 	rr := scanWith(t, &fakeScanner{scanErr: &devicescan.ActivityCapacityExceededError{ActivityID: 7, ActivityName: "Bastelraum", CurrentOccupancy: 5, MaxCapacity: 4, Details: true}})
 	assert.Equal(t, 409, rr.Code)
 	assert.Equal(t,
-		"{\"status\":\"error\",\"message\":\"Activity capacity exceeded\",\"code\":\"iot.activity_capacity_exceeded\",\"details\":{\"activity_id\":7,\"activity_name\":\"Bastelraum\",\"current_occupancy\":5,\"max_capacity\":4}}\n",
+		"{\"status\":\"error\",\"error\":\"Activity capacity exceeded\",\"code\":\"iot.activity_capacity_exceeded\",\"details\":{\"activity_id\":7,\"activity_name\":\"Bastelraum\",\"current_occupancy\":5,\"max_capacity\":4}}\n",
 		rr.Body.String(),
 	)
 }
@@ -93,7 +93,7 @@ func TestWireFormat_ActivityCapacityExceeded_NoDetails(t *testing.T) {
 	t.Parallel()
 	rr := scanWith(t, &fakeScanner{scanErr: &devicescan.ActivityCapacityExceededError{ActivityID: 7, ActivityName: "Bastelraum", CurrentOccupancy: 5, MaxCapacity: 4}})
 	assert.Equal(t, 409, rr.Code)
-	assert.Equal(t, "{\"status\":\"error\",\"message\":\"Activity capacity exceeded\",\"code\":\"iot.activity_capacity_exceeded\"}\n", rr.Body.String())
+	assert.Equal(t, "{\"status\":\"error\",\"error\":\"Activity capacity exceeded\",\"code\":\"iot.activity_capacity_exceeded\"}\n", rr.Body.String())
 }
 
 func TestWireFormat_StudentAlreadyActive(t *testing.T) {
@@ -102,7 +102,7 @@ func TestWireFormat_StudentAlreadyActive(t *testing.T) {
 		t.Parallel()
 		rr := scanWith(t, &fakeScanner{scanErr: &devicescan.StudentAlreadyActiveError{StudentID: 99}})
 		assert.Equal(t, 409, rr.Code)
-		assert.Equal(t, "{\"status\":\"error\",\"message\":\"student already has an active visit\",\"code\":\"iot.student_already_active\",\"details\":{\"student_id\":99}}\n", rr.Body.String())
+		assert.Equal(t, "{\"status\":\"error\",\"error\":\"student already has an active visit\",\"code\":\"iot.student_already_active\",\"details\":{\"student_id\":99}}\n", rr.Body.String())
 	})
 	t.Run("full path carries the existing stay", func(t *testing.T) {
 		t.Parallel()
@@ -111,7 +111,7 @@ func TestWireFormat_StudentAlreadyActive(t *testing.T) {
 		rr := scanWith(t, &fakeScanner{scanErr: &devicescan.StudentAlreadyActiveError{StudentID: 99, ExistingVisitID: 123, EntryTime: &entry, RoomID: &roomID, RoomName: "Room A"}})
 		assert.Equal(t, 409, rr.Code)
 		assert.Equal(t,
-			"{\"status\":\"error\",\"message\":\"student already has an active visit\",\"code\":\"iot.student_already_active\",\"details\":{\"student_id\":99,\"existing_visit_id\":123,\"entry_time\":\"2026-07-12T10:30:00Z\",\"room_id\":5,\"room_name\":\"Room A\"}}\n",
+			"{\"status\":\"error\",\"error\":\"student already has an active visit\",\"code\":\"iot.student_already_active\",\"details\":{\"student_id\":99,\"existing_visit_id\":123,\"entry_time\":\"2026-07-12T10:30:00Z\",\"room_id\":5,\"room_name\":\"Room A\"}}\n",
 			rr.Body.String(),
 		)
 	})

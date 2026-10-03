@@ -661,7 +661,7 @@ func newFeedbackResource(module *feedbackModule.Module, db *bun.DB) *feedbackAPI
 		Failure: func(w http.ResponseWriter, r *http.Request, failure feedbackAPI.Failure) {
 			apiCommon.RenderError(w, r, &apiCommon.ErrResponse{
 				Err: failure.Err, HTTPStatusCode: failure.Status,
-				Status: failure.Classification, ErrorText: failure.Err.Error(),
+				Status: "error", ErrorText: failure.Err.Error(),
 			})
 		},
 		ObserveResponse: func(status int, code string) {

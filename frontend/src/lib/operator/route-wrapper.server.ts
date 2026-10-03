@@ -291,7 +291,7 @@ export function createOperatorProxyPostHandler(backendEndpoint: string) {
         body = await parseRequestBody(request);
       } catch {
         return NextResponse.json(
-          { message: "Ungültige Anfrage" },
+          { status: "error", error: "Ungültige Anfrage" },
           { status: 400 },
         );
       }
@@ -369,7 +369,7 @@ export function createOperatorPublicProxyPostHandler(
       body = (await options.transformBody?.(request, body)) ?? body;
     } catch {
       return NextResponse.json(
-        { message: "Ungültige Anfrage" },
+        { status: "error", error: "Ungültige Anfrage" },
         { status: 400 },
       );
     }
@@ -407,7 +407,7 @@ export function createOperatorPublicProxyPostHandler(
         outcome: "network_error",
       });
       return NextResponse.json(
-        { message: "Ein interner Fehler ist aufgetreten" },
+        { status: "error", error: "Ein interner Fehler ist aufgetreten" },
         { status: 500 },
       );
     }

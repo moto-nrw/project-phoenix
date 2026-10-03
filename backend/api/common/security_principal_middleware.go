@@ -99,10 +99,13 @@ func RequiresAllPermissions(required ...string) Middleware {
 	})
 }
 
+// AuthorizationForbidden is the denial of a permission check, in the shared
+// error envelope with the status text as its error.
 func AuthorizationForbidden() *ErrResponse {
 	return &ErrResponse{
 		HTTPStatusCode: http.StatusForbidden,
-		Status:         http.StatusText(http.StatusForbidden),
+		Status:         "error",
+		ErrorText:      http.StatusText(http.StatusForbidden),
 	}
 }
 

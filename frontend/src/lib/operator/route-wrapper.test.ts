@@ -592,8 +592,8 @@ describe("createOperatorProxyPostHandler", () => {
     const response = await handler(request, mockContext);
 
     expect(response.status).toBe(400);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Ungültige Anfrage");
+    const json = (await response.json()) as { status?: string; error?: string };
+    expect(json).toEqual({ status: "error", error: "Ungültige Anfrage" });
     expect(mockFetch).not.toHaveBeenCalled();
   });
 });
@@ -635,8 +635,8 @@ describe("createOperatorPublicProxyPostHandler", () => {
     const response = await handler(request);
 
     expect(response.status).toBe(400);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Ungültige Anfrage");
+    const json = (await response.json()) as { status?: string; error?: string };
+    expect(json).toEqual({ status: "error", error: "Ungültige Anfrage" });
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
@@ -734,16 +734,21 @@ describe("createOperatorPublicProxyPostHandler", () => {
       status: 429,
       headers: new Headers({ "content-type": "application/json" }),
       json: async () => ({
-        status: "Too Many Requests",
-        message: "Zu viele Einladungen. Bitte warte eine Stunde.",
+        status: "error",
+        error: "Zu viele Einladungen. Bitte warte eine Stunde.",
+        code: "general.unavailable",
       }),
     });
 
     const response = await handler(makePublicRequest({ token: "abc" }));
 
     expect(response.status).toBe(429);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Zu viele Einladungen. Bitte warte eine Stunde.");
+    const json = (await response.json()) as { error?: string; code?: string };
+    expect(json).toEqual({
+      status: "error",
+      error: "Zu viele Einladungen. Bitte warte eine Stunde.",
+      code: "general.unavailable",
+    });
   });
 
   it("forwards non-JSON text body unchanged", async () => {
@@ -781,8 +786,11 @@ describe("createOperatorPublicProxyPostHandler", () => {
     const response = await handler(makePublicRequest({ token: "abc" }));
 
     expect(response.status).toBe(500);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Ein interner Fehler ist aufgetreten");
+    const json = (await response.json()) as { status?: string; error?: string };
+    expect(json).toEqual({
+      status: "error",
+      error: "Ein interner Fehler ist aufgetreten",
+    });
   });
 });
 

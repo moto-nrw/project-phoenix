@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -13,6 +14,7 @@ import (
 	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
 	staffclockAPI "github.com/moto-nrw/project-phoenix/api/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -59,8 +61,23 @@ func sessionRuntime() sessionsAPI.Runtime {
 		Authenticated: func(ctx context.Context) bool { return device.DeviceFromCtx(ctx) != nil },
 		Success:       common.Respond,
 		Failure:       renderDataFailure,
+		Conflict:      renderSessionConflict,
 		MarkRollback:  tenant.MarkRollback,
 	}
+}
+
+// renderSessionConflict answers a session conflict in the shared error
+// envelope; the conflict travels as details.
+func renderSessionConflict(w http.ResponseWriter, r *http.Request, message string, info devicescan.ConflictInfoResponse) {
+	details := map[string]any{
+		"has_conflict":     info.HasConflict,
+		"conflict_message": info.ConflictMessage,
+		"can_override":     info.CanOverride,
+	}
+	if info.ConflictingDevice != nil {
+		details["conflicting_device"] = *info.ConflictingDevice
+	}
+	common.RenderError(w, r, common.ErrorConflictWithDetails(errors.New(message), common.CodeGeneralBusinessRejection, details))
 }
 
 func dataRuntime() dataAPI.Runtime {

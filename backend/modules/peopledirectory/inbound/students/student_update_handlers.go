@@ -491,8 +491,9 @@ func companionConflictRenderer(err error) render.Renderer {
 		return nil
 	}
 	return &CompanionConflictResponse{
+		Status:    "error",
+		Error:     "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
 		Conflicts: conflictErr.Conflicts,
-		Message:   "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
 	}
 }
 

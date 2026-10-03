@@ -331,9 +331,10 @@ describe("handleApiError", () => {
   // empty and "Ergänzen und speichern" loops on the same 409 forever.
   it("forwards the top-level conflicts array of a companion-plan 409", async () => {
     const backendJson = JSON.stringify({
-      conflicts: [{ student_id: 42, weekdays: ["mon", "tue"] }],
-      message:
+      status: "error",
+      error:
         "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+      conflicts: [{ student_id: 42, weekdays: ["mon", "tue"] }],
     });
     const error = new Error(`API error (409): ${backendJson}`);
 

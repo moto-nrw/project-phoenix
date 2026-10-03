@@ -16,7 +16,7 @@ func (rs *Resource) getGroupMappings(w http.ResponseWriter, r *http.Request) {
 	// Parse group ID from URL
 	groupID, err := common.ParseIDParam(r, "groupId")
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidGroupID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidGroupID)))
 		return
 	}
 
@@ -41,7 +41,7 @@ func (rs *Resource) getCombinedGroupMappings(w http.ResponseWriter, r *http.Requ
 	// Parse combined group ID from URL
 	combinedID, err := common.ParseIDParam(r, "combinedId")
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidCombinedGroupID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidCombinedGroupID)))
 		return
 	}
 
@@ -66,7 +66,7 @@ func (rs *Resource) addGroupToCombination(w http.ResponseWriter, r *http.Request
 	// Parse request
 	req := &GroupMappingRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -107,7 +107,7 @@ func (rs *Resource) removeGroupFromCombination(w http.ResponseWriter, r *http.Re
 	// Parse request
 	req := &GroupMappingRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 

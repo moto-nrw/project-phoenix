@@ -13,7 +13,7 @@ import (
 func (rs *Resource) getTrackingIndicators(w http.ResponseWriter, r *http.Request) {
 	var req TrackingIndicatorsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid request body")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
 
@@ -27,7 +27,7 @@ func (rs *Resource) getTrackingIndicators(w http.ResponseWriter, r *http.Request
 
 	for _, id := range req.StudentIDs {
 		if id <= 0 {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid student ID")))
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid student ID")))
 			return
 		}
 	}

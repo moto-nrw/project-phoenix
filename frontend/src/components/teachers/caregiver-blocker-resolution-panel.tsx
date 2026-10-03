@@ -90,10 +90,9 @@ async function removeActivitySupervisor(
     try {
       const payload = (await response.json()) as {
         error?: string;
-        message?: string;
         code?: string;
       };
-      errorMessage = payload.message ?? payload.error ?? errorMessage;
+      errorMessage = payload.error ?? errorMessage;
       errorCode = payload.code;
     } catch {
       // Fall back to the generic status-based message when the proxy did not
