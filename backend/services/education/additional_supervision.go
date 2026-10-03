@@ -4,11 +4,11 @@ import (
 	"context"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	educationModels "github.com/moto-nrw/project-phoenix/models/education"
+
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 const additionalSupervisorRole = "additional_supervisor"
@@ -159,12 +159,12 @@ func (s *substitutionModule) assignAdditionalSupervision(
 	}
 
 	var result AssignmentResult
-	err = s.tx.RunInTx(ctx, func(txCtx context.Context) error {
+	err = s.deps.Runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		created, target, createErr := s.assignAdditionalSupervisionLocked(txCtx, caller, access, broad, request)
 		if createErr == nil {
 			result = AssignmentResult{
 				ID: created.ID, Type: TargetAdditionalSupervision, ActiveGroupID: created.GroupID,
-				Target: StaffRef{ID: target.StaffID, FullName: target.FullName()},
+				Target: StaffRef{ID: target.StaffID, FullName: target.FullName},
 			}
 		}
 		return createErr
@@ -183,7 +183,7 @@ func (s *substitutionModule) assignAdditionalSupervisionLocked(
 	access substitutionAccess,
 	broad bool,
 	request *AdditionalSupervisionAssignment,
-) (*studentpresence.GroupSupervision, *userModels.ActiveCaregiver, error) {
+) (*studentpresence.GroupSupervision, *educationModels.Caregiver, error) {
 	group, err := s.lockAssignableSupervision(ctx, caller, access, broad, request)
 	if err != nil {
 		return nil, nil, err
@@ -194,12 +194,12 @@ func (s *substitutionModule) assignAdditionalSupervisionLocked(
 	}
 	created := &studentpresence.GroupSupervision{
 		StaffID: target.StaffID, GroupID: group.ID, Role: additionalSupervisorRole,
-		StartDate: timezone.DateFromTime(s.deps.Now()).String(),
+		StartDate: calendar.DateFromTime(s.deps.Now()).String(),
 	}
 	if err := s.deps.ActiveSupervisorCreator.CreateGroupSupervisor(ctx, created); err != nil {
 		return nil, nil, err
 	}
-	if err := s.deps.Audit.Create(ctx, additionalSupervisionAudit(created, caller.AccountID)); err != nil {
+	if err := s.deps.Audit.RecordSubstitutionChange(ctx, additionalSupervisionAudit(created, caller.AccountID)); err != nil {
 		return nil, nil, err
 	}
 	return created, target, nil
@@ -240,10 +240,10 @@ func (s *substitutionModule) lockAssignableSupervision(
 	return group, nil
 }
 
-func additionalSupervisionAudit(row *studentpresence.GroupSupervision, actorID int64) *auditModels.SubstitutionChange {
-	return &auditModels.SubstitutionChange{
-		SubstitutionID: row.ID, TargetType: string(TargetAdditionalSupervision), Action: auditModels.SubstitutionAssigned,
+func additionalSupervisionAudit(row *studentpresence.GroupSupervision, actorID int64) educationModels.SubstitutionChange {
+	return educationModels.SubstitutionChange{
+		SubstitutionID: row.ID, TargetType: string(TargetAdditionalSupervision), Action: educationModels.SubstitutionAssigned,
 		GroupID: row.GroupID, TargetStaffID: row.StaffID, ActorAccountID: actorID,
-		StartDate: auditModels.Date(row.StartDate),
+		StartDate: calendar.Date(row.StartDate),
 	}
 }

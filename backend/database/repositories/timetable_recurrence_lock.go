@@ -41,5 +41,5 @@ type TimetableTemplateRows struct {
 	Timeframes      scheduleModels.TimeframeRepository
 	CalendarPeriods scheduleModels.CalendarPeriodRepository
 	Exceptions      scheduleModels.ActivityExceptionRepository
-	EducationGroups educationModels.GroupRepository
+	EducationGroups EducationGroupRepository
 }

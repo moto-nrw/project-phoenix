@@ -18,8 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	gradetransitioncompose "github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose"
@@ -116,7 +115,7 @@ func (r faultyRosters) CurrentRosterBaseline(ctx context.Context) (int64, error)
 // the apply touches: a bracelet, a Klassenlehrer, a class-list entry and a
 // still-planned roster row.
 type rolloverScene struct {
-	graduate, promoted         *users.Student
+	graduate, promoted         *testpkg.Student
 	tag                        string
 	staffID, assignmentID      int64
 	classListEntryID           int64
@@ -189,7 +188,7 @@ func assertUntouched(t *testing.T, ctx context.Context, db *bun.DB, scene *rollo
 	assert.Equal(t, "draft", transitionStatus(t, ctx, db, scene.transitionID))
 	class, status := studentClassAndStatus(t, ctx, db, scene.graduate.ID)
 	assert.Equal(t, "4a", class)
-	assert.Equal(t, string(users.StudentStatusActive), status)
+	assert.Equal(t, string(testpkg.StudentStatusActive), status)
 	class, _ = studentClassAndStatus(t, ctx, db, scene.promoted.ID)
 	assert.Equal(t, "1a", class)
 	assert.Equal(t, scene.tag, personTag(t, ctx, db, scene.graduate.PersonID), "the bracelet is still held")
@@ -209,7 +208,7 @@ func assertApplied(t *testing.T, ctx context.Context, db *bun.DB, scene *rollove
 	assert.Equal(t, "applied", transitionStatus(t, ctx, db, scene.transitionID))
 	class, status := studentClassAndStatus(t, ctx, db, scene.graduate.ID)
 	assert.Equal(t, "4a", class)
-	assert.Equal(t, string(users.StudentStatusAlumnus), status)
+	assert.Equal(t, string(testpkg.StudentStatusAlumnus), status)
 	class, _ = studentClassAndStatus(t, ctx, db, scene.promoted.ID)
 	assert.Equal(t, "2a", class)
 	assert.Empty(t, personTag(t, ctx, db, scene.graduate.PersonID), "graduation released the bracelet")
@@ -522,7 +521,7 @@ func TestGradeTransitionWorkflow_IdempotentRetryAndHistoryRetention(t *testing.T
 	assert.Equal(t, 1, result.StudentsPromoted)
 	class, status := studentClassAndStatus(t, ctx, db, scene.graduate.ID)
 	assert.Equal(t, "4a", class)
-	assert.Equal(t, string(users.StudentStatusActive), status)
+	assert.Equal(t, string(testpkg.StudentStatusActive), status)
 	class, _ = studentClassAndStatus(t, ctx, db, scene.promoted.ID)
 	assert.Equal(t, "1a", class)
 	assert.Equal(t, scene.tag, personTag(t, ctx, db, scene.graduate.PersonID), "the bracelet is handed back")
@@ -620,4 +619,4 @@ func TestGradeTransitionRuntimeEvidence(t *testing.T) {
 
 // The fixture clock is a Berlin instant; keep the helper in use so the file
 // documents which day the roster rows are planned for.
-var _ = timezone.Berlin
+var _ = calendar.Berlin

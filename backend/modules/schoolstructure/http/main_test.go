@@ -1,4 +1,4 @@
-package groups_test
+package schoolstructurehttp_test
 
 import (
 	"testing"

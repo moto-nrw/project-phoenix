@@ -55,7 +55,6 @@ func (f *fakeStudentReader) FindReadScopeByIDs(_ context.Context, ids []int64) (
 }
 
 type fakeGroupReader struct {
-	educationModel.GroupRepository
 	staffByGroup map[int64][]int64
 	err          error
 }

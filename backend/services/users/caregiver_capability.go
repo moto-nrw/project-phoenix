@@ -9,7 +9,6 @@ import (
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -26,14 +25,26 @@ type CaregiverCapabilityServiceDependencies struct {
 	StaffRepo              userModels.StaffRepository
 	CaregiverBindingLock   userModels.CaregiverBindingLocker
 	TeacherRepo            userModels.TeacherRepository
-	GroupTeacherRepo       educationModels.GroupTeacherRepository
-	GroupSubstitutionRepo  educationModels.GroupSubstitutionRepository
+	GroupTeacherRepo       GroupTeacherBlockers
+	GroupSubstitutionRepo  SubstitutionBlockers
 	GroupSupervisorRepo    SupervisionBlockerReader
 	ActivitySupervisorRepo activitiesModels.SupervisorPlannedRepository
 	// RoleAssignments assigns and removes the caregiver role through the
 	// Identity & Access role administration (#3314).
 	RoleAssignments CaregiverRoleAssignments
 	DB              *bun.DB
+}
+
+// GroupTeacherBlockers lists the group assignments a teacher still holds, as
+// caregiver-capability blocker rows.
+type GroupTeacherBlockers interface {
+	ListGroupTeacherBlockers(ctx context.Context, teacherID, tenantID int64) ([]userModels.BlockerGroup, error)
+}
+
+// SubstitutionBlockers lists the current and upcoming group handovers a staff
+// member holds, as caregiver-capability blocker rows.
+type SubstitutionBlockers interface {
+	ListActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]userModels.BlockerSubstitution, error)
 }
 
 // SupervisionBlockerReader lists the Student Presence supervision a staff

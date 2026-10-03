@@ -1,9 +1,11 @@
-package groups
+// Package schoolstructurehttp is the School Structure HTTP adapter of the group routes
+// under /api/groups (#2742). It drives the owner's group service and reads
+// children and persons through the People Directory port the root binds.
+package schoolstructurehttp
 
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -12,53 +14,50 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
-
-// GroupStudentResponse represents a student in a group response
-type GroupStudentResponse struct {
-	ID          int64  `json:"id"`
-	PersonID    int64  `json:"person_id"`
-	FirstName   string `json:"first_name"`
-	LastName    string `json:"last_name"`
-	SchoolClass string `json:"school_class"`
-	GroupID     int64  `json:"group_id"`
-	GroupName   string `json:"group_name"`
-	Location    string `json:"location,omitempty"`
-	TagID       string `json:"tag_id,omitempty"`
-}
 
 // CallerGroups resolves the educational groups of the request's caller.
 type CallerGroups interface {
 	GetMyGroups(ctx context.Context) ([]*education.Group, error)
 }
 
+// GroupPeople is the People Directory side of the group routes: the children
+// of a group and the persons behind them. The root binds it to the retained
+// person service.
+type GroupPeople interface {
+	// GroupStudents returns the children of a group.
+	GroupStudents(ctx context.Context, groupID int64) ([]peopledirectory.StudentRecord, error)
+	// CountStudentsByGroupIDs counts the children of each group.
+	CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
+	// FindPerson returns one person.
+	FindPerson(ctx context.Context, personID int64) (peopledirectory.Person, error)
+	// ListPersonsByID returns the persons keyed by ID; an unknown ID is absent.
+	ListPersonsByID(ctx context.Context, personIDs []int64) (map[int64]peopledirectory.Person, error)
+}
+
 // Resource defines the group API resource
 type Resource struct {
 	EducationService   educationSvc.Service
 	ActiveService      studentpresence.Presence
-	UserService        userService.PersonService
+	People             GroupPeople
 	UserContextService CallerGroups
-	db                 *bun.DB
 }
 
 // NewResource creates a new groups resource
-func NewResource(educationService educationSvc.Service, activeService studentpresence.Presence, userService userService.PersonService, userContextService CallerGroups, db *bun.DB) *Resource {
+func NewResource(educationService educationSvc.Service, activeService studentpresence.Presence, people GroupPeople, userContextService CallerGroups) *Resource {
 	return &Resource{
 		EducationService:   educationService,
 		ActiveService:      activeService,
-		UserService:        userService,
+		People:             people,
 		UserContextService: userContextService,
-		db:                 db,
 	}
 }
 
@@ -68,7 +67,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Protected routes that require authentication and permissions
-	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
+	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 
 		// Read operations only require groups:read permission
 		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/", rs.listGroups)
@@ -133,7 +132,7 @@ func (req *GroupRequest) Bind(_ *http.Request) error {
 }
 
 // newGroupResponse converts a group model to a response object
-func newGroupResponse(group *education.Group, teachers []*users.Teacher, studentCount int) GroupResponse {
+func newGroupResponse(group *education.Group, teachers []*educationSvc.Teacher, studentCount int) GroupResponse {
 	response := GroupResponse{
 		ID:           group.ID,
 		Name:         group.Name,
@@ -166,13 +165,13 @@ func newGroupResponse(group *education.Group, teachers []*users.Teacher, student
 				StaffID:        teacher.StaffID,
 				Specialization: teacher.Specialization,
 				Role:           teacher.Role,
-				FullName:       teacher.GetFullName(),
+				FullName:       teacher.FullName(),
 			}
 
 			// Extract first and last name from staff if available
-			if teacher.Staff != nil && teacher.Staff.Person != nil {
-				teacherResp.FirstName = teacher.Staff.Person.FirstName
-				teacherResp.LastName = teacher.Staff.Person.LastName
+			if teacher.Person != nil {
+				teacherResp.FirstName = teacher.Person.FirstName
+				teacherResp.LastName = teacher.Person.LastName
 			}
 
 			teacherResponses = append(teacherResponses, teacherResp)
@@ -208,20 +207,11 @@ func (rs *Resource) parseAndGetGroup(w http.ResponseWriter, r *http.Request) (*e
 	return group, true
 }
 
-// getStudentCount returns the number of students in a group.
-func (rs *Resource) getStudentCount(ctx context.Context, groupID int64) int {
-	students, err := rs.UserService.GetStudentsByGroupID(ctx, groupID)
-	if err != nil {
-		return 0
-	}
-	return len(students)
-}
-
 // userHasGroupAccess checks if the current user has access to the specified group.
 // Returns true if user is admin or supervises the group.
 func (rs *Resource) userHasGroupAccess(r *http.Request, groupID int64) bool {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	if authorize.HasAdminWildcard(userPermissions) {
+	if securityruntime.HasAdminWildcard(userPermissions) {
 		return true
 	}
 
@@ -237,145 +227,6 @@ func (rs *Resource) userHasGroupAccess(r *http.Request, groupID int64) bool {
 		}
 	}
 	return false
-}
-
-// buildStudentResponse creates a student response with all necessary data
-func (rs *Resource) buildStudentResponse(
-	ctx context.Context,
-	student *users.Student,
-	group *education.Group,
-	hasFullAccess bool,
-	locationSnapshot *common.StudentLocationSnapshot,
-) *GroupStudentResponse {
-	person, err := rs.UserService.Get(ctx, student.PersonID)
-	if err != nil {
-		slog.Default().Error("failed to get person data for student",
-			slog.Int64("student_id", student.ID),
-			slog.String("error", err.Error()))
-		return nil
-	}
-
-	response := &GroupStudentResponse{
-		ID:          student.ID,
-		PersonID:    student.PersonID,
-		FirstName:   person.FirstName,
-		LastName:    person.LastName,
-		SchoolClass: student.SchoolClass,
-		GroupID:     group.ID,
-		GroupName:   group.Name,
-	}
-
-	if hasFullAccess && person.TagID != nil {
-		response.TagID = *person.TagID
-	}
-	response.Location = rs.resolveLocationForStudent(ctx, student.ID, hasFullAccess, locationSnapshot)
-
-	return response
-}
-
-// resolveLocationForStudent determines student location from snapshot or fallback
-func (rs *Resource) resolveLocationForStudent(
-	ctx context.Context,
-	studentID int64,
-	hasFullAccess bool,
-	snapshot *common.StudentLocationSnapshot,
-) string {
-	if snapshot != nil {
-		return snapshot.ResolveStudentLocation(studentID, hasFullAccess)
-	}
-	return rs.resolveStudentLocation(ctx, studentID, hasFullAccess)
-}
-
-// getStudentVisitGroupID reads the student's current group ID from the snapshot or service.
-func (rs *Resource) getStudentVisitGroupID(ctx context.Context, studentID int64, snapshot *common.StudentLocationSnapshot) *int64 {
-	if snapshot != nil {
-		if visit := snapshot.Visits[studentID]; visit != nil {
-			return &visit.ActiveGroupID
-		}
-		return nil
-	}
-	visit, err := rs.ActiveService.GetStudentCurrentVisit(ctx, studentID)
-	if err != nil || visit == nil {
-		return nil
-	}
-	return &visit.ActiveGroupID
-}
-
-// getVisitActiveGroup retrieves the active group for a visit from snapshot or service
-func (rs *Resource) getVisitActiveGroup(ctx context.Context, activeGroupID int64, snapshot *common.StudentLocationSnapshot) *studentpresence.SessionDetail {
-	if snapshot != nil {
-		return snapshot.Groups[activeGroupID]
-	}
-	group, err := rs.ActiveService.GetActiveGroup(ctx, activeGroupID)
-	if err != nil {
-		return nil
-	}
-	return group
-}
-
-// buildStudentRoomStatus creates the room status map for a single student
-func (rs *Resource) buildStudentRoomStatus(
-	ctx context.Context,
-	student *users.Student,
-	groupRoomID int64,
-	snapshot *common.StudentLocationSnapshot,
-	personMap map[int64]*users.Person,
-) map[string]interface{} {
-	status := map[string]interface{}{
-		"in_group_room": false,
-		"reason":        "no_active_visit",
-	}
-
-	visitGroupID := rs.getStudentVisitGroupID(ctx, student.ID, snapshot)
-	if visitGroupID == nil {
-		if person, ok := personMap[student.PersonID]; ok {
-			status["first_name"] = person.FirstName
-			status["last_name"] = person.LastName
-		}
-		return status
-	}
-
-	activeGroup := rs.getVisitActiveGroup(ctx, *visitGroupID, snapshot)
-	if activeGroup == nil {
-		if person, ok := personMap[student.PersonID]; ok {
-			status["first_name"] = person.FirstName
-			status["last_name"] = person.LastName
-		}
-		return status
-	}
-
-	inGroupRoom := activeGroup.RoomID == groupRoomID
-	status["in_group_room"] = inGroupRoom
-	status["current_room_id"] = activeGroup.RoomID
-
-	if inGroupRoom {
-		delete(status, "reason")
-	} else {
-		status["reason"] = "in_different_room"
-	}
-
-	if person, ok := personMap[student.PersonID]; ok {
-		status["first_name"] = person.FirstName
-		status["last_name"] = person.LastName
-	}
-	return status
-}
-
-// buildNoRoomResponse creates the response when group has no room assigned
-func buildNoRoomResponse(students []*users.Student) map[string]interface{} {
-	result := map[string]interface{}{
-		"group_has_room":      false,
-		"student_room_status": make(map[string]interface{}),
-	}
-
-	statusMap := result["student_room_status"].(map[string]interface{})
-	for _, student := range students {
-		statusMap[strconv.FormatInt(student.ID, 10)] = map[string]interface{}{
-			"in_group_room": false,
-			"reason":        "group_no_room",
-		}
-	}
-	return result
 }
 
 // =============================================================================
@@ -414,7 +265,7 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Batch load student counts (1 query instead of N)
-	studentCounts, err := rs.UserService.CountStudentsByGroupIDs(r.Context(), groupIDs)
+	studentCounts, err := rs.People.CountStudentsByGroupIDs(r.Context(), groupIDs)
 	if err != nil {
 		slog.Default().Warn("failed to batch load student counts", slog.String("error", err.Error()))
 		studentCounts = make(map[int64]int)
@@ -424,7 +275,7 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 	teachersByGroup, err := rs.EducationService.GetTeachersForGroups(r.Context(), groupIDs)
 	if err != nil {
 		slog.Default().Warn("failed to batch load teachers", slog.String("error", err.Error()))
-		teachersByGroup = make(map[int64][]*users.Teacher)
+		teachersByGroup = make(map[int64][]*educationSvc.Teacher)
 	}
 
 	// Build response using pre-loaded data
@@ -465,7 +316,7 @@ func (rs *Resource) getGroup(w http.ResponseWriter, r *http.Request) {
 		slog.Default().Warn("failed to get teachers for group",
 			slog.Int64("group_id", id),
 			slog.String("error", err.Error()))
-		teachers = []*users.Teacher{}
+		teachers = []*educationSvc.Teacher{}
 	}
 
 	// Get student count for this group
@@ -489,8 +340,7 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 		RoomID: req.RoomID,
 	}
 
-	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithinCurrentTenant(r.Context(), func(ctx context.Context) error {
 		if err := rs.EducationService.CreateGroup(ctx, group); err != nil {
 			return err
 		}
@@ -550,8 +400,7 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 	group.RoomID = req.RoomID
 
 	// Update group
-	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithinCurrentTenant(r.Context(), func(ctx context.Context) error {
 		if err := rs.EducationService.UpdateGroup(ctx, group); err != nil {
 			return err
 		}
@@ -594,8 +443,7 @@ func (rs *Resource) deleteGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete group
-	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithinCurrentTenant(r.Context(), func(ctx context.Context) error {
 		return rs.EducationService.DeleteGroup(ctx, id)
 	}); err != nil {
 		if common.IsConstraintViolation(err) {
@@ -607,49 +455,6 @@ func (rs *Resource) deleteGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Group deleted successfully")
-}
-
-// getGroupStudents gets all students in a specific group
-func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
-	// Parse and get group
-	group, ok := rs.parseAndGetGroup(w, r)
-	if !ok {
-		return
-	}
-	id := group.ID
-
-	// Determine if user can see full student details (admin or group supervisor)
-	canAccessFullDetails := rs.userHasGroupAccess(r, id)
-
-	// Get students for this group
-	students, err := rs.UserService.GetStudentsByGroupID(r.Context(), id)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	studentIDs := make([]int64, 0, len(students))
-	for _, student := range students {
-		studentIDs = append(studentIDs, student.ID)
-	}
-
-	locationSnapshot, snapshotErr := common.LoadStudentLocationSnapshot(r.Context(), rs.ActiveService, studentIDs)
-	if snapshotErr != nil {
-		slog.Default().Warn("failed to batch load group student locations",
-			slog.String("error", snapshotErr.Error()))
-		locationSnapshot = nil
-	}
-
-	// Build response with person data for each student
-	responses := make([]GroupStudentResponse, 0, len(students))
-	for _, student := range students {
-		response := rs.buildStudentResponse(r.Context(), student, group, canAccessFullDetails, locationSnapshot)
-		if response != nil {
-			responses = append(responses, *response)
-		}
-	}
-
-	common.Respond(w, r, http.StatusOK, responses, fmt.Sprintf("Found %d students in group", len(responses)))
 }
 
 // getGroupSupervisors gets all supervisors (teachers) for a specific group
@@ -687,122 +492,11 @@ func (rs *Resource) getGroupSupervisors(w http.ResponseWriter, r *http.Request) 
 			Specialization: teacher.Specialization,
 			Role:           teacher.Role,
 			Qualifications: teacher.Qualifications,
-			FullName:       teacher.GetFullName(),
+			FullName:       teacher.FullName(),
 			CreatedAt:      teacher.CreatedAt,
 			UpdatedAt:      teacher.UpdatedAt,
 		})
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Group supervisors retrieved successfully")
-}
-
-// getGroupStudentsRoomStatus handles getting room status for all students in a group
-func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Request) {
-	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidGroupID)
-	if !ok {
-		return
-	}
-
-	group, err := rs.EducationService.GetGroup(r.Context(), id)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New(common.MsgGroupNotFound)))
-		return
-	}
-
-	if !rs.userHasGroupAccess(r, id) {
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("you do not supervise this group")))
-		return
-	}
-
-	students, err := rs.UserService.GetStudentsByGroupID(r.Context(), id)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to get group students", err))
-		return
-	}
-
-	// Handle case where group has no room assigned
-	if group.RoomID == nil {
-		common.Respond(w, r, http.StatusOK, buildNoRoomResponse(students), "Group has no assigned room")
-		return
-	}
-
-	// Build room status for each student
-	result := rs.buildRoomStatusResponse(r.Context(), students, *group.RoomID)
-	common.Respond(w, r, http.StatusOK, result, "Student room status retrieved successfully")
-}
-
-// buildRoomStatusResponse creates the full response for room status with student details
-func (rs *Resource) buildRoomStatusResponse(ctx context.Context, students []*users.Student, groupRoomID int64) map[string]interface{} {
-	result := map[string]interface{}{
-		"group_has_room": true,
-		"group_room_id":  groupRoomID,
-	}
-
-	studentIDs := make([]int64, 0, len(students))
-	for _, student := range students {
-		studentIDs = append(studentIDs, student.ID)
-	}
-
-	snapshot, snapshotErr := common.LoadStudentLocationSnapshot(ctx, rs.ActiveService, studentIDs)
-	if snapshotErr != nil {
-		slog.Default().Warn("failed to batch load student room locations",
-			slog.String("error", snapshotErr.Error()))
-		snapshot = nil
-	}
-
-	// Batch-load all persons to avoid N+1 queries
-	personIDs := make([]int64, 0, len(students))
-	for _, student := range students {
-		personIDs = append(personIDs, student.PersonID)
-	}
-	personMap, personErr := rs.UserService.GetByIDs(ctx, personIDs)
-	if personErr != nil {
-		slog.Default().Warn("failed to batch load persons",
-			slog.String("error", personErr.Error()))
-		personMap = make(map[int64]*users.Person)
-	}
-
-	studentStatuses := make(map[string]interface{})
-	for _, student := range students {
-		studentStatuses[strconv.FormatInt(student.ID, 10)] = rs.buildStudentRoomStatus(ctx, student, groupRoomID, snapshot, personMap)
-	}
-
-	result["student_room_status"] = studentStatuses
-	return result
-}
-
-// resolveStudentLocation determines the student's location string based on active attendance data.
-func (rs *Resource) resolveStudentLocation(ctx context.Context, studentID int64, hasFullAccess bool) string {
-	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
-	if err != nil || attendanceStatus == nil {
-		return "Abwesend"
-	}
-
-	if attendanceStatus.Status != "checked_in" {
-		return "Abwesend"
-	}
-
-	if !hasFullAccess {
-		return "Anwesend"
-	}
-
-	currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(ctx, studentID)
-	if err != nil || currentVisit == nil {
-		return "Anwesend"
-	}
-
-	if currentVisit.ActiveGroupID <= 0 {
-		return "Anwesend"
-	}
-
-	activeGroup, err := rs.ActiveService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
-	if err != nil || activeGroup == nil {
-		return "Anwesend"
-	}
-
-	if activeGroup.Room != nil && activeGroup.Room.Name != "" {
-		return fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name)
-	}
-
-	return "Anwesend"
 }

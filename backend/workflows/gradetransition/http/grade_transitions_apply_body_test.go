@@ -6,7 +6,7 @@
 // which ApplyChecked reads as opting out of the check, so the destructive
 // transition ran unguarded on a cohort that may have changed since the admin
 // confirmed it.
-package admin_test
+package gradetransitionhttp_test
 
 import (
 	"fmt"
@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -75,7 +75,7 @@ func TestGradeTransitionResource_Apply_BodyHandling(t *testing.T) {
 			Column("status").
 			Where("id = ?", transitionID).
 			Scan(testpkg.Ctx(t), &status))
-		assert.Equal(t, education.TransitionStatusDraft, status)
+		assert.Equal(t, schoolstructure.TransitionStatusDraft, status)
 	})
 
 	t.Run("wrong-typed fingerprint field is rejected", func(t *testing.T) {

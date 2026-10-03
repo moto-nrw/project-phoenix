@@ -1,4 +1,4 @@
-package groups
+package schoolstructurehttp
 
 import (
 	"github.com/moto-nrw/project-phoenix/api/common"

@@ -8,10 +8,8 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -51,11 +49,11 @@ type TimetableTestRepositories struct {
 	Dateframe               scheduleModels.DateframeRepository
 	Staff                   usersModels.StaffRepository
 	Teacher                 usersModels.TeacherRepository
-	ClassTeacher            educationModels.ClassTeacherRepository
-	GroupTeacher            educationModels.GroupTeacherRepository
+	ClassTeacher            ClassTeacherRepository
+	GroupTeacher            GroupTeacherRepository
 	Person                  usersModels.PersonRepository
 	Student                 usersModels.StudentRepository
-	Group                   educationModels.GroupRepository
+	Group                   EducationGroupRepository
 	ActiveGroup             studentpresence.SessionRecords
 	GroupSupervisor         studentpresence.SupervisionRecords
 	StudentArrivalSchedule  scheduleModels.StudentArrivalScheduleRepository
@@ -69,7 +67,6 @@ type TimetableTestRepositories struct {
 	CarePlan              careplan.Capability
 	Room                  facilitiesModels.RoomRepository
 	DeviationEvent        auditModels.DeviationEventRepository
-	ClassArrivalTime      educationModels.ClassArrivalTimeRepository
 	ClassArrivalException scheduleModels.ClassArrivalExceptionRepository
 }
 
@@ -117,7 +114,6 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		GroupSupervisor:       sessions,
 		Room:                  facilitiesAdapter.New(),
 		DeviationEvent:        auditRepo.NewDeviationEventRepository(newTestAuditRuntime(db)),
-		ClassArrivalTime:      educationRepo.NewClassArrivalTimeRepository(db),
 		ClassArrivalException: timetableCompose.NewClassArrivalExceptionRepository(db),
 		SubmissionRateLimit:   enrollmentCompose.New(),
 	}
@@ -171,8 +167,8 @@ func timetableTestRepositories(r *Factory) TimetableTestRepositories {
 		StudentPickupException: r.StudentPickupException, StudentPickupNote: r.StudentPickupNote,
 		StudentStatusDay: r.StudentStatusDay, CarePlan: r.carePlan,
 		Room: r.Room, DeviationEvent: r.DeviationEvent,
-		ClassArrivalTime: r.ClassArrivalTime, ClassArrivalException: r.ClassArrivalException,
-		enrollment: r.SubmissionRateLimit, schoolCalendar: r.SchoolCalendar(), calendarPeriodUsage: r.CalendarPeriodUsage(),
+		ClassArrivalException: r.ClassArrivalException,
+		enrollment:            r.SubmissionRateLimit, schoolCalendar: r.SchoolCalendar(), calendarPeriodUsage: r.CalendarPeriodUsage(),
 	}
 }
 

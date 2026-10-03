@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +23,7 @@ import (
 // TestApplyRefusesChildAddedAfterCohortSnapshot: the only seam between the
 // cohort snapshot and the re-read under the locks is the People Directory
 // port, which a test in this package may not import.
-func assertStudentStatus(t *testing.T, db *bun.DB, studentID int64, want users.StudentStatus) {
+func assertStudentStatus(t *testing.T, db *bun.DB, studentID int64, want testpkg.StudentStatus) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -86,7 +85,7 @@ func TestGradeTransitionWorkflow_Revert_RestoresOriginalStatus(t *testing.T) {
 	// This child is a pending future enrollment, not an active one.
 	_, err := db.NewUpdate().
 		TableExpr(`users.student_school_memberships`).
-		Set("status = ?", string(users.StudentStatusPending)).
+		Set("status = ?", string(testpkg.StudentStatusPending)).
 		Where("deleted_at IS NULL").Where("student_profile_id = ?", student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
@@ -100,7 +99,7 @@ func TestGradeTransitionWorkflow_Revert_RestoresOriginalStatus(t *testing.T) {
 	var status string
 	require.NoError(t, db.NewSelect().TableExpr(`users.student_school_memberships`).Column("status").
 		Where("deleted_at IS NULL").Where("student_profile_id = ?", student.ID).Scan(ctx, &status))
-	assert.Equal(t, string(users.StudentStatusAlumnus), status)
+	assert.Equal(t, string(testpkg.StudentStatusAlumnus), status)
 
 	_, err = wf.Revert(ctx, id)
 	require.NoError(t, err)
@@ -109,7 +108,7 @@ func TestGradeTransitionWorkflow_Revert_RestoresOriginalStatus(t *testing.T) {
 	// silently activated by a revert.
 	require.NoError(t, db.NewSelect().TableExpr(`users.student_school_memberships`).Column("status").
 		Where("deleted_at IS NULL").Where("student_profile_id = ?", student.ID).Scan(ctx, &status))
-	assert.Equal(t, string(users.StudentStatusPending), status,
+	assert.Equal(t, string(testpkg.StudentStatusPending), status,
 		"revert must restore the pre-transition status, not blanket-activate")
 }
 
@@ -248,7 +247,7 @@ func TestGradeTransitionWorkflow_Apply_RejectsCheckedInGraduate(t *testing.T) {
 	var status string
 	require.NoError(t, db.NewSelect().TableExpr(`users.student_school_memberships`).Column("status").
 		Where("deleted_at IS NULL").Where("student_profile_id = ?", student.ID).Scan(ctx, &status))
-	assert.Equal(t, string(users.StudentStatusActive), status)
+	assert.Equal(t, string(testpkg.StudentStatusActive), status)
 }
 
 // TestGradeTransitionWorkflow_SuggestMappings_MarksAmbiguous covers the P1 fix:
@@ -336,8 +335,8 @@ func TestGradeTransitionWorkflow_Apply_RejectsStalePreview(t *testing.T) {
 
 	// Nothing was applied: both children keep their status and the transition
 	// stays a draft.
-	assertStudentStatus(t, db, reviewed.ID, users.StudentStatusActive)
-	assertStudentStatus(t, db, latecomer.ID, users.StudentStatusActive)
+	assertStudentStatus(t, db, reviewed.ID, testpkg.StudentStatusActive)
+	assertStudentStatus(t, db, latecomer.ID, testpkg.StudentStatusActive)
 
 	current, err := wf.FindTransition(ctx, id)
 	require.NoError(t, err)
@@ -351,6 +350,6 @@ func TestGradeTransitionWorkflow_Apply_RejectsStalePreview(t *testing.T) {
 
 	_, err = wf.Apply(ctx, id, fresh.Fingerprint)
 	require.NoError(t, err)
-	assertStudentStatus(t, db, reviewed.ID, users.StudentStatusAlumnus)
-	assertStudentStatus(t, db, latecomer.ID, users.StudentStatusAlumnus)
+	assertStudentStatus(t, db, reviewed.ID, testpkg.StudentStatusAlumnus)
+	assertStudentStatus(t, db, latecomer.ID, testpkg.StudentStatusAlumnus)
 }

@@ -64,8 +64,7 @@ func TestBulkUpsertBySchoolClassWritesTheClassTimetable(t *testing.T) {
 	assert.Equal(t, 2, result.StudentsAffected)
 
 	t.Run("the class carries the time exactly once", func(t *testing.T) {
-		rows, findErr := repos.ClassArrivalTime.FindByClasses(ctx, []string{"7c"})
-		require.NoError(t, findErr)
+		rows := testpkg.ClassArrivalTimesOf(t, db, "7c")
 		require.Len(t, rows, 1)
 		assert.Equal(t, "11:45", rows[0].ArrivalTimes["mon"])
 	})
@@ -132,7 +131,7 @@ func TestArrivalSchedulesForDateUseTheRequestedProjectionDate(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Export", "Datum", "8d")
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Export")
-	setClassArrivalTimes(t, repos, "8d", map[string]string{"mon": "11:45"})
+	setClassArrivalTimes(t, "8d", map[string]string{"mon": "11:45"})
 	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "")
 	monday := mondayOnOrAfter(timezone.TodayDate())
 
@@ -429,7 +428,7 @@ func TestWeeklyWriteCollapsesIntoTheClassTime(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "Deckungs", "Gleich")
 	student := testpkg.CreateTestStudent(t, db, "Deckungs", "Kind", "8d")
-	setClassArrivalTimes(t, repos, "8d", map[string]string{"mon": "11:45", "tue": "11:45"})
+	setClassArrivalTimes(t, "8d", map[string]string{"mon": "11:45", "tue": "11:45"})
 
 	sameAsClass := timezone.NormalizeWallClock(mustParseHHMM(t, "11:45"))
 	deviating := timezone.NormalizeWallClock(mustParseHHMM(t, "12:15"))

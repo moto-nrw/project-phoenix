@@ -1,8 +1,6 @@
 package repositories
 
 import (
-	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/uptrace/bun"
@@ -45,7 +43,7 @@ func newInvitationMembershipRepositories(db *bun.DB) (userModels.StaffRepository
 		return nil, nil, err
 	}
 	deps := newStaffMembershipDeps(NewPersonRepository(db), newIdentityAccess(db, nil), MustNewStaffEmployment(db))
-	groupTeachers := newGroupTeacherRepository(membership, educationRepo.NewGroupRepository(db))
-	deps.groupTeachers = func() educationModels.GroupTeacherRepository { return groupTeachers }
+	groupTeachers := newGroupTeacherRepository(membership, NewEducationGroupRepository(db))
+	deps.groupTeachers = func() GroupTeacherRepository { return groupTeachers }
 	return staffMembershipRepository{membership: membership, deps: deps}, teacherMembershipRepository{membership: membership, deps: deps}, nil
 }

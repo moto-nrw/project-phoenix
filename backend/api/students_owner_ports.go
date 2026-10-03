@@ -30,18 +30,15 @@ func (s studentSchoolGroups) GetGroupTeachers(ctx context.Context, groupID int64
 	}
 	result := make([]students.GroupTeacher, 0, len(teachers))
 	for _, teacher := range teachers {
-		if teacher == nil || teacher.Staff == nil || teacher.Staff.Person == nil {
+		if teacher == nil || teacher.Person == nil {
 			continue
 		}
-		view := students.GroupTeacher{
+		result = append(result, students.GroupTeacher{
 			ID:        teacher.ID,
-			FirstName: teacher.Staff.Person.FirstName,
-			LastName:  teacher.Staff.Person.LastName,
-		}
-		if teacher.Staff.Person.Account != nil {
-			view.Email = teacher.Staff.Person.Account.Email
-		}
-		result = append(result, view)
+			FirstName: teacher.Person.FirstName,
+			LastName:  teacher.Person.LastName,
+			Email:     teacher.Person.Email,
+		})
 	}
 	return result, nil
 }
