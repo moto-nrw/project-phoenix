@@ -57,7 +57,22 @@ import { useReopenBanner } from "~/components/active-supervisions/use-reopen-ban
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
 import { useSchulhofActions } from "~/components/active-supervisions/use-schulhof-actions";
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
-import { SupervisionStudentGrid } from "~/components/active-supervisions/student-grid";
+import {
+  SupervisionStudentGrid,
+  buildSupervisionTableColumns,
+} from "~/components/active-supervisions/student-grid";
+import { columnDefaults } from "~/components/students/student-table";
+import {
+  StudentSelectionScope,
+  type StudentTableSelection,
+} from "~/components/students/student-selection-scope";
+import {
+  CollectionViewSwitch,
+  DataTableColumnMenu,
+} from "~/components/ui/collection-view-switch";
+import { useCollectionView } from "~/lib/hooks/use-collection-view";
+import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
+import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { OpenRoomSections } from "~/components/active-supervisions/open-room-sections";
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
 
@@ -454,7 +469,58 @@ function MeinRaumPageContent() {
     openRooms.length === 0 &&
     plannedNow.length === 0;
 
-  const studentGridProps = {
+  // Kacheln oder Tabelle (#3834). Die Tabelle gilt für die Kinderliste der
+  // Aufsicht und der offenen Räume; die Stundenplan-Liste hat ihre eigene
+  // Form und bleibt, wie sie ist.
+  const { enabled: photosEnabled } = useStudentPhotosEnabled();
+  const tableColumns = useMemo(
+    () =>
+      buildSupervisionTableColumns({
+        pickupTimesData: dashboard.pickupTimesData,
+        arrivalTimesData: dashboard.arrivalTimesData,
+        trackingData: dashboard.trackingData,
+        myGroupIds: dashboard.myGroupIds,
+        myGroupRooms: dashboard.myGroupRooms,
+        now,
+        photosEnabled,
+        hrefFor: (student) =>
+          `/students/${student.id}?from=/active-supervisions`,
+      }),
+    [
+      dashboard.pickupTimesData,
+      dashboard.arrivalTimesData,
+      dashboard.trackingData,
+      dashboard.myGroupIds,
+      dashboard.myGroupRooms,
+      now,
+      photosEnabled,
+    ],
+  );
+  const tableColumnDefaults = useMemo(
+    () => columnDefaults(tableColumns),
+    [tableColumns],
+  );
+  const collectionView = useCollectionView(
+    "active-supervisions",
+    tableColumnDefaults,
+  );
+  const isPhone = useMediaQuery(BELOW_MD);
+  const tableApplies = openRoomLayout !== null || !currentTimetableRoster;
+  const showTable = collectionView.view === "table" && !isPhone && tableApplies;
+  // Eine Markierung gilt nur für die Liste, in der sie gesetzt wurde: ein
+  // anderer Raum, eine andere Suche oder ein anderer Filter leeren sie (wie
+  // in der Kindersuche, review #2372).
+  const selectionScope = [
+    currentRoom?.id,
+    currentOpenRoom?.roomId,
+    filters.searchTerm,
+    ...filters.activeFilters.map((filter) => `${filter.id}:${filter.label}`),
+  ].join("|");
+  const changeView = collectionView.setView;
+
+  const buildStudentGridProps = (
+    tableSelection: StudentTableSelection | null,
+  ) => ({
     pickupTimesData: dashboard.pickupTimesData,
     arrivalTimesData: dashboard.arrivalTimesData,
     trackingData: dashboard.trackingData,
@@ -463,10 +529,20 @@ function MeinRaumPageContent() {
     now,
     onOpenStudent: (studentId: string) =>
       router.push(`/students/${studentId}?from=/active-supervisions`),
-  };
+    table: tableSelection
+      ? {
+          columns: tableColumns,
+          hiddenColumns: collectionView.hiddenColumns,
+          selection: tableSelection,
+        }
+      : null,
+  });
 
   // Render helper for student grid content
-  const renderStudentContent = () => {
+  const renderStudentContent = (
+    tableSelection: StudentTableSelection | null,
+  ) => {
+    const studentGridProps = buildStudentGridProps(tableSelection);
     if (
       dashboard.isWaitingForUrlRoomSelection ||
       roster.isWaitingForTimetableRoster
@@ -560,8 +636,23 @@ function MeinRaumPageContent() {
       title={supervisionName ?? "Aktuelle Aufsicht"}
       stats={supervisionSummary}
       actions={
-        hasHeadActions ? (
+        hasHeadActions || tableApplies ? (
           <>
+            {tableApplies ? (
+              <div className="hidden md:block">
+                <CollectionViewSwitch
+                  value={collectionView.view}
+                  onChange={changeView}
+                />
+              </div>
+            ) : null}
+            {showTable ? (
+              <DataTableColumnMenu
+                columns={tableColumns}
+                hiddenColumns={collectionView.hiddenColumns}
+                onChange={collectionView.setColumnVisible}
+              />
+            ) : null}
             {/* Die Abzeichen sind eine Zeile: das Gerüst gibt unter sm jedem
                 Kopf-Element eine eigene volle Zeile, zwei gestreckte Pillen
                 untereinander läsen sich wie zwei Knöpfe. */}
@@ -690,8 +781,17 @@ function MeinRaumPageContent() {
             </Suspense>
           ) : null}
 
-          {/* Student Grid - Mobile Optimized */}
-          {renderStudentContent()}
+          {showTable ? (
+            <StudentSelectionScope
+              visibleStudents={filters.filteredStudents}
+              scopeKey={selectionScope}
+              checkinAllowed
+            >
+              {(selection) => renderStudentContent(selection)}
+            </StudentSelectionScope>
+          ) : (
+            renderStudentContent(null)
+          )}
 
           {/* Read-only end-of-day review of finished and expired blocks (#2335) */}
           <PastBlocksSection />

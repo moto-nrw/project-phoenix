@@ -18,7 +18,7 @@ import { HELP_TOPICS } from "~/lib/help-topics";
 import { CollectionGrid } from "~/components/ui/collection-grid";
 import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { ConfirmationModal, Modal } from "~/components/ui/modal";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { SectionCard } from "~/components/ui/section-card";
@@ -69,10 +69,34 @@ import {
 } from "~/components/students/student-card";
 import {
   SearchStudentCard,
+  SearchStudentStatusBadge,
   dailyDepartureLabelForStudent,
+  searchStudentDay,
 } from "~/components/students/search-student-card";
+import {
+  StudentTable,
+  arrivalColumn,
+  classColumn,
+  columnDefaults,
+  compactColumns,
+  departureColumn,
+  groupColumn,
+  nameColumn,
+  pickupColumn,
+  statusColumn,
+  trackingColumn,
+} from "~/components/students/student-table";
+import { StudentSelectionScope } from "~/components/students/student-selection-scope";
+import {
+  CollectionViewSwitch,
+  DataTableColumnMenu,
+} from "~/components/ui/collection-view-switch";
+import { useCollectionView } from "~/lib/hooks/use-collection-view";
+import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
+import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { StudentCardClockProvider } from "~/components/students/student-card-clock";
 import { StudentExportModal } from "~/components/students/student-export-modal";
+import { useBulkCheckinActions } from "~/components/students/use-bulk-checkin-actions";
 import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
@@ -84,8 +108,6 @@ import {
 } from "~/lib/hooks/use-school-checkin-mode";
 import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
-import type { SchoolCheckinAction } from "~/lib/student-api";
-import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { SEARCH_ROOMS_LIST_CACHE_KEY } from "~/lib/swr/room-derived-caches";
 import {
@@ -607,27 +629,6 @@ function compareByName(a: Student, b: Student) {
   );
   if (lastCmp !== 0) return lastCmp;
   return (a.first_name ?? "").localeCompare(b.first_name ?? "", "de");
-}
-
-/**
- * Snapshot of one student a bulk action operates on (#2359): the id for the
- * API call plus the display name for the failure dialog. Taken from the
- * Student row at snapshot time because the row itself can leave the result
- * set (live update, changed filter) while a dialog still has to name — and
- * retry — the child (review #2372).
- */
-interface BulkStudentRef {
-  id: string;
-  name: string;
-}
-
-function toBulkStudentRef(student: Student): BulkStudentRef {
-  return {
-    id: student.id.toString(),
-    name:
-      `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
-      student.name,
-  };
 }
 
 function statusLabelForStudent(student: Student): string {
@@ -1371,31 +1372,6 @@ function SearchPageContent() {
     studentName: string;
     room: string;
   } | null>(null);
-  // Bulk checkout of a selection containing children who are currently in
-  // rooms mirrors the single-tap confirmation (#2220): ending running room
-  // visits deserves one explicit ok — but one for the whole batch, not per
-  // child (#2359). The dialog holds a SNAPSHOT of the selection taken when it
-  // opened, and confirming executes exactly that snapshot: the live selection
-  // can shift underneath an open dialog (an SWR/SSE update re-shaping the
-  // visible list), and the operation must stay the one the user confirmed
-  // (review #2372).
-  const [pendingBulkCheckout, setPendingBulkCheckout] = useState<{
-    students: BulkStudentRef[];
-    roomCount: number;
-  } | null>(null);
-  // Per-child failures of a bulk action, named for the user (#2359
-  // acceptance criteria). The successful part of the batch is already
-  // processed when this shows. Carries id+name snapshots, not just names:
-  // the dialog's own retry button executes exactly this list, which keeps
-  // the promised one-tap retry reachable even when a scope change during
-  // the run hid the retained marks from the selection bar (review #2372).
-  const [bulkFailures, setBulkFailures] = useState<{
-    action: SchoolCheckinAction;
-    succeeded: number;
-    students: BulkStudentRef[];
-  } | null>(null);
-  const [runningBulkAction, setRunningBulkAction] =
-    useState<SchoolCheckinAction | null>(null);
   const {
     enabled: studentPhotosEnabled,
     isLoading: studentPhotosSettingLoading,
@@ -2802,76 +2778,11 @@ function SearchPageContent() {
     [filteredStudents, schoolCheckin.selectedIds],
   );
 
-  // Runs the bulk action for an explicit snapshot list: the caller passes
-  // the visible selection for the direct path, the confirmation dialog's
-  // snapshot, or the failure dialog's retry snapshot — never the live
-  // selection at execute time, so a dialog always executes what it
-  // displayed (review #2372). runBulk executes the snapshot exactly as
-  // given — deliberately NOT intersected with the live selection: a
-  // search/filter change committing while a dialog is open clears the
-  // selection, and an intersected run would silently shrink to nothing
-  // despite the dialog's promise (review #2372). Every snapshot was on
-  // screen when the user triggered it, so nothing runs sight-unseen.
-  const executeBulk = useCallback(
-    async (action: SchoolCheckinAction, targets: readonly BulkStudentRef[]) => {
-      // The snapshot names travel with the ids: after the run the hook
-      // shrinks the selection to the failed students, and the failure
-      // dialog must still name (and be able to retry) them.
-      const nameById = new Map(
-        targets.map((target) => [target.id, target.name]),
-      );
-
-      setRunningBulkAction(action);
-      try {
-        const outcome = await schoolCheckin.runBulk(
-          action,
-          targets.map((target) => target.id),
-        );
-        // null: nothing selected or whole request failed (hook toasted the
-        // error). failed === 0: the hook toasted the success summary.
-        if (!outcome || outcome.failed === 0) return;
-
-        setBulkFailures({
-          action,
-          succeeded: outcome.succeeded,
-          students: outcome.results
-            .filter((result) => !result.ok)
-            .map((result) => ({
-              id: result.studentId,
-              name:
-                nameById.get(result.studentId) ?? `Kind #${result.studentId}`,
-            })),
-        });
-      } finally {
-        setRunningBulkAction(null);
-      }
-    },
-    [schoolCheckin],
+  const bulkCheckin = useBulkCheckinActions(
+    schoolCheckin,
+    selectedStudentsForBulk,
   );
-
-  const handleBulkAction = useCallback(
-    (action: SchoolCheckinAction) => {
-      if (selectedStudentsForBulk.length === 0) return;
-      if (action === "out") {
-        // Same rule as the single tap (#2220): checking a child out of a room
-        // ends the running visit, so that asks first — once per batch. The
-        // dialog snapshots the selection it is asking about (review #2372).
-        const roomCount = selectedStudentsForBulk.filter(
-          (student) =>
-            checkoutConfirmationRoom(student.current_location) !== null,
-        ).length;
-        if (roomCount > 0) {
-          setPendingBulkCheckout({
-            students: selectedStudentsForBulk.map(toBulkStudentRef),
-            roomCount,
-          });
-          return;
-        }
-      }
-      void executeBulk(action, selectedStudentsForBulk.map(toBulkStudentRef));
-    },
-    [selectedStudentsForBulk, executeBulk],
-  );
+  const { handleBulkAction, runningBulkAction } = bulkCheckin;
 
   const groupedStudents = useMemo(
     () => groupStudents(sortedStudents, effectiveGroupMode),
@@ -2938,6 +2849,62 @@ function SearchPageContent() {
   const handleOpenStudent = useCallback(
     (student: Student) => openStudentRef.current(student),
     [openStudentRef],
+  );
+
+  // Kacheln oder Tabelle (#3834). Die Tabelle trägt dieselben Angaben wie
+  // die Karte, eine Spalte je Angabe, und markiert Kinder per Kästchen für
+  // die Sammelaktionen. Auf dem Telefon bleibt es bei den Kacheln.
+  const tableColumns = useMemo(
+    () =>
+      compactColumns<Student>([
+        nameColumn(
+          (student) => `/students/${student.id}?from=${fromParam}`,
+          studentPhotosEnabled,
+        ),
+        statusColumn(isToday ? "Aufenthalt" : "Planung", (student) => (
+          <SearchStudentStatusBadge
+            student={student}
+            isToday={isToday}
+            userGroups={myGroups}
+            groupRooms={myGroupRooms}
+            supervisedRooms={mySupervisedRooms}
+          />
+        )),
+        classColumn(),
+        groupColumn(),
+        arrivalColumn((student) => searchStudentDay(student, isToday)),
+        pickupColumn((student) => searchStudentDay(student, isToday)),
+        departureColumn(dailyDepartureLabelForStudent),
+        trackingColumn(trackingData, isToday),
+      ]),
+    [
+      fromParam,
+      studentPhotosEnabled,
+      isToday,
+      myGroups,
+      myGroupRooms,
+      mySupervisedRooms,
+      trackingData,
+    ],
+  );
+  const tableColumnDefaults = useMemo(
+    () => columnDefaults(tableColumns),
+    [tableColumns],
+  );
+  const collectionView = useCollectionView(
+    "student-search",
+    tableColumnDefaults,
+  );
+  const isPhone = useMediaQuery(BELOW_MD);
+  const showTable = collectionView.view === "table" && !isPhone;
+  const changeView = useCallback(
+    (next: "tiles" | "table") => {
+      if (next === collectionView.view) return;
+      // Der An- und Abmelde-Modus gehört zu den Kacheln.
+      schoolCheckin.deactivate();
+      collectionView.setView(next);
+    },
+    [collectionView, schoolCheckin],
   );
   const checkinClick = useCallback(
     (student: Student) => {
@@ -3012,6 +2979,19 @@ function SearchPageContent() {
         statsLoading={!hasFetchedOnce || isDateTransition}
         actions={
           <>
+            <div className="hidden md:block">
+              <CollectionViewSwitch
+                value={collectionView.view}
+                onChange={changeView}
+              />
+            </div>
+            {showTable ? (
+              <DataTableColumnMenu
+                columns={tableColumns}
+                hiddenColumns={collectionView.hiddenColumns}
+                onChange={collectionView.setColumnVisible}
+              />
+            ) : null}
             <OverflowMenu
               items={[
                 {
@@ -3040,7 +3020,7 @@ function SearchPageContent() {
           icon: <MotoConceptIcon concept="children" size={20} />,
         }}
         primaryAction={
-          checkinModeAvailable && !schoolCheckin.isActive ? (
+          checkinModeAvailable && !schoolCheckin.isActive && !showTable ? (
             <SchoolCheckinFab
               variant="inline"
               isActive={schoolCheckin.isActive}
@@ -3154,108 +3134,7 @@ function SearchPageContent() {
               </p>
             </ConfirmationModal>
 
-            {/* Bulk checkout of a selection with children currently in rooms: one
-          confirmation for the whole batch (#2359), mirroring the single-tap
-          room dialog above. Confirming executes the snapshot the dialog
-          displays — not the live selection, which may have shifted while it
-          was open (review #2372). */}
-            <ConfirmationModal
-              isOpen={pendingBulkCheckout !== null}
-              onClose={() => setPendingBulkCheckout(null)}
-              onConfirm={() => {
-                if (!pendingBulkCheckout) return;
-                const snapshot = pendingBulkCheckout.students;
-                setPendingBulkCheckout(null);
-                void executeBulk("out", snapshot);
-              }}
-              title="Ausgewählte Kinder abmelden?"
-              confirmText="Abmelden"
-              confirmVariant="danger"
-            >
-              <p className="text-sm text-gray-600">
-                <span className="font-medium text-gray-900">
-                  {pendingBulkCheckout?.students.length}
-                </span>{" "}
-                {pendingBulkCheckout?.students.length === 1
-                  ? "Kind ist"
-                  : "Kinder sind"}{" "}
-                ausgewählt,{" "}
-                <span className="font-medium text-gray-900">
-                  {pendingBulkCheckout?.roomCount}
-                </span>{" "}
-                davon {pendingBulkCheckout?.roomCount === 1 ? "ist" : "sind"}{" "}
-                gerade in einem Raum. Beim Abmelden werden laufende Raumbesuche
-                beendet und die Kinder gelten für heute als gegangen.
-              </p>
-            </ConfirmationModal>
-
-            {/* Per-child failures of a bulk action, named (#2359). The successful
-          part of the batch is already applied at this point. The retry
-          button executes the dialog's OWN snapshot — the named children on
-          screen right here — not the selection bar's visible-rows view: a
-          scope change during the run keeps the failed students selected but
-          may hide their cards, and the promised one-tap retry must stay
-          reachable then (review #2372). Acting on the snapshot is not
-          sight-unseen (the dialog lists every child by name), and runBulk
-          executes exactly this snapshot — a scope change committing while
-          this dialog is open may clear the selection, and an intersected
-          retry would then be a silent no-op (review #2372). */}
-            <Modal
-              isOpen={bulkFailures !== null}
-              onClose={() => setBulkFailures(null)}
-              title={
-                bulkFailures?.action === "in"
-                  ? "Nicht alle Kinder angemeldet"
-                  : "Nicht alle Kinder abgemeldet"
-              }
-            >
-              <div className="space-y-3">
-                <p className="text-sm text-gray-600">
-                  {bulkFailures?.succeeded === 1
-                    ? "1 Kind wurde"
-                    : `${bulkFailures?.succeeded} Kinder wurden`}{" "}
-                  {bulkFailures?.action === "in" ? "angemeldet" : "abgemeldet"}.
-                  Bei
-                  {bulkFailures?.students.length === 1
-                    ? " diesem Kind"
-                    : ` diesen ${bulkFailures?.students.length} Kindern`}{" "}
-                  hat es nicht geklappt:
-                </p>
-                <ul className="list-inside list-disc text-sm font-medium text-gray-900">
-                  {bulkFailures?.students.map((student) => (
-                    <li key={student.id}>{student.name}</li>
-                  ))}
-                </ul>
-                <p className="text-sm text-gray-600">
-                  Diese Kinder bleiben ausgewählt. Mit „Erneut versuchen“ führen
-                  Sie die Aktion für diese Kinder noch einmal aus. Geänderte
-                  Filter blenden sie dabei nicht aus.
-                </p>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="md"
-                    onClick={() => setBulkFailures(null)}
-                  >
-                    Schließen
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="md"
-                    onClick={() => {
-                      if (!bulkFailures) return;
-                      const { action, students: failedStudents } = bulkFailures;
-                      setBulkFailures(null);
-                      void executeBulk(action, failedStudents);
-                    }}
-                  >
-                    Erneut versuchen
-                  </Button>
-                </div>
-              </div>
-            </Modal>
+            {bulkCheckin.dialogs}
 
             {isExportOpen && (
               <StudentExportModal
@@ -3360,6 +3239,46 @@ function SearchPageContent() {
               {(() => {
                 if (showGridSkeleton) {
                   return <StudentCardGridSkeleton />;
+                }
+                if (showTable) {
+                  return (
+                    <StudentSelectionScope
+                      visibleStudents={filteredStudents}
+                      scopeKey={selectionScopeSignature}
+                      checkinAllowed={isToday}
+                      exportContext={{
+                        ...(isToday ? {} : { date: selectedDate }),
+                        sort: sortMode,
+                      }}
+                    >
+                      {(tableSelection) =>
+                        effectiveGroupMode === "none" ? (
+                          <StudentTable
+                            rows={sortedStudents}
+                            columns={tableColumns}
+                            hiddenColumns={collectionView.hiddenColumns}
+                            onOpen={handleOpenStudent}
+                            selection={tableSelection}
+                          />
+                        ) : (
+                          <div className="space-y-6">
+                            {groupedStudents.map((group) => (
+                              <div key={group.key} data-testid="student-group">
+                                <StudentTable
+                                  caption={`${group.label} (${group.items.length})`}
+                                  rows={group.items}
+                                  columns={tableColumns}
+                                  hiddenColumns={collectionView.hiddenColumns}
+                                  onOpen={handleOpenStudent}
+                                  selection={tableSelection}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      }
+                    </StudentSelectionScope>
+                  );
                 }
                 // Fehler und Leerzustand liegen im Gerüst (`error`/`empty`)
                 // und ersetzen den Inhalt dort.
@@ -3662,7 +3581,7 @@ function SearchPageContent() {
           desktopFiltersFrom="xl". Both the filter sheet and the FAB
           live under the same boundary so iPad Air gets the consistent
           tablet UX. */}
-      {checkinModeAvailable && !schoolCheckin.isActive && (
+      {checkinModeAvailable && !schoolCheckin.isActive && !showTable && (
         <div className="hidden md:block xl:hidden">
           <SchoolCheckinFab
             variant="floating"

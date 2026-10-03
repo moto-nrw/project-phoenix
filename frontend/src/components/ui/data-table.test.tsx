@@ -369,3 +369,94 @@ describe("DataTable stacked phone layout", () => {
     expect(screen.queryByTestId("data-table-stacked")).not.toBeInTheDocument();
   });
 });
+
+describe("DataTable selection and hidden columns (#3834)", () => {
+  const twoColumns: DataTableColumn<Row>[] = [
+    { key: "name", header: "Name", render: (row) => row.name },
+    { key: "id", header: "Nummer", render: (row) => `#${row.id}` },
+  ];
+
+  function renderSelectable(selectedKeys: ReadonlySet<string>) {
+    const onChange = vi.fn();
+    const onRowClick = vi.fn();
+    render(
+      <DataTable
+        columns={twoColumns}
+        rows={rows}
+        getRowKey={(row) => row.id}
+        onRowClick={onRowClick}
+        selection={{
+          selectedKeys,
+          onChange,
+          rowLabel: (row) => row.name,
+        }}
+      />,
+    );
+    return { onChange, onRowClick };
+  }
+
+  it("marks one row through its checkbox without opening the row", () => {
+    const { onChange, onRowClick } = renderSelectable(new Set());
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Beta auswählen" }));
+
+    expect(onChange).toHaveBeenCalledWith(["2"], true);
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
+  it("unmarks a marked row", () => {
+    const { onChange } = renderSelectable(new Set(["1"]));
+
+    const alpha = screen.getByRole("checkbox", { name: "Alpha auswählen" });
+    expect(alpha).toBeChecked();
+    fireEvent.click(alpha);
+
+    expect(onChange).toHaveBeenCalledWith(["1"], false);
+  });
+
+  it("selects every row from the header box while some are unmarked", () => {
+    const { onChange } = renderSelectable(new Set(["1"]));
+
+    const all = screen.getByRole("checkbox", { name: "Alle auswählen" });
+    expect(all).not.toBeChecked();
+    expect((all as HTMLInputElement).indeterminate).toBe(true);
+    fireEvent.click(all);
+
+    expect(onChange).toHaveBeenCalledWith(["1", "2"], true);
+  });
+
+  it("clears every row from the header box when all are marked", () => {
+    const { onChange } = renderSelectable(new Set(["1", "2"]));
+
+    const all = screen.getByRole("checkbox", { name: "Alle auswählen" });
+    expect(all).toBeChecked();
+    fireEvent.click(all);
+
+    expect(onChange).toHaveBeenCalledWith(["1", "2"], false);
+  });
+
+  it("keeps a selectable row out of the button role so the checkbox stays reachable", () => {
+    renderSelectable(new Set());
+
+    expect(
+      screen
+        .queryAllByRole("button")
+        .filter((element) => element.tagName === "TR"),
+    ).toHaveLength(0);
+  });
+
+  it("leaves hidden columns out of header and cells", () => {
+    render(
+      <DataTable
+        columns={twoColumns}
+        rows={rows}
+        getRowKey={(row) => row.id}
+        hiddenColumns={new Set(["id"])}
+      />,
+    );
+
+    expect(screen.getByText("Name")).toBeInTheDocument();
+    expect(screen.queryByText("Nummer")).not.toBeInTheDocument();
+    expect(screen.queryByText("#1")).not.toBeInTheDocument();
+  });
+});

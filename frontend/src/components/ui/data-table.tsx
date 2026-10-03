@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useState,
   type ReactNode,
@@ -10,6 +11,7 @@ import {
 
 import { getAccessibleTextColor, LOCATION_COLORS } from "~/lib/location-helper";
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
 import { Skeleton } from "~/components/ui/skeleton";
 
 type SortDirection = "asc" | "desc";
@@ -27,6 +29,23 @@ export interface DataTableColumn<T> {
   // it, "field" a labelled line below, "hidden" is dropped on phones.
   // Defaults to "field".
   stacked?: "title" | "meta" | "field" | "hidden";
+}
+
+/**
+ * Row selection of a DataTable (#3834): a checkbox column in front, with an
+ * "alle auswählen" box in the header that covers every row of the table, not
+ * only the rows paged in so far. The caller owns the selection; the table
+ * only reports changes. Keys are `String(getRowKey(row))`. The stacked phone
+ * layout shows no checkboxes.
+ */
+export interface DataTableSelection<T> {
+  readonly selectedKeys: ReadonlySet<string>;
+  /** One row or the whole table switched to `selected`. */
+  readonly onChange: (keys: readonly string[], selected: boolean) => void;
+  /** Name of the row for the checkbox's accessible label ("Mia Kaya"). */
+  readonly rowLabel: (row: T) => string;
+  /** Locks every checkbox, e.g. while a bulk action runs. */
+  readonly disabled?: boolean;
 }
 
 interface DataTableProps<T> {
@@ -61,6 +80,10 @@ interface DataTableProps<T> {
   // paging, loading and empty state stay shared between both layouts —
   // per-column roles come from `DataTableColumn.stacked`.
   stackedOnMobile?: boolean;
+  // Column keys left out of the table. The caller keeps the full column list
+  // so a column menu can offer the hidden ones again.
+  hiddenColumns?: ReadonlySet<string>;
+  selection?: DataTableSelection<T>;
 }
 
 const alignClass: Record<
@@ -311,9 +334,23 @@ export function DataTable<T>({
   pageSize,
   paginationResetKey,
   stackedOnMobile = false,
+  hiddenColumns,
+  selection,
 }: Readonly<DataTableProps<T>>) {
   const clickable = Boolean(onRowClick);
-  const keyboardClickable = clickable && !rowHasInteractiveControls;
+  const shownColumns = useMemo(
+    () =>
+      hiddenColumns && hiddenColumns.size > 0
+        ? columns.filter((col) => !hiddenColumns.has(col.key))
+        : columns,
+    [columns, hiddenColumns],
+  );
+  // Selection checkboxes are controls inside the row, so the row itself must
+  // not also become an ARIA button (see rowHasInteractiveControls).
+  const rowControls = rowHasInteractiveControls || selection !== undefined;
+  const cellCount = shownColumns.length + (selection ? 1 : 0);
+  const selectAllId = useId();
+  const keyboardClickable = clickable && !rowControls;
 
   const [sort, setSort] = useState<{
     key: string;
@@ -369,6 +406,17 @@ export function DataTable<T>({
     setVisibleCount((c) => c + (pageSize ?? sortedRows.length));
   }, [pageSize, sortedRows.length]);
 
+  const allRowKeys = useMemo(
+    () => sortedRows.map((row) => String(getRowKey(row))),
+    [sortedRows, getRowKey],
+  );
+  const selectedRowCount = selection
+    ? allRowKeys.filter((key) => selection.selectedKeys.has(key)).length
+    : 0;
+  const allSelected =
+    allRowKeys.length > 0 && selectedRowCount === allRowKeys.length;
+  const someSelected = selectedRowCount > 0 && !allSelected;
+
   return (
     // Flex-Spalte, damit die Tabellenfläche wächst, wenn die Seite ihr Platz
     // gibt: als letzte Fläche einer Tenant-Seite reicht sie dann bis zur
@@ -396,7 +444,7 @@ export function DataTable<T>({
       {stackedOnMobile && (
         <div className="md:hidden" data-testid="data-table-stacked">
           <StackedRows
-            columns={columns}
+            columns={shownColumns}
             rows={visibleRows}
             getRowKey={getRowKey}
             onRowClick={onRowClick}
@@ -428,7 +476,28 @@ export function DataTable<T>({
           <table className={tableClass}>
             <thead>
               <tr className={headRowClass}>
-                {columns.map((col) => {
+                {selection ? (
+                  <th scope="col" className={`${headCellClass} w-12 pr-0!`}>
+                    <label
+                      htmlFor={selectAllId}
+                      className="flex cursor-pointer items-center"
+                    >
+                      <Checkbox
+                        id={selectAllId}
+                        checked={allSelected}
+                        ref={(input: HTMLInputElement | null) => {
+                          if (input) input.indeterminate = someSelected;
+                        }}
+                        disabled={selection.disabled || allRowKeys.length === 0}
+                        onChange={() =>
+                          selection.onChange(allRowKeys, !allSelected)
+                        }
+                      />
+                      <span className="sr-only">Alle auswählen</span>
+                    </label>
+                  </th>
+                ) : null}
+                {shownColumns.map((col) => {
                   const align = alignClass[col.align ?? "left"];
                   const sortable = Boolean(col.sortValue);
                   const active = sort?.key === col.key;
@@ -495,13 +564,13 @@ export function DataTable<T>({
             <tbody>
               {isLoading ? (
                 <SkeletonBodyRows
-                  columnCount={columns.length}
+                  columnCount={cellCount}
                   rows={loadingRowCount}
                 />
               ) : sortedRows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={columns.length}
+                    colSpan={cellCount}
                     className="compact:py-6 px-5 py-10 text-center text-sm text-gray-500"
                   >
                     {emptyState ?? "Keine Einträge vorhanden."}
@@ -510,9 +579,12 @@ export function DataTable<T>({
               ) : (
                 visibleRows.map((row) => {
                   const rowKey = getRowKey(row);
+                  const selected =
+                    selection?.selectedKeys.has(String(rowKey)) ?? false;
                   const rowClasses = [
                     `${bodyRowClass} transition-colors`,
                     clickable ? "cursor-pointer hover:bg-gray-50" : "",
+                    selected ? "bg-gray-50" : "",
                     rowClassName ? rowClassName(row) : "",
                   ]
                     .filter(Boolean)
@@ -538,7 +610,28 @@ export function DataTable<T>({
                       tabIndex={keyboardClickable ? 0 : undefined}
                       role={keyboardClickable ? "button" : undefined}
                     >
-                      {columns.map((col) => {
+                      {selection ? (
+                        <td
+                          className={`${bodyCellClass} w-12 pr-0!`}
+                          // The checkbox toggles the mark; it must not also
+                          // open the row.
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <label className="flex cursor-pointer items-center">
+                            <Checkbox
+                              checked={selected}
+                              disabled={selection.disabled}
+                              onChange={() =>
+                                selection.onChange([String(rowKey)], !selected)
+                              }
+                            />
+                            <span className="sr-only">
+                              {`${selection.rowLabel(row)} auswählen`}
+                            </span>
+                          </label>
+                        </td>
+                      ) : null}
+                      {shownColumns.map((col) => {
                         const align = alignClass[col.align ?? "left"];
                         return (
                           <td
@@ -555,10 +648,7 @@ export function DataTable<T>({
               )}
               {!isLoading && hasMore && (
                 <tr className="border-t border-gray-100">
-                  <td
-                    colSpan={columns.length}
-                    className="px-5 py-3 text-center"
-                  >
+                  <td colSpan={cellCount} className="px-5 py-3 text-center">
                     <Button
                       type="button"
                       variant="surface"

@@ -282,7 +282,7 @@ describe("getParentHelpTopicForPath", () => {
       id: HELP_TOPICS.studentSearch,
       group: "kinder",
     });
-    expect(caregiverTopics[7]?.instructionGroups).toHaveLength(3);
+    expect(caregiverTopics[7]?.instructionGroups).toHaveLength(4);
     expect(caregiverTopics[7]?.troubleshooting).toBe(
       HELP_TOPICS.missingChildOrGroup,
     );

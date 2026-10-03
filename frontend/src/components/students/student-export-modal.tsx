@@ -179,10 +179,15 @@ export function StudentExportModal({
   // knows its general result count, so it must not report that count for
   // the narrower health-list scope.
   const isDefaultHealthListScope = isHealthList && !includeWithoutHealthInfo;
+  // A table selection (#3834) is not "the current filtering": name it as
+  // what it is, the children the user marked.
+  const selectedCount = filters.student_ids?.length;
   const scopeWithoutCount = isDefaultHealthListScope
-    ? resultCount === undefined
-      ? "Kinder der Schule mit hinterlegten Gesundheitsinformationen."
-      : "Kinder aus der aktuellen Filterung mit hinterlegten Gesundheitsinformationen."
+    ? selectedCount !== undefined
+      ? "Ausgewählte Kinder mit hinterlegten Gesundheitsinformationen."
+      : resultCount === undefined
+        ? "Kinder der Schule mit hinterlegten Gesundheitsinformationen."
+        : "Kinder aus der aktuellen Filterung mit hinterlegten Gesundheitsinformationen."
     : "Alle Kinder der Schule.";
   const showsResultCount =
     resultCount !== undefined && !isDefaultHealthListScope;
@@ -275,7 +280,9 @@ export function StudentExportModal({
             <SlideOverTitle>{heading}</SlideOverTitle>
             <SlideOverDescription>
               {showsResultCount
-                ? `${resultCount} Kinder aus der aktuellen Filterung.`
+                ? selectedCount !== undefined
+                  ? `${selectedCount} ${selectedCount === 1 ? "ausgewähltes Kind" : "ausgewählte Kinder"}.`
+                  : `${resultCount} Kinder aus der aktuellen Filterung.`
                 : scopeWithoutCount}
             </SlideOverDescription>
           </div>

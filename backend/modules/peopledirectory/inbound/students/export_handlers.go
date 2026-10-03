@@ -59,6 +59,11 @@ type studentExportFilters struct {
 	// on the Gesundheitsliste (#3323); they print "Nicht hinterlegt". Other
 	// presets ignore it.
 	IncludeWithoutHealthInfo bool `json:"include_without_health_info"`
+	// StudentIDs limits the export to the children marked in a list (#3834).
+	// It narrows the result of every other filter and never widens it: an ID
+	// the caller cannot see, or that another filter drops, stays out. Empty
+	// means no selection.
+	StudentIDs []string `json:"student_ids"`
 }
 
 type weeklySchedule struct {
@@ -195,7 +200,32 @@ func decodeStudentExportRequest(r *http.Request) (studentExportRequest, error) {
 	if _, err := parseExportMonths(req.Filters.Months); err != nil {
 		return req, err
 	}
+	if _, err := parseExportStudentIDs(req.Filters.StudentIDs); err != nil {
+		return req, err
+	}
 	return req, nil
+}
+
+// parseExportStudentIDs turns the wire selection into a lookup set. An empty
+// list means "no selection" and yields a nil set. A malformed ID is rejected
+// rather than skipped: a silently shortened selection would print a list that
+// looks complete but misses a child the user marked.
+func parseExportStudentIDs(values []string) (map[int64]bool, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	if len(values) > studentExportPageSize {
+		return nil, errExportSelectionTooLarge(len(values))
+	}
+	ids := make(map[int64]bool, len(values))
+	for _, value := range values {
+		id, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+		if err != nil || id <= 0 {
+			return nil, fmt.Errorf("invalid student id %q", value)
+		}
+		ids[id] = true
+	}
+	return ids, nil
 }
 
 // parseExportMonths turns the wire month filter ("01".."12") into a lookup set.
@@ -382,8 +412,9 @@ func matchesExportYearFilter(schoolClass, raw string) bool {
 }
 
 func applyExportFilters(students []StudentResponse, filters studentExportFilters, preset lists.Preset, planningDate timezone.Date) []StudentResponse {
-	// Months were validated when the request was decoded.
+	// Months and student IDs were validated when the request was decoded.
 	months, _ := parseExportMonths(filters.Months)
+	selectedIDs, _ := parseExportStudentIDs(filters.StudentIDs)
 	// The birthday preset demands a birthday even without a month filter, so a
 	// child with no stored date is dropped rather than printed as a blank row.
 	byBirthday := preset == lists.PresetBirthdayList || len(months) > 0
@@ -391,6 +422,9 @@ func applyExportFilters(students []StudentResponse, filters studentExportFilters
 	filtered := make([]StudentResponse, 0, len(students))
 	for _, student := range students {
 		if withHealthInfoOnly && !hasHealthInfo(student) {
+			continue
+		}
+		if selectedIDs != nil && !selectedIDs[student.ID] {
 			continue
 		}
 		if exportStudentMatchesFilters(student, filters, byBirthday, months, planningDate) {

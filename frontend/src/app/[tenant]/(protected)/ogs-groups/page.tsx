@@ -60,6 +60,25 @@ import {
 } from "~/lib/hooks/use-school-checkin-mode";
 import { buildGroupOverflowItems } from "./components/group-overflow-items";
 import { usePresenceMode } from "~/lib/tenant-context";
+import {
+  StudentTable,
+  arrivalColumn,
+  classColumn,
+  columnDefaults,
+  compactColumns,
+  nameColumn,
+  pickupColumn,
+  statusColumn,
+  trackingColumn,
+  type StudentTableDay,
+} from "~/components/students/student-table";
+import { StudentSelectionScope } from "~/components/students/student-selection-scope";
+import {
+  CollectionViewSwitch,
+  DataTableColumnMenu,
+} from "~/components/ui/collection-view-switch";
+import { useCollectionView } from "~/lib/hooks/use-collection-view";
+import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { fetchOgsGroupLive } from "~/lib/ogs-group-live-api";
 import type {
@@ -868,6 +887,100 @@ function OGSGroupPageContent() {
     return filters;
   }, [sortMode, searchTerm, attendanceFilter]);
 
+  // Kacheln oder Tabelle (#3834): dieselben Angaben wie auf der Karte, eine
+  // Spalte je Angabe, dazu Kästchen für die Sammelaktionen. Die Klasse steht
+  // nicht auf der Karte und ist deshalb erst nach Wahl im Spaltenmenü zu sehen.
+  const ogsStudentDay = useCallback(
+    (student: Student): StudentTableDay => {
+      const studentPickup = pickupTimes.get(student.id.toString());
+      const pickupNote = studentPickup
+        ? combineTimeNotes(studentPickup.notes, studentPickup.dayNotes)
+        : undefined;
+      const day = getOgsStudentDay(student, pickupTimes);
+      const result = {
+        arrival: {
+          arrivalTime: student.arrival_time,
+          actualTime: student.actual_arrival_time,
+          isException: student.arrival_is_exception ?? false,
+          isAbsent:
+            (student.arrival_is_exception ?? false) && !student.arrival_time,
+          notes: student.arrival_notes,
+          now,
+          day,
+        },
+        pickup: {
+          pickupTime: studentPickup?.pickupTime,
+          actualTime: student.actual_pickup_time,
+          isException: studentPickup?.isException ?? false,
+          notes: pickupNote,
+          now,
+          day,
+        },
+      };
+      if (student.actual_pickup_time) return result;
+      const absenceLabel =
+        getStudentAbsence({
+          sick: student.sick,
+          classTrip: student.class_trip,
+          excused: student.excused,
+        })?.label ?? getDayPlanningNotComingLabel(student);
+      return absenceLabel
+        ? { ...result, absence: { label: absenceLabel, note: pickupNote } }
+        : result;
+    },
+    [pickupTimes, now],
+  );
+  const tableColumns = useMemo(
+    () =>
+      compactColumns<Student>([
+        nameColumn(
+          (student) => `/students/${student.id}?from=/ogs-groups`,
+          photosEnabled,
+        ),
+        statusColumn("Aufenthalt", (student) => {
+          const badgePlanning = getStudentPresenceBadgePlanning(student);
+          return (
+            <StudentPresenceBadge
+              student={{
+                ...student,
+                not_arrival_today: badgePlanning.notArrivalToday,
+                not_arrival_reason: badgePlanning.notArrivalReason,
+              }}
+              displayMode="roomName"
+              isGroupRoom={isStudentInGroupRoom(student, currentGroup)}
+              variant="modern"
+              size="md"
+            />
+          );
+        }),
+        classColumn({ defaultVisible: false }),
+        arrivalColumn(ogsStudentDay),
+        pickupColumn(ogsStudentDay),
+        trackingColumn(trackingIndicators),
+      ]),
+    [photosEnabled, currentGroup, ogsStudentDay, trackingIndicators],
+  );
+  const tableColumnDefaults = useMemo(
+    () => columnDefaults(tableColumns),
+    [tableColumns],
+  );
+  const collectionView = useCollectionView("ogs-groups", tableColumnDefaults);
+  const isPhone = useMediaQuery(BELOW_MD);
+  const showTable = collectionView.view === "table" && !isPhone;
+  const changeView = useCallback(
+    (next: "tiles" | "table") => {
+      if (next === collectionView.view) return;
+      schoolCheckin.deactivate();
+      schoolCheckin.clearSelection();
+      collectionView.setView(next);
+    },
+    [collectionView, schoolCheckin],
+  );
+  // Eine Markierung gilt nur für die Liste, in der sie gesetzt wurde: ein
+  // anderer Gruppenreiter, eine andere Suche oder ein anderer Ort leeren sie
+  // (wie in der Kindersuche, review #2372).
+  const selectionScope = `${selectedGroupId ?? ""}|${searchTerm}|${attendanceFilter}`;
+
   // Loading joins the access-unknown state below instead of an early return
   // before the header, so the real PageHeaderWithSearch (title, tabs,
   // actions) renders immediately and only the student-grid area
@@ -905,6 +1018,29 @@ function OGSGroupPageContent() {
   const renderStudentContent = () => {
     if (showSkeleton) {
       return <StudentCardGridSkeleton />;
+    }
+    if (showTable && sortedStudents.length > 0) {
+      return (
+        // Wie die Karten: An- und Abmelden aus der Gruppe gibt es nur im
+        // Anwesenheitsmodus ohne Räume.
+        <StudentSelectionScope
+          visibleStudents={filteredStudents}
+          scopeKey={selectionScope}
+          checkinAllowed={isBinaryMode}
+        >
+          {(selection) => (
+            <StudentTable
+              rows={sortedStudents}
+              columns={tableColumns}
+              hiddenColumns={collectionView.hiddenColumns}
+              onOpen={(student) =>
+                router.push(`/students/${student.id}?from=/ogs-groups`)
+              }
+              selection={selection}
+            />
+          )}
+        </StudentSelectionScope>
+      );
     }
     if (sortedStudents.length > 0) {
       return (
@@ -1103,7 +1239,20 @@ function OGSGroupPageContent() {
             {/* Der An- und Abmelde-Modus ist ab 1024px eine Kopfaktion;
                 darunter tragen ihn die Leiste am unteren Rand (Phone) und
                 der schwebende Knopf (Tablet). */}
-            {isBinaryMode ? (
+            <div className="hidden md:block">
+              <CollectionViewSwitch
+                value={collectionView.view}
+                onChange={changeView}
+              />
+            </div>
+            {showTable ? (
+              <DataTableColumnMenu
+                columns={tableColumns}
+                hiddenColumns={collectionView.hiddenColumns}
+                onChange={collectionView.setColumnVisible}
+              />
+            ) : null}
+            {isBinaryMode && !showTable ? (
               <div className="hidden lg:block">
                 <SchoolCheckinFab
                   variant="inline"
@@ -1251,7 +1400,7 @@ function OGSGroupPageContent() {
       {/* Tablet (md..lg) check-in mode trigger — floating FAB. Mobile
           renders the inline pill / sticky bar combo above; desktop
           renders the inline pill inside the page header. */}
-      {isBinaryMode && (
+      {isBinaryMode && !showTable && (
         <div className="hidden md:block lg:hidden">
           <SchoolCheckinFab
             variant="floating"

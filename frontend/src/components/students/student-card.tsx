@@ -324,23 +324,31 @@ export function DepartureModeIcon() {
   return <Route className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />;
 }
 
+/**
+ * Where a row renders: on a Kinderkarte (small grey line under the name) or
+ * in a table cell (#3834), where the column header already names the value.
+ */
+export type StudentRowVariant = "card" | "cell";
+
 /** Reusable info row for school class or group */
 export function StudentInfoRow({
   icon,
   children,
   wrap = false,
+  variant = "card",
 }: Readonly<{
   icon: ReactNode;
   children: ReactNode;
   wrap?: boolean;
+  variant?: StudentRowVariant;
 }>) {
   return (
     <div
-      className={`mt-1 flex gap-1.5 ${wrap ? "items-start" : "items-center"}`}
+      className={`flex gap-1.5 ${variant === "card" ? "mt-1" : ""} ${wrap ? "items-start" : "items-center"}`}
     >
       <span className="flex-shrink-0">{icon}</span>
       <span
-        className={`text-xs font-medium text-gray-500 ${
+        className={`${variant === "card" ? "text-xs text-gray-500" : "text-sm text-gray-700"} font-medium ${
           wrap
             ? "whitespace-normal"
             : "overflow-hidden text-ellipsis whitespace-nowrap"
@@ -438,6 +446,7 @@ function TimeStatusRow({
   now,
   kind,
   day,
+  variant = "card",
 }: Readonly<{
   label: string;
   plannedTime?: string;
@@ -447,6 +456,7 @@ function TimeStatusRow({
   now: Date;
   kind: "arrival" | "pickup";
   day?: StudentDayTimes;
+  variant?: StudentRowVariant;
 }>) {
   const status = getStudentTimeStatus({
     plannedTime,
@@ -459,7 +469,11 @@ function TimeStatusRow({
   if (!status.displayTime) {
     const fallbackIcon =
       kind === "arrival" ? <ArrivalTimeIcon /> : <PickupTimeIcon />;
-    return <StudentInfoRow icon={fallbackIcon}>{label}: –</StudentInfoRow>;
+    return (
+      <StudentInfoRow icon={fallbackIcon} variant={variant}>
+        {variant === "card" ? `${label}: –` : "–"}
+      </StudentInfoRow>
+    );
   }
 
   const icon = isException ? (
@@ -474,13 +488,17 @@ function TimeStatusRow({
   // text matching even though the rendered characters are identical.
   // A day without care time says so instead of a time: the card row is too
   // narrow for time plus explanation, and the explanation is the news (#3373).
+  // In a table cell the column header carries the label (#3834).
+  const timeText = `${status.displayTime} Uhr`;
   const fullText =
     status.state === "only-if-lesson-cancelled"
       ? ONLY_IF_LESSON_CANCELLED_LABEL
-      : `${label}: ${status.displayTime} Uhr`;
+      : variant === "card"
+        ? `${label}: ${timeText}`
+        : timeText;
 
   return (
-    <StudentInfoRow icon={icon}>
+    <StudentInfoRow icon={icon} variant={variant}>
       {status.textColor ? (
         <span style={{ color: status.textColor }}>{fullText}</span>
       ) : (
@@ -498,6 +516,7 @@ export function PickupTimeRow({
   notes,
   now,
   day,
+  variant = "card",
 }: Readonly<{
   pickupTime?: string;
   actualTime?: string;
@@ -507,12 +526,13 @@ export function PickupTimeRow({
   now?: Date;
   /** The whole day; without a check-in the pickup cannot be late (#3373). */
   day?: StudentDayTimes;
+  variant?: StudentRowVariant;
 }>) {
   const rowNow = useRowClock(now);
 
   if (isException && !pickupTime && !actualTime) {
     return (
-      <StudentInfoRow icon={<AbsenceIcon />}>
+      <StudentInfoRow icon={<AbsenceIcon />} variant={variant}>
         {notes || "Abwesend"}
       </StudentInfoRow>
     );
@@ -528,6 +548,7 @@ export function PickupTimeRow({
       now={rowNow}
       kind="pickup"
       day={day}
+      variant={variant}
     />
   );
 }
@@ -543,6 +564,7 @@ export function StudentAbsenceRow({
   label,
   wording = "Kommt heute nicht",
   note,
+  variant = "card",
 }: Readonly<{
   label: string;
   /**
@@ -557,16 +579,18 @@ export function StudentAbsenceRow({
    * says "heute" about another day.
    */
   wording?: string;
+  variant?: StudentRowVariant;
 }>) {
   return (
     <>
-      <StudentInfoRow icon={<AbsenceIcon />}>
+      <StudentInfoRow icon={<AbsenceIcon />} variant={variant}>
         {`${wording} (${label})`}
       </StudentInfoRow>
       {note ? (
         <StudentInfoRow
           icon={<StickyNote className="h-3.5 w-3.5 text-gray-400" />}
           wrap
+          variant={variant}
         >
           Notiz: {note}
         </StudentInfoRow>
@@ -627,6 +651,7 @@ export function ArrivalTimeRow({
   now,
   absentWording = "Kommt heute nicht",
   day,
+  variant = "card",
 }: Readonly<{
   arrivalTime?: string;
   actualTime?: string;
@@ -639,12 +664,13 @@ export function ArrivalTimeRow({
   absentWording?: string;
   /** The whole day; arrival not before pickup means no care time (#3373). */
   day?: StudentDayTimes;
+  variant?: StudentRowVariant;
 }>) {
   const rowNow = useRowClock(now);
 
   if (isAbsent) {
     return (
-      <StudentInfoRow icon={<AbsenceIcon />}>
+      <StudentInfoRow icon={<AbsenceIcon />} variant={variant}>
         {notes ? `${absentWording} (${notes})` : absentWording}
       </StudentInfoRow>
     );
@@ -652,7 +678,7 @@ export function ArrivalTimeRow({
 
   if (isException && !arrivalTime && !actualTime) {
     return (
-      <StudentInfoRow icon={<AbsenceIcon />}>
+      <StudentInfoRow icon={<AbsenceIcon />} variant={variant}>
         {notes ? `${absentWording} (${notes})` : absentWording}
       </StudentInfoRow>
     );
@@ -668,6 +694,7 @@ export function ArrivalTimeRow({
       now={rowNow}
       kind="arrival"
       day={day}
+      variant={variant}
     />
   );
 }
