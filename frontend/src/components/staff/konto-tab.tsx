@@ -132,8 +132,6 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const errors = useApiFormError(formRef);
-  // „Wiederholen“ speichert den aktuellen Entwurf, nicht den vom Fehler.
-  const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
 
   const displayRole = teacher.account_role
     ? getRoleDisplayName(teacher.account_role)
@@ -208,13 +206,14 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
       const roleOnly = err instanceof KontoRoleSaveError;
       await errors.show(roleOnly ? err.cause : err, {
         object: roleOnly ? "die Systemrolle" : "das Konto",
-        retry: () => void latestSaveRef.current(),
+        // Erneut absenden: derselbe Weg wie „Speichern“, mit dem Entwurf von
+        // jetzt, nicht dem vom Zeitpunkt des Fehlers.
+        retry: () => formRef.current?.requestSubmit(),
       });
     } finally {
       setSaving(false);
     }
   };
-  latestSaveRef.current = handleSave;
 
   return (
     <SectionCard

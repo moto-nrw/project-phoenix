@@ -16,8 +16,13 @@ interface AlertProps extends HTMLAttributes<HTMLDivElement> {
    * bleibt.
    */
   readonly action?: ReactNode;
-  /** Keep compact controls on the same row, for example inside a toast. */
-  readonly actionLayout?: "responsive" | "inline";
+  /**
+   * `inline` keeps compact controls on the same row, for example inside a
+   * toast. `stacked` puts the actions on their own row under the message,
+   * aligned with its text: for several actions or a long one such as a
+   * request ID, which would otherwise wrap ragged at the right edge.
+   */
+  readonly actionLayout?: "responsive" | "inline" | "stacked";
   /** Zusätzliche Klassen für den Rahmen, z. B. Außenabstände. */
   readonly className?: string;
 }
@@ -145,7 +150,10 @@ export function Alert({
           className={
             actionLayout === "inline"
               ? "ml-auto shrink-0 pl-2"
-              : "max-w-full min-w-0 shrink-0 basis-full sm:ml-auto sm:basis-auto sm:pl-4"
+              : actionLayout === "stacked"
+                ? // pl-7 = icon (h-5 w-5) plus its mr-2: flush with the text.
+                  "max-w-full min-w-0 basis-full pl-7"
+                : "max-w-full min-w-0 shrink-0 basis-full sm:ml-auto sm:basis-auto sm:pl-4"
           }
         >
           {action}

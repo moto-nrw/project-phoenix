@@ -143,16 +143,13 @@ export function StammdatenTab({
   // Fehler beim Speichern und beim Laden zum Ändern stehen im Alert oben im
   // Bearbeiten-Bereich, Feldfehler am Feld. Das Anzeigen im Lesemodus ist
   // keine Formularaktion und meldet als Toast (#2511).
-  const editAreaRef = useRef<HTMLDivElement>(null);
+  const editAreaRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(editAreaRef);
   const actionErrors = useApiErrorDisplay();
   // Stand je Abschnitt, der in diesem Bearbeiten-Vorgang schon gespeichert
   // ist: ein erneutes Speichern schickt ihn nicht noch einmal (sonst doppelte
   // Einträge im Änderungsprotokoll).
   const savedSectionsRef = useRef(new Map<string, string>());
-  // „Wiederholen“ im Alert speichert den aktuellen Entwurf, nicht den vom
-  // Zeitpunkt des Fehlers.
-  const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
 
   if (canManagePayroll && payrollError) {
     return (
@@ -468,16 +465,26 @@ export function StammdatenTab({
     if (failure) {
       await formErrors.show(failure.error, {
         object: failure.object,
-        retry: () => void latestSaveRef.current(),
+        // Erneut absenden: derselbe Weg wie „Speichern“, mit dem Entwurf von
+        // jetzt, nicht dem vom Zeitpunkt des Fehlers.
+        retry: () => editAreaRef.current?.requestSubmit(),
       });
       return;
     }
     cancelEditing();
   };
-  latestSaveRef.current = handleSave;
 
   return (
-    <div ref={editAreaRef} className="space-y-5">
+    // Ein Formular, damit „Wiederholen“ denselben Speichern-Weg nimmt.
+    <form
+      ref={editAreaRef}
+      noValidate
+      className="space-y-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (editing && draftValid && !saving) void handleSave();
+      }}
+    >
       {canStartEditing && !editing && (
         <div className="flex justify-end">
           <Button
@@ -868,14 +875,13 @@ export function StammdatenTab({
             />
             <EditActions
               onCancel={cancelEditing}
-              onSave={() => void handleSave()}
               saving={saving}
               disabled={!draftValid}
             />
           </div>
         </SectionCard>
       )}
-    </div>
+    </form>
   );
 }
 

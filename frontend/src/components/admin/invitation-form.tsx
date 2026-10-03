@@ -46,8 +46,6 @@ export function InvitationForm({
   const formRef = useRef<HTMLFormElement>(null);
   const errors = useApiFormError(formRef);
   const showError = errors.show;
-  // „Wiederholen“ sendet die aktuellen Eingaben, nicht die vom Fehler.
-  const latestSendRef = useRef<() => Promise<void>>(async () => undefined);
 
   const [successInfo, setSuccessInfo] = useState<{
     email: string;
@@ -135,14 +133,14 @@ export function InvitationForm({
       });
       await errors.show(err, {
         object: "die Einladung",
-        retry: () => void latestSendRef.current(),
+        // Erneut absenden: derselbe Weg wie „Einladung senden“, mit den
+        // Eingaben von jetzt, nicht denen vom Zeitpunkt des Fehlers.
+        retry: () => formRef.current?.requestSubmit(),
       });
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  latestSendRef.current = sendInvitation;
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();

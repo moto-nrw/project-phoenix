@@ -52,7 +52,9 @@ export function FormErrorAlert({ message, className }: FormErrorAlertProps) {
   const retry = detail?.retry;
   const action =
     requestId || retry ? (
-      <span className="flex flex-wrap items-center justify-end gap-1">
+      // -ml-2.5 takes back the ghost button's own padding, so the first
+      // action starts exactly under the message text.
+      <span className="-ml-2.5 flex flex-wrap items-center gap-x-1">
         {retry ? (
           <Button
             type="button"
@@ -78,7 +80,12 @@ export function FormErrorAlert({ message, className }: FormErrorAlertProps) {
 
   return (
     <div ref={ref} className={className}>
-      <Alert type="error" message={text} action={action} />
+      <Alert
+        type="error"
+        message={text}
+        action={action}
+        actionLayout="stacked"
+      />
     </div>
   );
 }
