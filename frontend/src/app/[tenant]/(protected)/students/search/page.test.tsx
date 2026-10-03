@@ -3242,7 +3242,7 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("active-filter-groupMode")).toHaveTextContent(
-          "Ansicht: Nach Abholregelung",
+          "Gruppiert: Nach Abholregelung",
         );
       });
 
@@ -3352,7 +3352,7 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("active-filter-groupMode")).toHaveTextContent(
-          "Ansicht: Nach Status",
+          "Gruppiert: Nach Status",
         );
       });
 

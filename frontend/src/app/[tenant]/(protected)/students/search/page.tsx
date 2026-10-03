@@ -233,7 +233,8 @@ const SORT_OPTIONS: Array<{ value: SortMode; label: string }> = [
 ];
 
 const GROUP_OPTIONS: Array<{ value: GroupMode; label: string }> = [
-  { value: "none", label: "Liste" },
+  // Nicht „Liste“: so heißt seit #3834 der Umschalter Kacheln/Liste.
+  { value: "none", label: "Nicht gruppiert" },
   { value: "status", label: "Nach Status" },
   { value: "room", label: "Nach Raum" },
   { value: "arrival", label: "Nach Ankunftszeit" },
@@ -2258,7 +2259,8 @@ function SearchPageContent() {
       },
       {
         id: "groupMode",
-        label: "Ansicht",
+        // Nicht „Ansicht“: das ist der Umschalter Kacheln/Liste (#3834).
+        label: "Gruppieren",
         type: "dropdown",
         value: effectiveGroupMode,
         onChange: (value) => updateGroupMode(value as GroupMode),
@@ -2510,9 +2512,9 @@ function SearchPageContent() {
     if (effectiveGroupMode !== "none") {
       filters.push({
         id: "groupMode",
-        label: `Ansicht: ${
+        label: `Gruppiert: ${
           GROUP_OPTIONS.find((option) => option.value === effectiveGroupMode)
-            ?.label ?? "Ansicht"
+            ?.label ?? "Gruppiert"
         }`,
         onRemove: () => updateGroupMode("none"),
       });
