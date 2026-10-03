@@ -4,37 +4,20 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-func setupClassTeacherService(t *testing.T, db *bun.DB) (educationSvc.Service, *repositories.Factory) {
+func setupClassTeacherService(t *testing.T, db *bun.DB) (Service, *testutil.PeopleRepositorySuiteFactory) {
 	t.Helper()
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	svc := educationSvc.NewService(
-		repos.Group,
-		repos.GroupTeacher,
-		repos.ClassTeacher,
-		repos.Room,
-		repos.Teacher,
-		repos.Staff,
-		repos.Student,
-		repos.GroupSubstitution,
-		db,
-	)
-	// Same duck-typed wiring the service factory uses: assignment rewrites
-	// must land in the Stammdaten audit trail.
-	if auditAware, ok := svc.(interface {
-		SetMasterDataAudit(auditModels.StaffMasterDataChangeCreator)
-	}); ok {
-		auditAware.SetMasterDataAudit(repos.StaffMasterDataChange)
-	}
-	return svc, repos
+	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
+	// Same wiring the service factory uses: assignment rewrites must land in
+	// the Stammdaten audit trail.
+	return testutil.NewEducationSuiteService(repos, db), repos
 }
 
 func TestSetStaffSchoolClasses(t *testing.T) {
@@ -134,7 +117,7 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 			count, err := db.NewSelect().
 				TableExpr("audit.staff_master_data_changes").
 				Where("staff_id = ?", staff.ID).
-				Where("section = ?", auditModels.StammdatenSectionSchoolClasses).
+				Where("section = ?", testpkg.AuditStammdatenSectionSchoolClasses).
 				Count(ctx)
 			require.NoError(t, err)
 			return count
@@ -164,7 +147,7 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 			TableExpr("audit.staff_master_data_changes").
 			Column("changed_by", "old_value", "new_value").
 			Where("staff_id = ?", staff.ID).
-			Where("section = ?", auditModels.StammdatenSectionSchoolClasses).
+			Where("section = ?", testpkg.AuditStammdatenSectionSchoolClasses).
 			OrderExpr("id DESC").
 			Limit(1).
 			Scan(ctx, &row)
@@ -179,7 +162,7 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 
 		err := svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a", "   "}, actor.ID)
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, educationSvc.ErrEmptySchoolClass))
+		assert.True(t, errors.Is(err, ErrEmptySchoolClass))
 	})
 
 	t.Run("rejects unknown staff", func(t *testing.T) {
@@ -191,10 +174,10 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 
 		err := svc.SetStaffSchoolClasses(ctx, ghostID, []string{"1a"}, actor.ID)
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, educationSvc.ErrStaffNotFound))
+		assert.True(t, errors.Is(err, ErrStaffNotFound))
 
 		_, err = svc.GetStaffSchoolClasses(ctx, ghostID)
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, educationSvc.ErrStaffNotFound))
+		assert.True(t, errors.Is(err, ErrStaffNotFound))
 	})
 }

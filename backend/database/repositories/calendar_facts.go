@@ -24,7 +24,7 @@ type CalendarFacts struct {
 	GuardianProfileRepo  calendarCompose.GuardianDirectory
 	StudentGuardianRepo  userModels.StudentGuardianRepository
 	ChildRepo            parentModels.ChildRepository
-	GroupRepo            educationModels.GroupRepository
+	GroupRepo            EducationGroupRepository
 	InstanceStaffRepo    scheduleModels.InstanceStaffRepository
 	ActivityInstanceRepo scheduleModels.ActivityInstanceRepository
 	RoomRepo             facilitiesModels.RoomRepository
@@ -225,7 +225,7 @@ func (p calendarChildPort) ListByAccount(ctx context.Context, id int64) ([]*cale
 }
 
 type calendarGroupPort struct {
-	source educationModels.GroupRepository
+	source EducationGroupRepository
 }
 
 func (p calendarGroupPort) List(ctx context.Context) ([]*calendarCompose.Group, error) {

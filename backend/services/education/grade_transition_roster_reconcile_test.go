@@ -7,10 +7,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,12 +30,12 @@ func rosterRowCounter(t *testing.T, ctx context.Context, db *bun.DB, studentID i
 
 // createRosterEnrollment links a student to an activity group from the given
 // day on, which is what makes their roster rows enrollment-derived.
-func createRosterEnrollment(t *testing.T, ctx context.Context, db *bun.DB, studentID, activityGroupID int64, validFrom timezone.Date) {
+func createRosterEnrollment(t *testing.T, ctx context.Context, db *bun.DB, studentID, activityGroupID int64, validFrom calendar.Date) {
 	t.Helper()
-	enrollment := &activitiesModel.StudentEnrollment{
+	enrollment := &testpkg.StudentEnrollment{
 		StudentID:       studentID,
 		ActivityGroupID: activityGroupID,
-		ValidFrom:       activitiesModel.Date(validFrom),
+		ValidFrom:       testpkg.ActivityDate(validFrom),
 	}
 	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
@@ -77,8 +74,8 @@ func TestGradeTransitionWorkflow_Apply_ReconcilesFutureRosters(t *testing.T) {
 	pastInstance := testpkg.CreateTestActivityInstance(t, db, today.AddDays(-7), room.ID,
 		testpkg.ActivityInstanceOpts{ActivityGroupID: &activityGroup.ID})
 
-	testpkg.CreateTestInstanceStudent(t, db, futureInstance.ID, student.ID, scheduleModel.AttendanceStatusExpected)
-	testpkg.CreateTestInstanceStudent(t, db, pastInstance.ID, student.ID, scheduleModel.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, db, futureInstance.ID, student.ID, testpkg.ScheduleAttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, db, pastInstance.ID, student.ID, testpkg.ScheduleAttendanceStatusExpected)
 
 	// The enrollment that makes the child belong to the group — kept on
 	// graduation so the revert can restore the future roster row.
@@ -95,7 +92,7 @@ func TestGradeTransitionWorkflow_Apply_ReconcilesFutureRosters(t *testing.T) {
 	var status string
 	require.NoError(t, db.NewSelect().TableExpr(`users.student_school_memberships`).Column("status").
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Scan(ctx, &status))
-	require.Equal(t, string(users.StudentStatusAlumnus), status)
+	require.Equal(t, string(testpkg.StudentStatusAlumnus), status)
 
 	assert.Equal(t, 0, countRow(futureInstance.ID), "graduated child must be dropped from the future roster")
 	assert.Equal(t, 1, countRow(pastInstance.ID), "past roster rows are historical and must survive graduation")
@@ -106,7 +103,7 @@ func TestGradeTransitionWorkflow_Apply_ReconcilesFutureRosters(t *testing.T) {
 
 	require.NoError(t, db.NewSelect().TableExpr(`users.student_school_memberships`).Column("status").
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Scan(ctx, &status))
-	require.Equal(t, string(users.StudentStatusActive), status)
+	require.Equal(t, string(testpkg.StudentStatusActive), status)
 
 	assert.Equal(t, 1, countRow(futureInstance.ID), "revert must re-add the restored child to the future roster")
 	assert.Equal(t, 1, countRow(pastInstance.ID), "past roster row stays a single historical entry after revert")
@@ -115,7 +112,7 @@ func TestGradeTransitionWorkflow_Apply_ReconcilesFutureRosters(t *testing.T) {
 	restored := testpkg.InstanceStudentsWhere(t, ctx, db, `"instance_student".instance_id = ? AND "instance_student".student_id = ?`,
 		futureInstance.ID, student.ID)
 	require.Len(t, restored, 1)
-	assert.Equal(t, scheduleModel.AttendanceStatusExpected, restored[0].Status)
+	assert.Equal(t, testpkg.ScheduleAttendanceStatusExpected, restored[0].Status)
 }
 
 // TestGradeTransitionWorkflow_Revert_PreservesPerOccurrenceRosterEdits covers
@@ -159,9 +156,9 @@ func TestGradeTransitionWorkflow_Revert_PreservesPerOccurrenceRosterEdits(t *tes
 	// from the second (no row despite the enrollment), and hand-added as a guest
 	// to an occurrence of a group they have no enrollment for.
 	testpkg.CreateTestInstanceStudent(t, db, keptInstance.ID, student.ID,
-		scheduleModel.AttendanceStatusExpected)
+		testpkg.ScheduleAttendanceStatusExpected)
 	testpkg.CreateTestInstanceStudent(t, db, guestInstance.ID, student.ID,
-		scheduleModel.AttendanceStatusExpected)
+		testpkg.ScheduleAttendanceStatusExpected)
 
 	createRosterEnrollment(t, ctx, db, student.ID, enrolledGroup.ID, today.AddDays(-30))
 
@@ -229,13 +226,13 @@ func TestGradeTransitionWorkflow_Apply_RemovesTodaysPlannedRows(t *testing.T) {
 		})
 
 	testpkg.CreateTestInstanceStudent(t, db, plannedToday.ID, student.ID,
-		scheduleModel.AttendanceStatusExpected)
+		testpkg.ScheduleAttendanceStatusExpected)
 	// An observed presence carries the check-in stamp every real check-in path
 	// writes; a bare 'present' on a block that has not started is a plan (#405
 	// review).
-	checkedInAt := time.Date(2026, 8, 24, 11, 45, 0, 0, timezone.Berlin)
+	checkedInAt := time.Date(2026, 8, 24, 11, 45, 0, 0, calendar.Berlin)
 	testpkg.CreateTestInstanceStudent(t, db, observedToday.ID, student.ID,
-		scheduleModel.AttendanceStatusPresent, testpkg.InstanceStudentOpts{CheckedInAt: &checkedInAt})
+		testpkg.ScheduleAttendanceStatusPresent, testpkg.InstanceStudentOpts{CheckedInAt: &checkedInAt})
 
 	countRow := rosterRowCounter(t, ctx, db, student.ID)
 
@@ -354,14 +351,14 @@ func TestGradeTransitionWorkflow_Apply_PreservesRecordedAttendance(t *testing.T)
 	student := testpkg.CreateTestStudent(t, db, "Finalized", "Child", gradClass)
 
 	today := f.today()
-	manualAt := time.Date(2026, 8, 24, 11, 30, 0, 0, timezone.Berlin)
+	manualAt := time.Date(2026, 8, 24, 11, 30, 0, 0, calendar.Berlin)
 
 	// Today's block that already finished, with the absence a supervisor
 	// finalized by hand on it.
 	completedToday := testpkg.CreateTestActivityInstance(t, db, today, room.ID,
 		testpkg.ActivityInstanceOpts{
 			ActivityGroupID: &activityGroup.ID,
-			Status:          scheduleModel.InstanceStatusCompleted,
+			Status:          testpkg.ScheduleInstanceStatusCompleted,
 			StartHHMM:       "08:00",
 			EndHHMM:         "09:00",
 		})
@@ -377,9 +374,9 @@ func TestGradeTransitionWorkflow_Apply_PreservesRecordedAttendance(t *testing.T)
 		})
 
 	testpkg.CreateTestInstanceStudent(t, db, completedToday.ID, student.ID,
-		scheduleModel.AttendanceStatusAbsent, testpkg.InstanceStudentOpts{ManualStatusAt: &manualAt})
+		testpkg.ScheduleAttendanceStatusAbsent, testpkg.InstanceStudentOpts{ManualStatusAt: &manualAt})
 	testpkg.CreateTestInstanceStudent(t, db, plannedTomorrow.ID, student.ID,
-		scheduleModel.AttendanceStatusAbsent, testpkg.InstanceStudentOpts{ManualStatusAt: &manualAt})
+		testpkg.ScheduleAttendanceStatusAbsent, testpkg.InstanceStudentOpts{ManualStatusAt: &manualAt})
 
 	countRow := rosterRowCounter(t, ctx, db, student.ID)
 
@@ -439,7 +436,7 @@ func TestGradeTransitionWorkflow_Revert_FillsBackdatedInstance(t *testing.T) {
 
 	_, err = db.NewUpdate().
 		TableExpr(`schedule.activity_instances`).
-		Set("created_at = ?", time.Date(2026, 8, 24, 11, 0, 0, 0, timezone.Berlin)).
+		Set("created_at = ?", time.Date(2026, 8, 24, 11, 0, 0, 0, calendar.Berlin)).
 		Where("id = ?", lateInstance.ID).
 		Exec(ctx)
 	require.NoError(t, err)

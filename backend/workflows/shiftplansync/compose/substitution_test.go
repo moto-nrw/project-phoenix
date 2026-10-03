@@ -508,6 +508,7 @@ func newScheduleSubstitutionModule(t *testing.T) (*bun.DB, repositories.Timetabl
 	env := newPlanSyncEnv(t, nil, nil)
 	return env.db, env.repos, substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
 		Schedule: env.substitution,
+		Runtime:  testpkg.TenantTransactionRuntime{},
 		Logger:   slog.Default(),
 	})
 }

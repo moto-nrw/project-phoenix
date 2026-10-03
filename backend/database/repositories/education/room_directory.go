@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 )
 
 // DirectoryRoom is the Facilities projection this package reads.
@@ -69,14 +68,14 @@ func attachRooms(ctx context.Context, directory RoomDirectory, groups []*educati
 			continue
 		}
 		if room, ok := byID[*group.RoomID]; ok {
-			group.Room = room.legacy()
+			group.Room = room.groupRoom()
 		}
 	}
 	return nil
 }
 
-func (r DirectoryRoom) legacy() *facilities.Room {
-	return &facilities.Room{
+func (r DirectoryRoom) groupRoom() *education.GroupRoom {
+	return &education.GroupRoom{
 		ID:        r.ID,
 		CreatedAt: r.CreatedAt,
 		UpdatedAt: r.UpdatedAt,

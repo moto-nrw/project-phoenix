@@ -3,9 +3,8 @@ package education_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,7 +13,7 @@ import (
 // staffIDsFor collapses the flat pair list into the staff set of one group,
 // which is what a producer looking for "who is responsible for this child"
 // consumes.
-func staffIDsFor(pairs []education.StaffGroupID, groupID int64) map[int64]struct{} {
+func staffIDsFor(pairs []testpkg.EducationStaffGroupID, groupID int64) map[int64]struct{} {
 	out := make(map[int64]struct{})
 	for _, pair := range pairs {
 		if pair.GroupID == groupID {
@@ -32,9 +31,9 @@ func TestGroupRepository_ListStaffIDsByEducationGroupIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
 	ctx := testpkg.Ctx(t)
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 
 	t.Run("names the assigned teacher and the substitute of today", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "ByGroupAssigned")

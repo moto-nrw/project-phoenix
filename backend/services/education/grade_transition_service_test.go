@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
@@ -845,7 +843,7 @@ func TestGradeTransitionWorkflow_Create_InvalidMapping(t *testing.T) {
 		assert.Contains(t, err.Error(), "from_class")
 
 		count, err := db.NewSelect().
-			Model((*education.GradeTransition)(nil)).
+			Model((*testpkg.EducationGradeTransition)(nil)).
 			Where("academic_year = ?", academicYear).
 			Where("tenant_id = ?", testpkg.Tenant(t)).
 			Count(ctx)
@@ -863,7 +861,7 @@ func TestGradeTransitionWorkflow_Create_InvalidMapping(t *testing.T) {
 		assert.Contains(t, err.Error(), "duplicate mapping")
 
 		count, err := db.NewSelect().
-			Model((*education.GradeTransition)(nil)).
+			Model((*testpkg.EducationGradeTransition)(nil)).
 			Where("academic_year = ?", academicYear).
 			Where("tenant_id = ?", testpkg.Tenant(t)).
 			Count(ctx)
@@ -969,7 +967,7 @@ func TestGradeTransitionWorkflow_Apply_GraduateStudents(t *testing.T) {
 			Where("deleted_at IS NULL").Where("student_profile_id = ?", student.ID).
 			Scan(ctx, &status)
 		require.NoError(t, err)
-		assert.Equal(t, string(users.StudentStatusAlumnus), status)
+		assert.Equal(t, string(testpkg.StudentStatusAlumnus), status)
 	})
 }
 
@@ -1020,13 +1018,13 @@ func TestGradeTransitionWorkflow_Apply_CascadingGraduation(t *testing.T) {
 	// The promoted child now sits in 4c but must remain active.
 	pClass, pStatus := readStudent(promoted.ID)
 	assert.Equal(t, upper, pClass)
-	assert.Equal(t, string(users.StudentStatusActive), pStatus,
+	assert.Equal(t, string(testpkg.StudentStatusActive), pStatus,
 		"promoted child must not be graduated by landing in the graduated class")
 
 	// The original 4c child is the alumnus.
 	gClass, gStatus := readStudent(graduating.ID)
 	assert.Equal(t, upper, gClass)
-	assert.Equal(t, string(users.StudentStatusAlumnus), gStatus)
+	assert.Equal(t, string(testpkg.StudentStatusAlumnus), gStatus)
 
 	// Revert restores both cleanly.
 	_, err = wf.Revert(ctx, id)
@@ -1034,11 +1032,11 @@ func TestGradeTransitionWorkflow_Apply_CascadingGraduation(t *testing.T) {
 
 	pClass, pStatus = readStudent(promoted.ID)
 	assert.Equal(t, lower, pClass, "promoted child returns to 3c")
-	assert.Equal(t, string(users.StudentStatusActive), pStatus)
+	assert.Equal(t, string(testpkg.StudentStatusActive), pStatus)
 
 	gClass, gStatus = readStudent(graduating.ID)
 	assert.Equal(t, upper, gClass)
-	assert.Equal(t, string(users.StudentStatusActive), gStatus, "graduated child reactivated")
+	assert.Equal(t, string(testpkg.StudentStatusActive), gStatus, "graduated child reactivated")
 }
 
 func TestGradeTransitionWorkflow_Revert_WithGraduatedStudents(t *testing.T) {
@@ -1084,7 +1082,7 @@ func TestGradeTransitionWorkflow_Revert_WithGraduatedStudents(t *testing.T) {
 			Where("deleted_at IS NULL").Where("student_profile_id = ?", student.ID).
 			Scan(ctx, &status)
 		require.NoError(t, err)
-		assert.Equal(t, string(users.StudentStatusActive), status)
+		assert.Equal(t, string(testpkg.StudentStatusActive), status)
 	})
 }
 
@@ -1163,7 +1161,7 @@ func TestGradeTransitionWorkflow_Revert_ReconcilesOnlyReactivatedStudents(t *tes
 	var status string
 	require.NoError(t, db.NewSelect().TableExpr(`users.student_school_memberships`).Column("status").
 		Where("deleted_at IS NULL").Where("student_profile_id = ?", handChanged.ID).Scan(ctx, &status))
-	assert.Equal(t, string(users.StudentStatusInactive), status,
+	assert.Equal(t, string(testpkg.StudentStatusInactive), status,
 		"the manual status decision survives the revert")
 }
 
@@ -1213,7 +1211,7 @@ func TestGradeTransitionWorkflow_Revert_SkipsRosterReplayForNonActiveRestores(t 
 	var status string
 	require.NoError(t, db.NewSelect().TableExpr(`users.student_school_memberships`).Column("status").
 		Where("deleted_at IS NULL").Where("student_profile_id = ?", pendingChild.ID).Scan(ctx, &status))
-	assert.Equal(t, string(users.StudentStatusPending), status,
+	assert.Equal(t, string(testpkg.StudentStatusPending), status,
 		"the pending child returns to pending, not active")
 }
 
@@ -1309,7 +1307,7 @@ func TestGradeTransitionWorkflow_AlumniExcluded(t *testing.T) {
 	// Mark one student as alumnus directly (as a previous transition would)
 	_, err := db.NewUpdate().
 		TableExpr(`users.student_school_memberships`).
-		Set("status = ?", string(users.StudentStatusAlumnus)).
+		Set("status = ?", string(testpkg.StudentStatusAlumnus)).
 		Where("deleted_at IS NULL").Where("student_profile_id = ?", alumnus.ID).
 		Exec(ctx)
 	require.NoError(t, err)
@@ -1362,7 +1360,7 @@ func TestGradeTransitionWorkflow_PromotionSkipsAlumni(t *testing.T) {
 
 	_, err := db.NewUpdate().
 		TableExpr(`users.student_school_memberships`).
-		Set("status = ?", string(users.StudentStatusAlumnus)).
+		Set("status = ?", string(testpkg.StudentStatusAlumnus)).
 		Where("deleted_at IS NULL").Where("student_profile_id = ?", alumnus.ID).
 		Exec(ctx)
 	require.NoError(t, err)

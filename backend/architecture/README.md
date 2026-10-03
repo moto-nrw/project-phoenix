@@ -126,6 +126,36 @@ The internal suites compose through test support
 (`testpkg.PassthroughTenantRuntime`, `testpkg.ScriptedTenantRuntime`) instead
 of the repository factory.
 
+#2742 closed the carrier of the retained School Structure packages: its 63
+keys fell together with `api -> api/admin` and `api -> api/groups` (#2750),
+`services/users -> models/education` (#2728), the internal-test
+`models -> models/education` (#2751) and `test -> database/repositories/education`
+(#2748), 350 -> 282. The group routes moved file for file from `api/groups`
+to `modules/schoolstructure/http` (`school-structure`/`http`), the grade
+transition routes from `api/admin` to `workflows/gradetransition/http`
+(`grade-transition`/`http`); the owners `inbound-groups` and `inbound-admin`
+are deleted and their two rules moved to the new points, whose own rules
+name the shared HTTP runtime, the token adapter, the permission registry, the
+tenant runtime and, for the group routes, their own group service and rows
+and the People Directory's public types. The group routes read the children
+and persons of a group through their `GroupPeople` port, which
+`services.NewGroupRoutePeople` binds over the retained person service.
+`services/education` names no foreign model, no ORM and no tenant runtime:
+its writes run on the `Runtime` port `schoolStructureCompose.LegacyRepositoryRuntime`
+binds, the rooms, teachers, staff, caregivers, handovers and both audit
+trails are its own ports over the `models/education` vocabulary (`Teacher`,
+`Caregiver`, `HandoverQuery`, `SubstitutionChange`, `SchoolClassChange`),
+and `database/repositories` and `services` translate the retained rows into
+it. `models/education` carries its row columns itself instead of the shared
+base shapes, keeps the room as its own `GroupRoom` projection and the
+substitution's staff as `SubstitutionStaff`; the repository contracts moved
+to the legacy composition (`database/repositories/education_repositories.go`).
+`database/repositories/education` runs on the same runtime, reads and writes
+`education.groups` with explicit statements and no longer serves the
+Timetable owner's `education.class_arrival_times`. The suites compose through
+`api/testutil` and name the rows through `test`; the two policy rules that
+only those suites used are deleted.
+
 #3349 settles the one table two owners reached for: `users.privacy_consents`
 stays with `student-presence`. The recorded window bounds how long presence
 data is kept, and the GDPR cleanup reads it through that owner's

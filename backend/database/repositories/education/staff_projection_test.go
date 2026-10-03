@@ -3,8 +3,8 @@ package education_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,8 +17,8 @@ func TestEducationGroupSupervisionResolvesTeachersToStaff(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	today := timezone.TodayDate()
+	factory := testutil.NewSchoolStructureRepositorySuiteFactory(db)
+	today := calendar.TodayDate()
 
 	group := testpkg.CreateTestEducationGroup(t, db, "Zuordnung Gruppe")
 	teacher := testpkg.CreateTestTeacher(t, db, "Zuordnung", "Lehrkraft")
@@ -62,8 +62,8 @@ func TestGroupSubstitutionsCarryTheirStaffMembers(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	today := timezone.TodayDate()
+	factory := testutil.NewSchoolStructureRepositorySuiteFactory(db)
+	today := calendar.TodayDate()
 
 	group := testpkg.CreateTestEducationGroup(t, db, "Vertretung Gruppe")
 	regular := testpkg.CreateTestStaff(t, db, "Vertretung", "Stamm")

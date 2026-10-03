@@ -9,7 +9,7 @@
 // Driven through the production router even though the emit lives in
 // services/education: the subtle part is that the broadcast fires only after
 // the request's tenant transaction COMMITS, which only the full chain proves.
-package groups_test
+package schoolstructurehttp_test
 
 import (
 	"fmt"
@@ -21,26 +21,22 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // setupRecordingRouter mounts the production router with a recording
-// broadcaster on the education service, mirroring the duck-typed
-// SetBroadcaster block in services/factory.go.
+// broadcaster on the education service, through the duck-typed
+// SetBroadcaster wiring services/factory.go uses.
 func setupRecordingRouter(t *testing.T) (*testContext, chi.Router, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 
 	tc, router := setupProtectedRouter(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	aware, ok := tc.resource.EducationService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
-	})
-	require.True(t, ok, "education service must accept a broadcaster")
-	aware.SetBroadcaster(broadcaster)
+	require.True(t, testutil.SetEducationSuiteBroadcaster(tc.resource.EducationService, broadcaster),
+		"education service must accept a broadcaster")
 
 	return tc, router, broadcaster
 }
@@ -182,7 +178,7 @@ func TestCreateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 
 	groupCount, err := tc.resource.EducationService.CountGroups(
 		testpkg.Ctx(t),
-		&educationModels.GroupListQuery{Name: groupName},
+		&testpkg.EducationGroupListQuery{Name: groupName},
 	)
 	require.NoError(t, err)
 	assert.Zero(t, groupCount, "the new group must roll back with its partial teacher set")
@@ -200,7 +196,7 @@ func TestDeleteGroup_BroadcastsGroupAccessChanged(t *testing.T) {
 
 	substituteStaff := testpkg.CreateTestStaff(t, tc.db, "SSEDeleteGroupSub", "Staff")
 
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	regularStaffID := substituteStaff.ID
 	testpkg.CreateTestGroupSubstitution(t, tc.db, groupID, &regularStaffID, substituteStaff.ID, today, today)
 

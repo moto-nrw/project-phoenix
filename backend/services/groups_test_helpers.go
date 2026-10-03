@@ -5,12 +5,12 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -21,6 +21,7 @@ type GroupsTestModule struct {
 	Education   education.Service
 	Active      studentpresence.Presence
 	Users       users.PersonService
+	People      GroupRoutePeople
 	UserContext *repositories.CallerRows
 }
 
@@ -39,8 +40,12 @@ func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork) (GroupsTestModule, 
 		return GroupsTestModule{}, err
 	}
 	tt := r.Timetable
-	groups := education.NewService(tt.Group, tt.GroupTeacher, tt.ClassTeacher, tt.Room, tt.Teacher, tt.Staff, tt.Student, r.Substitutions, db)
-	groups.(interface{ SetBroadcaster(realtime.Broadcaster) }).SetBroadcaster(deliveryCompose.NewRealtimeHub(slog.Default()))
+	groups := education.NewService(tt.Group, tt.GroupTeacher, tt.ClassTeacher,
+		repositories.NewEducationRooms(tt.Room), NewEducationTeachers(tt.Teacher), repositories.NewEducationStaff(tt.Staff),
+		tt.Student, r.Substitutions, schoolStructure.NewLegacyRepositoryRuntime(db))
+	groups.(interface {
+		SetBroadcaster(realtimeevents.Publisher)
+	}).SetBroadcaster(deliveryCompose.NewRealtimeHub(slog.Default()))
 	persons := users.NewPersonService(users.PersonServiceDependencies{
 		PersonDirectory:  repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
 		StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
@@ -62,7 +67,7 @@ func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork) (GroupsTestModule, 
 		SchoolPresence: newStudentPresence(db, slog.Default()),
 	})
 
-	return GroupsTestModule{Education: groups, Active: presence, Users: persons, UserContext: identity.UserContext}, nil
+	return GroupsTestModule{Education: groups, Active: presence, Users: persons, People: NewGroupRoutePeople(persons), UserContext: identity.UserContext}, nil
 }
 
 // NewAttendanceTeacherGroups supplies assignment IDs the way the active route

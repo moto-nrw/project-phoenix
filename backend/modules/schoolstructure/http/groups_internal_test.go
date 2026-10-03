@@ -1,13 +1,12 @@
-// Package groups internal tests for pure helper functions.
+// Package schoolstructurehttp internal tests for pure helper functions.
 // These tests verify logic that doesn't require database access.
-package groups
+package schoolstructurehttp
 
 import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,7 +17,7 @@ import (
 func TestBuildNoRoomResponse_EmptyStudents(t *testing.T) {
 	t.Parallel()
 
-	students := []*users.Student{}
+	students := []peopledirectory.StudentRecord{}
 
 	result := buildNoRoomResponse(students)
 
@@ -30,8 +29,8 @@ func TestBuildNoRoomResponse_EmptyStudents(t *testing.T) {
 func TestBuildNoRoomResponse_SingleStudent(t *testing.T) {
 	t.Parallel()
 
-	students := []*users.Student{
-		{Model: base.Model{ID: 1}},
+	students := []peopledirectory.StudentRecord{
+		{ID: 1},
 	}
 
 	result := buildNoRoomResponse(students)
@@ -48,10 +47,10 @@ func TestBuildNoRoomResponse_SingleStudent(t *testing.T) {
 func TestBuildNoRoomResponse_MultipleStudents(t *testing.T) {
 	t.Parallel()
 
-	students := []*users.Student{
-		{Model: base.Model{ID: 10}},
-		{Model: base.Model{ID: 20}},
-		{Model: base.Model{ID: 30}},
+	students := []peopledirectory.StudentRecord{
+		{ID: 10},
+		{ID: 20},
+		{ID: 30},
 	}
 
 	result := buildNoRoomResponse(students)
@@ -71,7 +70,7 @@ func TestBuildNoRoomResponse_MultipleStudents(t *testing.T) {
 func TestBuildNoRoomResponse_NilStudentsList(t *testing.T) {
 	t.Parallel()
 
-	var students []*users.Student
+	var students []peopledirectory.StudentRecord
 
 	result := buildNoRoomResponse(students)
 

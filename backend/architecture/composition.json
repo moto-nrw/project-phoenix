@@ -56,7 +56,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        311
+        312
       ],
       "tables": []
     },
@@ -158,469 +158,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         68
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/class_teacher_repository_test.go",
-      "declaration": "TestClassTeacherRepository_Create",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        18
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/class_teacher_repository_test.go",
-      "declaration": "TestClassTeacherRepository_DeleteByStaffID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        77
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/class_teacher_repository_test.go",
-      "declaration": "TestClassTeacherRepository_FindByStaff",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        54
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_repository_test.go",
-      "declaration": "TestGroupRepository_Create",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        29
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_repository_test.go",
-      "declaration": "TestGroupRepository_Create_Validation",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        311
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_repository_test.go",
-      "declaration": "TestGroupRepository_Delete",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        144
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_repository_test.go",
-      "declaration": "TestGroupRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        71
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_repository_test.go",
-      "declaration": "TestGroupRepository_FindByIDs",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        95
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_repository_test.go",
-      "declaration": "TestGroupRepository_FindByName",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        204
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_repository_test.go",
-      "declaration": "TestGroupRepository_FindByName_CaseInsensitive",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        488
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_repository_test.go",
-      "declaration": "TestGroupRepository_FindByTeacher",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        226
-      ],
-      "tables": [
-        "education.group_teacher",
-        "users.teachers"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_repository_test.go",
-      "declaration": "TestGroupRepository_FindWithRoom",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        272
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_repository_test.go",
-      "declaration": "TestGroupRepository_List",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        167
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_repository_test.go",
-      "declaration": "TestGroupRepository_ListWithOptions",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        184
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_repository_test.go",
-      "declaration": "TestGroupRepository_ListWithOptions_Advanced",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        436
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_repository_test.go",
-      "declaration": "TestGroupRepository_List_WithFilters",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        361
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_repository_test.go",
-      "declaration": "TestGroupRepository_Update",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        121
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_repository_test.go",
-      "declaration": "TestGroupRepository_Update_Validation",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        334
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_substitution_repository_test.go",
-      "declaration": "TestGroupSubstitutionRepository_BlockersExcludeLegacyPersonnelRows",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        121
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_substitution_repository_test.go",
-      "declaration": "TestGroupSubstitutionRepository_Create",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        28
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_substitution_repository_test.go",
-      "declaration": "TestGroupSubstitutionRepository_Create_Validation",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        306
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_substitution_repository_test.go",
-      "declaration": "TestGroupSubstitutionRepository_Delete",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        196
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_substitution_repository_test.go",
-      "declaration": "TestGroupSubstitutionRepository_DeleteActiveOrFutureByStaffID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        77
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_substitution_repository_test.go",
-      "declaration": "TestGroupSubstitutionRepository_FindByGroup",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        271
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_substitution_repository_test.go",
-      "declaration": "TestGroupSubstitutionRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        142
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_substitution_repository_test.go",
-      "declaration": "TestGroupSubstitutionRepository_List",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        224
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_substitution_repository_test.go",
-      "declaration": "TestGroupSubstitutionRepository_ListWithOptions",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        246
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_substitution_repository_test.go",
-      "declaration": "TestGroupSubstitutionRepository_ListWithRelations",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        442
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_substitution_repository_test.go",
-      "declaration": "TestGroupSubstitutionRepository_List_WithFilters",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        357
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_substitution_repository_test.go",
-      "declaration": "TestGroupSubstitutionRepository_Update",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        170
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_substitution_repository_test.go",
-      "declaration": "TestGroupSubstitutionRepository_Update_Validation",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        338
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_teacher_repository_test.go",
-      "declaration": "TestGroupTeacherRepository_Create",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        26
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_teacher_repository_test.go",
-      "declaration": "TestGroupTeacherRepository_Create_Validation",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        252
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_teacher_repository_test.go",
-      "declaration": "TestGroupTeacherRepository_Delete",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        132
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_teacher_repository_test.go",
-      "declaration": "TestGroupTeacherRepository_DeleteByTeacherID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        51
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_teacher_repository_test.go",
-      "declaration": "TestGroupTeacherRepository_FindByGroup",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        176
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_teacher_repository_test.go",
-      "declaration": "TestGroupTeacherRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        81
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_teacher_repository_test.go",
-      "declaration": "TestGroupTeacherRepository_FindByTeacher",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        212
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_teacher_repository_test.go",
-      "declaration": "TestGroupTeacherRepository_List",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        157
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_teacher_repository_test.go",
-      "declaration": "TestGroupTeacherRepository_List_WithFilters",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        306
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_teacher_repository_test.go",
-      "declaration": "TestGroupTeacherRepository_Update",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        107
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_teacher_repository_test.go",
-      "declaration": "TestGroupTeacherRepository_Update_Validation",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        291
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/list_behavior_test.go",
-      "declaration": "TestGroupRepositoryListWithRoomsPreservesJoinSortPaginationAndEmptySlice",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        18
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/staff_projection_test.go",
-      "declaration": "TestEducationGroupSupervisionResolvesTeachersToStaff",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        20
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/staff_projection_test.go",
-      "declaration": "TestGroupSubstitutionsCarryTheirStaffMembers",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        65
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/supervised_groups_test.go",
-      "declaration": "TestGroupRepository_ListStaffIDsByEducationGroupIDs",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        35
       ],
       "tables": []
     },
@@ -958,144 +495,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         15
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/education/class_teacher_service_test.go",
-      "declaration": "setupClassTeacherService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        18
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/education/education_service_test.go",
-      "declaration": "setupEducationService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        22
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/education/substitution_module_test.go",
-      "declaration": "TestAdditionalSupervisionAuditFailureRollsBack",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        223
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/education/substitution_module_test.go",
-      "declaration": "TestAdditionalSupervisionAuthorizationMatrix",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        139
-      ],
-      "tables": [
-        "active.groups"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/education/substitution_module_test.go",
-      "declaration": "TestAdditionalSupervisionRejectsConcurrentSessionEnd",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        309
-      ],
-      "tables": [
-        "active.groups"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/education/substitution_module_test.go",
-      "declaration": "TestAdditionalSupervisionSignalsOnlyAfterCommit",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        280
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/education/substitution_module_test.go",
-      "declaration": "TestAdditionalSupervisionTreatsFutureEndDateAsActive",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        249
-      ],
-      "tables": [
-        "active.group_supervisors"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/education/substitution_module_test.go",
-      "declaration": "TestGroupHandoverAllStaffVisibilityDoesNotGrantActions",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        543
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/education/substitution_module_test.go",
-      "declaration": "TestGroupHandoverAuditFailureRollsBack",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        592
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/education/substitution_module_test.go",
-      "declaration": "TestGroupHandoverExternalInterface",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        368
-      ],
-      "tables": [
-        "audit.substitution_changes"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/education/substitution_module_test.go",
-      "declaration": "TestGroupHandoverPermissionsAndPeriod",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        431
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/education/substitution_module_test.go",
-      "declaration": "TestGroupHandoverRechecksOwnershipAfterGroupLock",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        670
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/education/substitution_module_test.go",
-      "declaration": "TestGroupHandoverSignalsOnlyAfterCommit",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        630
       ],
       "tables": []
     },
@@ -1568,7 +967,7 @@
       "declaration": "TestTenantIsolation_ActivityCategoryVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        409
+        408
       ],
       "tables": []
     },
@@ -1578,7 +977,7 @@
       "declaration": "TestTenantIsolation_TimeframeVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        206
+        205
       ],
       "tables": []
     },
@@ -17852,27 +17251,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 164,
+          "line": 165,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 514,
+          "line": 515,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 677,
+          "line": 678,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 928,
+          "line": 929,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1352,
+          "line": 1353,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -17882,7 +17281,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 311,
+          "line": 312,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -17892,22 +17291,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 165,
+          "line": 166,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 383,
+          "line": 384,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 428,
+          "line": 429,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 674,
+          "line": 675,
           "declaration": "type API"
         },
         {
@@ -17977,12 +17376,12 @@
         },
         {
           "file": "services/factory.go",
-          "line": 454,
+          "line": 456,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 504,
+          "line": 506,
           "declaration": "newFactory"
         },
         {

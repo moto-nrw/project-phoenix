@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type TargetType string
@@ -91,17 +91,17 @@ type RunningSupervision struct {
 type OverviewQuery struct {
 	GroupID                int64
 	ActiveGroupID          int64
-	On                     *timezone.Date
+	On                     *calendar.Date
 	IncludeTargets         bool
-	ScheduleFrom           *timezone.Date
-	ScheduleTo             *timezone.Date
+	ScheduleFrom           *calendar.Date
+	ScheduleTo             *calendar.Date
 	IncludeScheduleTargets bool
 }
 
 type ScheduleAppointmentOverview struct {
 	ID        int64                      `json:"id"`
 	Type      TargetType                 `json:"type"`
-	Date      timezone.Date              `json:"date"`
+	Date      calendar.Date              `json:"date"`
 	StartTime string                     `json:"start_time"`
 	EndTime   string                     `json:"end_time"`
 	Title     string                     `json:"title"`
@@ -125,8 +125,8 @@ type ScheduleOverview struct {
 type GroupHandoverAssignment struct {
 	GroupID       int64
 	TargetStaffID int64
-	StartDate     *timezone.Date
-	EndDate       *timezone.Date
+	StartDate     *calendar.Date
+	EndDate       *calendar.Date
 }
 
 type AdditionalSupervisionAssignment struct{ ActiveGroupID, TargetStaffID int64 }
@@ -168,7 +168,7 @@ type ScheduleSubstitutionAssignment struct {
 type ScheduleWholeDayAssignment struct {
 	AbsentStaffID     int64
 	SubstituteStaffID *int64
-	Dates             []timezone.Date
+	Dates             []calendar.Date
 	Reason            *string
 }
 
@@ -198,7 +198,7 @@ type ScheduleSubstitutionResult struct {
 }
 
 type ScheduleSubstitutionDayResult struct {
-	Date                 timezone.Date                 `json:"date"`
+	Date                 calendar.Date                 `json:"date"`
 	AffectedAppointments []ScheduleAffectedAppointment `json:"affected_instances"`
 	Warnings             []ScheduleTimeConflict        `json:"warnings"`
 }
@@ -242,7 +242,7 @@ type Module interface {
 }
 
 type ScheduleAdapter interface {
-	Overview(context.Context, timezone.Date, timezone.Date, bool, bool) (*ScheduleOverview, error)
+	Overview(context.Context, calendar.Date, calendar.Date, bool, bool) (*ScheduleOverview, error)
 	Assign(context.Context, ScheduleSubstitutionAssignment, int64) (*ScheduleSubstitutionResult, error)
 	End(context.Context, int64, int64) (*ScheduleSubstitutionResult, error)
 }

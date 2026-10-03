@@ -5,10 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
-	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,22 +14,10 @@ import (
 )
 
 // setupEducationService creates an education service with real database connection.
-func setupEducationService(t *testing.T, db *bun.DB) educationSvc.Service {
+func setupEducationService(t *testing.T, db *bun.DB) Service {
 	t.Helper()
 
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-
-	return educationSvc.NewService(
-		repoFactory.Group,
-		repoFactory.GroupTeacher,
-		repoFactory.ClassTeacher,
-		repoFactory.Room,
-		repoFactory.Teacher,
-		repoFactory.Staff,
-		repoFactory.Student,
-		repoFactory.GroupSubstitution,
-		db,
-	)
+	return testutil.NewEducationSuiteService(testutil.NewSchoolStructureRepositorySuiteFactory(db), db)
 }
 
 // ============================================================================
@@ -83,7 +69,7 @@ func TestListGroups(t *testing.T) {
 		testpkg.CreateTestEducationGroup(t, db, "PaginationTest")
 
 		// ACT: List with pagination
-		query := &educationModels.GroupListQuery{Limit: 100}
+		query := &testpkg.EducationGroupListQuery{Limit: 100}
 		groups, err := service.ListGroups(ctx, query)
 
 		// ASSERT
@@ -190,7 +176,7 @@ func TestGroupOperations(t *testing.T) {
 
 	t.Run("create group successfully", func(t *testing.T) {
 		// ARRANGE
-		group := &educationModels.Group{
+		group := &testpkg.EducationGroup{
 			Name: "New Test Group " + time.Now().Format("20060102150405"),
 		}
 
@@ -333,7 +319,7 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 
 	t.Run("returns error for non-existent group", func(t *testing.T) {
 		// ARRANGE
-		group := &educationModels.Group{Name: "NonExistent"}
+		group := &testpkg.EducationGroup{Name: "NonExistent"}
 		group.ID = 999999999
 
 		// ACT
@@ -407,12 +393,12 @@ func TestEducationService_DeleteGroup(t *testing.T) {
 	t.Run("returns error when group has an active handover", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GroupWithHandover")
 		target := testpkg.CreateTestStaff(t, db, "Group", "Target")
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, target.ID, today, today)
 
 		err := service.DeleteGroup(ctx, group.ID)
 
-		require.ErrorIs(t, err, educationSvc.ErrGroupHasHandover)
+		require.ErrorIs(t, err, ErrGroupHasHandover)
 		_, findErr := service.GetGroup(ctx, group.ID)
 		require.NoError(t, findErr)
 	})
@@ -526,7 +512,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 
 	t.Run("rejects group with invalid name", func(t *testing.T) {
 		// ARRANGE
-		group := &educationModels.Group{Name: ""} // Empty name is invalid
+		group := &testpkg.EducationGroup{Name: ""} // Empty name is invalid
 
 		// ACT
 		err := service.CreateGroup(ctx, group)
@@ -539,7 +525,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 		// ARRANGE
 		nonExistentRoomID := int64(999999999)
 		uniqueName := fmt.Sprintf("GroupWithBadRoom-%d", time.Now().UnixNano())
-		group := &educationModels.Group{
+		group := &testpkg.EducationGroup{
 			Name:   uniqueName,
 			RoomID: &nonExistentRoomID,
 		}
@@ -556,7 +542,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 		// ARRANGE
 		room := testpkg.CreateTestRoom(t, db, "GroupCreateRoom")
 		uniqueName := fmt.Sprintf("GroupWithRoom-%d", time.Now().UnixNano())
-		group := &educationModels.Group{
+		group := &testpkg.EducationGroup{
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
@@ -574,7 +560,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 		// ARRANGE
 		existingGroup := testpkg.CreateTestEducationGroup(t, db, "DuplicateTest")
 
-		duplicateGroup := &educationModels.Group{Name: existingGroup.Name}
+		duplicateGroup := &testpkg.EducationGroup{Name: existingGroup.Name}
 
 		// ACT
 		err := service.CreateGroup(ctx, duplicateGroup)
@@ -598,7 +584,7 @@ func TestEducationService_ListGroups(t *testing.T) {
 		testpkg.CreateTestEducationGroup(t, db, "ListTestGroup")
 
 		// ACT
-		groups, err := service.ListGroups(ctx, &educationModels.GroupListQuery{Limit: 10})
+		groups, err := service.ListGroups(ctx, &testpkg.EducationGroupListQuery{Limit: 10})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -662,8 +648,8 @@ func TestEducationError_Unwrap(t *testing.T) {
 
 	t.Run("unwraps inner error", func(t *testing.T) {
 		// ARRANGE
-		innerErr := educationSvc.ErrGroupNotFound
-		err := &educationSvc.EducationError{Op: "TestOp", Err: innerErr}
+		innerErr := ErrGroupNotFound
+		err := &EducationError{Op: "TestOp", Err: innerErr}
 
 		// ACT
 		unwrapped := err.Unwrap()

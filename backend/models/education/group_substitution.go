@@ -3,9 +3,7 @@ package education
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 const (
@@ -15,20 +13,41 @@ const (
 
 // GroupSubstitution represents a temporary substitution of a staff member for another in a group
 type GroupSubstitution struct {
-	base.Model `bun:"schema:education,table:group_substitution"`
-	base.TenantModel
+	Model
+	TenantModel
 	TargetType        string        `bun:"target_type,notnull" json:"-"`
 	GroupID           int64         `bun:"group_id,notnull" json:"group_id"`
 	RegularStaffID    *int64        `bun:"regular_staff_id" json:"regular_staff_id,omitempty"`
 	SubstituteStaffID int64         `bun:"substitute_staff_id,notnull" json:"substitute_staff_id"`
-	StartDate         timezone.Date `bun:"start_date,notnull" json:"start_date"`
-	EndDate           timezone.Date `bun:"end_date,notnull" json:"end_date"`
+	StartDate         calendar.Date `bun:"start_date,notnull" json:"start_date"`
+	EndDate           calendar.Date `bun:"end_date,notnull" json:"end_date"`
 	Reason            string        `bun:"reason" json:"reason,omitempty"`
 
 	// Relations not stored in the database
-	Group           *Group       `bun:"-" json:"group,omitempty"`
-	RegularStaff    *users.Staff `bun:"-" json:"regular_staff,omitempty"`
-	SubstituteStaff *users.Staff `bun:"-" json:"substitute_staff,omitempty"`
+	Group           *Group             `bun:"-" json:"group,omitempty"`
+	RegularStaff    *SubstitutionStaff `bun:"-" json:"regular_staff,omitempty"`
+	SubstituteStaff *SubstitutionStaff `bun:"-" json:"substitute_staff,omitempty"`
+}
+
+// SubstitutionStaff is a staff member a substitution names, as School
+// Membership resolves it. Person stays nil until the People Directory
+// resolved the name.
+type SubstitutionStaff struct {
+	ID       int64               `json:"id"`
+	PersonID int64               `json:"person_id"`
+	Person   *SubstitutionPerson `json:"person,omitempty"`
+}
+
+// SubstitutionPerson is the name of a substitution's staff member.
+type SubstitutionPerson struct {
+	ID        int64  `json:"id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+}
+
+// FullName returns "Vorname Nachname".
+func (p *SubstitutionPerson) FullName() string {
+	return p.FirstName + " " + p.LastName
 }
 
 // Validate ensures group substitution data is valid
@@ -76,24 +95,5 @@ func (gs *GroupSubstitution) SetGroup(group *Group) {
 	gs.Group = group
 	if group != nil {
 		gs.GroupID = group.ID
-	}
-}
-
-// SetRegularStaff links this substitution to the regular staff member
-func (gs *GroupSubstitution) SetRegularStaff(staff *users.Staff) {
-	gs.RegularStaff = staff
-	if staff != nil {
-		staffID := staff.ID
-		gs.RegularStaffID = &staffID
-	} else {
-		gs.RegularStaffID = nil
-	}
-}
-
-// SetSubstituteStaff links this substitution to the substitute staff member
-func (gs *GroupSubstitution) SetSubstituteStaff(staff *users.Staff) {
-	gs.SubstituteStaff = staff
-	if staff != nil {
-		gs.SubstituteStaffID = staff.ID
 	}
 }

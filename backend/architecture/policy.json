@@ -147,10 +147,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-admin",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-announcement",
       "kind": "inbound"
     },
@@ -196,10 +192,6 @@
     },
     {
       "id": "inbound-filestore",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-groups",
       "kind": "inbound"
     },
     {
@@ -777,13 +769,6 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/admin",
-      "owner": "inbound-admin",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
       "path": "modules/communication/http/parentannouncements",
       "owner": "inbound-announcement",
       "role": "http",
@@ -870,13 +855,6 @@
     {
       "path": "modules/feedback/http",
       "owner": "inbound-feedback",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
-      "path": "api/groups",
-      "owner": "inbound-groups",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -2070,6 +2048,13 @@
       "role": "compose",
       "internal_test_role": "workflow-integration-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolstructure/http",
+      "owner": "school-structure",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
     },
     {
       "path": "modules/schoolstructure/internal/application",
@@ -3370,6 +3355,13 @@
       "path": "workflows/gradetransition/compose",
       "owner": "grade-transition",
       "role": "compose",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "workflows/gradetransition/http",
+      "owner": "grade-transition",
+      "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
@@ -5612,17 +5604,6 @@
       "source_role": "e2e-test",
       "target_owner": "timetable-activities",
       "target_role": "compose"
-    },
-    {
-      "id": "care-plan.contracttest.school-structure.domain",
-      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "e2e-test",
-      "target_owner": "school-structure",
-      "target_role": "domain"
     },
     {
       "id": "care-plan.contracttest.security-runtime.application",
@@ -9672,6 +9653,28 @@
       "source_owner": "root-composition",
       "source_role": "compose",
       "target_owner": "timetable-activities",
+      "target_role": "http"
+    },
+    {
+      "id": "root-composition.to.school-structure-http",
+      "description": "The root API composition mounts the group routes of the School Structure owner (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "http"
+    },
+    {
+      "id": "root-composition.to.grade-transition-http",
+      "description": "The root API composition mounts the grade transition routes of the workflow (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "grade-transition",
       "target_role": "http"
     },
     {
@@ -17972,17 +17975,6 @@
       "target_role": "domain"
     },
     {
-      "id": "calendar-view.adapter-test.facilities-domain",
-      "description": "Adapter tests build retained room rows (#2703).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter-test",
-      "target_owner": "facilities",
-      "target_role": "domain"
-    },
-    {
       "id": "calendar-view.adapter-test.facilities-application",
       "description": "Adapter tests fake the retained Schulhof service and build its status (#2703).",
       "scopes": [
@@ -20519,14 +20511,47 @@
       "target_role": "compose"
     },
     {
-      "id": "inbound-admin.http.transition.grade-transition.public",
-      "description": "The admin HTTP surface runs the school-year rollover through the owner workflow (#2711).",
+      "id": "grade-transition.http.public",
+      "description": "The grade transition routes run the school-year rollover through the owner workflow (#2711, #2742).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-admin",
+      "source_owner": "grade-transition",
       "source_role": "http",
       "target_owner": "grade-transition",
+      "target_role": "public"
+    },
+    {
+      "id": "grade-transition.http.inbound-common",
+      "description": "The grade transition routes reuse the shared HTTP runtime of api/common: the tenant route group, the permission gates, request parsing and response rendering (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "grade-transition.http.security-contract",
+      "description": "The grade transition routes gate on the permission registry (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "grade-transition.http.tenant-runtime",
+      "description": "The grade transition routes mark rollbacks through the tenant runtime (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
       "target_role": "public"
     },
     {
@@ -21413,14 +21438,102 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-groups.http.student-presence-public",
-      "description": "api/groups reads room sessions and attendance through the public presence facades (#3422).",
+      "id": "school-structure.http.student-presence-public",
+      "description": "The group routes read room sessions and attendance through the public presence facades (#3422, #2742).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-groups",
+      "source_owner": "school-structure",
       "source_role": "http",
       "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.http.application",
+      "description": "The group routes drive the owner's group service, the inbound adapter calling its own application (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "http",
+      "target_owner": "school-structure",
+      "target_role": "application"
+    },
+    {
+      "id": "school-structure.http.domain",
+      "description": "The group routes read and write the owner's group rows and list query (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "http",
+      "target_owner": "school-structure",
+      "target_role": "domain"
+    },
+    {
+      "id": "school-structure.http.people-directory-public",
+      "description": "The group routes read the children of a group and the persons behind them in the People Directory's public types, through a port the root binds (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.http.inbound-common",
+      "description": "The group routes reuse the shared HTTP runtime of api/common: the tenant route group, the permission gates, request parsing, response rendering and the student location snapshot, like the other owners' HTTP adapters (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "school-structure.http.identity-adapter",
+      "description": "The group routes read the authenticated permissions from the session token adapter (ADR 0031, #2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "school-structure.http.security-contract",
+      "description": "The group routes gate on the permission registry (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "school-structure.http.security-public",
+      "description": "The group routes decide the admin wildcard through the Security Runtime capability (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.http.tenant-runtime",
+      "description": "The group routes run a write and its teacher assignment in one tenant transaction and mark rollbacks through the tenant runtime (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
       "target_role": "public"
     },
     {

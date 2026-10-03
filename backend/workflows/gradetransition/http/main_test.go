@@ -1,4 +1,4 @@
-package admin_test
+package gradetransitionhttp_test
 
 import (
 	"testing"
