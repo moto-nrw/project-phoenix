@@ -46,6 +46,7 @@ export function InvitationForm({
   const formRef = useRef<HTMLFormElement>(null);
   const errors = useApiFormError(formRef);
   const showError = errors.show;
+  const clearErrors = errors.clear;
 
   const [successInfo, setSuccessInfo] = useState<{
     email: string;
@@ -60,6 +61,7 @@ export function InvitationForm({
         const roleList = await authService.getRoles();
         if (isCancelled()) return;
         setRoles(toAssignableRoleOptions(roleList));
+        clearErrors();
       } catch (err) {
         logger.error("failed to load roles", {
           error: err instanceof Error ? err.message : String(err),
@@ -76,7 +78,7 @@ export function InvitationForm({
         }
       }
     },
-    [showError],
+    [clearErrors, showError],
   );
 
   useEffect(() => {

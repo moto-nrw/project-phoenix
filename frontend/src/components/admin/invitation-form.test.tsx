@@ -516,6 +516,10 @@ describe("InvitationForm", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Wiederholen" }),
+    ).not.toBeInTheDocument();
   });
 
   describe("Scroll to error and field highlighting", () => {

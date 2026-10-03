@@ -531,10 +531,12 @@ function useApiErrorCore(
     [deliver],
   );
 
+  const clearFieldErrors = useCallback(() => setFieldErrors({}), []);
+
   return {
     show,
     fieldError: (name: string) => fieldErrors[name],
-    clearFieldErrors: () => setFieldErrors({}),
+    clearFieldErrors,
   };
 }
 
@@ -583,13 +585,14 @@ export function useApiFormError(formRef?: RefObject<HTMLElement | null>) {
     formRef,
     deliver,
   );
+  const clear = useCallback(() => {
+    setError(null);
+    clearFieldErrors();
+  }, [clearFieldErrors, setError]);
   return {
     error,
     show,
     fieldError,
-    clear: () => {
-      setError(null);
-      clearFieldErrors();
-    },
+    clear,
   };
 }
