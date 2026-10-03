@@ -1076,9 +1076,8 @@ function bodyHasCode(body: string, code: string): boolean {
 
 function parseConflictMessage(body: string): string {
   try {
-    const parsed = JSON.parse(body) as { message?: string; error?: string };
+    const parsed = JSON.parse(body) as { error?: string };
     return (
-      parsed.message ??
       parsed.error ??
       "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht."
     );

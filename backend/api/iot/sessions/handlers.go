@@ -24,7 +24,11 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if response.Status == "conflict" {
-		rs.runtime.Success(w, r, http.StatusConflict, response, "Session conflict detected")
+		var info devicescan.ConflictInfoResponse
+		if response.ConflictInfo != nil {
+			info = *response.ConflictInfo
+		}
+		rs.runtime.Conflict(w, r, "Session conflict detected", info)
 		return
 	}
 	rs.runtime.Success(w, r, http.StatusOK, response, "Activity session started successfully")
@@ -114,9 +118,9 @@ func (rs *Resource) checkSessionConflict(w http.ResponseWriter, r *http.Request)
 		rs.renderError(w, r, err)
 		return
 	}
-	status, message := http.StatusOK, "No conflicts detected"
 	if response.HasConflict {
-		status, message = http.StatusConflict, "Conflict detected"
+		rs.runtime.Conflict(w, r, "Conflict detected", response)
+		return
 	}
-	rs.runtime.Success(w, r, status, response, message)
+	rs.runtime.Success(w, r, http.StatusOK, response, "No conflicts detected")
 }

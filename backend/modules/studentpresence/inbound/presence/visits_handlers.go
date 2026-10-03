@@ -42,7 +42,7 @@ func (rs *Resource) listVisits(w http.ResponseWriter, r *http.Request) {
 	// Get visits
 	visits, err := rs.Presence.ListVisits(r.Context(), filter)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(presenceQueryError("ListVisits", err)))
+		common.RenderError(w, r, common.ErrorInternalServer(presenceQueryError("ListVisits", err)))
 		return
 	}
 
@@ -69,7 +69,7 @@ func parseActiveGroupIDs(w http.ResponseWriter, r *http.Request) ([]int64, bool)
 	for _, part := range parts {
 		id, err := strconv.ParseInt(strings.TrimSpace(part), 10, 64)
 		if err != nil || id <= 0 {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidGroupID)))
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidGroupID)))
 			return nil, false
 		}
 		ids = append(ids, id)
@@ -82,7 +82,7 @@ func (rs *Resource) getVisit(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidVisitID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidVisitID)))
 		return
 	}
 
@@ -104,7 +104,7 @@ func (rs *Resource) getStudentVisits(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
 	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStudentID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidStudentID)))
 		return
 	}
 
@@ -129,7 +129,7 @@ func (rs *Resource) getStudentCurrentVisit(w http.ResponseWriter, r *http.Reques
 	// Parse student ID from URL
 	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStudentID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidStudentID)))
 		return
 	}
 
@@ -157,7 +157,7 @@ func (rs *Resource) getVisitsByGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse group ID from URL
 	groupID, err := common.ParseIDParam(r, "groupId")
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidGroupID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidGroupID)))
 		return
 	}
 
@@ -182,7 +182,7 @@ func (rs *Resource) createVisit(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &VisitRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -205,7 +205,7 @@ func (rs *Resource) createVisit(w http.ResponseWriter, r *http.Request) {
 	if admitted.ID == 0 {
 		mode, err := rs.Operations.PresenceMode(r.Context())
 		if err != nil {
-			common.RenderError(w, r, ErrorInternalServer(presenceQueryError("GetPresenceMode", err)))
+			common.RenderError(w, r, common.ErrorInternalServer(presenceQueryError("GetPresenceMode", err)))
 			return
 		}
 		if mode == studentpresence.PresenceModeBinary {
@@ -231,14 +231,14 @@ func (rs *Resource) updateVisit(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidVisitID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidVisitID)))
 		return
 	}
 
 	// Parse request
 	req := &VisitRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -278,7 +278,7 @@ func (rs *Resource) deleteVisit(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidVisitID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidVisitID)))
 		return
 	}
 
@@ -296,7 +296,7 @@ func (rs *Resource) endVisit(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidVisitID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidVisitID)))
 		return
 	}
 

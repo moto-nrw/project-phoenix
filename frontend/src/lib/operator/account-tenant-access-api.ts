@@ -97,12 +97,9 @@ async function throwApiError(response: Response): Promise<never> {
   let message = `Die Anfrage ist fehlgeschlagen (${response.status}).`;
   let body: unknown;
   try {
-    const payload = (await response.json()) as {
-      message?: string;
-      error?: string;
-    };
+    const payload = (await response.json()) as { error?: string };
     body = payload;
-    message = payload.message ?? payload.error ?? message;
+    message = payload.error ?? message;
   } catch (error) {
     logger.warn("failed to parse school access error response", {
       error: error instanceof Error ? error.message : String(error),

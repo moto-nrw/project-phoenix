@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
@@ -28,14 +27,7 @@ func RequiresOperatorScope(next http.Handler) http.Handler {
 			slog.WarnContext(r.Context(), "operator scope required but not present",
 				slog.String("path", r.URL.Path),
 			)
-			w.WriteHeader(http.StatusForbidden)
-			if err := render.Render(w, r, &common.OperatorErrResponse{
-				HTTPStatusCode: http.StatusForbidden,
-				StatusText:     "Forbidden",
-				ErrorText:      "This endpoint requires operator authentication",
-			}); err != nil {
-				http.Error(w, "Forbidden", http.StatusForbidden)
-			}
+			common.RenderError(w, r, common.OperatorForbidden("This endpoint requires operator authentication"))
 			return
 		}
 

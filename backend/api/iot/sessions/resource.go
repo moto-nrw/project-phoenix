@@ -15,7 +15,7 @@ type Resource struct {
 }
 
 func NewResource(lifecycle devicescan.SessionLifecycle, end sessionend.Command, runtime Runtime) *Resource {
-	if runtime.ParseID == nil || runtime.Authenticated == nil || runtime.Success == nil || runtime.Failure == nil || runtime.MarkRollback == nil {
+	if runtime.ParseID == nil || runtime.Authenticated == nil || runtime.Success == nil || runtime.Failure == nil || runtime.Conflict == nil || runtime.MarkRollback == nil {
 		panic("IoT sessions: runtime is required")
 	}
 	return &Resource{Lifecycle: lifecycle, SessionEnd: end, runtime: runtime}

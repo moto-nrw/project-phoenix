@@ -181,7 +181,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 		require.Equal(t, testutil.StatusConflict, w.Code)
 		var body map[string]any
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-		assert.Equal(t, "Students Not Present", body["status"])
+		assert.Equal(t, "error", body["status"])
 	})
 
 	// #2329: the handler no longer decides per student — it hands the caller's
@@ -371,6 +371,6 @@ func TestMoveStudentsToTransit(t *testing.T) {
 		require.Equal(t, testutil.StatusConflict, w.Code)
 		var body map[string]any
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-		assert.Equal(t, "Students Not Present", body["status"])
+		assert.Equal(t, "error", body["status"])
 	})
 }

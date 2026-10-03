@@ -146,7 +146,10 @@ describe("accountTenantAccessService", () => {
   it("throws the backend message so the modal can show the real reason", async () => {
     mockFetch.mockResolvedValue(
       jsonResponse(
-        { message: "Diese Rolle existiert an der Zielschule nicht" },
+        {
+          status: "error",
+          error: "Diese Rolle existiert an der Zielschule nicht",
+        },
         400,
       ),
     );
@@ -161,7 +164,7 @@ describe("accountTenantAccessService", () => {
     );
   });
 
-  it("falls back to the error field when the payload has no message", async () => {
+  it("throws the backend error of an unauthorized request", async () => {
     mockFetch.mockResolvedValue(jsonResponse({ error: "Unauthorized" }, 401));
 
     await expect(accountTenantAccessService.list("42")).rejects.toThrowError(

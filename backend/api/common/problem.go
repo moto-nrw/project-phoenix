@@ -22,7 +22,7 @@ var helpAnchorByErrorClass = map[string]string{
 
 // ErrorClassCode supplies a stable class identity where a handler has no
 // domain-specific code yet. The numeric status remains on the HTTP response;
-// the legacy JSON status string is deliberately unchanged.
+// the JSON status member stays the literal "error" of the shared envelope.
 func ErrorClassCode(status int) string {
 	switch status {
 	case http.StatusUnauthorized, http.StatusForbidden:
@@ -59,9 +59,10 @@ func requestID(r *http.Request) string {
 	return middleware.GetReqID(r.Context())
 }
 
-// ProblemResponseMiddleware expands every API failure, including legacy
-// handlers which write JSON directly or use http.Error. Successful responses
-// and streaming responses pass through without buffering.
+// ProblemResponseMiddleware answers every API failure in the one shared error
+// envelope (ADR 0006, #2507), including handlers which write JSON directly or
+// use http.Error. Successful responses and streaming responses pass through
+// without buffering.
 func ProblemResponseMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capture := &problemWriter{ResponseWriter: w}
@@ -71,6 +72,14 @@ func ProblemResponseMiddleware(next http.Handler) http.Handler {
 		}
 
 		body := readProblemBody(capture, w.Header().Get("Content-Type"))
+		if departsFromEnvelope(body) {
+			// The answer is repaired below; the warning names the route whose
+			// handler still writes its own error body (#2507).
+			slog.Default().WarnContext(r.Context(), "error body outside the shared envelope",
+				slog.String("route", RoutePattern(r)),
+				slog.Int("status", capture.status),
+			)
+		}
 		addProblemFields(body, capture.status, middleware.GetReqID(r.Context()))
 		encoded, err := json.Marshal(body)
 		if err != nil {
@@ -103,9 +112,23 @@ func readProblemBody(capture *problemWriter, contentType string) map[string]json
 	return body
 }
 
-// Shared renderers already supplied these fields. Fill only missing members
-// for legacy direct writers, preserving their values verbatim.
+// departsFromEnvelope reports a body whose status member is not "error" or
+// which carries its text in `message`.
+func departsFromEnvelope(body map[string]json.RawMessage) bool {
+	_, hasMessage := body["message"]
+	return hasMessage || problemStringField(body, "status") != "error"
+}
+
+// Shared renderers already supplied these fields. Direct writers get the
+// missing members filled; their status member becomes "error" and a
+// `message` text moves to `error`, so every failure has one form. Further
+// members stay as RFC 9457 extensions.
 func addProblemFields(body map[string]json.RawMessage, status int, requestID string) {
+	setProblemString(body, "status", "error")
+	if problemStringField(body, "error") == "" {
+		setProblemString(body, "error", problemDetail(body, status))
+	}
+	delete(body, "message")
 	code := problemStringField(body, "code")
 	if code == "" {
 		code = ErrorClassCode(status)
@@ -126,7 +149,7 @@ func addProblemFields(body map[string]json.RawMessage, status int, requestID str
 }
 
 func problemDetail(body map[string]json.RawMessage, status int) string {
-	for _, key := range []string{"error", "message"} {
+	for _, key := range []string{"error", "message", "detail"} {
 		if value := problemStringField(body, key); value != "" {
 			return value
 		}
