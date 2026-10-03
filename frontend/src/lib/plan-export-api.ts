@@ -13,7 +13,7 @@ export type PlanExportPlan = "dienstplan" | "betreuungsplan";
 export type PlanExportFormat = "pdf" | "xlsx";
 export type PlanExportMode = "download" | "print";
 export type PlanExportVariant = "aushang" | "intern";
-export type PlanExportTemplate = "persons" | "areas" | "offerings";
+export type PlanExportTemplate = "persons" | "areas" | "hours" | "offerings";
 
 export interface PlanExportRequest {
   /** Any day in the first week; the backend widens it to that Monday. */
@@ -52,6 +52,12 @@ export const PLAN_EXPORT_TEMPLATES: Record<
       label: "Nach Einsatzbereich",
       description:
         "Eine Zeile je Schichtart oder Angebot, die Namen stehen in den Feldern.",
+    },
+    {
+      id: "hours",
+      label: "Stundenübersicht",
+      description:
+        "Eine Zeile je Mitarbeitenden mit den Stunden je Schichtart und dem Soll.",
     },
   ],
   betreuungsplan: [

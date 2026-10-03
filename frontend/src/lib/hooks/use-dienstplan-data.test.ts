@@ -132,6 +132,7 @@ describe("useDienstplanData", () => {
         plannedMinutes: 240,
         targetMinutes: 300,
         deltaMinutes: -60,
+        plannedByShiftType: [],
       },
     ],
   };

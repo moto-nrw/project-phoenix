@@ -527,7 +527,8 @@ func verifyProtectedDevice(rt *Runtime, deviceID int64) error {
 
 // verifyManualStudents checks the children of a web-attendance profile. With
 // roomTracking (presence mode "detailed") a present child may sit in a room
-// ("Anwesend - <Raum>"); without it any room location is an error.
+// ("Anwesend - <Raum>") or move between rooms ("Unterwegs"); without it
+// either detailed location is an error.
 func verifyManualStudents(rt *Runtime, expected SeedExpectedState, data manualProfileData, roomTracking bool) error {
 	raw, err := rt.Client.Get("/api/students?page=1&page_size=100")
 	if err != nil {
@@ -567,7 +568,8 @@ func verifyManualStudentRows(rows []struct {
 			return fmt.Errorf("manual profile student %d has no class or group reference", student.ID)
 		}
 		switch {
-		case student.Location == "Anwesend", roomTracking && strings.HasPrefix(student.Location, "Anwesend - "):
+		case student.Location == "Anwesend",
+			roomTracking && (student.Location == "Unterwegs" || strings.HasPrefix(student.Location, "Anwesend - ")):
 			present++
 		case student.Location == "Abwesend":
 			if student.ActualPickupAt != nil {

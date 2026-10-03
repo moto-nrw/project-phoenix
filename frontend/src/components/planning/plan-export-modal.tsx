@@ -113,6 +113,10 @@ export function PlanExportModal({
 
   if (!isOpen) return null;
 
+  // Die Stundenübersicht (#3819) druckt nur Zahlen, keine Gründe. Eine
+  // Wahl zwischen Aushang und interner Fassung ändert daran nichts.
+  const showsVariant = template !== "hours";
+
   const run = async (
     key: string,
     format: PlanExportFormat,
@@ -137,7 +141,12 @@ export function PlanExportModal({
     try {
       await exportPlan(
         plan,
-        { from: range.from, to: range.to, template, variant },
+        {
+          from: range.from,
+          to: range.to,
+          template,
+          variant: showsVariant ? variant : "aushang",
+        },
         format,
         mode,
         printTarget,
@@ -232,22 +241,24 @@ export function PlanExportModal({
             </section>
           )}
 
-          <section>
-            <p className="text-sm font-medium text-gray-900">Fassung</p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              {variants.map((item) => (
-                <RadioOption
-                  key={item.id}
-                  id={`plan-export-variant-${item.id}`}
-                  name="plan-export-variant"
-                  selected={variant === item.id}
-                  label={item.label}
-                  description={item.description}
-                  onClick={() => setVariant(item.id)}
-                />
-              ))}
-            </div>
-          </section>
+          {showsVariant && (
+            <section>
+              <p className="text-sm font-medium text-gray-900">Fassung</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {variants.map((item) => (
+                  <RadioOption
+                    key={item.id}
+                    id={`plan-export-variant-${item.id}`}
+                    name="plan-export-variant"
+                    selected={variant === item.id}
+                    label={item.label}
+                    description={item.description}
+                    onClick={() => setVariant(item.id)}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
 
           <section>
             <p className="text-sm font-medium text-gray-900">Zeitraum</p>
@@ -301,7 +312,8 @@ export function PlanExportModal({
             )}
 
             <p className="mt-2 text-xs text-gray-500">
-              {rangeError ?? describeRange(range.from, range.to, weekCount)}
+              {rangeError ??
+                describeRange(range.from, range.to, weekCount, template)}
             </p>
           </section>
         </div>
@@ -341,6 +353,7 @@ function describeRange(
   from: string,
   to: string,
   weekCount: number | null,
+  template: PlanExportTemplate,
 ): string {
   if (!from || !to || weekCount === null) return "";
   const monday = startOfWeek(parseISODate(from));
@@ -349,7 +362,12 @@ function describeRange(
   const span = `${formatDate(toISODate(monday))} bis ${formatDate(toISODate(friday))}`;
   // Samstag und Sonntag stehen nicht im Text, weil sie nicht vom Zeitraum
   // abhängen, sondern davon, ob dort überhaupt etwas geplant ist.
-  const weekend = "Samstag und Sonntag nur, wenn dort etwas geplant ist.";
+  // Die Stundenübersicht hat keine Tagesspalten; ihre Summen zählen die
+  // ganze Woche.
+  const weekend =
+    template === "hours"
+      ? "Die Stunden zählen die ganze Woche, auch Samstag und Sonntag."
+      : "Samstag und Sonntag nur, wenn dort etwas geplant ist.";
   return weekCount === 1
     ? `Gedruckt wird die Woche vom ${span}, Montag bis Freitag. ${weekend}`
     : `Gedruckt werden ${weekCount} Wochen (${span}), je Woche ein Blatt. ${weekend}`;

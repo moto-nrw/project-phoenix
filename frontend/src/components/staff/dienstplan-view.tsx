@@ -11,6 +11,7 @@ import { PlanningDisabledState } from "~/components/planning/planning-disabled-s
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
 import { DienstplanHalbjahrGrid } from "~/components/staff/dienstplan-halbjahr-grid";
+import { DienstplanHoursCard } from "~/components/staff/dienstplan-hours-card";
 import { DienstplanPersonWeekGrid } from "~/components/staff/dienstplan-person-week-grid";
 import { DienstplanResourceGrid } from "~/components/staff/dienstplan-resource-grid";
 import { DienstplanGridSkeleton } from "~/components/staff/dienstplan-skeleton";
@@ -449,6 +450,15 @@ function DienstplanContent() {
               : undefined
           }
         />
+        {/* Stunden je Schichtart (#3819): dieselben Wochensummen wie im
+            Zeilenkopf, aufgeteilt. Im reduzierten Pfad gibt es keine. */}
+        {!reducedPath && (
+          <DienstplanHoursCard
+            staff={sortedStaff}
+            summaryByStaff={summaryByStaff}
+            shiftTypes={shiftTypes ?? []}
+          />
+        )}
       </div>
     );
   }
