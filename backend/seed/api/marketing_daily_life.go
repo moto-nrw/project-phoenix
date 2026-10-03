@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // The everyday life of the marketing school at the reference clock (#3762):
 // rooms in use, the present children inside running supervisions, unread
 // messages for the school admin, a notice for the team, and news plus a
-// staff reply for the families. Everything goes through the same HTTP
-// endpoints the portals use.
+// staff reply for the families. The shot list (#3764) adds an open pickup
+// change and an excused absence from parents, and the week's meal plan.
+// Everything goes through the same HTTP endpoints the portals use.
 
 type marketingRoom struct {
 	key      string
@@ -59,6 +61,15 @@ const (
 	marketingNewsTitle      = "Herbstfest am Freitag"
 )
 
+// marketingMeals is the week's lunch, Monday to Friday.
+var marketingMeals = [5][]map[string]any{
+	{{"dish": "Gemüselasagne"}, {"dish": "Apfelkompott"}},
+	{{"dish": "Hähnchen mit Reis und Erbsen", "note": "Vegetarisch: Gemüsebratling"}},
+	{{"dish": "Kartoffelsuppe mit Brötchen"}, {"dish": "Joghurt mit Beeren"}},
+	{{"dish": "Spaghetti Bolognese", "note": "Vegetarisch: Linsen-Bolognese"}},
+	{{"dish": "Fischstäbchen mit Kartoffelpüree", "note": "Vegetarisch: Gemüsestäbchen"}, {"dish": "Obst"}},
+}
+
 func seedMarketingDailyLife(ctx context.Context, rt *Runtime, data manualProfileData, admin AccountCredentials, staff []AccountCredentials, parents []ParentCredentials) error {
 	rt.Client.BindAuth(rt.TenantAuth)
 	defer rt.Client.BindAuth(rt.TenantAuth)
@@ -88,7 +99,112 @@ func seedMarketingDailyLife(ctx context.Context, rt *Runtime, data manualProfile
 	if err := seedMarketingTeamMessage(ctx, rt, admin, staff); err != nil {
 		return err
 	}
-	return seedMarketingParentMessages(ctx, rt, data, parents)
+	if err := seedMarketingParentMessages(ctx, rt, data, parents); err != nil {
+		return err
+	}
+	if err := seedMarketingParentRequests(ctx, rt, data, parents); err != nil {
+		return err
+	}
+	if err := seedMarketingAppointments(rt); err != nil {
+		return err
+	}
+	return seedMarketingMealPlan(rt)
+}
+
+// marketingNewsFriday is the Friday the news item announces: the first
+// Friday after today.
+func marketingNewsFriday(today seedDate) seedDate {
+	return seedDate{Time: nextWeekday(today.AddDays(1).Time, time.Friday)}
+}
+
+// seedMarketingAppointments puts a team meeting into today's calendar week
+// and the autumn festival of the news item into the families' calendar,
+// where they can accept it.
+func seedMarketingAppointments(rt *Runtime) error {
+	today := todaySeedDate().String()
+	friday := marketingNewsFriday(todaySeedDate()).String()
+	appointments := []map[string]any{
+		{
+			"title": "Teambesprechung", "location": "Kreativraum",
+			"description": "Wochenrückblick und Planung für das Herbstfest.",
+			"start_date":  today, "end_date": today, "start_time": "13:30", "end_time": "14:15", "all_day": false,
+			"delivery_mode": "informational", "targets": []map[string]any{{"type": "all_staff"}}, "send_email": false,
+		},
+		{
+			"title": marketingNewsTitle, "location": "Schulhof",
+			"description": "Die Kinder haben Lieder und Spiele vorbereitet. Wir freuen uns auf Sie!",
+			"start_date":  friday, "end_date": friday, "start_time": "15:00", "end_time": "18:00", "all_day": false,
+			"delivery_mode": "rsvp_required", "overview_visibility": "all",
+			"targets":    []map[string]any{{"type": "all_school_parents"}, {"type": "all_staff"}},
+			"send_email": false,
+		},
+	}
+	for _, appointment := range appointments {
+		if _, err := rt.Client.Post("/api/calendar/appointments", appointment); err != nil {
+			return fmt.Errorf("create marketing appointment %s: %w", appointment["title"], err)
+		}
+	}
+	return nil
+}
+
+// marketingNextWeekday is the first Monday-to-Friday day after today.
+func marketingNextWeekday(today seedDate) seedDate {
+	day := today.AddDays(1)
+	for day.Weekday() == time.Saturday || day.Weekday() == time.Sunday {
+		day = day.AddDays(1)
+	}
+	return day
+}
+
+// seedMarketingParentRequests files two requests for the next weekday from
+// the parents portal. The pickup change stays open, so the request inbox has
+// work and the parents-portal account sees its pending request; the excused
+// absence fills the absence list without changing today's presence.
+func seedMarketingParentRequests(ctx context.Context, rt *Runtime, data manualProfileData, parents []ParentCredentials) error {
+	byKey := make(map[string]ParentCredentials, len(parents))
+	for _, parent := range parents {
+		byKey[parent.Key] = parent
+	}
+	day := marketingNextWeekday(todaySeedDate()).String()
+	requests := []struct {
+		parent, child, kind string
+		body                map[string]any
+	}{
+		{parent: "sarah-yilmaz", child: "elif-yilmaz", kind: "care-exception", body: map[string]any{
+			"date": day, "pickup_time": "14:30", "reason": "Elif hat einen Termin beim Kinderarzt.",
+		}},
+		{parent: "julia-wagner", child: "mia-wagner", kind: "sick-note", body: map[string]any{
+			"dates": []string{day}, "status": "excused", "reason": "Mia fährt mit zum Familienfest nach Hamburg.",
+		}},
+	}
+	for _, request := range requests {
+		parent, ok := byKey[request.parent]
+		if !ok {
+			return fmt.Errorf("marketing parent %s missing", request.parent)
+		}
+		auth, err := rt.Adapter.LoginParent(ctx, parent.Email, parent.Password)
+		if err != nil {
+			return fmt.Errorf("marketing parent request login %s: %w", parent.Key, err)
+		}
+		path := fmt.Sprintf("/parent/me/children/%d/%s", data.students[request.child].ID, request.kind)
+		if _, err := rt.Client.PostWithAuth(auth, path, request.body); err != nil {
+			return fmt.Errorf("file marketing %s for %s: %w", request.kind, request.child, err)
+		}
+	}
+	return nil
+}
+
+// seedMarketingMealPlan publishes lunch for every weekday of the current
+// week, the week the tenant meal plan and the parents portal open on.
+func seedMarketingMealPlan(rt *Runtime) error {
+	monday := seedDate{Time: mostRecentWeekday(todaySeedDate().Time, time.Monday)}
+	for offset, dishes := range marketingMeals {
+		day := monday.AddDays(offset).String()
+		if _, err := rt.Client.Put("/api/meal-plan/"+day, map[string]any{"dishes": dishes}); err != nil {
+			return fmt.Errorf("seed marketing meal plan %s: %w", day, err)
+		}
+	}
+	return nil
 }
 
 // seedMarketingSessions plans each supervision around the reference clock

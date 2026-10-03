@@ -362,16 +362,15 @@ export function TenantPage({
               >
                 {title}
               </h1>
-              {statusLine != null &&
-                (statsLoading ? (
-                  <div className="mt-1 text-sm leading-5 text-gray-600">
-                    {statusLine}
-                  </div>
-                ) : (
-                  <p className="mt-1 text-sm leading-5 text-gray-600">
-                    {statusLine}
-                  </p>
-                ))}
+              {/* Ein div, kein p: `stats` ist beliebiges ReactNode, und
+                  Seiten setzen Blockelemente hinein (das LocationBadge der
+                  Kinderseite rendert ein div). In einem p wäre das ungültiges
+                  HTML und ein Hydration-Fehler. */}
+              {statusLine != null && (
+                <div className="mt-1 text-sm leading-5 text-gray-600">
+                  {statusLine}
+                </div>
+              )}
             </div>
           </div>
           {actions && (
