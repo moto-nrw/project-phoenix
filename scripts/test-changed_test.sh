@@ -20,7 +20,10 @@ trap cleanup EXIT
 mkdir -p "$fixture"/{backend/probe,fake-bin,scripts}
 cp "$repo_root/scripts/test-changed.sh" "$fixture/scripts/test-changed.sh"
 cp "$repo_root/scripts/test-run-id.sh" "$fixture/scripts/test-run-id.sh"
-cp "$repo_root/scripts/total-memory-gb.sh" "$fixture/scripts/total-memory-gb.sh"
+cat >"$fixture/scripts/total-memory-gb.sh" <<'EOF'
+#!/usr/bin/env bash
+echo 64
+EOF
 cat >"$fixture/scripts/backend-affected-packages.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -43,7 +46,7 @@ case "$*" in
       echo 'go test did not receive the bootstrapped template' >&2
       exit 1
     fi
-    echo "test:$PHX_TEST_TEMPLATE" >>"$TEST_CHANGED_CALL_LOG"
+    echo "test:$PHX_TEST_TEMPLATE:$*" >>"$TEST_CHANGED_CALL_LOG"
     ;;
   *)
     echo "unexpected go command: $*" >&2
@@ -51,10 +54,25 @@ case "$*" in
     ;;
 esac
 EOF
+cat >"$fixture/fake-bin/getconf" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$1" = _NPROCESSORS_ONLN ]
+echo 32
+EOF
+cat >"$fixture/fake-bin/uname" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$1" = -s ]
+echo Darwin
+EOF
 chmod +x \
   "$fixture/scripts/test-changed.sh" \
   "$fixture/scripts/test-run-id.sh" \
+  "$fixture/scripts/total-memory-gb.sh" \
   "$fixture/scripts/backend-affected-packages.sh" \
+  "$fixture/fake-bin/getconf" \
+  "$fixture/fake-bin/uname" \
   "$fixture/fake-bin/go"
 
 printf 'package probe\n' >"$fixture/backend/probe/probe.go"
@@ -76,7 +94,7 @@ call_log="$fixture/calls.log"
     scripts/test-changed.sh origin/development
 )
 
-expected=$'bootstrap\ntest:phoenix_test_template_regression\nsweep'
+expected=$'bootstrap\ntest:phoenix_test_template_regression:test -p 2 -parallel 8 ./probe\nsweep'
 actual=$(cat "$call_log")
 if [ "$actual" != "$expected" ]; then
   printf 'expected calls:\n%s\nactual calls:\n%s\n' "$expected" "$actual" >&2
