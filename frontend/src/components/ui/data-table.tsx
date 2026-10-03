@@ -131,7 +131,11 @@ const headRowClass =
 // Monitor, 8 px auf einem kleinen oder flachen Bildschirm. Eine Liste ist die
 // haeufigste Seite des Portals, und die 8 px je Zeile summieren sich ueber
 // zwanzig Zeilen auf mehr als einen halben Bildschirm.
-const headCellClass = "px-5 py-3 max-sm:px-3 compact:px-4 compact:py-2";
+// font-medium on the cell itself: a <th> is bold by browser default, so a
+// column without a sort button rendered heavier than its sortable
+// neighbours, whose button carries the weight (#3834).
+const headCellClass =
+  "px-5 py-3 font-medium max-sm:px-3 compact:px-4 compact:py-2";
 const bodyRowClass = "border-b border-gray-50 last:border-0";
 const bodyCellClass =
   "px-5 py-3 align-middle max-sm:px-3 compact:px-4 compact:py-2";

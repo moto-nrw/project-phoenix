@@ -353,7 +353,9 @@ export function StudentInfoRow({
       )}
       <span
         className={`${variant === "card" ? "text-xs text-gray-500" : "text-sm text-gray-700"} font-medium ${
-          wrap
+          // A table cell wraps a long value ("Kommt heute nicht (kein Plan
+          // für heute)") instead of widening the whole table (#3834).
+          wrap || variant === "cell"
             ? "whitespace-normal"
             : "overflow-hidden text-ellipsis whitespace-nowrap"
         }`}

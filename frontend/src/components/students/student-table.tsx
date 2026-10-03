@@ -177,6 +177,8 @@ export function arrivalColumn<T extends Student>(
   return {
     key: "arrival",
     header: "Ankunft",
+    // Room for a time on one line, an absence reason on two.
+    className: "min-w-36 max-w-60",
     render: (student) => {
       if (!canSeeDay(student)) return EMPTY;
       const day = getDay(student);
