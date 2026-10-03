@@ -131,6 +131,11 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  // Nach einem erfolgreichen Datensatz-Update darf „Wiederholen“ nur den
+  // fehlgeschlagenen Rollenwechsel senden. Das Ref wird vor requestSubmit()
+  // gesetzt, damit der normale Submit-Handler den aktuellen Rollenentwurf
+  // nimmt, aber die bereits gespeicherten Felder auslässt.
+  const retryRoleOnlyRef = useRef(false);
   const errors = useApiFormError(formRef);
 
   const displayRole = teacher.account_role
@@ -164,11 +169,13 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
 
   const handleSave = async () => {
     if (!editing || !draft) return;
+    const retryRoleOnly = retryRoleOnlyRef.current;
+    retryRoleOnlyRef.current = false;
     const assignment = editing.roleAssignment;
     const selectedRoleId = draft.roleId;
 
     const payload: KontoDraft = {
-      ...(editing.canEditStaffFields
+      ...(!retryRoleOnly && editing.canEditStaffFields
         ? {
             staff_notes: draft.notes,
             ...(hasTeacherProfile(teacher)
@@ -176,7 +183,7 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
               : {}),
           }
         : {}),
-      ...(editing.canEditPersonFields
+      ...(!retryRoleOnly && editing.canEditPersonFields
         ? {
             first_name: draft.firstName.trim(),
             last_name: draft.lastName.trim(),
@@ -206,9 +213,13 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
       const roleOnly = err instanceof KontoRoleSaveError;
       await errors.show(roleOnly ? err.cause : err, {
         object: roleOnly ? "die Systemrolle" : "das Konto",
-        // Erneut absenden: derselbe Weg wie „Speichern“, mit dem Entwurf von
-        // jetzt, nicht dem vom Zeitpunkt des Fehlers.
-        retry: () => formRef.current?.requestSubmit(),
+        // Der Datensatz ist bei KontoRoleSaveError bereits gespeichert. Der
+        // aktuelle Rollenentwurf geht noch einmal raus, ohne Name, Position
+        // oder Notizen eines anderen Bearbeitungsstands zu überschreiben.
+        retry: () => {
+          retryRoleOnlyRef.current = roleOnly;
+          formRef.current?.requestSubmit();
+        },
       });
     } finally {
       setSaving(false);
@@ -482,6 +493,7 @@ function KontoEditForm({
               displayRole={displayRole}
               value={roleValue}
               disabled={saving}
+              error={fieldError("role_id")}
               onChange={(next) => onPatch({ roleId: next })}
             />
           ) : (
@@ -563,6 +575,7 @@ function RoleField({
   displayRole,
   value,
   disabled,
+  error,
   onChange,
 }: {
   readonly assignment: AccountRoleAssignment | undefined;
@@ -570,6 +583,7 @@ function RoleField({
   readonly displayRole: string;
   readonly value: string;
   readonly disabled: boolean;
+  readonly error: string | undefined;
   readonly onChange: (next: string) => void;
 }) {
   if (loadFailed) {
@@ -604,13 +618,15 @@ function RoleField({
       <label
         id="konto-role-label"
         htmlFor="konto-role"
-        className="mb-2 block text-sm font-medium text-gray-700"
+        className={`mb-2 block text-sm font-medium ${error ? "text-moto-red-strong" : "text-gray-700"}`}
       >
         Systemrolle
       </label>
       <CustomSelect
         id="konto-role"
+        name="role_id"
         ariaLabelledBy="konto-role-label"
+        ariaDescribedBy={error ? "konto-role-error" : undefined}
         value={value}
         onChange={onChange}
         options={(assignment?.options ?? []).map((option) => ({
@@ -618,8 +634,18 @@ function RoleField({
           label: option.name,
         }))}
         placeholder={assignment ? "Rolle auswählen…" : "Rollen werden geladen…"}
+        invalid={Boolean(error)}
         disabled={disabled || !assignment}
       />
+      {error ? (
+        <p
+          id="konto-role-error"
+          role="alert"
+          className="text-moto-red-strong mt-1 text-xs"
+        >
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

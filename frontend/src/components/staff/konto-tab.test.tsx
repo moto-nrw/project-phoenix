@@ -3,7 +3,12 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Teacher } from "~/lib/teacher-api";
 import { ApiError } from "~/lib/api-error";
-import { KontoRoleSaveError, KontoTab, type KontoEditing } from "./konto-tab";
+import {
+  KontoRoleSaveError,
+  KontoTab,
+  type KontoDraft,
+  type KontoEditing,
+} from "./konto-tab";
 
 vi.mock("~/lib/use-clipboard-copy", () => ({
   useClipboardCopy: () => ({ copied: false, copy: vi.fn() }),
@@ -19,6 +24,9 @@ vi.mock("~/components/ui/custom-select", () => ({
     onChange,
     disabled,
     ariaLabelledBy,
+    ariaDescribedBy,
+    name,
+    invalid,
   }: {
     id?: string;
     value: string;
@@ -26,10 +34,16 @@ vi.mock("~/components/ui/custom-select", () => ({
     onChange: (next: string) => void;
     disabled?: boolean;
     ariaLabelledBy?: string;
+    ariaDescribedBy?: string;
+    name?: string;
+    invalid?: boolean;
   }) => (
     <select
       id={id}
+      name={name}
       aria-labelledby={ariaLabelledBy}
+      aria-describedby={ariaDescribedBy}
+      aria-invalid={invalid || undefined}
       value={value}
       disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
@@ -276,6 +290,94 @@ describe("KontoTab", () => {
         "Für die Systemrolle fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("marks and focuses the system role when the server rejects it", async () => {
+    const editing = editingProps({
+      canEditRole: true,
+      roleAssignment: {
+        options: [
+          { id: "1", name: "Administration", systemName: "admin" },
+          { id: "2", name: "Betreuung", systemName: "user" },
+        ],
+        currentRoleIds: ["2"],
+        currentIsLehrkraft: false,
+      },
+      onSave: vi.fn(() =>
+        Promise.reject(
+          new KontoRoleSaveError(
+            new ApiError("role is invalid", 400, {
+              code: "general.input",
+              errors: [{ field: "role_id", reason: "is invalid" }],
+            }),
+          ),
+        ),
+      ),
+    });
+    render(<KontoTab teacher={teacher} editing={editing} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    const role = screen.getByLabelText("Systemrolle");
+    fireEvent.change(role, { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(role).toHaveFocus());
+    expect(role).toHaveAttribute("name", "role_id");
+    expect(role).toHaveAttribute("aria-invalid", "true");
+    expect(role).toHaveAttribute("aria-describedby", "konto-role-error");
+    expect(document.getElementById("konto-role-error")).toHaveTextContent(
+      "Bitte prüfen Sie dieses Feld.",
+    );
+  });
+
+  it("retries only the system role after the account fields were saved", async () => {
+    const onSave = vi
+      .fn<(draft: KontoDraft) => Promise<void>>()
+      .mockRejectedValueOnce(
+        new KontoRoleSaveError(
+          new ApiError("unavailable", 503, { code: "general.unavailable" }),
+        ),
+      )
+      .mockResolvedValueOnce(undefined);
+    const editing = editingProps({
+      canEditRole: true,
+      roleAssignment: {
+        options: [
+          { id: "1", name: "Administration", systemName: "admin" },
+          { id: "2", name: "Betreuung", systemName: "user" },
+        ],
+        currentRoleIds: ["2"],
+        currentIsLehrkraft: false,
+      },
+      onSave,
+    });
+    render(<KontoTab teacher={teacher} editing={editing} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    fireEvent.change(screen.getByLabelText("Vorname"), {
+      target: { value: "Milena" },
+    });
+    fireEvent.change(screen.getByLabelText("Systemrolle"), {
+      target: { value: "1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    const retry = await screen.findByRole("button", { name: "Wiederholen" });
+    fireEvent.change(screen.getByLabelText("Vorname"), {
+      target: { value: "Mia" },
+    });
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    expect(onSave).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        first_name: "Milena",
+        last_name: "Muster",
+        role_id: "1",
+      }),
+    );
+    expect(onSave).toHaveBeenLastCalledWith({ role_id: "1" });
   });
 
   it("sends the new system role only when it differs from the current one", async () => {
