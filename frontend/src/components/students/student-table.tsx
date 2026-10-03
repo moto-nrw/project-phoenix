@@ -9,7 +9,11 @@
 import type { ComponentProps, ReactNode } from "react";
 
 import { Avatar } from "~/components/ui/avatar";
-import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import {
+  DataTable,
+  type DataTableColumn,
+  type DataTableHeading,
+} from "~/components/ui/data-table";
 import Link from "~/components/ui/navigation-link";
 import {
   ArrivalTimeRow,
@@ -305,8 +309,8 @@ interface StudentTableProps<T extends Student> {
     readonly onChange: (ids: readonly string[], selected: boolean) => void;
     readonly disabled?: boolean;
   };
-  /** Heading above the table, e.g. a grouping label with its count. */
-  readonly caption?: string;
+  /** Title inside the table's surface, e.g. one group with its count. */
+  readonly heading?: DataTableHeading;
   /** Column shown under each name in the phone list; null for none. */
   readonly phoneDetail?: string | null;
 }
@@ -321,7 +325,7 @@ export function StudentTable<T extends Student>({
   hiddenColumns,
   onOpen,
   selection,
-  caption,
+  heading,
   phoneDetail = null,
 }: StudentTableProps<T>) {
   return (
@@ -331,7 +335,7 @@ export function StudentTable<T extends Student>({
       getRowKey={(student) => student.id.toString()}
       onRowClick={onOpen}
       hiddenColumns={hiddenColumns}
-      caption={caption}
+      heading={heading}
       // On a phone one line per child (#3834): name and status, plus the
       // one detail the user chose under the name ("In der Zeile zeigen").
       stackedOnMobile

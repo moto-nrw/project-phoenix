@@ -532,3 +532,20 @@ describe("DataTable one-line phone list (#3834)", () => {
     expect(list.queryByText("Nummer")).not.toBeInTheDocument();
   });
 });
+
+describe("DataTable heading (#3834)", () => {
+  it("puts title and count inside the table surface", () => {
+    render(
+      <DataTable
+        columns={columns}
+        rows={rows}
+        getRowKey={(row) => row.id}
+        heading={{ title: "Kreativraum", count: 2 }}
+      />,
+    );
+
+    const heading = screen.getByRole("heading", { name: "Kreativraum" });
+    expect(heading.closest(".moto-content-surface")).not.toBeNull();
+    expect(screen.getByText("2")).toBeInTheDocument();
+  });
+});

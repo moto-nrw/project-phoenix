@@ -57,6 +57,12 @@ export interface DataTableSelection<T> {
   readonly disabled?: boolean;
 }
 
+/** Title of a table inside its own surface, e.g. one group of a list. */
+export interface DataTableHeading {
+  readonly title: string;
+  readonly count?: number;
+}
+
 interface DataTableProps<T> {
   columns: DataTableColumn<T>[];
   rows: T[];
@@ -102,6 +108,7 @@ interface DataTableProps<T> {
   // so a column menu can offer the hidden ones again.
   hiddenColumns?: ReadonlySet<string>;
   selection?: DataTableSelection<T>;
+  heading?: DataTableHeading;
 }
 
 const alignClass: Record<
@@ -242,6 +249,26 @@ function RowStackedRow<T>({
 }
 
 /**
+ * Title row INSIDE the table surface (#3834): a grouped list puts each group's
+ * title on its own card, never free on the patterned page background
+ * (BAUARTEN-SPEC, Teil 3) — the same place SectionCard gives a tile group.
+ */
+function SurfaceHeading({ heading }: Readonly<{ heading: DataTableHeading }>) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-3 max-sm:px-4">
+      <h3 className="text-base font-semibold text-balance text-gray-900">
+        {heading.title}
+      </h3>
+      {heading.count === undefined ? null : (
+        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+          {heading.count}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
  * The phone layout of DataTable: the same sorted, paged rows rendered stacked
  * inside one surface. Enabled per call site via `stackedOnMobile`.
  */
@@ -261,6 +288,7 @@ function StackedRows<T>({
   layout,
   selection,
   detail,
+  heading,
 }: Readonly<{
   columns: DataTableColumn<T>[];
   rows: T[];
@@ -277,6 +305,7 @@ function StackedRows<T>({
   layout: "lines" | "row";
   selection?: DataTableSelection<T>;
   detail?: DataTableColumn<T>;
+  heading?: DataTableHeading;
 }>) {
   const title = columns.find((c) => c.stacked === "title") ?? columns[0];
   const meta = columns.find((c) => c.stacked === "meta");
@@ -319,6 +348,7 @@ function StackedRows<T>({
   return (
     <div className="space-y-3">
       <div className={surfaceClass}>
+        {heading ? <SurfaceHeading heading={heading} /> : null}
         <ul className="divide-y divide-gray-100">
           {rows.map((row) => (
             <li
@@ -460,6 +490,7 @@ export function DataTable<T>({
   stackedDetailKey,
   hiddenColumns,
   selection,
+  heading,
 }: Readonly<DataTableProps<T>>) {
   const clickable = Boolean(onRowClick);
   const shownColumns = useMemo(
@@ -587,6 +618,7 @@ export function DataTable<T>({
             layout={stackedLayout}
             selection={selection}
             detail={stackedDetail}
+            heading={heading}
           />
         </div>
       )}
@@ -603,6 +635,7 @@ export function DataTable<T>({
         }
         data-testid={stackedOnMobile ? "data-table-table" : undefined}
       >
+        {heading ? <SurfaceHeading heading={heading} /> : null}
         <div className="overflow-x-auto">
           <table className={tableClass}>
             <thead>

@@ -3284,7 +3284,10 @@ function SearchPageContent() {
                             {groupedStudents.map((group) => (
                               <div key={group.key} data-testid="student-group">
                                 <StudentTable
-                                  caption={`${group.label} (${group.items.length})`}
+                                  heading={{
+                                    title: group.label,
+                                    count: group.items.length,
+                                  }}
                                   rows={group.items}
                                   columns={tableColumns}
                                   hiddenColumns={collectionView.hiddenColumns}
