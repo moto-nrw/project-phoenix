@@ -42,7 +42,7 @@ import {
  * Arrival, pickup or absence of one visitor for the table view (#3834). Same
  * branches as the card below.
  */
-export function supervisionStudentDay(
+function supervisionStudentDay(
   student: ActiveSupervisionStudent,
   pickupTimesData: ReadonlyMap<string, BulkPickupTime> | undefined,
   arrivalTimesData: ReadonlyMap<string, BulkArrivalTime> | undefined,
@@ -145,7 +145,7 @@ export function buildSupervisionTableColumns({
 }
 
 /** Table mode of the visitor list; omit for the tiles. */
-export interface SupervisionStudentTable {
+interface SupervisionStudentTable {
   readonly columns: StudentTableColumn<ActiveSupervisionStudent>[];
   readonly hiddenColumns: ReadonlySet<string>;
   readonly phoneDetail: string | null;

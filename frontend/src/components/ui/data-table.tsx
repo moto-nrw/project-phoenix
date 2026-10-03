@@ -49,7 +49,7 @@ export interface DataTableColumn<T> {
  * only reports changes. Keys are `String(getRowKey(row))`. The "row"
  * stacked phone layout shows the row checkboxes too, without the header box.
  */
-export interface DataTableSelection<T> {
+interface DataTableSelection<T> {
   readonly selectedKeys: ReadonlySet<string>;
   /** One row or the whole table switched to `selected`. */
   readonly onChange: (keys: readonly string[], selected: boolean) => void;

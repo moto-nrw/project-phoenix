@@ -50,7 +50,7 @@ export interface StudentTableDay {
   readonly pickup: PickupRowProps;
 }
 
-export function studentFullName(student: Student): string {
+function studentFullName(student: Student): string {
   return (
     `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
     student.name
