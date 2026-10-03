@@ -39,18 +39,24 @@ if [ "${#affected[@]}" -gt 0 ]; then
     echo "getconf returned an invalid CPU count: $cpu_count" >&2
     exit 1
   fi
-  # Half the machine (at most eight package binaries) keeps the changed-test
-  # loop usable on weak hardware. Each DB-backed binary opens 13 connections
-  # at -parallel 8 (backend/test/db_clone.go), so 8 x 13 = 104 stays well
-  # under the local postgres-test max_connections=300. -parallel is pinned:
+  # Half the machine (at most four package binaries) keeps the changed-test
+  # loop usable on weak hardware. Four also matches changed-only CI and the
+  # explicit-clone I/O budget in backend/test/database_scope.go. Docker
+  # Desktop's virtual disk needs a lower limit: concurrent package clones can
+  # otherwise starve ordinary fixture queries even though connection capacity
+  # is still available. -parallel is pinned:
   # -test.parallel is part of the Go test cache key, and a CPU-derived value
   # would split the cache universe per machine. No GOMAXPROCS override for
   # the same reason as in test-backend.sh: -p bounds the load.
+  max_package_workers=4
+  if [ "$(uname -s)" = Darwin ]; then
+    max_package_workers=2
+  fi
   package_workers=$((cpu_count / 2))
   if [ "$package_workers" -lt 1 ]; then
     package_workers=1
-  elif [ "$package_workers" -gt 8 ]; then
-    package_workers=8
+  elif [ "$package_workers" -gt "$max_package_workers" ]; then
+    package_workers=$max_package_workers
   fi
   # Each concurrent package binary links against the whole module and peaks
   # around 1.3 GB RSS, so RAM binds before CPU on 16 GB laptops: one worker
