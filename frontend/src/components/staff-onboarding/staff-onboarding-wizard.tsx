@@ -31,6 +31,7 @@ import {
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
+  useTenantSlugSafe,
 } from "~/lib/tenant-context";
 import {
   firstOpenStaffStep,
@@ -55,8 +56,8 @@ const TARGET_MISSING =
 type View = "beacon" | "checklist";
 
 /** Einmal pro Anmeldung öffnet sich die Checkliste von selbst. */
-function claimFirstOpen(accountID: string): boolean {
-  const key = `staff-onboarding-opened:${accountID}`;
+function claimFirstOpen(tenantSlug: string, accountID: string): boolean {
+  const key = `staff-onboarding-opened:${tenantSlug}:${accountID}`;
   try {
     if (sessionStorage.getItem(key)) return false;
     sessionStorage.setItem(key, "1");
@@ -97,6 +98,7 @@ function StaffOnboardingForPerson() {
   const presenceMode = usePresenceMode();
   const openCareGroupMode = useOpenCareGroupMode();
   const webAttendance = useAttendanceWebEnabled();
+  const tenantSlug = useTenantSlugSafe();
   const { groups } = useOptionalSupervision();
 
   const hasOwnGroup =
@@ -156,10 +158,15 @@ function StaffOnboardingForPerson() {
 
   // Beim ersten Aufruf der Sitzung geht die Checkliste von selbst auf.
   useEffect(() => {
-    if (visible && accountID && claimFirstOpen(accountID)) {
+    if (
+      visible &&
+      tenantSlug &&
+      accountID &&
+      claimFirstOpen(tenantSlug, accountID)
+    ) {
       setView("checklist");
     }
-  }, [visible, accountID]);
+  }, [visible, tenantSlug, accountID]);
 
   // Aufgeklappt ist der nächste offene Schritt, solange die Person nicht
   // selbst einen anderen gewählt hat.

@@ -14,6 +14,7 @@ let groups: { id: string; is_personal?: boolean }[] = [{ id: "1" }];
 let presenceMode: "detailed" | "binary" = "detailed";
 let openCare = false;
 let webAttendance = true;
+let tenantSlug = "school-one";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname,
@@ -41,6 +42,7 @@ vi.mock("~/lib/tenant-context", () => ({
   usePresenceMode: () => presenceMode,
   useOpenCareGroupMode: () => openCare,
   useAttendanceWebEnabled: () => webAttendance,
+  useTenantSlugSafe: () => tenantSlug,
 }));
 
 vi.mock("~/lib/supervision-context", () => ({
@@ -118,9 +120,10 @@ describe("StaffOnboardingWizard", () => {
     presenceMode = "detailed";
     openCare = false;
     webAttendance = true;
+    tenantSlug = "school-one";
   });
 
-  it("opens the checklist once per sign-in with every step for a full school", () => {
+  it("opens the checklist once per school and sign-in with every step", () => {
     const { unmount } = render(<StaffOnboardingWizard />);
 
     expect(stepTitles()).toEqual([
@@ -134,10 +137,15 @@ describe("StaffOnboardingWizard", () => {
     expect(screen.getByText("0 von 6 erledigt")).toBeInTheDocument();
     unmount();
 
-    render(<StaffOnboardingWizard />);
+    const sameSchool = render(<StaffOnboardingWizard />);
     expect(
       screen.getByRole("button", { name: "Erste Schritte öffnen, 6 offen" }),
     ).toBeInTheDocument();
+    sameSchool.unmount();
+
+    tenantSlug = "school-two";
+    render(<StaffOnboardingWizard />);
+    expect(screen.getByText("0 von 6 erledigt")).toBeInTheDocument();
   });
 
   it("leaves out steps the school or the person does not have", () => {
