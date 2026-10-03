@@ -275,7 +275,7 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 		StudentDeletion:        studentDeletion,
 		CompanionService:       testutil.NewStudentRouteCompanions(repoFactory, svc.PeopleDirectory, svc.StudentAudit),
 		SchoolGroups:           schoolGroups,
-		UserContextService:     svc.UserContext,
+		UserContextService:     tenantScopedCaller{svc.UserContext},
 		ActiveService:          svc.Active,
 		DeviceAuthenticator:    testutil.NewDeviceAuthenticators(svc.IoT.Fleet(), testutil.DeviceSchools(t, db), svc.Settings, testDevicePIN).Device(),
 		AuthenticatedDevice:    testutil.AuthenticatedDeviceID,
@@ -335,6 +335,19 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 		clock:                firstClock(clocks),
 		newPickupAdjustments: svc.NewPickupAdjustments,
 	}
+}
+
+// tenantScopedCaller answers the staff lookup only inside a tenant
+// transaction, as the server's phoenix_auth role does: outside one RLS hides
+// the caller's person row. The suite's superuser pool would answer anyway and
+// hide a route that checks the caller without its transaction (#3830).
+type tenantScopedCaller struct{ studentsAPI.CallerContext }
+
+func (c tenantScopedCaller) HasCurrentStaff(ctx context.Context) (bool, error) {
+	if _, ok := testpkg.TransactionFromContext(ctx); !ok {
+		return false, errors.New("staff lookup outside a tenant transaction")
+	}
+	return c.CallerContext.HasCurrentStaff(ctx)
 }
 
 // previewStudentDeletion reads the delete-impact preview the confirmed
