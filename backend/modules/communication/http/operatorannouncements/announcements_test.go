@@ -640,7 +640,7 @@ func TestCreateAnnouncement_InvalidDataError(t *testing.T) {
 
 	var response map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
-	assert.Contains(t, response["message"], "severity must be one of")
+	assert.Contains(t, response["error"], "severity must be one of")
 }
 
 func TestUpdateAnnouncement_InvalidDataError(t *testing.T) {
@@ -669,7 +669,7 @@ func TestUpdateAnnouncement_InvalidDataError(t *testing.T) {
 
 	var response map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
-	assert.Contains(t, response["message"], "title exceeds maximum length")
+	assert.Contains(t, response["error"], "title exceeds maximum length")
 }
 
 // --- Update: clear/set expires_at, set active flag ---

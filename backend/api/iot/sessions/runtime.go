@@ -14,7 +14,10 @@ type Runtime struct {
 	Authenticated func(context.Context) bool
 	Success       func(http.ResponseWriter, *http.Request, int, any, string)
 	Failure       func(http.ResponseWriter, *http.Request, int, error, string)
-	MarkRollback  func(context.Context)
+	// Conflict answers a session conflict with 409 in the shared error
+	// envelope, the conflict as details.
+	Conflict     func(http.ResponseWriter, *http.Request, string, devicescan.ConflictInfoResponse)
+	MarkRollback func(context.Context)
 }
 
 func (rs *Resource) requireDevice(w http.ResponseWriter, r *http.Request) bool {

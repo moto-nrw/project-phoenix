@@ -59,10 +59,7 @@ export function EmailConfirmContent() {
         body: JSON.stringify({ token }),
       });
 
-      const data = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
+      const data = (await response.json()) as { error?: string };
 
       if (response.ok) {
         setState("success");
@@ -82,15 +79,12 @@ export function EmailConfirmContent() {
       if (response.status >= 500) {
         setErrorMessage(
           data.error ??
-            data.message ??
             "Ein Serverfehler ist aufgetreten. Bitte versuche es später erneut.",
         );
         setRetryable(true);
       } else {
         setErrorMessage(
-          data.error ??
-            data.message ??
-            "Dieser Link ist abgelaufen oder ungültig.",
+          data.error ?? "Dieser Link ist abgelaufen oder ungültig.",
         );
         setRetryable(false);
       }

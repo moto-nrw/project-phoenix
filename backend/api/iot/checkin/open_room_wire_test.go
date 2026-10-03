@@ -122,8 +122,8 @@ func TestOpenRoomWire_ClassifiedRefusals(t *testing.T) {
 		{"child not checked in", &devicescan.Failure{Kind: devicescan.FailureConflict, Message: devicescan.MessageStudentNotPresent, Code: devicescan.CodeStudentNotPresent}, 409, `{"status":"error","error":"student is not checked in","code":"iot.student_not_present"}`},
 		{"binary mode", &devicescan.Failure{Kind: devicescan.FailureConflict, Message: devicescan.MessageOpenRoomBinaryMode, Code: devicescan.CodeOpenRoomBinaryMode}, 409, `{"status":"error","error":"open rooms need detailed presence mode","code":"iot.open_room_binary_mode"}`},
 		{"unknown card", devicescan.NotFoundWithCode(devicescan.MessageRFIDTagNotFound, devicescan.CodeRFIDTagNotFound), 404, `{"status":"error","error":"RFID tag not found","code":"iot.rfid_tag_not_found"}`},
-		{"full room", &devicescan.RoomCapacityExceededError{RoomID: 77, RoomName: "Turnhalle", CurrentOccupancy: 20, MaxCapacity: 20}, 409, `{"status":"error","message":"Room capacity exceeded","code":"iot.room_capacity_exceeded"}`},
-		{"active elsewhere", &devicescan.StudentAlreadyActiveError{StudentID: 5}, 409, `{"status":"error","message":"student already has an active visit","code":"iot.student_already_active","details":{"student_id":5}}`},
+		{"full room", &devicescan.RoomCapacityExceededError{RoomID: 77, RoomName: "Turnhalle", CurrentOccupancy: 20, MaxCapacity: 20}, 409, `{"status":"error","error":"Room capacity exceeded","code":"iot.room_capacity_exceeded"}`},
+		{"active elsewhere", &devicescan.StudentAlreadyActiveError{StudentID: 5}, 409, `{"status":"error","error":"student already has an active visit","code":"iot.student_already_active","details":{"student_id":5}}`},
 		{"server fault", devicescan.Internal(devicescan.MessageCreateVisitFailed, nil), 500, `{"status":"error","error":"failed to create visit record"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

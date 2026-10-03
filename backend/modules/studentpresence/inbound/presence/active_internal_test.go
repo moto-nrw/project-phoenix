@@ -50,24 +50,20 @@ func TestErrorRenderer_AllNotFoundErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
-		err          error
-		expectedText string
+		name string
+		err  error
 	}{
 		{
-			name:         "ErrGroupSupervisorNotFound",
-			err:          operationError("test", studentpresence.ErrGroupSupervisorNotFound),
-			expectedText: "Group Supervisor Not Found",
+			name: "ErrGroupSupervisorNotFound",
+			err:  operationError("test", studentpresence.ErrGroupSupervisorNotFound),
 		},
 		{
-			name:         "ErrCombinedGroupNotFound",
-			err:          operationError("test", studentpresence.ErrCombinedGroupNotFound),
-			expectedText: "Combined Group Not Found",
+			name: "ErrCombinedGroupNotFound",
+			err:  operationError("test", studentpresence.ErrCombinedGroupNotFound),
 		},
 		{
-			name:         "ErrGroupMappingNotFound",
-			err:          operationError("test", studentpresence.ErrGroupMappingNotFound),
-			expectedText: "Group Mapping Not Found",
+			name: "ErrGroupMappingNotFound",
+			err:  operationError("test", studentpresence.ErrGroupMappingNotFound),
 		},
 	}
 
@@ -77,7 +73,9 @@ func TestErrorRenderer_AllNotFoundErrors(t *testing.T) {
 			errResp, ok := renderer.(*common.ErrResponse)
 			require.True(t, ok)
 			assert.Equal(t, testutil.StatusNotFound, errResp.HTTPStatusCode)
-			assert.Equal(t, tt.expectedText, errResp.Status)
+			assert.Equal(t, "error", errResp.Status)
+			assert.ErrorIs(t, errResp.Err, tt.err)
+			assert.Equal(t, tt.err.Error(), errResp.ErrorText)
 		})
 	}
 }
@@ -86,58 +84,48 @@ func TestErrorRenderer_AllBadRequestErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
-		err          error
-		expectedText string
+		name string
+		err  error
 	}{
 		{
-			name:         "ErrActiveGroupAlreadyEnded",
-			err:          operationError("test", studentpresence.ErrGroupAlreadyEnded),
-			expectedText: "Active Group Already Ended",
+			name: "ErrActiveGroupAlreadyEnded",
+			err:  operationError("test", studentpresence.ErrGroupAlreadyEnded),
 		},
 		{
-			name:         "ErrVisitAlreadyEnded",
-			err:          operationError("test", studentpresence.ErrVisitAlreadyEnded),
-			expectedText: "Visit Already Ended",
+			name: "ErrVisitAlreadyEnded",
+			err:  operationError("test", studentpresence.ErrVisitAlreadyEnded),
 		},
 		{
-			name:         "ErrSupervisionAlreadyEnded",
-			err:          operationError("test", studentpresence.ErrSupervisionAlreadyEnded),
-			expectedText: "Supervision Already Ended",
+			name: "ErrSupervisionAlreadyEnded",
+			err:  operationError("test", studentpresence.ErrSupervisionAlreadyEnded),
 		},
 		{
-			name:         "ErrCombinedGroupAlreadyEnded",
-			err:          operationError("test", studentpresence.ErrCombinedGroupAlreadyEnded),
-			expectedText: "Combined Group Already Ended",
+			name: "ErrCombinedGroupAlreadyEnded",
+			err:  operationError("test", studentpresence.ErrCombinedGroupAlreadyEnded),
 		},
 		{
-			name:         "ErrGroupAlreadyInCombination",
-			err:          operationError("test", studentpresence.ErrGroupAlreadyInCombination),
-			expectedText: "Group Already In Combination",
+			name: "ErrGroupAlreadyInCombination",
+			err:  operationError("test", studentpresence.ErrGroupAlreadyInCombination),
 		},
 		{
-			name:         "ErrStudentAlreadyInGroup",
-			err:          operationError("test", studentpresence.ErrStudentAlreadyInGroup),
-			expectedText: "Student Already In Group",
+			name: "ErrStudentAlreadyInGroup",
+			err:  operationError("test", studentpresence.ErrStudentAlreadyInGroup),
 		},
 		// ErrStudentAlreadyActive intentionally absent — it maps to
 		// 409 Conflict (see TestErrorRenderer_StudentAlreadyActive in
 		// handlers_unit_test.go and TestErrorRenderer_StudentAlreadyActiveConflict
 		// in errors_test.go) per the Issue #844 review fix.
 		{
-			name:         "ErrStaffAlreadySupervising",
-			err:          operationError("test", studentpresence.ErrStaffAlreadySupervising),
-			expectedText: "Staff Already Supervising This Group",
+			name: "ErrStaffAlreadySupervising",
+			err:  operationError("test", studentpresence.ErrStaffAlreadySupervising),
 		},
 		{
-			name:         "ErrCannotDeleteActiveGroup",
-			err:          operationError("test", studentpresence.ErrCannotDeleteActiveGroup),
-			expectedText: "Cannot Delete Active Group With Active Visits",
+			name: "ErrCannotDeleteActiveGroup",
+			err:  operationError("test", studentpresence.ErrCannotDeleteActiveGroup),
 		},
 		{
-			name:         "ErrInvalidTimeRange",
-			err:          operationError("test", studentpresence.ErrInvalidTimeRange),
-			expectedText: "Invalid Time Range",
+			name: "ErrInvalidTimeRange",
+			err:  operationError("test", studentpresence.ErrInvalidTimeRange),
 		},
 	}
 
@@ -147,73 +135,11 @@ func TestErrorRenderer_AllBadRequestErrors(t *testing.T) {
 			errResp, ok := renderer.(*common.ErrResponse)
 			require.True(t, ok)
 			assert.Equal(t, testutil.StatusBadRequest, errResp.HTTPStatusCode)
-			assert.Equal(t, tt.expectedText, errResp.Status)
+			assert.Equal(t, "error", errResp.Status)
+			assert.ErrorIs(t, errResp.Err, tt.err)
+			assert.Equal(t, tt.err.Error(), errResp.ErrorText)
 		})
 	}
-}
-
-// =============================================================================
-// Error Helper Functions Tests
-// =============================================================================
-
-func TestErrorInvalidRequest(t *testing.T) {
-	t.Parallel()
-
-	testErr := assert.AnError
-	renderer := ErrorInvalidRequest(testErr)
-
-	errResp, ok := renderer.(*common.ErrResponse)
-	require.True(t, ok)
-
-	assert.Equal(t, testutil.StatusBadRequest, errResp.HTTPStatusCode)
-	assert.Equal(t, "Invalid Request", errResp.Status)
-	assert.Equal(t, testErr.Error(), errResp.ErrorText)
-	assert.Equal(t, testErr, errResp.Err)
-}
-
-func TestErrorInternalServer(t *testing.T) {
-	t.Parallel()
-
-	testErr := assert.AnError
-	renderer := ErrorInternalServer(testErr)
-
-	errResp, ok := renderer.(*common.ErrResponse)
-	require.True(t, ok)
-
-	assert.Equal(t, testutil.StatusInternalServerError, errResp.HTTPStatusCode)
-	assert.Equal(t, "Internal Server Error", errResp.Status)
-	assert.Equal(t, testErr.Error(), errResp.ErrorText)
-	assert.Equal(t, testErr, errResp.Err)
-}
-
-func TestErrorForbidden(t *testing.T) {
-	t.Parallel()
-
-	testErr := assert.AnError
-	renderer := ErrorForbidden(testErr)
-
-	errResp, ok := renderer.(*common.ErrResponse)
-	require.True(t, ok)
-
-	assert.Equal(t, testutil.StatusForbidden, errResp.HTTPStatusCode)
-	assert.Equal(t, "Forbidden", errResp.Status)
-	assert.Equal(t, testErr.Error(), errResp.ErrorText)
-	assert.Equal(t, testErr, errResp.Err)
-}
-
-func TestErrorUnauthorized(t *testing.T) {
-	t.Parallel()
-
-	testErr := assert.AnError
-	renderer := ErrorUnauthorized(testErr)
-
-	errResp, ok := renderer.(*common.ErrResponse)
-	require.True(t, ok)
-
-	assert.Equal(t, testutil.StatusUnauthorized, errResp.HTTPStatusCode)
-	assert.Equal(t, "Unauthorized", errResp.Status)
-	assert.Equal(t, testErr.Error(), errResp.ErrorText)
-	assert.Equal(t, testErr, errResp.Err)
 }
 
 // NOTE: parseStudentIDFromRequest tests are in checkout_test.go

@@ -84,9 +84,12 @@ describe("/api/operator/accounts/[accountId]/tenants", () => {
     );
   });
 
-  it("forwards the grant body and preserves the backend status and message", async () => {
+  it("forwards the grant body and preserves the backend status and error", async () => {
     mockFetch.mockResolvedValue(
-      jsonResponse({ message: "account already has access" }, 409),
+      jsonResponse(
+        { status: "error", error: "account already has access" },
+        409,
+      ),
     );
 
     const request = new NextRequest(
@@ -101,7 +104,8 @@ describe("/api/operator/accounts/[accountId]/tenants", () => {
 
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({
-      message: "account already has access",
+      status: "error",
+      error: "account already has access",
     });
     expect(mockFetch).toHaveBeenCalledWith(
       "http://server:8080/operator/accounts/42/tenants",

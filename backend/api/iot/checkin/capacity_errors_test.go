@@ -73,7 +73,7 @@ func TestErrorRoomCapacityExceeded(t *testing.T) {
 	resp, ok := renderer.(*checkin.CapacityErrorResponse)
 	assert.True(t, ok)
 	assert.Equal(t, "error", resp.Status)
-	assert.Equal(t, "Room capacity exceeded", resp.Message)
+	assert.Equal(t, "Room capacity exceeded", resp.Error)
 	assert.Equal(t, "iot.room_capacity_exceeded", resp.Code)
 	assert.NotNil(t, resp.Details)
 	assert.Equal(t, int64(42), resp.Details.RoomID)
@@ -90,7 +90,7 @@ func TestErrorActivityCapacityExceeded(t *testing.T) {
 	resp, ok := renderer.(*checkin.ActivityCapacityErrorResponse)
 	assert.True(t, ok)
 	assert.Equal(t, "error", resp.Status)
-	assert.Equal(t, "Activity capacity exceeded", resp.Message)
+	assert.Equal(t, "Activity capacity exceeded", resp.Error)
 	assert.Equal(t, "iot.activity_capacity_exceeded", resp.Code)
 	assert.NotNil(t, resp.Details)
 	assert.Equal(t, int64(77), resp.Details.ActivityID)
@@ -104,9 +104,9 @@ func TestCapacityErrorResponse_Render(t *testing.T) {
 	t.Parallel()
 
 	resp := &checkin.CapacityErrorResponse{
-		Status:  "error",
-		Message: "Room capacity exceeded",
-		Code:    "iot.room_capacity_exceeded",
+		Status: "error",
+		Error:  "Room capacity exceeded",
+		Code:   "iot.room_capacity_exceeded",
 		Details: &checkin.RoomCapacityExceededError{
 			RoomID:           1,
 			RoomName:         "Test Room",
@@ -127,9 +127,9 @@ func TestActivityCapacityErrorResponse_Render(t *testing.T) {
 	t.Parallel()
 
 	resp := &checkin.ActivityCapacityErrorResponse{
-		Status:  "error",
-		Message: "Activity capacity exceeded",
-		Code:    "iot.activity_capacity_exceeded",
+		Status: "error",
+		Error:  "Activity capacity exceeded",
+		Code:   "iot.activity_capacity_exceeded",
 		Details: &checkin.ActivityCapacityExceededError{
 			ActivityID:       1,
 			ActivityName:     "Test Activity",
