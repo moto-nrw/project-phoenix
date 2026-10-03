@@ -18,7 +18,10 @@ import { CollectionGrid } from "~/components/ui/collection-grid";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -75,7 +78,7 @@ import {
 import { StudentSelectionScope } from "~/components/students/student-selection-scope";
 import {
   CollectionViewSwitch,
-  DataTableColumnMenu,
+  columnMenuEntries,
 } from "~/components/ui/collection-view-switch";
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
@@ -1014,6 +1017,19 @@ function OGSGroupPageContent() {
       })
     : [];
 
+  // Die Spaltenwahl der Liste (#3834) steht im ⋮-Menü, nicht als eigener
+  // Knopf neben dem Umschalter.
+  const headMenuItems: OverflowMenuEntry[] = [
+    ...overflowItems,
+    ...(showTable
+      ? columnMenuEntries(
+          tableColumns,
+          collectionView.hiddenColumns,
+          collectionView.setColumnVisible,
+        )
+      : []),
+  ];
+
   // Render helper for student grid content
   const renderStudentContent = () => {
     if (showSkeleton) {
@@ -1245,13 +1261,6 @@ function OGSGroupPageContent() {
                 onChange={changeView}
               />
             </div>
-            {showTable ? (
-              <DataTableColumnMenu
-                columns={tableColumns}
-                hiddenColumns={collectionView.hiddenColumns}
-                onChange={collectionView.setColumnVisible}
-              />
-            ) : null}
             {isBinaryMode && !showTable ? (
               <div className="hidden lg:block">
                 <SchoolCheckinFab
@@ -1271,9 +1280,9 @@ function OGSGroupPageContent() {
                 </span>
               </div>
             ) : null}
-            {overflowItems.length > 0 ? (
+            {headMenuItems.length > 0 ? (
               <OverflowMenu
-                items={overflowItems}
+                items={headMenuItems}
                 ariaLabel="Weitere Aktionen"
               />
             ) : null}

@@ -1,9 +1,9 @@
 "use client";
 
-import { Columns3, LayoutGrid, List } from "lucide-react";
+import { LayoutGrid, List } from "lucide-react";
 
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
 import type { CollectionView } from "~/lib/hooks/use-collection-view";
 
 const VIEW_ITEMS = [
@@ -54,47 +54,35 @@ export interface ColumnMenuColumn {
 }
 
 /**
- * The "Spalten" menu of a table: one switch per column the user may hide
- * (#3834). Stays open while switching so several columns change in one go.
+ * The column switches of a list view (#3834), as entries for the page's
+ * existing ⋮ menu: a heading, then one checkbox per column the user may hide.
+ * They live in that menu rather than in a button of their own, so the head
+ * keeps one place for "more" (a separate "Spalten" button read as a filter).
+ * The menu stays open while switching, so several columns change in one go.
  */
-export function DataTableColumnMenu({
-  columns,
-  hiddenColumns,
-  onChange,
-}: Readonly<{
-  columns: readonly ColumnMenuColumn[];
-  hiddenColumns: ReadonlySet<string>;
-  onChange: (key: string, visible: boolean) => void;
-}>) {
+export function columnMenuEntries(
+  columns: readonly ColumnMenuColumn[],
+  hiddenColumns: ReadonlySet<string>,
+  onChange: (key: string, visible: boolean) => void,
+): OverflowMenuEntry[] {
   const hideable = columns.filter((column) => column.hideable !== false);
-  if (hideable.length === 0) return null;
+  if (hideable.length === 0) return [];
   const shownCount = hideable.filter(
     (column) => !hiddenColumns.has(column.key),
   ).length;
-  return (
-    <OverflowMenu
-      ariaLabel="Spalten auswählen"
-      triggerContent={
-        <span className="flex items-center gap-1.5 px-2 text-sm font-medium text-gray-700">
-          <Columns3 className="h-4 w-4" aria-hidden />
-          Spalten
-        </span>
-      }
-      items={[
-        { kind: "header", label: "Spalten zeigen" },
-        ...hideable.map((column) => {
-          const visible = !hiddenColumns.has(column.key);
-          return {
-            kind: "checkbox" as const,
-            label: column.header,
-            checked: visible,
-            keepOpen: true,
-            // The last shown column stays: an empty table helps nobody.
-            disabled: visible && shownCount === 1,
-            onClick: () => onChange(column.key, !visible),
-          };
-        }),
-      ]}
-    />
-  );
+  return [
+    { kind: "header", label: "Spalten in der Liste" },
+    ...hideable.map((column) => {
+      const visible = !hiddenColumns.has(column.key);
+      return {
+        kind: "checkbox" as const,
+        label: column.header,
+        checked: visible,
+        keepOpen: true,
+        // The last shown column stays: an empty list helps nobody.
+        disabled: visible && shownCount === 1,
+        onClick: () => onChange(column.key, !visible),
+      };
+    }),
+  ];
 }

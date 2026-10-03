@@ -445,7 +445,7 @@ function studentSearchTopic(
           "Die Liste zeigt dieselben Angaben wie die Karten, ein Kind pro Zeile.",
         steps: [
           "Wählen Sie oben rechts das Listensymbol (drei Striche). Mit dem Kachelsymbol (vier Kästchen) kommen die Karten zurück.",
-          "Wählen Sie `Spalten`, um Spalten ein- oder auszublenden.",
+          "Spalten ein- oder ausblenden? Öffnen Sie oben rechts das Menü mit den drei Punkten. Wählen Sie unter `Spalten in der Liste` die Spalten.",
           "Kreuzen Sie links in der Zeile Kinder an. Oben erscheint eine Leiste mit `Exportieren`, `Anmelden` und `Abmelden`.",
           "Wählen Sie `Aufheben`, um alle Kreuze zu entfernen.",
         ],

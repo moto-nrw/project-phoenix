@@ -17,6 +17,7 @@ import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -68,7 +69,7 @@ import {
 } from "~/components/students/student-selection-scope";
 import {
   CollectionViewSwitch,
-  DataTableColumnMenu,
+  columnMenuEntries,
 } from "~/components/ui/collection-view-switch";
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
@@ -646,13 +647,6 @@ function MeinRaumPageContent() {
                 />
               </div>
             ) : null}
-            {showTable ? (
-              <DataTableColumnMenu
-                columns={tableColumns}
-                hiddenColumns={collectionView.hiddenColumns}
-                onChange={collectionView.setColumnVisible}
-              />
-            ) : null}
             {/* Die Abzeichen sind eine Zeile: das Gerüst gibt unter sm jedem
                 Kopf-Element eine eigene volle Zeile, zwei gestreckte Pillen
                 untereinander läsen sich wie zwei Knöpfe. */}
@@ -665,6 +659,18 @@ function MeinRaumPageContent() {
             {addSupervisorButton}
             {superviseAction}
             {releaseAction}
+            {/* Die Spaltenwahl der Liste (#3834) im ⋮-Menü, nicht als
+                eigener Knopf neben dem Umschalter. */}
+            {showTable ? (
+              <OverflowMenu
+                items={columnMenuEntries(
+                  tableColumns,
+                  collectionView.hiddenColumns,
+                  collectionView.setColumnVisible,
+                )}
+                ariaLabel="Weitere Aktionen"
+              />
+            ) : null}
           </>
         ) : undefined
       }

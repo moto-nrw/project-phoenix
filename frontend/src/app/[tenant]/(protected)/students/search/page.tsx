@@ -89,7 +89,7 @@ import {
 import { StudentSelectionScope } from "~/components/students/student-selection-scope";
 import {
   CollectionViewSwitch,
-  DataTableColumnMenu,
+  columnMenuEntries,
 } from "~/components/ui/collection-view-switch";
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
@@ -2985,13 +2985,6 @@ function SearchPageContent() {
                 onChange={changeView}
               />
             </div>
-            {showTable ? (
-              <DataTableColumnMenu
-                columns={tableColumns}
-                hiddenColumns={collectionView.hiddenColumns}
-                onChange={collectionView.setColumnVisible}
-              />
-            ) : null}
             <OverflowMenu
               items={[
                 {
@@ -3008,6 +3001,15 @@ function SearchPageContent() {
                   onClick: () => setIsExportOpen(true),
                   badge: filteredStudents.length,
                 },
+                // Die Spaltenwahl der Liste (#3834) steht hier und nicht
+                // als eigener Knopf neben dem Umschalter.
+                ...(showTable
+                  ? columnMenuEntries(
+                      tableColumns,
+                      collectionView.hiddenColumns,
+                      collectionView.setColumnVisible,
+                    )
+                  : []),
               ]}
               ariaLabel="Weitere Aktionen"
             />
