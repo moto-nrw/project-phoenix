@@ -39,7 +39,7 @@ func TestRequireWebAttendanceEnabled(t *testing.T) {
 				return false, nil
 			}},
 			wantStatus: http.StatusForbidden,
-			wantBody:   ErrCodeAttendanceWebDisabled,
+			wantBody:   CodeAttendanceWebDisabled,
 		},
 		{
 			name: "enabled reaches handler",

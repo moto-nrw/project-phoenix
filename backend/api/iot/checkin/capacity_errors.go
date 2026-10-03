@@ -5,7 +5,7 @@ package checkin
 // checkin is the only flow that emits them.
 //
 // WIRE CONTRACT (PyrePortal): the Code values, Message strings, and details
-// field names below are substring-matched by the kiosk
+// field names below are matched by the kiosk
 // (PyrePortal/src/services/apiErrors.ts) and pinned byte-for-byte by
 // wire_format_test.go. Since issue #1879 PyrePortal reads the activity
 // details via current_occupancy/max_capacity (same keys as the room error).
@@ -24,6 +24,14 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+)
+
+// Registered error codes (error-registry.json) of the check-in conflicts.
+// This package may not import api/common, so it names them once here.
+const (
+	codeRoomCapacityExceeded     = "iot.room_capacity_exceeded"
+	codeActivityCapacityExceeded = "iot.activity_capacity_exceeded"
+	codeStudentAlreadyActive     = "iot.student_already_active"
 )
 
 // Common error variables
@@ -64,7 +72,7 @@ func ErrorRoomCapacityExceeded(roomID int64, roomName string, currentOccupancy, 
 	return &CapacityErrorResponse{
 		Status:  "error",
 		Message: "Room capacity exceeded",
-		Code:    "ROOM_CAPACITY_EXCEEDED",
+		Code:    codeRoomCapacityExceeded,
 		Details: &RoomCapacityExceededError{
 			RoomID:           roomID,
 			RoomName:         roomName,
@@ -106,7 +114,7 @@ func ErrorActivityCapacityExceeded(activityID int64, activityName string, curren
 	return &ActivityCapacityErrorResponse{
 		Status:  "error",
 		Message: "Activity capacity exceeded",
-		Code:    "ACTIVITY_CAPACITY_EXCEEDED",
+		Code:    codeActivityCapacityExceeded,
 		Details: &ActivityCapacityExceededError{
 			ActivityID:       activityID,
 			ActivityName:     activityName,
@@ -133,23 +141,23 @@ func (e *capacityErrorNoDetails) Render(_ http.ResponseWriter, r *http.Request) 
 	return nil
 }
 
-// ErrorRoomCapacityExceededNoDetails returns the ROOM_CAPACITY_EXCEEDED 409
+// ErrorRoomCapacityExceededNoDetails returns the iot.room_capacity_exceeded 409
 // without the details object.
 func ErrorRoomCapacityExceededNoDetails() render.Renderer {
 	return &capacityErrorNoDetails{
 		Status:  "error",
 		Message: "Room capacity exceeded",
-		Code:    "ROOM_CAPACITY_EXCEEDED",
+		Code:    codeRoomCapacityExceeded,
 	}
 }
 
-// ErrorActivityCapacityExceededNoDetails returns the ACTIVITY_CAPACITY_EXCEEDED
+// ErrorActivityCapacityExceededNoDetails returns the iot.activity_capacity_exceeded
 // 409 without the details object.
 func ErrorActivityCapacityExceededNoDetails() render.Renderer {
 	return &capacityErrorNoDetails{
 		Status:  "error",
 		Message: "Activity capacity exceeded",
-		Code:    "ACTIVITY_CAPACITY_EXCEEDED",
+		Code:    codeActivityCapacityExceeded,
 	}
 }
 
@@ -210,7 +218,7 @@ func ErrorStudentAlreadyActive(studentID, existingVisitID int64, entryTime *time
 	return &StudentAlreadyActiveErrorResponse{
 		Status:  "error",
 		Message: devicescan.MessageStudentAlreadyActive,
-		Code:    "STUDENT_ALREADY_ACTIVE",
+		Code:    codeStudentAlreadyActive,
 		Details: &StudentAlreadyActiveError{
 			StudentID:       studentID,
 			ExistingVisitID: existingVisitID,

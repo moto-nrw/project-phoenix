@@ -31,7 +31,7 @@ func (e demoEnv) postFrom(t *testing.T, ip, path string, body any) *httptest.Res
 func requireRateLimited(t *testing.T, rr *httptest.ResponseRecorder) {
 	t.Helper()
 	require.Equal(t, http.StatusTooManyRequests, rr.Code, rr.Body.String())
-	assert.Contains(t, rr.Body.String(), "demo_access_rate_limited")
+	assert.Contains(t, rr.Body.String(), "identity.demo_access_rate_limited")
 	seconds, err := strconv.Atoi(rr.Header().Get("Retry-After"))
 	require.NoError(t, err, "Retry-After is a number of seconds: %q", rr.Header().Get("Retry-After"))
 	assert.Positive(t, seconds)
@@ -125,7 +125,7 @@ func TestDemoAccessRequestStopsAtTheDemoSchoolCapacity(t *testing.T) {
 	second := env.requestBodyFor(t, fmt.Sprintf("zweite-%d@ogs-beispiel.de", testpkg.Tenant(t)))
 	rr := env.post(t, "/demo/access-requests", second)
 	require.Equal(t, http.StatusServiceUnavailable, rr.Code, rr.Body.String())
-	assert.Contains(t, rr.Body.String(), "demo_capacity_reached")
+	assert.Contains(t, rr.Body.String(), "identity.demo_capacity_reached")
 	var orders int
 	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM auth.demo_accesses WHERE email = ?`, second["email"]).Scan(context.Background(), &orders))
 	assert.Zero(t, orders, "a request over the capacity stores nothing")

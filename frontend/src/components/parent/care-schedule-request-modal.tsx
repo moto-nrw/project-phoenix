@@ -47,11 +47,12 @@ type SubmitRequest = (payload: CareScheduleRequestInput) => Promise<void>;
 
 function requestErrorKey(error: unknown): string {
   if (!(error instanceof ParentApiError)) return "requestError";
-  if (error.code === "care_request_already_pending") {
+  if (error.code === "care.care_request_already_pending") {
     return "requestAlreadyPending";
   }
-  if (error.code === "care_request_field_disabled") return "requestDisabled";
-  if (error.code === "care_request_bookings_authoritative") {
+  if (error.code === "care.care_request_field_disabled")
+    return "requestDisabled";
+  if (error.code === "care.care_request_bookings_authoritative") {
     return "requestBookingLed";
   }
   if (error.status === 400) return "requestInvalid";

@@ -65,8 +65,8 @@ vi.mock("~/contexts/ToastContext", () => ({
 }));
 
 vi.mock("~/lib/time-tracking-api", () => ({
-  DEVIATION_REASON_REQUIRED_CODE: "deviation_reason_required",
-  PLANNED_START_NOT_REACHED_CODE: "planned_start_not_reached",
+  DEVIATION_REASON_REQUIRED_CODE: "iot.deviation_reason_required",
+  PLANNED_START_NOT_REACHED_CODE: "iot.planned_start_not_reached",
   REOPEN_STATUS_CONFLICT_CODE: "reopen_status_conflict",
   timeTrackingService: mockTimeTrackingService,
 }));
@@ -1762,7 +1762,7 @@ describe("TimeTrackingPage", () => {
         status?: number;
         details?: Record<string, unknown>;
       };
-      err.code = "planned_start_not_reached";
+      err.code = "iot.planned_start_not_reached";
       err.status = 409;
       err.details = {
         planned_start_time: "09:00",
@@ -4531,7 +4531,7 @@ describe("TimeTrackingPage", () => {
       // the error object — never inside the message.
       const overlapError = Object.assign(
         new Error("work session overlaps an existing block (08:00–12:00)"),
-        { status: 409, code: "work_session_overlap" },
+        { status: 409, code: "workforce.work_session_overlap" },
       );
       vi.mocked(timeTrackingService.checkIn).mockRejectedValue(overlapError);
       render(<TimeTrackingPage />);
@@ -4868,7 +4868,7 @@ describe("deviation-reason gate (F9)", () => {
       status?: number;
       details?: Record<string, unknown>;
     };
-    err.code = "deviation_reason_required";
+    err.code = "iot.deviation_reason_required";
     err.status = 409;
     err.details =
       action === "check_in"

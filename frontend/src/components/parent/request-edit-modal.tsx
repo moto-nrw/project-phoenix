@@ -221,7 +221,8 @@ export function RequestEditModal({
         request_type: request.type,
       });
       setError(
-        err instanceof ParentApiError && err.code === "change_request_stale"
+        err instanceof ParentApiError &&
+          err.code === "students.change_request_stale"
           ? t("staleError")
           : t("saveError"),
       );

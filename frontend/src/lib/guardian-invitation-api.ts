@@ -1,4 +1,5 @@
 import type { ApiError } from "~/lib/auth-api";
+import { wireErrorCode } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "GuardianInvitationAPI" });
@@ -69,7 +70,7 @@ const createApiError = async (
   }
   const apiError = new Error(message) as ApiError;
   apiError.status = response.status;
-  apiError.code = code;
+  apiError.code = wireErrorCode(code);
   return apiError;
 };
 

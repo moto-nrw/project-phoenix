@@ -388,7 +388,7 @@ describe("isReopenUnavailableError", () => {
         new TimetableOperationsApiError(
           "invalid instance transition: reopen window expired",
           409,
-          "invalid_transition",
+          "timetable.invalid_transition",
         ),
       ),
     ).toBe(true);

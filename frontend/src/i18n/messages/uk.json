@@ -1990,6 +1990,9 @@
       "server": "Не вдалося обробити: {object}. Спробуйте пізніше."
     },
     "codes": {
+      "attendance": {
+        "web_disabled": "У вас немає доступу до: {object}. Зверніться до школи."
+      },
       "care": {
         "announcement_ack_not_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "announcement_not_a_poll": "Не вдалося зберегти: {object}. Перевірте введені дані.",
@@ -2149,6 +2152,12 @@
       "identity": {
         "account_already_has_tenant_access": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "account_inactive": "У вас немає доступу до: {object}. Зверніться до школи.",
+        "demo_access_expired": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "demo_access_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "demo_access_rate_limited": "{object} зараз недоступний. Спробуйте ще раз.",
+        "demo_access_unknown": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "demo_capacity_reached": "{object} зараз недоступний. Спробуйте ще раз.",
+        "demo_school_preparing": "{object} зараз недоступний. Спробуйте ще раз.",
         "demo_session": "У вас немає доступу до: {object}. Зверніться до школи.",
         "invitation_account_login_required": "У вас немає доступу до: {object}. Зверніться до школи.",
         "invitation_account_mismatch": "У вас немає доступу до: {object}. Зверніться до школи.",
@@ -2211,10 +2220,13 @@
         "source_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
       "rooms": {
+        "color_already_in_use": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "not_released": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
       "school": {
-        "no_school_portal_role": "У вас немає доступу до: {object}. Зверніться до школи."
+        "no_school_portal_role": "У вас немає доступу до: {object}. Зверніться до школи.",
+        "setup_completed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "setup_incomplete": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
       "students": {
         "absence_read_required": "У вас немає доступу до: {object}. Зверніться до школи.",
@@ -2226,6 +2238,7 @@
         "care_withdrawal_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "change_request_not_pending": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "change_request_stale": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "child_quota_reached": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "companion_lock_busy": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "companion_would_lose_departure": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "companions_changed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -2273,19 +2286,36 @@
         "self_assignment": "Не вдалося зберегти: {object}. Перевірте введені дані."
       },
       "timetable": {
+        "ambiguous_template_instance_delete": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "calendar_period_care_offering_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "calendar_period_overlap_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "complete_too_early": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "completion_confirmation_stale": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "duplicate_instance": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "guardian_notice_disabled": "У вас немає доступу до: {object}. Зверніться до школи.",
+        "idempotency_key_reused": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "instance_moved": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "instance_not_convertible": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "instance_not_editable": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "invalid_transition": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "only_supervisor_replacement_required": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "pickup_extension_block_gone": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "pickup_extension_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "presence_would_overstaff": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "sick_absence_scope_locked": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "staff_absent_on_date": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "staff_absent_on_target": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "staff_already_on_target": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "start_too_early": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "start_window_expired": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "substitute_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "template_care_offering_conflict": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "template_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "template_roster_rebase_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "template_start_in_past": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "template_start_not_earlier": "Не вдалося зберегти: {object}. Перевірте введені дані.",
-        "template_start_predecessor_overlap": "Не вдалося зберегти: {object}. Перевірте введені дані."
+        "template_start_predecessor_overlap": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "understaffed_still_staffed": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
       "workforce": {
         "absence_allowance_exceeded": "Не вдалося змінити: {object}. Перевірте поточний стан.",

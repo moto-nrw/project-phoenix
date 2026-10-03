@@ -491,7 +491,7 @@ export interface BackendStudent {
    * Write-only: fingerprint of the list the client loaded before it built
    * `companions`. The backend compares it against the stored links under the
    * child's row lock and refuses a replacement built on a snapshot someone else
-   * has since replaced (409 `companions_changed`) instead of deleting their
+   * has since replaced (409 `students.companions_changed`) instead of deleting their
    * links.
    */
   companions_fingerprint?: string;
@@ -713,7 +713,7 @@ export interface Student {
   companions?: StudentCompanion[];
   /** Write-only: fingerprint of the LOADED list, so the backend can refuse a
    *  replacement built on a snapshot someone else has since replaced instead of
-   *  deleting their links (409 `companions_changed`). */
+   *  deleting their links (409 `students.companions_changed`). */
   companions_fingerprint?: string;
   /** Write-only: confirms widening a linked child's own departure plan. */
   extend_companion_plans?: boolean;

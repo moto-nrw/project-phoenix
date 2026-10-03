@@ -89,11 +89,11 @@ func TestProblemTypeUsesRegisteredClassRatherThanStatusOnly(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	common.ProblemResponseMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		common.RenderError(w, r, common.ErrorConflictWithCode(errors.New("not required"), "announcement_ack_not_required"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(errors.New("not required"), "care.announcement_ack_not_required"))
 	})).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/test", nil))
 	var body map[string]any
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
-	require.Equal(t, "announcement_ack_not_required", body["code"])
+	require.Equal(t, "care.announcement_ack_not_required", body["code"])
 	require.Equal(t, "https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen", body["type"])
 }
 

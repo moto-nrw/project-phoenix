@@ -323,7 +323,7 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 
 	second := doCreate(t, router, body)
 	assert.Equal(t, http.StatusConflict, second.Code, "body=%s", second.Body.String())
-	assert.Contains(t, second.Body.String(), "duplicate_instance")
+	assert.Contains(t, second.Body.String(), "timetable.duplicate_instance")
 }
 
 func setupDuplicateInstanceRoute(

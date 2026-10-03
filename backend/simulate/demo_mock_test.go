@@ -18,7 +18,7 @@ type demoCapacityClient struct {
 type demoCapacityError struct{}
 
 func (demoCapacityError) Error() string         { return "room is full" }
-func (demoCapacityError) HTTPErrorCode() string { return "ROOM_CAPACITY_EXCEEDED" }
+func (demoCapacityError) HTTPErrorCode() string { return "iot.room_capacity_exceeded" }
 
 func (c *demoCapacityClient) DevicePost(path string, body any, key, pin string) ([]byte, error) {
 	if path == "/api/iot/checkin" {

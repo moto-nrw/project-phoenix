@@ -1990,6 +1990,9 @@
       "server": "{object} işlenemedi. Daha sonra yeniden deneyin."
     },
     "codes": {
+      "attendance": {
+        "web_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin."
+      },
       "care": {
         "announcement_ack_not_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "announcement_not_a_poll": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
@@ -2149,6 +2152,12 @@
       "identity": {
         "account_already_has_tenant_access": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "account_inactive": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "demo_access_expired": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "demo_access_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "demo_access_rate_limited": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
+        "demo_access_unknown": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "demo_capacity_reached": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
+        "demo_school_preparing": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
         "demo_session": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "invitation_account_login_required": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "invitation_account_mismatch": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
@@ -2211,10 +2220,13 @@
         "source_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "rooms": {
+        "color_already_in_use": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "not_released": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "school": {
-        "no_school_portal_role": "{object} için erişim izniniz yok. Okulla iletişime geçin."
+        "no_school_portal_role": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "setup_completed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "setup_incomplete": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "students": {
         "absence_read_required": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
@@ -2226,6 +2238,7 @@
         "care_withdrawal_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "change_request_not_pending": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "change_request_stale": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "child_quota_reached": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "companion_lock_busy": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "companion_would_lose_departure": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "companions_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -2273,19 +2286,36 @@
         "self_assignment": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
       },
       "timetable": {
+        "ambiguous_template_instance_delete": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "calendar_period_care_offering_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "calendar_period_overlap_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "complete_too_early": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "completion_confirmation_stale": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "duplicate_instance": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "guardian_notice_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "idempotency_key_reused": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "instance_moved": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "instance_not_convertible": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "instance_not_editable": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "invalid_transition": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "only_supervisor_replacement_required": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "pickup_extension_block_gone": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "pickup_extension_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "presence_would_overstaff": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "sick_absence_scope_locked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "staff_absent_on_date": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "staff_absent_on_target": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "staff_already_on_target": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "start_too_early": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "start_window_expired": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "substitute_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "template_care_offering_conflict": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "template_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "template_roster_rebase_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "template_start_in_past": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "template_start_not_earlier": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "template_start_predecessor_overlap": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
+        "template_start_predecessor_overlap": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "understaffed_still_staffed": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "workforce": {
         "absence_allowance_exceeded": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

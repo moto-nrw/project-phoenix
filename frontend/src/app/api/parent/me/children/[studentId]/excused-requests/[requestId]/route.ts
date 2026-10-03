@@ -11,7 +11,7 @@ interface EditExcusedRequestBody {
  * Proxy PUT /api/parent/me/children/{studentId}/excused-requests/{requestId}
  * → backend. Changes the guardian's own still-pending sick or excused absence
  * request. The route retains its legacy excused-only name. The backend answers
- * 409 `change_request_stale` when `expected_version` no longer matches, and
+ * 409 `students.change_request_stale` when `expected_version` no longer matches, and
  * verifies guardianship from the JWT.
  */
 export const PUT = proxyPut<unknown, EditExcusedRequestBody>(

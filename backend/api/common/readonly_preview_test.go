@@ -104,7 +104,7 @@ func TestReadOnlyPreviewMiddleware(t *testing.T) {
 		for _, tc := range cases {
 			rec := executeReadOnlyPreview(t, tc.method, tc.path, preview)
 			assert.Equalf(t, http.StatusForbidden, rec.Code, "%s %s", tc.method, tc.path)
-			assert.Containsf(t, rec.Body.String(), CodeReadOnlyPreview, "%s %s", tc.method, tc.path)
+			assert.Containsf(t, rec.Body.String(), CodeIdentityReadOnlyPreview, "%s %s", tc.method, tc.path)
 		}
 	})
 

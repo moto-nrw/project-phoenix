@@ -47,7 +47,7 @@ func problemTitle(status int) string {
 }
 
 func problemType(code string, status int) string {
-	class := errorClassByWireCode[code]
+	class := errorClassByCode[code]
 	if class == "" {
 		class = strings.TrimPrefix(ErrorClassCode(status), "general.")
 	}

@@ -254,7 +254,7 @@ func TestBatchFailure_KeepsProgressAndNamesTheChildQuotaRefusal(t *testing.T) {
 	progress := map[string]int{"CreatedCount": 100, "UpdatedCount": 0, "ErrorCount": 0, "TotalRows": 160}
 
 	runtime.Failure(rr, req, importAPI.Failure{Status: http.StatusInternalServerError, Message: "Import fehlgeschlagen",
-		Code: "import_batch_failed", Result: progress,
+		Code: "import.import_batch_failed", Result: progress,
 		Cause: fmt.Errorf("batch 2: %w", quotaRefusal{})})
 
 	require.Equal(t, http.StatusConflict, rr.Code, "Body: %s", rr.Body.String())
@@ -269,7 +269,7 @@ func TestBatchFailure_KeepsProgressAndNamesTheChildQuotaRefusal(t *testing.T) {
 		} `json:"details"`
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
-	assert.Equal(t, "import_batch_failed", body.Code)
+	assert.Equal(t, "import.import_batch_failed", body.Code)
 	assert.Equal(t, progress, body.Details.Result)
 	assert.Equal(t, "students.child_quota_reached", body.Details.Rejection.Code)
 	assert.Equal(t, map[string]int{"booked_places": 150, "occupied_places": 150, "requested_places": 1}, body.Details.Rejection.Details)

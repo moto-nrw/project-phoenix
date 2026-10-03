@@ -1,5 +1,6 @@
 // Time tracking API service for check-in/out and history management
 
+import type { ErrorCode } from "~/lib/error-codes.generated";
 import { getCachedSession } from "./session-cache";
 import { buildApiError } from "./auth-api";
 import type {
@@ -39,13 +40,15 @@ interface ApiResponse<T> {
   data: T;
 }
 
-export const PLANNED_START_NOT_REACHED_CODE = "planned_start_not_reached";
+export const PLANNED_START_NOT_REACHED_CODE: ErrorCode =
+  "iot.planned_start_not_reached";
 /**
  * Stable error code surfaced when a check-in/check-out deviates from the
  * planned shift window by more than the configured tolerance (F9). The page
  * prompts for a reason and retries the same stamp with `reason` set.
  */
-export const DEVIATION_REASON_REQUIRED_CODE = "deviation_reason_required";
+export const DEVIATION_REASON_REQUIRED_CODE: ErrorCode =
+  "iot.deviation_reason_required";
 
 /**
  * Update session request body

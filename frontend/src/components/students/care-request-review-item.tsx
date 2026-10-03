@@ -1,5 +1,6 @@
 "use client";
 
+import { wireErrorCode } from "~/lib/api-error";
 import { useState } from "react";
 
 import {
@@ -22,29 +23,26 @@ import {
 
 const logger = createLogger({ component: "CareRequestReviewItem" });
 
-// A care request can only be APPROVED while parent messaging is on for the
-// school and the submitting guardian still has access to the child. The backend
-// refuses the other cases with a specific 409 code, because approving would
-// change the child's weekly plan with no parent notice. Map those codes to the
+// A care request can only be APPROVED while the submitting guardian still has
+// access to the child and the request still matches the plan. The backend
+// refuses the other cases with a specific 409 code. Map those codes to the
 // concrete recovery action (reject the request) instead of hiding them behind a
 // generic failure, so the reviewer knows what to do with the still-pending row.
 function decideErrorMessage(code: string | undefined): string {
-  switch (code) {
-    case "messaging_disabled":
-      return "Nachrichten an Eltern sind für diese Schule deaktiviert. Die Anfrage kann nicht freigegeben werden, weil die Bezugsperson nicht über die Änderung informiert würde. Bitte die Anfrage stattdessen ablehnen.";
-    case "guardian_access_revoked":
+  switch (wireErrorCode(code)) {
+    case "students.guardian_access_revoked":
       return "Die anfragende Bezugsperson hat keinen Zugriff mehr auf dieses Kind. Die Anfrage kann nicht freigegeben werden. Bitte die Anfrage stattdessen ablehnen.";
-    case "change_request_not_pending":
+    case "students.change_request_not_pending":
       return "Diese Anfrage wurde bereits entschieden oder von den Eltern zurückgezogen. Bitte die Seite neu laden.";
-    case "pickup_change_conflict":
+    case "students.pickup_change_conflict":
       return "Für diesen Tag wurde inzwischen bereits eine Änderung durch die OGS eingetragen. Bitte prüfen und die Anfrage gegebenenfalls ablehnen.";
-    case "pickup_change_completed":
+    case "students.pickup_change_completed":
       return "Das Kind wurde bereits ausgecheckt. Die Abholzeit kann nicht mehr geändert werden.";
-    case "pickup_change_expired":
+    case "students.pickup_change_expired":
       return "Der angefragte Tag liegt bereits in der Vergangenheit. Die Abholzeit kann nicht mehr übernommen werden. Bitte die Anfrage ablehnen.";
-    case "pickup_change_impact_changed":
+    case "students.pickup_change_impact_changed":
       return "Der Betreuungsplan hat sich geändert. Bitte laden Sie die Seite neu und prüfen Sie die Termine noch einmal.";
-    case "care_day_managed_by_booking":
+    case "students.care_day_managed_by_booking":
       return "Dieser Betreuungstag gehört zu einem gebuchten Angebot. Ändern Sie zuerst die Buchung des Kindes. Lehnen Sie diese Anfrage danach ab.";
     default:
       return "Die Entscheidung konnte nicht gespeichert werden.";

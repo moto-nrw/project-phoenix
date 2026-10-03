@@ -1990,6 +1990,9 @@
       "server": "{object} konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut."
     },
     "codes": {
+      "attendance": {
+        "web_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson."
+      },
       "care": {
         "announcement_ack_not_required": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
         "announcement_not_a_poll": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
@@ -2149,6 +2152,12 @@
       "identity": {
         "account_already_has_tenant_access": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
         "account_inactive": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+        "demo_access_expired": "Der Demo-Zugang ist abgelaufen. Bitte fordern Sie einen neuen Zugang an.",
+        "demo_access_invalid": "Der Demo-Link ist ungültig. Bitte fordern Sie einen neuen Link an.",
+        "demo_access_rate_limited": "Das waren zu viele Versuche. Bitte warten Sie kurz und versuchen Sie es dann erneut.",
+        "demo_access_unknown": "Diesen Demo-Link gibt es nicht. Bitte fordern Sie einen neuen Link an.",
+        "demo_capacity_reached": "Gerade sind alle Demo-Plätze belegt. Bitte versuchen Sie es später erneut.",
+        "demo_school_preparing": "Die Demo-Schule wird gerade vorbereitet. Bitte versuchen Sie es gleich noch einmal.",
         "demo_session": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "invitation_account_login_required": "Für {object} müssen Sie angemeldet sein. Bitte melden Sie sich an.",
         "invitation_account_mismatch": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
@@ -2211,10 +2220,13 @@
         "source_not_found": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand."
       },
       "rooms": {
+        "color_already_in_use": "Diese Farbe hat schon ein anderer Raum. Bitte wählen Sie eine andere Farbe.",
         "not_released": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand."
       },
       "school": {
-        "no_school_portal_role": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule."
+        "no_school_portal_role": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+        "setup_completed": "Die Einrichtung der Schule ist schon abgeschlossen. Bitte laden Sie die Seite neu.",
+        "setup_incomplete": "Die Einrichtung ist noch nicht fertig. Bitte schließen Sie zuerst die offenen Schritte ab."
       },
       "students": {
         "absence_read_required": "Für {object} fehlt die Bestätigung. Bitte bestätigen Sie den Hinweis.",
@@ -2226,6 +2238,7 @@
         "care_withdrawal_not_found": "{object} wurde nicht gefunden. Bitte laden Sie die Seite neu.",
         "change_request_not_pending": "{object} ist nicht mehr offen. Bitte laden Sie die Seite neu.",
         "change_request_stale": "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
+        "child_quota_reached": "Das Kinderkontingent Ihrer Schule ist voll ({occupied_places} von {booked_places} Kindern). Bitte melden Sie sich beim moto-Team.",
         "companion_lock_busy": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
         "companion_would_lose_departure": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
         "companions_changed": "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
@@ -2273,19 +2286,36 @@
         "self_assignment": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben."
       },
       "timetable": {
+        "ambiguous_template_instance_delete": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
         "calendar_period_care_offering_conflict": "Der Stand von {object} hat sich geändert. Bitte prüfen Sie Ihre Angaben erneut.",
         "calendar_period_overlap_conflict": "{object} überschneidet sich mit anderen Zeiträumen. Bitte prüfen Sie die Termine.",
+        "complete_too_early": "Der Termin kann erst nach seinem Ende abgeschlossen werden.",
         "completion_confirmation_stale": "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
+        "duplicate_instance": "Diesen Termin gibt es schon. Bitte laden Sie die Seite neu.",
+        "guardian_notice_disabled": "Hinweise an Eltern sind hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+        "idempotency_key_reused": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
+        "instance_moved": "Der Termin wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
         "instance_not_convertible": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
+        "instance_not_editable": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
+        "invalid_transition": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
         "only_supervisor_replacement_required": "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
         "pickup_extension_block_gone": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
         "pickup_extension_not_found": "{object} wurde nicht gefunden. Bitte laden Sie die Seite neu.",
+        "presence_would_overstaff": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
+        "sick_absence_scope_locked": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
+        "staff_absent_on_date": "Die Person ist an diesem Tag abwesend. Bitte wählen Sie eine andere Person.",
+        "staff_absent_on_target": "Die Person ist an diesem Tag abwesend. Bitte wählen Sie eine andere Person.",
+        "staff_already_on_target": "Die Person ist für diesen Termin schon eingeteilt.",
+        "start_too_early": "Der Termin kann noch nicht gestartet werden. Bitte versuchen Sie es kurz vor Beginn erneut.",
+        "start_window_expired": "Der Termin kann nicht mehr gestartet werden. Die Startzeit ist vorbei.",
+        "substitute_conflict": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
         "template_care_offering_conflict": "Der Stand von {object} hat sich geändert. Bitte prüfen Sie Ihre Angaben erneut.",
         "template_not_found": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
         "template_roster_rebase_conflict": "Der Stand von {object} hat sich geändert. Bitte prüfen Sie Ihre Angaben erneut.",
         "template_start_in_past": "Das Datum für {object} liegt in der Vergangenheit. Bitte wählen Sie ein anderes Datum.",
         "template_start_not_earlier": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
-        "template_start_predecessor_overlap": "Die Zeiten für {object} überschneiden sich. Bitte prüfen Sie die Angaben."
+        "template_start_predecessor_overlap": "Die Zeiten für {object} überschneiden sich. Bitte prüfen Sie die Angaben.",
+        "understaffed_still_staffed": "Für den Termin ist noch Personal eingeteilt. Bitte nehmen Sie das Personal zuerst heraus."
       },
       "workforce": {
         "absence_allowance_exceeded": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",

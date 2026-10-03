@@ -316,7 +316,7 @@ func (rs *Resource) completeMFAExchange(w http.ResponseWriter, r *http.Request, 
 				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountInactive))
 			case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
 				common.RenderError(w, r, common.ErrorForbiddenWithCode(
-					identityaccess.ErrMustUseSchoolPortal, "use_school_portal"))
+					identityaccess.ErrMustUseSchoolPortal, common.CodeIdentityUseSchoolPortal))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}

@@ -1,5 +1,6 @@
 "use client";
 
+import { wireErrorCode } from "~/lib/api-error";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -78,7 +79,8 @@ export function SelectionBulkPickupModal({
       if (
         err instanceof Error &&
         "code" in err &&
-        err.code === "pickup.bulk_exception_confirmation_required"
+        wireErrorCode(err.code) ===
+          "pickup.bulk_exception_confirmation_required"
       ) {
         setNeedsExceptionConfirmation(true);
         setExceptionConfirmed(false);

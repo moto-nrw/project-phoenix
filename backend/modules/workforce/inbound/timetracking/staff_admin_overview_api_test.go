@@ -198,11 +198,11 @@ func TestMonthCloseAPI_StableErrorCodes(t *testing.T) {
 	body := fmt.Sprintf(`{"year":%d,"month":%d,"reason":"Abschluss"}`, today.Year(), int(today.Month()))
 	rec := ctx.post("/staff/time-tracking/month-close", body, "time_tracking:manage")
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), `"code":"month_not_closable"`)
+	assert.Contains(t, rec.Body.String(), `"code":"workforce.month_not_closable"`)
 
 	// Reopening a month that was never closed.
 	rec = ctx.post(fmt.Sprintf("/staff/%d/time-tracking/month-close/reopen", ctx.staffID),
 		`{"year":2025,"month":8,"reason":"Korrektur"}`, "time_tracking:manage")
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), `"code":"month_not_closed"`)
+	assert.Contains(t, rec.Body.String(), `"code":"workforce.month_not_closed"`)
 }

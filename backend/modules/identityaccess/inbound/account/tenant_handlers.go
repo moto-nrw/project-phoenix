@@ -491,10 +491,10 @@ func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
 				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantAccessDenied))
 			case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
 				common.RenderError(w, r, common.ErrorForbiddenWithCode(
-					identityaccess.ErrMustUseSchoolPortal, "use_school_portal"))
+					identityaccess.ErrMustUseSchoolPortal, common.CodeIdentityUseSchoolPortal))
 			case errors.Is(err, identityaccess.ErrDemoSessionTenantLocked):
 				common.RenderError(w, r, common.ErrorForbiddenWithCode(
-					identityaccess.ErrDemoSessionTenantLocked, "demo_session"))
+					identityaccess.ErrDemoSessionTenantLocked, common.CodeIdentityDemoSession))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}

@@ -295,7 +295,7 @@ export function TransitStudentsSection({
     } catch (err) {
       const releaseRemoved =
         target.kind === "openRoom" &&
-        (err as ApiError | undefined)?.code === "room_not_released";
+        (err as ApiError | undefined)?.code === "rooms.not_released";
       if (releaseRemoved) {
         // The release was removed after the room list loaded: drop the stale
         // choice and reload the rooms, so the list stops offering it.

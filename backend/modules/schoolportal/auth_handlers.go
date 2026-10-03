@@ -156,15 +156,15 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 	case rs.AuthService.InvalidCredentials(err):
 		// Mask the specific cause to prevent account enumeration.
 		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
-			ErrInvalidCredentials, "invalid_credentials"))
+			ErrInvalidCredentials, common.CodeCareInvalidCredentials))
 	case rs.AuthService.AccountInactive(err):
 		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
-			ErrAccountInactive, "account_inactive"))
+			ErrAccountInactive, common.CodeIdentitySessionAccountInactive))
 	case rs.AuthService.NoSchoolPortalRole(err):
 		// 403 with a stable code -- reachable only after the password
 		// was accepted, so it leaks nothing about foreign accounts.
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(
-			ErrAccountNoSchoolPortalRole, "no_school_portal_role"))
+			ErrAccountNoSchoolPortalRole, common.CodeSchoolNoSchoolPortalRole))
 	case rs.AuthService.SchoolNotFound(err):
 		// The pinned school is deactivated or deleted -- same 404 the
 		// switch-school path returns for that state.
@@ -224,7 +224,7 @@ func (rs *Resource) completeSchoolExchange(w http.ResponseWriter, r *http.Reques
 			common.RenderError(w, r, common.ErrorUnauthorized(ErrAccountInactive))
 		case rs.AuthService.NoSchoolPortalRole(err):
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(
-				ErrAccountNoSchoolPortalRole, "no_school_portal_role"))
+				ErrAccountNoSchoolPortalRole, common.CodeSchoolNoSchoolPortalRole))
 		case rs.AuthService.SchoolNotFound(err):
 			// School deactivated or deleted between challenge and
 			// exchange -- same 404 the other school surfaces return.
@@ -415,7 +415,7 @@ func (rs *Resource) switchSchool(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorUnauthorized(ErrTenantAccessDenied))
 		case rs.AuthService.NoSchoolPortalRole(err):
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(
-				ErrAccountNoSchoolPortalRole, "no_school_portal_role"))
+				ErrAccountNoSchoolPortalRole, common.CodeSchoolNoSchoolPortalRole))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}

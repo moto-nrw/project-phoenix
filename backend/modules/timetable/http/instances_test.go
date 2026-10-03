@@ -320,7 +320,7 @@ func TestStartInstance_InvalidTransition(t *testing.T) {
 	w := doPost(t, router, "/instances/1/start", nil)
 
 	assert.Equal(t, http.StatusConflict, w.Code)
-	assert.Contains(t, w.Body.String(), "invalid_transition")
+	assert.Contains(t, w.Body.String(), "timetable.invalid_transition")
 }
 
 func TestStartInstance_InternalError(t *testing.T) {
@@ -498,7 +498,7 @@ func TestCompleteInstance_StaleConfirmation(t *testing.T) {
 	w := doPost(t, router, "/instances/1/complete", map[string]any{"confirmed_present_student_ids": []int64{7}})
 
 	assert.Equal(t, http.StatusConflict, w.Code)
-	assert.Contains(t, w.Body.String(), "completion_confirmation_stale")
+	assert.Contains(t, w.Body.String(), "timetable.completion_confirmation_stale")
 }
 
 func TestCompleteInstance_InvalidTransition(t *testing.T) {
@@ -511,7 +511,7 @@ func TestCompleteInstance_InvalidTransition(t *testing.T) {
 	w := doPost(t, router, "/instances/1/complete", map[string]any{"confirmed_present_student_ids": []int64{}})
 
 	assert.Equal(t, http.StatusConflict, w.Code)
-	assert.Contains(t, w.Body.String(), "invalid_transition")
+	assert.Contains(t, w.Body.String(), "timetable.invalid_transition")
 }
 
 func TestCompleteInstance_InternalError(t *testing.T) {
@@ -703,7 +703,7 @@ func TestDeleteInstance_InvalidTransition(t *testing.T) {
 	w := doDelete(t, router, "/instances/1")
 
 	assert.Equal(t, http.StatusConflict, w.Code)
-	assert.Contains(t, w.Body.String(), "invalid_transition")
+	assert.Contains(t, w.Body.String(), "timetable.invalid_transition")
 }
 
 func TestDeleteInstance_AmbiguousTemplateInstanceDelete(t *testing.T) {
@@ -717,7 +717,7 @@ func TestDeleteInstance_AmbiguousTemplateInstanceDelete(t *testing.T) {
 	w := doDelete(t, router, "/instances/1")
 
 	assert.Equal(t, http.StatusConflict, w.Code)
-	assert.Contains(t, w.Body.String(), "ambiguous_template_instance_delete")
+	assert.Contains(t, w.Body.String(), "timetable.ambiguous_template_instance_delete")
 	assert.Contains(t, w.Body.String(), "mehrere Termine")
 }
 
@@ -1087,7 +1087,7 @@ func TestRenderInstanceLifecycleError(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		renderInstanceLifecycleError(w, r, timetable.ErrInvalidInstanceTransition)
 		assert.Equal(t, http.StatusConflict, w.Code)
-		assert.Contains(t, w.Body.String(), "invalid_transition")
+		assert.Contains(t, w.Body.String(), "timetable.invalid_transition")
 	})
 
 	t.Run("ambiguous-template-instance-delete", func(t *testing.T) {
@@ -1095,7 +1095,7 @@ func TestRenderInstanceLifecycleError(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		renderInstanceLifecycleError(w, r, timetable.ErrAmbiguousTemplateInstanceDelete)
 		assert.Equal(t, http.StatusConflict, w.Code)
-		assert.Contains(t, w.Body.String(), "ambiguous_template_instance_delete")
+		assert.Contains(t, w.Body.String(), "timetable.ambiguous_template_instance_delete")
 	})
 
 	t.Run("instance-moved", func(t *testing.T) {
@@ -1103,7 +1103,7 @@ func TestRenderInstanceLifecycleError(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		renderInstanceLifecycleError(w, r, timetable.ErrInstanceMoved)
 		assert.Equal(t, http.StatusConflict, w.Code)
-		assert.Contains(t, w.Body.String(), "instance_moved")
+		assert.Contains(t, w.Body.String(), "timetable.instance_moved")
 	})
 
 	t.Run("stale-completion-confirmation", func(t *testing.T) {
@@ -1111,7 +1111,7 @@ func TestRenderInstanceLifecycleError(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		renderInstanceLifecycleError(w, r, timetable.ErrCompletionConfirmationStale)
 		assert.Equal(t, http.StatusConflict, w.Code)
-		assert.Contains(t, w.Body.String(), "completion_confirmation_stale")
+		assert.Contains(t, w.Body.String(), "timetable.completion_confirmation_stale")
 	})
 
 	t.Run("unknown-error-500", func(t *testing.T) {

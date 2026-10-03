@@ -23,6 +23,20 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
+// Registered error codes (error-registry.json) of the substitution routes.
+// This package may not import api/common, so it names them once here.
+const (
+	codeAlreadyAssigned = "substitutions.already_assigned"
+	codeConflict        = "substitutions.conflict"
+	codeForbidden       = "substitutions.forbidden"
+	codeInternal        = "substitutions.internal"
+	codeInvalidPeriod   = "substitutions.invalid_period"
+	codeInvalidTarget   = "substitutions.invalid_target"
+	codeNotFound        = "substitutions.not_found"
+	codeNotRunning      = "substitutions.not_running"
+	codeSelfAssignment  = "substitutions.self_assignment"
+)
+
 // Middleware is the HTTP middleware shape the composition root supplies.
 type Middleware = func(http.Handler) http.Handler
 
@@ -175,7 +189,7 @@ func (rs *Resource) overview(w http.ResponseWriter, r *http.Request) {
 	if raw := r.URL.Query().Get("group_id"); raw != "" {
 		id, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || id <= 0 {
-			rs.runtime.Failure(w, r, invalidRequest("Die Gruppe ist ungültig.", "invalid_target"))
+			rs.runtime.Failure(w, r, invalidRequest("Die Gruppe ist ungültig.", codeInvalidTarget))
 			return
 		}
 		query.GroupID = id
@@ -183,7 +197,7 @@ func (rs *Resource) overview(w http.ResponseWriter, r *http.Request) {
 	if raw := r.URL.Query().Get("active_group_id"); raw != "" {
 		id, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || id <= 0 {
-			rs.runtime.Failure(w, r, invalidRequest("Die Gruppe ist ungültig.", "invalid_target"))
+			rs.runtime.Failure(w, r, invalidRequest("Die Gruppe ist ungültig.", codeInvalidTarget))
 			return
 		}
 		query.ActiveGroupID = id
@@ -191,7 +205,7 @@ func (rs *Resource) overview(w http.ResponseWriter, r *http.Request) {
 	if raw := r.URL.Query().Get("date"); raw != "" {
 		date, err := parseDate(raw)
 		if err != nil {
-			rs.runtime.Failure(w, r, invalidRequest("Das Datum ist ungültig.", "invalid_period"))
+			rs.runtime.Failure(w, r, invalidRequest("Das Datum ist ungültig.", codeInvalidPeriod))
 			return
 		}
 		query.On = date
@@ -215,7 +229,7 @@ func (rs *Resource) overview(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) assign(w http.ResponseWriter, r *http.Request) {
 	request, err := decodeAssignment(r.Body)
 	if err != nil {
-		rs.runtime.Failure(w, r, invalidRequest("Die Anfrage ist ungültig.", "invalid_target"))
+		rs.runtime.Failure(w, r, invalidRequest("Die Anfrage ist ungültig.", codeInvalidTarget))
 		return
 	}
 	assignment, err := request.toAssignment()
@@ -260,7 +274,7 @@ func decodeAssignment(body io.Reader) (assignmentRequest, error) {
 func (rs *Resource) end(w http.ResponseWriter, r *http.Request) {
 	var request endRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		rs.runtime.Failure(w, r, invalidRequest("Die Anfrage ist ungültig.", "invalid_target"))
+		rs.runtime.Failure(w, r, invalidRequest("Die Anfrage ist ungültig.", codeInvalidTarget))
 		return
 	}
 	caller, err := rs.runtime.Caller(r.Context())
@@ -287,7 +301,7 @@ func (rs *Resource) parseScheduleRange(w http.ResponseWriter, r *http.Request, q
 	from, fromErr := parseDate(fromRaw)
 	to, toErr := parseDate(toRaw)
 	if fromErr != nil || toErr != nil {
-		rs.runtime.Failure(w, r, invalidRequest("Der Zeitraum ist ungültig.", "invalid_period"))
+		rs.runtime.Failure(w, r, invalidRequest("Der Zeitraum ist ungültig.", codeInvalidPeriod))
 		return false
 	}
 	query.ScheduleFrom, query.ScheduleTo, query.IncludeScheduleTargets = from, to, true
@@ -299,15 +313,15 @@ func (request assignmentRequest) toAssignment() (workforce.SubstitutionAssignmen
 	switch request.Type {
 	case workforce.TargetGroupHandover:
 		if request.GroupHandover == nil {
-			return assignment, invalidAssignmentRequest("Die Anfrage ist ungültig.", workforce.ErrSubstitutionInvalidTarget, "invalid_target")
+			return assignment, invalidAssignmentRequest("Die Anfrage ist ungültig.", workforce.ErrSubstitutionInvalidTarget, codeInvalidTarget)
 		}
 		start, err := optionalDate(request.GroupHandover.StartDate)
 		if err != nil {
-			return assignment, invalidAssignmentRequest("Das Startdatum ist ungültig.", workforce.ErrSubstitutionInvalidPeriod, "invalid_period")
+			return assignment, invalidAssignmentRequest("Das Startdatum ist ungültig.", workforce.ErrSubstitutionInvalidPeriod, codeInvalidPeriod)
 		}
 		end, err := optionalDate(request.GroupHandover.EndDate)
 		if err != nil {
-			return assignment, invalidAssignmentRequest("Das Enddatum ist ungültig.", workforce.ErrSubstitutionInvalidPeriod, "invalid_period")
+			return assignment, invalidAssignmentRequest("Das Enddatum ist ungültig.", workforce.ErrSubstitutionInvalidPeriod, codeInvalidPeriod)
 		}
 		assignment.GroupHandover = &workforce.GroupHandoverAssignment{
 			GroupID: request.GroupHandover.GroupID.Int64(), TargetStaffID: request.GroupHandover.TargetStaffID.Int64(),
@@ -317,20 +331,20 @@ func (request assignmentRequest) toAssignment() (workforce.SubstitutionAssignmen
 		return request.toScheduleAssignment(assignment)
 	case workforce.TargetAdditionalSupervision:
 		if request.AdditionalSupervision == nil {
-			return assignment, invalidAssignmentRequest("Die Anfrage ist ungültig.", workforce.ErrSubstitutionInvalidTarget, "invalid_target")
+			return assignment, invalidAssignmentRequest("Die Anfrage ist ungültig.", workforce.ErrSubstitutionInvalidTarget, codeInvalidTarget)
 		}
 		assignment.AdditionalSupervision = &workforce.AdditionalSupervisionAssignment{
 			ActiveGroupID: request.AdditionalSupervision.ActiveGroupID.Int64(), TargetStaffID: request.AdditionalSupervision.TargetStaffID.Int64(),
 		}
 	default:
-		return assignment, invalidAssignmentRequest("Die Anfrage ist ungültig.", workforce.ErrSubstitutionInvalidTarget, "invalid_target")
+		return assignment, invalidAssignmentRequest("Die Anfrage ist ungültig.", workforce.ErrSubstitutionInvalidTarget, codeInvalidTarget)
 	}
 	return assignment, nil
 }
 
 func (request assignmentRequest) toScheduleAssignment(assignment workforce.SubstitutionAssignment) (workforce.SubstitutionAssignment, error) {
 	if request.ScheduleSubstitution == nil {
-		return assignment, invalidAssignmentRequest("Die Anfrage ist ungültig.", workforce.ErrSubstitutionInvalidTarget, "invalid_target")
+		return assignment, invalidAssignmentRequest("Die Anfrage ist ungültig.", workforce.ErrSubstitutionInvalidTarget, codeInvalidTarget)
 	}
 	wire := request.ScheduleSubstitution
 	value := &workforce.ScheduleSubstitutionAssignment{
@@ -397,14 +411,14 @@ type moduleErrorSpec struct {
 }
 
 var moduleErrorSpecs = []moduleErrorSpec{
-	{target: workforce.ErrSubstitutionNotFound, status: http.StatusNotFound, code: "not_found", message: "Gruppenübergabe nicht gefunden."},
-	{target: workforce.ErrSubstitutionForbidden, status: http.StatusForbidden, code: "forbidden", message: "Diese Aktion ist nicht erlaubt."},
-	{target: workforce.ErrSubstitutionInvalidTarget, status: http.StatusBadRequest, code: "invalid_target", message: "Die ausgewählte Gruppe oder Fachkraft ist ungültig."},
-	{target: workforce.ErrSubstitutionInvalidPeriod, status: http.StatusBadRequest, code: "invalid_period", message: "Der Zeitraum ist ungültig."},
-	{target: workforce.ErrSubstitutionNotRunning, status: http.StatusConflict, code: "not_running", message: "Die Gruppenübergabe ist nicht mehr aktiv."},
-	{target: workforce.ErrSubstitutionAlreadyAssigned, status: http.StatusConflict, code: "already_assigned", message: "Diese Gruppenübergabe besteht bereits."},
-	{target: workforce.ErrSubstitutionConflict, status: http.StatusConflict, code: "conflict", message: "Die Änderung steht im Konflikt mit der aktuellen Planung."},
-	{target: workforce.ErrSubstitutionSelfAssignment, status: http.StatusBadRequest, code: "self_assignment", message: "Sie können sich nicht selbst hinzufügen."},
+	{target: workforce.ErrSubstitutionNotFound, status: http.StatusNotFound, code: codeNotFound, message: "Gruppenübergabe nicht gefunden."},
+	{target: workforce.ErrSubstitutionForbidden, status: http.StatusForbidden, code: codeForbidden, message: "Diese Aktion ist nicht erlaubt."},
+	{target: workforce.ErrSubstitutionInvalidTarget, status: http.StatusBadRequest, code: codeInvalidTarget, message: "Die ausgewählte Gruppe oder Fachkraft ist ungültig."},
+	{target: workforce.ErrSubstitutionInvalidPeriod, status: http.StatusBadRequest, code: codeInvalidPeriod, message: "Der Zeitraum ist ungültig."},
+	{target: workforce.ErrSubstitutionNotRunning, status: http.StatusConflict, code: codeNotRunning, message: "Die Gruppenübergabe ist nicht mehr aktiv."},
+	{target: workforce.ErrSubstitutionAlreadyAssigned, status: http.StatusConflict, code: codeAlreadyAssigned, message: "Diese Gruppenübergabe besteht bereits."},
+	{target: workforce.ErrSubstitutionConflict, status: http.StatusConflict, code: codeConflict, message: "Die Änderung steht im Konflikt mit der aktuellen Planung."},
+	{target: workforce.ErrSubstitutionSelfAssignment, status: http.StatusBadRequest, code: codeSelfAssignment, message: "Sie können sich nicht selbst hinzufügen."},
 }
 
 func operationErrorSpec(operation *workforce.SubstitutionOperationError) moduleErrorSpec {
@@ -423,5 +437,5 @@ func operationErrorSpec(operation *workforce.SubstitutionOperationError) moduleE
 }
 
 var internalModuleError = moduleErrorSpec{
-	status: http.StatusInternalServerError, code: "internal", message: "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+	status: http.StatusInternalServerError, code: codeInternal, message: "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
 }

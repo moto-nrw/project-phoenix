@@ -1,7 +1,18 @@
+import type { ErrorCode } from "~/lib/error-codes.generated";
+
+/**
+ * Types a wire code for comparison against registry codes, so a literal that
+ * is not in error-registry.json fails the type check. The value itself is not
+ * validated: an unknown code simply never equals a registered one.
+ */
+export function wireErrorCode(code: unknown): ErrorCode | undefined {
+  return typeof code === "string" && code ? (code as ErrorCode) : undefined;
+}
+
 /** Structured HTTP failure shared by browser and domain clients. */
 export class ApiError extends Error {
   status?: number;
-  code?: string;
+  code?: ErrorCode;
   details?: Record<string, unknown>;
   errors?: { field: string; reason: string }[];
   instance?: string;
@@ -22,7 +33,7 @@ export class ApiError extends Error {
     this.name = "ApiError";
     this.status = status;
     this.code =
-      payload?.code ||
+      wireErrorCode(payload?.code) ||
       (status === undefined ? undefined : errorClassCode(status));
     this.details = payload?.details;
     this.errors = payload?.errors;
@@ -32,7 +43,7 @@ export class ApiError extends Error {
 }
 
 /** Mirrors backend/api/common.ErrorClassCode until generated contracts include it. */
-export function errorClassCode(status: number): string {
+export function errorClassCode(status: number): ErrorCode {
   if (status === 401 || status === 403) return "general.permission";
   if (status === 409 || status === 410 || status === 422)
     return "general.business_rejection";
@@ -85,7 +96,7 @@ export function enrichApiError<T extends ApiError>(
       ? (body as { code?: unknown }).code
       : undefined;
   if (typeof wireCode === "string" && wireCode) {
-    error.code = wireCode;
+    error.code = wireErrorCode(wireCode);
   } else if (!error.code) {
     error.code = parsed.code;
   }

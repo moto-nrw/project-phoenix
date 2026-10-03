@@ -4791,7 +4791,7 @@ function leadCancelBlockTopic(): HelpTopic {
   };
 }
 
-/** `/dienstplan`. Ansichten `Woche` und `Halbjahr`, Schichten je Person. */
+/** `/dienstplan`. Ansichten `Woche`, `Person` und `Halbjahr`, Schichten je Person. */
 function dutyRosterTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadDutyRoster,
@@ -4804,7 +4804,7 @@ function dutyRosterTopic(): HelpTopic {
     steps: [
       "Klappen Sie in der Seitenleiste `Planung` auf.",
       "Öffnen Sie `Dienstplan`.",
-      "Wählen Sie oben `Woche` oder `Halbjahr`.",
+      "Wählen Sie oben `Woche`, `Person` oder `Halbjahr`.",
       "Blättern Sie zur gewünschten Woche.",
       "Wählen Sie in der Zeile einer Person den passenden Tag.",
       "Tragen Sie die Schicht ein und speichern Sie sie.",
@@ -4814,6 +4814,8 @@ function dutyRosterTopic(): HelpTopic {
       "Jede Schicht kann eine Schichtart tragen. Die Farbe kommt von der Schichtart.",
       "Über `Schichtarten verwalten` pflegen Sie die Arten.",
       "Unter dem Plan steht `Stunden der Woche`. Dort sehen Sie je Person die Stunden je Schichtart und das Soll.",
+      "Unter `Person` sehen Sie die Woche einer Person in Viertelstunden. Darunter stehen die Stunden je Tag und Schichtart.",
+      "Ziehen Sie dort über die Viertelstunden, um eine Schicht anzulegen.",
       "Über das Menü mit den drei Punkten geht `Drucken oder exportieren`.",
       "Die Vorlage `Stundenübersicht` druckt diese Stunden als Liste.",
     ],

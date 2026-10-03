@@ -23,7 +23,7 @@ func TestRenderSubstitutionsFailureUsesSharedEnvelope(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/api/substitutions", nil)
 	renderSubstitutionsFailure(recorder, request, substitutionsHTTP.Failure{
-		Status: http.StatusConflict, Code: "already_assigned", Message: "Diese Gruppenübergabe besteht bereits.",
+		Status: http.StatusConflict, Code: "substitutions.already_assigned", Message: "Diese Gruppenübergabe besteht bereits.",
 		Err: errors.New("postgres password leaked"),
 	})
 
@@ -36,7 +36,7 @@ func TestRenderSubstitutionsFailureUsesSharedEnvelope(t *testing.T) {
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
 	require.Equal(t, "error", body.Status)
 	require.Equal(t, "Diese Gruppenübergabe besteht bereits.", body.Error)
-	require.Equal(t, "already_assigned", body.Code)
+	require.Equal(t, "substitutions.already_assigned", body.Code)
 	require.NotContains(t, recorder.Body.String(), "postgres")
 }
 

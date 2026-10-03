@@ -2,7 +2,7 @@ import { proxyPost } from "~/lib/route-proxy.server";
 
 interface CheckInRequest {
   status: "present" | "home_office";
-  /** Optional F9 deviation reason, sent after a deviation_reason_required conflict. */
+  /** Optional F9 deviation reason, sent after an iot.deviation_reason_required conflict. */
   reason?: string;
 }
 

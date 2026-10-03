@@ -95,16 +95,25 @@ var (
 	ErrUnknownStep = errors.New("unknown setup step")
 )
 
+// The registered codes of the wizard's conflicts (error-registry.json). The
+// package may not import api/common, so it names each code once here.
+const (
+	CodeSetupCompleted  = "school.setup_completed"
+	CodeSetupIncomplete = "school.setup_incomplete"
+	// CodeConflict is the class code of any other conflict.
+	CodeConflict = "general.business_rejection"
+)
+
 // ConflictCode gives the client a stable code for each conflict of the
 // wizard.
 func ConflictCode(err error) string {
 	switch {
 	case errors.Is(err, ErrCompleted):
-		return "school_setup_completed"
+		return CodeSetupCompleted
 	case errors.Is(err, ErrIncomplete):
-		return "school_setup_incomplete"
+		return CodeSetupIncomplete
 	default:
-		return "conflict"
+		return CodeConflict
 	}
 }
 

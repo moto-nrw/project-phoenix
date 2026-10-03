@@ -42,7 +42,7 @@ import { subscribeStudentCompanionsChanged } from "~/lib/student-companion-api";
  * Generous on purpose: an announcement misread as our own echo in this window
  * still refetches the stored links, it merely skips the stale warning — and a
  * save built on a snapshot that a remote write has replaced is refused by the
- * backend's fingerprint check anyway (409 `companions_changed` → markStale).
+ * backend's fingerprint check anyway (409 `students.companions_changed` → markStale).
  * Being too STRICT is what costs the user their work: the form would block the
  * save they just completed.
  *
@@ -116,7 +116,7 @@ interface CompanionRemoteRefresh {
    * Flags the view stale from the outside — for the backend's own verdict.
    *
    * The announcement bus only covers writers in THIS tab; a save can still be
-   * refused with 409 `companions_changed` because another browser replaced the
+   * refused with 409 `students.companions_changed` because another browser replaced the
    * links. That refusal means the same thing as a remote announcement, so it
    * has to leave the form in the same state: draft kept, save blocked, "Neu
    * laden" offered.
@@ -216,7 +216,7 @@ export function useCompanionRemoteRefresh({
           // Keep it. The baseline then stays the possibly pre-commit list, but
           // that costs nothing silently: the save carries the fingerprint of
           // exactly that list, so the backend refuses it with 409
-          // `companions_changed` (→ markStale) instead of overwriting anyone.
+          // `students.companions_changed` (→ markStale) instead of overwriting anyone.
           //
           // The same holds for a draft that was ALREADY dirty when the user
           // saved and that they kept editing while the request was in flight —

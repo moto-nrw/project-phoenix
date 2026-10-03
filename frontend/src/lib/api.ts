@@ -1,3 +1,4 @@
+import type { ErrorCode } from "~/lib/error-codes.generated";
 import type { AxiosError } from "axios";
 import { ApiError, apiErrorFromBody, enrichApiError } from "./api-error";
 import { clearSessionCache, getCachedSession } from "./session-cache";
@@ -63,7 +64,7 @@ const logger = createLogger({ component: "ApiClient" });
  * links" for a pure name or address edit that changed none, and announcing that
  * costs some other editor their unsaved work.
  *
- * The backend answers the question itself — `companions_changed` on the update
+ * The backend answers the question itself — `students.companions_changed` on the update
  * response, the same verdict that decides its `student_companions_changed`
  * broadcast — so that answer wins whenever it is present. It is absent only from
  * a response that carries no verdict at all; there we fall back to the
@@ -793,7 +794,8 @@ export function parseConflictExtensions(
  * (api/students: CodeCompanionLockBusy). Kept in sync by hand — the wire
  * contract is the string.
  */
-export const COMPANION_LOCK_BUSY_CODE = "companion_lock_busy";
+export const COMPANION_LOCK_BUSY_CODE: ErrorCode =
+  "students.companion_lock_busy";
 
 /**
  * The backend's stable code for the OTHER expected companion refusal
@@ -802,8 +804,8 @@ export const COMPANION_LOCK_BUSY_CODE = "companion_lock_busy";
  * link. A 400, not a 409 — nothing to confirm, the user has to fix that child's
  * Heimweg first. Kept in sync by hand — the wire contract is the string.
  */
-export const COMPANION_WOULD_LOSE_DEPARTURE_CODE =
-  "companion_would_lose_departure";
+export const COMPANION_WOULD_LOSE_DEPARTURE_CODE: ErrorCode =
+  "students.companion_would_lose_departure";
 
 /**
  * The backend's stable code for the stale-list 409 (api/students:
@@ -811,7 +813,7 @@ export const COMPANION_WOULD_LOSE_DEPARTURE_CODE =
  * snapshot someone else has since replaced. Kept in sync by hand — the wire
  * contract is the string.
  */
-export const COMPANIONS_CHANGED_CODE = "companions_changed";
+export const COMPANIONS_CHANGED_CODE: ErrorCode = "students.companions_changed";
 
 /** Shown only when the stale-list refusal arrived without a readable message. */
 const COMPANIONS_CHANGED_FALLBACK =
@@ -1028,8 +1030,8 @@ function parseBackendMessage(body: string, fallback: string): string {
  * Reports whether a complete 409 RESPONSE BODY is the companion-plan question.
  *
  * Strict on purpose: the conflict list has to actually be there. The student PUT
- * answers 409 for several unrelated reasons (companion_lock_busy, the
- * SICK_EXCUSED_CONFLICT code, and whatever a later feature adds), and typing one
+ * answers 409 for several unrelated reasons (students.companion_lock_busy, the
+ * students.sick_excused_conflict code, and whatever a later feature adds), and typing one
  * of those as a CompanionPlanConflictError would replace its real contract with
  * an empty confirmation the user cannot answer. Only the untouched body reaches
  * this function, so "no list in it" means "not this conflict" — the response

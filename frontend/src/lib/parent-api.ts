@@ -443,7 +443,7 @@ function unwrapEnvelope<T>(json: ApiEnvelope<T>): T {
 
 /**
  * A failed parents-portal API call. Carries the HTTP status and the backend's
- * stable error `code` (e.g. "care_exception_conflict") so callers can map to a
+ * stable error `code` (e.g. "care.care_exception_conflict") so callers can map to a
  * localized message instead of showing the raw English error string. Extends
  * `Error`, so existing `err instanceof Error ? err.message` handling still works.
  */
@@ -745,7 +745,7 @@ export async function submitSickNote(
 /**
  * Changes the guardian's own still-pending absence request. `expectedVersion`
  * comes from the newest entry of the request's event history; the backend
- * answers 409 `change_request_stale` when the request moved on meanwhile.
+ * answers 409 `students.change_request_stale` when the request moved on meanwhile.
  */
 export async function updateExcusedRequest(
   studentId: string,
@@ -860,7 +860,7 @@ export async function getChildToday(studentId: string): Promise<ChildToday> {
 
 /**
  * Fetches the Monday-Friday meal plan for the child's school for the week
- * containing weekStart (YYYY-MM-DD). Returns 403 (meal_plan_disabled) when the
+ * containing weekStart (YYYY-MM-DD). Returns 403 (meals.plan_disabled) when the
  * school does not run a meal plan; callers gate on meal_plan_enabled first.
  */
 export async function getChildMealPlan(
@@ -1241,7 +1241,7 @@ export async function respondToAnnouncement(
 /**
  * Submits one action of an Einverständnis for ONE child (#3430). `versionId` is
  * the version the guardian read; the backend answers 409
- * `declaration_version_changed` when the school has published a new one.
+ * `care.declaration_version_changed` when the school has published a new one.
  * `password` is sent only when the Einverständnis asks for it. Password errors
  * are 403 on purpose, so they never trigger the 401 logout.
  */

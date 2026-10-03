@@ -468,7 +468,7 @@ describe("HomePage (Login)", () => {
     });
   });
 
-  // Backend answers 401 + code "account_inactive" once the password was
+  // Backend answers 401 + code "identity.session_account_inactive" once the password was
   // accepted but the account is switched off — which is what offboarding
   // leaves behind. Regression guard for #3376: the generic credentials error
   // sent a school through password resets that could not help.
@@ -476,7 +476,7 @@ describe("HomePage (Login)", () => {
     global.fetch = mockFetchResponse(401, {
       status: "error",
       error: "account is inactive",
-      code: "account_inactive",
+      code: "identity.session_account_inactive",
     });
 
     render(<HomePage />);
@@ -512,7 +512,7 @@ describe("HomePage (Login)", () => {
   });
 
   describe("guardian-only account at the staff login", () => {
-    // Backend answers 403 + code "use_parent_portal" once the password was
+    // Backend answers 403 + code "identity.use_parent_portal" once the password was
     // accepted but the account only exists as a guardian. Regression guard
     // for the support case where parents read the old generic error as a
     // password problem and reset their password over and over.
@@ -520,7 +520,7 @@ describe("HomePage (Login)", () => {
       mockFetchResponse(403, {
         status: "error",
         error: "guardian accounts must log in at the parents portal",
-        code: "use_parent_portal",
+        code: "identity.use_parent_portal",
       });
 
     async function submitLogin() {
@@ -624,14 +624,14 @@ describe("HomePage (Login)", () => {
 
   describe("Lehrkraft-only account at the staff login (#2207)", () => {
     // Since the cutover a school-portal-only account has nothing to reach in
-    // the OGS portal, so the backend answers 403 + code "use_school_portal".
+    // the OGS portal, so the backend answers 403 + code "identity.use_school_portal".
     // Same failure mode as the guardian split above: a generic error would
     // read as a password problem and send Lehrkräfte into reset loops.
     const schoolOnly403 = () =>
       mockFetchResponse(403, {
         status: "error",
         error: "school portal accounts must log in at the school portal",
-        code: "use_school_portal",
+        code: "identity.use_school_portal",
       });
 
     async function submitLogin() {
@@ -704,7 +704,7 @@ describe("HomePage (Login)", () => {
           new Response(
             JSON.stringify({
               error: "school portal accounts must log in at the school portal",
-              code: "use_school_portal",
+              code: "identity.use_school_portal",
             }),
             { status: 403, headers: { "Content-Type": "application/json" } },
           ),
@@ -740,7 +740,7 @@ describe("HomePage (Login)", () => {
       new MockPasskeyApiError(
         403,
         "school portal accounts must log in at the school portal",
-        "use_school_portal",
+        "identity.use_school_portal",
       ),
     );
     render(<HomePage />);

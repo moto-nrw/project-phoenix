@@ -1,3 +1,4 @@
+import type { ErrorCode } from "~/lib/error-codes.generated";
 import { ApiError, enrichApiError } from "./api-error";
 /**
  * Client for the OGS-internal colleague chat (#2598). Chat model: one
@@ -99,7 +100,8 @@ interface ApiResponse<T> {
  * polishing the wording cannot turn the read-only state back into a red
  * "loading failed" error with a dead-end compose button.
  */
-const STAFF_MESSAGING_DISABLED = "staff_messaging_disabled";
+const STAFF_MESSAGING_DISABLED: ErrorCode =
+  "communication.staff_messaging_disabled";
 
 /** An error carrying the backend's stable code, when there was one. */
 class StaffMessagesError extends ApiError {
@@ -114,7 +116,8 @@ class StaffMessagesError extends ApiError {
  * no longer a reachable colleague. Same reasoning as STAFF_MESSAGING_DISABLED -
  * a code, not a sentence, so the read-only branch survives a rewording.
  */
-const COUNTERPART_UNAVAILABLE = "staff_counterpart_unavailable";
+const COUNTERPART_UNAVAILABLE: ErrorCode =
+  "communication.staff_counterpart_unavailable";
 
 /** Whether an unknown thrown value is the "counterpart has left" case. */
 export function isCounterpartUnavailable(err: unknown): boolean {

@@ -283,12 +283,8 @@ func (rs *Resource) getTemplate(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, templates[0], "Template retrieved")
 }
 
-// templateNotFoundCode is the stable error code carried by every template 404
-// so clients can map the message without matching the English text (#2187).
-const templateNotFoundCode = "template_not_found"
-
 func renderTemplateNotFound(w http.ResponseWriter, r *http.Request) {
-	common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("template not found"), templateNotFoundCode))
+	common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("template not found"), common.CodeTimetableTemplateNotFound))
 }
 
 // resolveTemplateForRead retries an empty period-scoped template read against
@@ -617,14 +613,6 @@ func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error
 	}
 }
 
-// Stable codes for the pull-forward series-start rejections (#2226) so the
-// planner can map them without matching the German text.
-const (
-	ErrCodeTemplateStartNotEarlier       = "timetable.template_start_not_earlier"
-	ErrCodeTemplateStartInPast           = "timetable.template_start_in_past"
-	ErrCodeTemplateStartPredecessorClash = "timetable.template_start_predecessor_overlap"
-)
-
 // renderTemplateStartPullError maps the pull-forward series-start rejections
 // (#2226) to German 400s. Like the care-offering conflict above, the message
 // itself is user-facing German — the planner shows it verbatim.
@@ -634,19 +622,19 @@ func renderTemplateStartPullError(w http.ResponseWriter, r *http.Request, err er
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
 			//nolint:staticcheck // ST1005: user-facing German message
 			errors.New("Der Serienbeginn kann nur auf ein früheres Datum vorgezogen werden."),
-			ErrCodeTemplateStartNotEarlier,
+			common.CodeTimetableTemplateStartNotEarlier,
 		))
 	case errors.Is(err, timetableModule.ErrTemplateStartInPast):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
 			//nolint:staticcheck // ST1005: user-facing German message
 			errors.New("Der neue Serienbeginn darf nicht in der Vergangenheit liegen."),
-			ErrCodeTemplateStartInPast,
+			common.CodeTimetableTemplateStartInPast,
 		))
 	case errors.Is(err, timetableModule.ErrTemplateStartPredecessorOverlap):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
 			//nolint:staticcheck // ST1005: user-facing German message
 			errors.New("Der neue Serienbeginn überschneidet sich mit dem vorherigen Serienteil. Bitte wählen Sie ein Datum ab dessen Ende."),
-			ErrCodeTemplateStartPredecessorClash,
+			common.CodeTimetableTemplateStartPredecessorOverlap,
 		))
 	default:
 		return false

@@ -39,7 +39,7 @@ func TestDemoResetOrdersANewSchoolForTheSameLink(t *testing.T) {
 
 	rr := env.reset(t, token)
 	assert.Equal(t, http.StatusConflict, rr.Code, "a school that is still being prepared cannot be restarted")
-	assert.Contains(t, rr.Body.String(), "demo_school_preparing")
+	assert.Contains(t, rr.Body.String(), "identity.demo_school_preparing")
 
 	seedDemoSchool(t, env.db, slug, school, visitor.ID)
 	session := env.enterAs(t, token, "lead")
@@ -120,7 +120,7 @@ func TestDemoResetRefusesTheStandingSchool(t *testing.T) {
 
 	rr := env.reset(t, token)
 	assert.Equal(t, http.StatusUnprocessableEntity, rr.Code, rr.Body.String())
-	assert.Contains(t, rr.Body.String(), "demo_access_invalid")
+	assert.Contains(t, rr.Body.String(), "identity.demo_access_invalid")
 	var slug string
 	require.NoError(t, env.db.NewRaw(`SELECT school_slug FROM auth.demo_accesses WHERE token_hash = ?`, fingerprint(token)).Scan(context.Background(), &slug))
 	assert.Equal(t, env.slug, slug)
@@ -132,14 +132,14 @@ func TestDemoResetRejectsUnknownAndExpiredTokens(t *testing.T) {
 
 	rr := env.reset(t, "no-such-token")
 	assert.Equal(t, http.StatusNotFound, rr.Code)
-	assert.Contains(t, rr.Body.String(), "demo_access_unknown")
+	assert.Contains(t, rr.Body.String(), "identity.demo_access_unknown")
 
 	token, _ := env.requestOwnSchool(t, env.address())
 	_, err := env.db.NewRaw(`UPDATE auth.demo_accesses SET expires_at = NOW() - INTERVAL '1 minute' WHERE token_hash = ?`, fingerprint(token)).Exec(context.Background())
 	require.NoError(t, err)
 	rr = env.reset(t, token)
 	assert.Equal(t, http.StatusGone, rr.Code)
-	assert.Contains(t, rr.Body.String(), "demo_access_expired")
+	assert.Contains(t, rr.Body.String(), "identity.demo_access_expired")
 }
 
 // A restart is a seed job, so it counts against the address's window like a
@@ -165,7 +165,7 @@ func TestDemoResetCountsAgainstTheAddressLimit(t *testing.T) {
 
 	rr := env.reset(t, token)
 	assert.Equal(t, http.StatusTooManyRequests, rr.Code, rr.Body.String())
-	assert.Contains(t, rr.Body.String(), "demo_access_rate_limited")
+	assert.Contains(t, rr.Body.String(), "identity.demo_access_rate_limited")
 	assert.NotEmpty(t, rr.Header().Get("Retry-After"))
 }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { wireErrorCode } from "~/lib/api-error";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowRightLeft, Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
@@ -387,7 +388,8 @@ export function CaregiverBlockerResolutionPanel({
         errorCode,
       });
       setErrorMessage(
-        errorCode === "ONLY_SUPERVISOR_REPLACEMENT_REQUIRED"
+        wireErrorCode(errorCode) ===
+          "timetable.only_supervisor_replacement_required"
           ? `"${item.activityName}": Einzige Leitung — bitte Ersatzkraft auswählen.`
           : error instanceof Error
             ? error.message

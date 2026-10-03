@@ -397,7 +397,7 @@ describe("CarePlanEditorModal", () => {
   it("explains when a pickup exception needs a staff profile", async () => {
     const onSubmitException = vi
       .fn()
-      .mockRejectedValue(new Error("staff_profile_required"));
+      .mockRejectedValue(new Error("students.staff_profile_required"));
     renderEditor({
       onSubmitException,
       pickupDay: {

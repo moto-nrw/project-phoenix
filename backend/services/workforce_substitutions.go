@@ -9,6 +9,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/education"
 )
 
+// substitutionCodeInvalidPeriod is the registered error code of a rejected
+// substitution period (error-registry.json). This package may not import
+// api/common, so it names the code once here.
+const substitutionCodeInvalidPeriod = "substitutions.invalid_period"
+
 // substitutionCapability serves workforce.Substitutions from the retained
 // substitution module while that module's own move into the Workforce owner is
 // pending (#2688). It only maps the storage-neutral contract types; every
@@ -84,7 +89,7 @@ func substitutionDate(value string) (*timezone.Date, error) {
 	date, err := timezone.ParseDate(value)
 	if err != nil {
 		return nil, &workforce.SubstitutionOperationError{
-			Target: workforce.ErrSubstitutionInvalidPeriod, Code: "invalid_period", Message: "Der Zeitraum ist ungültig.", Cause: err,
+			Target: workforce.ErrSubstitutionInvalidPeriod, Code: substitutionCodeInvalidPeriod, Message: "Der Zeitraum ist ungültig.", Cause: err,
 		}
 	}
 	return &date, nil
@@ -153,7 +158,7 @@ func assignmentToModule(assignment workforce.SubstitutionAssignment) (education.
 				}
 				if date == nil {
 					return result, &workforce.SubstitutionOperationError{
-						Target: workforce.ErrSubstitutionInvalidPeriod, Code: "invalid_period", Message: "Der Zeitraum ist ungültig.",
+						Target: workforce.ErrSubstitutionInvalidPeriod, Code: substitutionCodeInvalidPeriod, Message: "Der Zeitraum ist ungültig.",
 					}
 				}
 				dates = append(dates, *date)

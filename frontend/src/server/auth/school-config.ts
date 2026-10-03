@@ -20,6 +20,7 @@ import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { analyticsSessionHeaders } from "~/lib/analytics-session-header.server";
+import { wireErrorCode } from "~/lib/api-error";
 import { canonicalForwardedFor } from "~/lib/client-headers.server";
 import {
   logger,
@@ -102,19 +103,20 @@ export const schoolAuthConfig = {
         if (!loginResult || (loginResult.status && !loginResult.access_token)) {
           const status = loginResult?.status;
           const code = loginResult?.code;
+          const backendCode = wireErrorCode(code);
           if (status === 429)
             throw await createOperatorLoginError("rate_limited");
           // Backend body codes:
-          //   "invalid_credentials"    → wrong password OR unknown email
-          //   "account_inactive"       → account disabled
-          //   "no_school_portal_role"  → password accepted, but no
+          //   "care.invalid_credentials"          → wrong password OR unknown email
+          //   "identity.session_account_inactive" → account disabled
+          //   "school.no_school_portal_role"      → password accepted, but no
           //                              Lehrkraft role at any school
           //   "mfa_required" / "mfa_enrollment_required" → the account
           //     needs its second factor; only the login page (mfa-api)
           //     can drive that flow, so this authorize path rejects.
-          if (code === "account_inactive")
+          if (backendCode === "identity.session_account_inactive")
             throw await createOperatorLoginError("account_inactive");
-          if (code === "no_school_portal_role")
+          if (backendCode === "school.no_school_portal_role")
             throw await createOperatorLoginError("no_school_portal_role");
           if (code === "mfa_required" || code === "mfa_enrollment_required")
             throw await createOperatorLoginError(code);

@@ -61,7 +61,7 @@ describe("Einverständnisse in the staff client (#3430)", () => {
         JSON.stringify({
           status: "error",
           error: "declaration has submissions",
-          code: "declaration_has_submissions",
+          code: "communication.declaration_has_submissions",
         }),
         { status: 409, headers: { "Content-Type": "application/json" } },
       ),
@@ -71,7 +71,7 @@ describe("Einverständnisse in the staff client (#3430)", () => {
     expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({
       status: 409,
-      code: "declaration_has_submissions",
+      code: "communication.declaration_has_submissions",
       message: "declaration has submissions",
     });
   });

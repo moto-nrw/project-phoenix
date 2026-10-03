@@ -1,6 +1,7 @@
 // [tenant]/page.tsx, tenant-scoped login page
 "use client";
 
+import type { ErrorCode } from "~/lib/error-codes.generated";
 import { useState, useEffect, useRef, Suspense } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
@@ -55,7 +56,7 @@ const WRONG_PORTAL_REDIRECT_MS = 2000;
 /**
  * Set when the backend refused a login on PORTAL grounds: the credentials
  * were correct, but this account belongs to the parents portal
- * ("use_parent_portal") or to moto schule ("use_school_portal", #2207).
+ * ("identity.use_parent_portal") or to moto schule ("identity.use_school_portal", #2207).
  *
  * redirectUrl is null only if the portal's hostname env var is missing at
  * runtime (env.js rejects that at build time). We then still explain the
@@ -302,12 +303,15 @@ function LoginForm() {
     return () => clearTimeout(timer);
   }, [wrongPortalHint]);
 
-  const showWrongPortalHint = (code: string | undefined): boolean => {
-    if (code !== "use_parent_portal" && code !== "use_school_portal") {
+  const showWrongPortalHint = (code: ErrorCode | undefined): boolean => {
+    if (
+      code !== "identity.use_parent_portal" &&
+      code !== "identity.use_school_portal"
+    ) {
       return false;
     }
 
-    const portal = code === "use_parent_portal" ? "parents" : "school";
+    const portal = code === "identity.use_parent_portal" ? "parents" : "school";
     let redirectUrl: string | null = null;
     try {
       redirectUrl =
@@ -323,7 +327,10 @@ function LoginForm() {
       });
     }
     setWrongPortalHint({ portal, redirectUrl });
-    trackLoginEvent("login_failed", { reason: code });
+    // The analytics reason keeps its name from before the code rename (#2506).
+    trackLoginEvent("login_failed", {
+      reason: portal === "parents" ? "use_parent_portal" : "use_school_portal",
+    });
     return true;
   };
 
@@ -383,7 +390,10 @@ function LoginForm() {
       // Code nicht. Ohne eigene Meldung liest sich die Ablehnung wie ein
       // falsches Passwort, und niemand kommt über "Passwort vergessen"
       // wieder hinein (#3376).
-      if (err instanceof MFAApiError && err.code === "account_inactive") {
+      if (
+        err instanceof MFAApiError &&
+        err.code === "identity.session_account_inactive"
+      ) {
         setError(
           "Ihr Konto ist ausgeschaltet. Bitte wenden Sie sich an die OGS-Leitung.",
         );

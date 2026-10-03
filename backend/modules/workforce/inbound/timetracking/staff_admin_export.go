@@ -18,7 +18,7 @@ import (
 var timeExportErrorRules = []common.ErrorRule{
 	{Target: workforce.ErrTimeExportInvalid, Render: common.ErrorInvalidRequest},
 	{Target: workforce.ErrPayrollConfigIncomplete, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, "payroll_config_incomplete")
+		return common.ErrorConflictWithCode(err, common.CodeWorkforcePayrollConfigIncomplete)
 	}},
 }
 

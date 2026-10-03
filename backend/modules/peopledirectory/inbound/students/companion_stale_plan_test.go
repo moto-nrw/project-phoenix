@@ -7,8 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
+
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -104,7 +105,7 @@ func TestUpdateStudent_PlanOnlyTrimNeedsBaseline(t *testing.T) {
 	t.Run("without a baseline the removal is refused", func(t *testing.T) {
 		rr := putStudentExpect(t, tc, student.ID, narrowed(nil))
 		require.Equal(t, http.StatusConflict, rr.Code, "Body: %s", rr.Body.String())
-		assert.Contains(t, rr.Body.String(), studentsAPI.CodeCompanionsChanged,
+		assert.Contains(t, rr.Body.String(), common.CodeStudentsCompanionsChanged,
 			"the client has to be told to reload, not to confirm anything")
 		assert.Equal(t, map[int64][]string{companion.ID: {"mon", "tue"}}, companionLinkDays(t, tc, student.ID),
 			"a refused update must leave the links untouched")
@@ -116,7 +117,7 @@ func TestUpdateStudent_PlanOnlyTrimNeedsBaseline(t *testing.T) {
 			"companions_fingerprint": stale,
 		}))
 		require.Equal(t, http.StatusConflict, rr.Code, "Body: %s", rr.Body.String())
-		assert.Contains(t, rr.Body.String(), studentsAPI.CodeCompanionsChanged)
+		assert.Contains(t, rr.Body.String(), common.CodeStudentsCompanionsChanged)
 	})
 
 	t.Run("the current baseline lets the intended narrowing through", func(t *testing.T) {

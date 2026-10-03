@@ -307,7 +307,7 @@ func TestRunFullDay_NoDevices(t *testing.T) {
 
 // simulationAPIMock creates a mock API server for simulation tests.
 func simulationAPIMock(t *testing.T, failedPaths ...string) *simulationHTTPTestServer {
-	return simulationAPIMockWithOptions(t, "rfid_tag_not_found", 0, failedPaths...)
+	return simulationAPIMockWithOptions(t, "iot.rfid_tag_not_found", 0, failedPaths...)
 }
 
 func simulationAPIMockWithUnknownCode(t *testing.T, unknownCode string, failedPaths ...string) *simulationHTTPTestServer {
@@ -315,7 +315,7 @@ func simulationAPIMockWithUnknownCode(t *testing.T, unknownCode string, failedPa
 }
 
 func simulationAPIMockWithCheckinLimit(t *testing.T, checkinLimit int) *simulationHTTPTestServer {
-	return simulationAPIMockWithOptions(t, "rfid_tag_not_found", checkinLimit)
+	return simulationAPIMockWithOptions(t, "iot.rfid_tag_not_found", checkinLimit)
 }
 
 func simulationAPIMockWithOptions(t *testing.T, unknownCode string, checkinLimit int, failedPaths ...string) *simulationHTTPTestServer {
@@ -373,7 +373,7 @@ func simulationAPIMockWithOptions(t *testing.T, unknownCode string, checkinLimit
 			if checkinLimit > 0 && action == "checkin" {
 				if len(checkedInRFIDs) >= checkinLimit {
 					w.WriteHeader(409)
-					_ = json.NewEncoder(w).Encode(map[string]string{"error": "Room capacity exceeded", "code": "ROOM_CAPACITY_EXCEEDED"})
+					_ = json.NewEncoder(w).Encode(map[string]string{"error": "Room capacity exceeded", "code": "iot.room_capacity_exceeded"})
 					return
 				}
 				checkedInRFIDs[rfidTag] = true

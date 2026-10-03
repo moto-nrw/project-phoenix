@@ -245,7 +245,7 @@ func (s *staffDeviations) lockDeviationDay(ctx context.Context, instanceID int64
 		return nil, err
 	}
 	if timezone.Date(locked.Date) != date || !isPlannableInstance(locked) {
-		return nil, timetable.DeviationConflict("instance_moved", msgInstanceMoved)
+		return nil, timetable.DeviationConflict(timetable.CodeInstanceMoved, msgInstanceMoved)
 	}
 	return locked, nil
 }
@@ -372,7 +372,7 @@ func rejectOverstaffingPresences(presencePlan []deviationPresenceOp, projection 
 		checked[op.instance.ID] = true
 		rows := readSet.rowsByInstance[op.instance.ID]
 		if projection.nonAbsentCount(op.instance.ID, rows) > plannedPositions(rows) {
-			return timetable.DeviationConflict("presence_would_overstaff",
+			return timetable.DeviationConflict(timetable.CodePresenceWouldOverstaff,
 				"der Termin ist bereits vollständig besetzt. Entfernen Sie zuerst die nicht mehr benötigte Vertretung")
 		}
 	}
@@ -413,7 +413,7 @@ func reconcileSelectedAck(
 	finalAck = instance.UnderstaffedAck
 	if in.UnderstaffedAck != nil {
 		if *in.UnderstaffedAck && !projectedUnderstaffed {
-			return false, nil, false, timetable.DeviationConflict("understaffed_still_staffed",
+			return false, nil, false, timetable.DeviationConflict(timetable.CodeUnderstaffedStillStaffed,
 				"dieser Block kann nicht als bewusst unbesetzt markiert werden, solange er vollständig besetzt ist")
 		}
 		finalAck = *in.UnderstaffedAck
@@ -452,7 +452,7 @@ func loadScopedPlannableInstance(row *scheduleModel.InstanceStaff, scope *[]int6
 		return nil, err
 	}
 	if instance == nil && scope != nil {
-		return nil, timetable.DeviationConflict("instance_not_editable", msgInstanceNotEditable)
+		return nil, timetable.DeviationConflict(timetable.CodeInstanceNotEditable, msgInstanceNotEditable)
 	}
 	return instance, nil
 }

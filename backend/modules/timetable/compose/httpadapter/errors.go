@@ -6,10 +6,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/activities"
 )
 
-const errorCodeOnlySupervisorReplacementRequired = "ONLY_SUPERVISOR_REPLACEMENT_REQUIRED"
-
 func onlySupervisorConflict(err error) render.Renderer {
-	return common.ErrorConflictWithCode(err, errorCodeOnlySupervisorReplacementRequired)
+	return common.ErrorConflictWithCode(err, common.CodeTimetableOnlySupervisorReplacementRequired)
 }
 
 // errorRules map activity-service sentinels to HTTP responses. Matched via

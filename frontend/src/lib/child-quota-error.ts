@@ -1,10 +1,12 @@
+import type { ErrorCode } from "~/lib/error-codes.generated";
 import { readCodedApiError } from "./coded-api-error";
 
 /**
  * Fehlercode, wenn das Kinderkontingent einer OGS erreicht ist (#3567). Der
  * Code ist die Identität des Fehlers; der Backend-Text ist nur Diagnose.
  */
-export const CHILD_QUOTA_REACHED_CODE = "students.child_quota_reached";
+export const CHILD_QUOTA_REACHED_CODE: ErrorCode =
+  "students.child_quota_reached";
 
 /**
  * Meldung für ein erreichtes Kinderkontingent, sonst null. Die Zahlen kommen

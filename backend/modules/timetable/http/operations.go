@@ -604,7 +604,7 @@ func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request
 	case errors.Is(err, timetable.ErrInstanceWeekend):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, timetable.ErrCompletionConfirmationStale):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "completion_confirmation_stale"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeTimetableCompletionConfirmationStale))
 	case errors.Is(err, timetable.ErrInstanceNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, studentpresence.ErrRoomCapacityExceeded):

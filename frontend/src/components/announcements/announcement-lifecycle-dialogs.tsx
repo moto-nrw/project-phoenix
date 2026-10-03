@@ -1,5 +1,6 @@
 "use client";
 
+import type { ErrorCode } from "~/lib/error-codes.generated";
 import { useState } from "react";
 import { BellRing, Pencil, Send, Trash2, Undo2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
@@ -40,8 +41,8 @@ function errorMessage(err: unknown, fallback: string): string {
  * (#3430) must stay as evidence, so deleting it is refused; the sentence says
  * what still works.
  */
-const LIFECYCLE_CODE_MESSAGES: Record<string, string> = {
-  declaration_has_submissions:
+const LIFECYCLE_CODE_MESSAGES: Partial<Record<ErrorCode, string>> = {
+  "communication.declaration_has_submissions":
     "Auf dieses Einverständnis haben Eltern schon geantwortet. Deshalb lässt es sich nicht löschen. Sie können es zurückziehen, dann sehen Eltern es nicht mehr.",
 };
 

@@ -37,7 +37,7 @@ const getInvitationErrorMessage = (
   apiError: ApiError | undefined,
   err: unknown,
 ): string => {
-  if (apiError?.code === "INVITATION_ACCOUNT_LOGIN_REQUIRED") {
+  if (apiError?.code === "identity.invitation_account_login_required") {
     return "Für diese E-Mail-Adresse besteht bereits ein Konto. Bitte laden Sie die Einladung erneut und melden Sie sich an.";
   }
   if (apiError?.status === 410) {

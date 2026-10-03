@@ -172,7 +172,7 @@ func TestParentAbsenceReviewScopeKeepsReadsAndDecisionsConsistent(t *testing.T) 
 	bulk := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "POST", "/change-requests/bulk-approve",
 		map[string]any{"requests": refs, "reason": "Gemeinsam geprüft"}), unassigned, perms)
 	require.Equal(t, http.StatusConflict, bulk.Code, bulk.Body.String())
-	require.Contains(t, bulk.Body.String(), `"code":"bulk_approval_ineligible"`)
+	require.Contains(t, bulk.Body.String(), `"code":"students.bulk_approval_ineligible"`)
 	var unchanged testpkg.ExcusedAbsenceRequestRow
 	require.NoError(t, tc.db.NewSelect().Model(&unchanged).Where("id = ?", requestID).Scan(testpkg.Ctx(t)))
 	require.Equal(t, "pending", unchanged.Status)

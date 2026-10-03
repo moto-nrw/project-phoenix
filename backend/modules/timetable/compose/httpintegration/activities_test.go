@@ -1156,5 +1156,5 @@ func TestRemoveSupervisor_OnlySupervisorRequiresReplacement(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	assert.Equal(t, "ONLY_SUPERVISOR_REPLACEMENT_REQUIRED", response["code"])
+	assert.Equal(t, "timetable.only_supervisor_replacement_required", response["code"])
 }
