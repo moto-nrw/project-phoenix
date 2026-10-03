@@ -100,6 +100,32 @@ describe("StudentSelectionScope (#3834)", () => {
     ).toHaveTextContent("1 ausgewählt");
   });
 
+  it("refuses a selection that the export cannot accept", () => {
+    const tooManyIds = Array.from({ length: 5_001 }, (_, index) =>
+      String(index),
+    );
+    render(
+      <ToastProvider>
+        <StudentSelectionScope visibleStudents={[]} scopeKey="a" checkinAllowed>
+          {(selection) => (
+            <button
+              type="button"
+              onClick={() => selection.onChange(tooManyIds, true)}
+            >
+              Alle auswählen
+            </button>
+          )}
+        </StudentSelectionScope>
+      </ToastProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Alle auswählen" }));
+
+    expect(
+      screen.getByText("Sie können höchstens 5.000 Kinder auswählen."),
+    ).toBeInTheDocument();
+  });
+
   it("checks in exactly the marked children", async () => {
     mocks.batch.mockResolvedValue({
       action: "in",

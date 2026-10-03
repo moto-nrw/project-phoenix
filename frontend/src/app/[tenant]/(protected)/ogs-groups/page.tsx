@@ -1050,7 +1050,7 @@ function OGSGroupPageContent() {
     if (showSkeleton) {
       return <StudentCardGridSkeleton />;
     }
-    if (showTable && sortedStudents.length > 0) {
+    if (showTable) {
       return (
         // Wie die Karten: An- und Abmelden aus der Gruppe gibt es nur im
         // Anwesenheitsmodus ohne Räume.

@@ -1,14 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import dynamic from "next/dynamic";
 
 import { StudentSelectionBar } from "~/components/students/student-selection-bar";
 import { useBulkCheckinActions } from "~/components/students/use-bulk-checkin-actions";
+import { useToast } from "~/contexts/ToastContext";
 import type { Student } from "~/lib/api";
 import type { StudentExportFilters } from "~/lib/student-export-api";
 import { useSchoolCheckinMode } from "~/lib/hooks/use-school-checkin-mode";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+
+// The export endpoint rejects more IDs. Keep the selection actionable instead
+// of letting someone configure an export that cannot start.
+const MAX_SELECTED_STUDENTS = 5_000;
 
 // Loaded when someone opens it: most visits never export.
 const StudentExportModal = dynamic(
@@ -56,6 +67,7 @@ export function StudentSelectionScope({
   children: (selection: StudentTableSelection) => ReactNode;
 }>) {
   const schoolCheckin = useSchoolCheckinMode();
+  const { warning } = useToast();
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const checkinEnabled = checkinAllowed && attendanceWebEnabled;
   const clearSelection = schoolCheckin.clearSelection;
@@ -72,6 +84,20 @@ export function StudentSelectionScope({
   );
   const bulkCheckin = useBulkCheckinActions(schoolCheckin, selectedStudents);
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const changeSelection = useCallback(
+    (ids: readonly string[], selected: boolean) => {
+      if (selected) {
+        const nextSelectedIds = new Set(schoolCheckin.selectedIds);
+        for (const id of ids) nextSelectedIds.add(id);
+        if (nextSelectedIds.size > MAX_SELECTED_STUDENTS) {
+          warning("Sie können höchstens 5.000 Kinder auswählen.");
+          return;
+        }
+      }
+      schoolCheckin.setSelected(ids, selected);
+    },
+    [schoolCheckin, warning],
+  );
 
   return (
     <>
@@ -91,7 +117,7 @@ export function StudentSelectionScope({
       />
       {children({
         selectedIds: schoolCheckin.selectedIds,
-        onChange: schoolCheckin.setSelected,
+        onChange: changeSelection,
         disabled: schoolCheckin.isBulkRunning,
       })}
       {bulkCheckin.dialogs}
