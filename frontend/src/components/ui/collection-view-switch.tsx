@@ -1,20 +1,29 @@
 "use client";
 
-import { Columns3 } from "lucide-react";
+import { Columns3, LayoutGrid, List } from "lucide-react";
 
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { CollectionView } from "~/lib/hooks/use-collection-view";
 
 const VIEW_ITEMS = [
-  { value: "tiles", label: "Kacheln" },
-  { value: "table", label: "Tabelle" },
+  {
+    value: "tiles",
+    label: "Kacheln",
+    icon: <LayoutGrid className="h-4 w-4" aria-hidden />,
+  },
+  {
+    value: "table",
+    label: "Liste",
+    icon: <List className="h-4 w-4" aria-hidden />,
+  },
 ] as const;
 
 /**
- * Switch between the tile grid and the table of a collection page (#3834).
- * A value choice, so it is a SegmentedControl, not a tab bar. Phones always
- * show tiles; the caller hides the switch below `md`.
+ * Switch between the tile grid and the table of a collection page (#3834):
+ * a grid and a list symbol, the familiar pair from file managers. A value
+ * choice, so it is a SegmentedControl, not a tab bar. Phones always show
+ * tiles; the caller hides the switch below `md`.
  */
 export function CollectionViewSwitch({
   value,
@@ -28,6 +37,7 @@ export function CollectionViewSwitch({
   return (
     <SegmentedControl
       ariaLabel="Ansicht"
+      iconOnly
       items={VIEW_ITEMS}
       value={value}
       onChange={onChange}

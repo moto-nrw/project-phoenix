@@ -445,6 +445,13 @@ vi.mock("lucide-react", () => ({
       more
     </span>
   ),
+  // Der Umschalter Kacheln/Liste in der Kopfkarte (#3834).
+  LayoutGrid: ({ className }: { className?: string }) => (
+    <span data-testid="lucide-layout-grid" className={className} />
+  ),
+  List: ({ className }: { className?: string }) => (
+    <span data-testid="lucide-list" className={className} />
+  ),
 }));
 
 // Mock the school-checkin FAB so existing tests don't need to care about

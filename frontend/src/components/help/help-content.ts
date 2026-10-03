@@ -440,11 +440,11 @@ function studentSearchTopic(
       {
         // #3834: derselbe Umschalter steht auch in `Meine Gruppen` und in der
         // aktuellen Aufsicht. Auf dem Handy gibt es nur Karten.
-        title: "Als Tabelle ansehen",
+        title: "Als Liste ansehen",
         description:
-          "Die Tabelle zeigt dieselben Angaben wie die Karten, ein Kind pro Zeile.",
+          "Die Liste zeigt dieselben Angaben wie die Karten, ein Kind pro Zeile.",
         steps: [
-          "Wählen Sie oben rechts `Tabelle`. Mit `Kacheln` kommen die Karten zurück.",
+          "Wählen Sie oben rechts das Listensymbol (drei Striche). Mit dem Kachelsymbol (vier Kästchen) kommen die Karten zurück.",
           "Wählen Sie `Spalten`, um Spalten ein- oder auszublenden.",
           "Kreuzen Sie links in der Zeile Kinder an. Oben erscheint eine Leiste mit `Exportieren`, `Anmelden` und `Abmelden`.",
           "Wählen Sie `Aufheben`, um alle Kreuze zu entfernen.",
@@ -455,7 +455,7 @@ function studentSearchTopic(
       "Sie sehen jetzt die Angaben des Kindes. Auf dem Handy wählen Sie `Zurück`. Am Computer nutzen Sie die Navigation oben.",
     differences: [
       "Haben Sie einen anderen Tag gewählt? Dann sehen Sie die geplante Anwesenheit. Ein aktueller Aufenthaltsort wird nicht gezeigt.",
-      "Kein `Tabelle` zu sehen? Auf dem Handy gibt es nur Karten.",
+      "Kein Listensymbol zu sehen? Auf dem Handy gibt es nur Karten.",
       "Ansicht und Spalten bleiben auf diesem Gerät so, wie Sie sie gewählt haben.",
       "Einige Bereiche brauchen zusätzliche Rechte: `Betreuungsplan`, `Dokumente` und `Änderungsprotokoll`. Fehlt ein Bereich? Fragen Sie Ihre Leitung.",
       ...(presenceDifference ? [presenceDifference] : []),
@@ -586,7 +586,7 @@ function webAttendanceTopic(presenceMode: HelpPresenceMode): HelpTopic {
     result,
     notes: [
       "Möchten Sie mehrere Kinder ändern? Wählen Sie `Mehrere`.",
-      "In der Ansicht `Tabelle` kreuzen Sie die Kinder links an und wählen oben `Anmelden` oder `Abmelden`.",
+      "In der Listenansicht kreuzen Sie die Kinder links an und wählen oben `Anmelden` oder `Abmelden`.",
       // Live geprueft: in `Direkt` schreibt jeder Tipp sofort, ohne Rueckfrage.
       // Ausnahme seit #3324: frühes Gehen öffnet vorher ein Fenster.
       "In `Direkt` meldet jeder Tipp sofort an oder ab. Auf der Karte steht `Tippen zum Anmelden`.",
