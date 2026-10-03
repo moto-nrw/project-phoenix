@@ -35,11 +35,13 @@ describe("staffShiftSeriesService", () => {
         weekPattern: 1,
         validFrom: "2026-09-01",
         validUntil: null,
+        includeSchoolBreaks: true,
       }),
     ).resolves.toEqual({
       seriesId: "5",
       created: 12,
       skippedDates: ["2026-09-07"],
+      skippedNonWorkingDays: 0,
     });
 
     expect(mockSessionFetch).toHaveBeenCalledWith("/api/staff/shifts/series", {
@@ -56,6 +58,7 @@ describe("staffShiftSeriesService", () => {
         week_pattern: 1,
         valid_from: "2026-09-01",
         valid_until: null,
+        include_school_breaks: true,
       }),
     });
   });
@@ -80,8 +83,14 @@ describe("staffShiftSeriesService", () => {
         weekPattern: 0,
         validFrom: "2026-09-01",
         validUntil: "2026-10-01",
+        includeSchoolBreaks: false,
       }),
-    ).resolves.toEqual({ seriesId: "5", created: 3, skippedDates: [] });
+    ).resolves.toEqual({
+      seriesId: "5",
+      created: 3,
+      skippedDates: [],
+      skippedNonWorkingDays: 0,
+    });
 
     const init = mockSessionFetch.mock.calls[0]?.[1] as RequestInit | undefined;
     const body = JSON.parse((init?.body as string) ?? "{}") as Record<
@@ -95,7 +104,14 @@ describe("staffShiftSeriesService", () => {
   it("splits a series sending only the edited fields", async () => {
     mockSessionFetch.mockResolvedValueOnce(
       Response.json(
-        { data: { series_id: "9", created: 4, skipped_dates: [] } },
+        {
+          data: {
+            series_id: "9",
+            created: 4,
+            skipped_dates: [],
+            skipped_non_working_days: 6,
+          },
+        },
         { status: 200 },
       ),
     );
@@ -108,7 +124,12 @@ describe("staffShiftSeriesService", () => {
         breakMinutes: 30,
         shiftTypeId: null,
       }),
-    ).resolves.toEqual({ seriesId: "9", created: 4, skippedDates: [] });
+    ).resolves.toEqual({
+      seriesId: "9",
+      created: 4,
+      skippedDates: [],
+      skippedNonWorkingDays: 6,
+    });
 
     expect(mockSessionFetch).toHaveBeenCalledWith(
       "/api/staff/shifts/series/5/split",
@@ -144,6 +165,7 @@ describe("staffShiftSeriesService", () => {
       weekdays: [2, 5],
       weekPattern: 2,
       validUntil: "2026-11-02",
+      includeSchoolBreaks: true,
     });
 
     const init = mockSessionFetch.mock.calls[0]?.[1] as RequestInit | undefined;
@@ -157,6 +179,7 @@ describe("staffShiftSeriesService", () => {
       weekdays: [2, 5],
       week_pattern: 2,
       valid_until: "2026-11-02",
+      include_school_breaks: true,
     });
   });
 
@@ -208,6 +231,7 @@ describe("staffShiftSeriesService", () => {
     expect(body).toHaveProperty("valid_until", null);
     expect(body).not.toHaveProperty("weekdays");
     expect(body).not.toHaveProperty("week_pattern");
+    expect(body).not.toHaveProperty("include_school_breaks");
   });
 
   it("loads the stored rule behind a series shift", async () => {
@@ -226,6 +250,7 @@ describe("staffShiftSeriesService", () => {
             week_pattern: 1,
             valid_from: "2026-09-01",
             valid_until: "2026-10-01",
+            include_school_breaks: true,
           },
         },
         { status: 200 },
@@ -244,6 +269,7 @@ describe("staffShiftSeriesService", () => {
       weekPattern: 1,
       validFrom: "2026-09-01",
       validUntil: "2026-10-01",
+      includeSchoolBreaks: true,
     });
 
     expect(mockSessionFetch).toHaveBeenCalledWith("/api/staff/shifts/series/5");
@@ -276,6 +302,7 @@ describe("staffShiftSeriesService", () => {
         weekdays: [],
         shiftTypeId: null,
         validUntil: null,
+        includeSchoolBreaks: false,
       },
     );
   });

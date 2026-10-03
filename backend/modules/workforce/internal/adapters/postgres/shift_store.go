@@ -68,6 +68,7 @@ type staffShiftSeriesRow struct {
 	ValidUntil                *calendarDate `bun:"valid_until,type:date"`
 	SeriesRootID              *int64        `bun:"series_root_id"`
 	RetainedOccurrenceShiftID *int64        `bun:"retained_occurrence_shift_id"`
+	IncludeSchoolBreaks       bool          `bun:"include_school_breaks,notnull,default:false"`
 	CreatedBy                 int64         `bun:"created_by,notnull"`
 	UpdatedBy                 *int64        `bun:"updated_by"`
 	CreatedAt                 time.Time     `bun:"created_at,nullzero,notnull,default:current_timestamp"`
@@ -828,44 +829,6 @@ func staffShiftsToDomain(rows []staffShiftRow) []domain.StaffShift {
 		result = append(result, staffShiftToDomain(row))
 	}
 	return result
-}
-
-func staffShiftSeriesFromDomain(value domain.StaffShiftSeries) (*staffShiftSeriesRow, error) {
-	start, err := requiredClock(value.StartTime, "start time")
-	if err != nil {
-		return nil, err
-	}
-	end, err := requiredClock(value.EndTime, "end time")
-	if err != nil {
-		return nil, err
-	}
-	weekdays := make([]int16, 0, len(value.Weekdays))
-	for _, weekday := range value.Weekdays {
-		weekdays = append(weekdays, int16(weekday)) // #nosec G115 -- validated ISO weekday 1..7
-	}
-	return &staffShiftSeriesRow{
-		ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, Weekdays: weekdays,
-		StartTime: start, EndTime: end, BreakMinutes: value.BreakMinutes, ShiftTypeID: value.ShiftTypeID,
-		Notes: value.Notes, CalendarPeriodID: value.CalendarPeriodID, WeekPattern: value.WeekPattern,
-		ValidFrom: calendarDate(value.ValidFrom), ValidUntil: optionalCalendarDate(value.ValidUntil),
-		SeriesRootID: value.SeriesRootID, RetainedOccurrenceShiftID: value.RetainedOccurrenceShiftID,
-		CreatedBy: value.CreatedBy, UpdatedBy: value.UpdatedBy, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
-	}, nil
-}
-
-func staffShiftSeriesToDomain(row staffShiftSeriesRow) domain.StaffShiftSeries {
-	weekdays := make([]int, 0, len(row.Weekdays))
-	for _, weekday := range row.Weekdays {
-		weekdays = append(weekdays, int(weekday))
-	}
-	return domain.StaffShiftSeries{
-		ID: row.ID, TenantID: row.TenantID, StaffID: row.StaffID, Weekdays: weekdays,
-		StartTime: wallClockString(row.StartTime), EndTime: wallClockString(row.EndTime), BreakMinutes: row.BreakMinutes,
-		ShiftTypeID: row.ShiftTypeID, Notes: row.Notes, CalendarPeriodID: row.CalendarPeriodID, WeekPattern: row.WeekPattern,
-		ValidFrom: string(row.ValidFrom), ValidUntil: calendarDateString(row.ValidUntil),
-		SeriesRootID: row.SeriesRootID, RetainedOccurrenceShiftID: row.RetainedOccurrenceShiftID,
-		CreatedBy: row.CreatedBy, UpdatedBy: row.UpdatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-	}
 }
 
 func shiftTypeFromDomain(value domain.ShiftType) *shiftTypeRow {

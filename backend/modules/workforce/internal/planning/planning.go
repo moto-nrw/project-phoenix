@@ -207,7 +207,7 @@ func (p staffShiftPlanning) SplitSeries(ctx context.Context, input workforce.Spl
 		Weekdays: weekdays, StartTime: start, EndTime: end, BreakMinutes: input.BreakMinutes,
 		ShiftTypeID: input.ShiftTypeID, ShiftTypeIDSet: input.ShiftTypeIDSet, Notes: input.Notes,
 		ValidUntil: validUntil, ValidUntilSet: input.ValidUntilSet, WeekPattern: input.WeekPattern,
-		ActorStaffID: input.ActorStaffID,
+		IncludeSchoolBreaks: input.IncludeSchoolBreaks, ActorStaffID: input.ActorStaffID,
 	})
 	if err != nil {
 		return workforce.StaffShiftSeriesResult{}, mapPlanningError(err)
@@ -326,6 +326,7 @@ func seriesInputToModel(input workforce.StaffShiftSeriesInput) (*StaffShiftSerie
 		StaffID: input.StaffID, Weekdays: weekdays, StartTime: start, EndTime: end, BreakMinutes: input.BreakMinutes,
 		ShiftTypeID: input.ShiftTypeID, Notes: input.Notes, CalendarPeriodID: input.CalendarPeriodID,
 		WeekPattern: input.WeekPattern, ValidFrom: validFrom, ValidUntil: validUntil,
+		IncludeSchoolBreaks: input.IncludeSchoolBreaks,
 	}, nil
 }
 
@@ -374,8 +375,8 @@ func seriesToCapability(series *StaffShiftSeries) workforce.StaffShiftSeries {
 		StartTime: clockString(series.StartTime), EndTime: clockString(series.EndTime), BreakMinutes: series.BreakMinutes,
 		ShiftTypeID: series.ShiftTypeID, Notes: series.Notes, CalendarPeriodID: series.CalendarPeriodID,
 		WeekPattern: series.WeekPattern, ValidFrom: series.ValidFrom.String(), SeriesRootID: series.SeriesRootID,
-		RetainedOccurrenceShiftID: series.RetainedOccurrenceShiftID, CreatedBy: series.CreatedBy, UpdatedBy: series.UpdatedBy,
-		CreatedAt: series.CreatedAt, UpdatedAt: series.UpdatedAt,
+		RetainedOccurrenceShiftID: series.RetainedOccurrenceShiftID, IncludeSchoolBreaks: series.IncludeSchoolBreaks,
+		CreatedBy: series.CreatedBy, UpdatedBy: series.UpdatedBy, CreatedAt: series.CreatedAt, UpdatedAt: series.UpdatedAt,
 	}
 	if series.ValidUntil != nil {
 		value.ValidUntil = series.ValidUntil.String()
@@ -393,6 +394,7 @@ func seriesResultToCapability(result *SeriesResult) workforce.StaffShiftSeriesRe
 	}
 	value := workforce.StaffShiftSeriesResult{
 		OldSeriesID: result.OldSeriesID, Created: result.Created, Deleted: result.Deleted, SkippedDates: skipped,
+		SkippedNonWorkingDays: result.SkippedNonWorkingDays,
 	}
 	if result.Series != nil {
 		value.SeriesID = result.Series.ID

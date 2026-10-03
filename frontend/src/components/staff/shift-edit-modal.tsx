@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { ClosingDayConfirmModal } from "~/components/planning/closing-day-marker";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceModal } from "~/components/ui/choice-modal";
@@ -21,17 +20,10 @@ import { getApiErrorMessage } from "~/lib/api-error-message";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import {
   findPeriodForDate,
-  shouldMaterializeWeekPattern,
   weekPatternForDate,
   type CalendarPeriod,
 } from "~/lib/calendar-period-helpers";
-import {
-  findFirstClosingDayConflict,
-  type ClosingDayConflict,
-  type ClosingDayRange,
-} from "~/lib/closing-day-helpers";
 import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
-import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
@@ -50,7 +42,6 @@ import type { ShiftType } from "~/lib/shift-type-helpers";
 import {
   latestISODate,
   materializedRecurrenceDates,
-  weekdayDatesInRange,
 } from "~/lib/timetable-helpers";
 
 import {
@@ -67,7 +58,6 @@ const EMPTY_STAFF_OPTIONS: readonly StaffScheduleStaff[] = [];
 // Stable empty default for the optional existingReplacements prop (same
 // rationale as EMPTY_STAFF_OPTIONS).
 const EMPTY_REPLACEMENTS: readonly StaffShift[] = [];
-const EMPTY_CLOSING_DAY_RANGES: readonly ClosingDayRange[] = [];
 
 function getShiftMutationErrorMessage(
   err: unknown,
@@ -139,8 +129,6 @@ interface ShiftEditModalProps {
    *  the backend would delete every cover. Optional / empty for create and for
    *  never-cancelled shifts. */
   readonly existingReplacements?: readonly StaffShift[];
-  /** All stored ranges, used to warn for every generated series occurrence. */
-  readonly closingDayRanges?: readonly ClosingDayRange[];
   /** Vorbelegte Zeiten für eine neue Schicht ("HH:MM"), z. B. aus der im
    *  Viertelstunden-Raster aufgezogenen Spanne (#3818). Nur bei `create`. */
   readonly initialStartTime?: string;
@@ -178,7 +166,6 @@ export function ShiftEditModal({
   shiftTypes,
   staffOptions = EMPTY_STAFF_OPTIONS,
   existingReplacements = EMPTY_REPLACEMENTS,
-  closingDayRanges = EMPTY_CLOSING_DAY_RANGES,
   initialStartTime,
   initialEndTime,
   onClose,
@@ -245,16 +232,11 @@ export function ShiftEditModal({
   const [abPattern, setAbPattern] = useState<1 | 2>(1);
   const [abTouched, setAbTouched] = useState(false);
   const [validUntil, setValidUntil] = useState("");
+  // Ferien und Schließtage (#3820): ohne Haken lässt die Serie sie aus.
+  const [includeSchoolBreaks, setIncludeSchoolBreaks] = useState(false);
   // After a series create/split with skipped days the modal shows this
   // notice instead of closing, so the admin sees which days were left out.
   const [seriesNotice, setSeriesNotice] = useState<string | null>(null);
-  const [closingDayPrompt, setClosingDayPrompt] = useState<{
-    conflict: ClosingDayConflict;
-    confirmationKey: string;
-    /** Welche Aktion nach dem Bestätigen weiterläuft. */
-    action: "submit" | "seriesRule";
-  } | null>(null);
-  const confirmedClosingConflict = useRef<string | null>(null);
   // Scope question ("Nur diese Woche" / "Ab jetzt dauerhaft" / "Alle Termine
   // der Serie") for edits and deletes of a series-backed row.
   const [scopeQuestion, setScopeQuestion] = useState<"edit" | null>(null);
@@ -280,6 +262,8 @@ export function ShiftEditModal({
   // Inclusive "Gültig bis" as shown in the picker; the stored valid_until is
   // exclusive (converted on load and on save).
   const [seriesValidUntil, setSeriesValidUntil] = useState("");
+  const [seriesIncludeSchoolBreaks, setSeriesIncludeSchoolBreaks] =
+    useState(false);
 
   const isSeriesRow = mode === "edit" && shift?.seriesId != null;
   // A moved occurrence keeps its original recurrence slot. Series changes
@@ -301,8 +285,7 @@ export function ShiftEditModal({
     setAbTouched(false);
     setValidUntil("");
     setSeriesNotice(null);
-    setClosingDayPrompt(null);
-    confirmedClosingConflict.current = null;
+    setIncludeSchoolBreaks(false);
     setScopeQuestion(null);
     setSeriesRule(null);
     setSeriesRuleError(false);
@@ -383,59 +366,6 @@ export function ShiftEditModal({
   const periodHasCycle = (selectedPeriod?.weekCycleLength ?? 1) > 1;
   const defaultAbPattern = weekPatternForDate(selectedPeriod, date);
   const effectiveWeekPattern = biweekly && periodHasCycle ? abPattern : 0;
-  const seriesClosingDayWindow = useMemo(() => {
-    if (!repeatEnabled || !selectedPeriod) return null;
-    const tomorrow = dayAfterISO(berlinTodayISO());
-    const from = latestISODate(date, selectedPeriod.startDate, tomorrow);
-    const to =
-      validUntil !== "" && validUntil < selectedPeriod.endDate
-        ? validUntil
-        : selectedPeriod.endDate;
-    const dates = weekdayDatesInRange(from, to, weekdays).filter((dateISO) =>
-      shouldMaterializeWeekPattern(
-        selectedPeriod,
-        dateISO,
-        effectiveWeekPattern,
-      ),
-    );
-    return { from, to, dates };
-  }, [
-    date,
-    effectiveWeekPattern,
-    repeatEnabled,
-    selectedPeriod,
-    validUntil,
-    weekdays,
-  ]);
-  const seriesClosingDayState = useClosingDaysState(
-    seriesClosingDayWindow?.from ?? "",
-    seriesClosingDayWindow?.to ?? "",
-  );
-  const seriesClosingDayConflict = useMemo(() => {
-    const dates = seriesClosingDayWindow?.dates ?? [];
-    for (const dateISO of dates) {
-      const reason = seriesClosingDayState.closingDays.get(dateISO);
-      if (reason !== undefined) return { dateISO, reason };
-    }
-    return findFirstClosingDayConflict(closingDayRanges, dates);
-  }, [
-    closingDayRanges,
-    seriesClosingDayState.closingDays,
-    seriesClosingDayWindow,
-  ]);
-  const seriesClosingDaysLoading =
-    seriesClosingDayWindow !== null && seriesClosingDayState.isLoading;
-  const closingDayConfirmationKey =
-    seriesClosingDayConflict === null
-      ? null
-      : JSON.stringify({
-          action: "create",
-          conflict: seriesClosingDayConflict,
-          weekdays,
-          periodId,
-          weekPattern: effectiveWeekPattern,
-          validUntil,
-        });
 
   // Default the A/B choice to the parity of the clicked week (mirrors the
   // timetable Wochenrhythmus control from #1882); a manual choice sticks.
@@ -507,44 +437,12 @@ export function ShiftEditModal({
     seriesValidUntil,
     seriesWeekdays,
   ]);
-  const seriesEditClosingDayState = useClosingDaysState(
-    seriesEditClosingDayWindow?.from ?? "",
-    seriesEditClosingDayWindow?.to ?? "",
-  );
-  const seriesEditClosingDayConflict = useMemo(() => {
-    const dates = seriesEditClosingDayWindow?.dates ?? [];
-    for (const dateISO of dates) {
-      const reason = seriesEditClosingDayState.closingDays.get(dateISO);
-      if (reason !== undefined) return { dateISO, reason };
-    }
-    return findFirstClosingDayConflict(closingDayRanges, dates);
-  }, [
-    closingDayRanges,
-    seriesEditClosingDayState.closingDays,
-    seriesEditClosingDayWindow,
-  ]);
-  // Solange die Zeiträume fehlen, ist das Fenster nicht bestimmbar und die
-  // Rückfrage ließe sich durch schnelles Speichern umgehen. Bleibt der
-  // Zeitraum der Serie dauerhaft unauffindbar, wird nicht blockiert: die
-  // Markierung ist ein Hinweis, kein Sperrmechanismus.
-  const seriesEditClosingDaysLoading =
-    seriesEditOpen && (periods === null || seriesEditClosingDayState.isLoading);
   const seriesHasRemainingOccurrence =
     seriesHasDateRange &&
     (seriesPeriod === null || seriesEditClosingDayWindow?.dates.length !== 0);
   const seriesNoOccurrenceMessage = seriesHasDateRange
     ? `Für die gewählten Wochentage und den Wochenrhythmus bleibt ab ${formatShortDate(seriesAppliesFrom)} kein Termin mehr. Setzen Sie „Gültig bis" auf ein späteres Datum oder ändern Sie die Wiederholung.`
     : `Diese Serie endet am ${formatShortDate(seriesValidUntil)}, Änderungen wirken aber erst ab ${formatShortDate(seriesAppliesFrom)}. Setzen Sie „Gültig bis" auf ein späteres Datum, um die Serie fortzuführen.`;
-  const seriesEditConfirmationKey =
-    seriesEditClosingDayConflict === null
-      ? null
-      : JSON.stringify({
-          action: "seriesRule",
-          conflict: seriesEditClosingDayConflict,
-          weekdays: seriesWeekdays,
-          weekPattern: seriesRuleWeekPattern,
-          validUntil: seriesValidUntil,
-        });
 
   const timesValid = startTime !== "" && endTime !== "" && startTime < endTime;
   const breakMaxMinutes = timesValid
@@ -655,6 +553,7 @@ export function ShiftEditModal({
     setSeriesValidUntil(
       seriesRule.validUntil ? dayBeforeISO(seriesRule.validUntil) : "",
     );
+    setSeriesIncludeSchoolBreaks(seriesRule.includeSchoolBreaks);
     setStartTime(seriesRule.startTime);
     setEndTime(seriesRule.endTime);
     setBreakMinutesStr(String(seriesRule.breakMinutes));
@@ -676,20 +575,6 @@ export function ShiftEditModal({
       setError(seriesNoOccurrenceMessage);
       return;
     }
-    // Schließtag-Rückfrage vor dem Neuplanen (#2032).
-    if (seriesEditClosingDaysLoading) return;
-    if (
-      seriesEditClosingDayConflict !== null &&
-      seriesEditConfirmationKey !== null &&
-      confirmedClosingConflict.current !== seriesEditConfirmationKey
-    ) {
-      setClosingDayPrompt({
-        conflict: seriesEditClosingDayConflict,
-        confirmationKey: seriesEditConfirmationKey,
-        action: "seriesRule",
-      });
-      return;
-    }
     setIsSaving(true);
     try {
       const result = await staffShiftSeriesService.splitSeries(seriesRule.id, {
@@ -704,6 +589,7 @@ export function ShiftEditModal({
         // The picker is inclusive, the API's valid_until exclusive.
         validUntil:
           seriesValidUntil === "" ? null : dayAfterISO(seriesValidUntil),
+        includeSchoolBreaks: seriesIncludeSchoolBreaks,
       });
       finishSeriesMutation(result);
     } catch (err: unknown) {
@@ -727,12 +613,19 @@ export function ShiftEditModal({
 
   const finishSeriesMutation = (result: SeriesResult) => {
     onSaved();
+    const notices: string[] = [];
+    if (result.skippedNonWorkingDays > 0) {
+      notices.push(schoolBreaksNotice(result.skippedNonWorkingDays));
+    }
     if (result.skippedDates.length > 0) {
-      setSeriesNotice(
+      notices.push(
         `An folgenden Tagen besteht bereits eine Schicht, sie wurden übersprungen: ${result.skippedDates
           .map(formatShortDate)
           .join(", ")}.`,
       );
+    }
+    if (notices.length > 0) {
+      setSeriesNotice(notices.join(" "));
       return;
     }
     onClose();
@@ -790,11 +683,12 @@ export function ShiftEditModal({
         calendarPeriodId: periodId,
         // Guard against stale biweekly state: switching to a period without
         // a week cycle hides the A/B control but does not reset the flag.
-        weekPattern: biweekly && periodHasCycle ? abPattern : 0,
+        weekPattern: effectiveWeekPattern,
         validFrom: date,
         // The picker is inclusive ("Gültig bis" = last day WITH a shift);
         // the API's valid_until is exclusive — send the day after.
         validUntil: validUntil === "" ? null : dayAfterISO(validUntil),
+        includeSchoolBreaks,
       });
       finishSeriesMutation(result);
     } catch (err: unknown) {
@@ -912,19 +806,6 @@ export function ShiftEditModal({
   const handleSubmit = async () => {
     if (!validateInputs()) return;
     if (mode === "create" && repeatEnabled) {
-      if (seriesClosingDaysLoading) return;
-      if (
-        seriesClosingDayConflict !== null &&
-        closingDayConfirmationKey !== null &&
-        confirmedClosingConflict.current !== closingDayConfirmationKey
-      ) {
-        setClosingDayPrompt({
-          conflict: seriesClosingDayConflict,
-          confirmationKey: closingDayConfirmationKey,
-          action: "submit",
-        });
-        return;
-      }
       await createSeries();
       return;
     }
@@ -1037,11 +918,7 @@ export function ShiftEditModal({
         isLoading={isSaving}
         loadingText="Speichern…"
         disabled={
-          isSaving ||
-          !timesValid ||
-          !breakValid ||
-          seriesWeekdays.length === 0 ||
-          seriesEditClosingDaysLoading
+          isSaving || !timesValid || !breakValid || seriesWeekdays.length === 0
         }
       >
         Serie speichern
@@ -1086,12 +963,7 @@ export function ShiftEditModal({
         isLoading={isSaving}
         loadingText="Speichern…"
         disabled={
-          isSaving ||
-          isDeleting ||
-          !timesValid ||
-          !breakValid ||
-          !seriesValid ||
-          seriesClosingDaysLoading
+          isSaving || isDeleting || !timesValid || !breakValid || !seriesValid
         }
       >
         {submitLabel(mode, repeatEnabled)}
@@ -1099,7 +971,7 @@ export function ShiftEditModal({
     </div>
   );
 
-  const scopeOverlayOpen = scopeQuestion !== null || closingDayPrompt !== null;
+  const scopeOverlayOpen = scopeQuestion !== null;
 
   return (
     <>
@@ -1297,6 +1169,11 @@ export function ShiftEditModal({
                         />
                       </FieldGroup>
                     </div>
+                    <SchoolBreaksCheckbox
+                      id="shift-series-edit-school-breaks"
+                      checked={seriesIncludeSchoolBreaks}
+                      onChange={setSeriesIncludeSchoolBreaks}
+                    />
                     {/* Say it before the save fails: a segment whose last day has
                     arrived has nothing left for the re-plan to change (#2028). */}
                     {!seriesHasRemainingOccurrence && (
@@ -1512,6 +1389,11 @@ export function ShiftEditModal({
                             />
                           </FieldGroup>
                         </div>
+                        <SchoolBreaksCheckbox
+                          id="shift-series-school-breaks"
+                          checked={includeSchoolBreaks}
+                          onChange={setIncludeSchoolBreaks}
+                        />
                         <p className="text-xs text-gray-500">
                           Ohne Enddatum läuft die Serie bis zum Ende des
                           Kalenderzeitraums; mit Enddatum bis einschließlich
@@ -1535,21 +1417,6 @@ export function ShiftEditModal({
           </SlideOverFooter>
         </SlideOverContent>
       </SlideOver>
-      {closingDayPrompt !== null && (
-        <ClosingDayConfirmModal
-          dateISO={closingDayPrompt.conflict.dateISO}
-          reason={closingDayPrompt.conflict.reason}
-          subject="schicht"
-          onCancel={() => setClosingDayPrompt(null)}
-          onConfirm={() => {
-            const { action, confirmationKey } = closingDayPrompt;
-            confirmedClosingConflict.current = confirmationKey;
-            setClosingDayPrompt(null);
-            if (action === "seriesRule") void saveSeriesRule();
-            else void handleSubmit();
-          }}
-        />
-      )}
       <ConfirmDeleteModal
         isOpen={confirmDeleteOpen}
         title="Schicht löschen"
@@ -1761,4 +1628,41 @@ function parseBreakMinutes(raw: string, maxMinutes: number): number | null {
     return null;
   }
   return n;
+}
+
+/** Ferien und Schließtage je Serie (#3820). Ohne Haken bleiben sie frei;
+ *  Feiertage sind immer frei. */
+function SchoolBreaksCheckbox({
+  id,
+  checked,
+  onChange,
+}: {
+  readonly id: string;
+  readonly checked: boolean;
+  readonly onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label htmlFor={id} className="flex items-start gap-2">
+      <Checkbox
+        id={id}
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span>
+        <span className="block text-sm font-medium text-gray-800">
+          Auch in den Ferien und an Schließtagen planen
+        </span>
+        <span className="block text-xs text-gray-500">
+          Ohne Haken bleiben diese Tage frei. An Feiertagen gibt es nie eine
+          Schicht.
+        </span>
+      </span>
+    </label>
+  );
+}
+
+function schoolBreaksNotice(count: number): string {
+  return count === 1
+    ? "1 Tag liegt in den Ferien, an einem Schließtag oder Feiertag und bleibt frei."
+    : `${count} Tage liegen in den Ferien, an Schließtagen oder Feiertagen und bleiben frei.`;
 }

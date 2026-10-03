@@ -598,7 +598,6 @@ function DienstplanContent() {
           shiftTypes={shiftTypes ?? []}
           staffOptions={sortedStaff}
           existingReplacements={modal.replacements}
-          closingDayRanges={closingDayRanges}
           initialStartTime={modal.initialTimes?.startTime}
           initialEndTime={modal.initialTimes?.endTime}
           onClose={() => setModal(null)}

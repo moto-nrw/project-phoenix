@@ -217,6 +217,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedPlanningDemoStep{},
 		seedStudentStatusVariantsStep{},
 		seedOperationsDemoStep{},
+		seedShiftSeriesStep{},
 		seedHomeLayoutStep{},
 		seedStaffMasterDataStep{},
 		seedImportAuditStep{},
