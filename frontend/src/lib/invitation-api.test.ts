@@ -310,12 +310,9 @@ describe("invitation-api", () => {
       await expect(validateInvitation("test-token")).rejects.toThrow(
         "Einladung konnte nicht geprüft werden.",
       );
-      expect(warnSpy).toHaveBeenCalledWith(
-        "failed to parse invitation API error",
-        {
-          error: expect.any(String),
-        },
-      );
+      expect(warnSpy).toHaveBeenCalledWith("failed to parse error response", {
+        error: expect.any(String),
+      });
     });
 
     it("extracts message field from JSON error response", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import {
@@ -9,7 +9,7 @@ import {
   InfoSection,
 } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
-import { useFormError } from "~/components/ui/form-error";
+import type { FormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -20,6 +20,7 @@ import {
   type AccountRoleAssignment,
 } from "~/lib/account-role-assignment";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
@@ -60,8 +61,23 @@ export interface KontoEditing {
   readonly roleAssignmentError?: boolean;
   /** Meldet, ob der Reiter gerade bearbeitet; die Seite lädt dann die Vorschläge. */
   readonly onEditingChange: (editing: boolean) => void;
-  /** Speichert den Entwurf; wirft mit einer lesbaren Meldung, wenn es scheitert. */
+  /**
+   * Speichert den Entwurf. Wirft den Fehler der API unverändert, damit der
+   * gemeinsame Fehlerweg Code, Feldfehler und Vorgangskennung liest (#2511);
+   * scheitert erst der Rollenwechsel, als `KontoRoleSaveError`.
+   */
   readonly onSave: (draft: KontoDraft) => Promise<void>;
+}
+
+/**
+ * Name, Position und Notizen sind gespeichert, nur der Wechsel der
+ * Systemrolle ist gescheitert. Die Meldung nennt dann die Systemrolle.
+ */
+export class KontoRoleSaveError extends Error {
+  constructor(cause: unknown) {
+    super("account role change failed", { cause });
+    this.name = "KontoRoleSaveError";
+  }
 }
 
 interface KontoTabProps {
@@ -113,12 +129,11 @@ const staffIcon = (
  */
 export function KontoTab({ teacher, editing }: KontoTabProps) {
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<{
-    firstName?: string;
-    lastName?: string;
-  }>({});
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useFormError();
+  const formRef = useRef<HTMLFormElement>(null);
+  const errors = useApiFormError(formRef);
+  // „Wiederholen“ speichert den aktuellen Entwurf, nicht den vom Fehler.
+  const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
 
   const displayRole = teacher.account_role
     ? getRoleDisplayName(teacher.account_role)
@@ -136,15 +151,13 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
       notes: teacher.staff_notes ?? "",
       roleId: "",
     });
-    setFieldErrors({});
-    setError(null);
+    errors.clear();
     editing.onEditingChange(true);
   };
 
   const stopEditing = () => {
     setDraft(null);
-    setFieldErrors({});
-    setError(null);
+    errors.clear();
     editing?.onEditingChange(false);
   };
 
@@ -155,21 +168,6 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
     if (!editing || !draft) return;
     const assignment = editing.roleAssignment;
     const selectedRoleId = draft.roleId;
-
-    const nextFieldErrors: typeof fieldErrors = {};
-    if (editing.canEditPersonFields) {
-      if (!draft.firstName.trim()) {
-        nextFieldErrors.firstName = "Vorname ist erforderlich.";
-      }
-      if (!draft.lastName.trim()) {
-        nextFieldErrors.lastName = "Nachname ist erforderlich.";
-      }
-    }
-    setFieldErrors(nextFieldErrors);
-    if (Object.keys(nextFieldErrors).length > 0) {
-      setError("Bitte prüfen Sie die markierten Felder.");
-      return;
-    }
 
     const payload: KontoDraft = {
       ...(editing.canEditStaffFields
@@ -198,7 +196,7 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
     };
 
     setSaving(true);
-    setError(null);
+    errors.clear();
     try {
       await editing.onSave(payload);
       stopEditing();
@@ -207,15 +205,16 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
         staff_id: teacher.id,
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        err instanceof Error && err.message
-          ? err.message
-          : "Die Änderungen konnten nicht gespeichert werden.",
-      );
+      const roleOnly = err instanceof KontoRoleSaveError;
+      await errors.show(roleOnly ? err.cause : err, {
+        object: roleOnly ? "die Systemrolle" : "das Konto",
+        retry: () => void latestSaveRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+  latestSaveRef.current = handleSave;
 
   return (
     <SectionCard
@@ -236,11 +235,12 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
     >
       {isEditing && draft && editing ? (
         <KontoEditForm
+          formRef={formRef}
           teacher={teacher}
           draft={draft}
           editing={editing}
-          fieldErrors={fieldErrors}
-          error={error}
+          fieldError={errors.fieldError}
+          error={errors.error}
           saving={saving}
           onPatch={patchDraft}
           onCancel={stopEditing}
@@ -378,21 +378,23 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
  * `EditActions` unten. Fehler stehen im Alert oben und am Feld (Regel 5).
  */
 function KontoEditForm({
+  formRef,
   teacher,
   draft,
   editing,
-  fieldErrors,
+  fieldError,
   error,
   saving,
   onPatch,
   onCancel,
   onSave,
 }: {
+  readonly formRef: React.RefObject<HTMLFormElement | null>;
   readonly teacher: Teacher;
   readonly draft: Draft;
   readonly editing: KontoEditing;
-  readonly fieldErrors: { firstName?: string; lastName?: string };
-  readonly error: ReturnType<typeof useFormError>[0];
+  readonly fieldError: (name: string) => string | undefined;
+  readonly error: FormError | null;
   readonly saving: boolean;
   readonly onPatch: (patch: Partial<Draft>) => void;
   readonly onCancel: () => void;
@@ -417,6 +419,7 @@ function KontoEditForm({
 
   return (
     <form
+      ref={formRef}
       className="space-y-4"
       noValidate
       onSubmit={(event) => {
@@ -432,20 +435,22 @@ function KontoEditForm({
             <Input
               controlSize="compact"
               label="Vorname"
-              name="konto-first-name"
+              id="konto-first-name"
+              name="first_name"
               value={draft.firstName}
               onChange={(event) => onPatch({ firstName: event.target.value })}
-              error={fieldErrors.firstName}
+              error={fieldError("first_name")}
               autoComplete="given-name"
               disabled={saving}
             />
             <Input
               controlSize="compact"
               label="Nachname"
-              name="konto-last-name"
+              id="konto-last-name"
+              name="last_name"
               value={draft.lastName}
               onChange={(event) => onPatch({ lastName: event.target.value })}
-              error={fieldErrors.lastName}
+              error={fieldError("last_name")}
               autoComplete="family-name"
               disabled={saving}
             />
@@ -490,12 +495,14 @@ function KontoEditForm({
               <Input
                 controlSize="compact"
                 label="Position"
-                name="konto-position"
+                id="konto-position"
+                name="role"
                 list="konto-position-suggestions"
                 value={draft.position}
                 onChange={(event) => onPatch({ position: event.target.value })}
                 placeholder="z. B. Pädagogische Fachkraft, OGS-Büro"
                 disabled={saving}
+                error={fieldError("role")}
               />
               {editing.existingPositions.length > 0 ? (
                 <datalist id="konto-position-suggestions">
@@ -529,13 +536,15 @@ function KontoEditForm({
           accentColor="green"
         >
           <Textarea
-            name="konto-notes"
+            id="konto-notes"
+            name="staff_notes"
             label="Notizen der Leitung"
             value={draft.notes}
             onChange={(event) => onPatch({ notes: event.target.value })}
             rows={4}
             placeholder="Notizen hinzufügen…"
             disabled={saving}
+            error={fieldError("staff_notes")}
           />
         </InfoSection>
       ) : null}

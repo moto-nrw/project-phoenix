@@ -37,7 +37,7 @@ import {
   type BackendParentAccount,
 } from "./auth-helpers";
 import type { AxiosError } from "axios";
-import type { ApiError } from "./api-error";
+import { type ApiError, apiErrorFromText } from "./api-error";
 
 // Generic API response interface
 interface ApiResponse<T> {
@@ -306,7 +306,11 @@ async function executeBrowserFetch<TBackend>(
       status: response.status,
       error_text: errorText.substring(0, 200),
     });
-    throw new Error(`${errorPrefix} failed: ${response.status}`);
+    throw apiErrorFromText(
+      `${errorPrefix} failed: ${response.status}`,
+      response.status,
+      errorText,
+    );
   }
 
   // Handle 204 No Content and empty responses (void endpoints)

@@ -137,13 +137,15 @@ export function Alert({
       )}
       {/* basis-full: die Aktion rutscht auf schmalen Bildschirmen unter die
           Meldung, statt den Text in eine schmale Spalte zu quetschen. Ab sm
-          steht sie wieder rechts in derselben Zeile. */}
+          steht sie wieder rechts in derselben Zeile. max-w-full hält eine
+          lange Aktion (Vorgangskennung) in der Fläche, statt sie über den
+          Rand laufen zu lassen. */}
       {action ? (
         <span
           className={
             actionLayout === "inline"
               ? "ml-auto shrink-0 pl-2"
-              : "shrink-0 basis-full sm:ml-auto sm:basis-auto sm:pl-4"
+              : "max-w-full min-w-0 shrink-0 basis-full sm:ml-auto sm:basis-auto sm:pl-4"
           }
         >
           {action}

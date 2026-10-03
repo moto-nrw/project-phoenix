@@ -140,9 +140,12 @@ func newErrResponse(status int, err error) *ErrResponse {
 	}
 }
 
-// ErrorInvalidRequest returns a 400 Bad Request error response
+// ErrorInvalidRequest returns a 400 Bad Request error response. A failed
+// ozzo-validation Bind also lists its fields in `errors`.
 func ErrorInvalidRequest(err error) render.Renderer {
-	return newErrResponse(http.StatusBadRequest, err)
+	resp := newErrResponse(http.StatusBadRequest, err)
+	resp.Errors = validationFieldErrors(err)
+	return resp
 }
 
 // ErrorInvalidRequestWithCode returns a 400 Bad Request with a stable
@@ -151,6 +154,7 @@ func ErrorInvalidRequest(err error) render.Renderer {
 func ErrorInvalidRequestWithCode(err error, code string) render.Renderer {
 	resp := newErrResponse(http.StatusBadRequest, err)
 	resp.Code = code
+	resp.Errors = validationFieldErrors(err)
 	return resp
 }
 
@@ -247,6 +251,15 @@ func ErrorConflict(err error) render.Renderer {
 func ErrorConflictWithCode(err error, code string) render.Renderer {
 	resp := newErrResponse(http.StatusConflict, err)
 	resp.Code = code
+	return resp
+}
+
+// ErrorConflictOnField returns a 409 Conflict with a stable code that names
+// the one field the conflict is about, so the form can mark it (#2511).
+func ErrorConflictOnField(err error, code, field string) render.Renderer {
+	resp := newErrResponse(http.StatusConflict, err)
+	resp.Code = code
+	resp.Errors = []FieldError{{Field: field, Reason: resp.ErrorText}}
 	return resp
 }
 

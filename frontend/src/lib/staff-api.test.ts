@@ -3244,7 +3244,7 @@ describe("staff-api", () => {
           "",
         ),
       ).rejects.toThrow(
-        "Ungültige Eingabe. Bitte prüfe die Werte und versuche es erneut.",
+        "Ungültige Eingabe. Bitte prüfen Sie die Werte und versuchen Sie es erneut.",
       );
     });
 
@@ -3366,12 +3366,17 @@ describe("staff-api", () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValue({
         ok: false,
+        status: 403,
         statusText: "Forbidden",
+        text: () => Promise.resolve(""),
       } as Response);
 
       await expect(staffStammdatenService.revealFinancial("7")).rejects.toThrow(
         "Failed to reveal financial data: Forbidden",
       );
+      await expect(
+        staffStammdatenService.revealFinancial("7"),
+      ).rejects.toMatchObject({ status: 403, code: "general.permission" });
     });
 
     it("writes the bank & tax section in the backend wire shape", async () => {

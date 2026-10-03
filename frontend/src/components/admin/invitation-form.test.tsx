@@ -4,44 +4,17 @@
  */
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ApiError } from "~/lib/api-error";
 import { InvitationForm } from "./invitation-form";
 
-// Mock dependencies
-vi.mock("~/contexts/ToastContext", () => ({
+// Mock dependencies. The form reports errors through the real
+// useApiFormError; only the success toast is stubbed.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: vi.fn(() => ({
     success: vi.fn(),
     error: vi.fn(),
   })),
-}));
-
-vi.mock("~/components/ui/input", () => ({
-  Input: ({
-    id,
-    label,
-    value,
-    onChange,
-    disabled,
-    required,
-  }: {
-    id: string;
-    label: string;
-    value?: string;
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    disabled?: boolean;
-    required?: boolean;
-  }) => (
-    <div>
-      <label htmlFor={id}>{label}</label>
-      <input
-        id={id}
-        value={value ?? ""}
-        onChange={onChange}
-        disabled={disabled}
-        required={required}
-        data-testid={id}
-      />
-    </div>
-  ),
 }));
 
 const mockGetRoles = vi.fn();
@@ -183,38 +156,56 @@ describe("InvitationForm", () => {
     });
   });
 
-  it("validates email field", async () => {
+  it("marks every blank required field the server names and focuses the first", async () => {
+    mockCreateInvitation.mockRejectedValue(
+      new ApiError("validation failed", 400, {
+        code: "general.input",
+        errors: [
+          { field: "email", reason: "cannot be blank" },
+          { field: "role_id", reason: "cannot be blank" },
+        ],
+      }),
+    );
     render(<InvitationForm />);
-
-    // Wait for roles to load
     await waitFor(() => {
       expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
-    const submitButton = screen.getByText("Einladung senden");
-    fireEvent.click(submitButton);
+    fireEvent.click(screen.getByText("Einladung senden"));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Bitte gib eine gültige E-Mail-Adresse ein/),
-      ).toBeInTheDocument();
-    });
+    const email = screen.getByLabelText("E-Mail-Adresse");
+    await waitFor(() => expect(email).toHaveFocus());
+    expect(mockCreateInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "" }),
+    );
+    expect(
+      screen.getByText(
+        "Die Einladung konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
+      ),
+    ).toBeInTheDocument();
+    expect(email).toHaveAttribute("aria-invalid", "true");
+    const role = screen.getByLabelText("Rolle");
+    expect(role).toHaveAttribute("aria-invalid", "true");
+    expect(role).toHaveAttribute("aria-describedby", "invitation-role-error");
+    expect(screen.getAllByText("Bitte prüfen Sie dieses Feld.")).toHaveLength(
+      2,
+    );
   });
 
-  it("validates role field", async () => {
+  it("focuses the role when it is the only failed field", async () => {
+    mockCreateInvitation.mockRejectedValue(
+      new ApiError("validation failed", 400, {
+        code: "general.input",
+        errors: [{ field: "role_id", reason: "cannot be blank" }],
+      }),
+    );
     render(<InvitationForm />);
-
-    const emailInput = await screen.findByTestId("invitation-email");
+    const emailInput = await screen.findByLabelText("E-Mail-Adresse");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
-    const submitButton = screen.getByText("Einladung senden");
-    fireEvent.click(submitButton);
+    fireEvent.click(screen.getByText("Einladung senden"));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Bitte wähle eine Rolle aus/),
-      ).toBeInTheDocument();
-    });
+    await waitFor(() => expect(screen.getByLabelText("Rolle")).toHaveFocus());
   });
 
   it("calls createInvitation with form data", async () => {
@@ -225,7 +216,7 @@ describe("InvitationForm", () => {
       expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
-    const emailInput = screen.getByTestId("invitation-email");
+    const emailInput = screen.getByLabelText("E-Mail-Adresse");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const roleSelect = screen.getByLabelText("Rolle");
@@ -253,17 +244,17 @@ describe("InvitationForm", () => {
       expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
-    const emailInput = screen.getByTestId("invitation-email");
+    const emailInput = screen.getByLabelText("E-Mail-Adresse");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const roleSelect = screen.getByLabelText("Rolle");
     fireEvent.click(roleSelect);
     fireEvent.click(screen.getByRole("option", { name: "Betreuer" }));
 
-    const firstNameInput = screen.getByTestId("invitation-first-name");
+    const firstNameInput = screen.getByLabelText("Vorname (optional)");
     fireEvent.change(firstNameInput, { target: { value: "John" } });
 
-    const lastNameInput = screen.getByTestId("invitation-last-name");
+    const lastNameInput = screen.getByLabelText("Nachname (optional)");
     fireEvent.change(lastNameInput, { target: { value: "Doe" } });
 
     const positionSelect = screen.getByLabelText("Position (optional)");
@@ -293,7 +284,7 @@ describe("InvitationForm", () => {
       expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
-    const emailInput = screen.getByTestId("invitation-email");
+    const emailInput = screen.getByLabelText("E-Mail-Adresse");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const roleSelect = screen.getByLabelText("Rolle");
@@ -316,7 +307,7 @@ describe("InvitationForm", () => {
       expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
-    const emailInput = screen.getByTestId("invitation-email");
+    const emailInput = screen.getByLabelText("E-Mail-Adresse");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const roleSelect = screen.getByLabelText("Rolle");
@@ -328,7 +319,7 @@ describe("InvitationForm", () => {
 
     await waitFor(() => {
       const emailInput =
-        screen.getByTestId<HTMLInputElement>("invitation-email");
+        screen.getByLabelText<HTMLInputElement>("E-Mail-Adresse");
       expect(emailInput.value).toBe("");
     });
   });
@@ -341,7 +332,7 @@ describe("InvitationForm", () => {
       expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
-    const emailInput = screen.getByTestId("invitation-email");
+    const emailInput = screen.getByLabelText("E-Mail-Adresse");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const roleSelect = screen.getByLabelText("Rolle");
@@ -361,11 +352,12 @@ describe("InvitationForm", () => {
   });
 
   it("shows error for account already has tenant access (409 with code)", async () => {
-    mockCreateInvitation.mockRejectedValue({
-      status: 409,
-      code: "identity.account_already_has_tenant_access",
-      message: "account already has access to tenant",
-    });
+    mockCreateInvitation.mockRejectedValue(
+      new ApiError("account already has access to tenant", 409, {
+        code: "identity.account_already_has_tenant_access",
+        errors: [{ field: "email", reason: "account already has access" }],
+      }),
+    );
 
     render(<InvitationForm />);
 
@@ -373,7 +365,7 @@ describe("InvitationForm", () => {
       expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
-    const emailInput = screen.getByTestId("invitation-email");
+    const emailInput = screen.getByLabelText("E-Mail-Adresse");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const roleSelect = screen.getByLabelText("Rolle");
@@ -386,17 +378,23 @@ describe("InvitationForm", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          /Dieser Account hat bereits Zugang zu dieser Einrichtung/,
+          "Diese Person hat schon Zugang zu dieser Schule. Sie finden sie in der Personalliste.",
         ),
       ).toBeInTheDocument();
     });
+    expect(screen.getByLabelText("E-Mail-Adresse")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
   });
 
-  it("shows error for duplicate email (409 without code)", async () => {
-    mockCreateInvitation.mockRejectedValue({
-      status: 409,
-      message: "Conflict",
-    });
+  it("shows error for an email that already has an account", async () => {
+    mockCreateInvitation.mockRejectedValue(
+      new ApiError("email already exists", 409, {
+        code: "identity.email_already_exists",
+        errors: [{ field: "email", reason: "email already exists" }],
+      }),
+    );
 
     render(<InvitationForm />);
 
@@ -405,7 +403,7 @@ describe("InvitationForm", () => {
       expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
-    const emailInput = screen.getByTestId("invitation-email");
+    const emailInput = screen.getByLabelText("E-Mail-Adresse");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const roleSelect = screen.getByLabelText("Rolle");
@@ -418,13 +416,13 @@ describe("InvitationForm", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          /Für diese E-Mail-Adresse existiert bereits ein Account/,
+          "Für diese E-Mail-Adresse gibt es schon ein Konto. Bitte verwenden Sie eine andere Adresse.",
         ),
       ).toBeInTheDocument();
     });
   });
 
-  it("shows generic error for other failures", async () => {
+  it("shows the crash text, never the raw message, for a failure without a code", async () => {
     mockCreateInvitation.mockRejectedValue(new Error("Network error"));
 
     render(<InvitationForm />);
@@ -434,7 +432,7 @@ describe("InvitationForm", () => {
       expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
-    const emailInput = screen.getByTestId("invitation-email");
+    const emailInput = screen.getByLabelText("E-Mail-Adresse");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const roleSelect = screen.getByLabelText("Rolle");
@@ -445,9 +443,13 @@ describe("InvitationForm", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      // Error object's message is shown directly
-      expect(screen.getByText(/Network error/)).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Die Einladung konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+        ),
+      ).toBeInTheDocument();
     });
+    expect(screen.queryByText(/Network error/)).not.toBeInTheDocument();
   });
 
   it("disables form during submission", async () => {
@@ -462,7 +464,7 @@ describe("InvitationForm", () => {
       expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
-    const emailInput = screen.getByTestId("invitation-email");
+    const emailInput = screen.getByLabelText("E-Mail-Adresse");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const roleSelect = screen.getByLabelText("Rolle");
@@ -473,62 +475,99 @@ describe("InvitationForm", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByTestId("invitation-email")).toBeDisabled();
+      expect(screen.getByLabelText("E-Mail-Adresse")).toBeDisabled();
       expect(screen.getByLabelText("Rolle")).toBeDisabled();
     });
   });
 
+  it("shows a copyable request ID and a retry for a server error", async () => {
+    mockCreateInvitation.mockRejectedValueOnce(
+      new ApiError("boom", 500, {
+        code: "general.server",
+        instance: "req-invite-1",
+      }),
+    );
+    render(<InvitationForm />);
+    await waitFor(() => {
+      expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
+    });
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "test@example.com" },
+    });
+
+    fireEvent.click(screen.getByText("Einladung senden"));
+
+    expect(
+      await screen.findByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("Vorgangskennung: req-invite-1");
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mockCreateInvitation).toHaveBeenCalledTimes(2));
+  });
+
+  it("offers a retry when the roles cannot be loaded", async () => {
+    mockGetRoles
+      .mockRejectedValueOnce(new ApiError("boom", 503, {}))
+      .mockResolvedValueOnce(mockRoles);
+    render(<InvitationForm />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => expect(mockGetRoles).toHaveBeenCalledTimes(2));
+    await waitFor(() => {
+      expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
+    });
+  });
+
   describe("Scroll to error and field highlighting", () => {
-    it("scrolls to error when submitting with empty email", async () => {
+    it("scrolls the form error into view", async () => {
       const scrollIntoViewMock = vi.fn();
       Element.prototype.scrollIntoView = scrollIntoViewMock;
+      mockCreateInvitation.mockRejectedValue(
+        new ApiError("validation failed", 400, {
+          code: "general.input",
+          errors: [{ field: "email", reason: "cannot be blank" }],
+        }),
+      );
 
       render(<InvitationForm />);
-
-      // Wait for roles to load
       await waitFor(() => {
         expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
       });
 
-      const submitButton = screen.getByText("Einladung senden");
-      fireEvent.click(submitButton);
+      fireEvent.click(screen.getByText("Einladung senden"));
 
       await waitFor(() => {
-        expect(
-          screen.getByText(/Bitte gib eine gültige E-Mail-Adresse ein/),
-        ).toBeInTheDocument();
         expect(scrollIntoViewMock).toHaveBeenCalledWith({
           behavior: "smooth",
-          block: "start",
+          block: "nearest",
         });
       });
     });
 
-    it("highlights the role label when role is not selected", async () => {
+    it("highlights the role label when the server names the role", async () => {
       Element.prototype.scrollIntoView = vi.fn();
+      mockCreateInvitation.mockRejectedValue(
+        new ApiError("validation failed", 400, {
+          code: "general.input",
+          errors: [{ field: "role_id", reason: "cannot be blank" }],
+        }),
+      );
 
       render(<InvitationForm />);
-
-      // Wait for roles to load
       await waitFor(() => {
         expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
       });
-
-      // Fill email but leave role empty
-      const emailInput = screen.getByTestId("invitation-email");
-      fireEvent.change(emailInput, { target: { value: "test@example.com" } });
-
-      const submitButton = screen.getByText("Einladung senden");
-      fireEvent.click(submitButton);
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(/Bitte wähle eine Rolle aus/),
-        ).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+        target: { value: "test@example.com" },
       });
 
-      const roleLabel = screen.getByText("Rolle");
-      expect(roleLabel.className).toContain("text-moto-red-strong");
+      fireEvent.click(screen.getByText("Einladung senden"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Rolle").className).toContain(
+          "text-moto-red-strong",
+        );
+      });
     });
   });
 });

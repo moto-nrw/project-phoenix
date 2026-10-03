@@ -1,8 +1,4 @@
-import type { ApiError } from "~/lib/auth-api";
-import { wireErrorCode } from "~/lib/api-error";
-import { createLogger } from "~/lib/logger";
-
-const logger = createLogger({ component: "InvitationAPI" });
+import { buildApiError } from "~/lib/auth-api";
 
 import type {
   InvitationValidation,
@@ -16,59 +12,6 @@ import {
   mapInvitationValidationResponse,
   mapPendingInvitationResponse,
 } from "./invitation-helpers";
-
-const parseRetryAfter = (value: string | null): number | undefined => {
-  if (!value) return undefined;
-  const numeric = Number(value);
-  if (!Number.isNaN(numeric)) {
-    return Math.max(0, Math.round(numeric));
-  }
-  const date = Date.parse(value);
-  if (!Number.isNaN(date)) {
-    const diff = date - Date.now();
-    return diff > 0 ? Math.ceil(diff / 1000) : 0;
-  }
-  return undefined;
-};
-
-const createApiError = async (
-  response: Response,
-  fallbackMessage: string,
-): Promise<ApiError> => {
-  let message = fallbackMessage;
-  let code: string | undefined;
-
-  try {
-    const contentType = response.headers.get("Content-Type") ?? "";
-    if (contentType.includes("application/json")) {
-      const payload = (await response.json()) as {
-        error?: string;
-        message?: string;
-        code?: string;
-      };
-      message = payload.error ?? payload.message ?? fallbackMessage;
-      code = payload.code;
-    } else {
-      const text = (await response.text()).trim();
-      if (text) {
-        message = text;
-      }
-    }
-  } catch (error) {
-    logger.warn("failed to parse invitation API error", {
-      error: String(error),
-    });
-  }
-
-  const apiError = new Error(message) as ApiError;
-  apiError.status = response.status;
-  apiError.code = wireErrorCode(code);
-  const retry = parseRetryAfter(response.headers.get("Retry-After"));
-  if (retry !== undefined) {
-    apiError.retryAfterSeconds = retry;
-  }
-  return apiError;
-};
 
 const hasDataProperty = <T>(value: unknown): value is { data: T } => {
   return typeof value === "object" && value !== null && "data" in value;
@@ -88,7 +31,7 @@ export async function validateInvitation(
     `/api/invitations/validate?token=${encodeURIComponent(token)}`,
   );
   if (!response.ok) {
-    throw await createApiError(
+    throw await buildApiError(
       response,
       "Einladung konnte nicht geprüft werden.",
     );
@@ -116,7 +59,7 @@ export async function acceptInvitation(
   });
 
   if (!response.ok) {
-    throw await createApiError(
+    throw await buildApiError(
       response,
       "Einladung konnte nicht angenommen werden.",
     );
@@ -145,7 +88,7 @@ export async function createInvitation(
   });
 
   if (!response.ok) {
-    throw await createApiError(
+    throw await buildApiError(
       response,
       "Einladung konnte nicht erstellt werden.",
     );
@@ -161,7 +104,7 @@ export async function listPendingInvitations(): Promise<PendingInvitation[]> {
     credentials: "include",
   });
   if (!response.ok) {
-    throw await createApiError(
+    throw await buildApiError(
       response,
       "Offene Einladungen konnten nicht geladen werden.",
     );
@@ -180,7 +123,7 @@ export async function resendInvitation(id: number): Promise<void> {
     credentials: "include",
   });
   if (!response.ok) {
-    throw await createApiError(
+    throw await buildApiError(
       response,
       "Einladung konnte nicht erneut gesendet werden.",
     );
@@ -193,7 +136,7 @@ export async function revokeInvitation(id: number): Promise<void> {
     credentials: "include",
   });
   if (!response.ok) {
-    throw await createApiError(
+    throw await buildApiError(
       response,
       "Einladung konnte nicht widerrufen werden.",
     );

@@ -165,6 +165,8 @@ export const ERROR_CATALOG = {
         "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
       "grade_transition.preview_stale":
         "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
+      "identity.account_already_has_tenant_access":
+        "Diese Person hat schon Zugang zu dieser Schule. Sie finden sie in der Personalliste.",
       "identity.demo_access_expired":
         "Der Demo-Zugang ist abgelaufen. Bitte fordern Sie einen neuen Zugang an.",
       "identity.demo_access_invalid":
@@ -177,6 +179,8 @@ export const ERROR_CATALOG = {
         "Gerade sind alle Demo-Plätze belegt. Bitte versuchen Sie es später erneut.",
       "identity.demo_school_preparing":
         "Die Demo-Schule wird gerade vorbereitet. Bitte versuchen Sie es gleich noch einmal.",
+      "identity.email_already_exists":
+        "Für diese E-Mail-Adresse gibt es schon ein Konto. Bitte verwenden Sie eine andere Adresse.",
       "identity.invitation_account_login_required":
         "Für {object} müssen Sie angemeldet sein. Bitte melden Sie sich an.",
       "identity.preview_token_invalid":
@@ -357,6 +361,10 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "The password is not correct. Please try again.",
       "care.declaration_password_required": "Please enter your password.",
+      "identity.account_already_has_tenant_access":
+        "This person already has access to this school. You can find them in the staff list.",
+      "identity.email_already_exists":
+        "There is already an account for this email address. Please use a different address.",
     },
   },
   ru: {
@@ -379,6 +387,10 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Пароль неверный. Пожалуйста, попробуйте ещё раз.",
       "care.declaration_password_required": "Пожалуйста, введите пароль.",
+      "identity.account_already_has_tenant_access":
+        "У этого человека уже есть доступ к этой школе. Он есть в списке сотрудников.",
+      "identity.email_already_exists":
+        "Для этого адреса электронной почты уже есть учётная запись. Укажите другой адрес.",
     },
   },
   sq: {
@@ -401,6 +413,10 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Fjalëkalimi nuk është i saktë. Ju lutemi provoni përsëri.",
       "care.declaration_password_required": "Ju lutemi shkruani fjalëkalimin.",
+      "identity.account_already_has_tenant_access":
+        "Ky person ka tashmë qasje në këtë shkollë. E gjeni në listën e personelit.",
+      "identity.email_already_exists":
+        "Për këtë adresë email ka tashmë një llogari. Ju lutemi përdorni një adresë tjetër.",
     },
   },
   pl: {
@@ -423,6 +439,10 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Hasło jest nieprawidłowe. Spróbuj ponownie.",
       "care.declaration_password_required": "Wpisz swoje hasło.",
+      "identity.account_already_has_tenant_access":
+        "Ta osoba ma już dostęp do tej szkoły. Znajdziesz ją na liście personelu.",
+      "identity.email_already_exists":
+        "Dla tego adresu e-mail istnieje już konto. Użyj innego adresu.",
     },
   },
   tr: {
@@ -445,6 +465,10 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Şifre doğru değil. Lütfen tekrar deneyin.",
       "care.declaration_password_required": "Lütfen şifrenizi girin.",
+      "identity.account_already_has_tenant_access":
+        "Bu kişinin bu okula zaten erişimi var. Kişiyi personel listesinde bulabilirsiniz.",
+      "identity.email_already_exists":
+        "Bu e-posta adresi için zaten bir hesap var. Lütfen başka bir adres kullanın.",
     },
   },
   uk: {
@@ -467,6 +491,10 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Пароль неправильний. Будь ласка, спробуйте ще раз.",
       "care.declaration_password_required": "Будь ласка, введіть пароль.",
+      "identity.account_already_has_tenant_access":
+        "Ця особа вже має доступ до цієї школи. Її можна знайти в списку персоналу.",
+      "identity.email_already_exists":
+        "Для цієї адреси електронної пошти вже є обліковий запис. Укажіть іншу адресу.",
     },
   },
 } as const;

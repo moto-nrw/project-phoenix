@@ -1,7 +1,15 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render as renderUi, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { ToastProvider } from "~/contexts/ToastContext";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StammdatenTab } from "./stammdaten-tab";
+
+// The tab reports a failed reveal as a toast (#2511); the app mounts the
+// provider globally.
+function render(ui: ReactElement) {
+  return renderUi(ui, { wrapper: ToastProvider });
+}
 
 const mutate = vi.hoisted(() => vi.fn());
 const useSWRAuth = vi.hoisted(() => vi.fn());

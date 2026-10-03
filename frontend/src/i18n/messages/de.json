@@ -2150,7 +2150,7 @@
         "preview_stale": "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu."
       },
       "identity": {
-        "account_already_has_tenant_access": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
+        "account_already_has_tenant_access": "Diese Person hat schon Zugang zu dieser Schule. Sie finden sie in der Personalliste.",
         "account_inactive": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "demo_access_expired": "Der Demo-Zugang ist abgelaufen. Bitte fordern Sie einen neuen Zugang an.",
         "demo_access_invalid": "Der Demo-Link ist ungültig. Bitte fordern Sie einen neuen Link an.",
@@ -2159,6 +2159,7 @@
         "demo_capacity_reached": "Gerade sind alle Demo-Plätze belegt. Bitte versuchen Sie es später erneut.",
         "demo_school_preparing": "Die Demo-Schule wird gerade vorbereitet. Bitte versuchen Sie es gleich noch einmal.",
         "demo_session": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+        "email_already_exists": "Für diese E-Mail-Adresse gibt es schon ein Konto. Bitte verwenden Sie eine andere Adresse.",
         "invitation_account_login_required": "Für {object} müssen Sie angemeldet sein. Bitte melden Sie sich an.",
         "invitation_account_mismatch": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "preview_target_not_previewable": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",

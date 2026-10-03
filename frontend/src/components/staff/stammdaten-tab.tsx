@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Eye, EyeOff, Lock } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import {
   DataField,
@@ -13,6 +14,7 @@ import {
 } from "~/components/ui/detail-modal-components";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { SectionCard } from "~/components/ui/section-card";
+import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { formatDate, todayISO } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
@@ -56,7 +58,7 @@ import {
 // ganzen Reiter, EIN Speichern unten, EINE Begründung. Die Gruppen bleiben
 // dabei sichtbar. Gespeichert wird pro Gruppe hintereinander, weil das
 // Backend je Gruppe einen eigenen Endpunkt hat; der Nutzer sieht einen
-// Vorgang, Fehler stehen gesammelt oben im Bearbeiten-Bereich.
+// Vorgang, Fehler stehen oben im Bearbeiten-Bereich und am Feld (#2511).
 
 const logger = createLogger({ component: "StammdatenTab" });
 
@@ -130,19 +132,27 @@ export function StammdatenTab({
   // Anzeigen-Zustand der Bankdaten (Lesemodus).
   const [revealed, setRevealed] = useState<StaffFinancialPlain | null>(null);
   const [revealing, setRevealing] = useState(false);
-  const [revealError, setRevealError] = useState<string | null>(null);
 
   // Bearbeiten-Zustand des ganzen Reiters.
   const [draft, setDraft] = useState<StammdatenDraft | null>(null);
   const [baseline, setBaseline] = useState<StammdatenDraft | null>(null);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const [saveErrors, setSaveErrors] = useState<readonly string[]>([]);
   const [birthdayValid, setBirthdayValid] = useState(true);
   const [financialLoading, setFinancialLoading] = useState(false);
-  const [financialLoadError, setFinancialLoadError] = useState<string | null>(
-    null,
-  );
+  // Fehler beim Speichern und beim Laden zum Ändern stehen im Alert oben im
+  // Bearbeiten-Bereich, Feldfehler am Feld. Das Anzeigen im Lesemodus ist
+  // keine Formularaktion und meldet als Toast (#2511).
+  const editAreaRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(editAreaRef);
+  const actionErrors = useApiErrorDisplay();
+  // Stand je Abschnitt, der in diesem Bearbeiten-Vorgang schon gespeichert
+  // ist: ein erneutes Speichern schickt ihn nicht noch einmal (sonst doppelte
+  // Einträge im Änderungsprotokoll).
+  const savedSectionsRef = useRef(new Map<string, string>());
+  // „Wiederholen“ im Alert speichert den aktuellen Entwurf, nicht den vom
+  // Zeitpunkt des Fehlers.
+  const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
 
   if (canManagePayroll && payrollError) {
     return (
@@ -209,17 +219,17 @@ export function StammdatenTab({
     setDraft(next);
     setBaseline(next);
     setNote("");
-    setSaveErrors([]);
+    formErrors.clear();
+    savedSectionsRef.current.clear();
     setBirthdayValid(true);
-    setFinancialLoadError(null);
   };
 
   const cancelEditing = () => {
     setDraft(null);
     setBaseline(null);
     setNote("");
-    setSaveErrors([]);
-    setFinancialLoadError(null);
+    formErrors.clear();
+    savedSectionsRef.current.clear();
   };
 
   // Die Klartextwerte der Bankdaten werden erst auf ausdrückliche Anforderung
@@ -227,7 +237,7 @@ export function StammdatenTab({
   // Wechsel in den Bearbeiten-Zustand ihn aus.
   const loadFinancialForEditing = async () => {
     setFinancialLoading(true);
-    setFinancialLoadError(null);
+    formErrors.clear();
     try {
       const plain = await staffStammdatenService.revealFinancial(staffId);
       setDraft((current) =>
@@ -258,9 +268,10 @@ export function StammdatenTab({
       logger.error("stammdaten_financial_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setFinancialLoadError(
-        "Die Bank- und Steuerdaten konnten nicht geladen werden.",
-      );
+      await formErrors.show(err, {
+        object: "die Anzeige der Bank- und Steuerdaten",
+        retry: () => void loadFinancialForEditing(),
+      });
     } finally {
       setFinancialLoading(false);
     }
@@ -272,7 +283,6 @@ export function StammdatenTab({
       return;
     }
     setRevealing(true);
-    setRevealError(null);
     try {
       const plain = await staffStammdatenService.revealFinancial(staffId);
       setRevealed(plain);
@@ -280,18 +290,23 @@ export function StammdatenTab({
       logger.error("stammdaten_financial_reveal_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setRevealError(
-        "Die Werte konnten nicht angezeigt werden. Bitte erneut versuchen.",
-      );
+      await actionErrors.show(err, {
+        object: "die Anzeige der Bank- und Steuerdaten",
+        retry: () => void toggleReveal(),
+      });
     } finally {
       setRevealing(false);
     }
   };
 
-  const changed = (pick: (value: StammdatenDraft) => unknown) =>
+  const changed = (
+    section: string,
+    pick: (value: StammdatenDraft) => unknown,
+  ) =>
     draft !== null &&
     baseline !== null &&
-    JSON.stringify(pick(draft)) !== JSON.stringify(pick(baseline));
+    JSON.stringify(pick(draft)) !==
+      (savedSectionsRef.current.get(section) ?? JSON.stringify(pick(baseline)));
 
   const draftValid =
     draft === null ||
@@ -310,14 +325,21 @@ export function StammdatenTab({
     // wird der Reiter als Ganzes, und die Fläche lädt danach ohnehin neu.
     const steps: {
       label: string;
+      /** Was die Meldung nennt, mit Artikel (ADR 0006). */
+      object: string;
       event: string;
+      /** Der gesendete Stand, gemerkt nach Erfolg. */
+      saved: string;
       run: () => Promise<unknown>;
     }[] = [];
+    const section = (label: string) => `die Änderung an „${label}“`;
 
     if (sectionsEditable) {
-      if (changed((d) => toPersonPayload(d))) {
+      if (changed("Person", (d) => toPersonPayload(d))) {
         steps.push({
           label: "Person",
+          object: section("Person"),
+          saved: JSON.stringify(((d) => toPersonPayload(d))(draft)),
           event: "stammdaten_person_save_failed",
           run: () =>
             staffStammdatenService.updatePerson(
@@ -327,9 +349,11 @@ export function StammdatenTab({
             ),
         });
       }
-      if (changed((d) => toKontaktPayload(d))) {
+      if (changed("Kontakt", (d) => toKontaktPayload(d))) {
         steps.push({
           label: "Kontakt",
+          object: section("Kontakt"),
+          saved: JSON.stringify(((d) => toKontaktPayload(d))(draft)),
           event: "stammdaten_kontakt_save_failed",
           run: () =>
             staffStammdatenService.updateKontakt(
@@ -339,9 +363,11 @@ export function StammdatenTab({
             ),
         });
       }
-      if (changed((d) => toArbeitsvertragPayload(d))) {
+      if (changed("Arbeitsvertrag", (d) => toArbeitsvertragPayload(d))) {
         steps.push({
           label: "Arbeitsvertrag",
+          object: section("Arbeitsvertrag"),
+          saved: JSON.stringify(((d) => toArbeitsvertragPayload(d))(draft)),
           event: "stammdaten_arbeitsvertrag_save_failed",
           run: () =>
             staffStammdatenService.updateArbeitsvertrag(
@@ -351,9 +377,11 @@ export function StammdatenTab({
             ),
         });
       }
-      if (changed((d) => toQualifikationenPayload(d))) {
+      if (changed("Qualifikationen", (d) => toQualifikationenPayload(d))) {
         steps.push({
           label: "Qualifikationen",
+          object: section("Qualifikationen"),
+          saved: JSON.stringify(((d) => toQualifikationenPayload(d))(draft)),
           event: "stammdaten_qualifikationen_save_failed",
           run: () =>
             staffStammdatenService.updateQualifikationen(
@@ -365,9 +393,14 @@ export function StammdatenTab({
       }
     }
 
-    if (payrollEditable && changed((d) => d.personnelNumber.trim())) {
+    if (
+      payrollEditable &&
+      changed("Personalnummer", (d) => d.personnelNumber.trim())
+    ) {
       steps.push({
         label: "Personalnummer",
+        object: "die Personalnummer",
+        saved: JSON.stringify(draft.personnelNumber.trim()),
         event: "stammdaten_payroll_save_failed",
         run: () =>
           staffPayrollNumberService.update(
@@ -378,10 +411,16 @@ export function StammdatenTab({
       });
     }
 
-    if (financialEditable && draft.financial && changed((d) => d.financial)) {
+    if (
+      financialEditable &&
+      draft.financial &&
+      changed("Bank & Steuer", (d) => d.financial)
+    ) {
       const values = draft.financial;
       steps.push({
         label: "Bank & Steuer",
+        object: section("Bank & Steuer"),
+        saved: JSON.stringify(values),
         event: "stammdaten_financial_save_failed",
         run: () =>
           staffStammdatenService.updateFinancial(
@@ -402,18 +441,21 @@ export function StammdatenTab({
     }
 
     setSaving(true);
-    setSaveErrors([]);
-    const errors: string[] = [];
+    formErrors.clear();
+    // Gespeichert wird Abschnitt für Abschnitt. Scheitert einer, hält der
+    // Vorgang dort an: die Meldung nennt genau diesen Abschnitt, die übrigen
+    // Änderungen bleiben im offenen Entwurf, und nichts scheitert still.
+    let failure: { object: string; error: unknown } | null = null;
     for (const step of steps) {
       try {
         await step.run();
+        savedSectionsRef.current.set(step.label, step.saved);
       } catch (err) {
         logger.error(step.event, {
           error: err instanceof Error ? err.message : String(err),
         });
-        errors.push(
-          `${step.label}: ${err instanceof Error ? err.message : "Speichern fehlgeschlagen"}`,
-        );
+        failure = { object: step.object, error: err };
+        break;
       }
     }
     setSaving(false);
@@ -423,15 +465,19 @@ export function StammdatenTab({
     void mutateFinancial();
     setRevealed(null);
 
-    if (errors.length > 0) {
-      setSaveErrors(errors);
+    if (failure) {
+      await formErrors.show(failure.error, {
+        object: failure.object,
+        retry: () => void latestSaveRef.current(),
+      });
       return;
     }
     cancelEditing();
   };
+  latestSaveRef.current = handleSave;
 
   return (
-    <div className="space-y-5">
+    <div ref={editAreaRef} className="space-y-5">
       {canStartEditing && !editing && (
         <div className="flex justify-end">
           <Button
@@ -446,16 +492,7 @@ export function StammdatenTab({
         </div>
       )}
 
-      {editing && saveErrors.length > 0 && (
-        <Alert
-          type="error"
-          message={
-            saveErrors.length === 1
-              ? (saveErrors[0] ?? "Speichern fehlgeschlagen")
-              : `Nicht alles konnte gespeichert werden: ${saveErrors.join(" · ")}`
-          }
-        />
-      )}
+      {editing && <FormErrorAlert message={formErrors.error} />}
 
       {canViewSections && (
         <>
@@ -466,6 +503,7 @@ export function StammdatenTab({
                 onChange={patchDraft}
                 berlinToday={berlinToday}
                 onBirthdayValidityChange={setBirthdayValid}
+                fieldError={formErrors.fieldError}
               />
             ) : (
               <DataGrid>
@@ -762,9 +800,6 @@ export function StammdatenTab({
                   Zum Ändern müssen die gespeicherten Werte geladen werden. Der
                   Abruf wird im Audit-Log protokolliert.
                 </p>
-                {financialLoadError && (
-                  <Alert type="error" message={financialLoadError} />
-                )}
                 <Button
                   type="button"
                   variant="outline"
@@ -803,11 +838,6 @@ export function StammdatenTab({
                 />
               </DataField>
             </DataGrid>
-          )}
-          {revealError && !editing && (
-            <div className="mt-2">
-              <Alert type="error" message={revealError} />
-            </div>
           )}
         </SectionCard>
       ) : (

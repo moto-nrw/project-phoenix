@@ -3,11 +3,14 @@
 import { useEffect, useRef } from "react";
 
 import { Alert } from "./alert";
+import { Button } from "./button";
 import {
   formErrorAttempt,
+  formErrorDetail,
   formErrorMessage,
   type FormErrorInput,
 } from "./form-error";
+import { RequestIdButton } from "./request-id-button";
 
 interface FormErrorAlertProps {
   /** The form's current error. Nothing renders while it is empty. A value
@@ -42,9 +45,40 @@ export function FormErrorAlert({ message, className }: FormErrorAlertProps) {
 
   if (!text) return null;
 
+  // A server or unavailable error from the shared API error path carries a
+  // retry and the request ID to copy (#2511).
+  const detail = formErrorDetail(message);
+  const requestId = detail?.requestId;
+  const retry = detail?.retry;
+  const action =
+    requestId || retry ? (
+      <span className="flex flex-wrap items-center justify-end gap-1">
+        {retry ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="compact"
+            onClick={retry.onClick}
+            className="shrink-0 self-center text-current underline underline-offset-2 hover:bg-black/5 hover:text-current"
+          >
+            {retry.label}
+          </Button>
+        ) : null}
+        {requestId ? (
+          <RequestIdButton
+            requestId={requestId.value}
+            label={requestId.label}
+            copyLabel={requestId.copyLabel}
+            copiedLabel={requestId.copiedLabel}
+            copyFailedLabel={requestId.copyFailedLabel}
+          />
+        ) : null}
+      </span>
+    ) : undefined;
+
   return (
     <div ref={ref} className={className}>
-      <Alert type="error" message={text} />
+      <Alert type="error" message={text} action={action} />
     </div>
   );
 }

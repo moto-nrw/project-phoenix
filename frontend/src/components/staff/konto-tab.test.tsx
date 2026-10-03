@@ -2,7 +2,8 @@ import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Teacher } from "~/lib/teacher-api";
-import { KontoTab, type KontoEditing } from "./konto-tab";
+import { ApiError } from "~/lib/api-error";
+import { KontoRoleSaveError, KontoTab, type KontoEditing } from "./konto-tab";
 
 vi.mock("~/lib/use-clipboard-copy", () => ({
   useClipboardCopy: () => ({ copied: false, copy: vi.fn() }),
@@ -180,11 +181,88 @@ describe("KontoTab", () => {
     expect(editing.onSave).not.toHaveBeenCalled();
   });
 
-  it("reports a failed save in the alert and stays in the edit state", async () => {
+  it("reports a failed save in the form alert, never the raw message, and stays in the edit state", async () => {
+    const editing = editingProps({
+      onSave: vi.fn(() => Promise.reject(new Error("socket hang up"))),
+    });
+    render(<KontoTab teacher={teacher} editing={editing} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        "Das Konto konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/socket hang up/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Notizen der Leitung")).toBeInTheDocument();
+  });
+
+  it("marks the fields the server rejects and focuses the first", async () => {
     const editing = editingProps({
       onSave: vi.fn(() =>
         Promise.reject(
-          new Error("Die Änderungen konnten nicht gespeichert werden."),
+          new ApiError("first name is required", 400, {
+            code: "general.input",
+            errors: [
+              { field: "first_name", reason: "is required" },
+              { field: "last_name", reason: "is required" },
+            ],
+          }),
+        ),
+      ),
+    });
+    render(<KontoTab teacher={teacher} editing={editing} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    const first = screen.getByLabelText("Vorname");
+    await waitFor(() => expect(first).toHaveFocus());
+    expect(first).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Nachname")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(
+      screen.getByText(
+        "Das Konto konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("retries with the draft as it is now, not as it was when the save failed", async () => {
+    const onSave = vi
+      .fn<(draft: unknown) => Promise<void>>()
+      .mockRejectedValueOnce(
+        new ApiError("unavailable", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce(undefined);
+    const editing = editingProps({ onSave });
+    render(<KontoTab teacher={teacher} editing={editing} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    const retry = await screen.findByRole("button", { name: "Wiederholen" });
+    fireEvent.change(screen.getByLabelText("Notizen der Leitung"), {
+      target: { value: "Neu nach dem Fehler" },
+    });
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    expect(onSave).toHaveBeenLastCalledWith(
+      expect.objectContaining({ staff_notes: "Neu nach dem Fehler" }),
+    );
+  });
+
+  it("names the system role when only the role change failed", async () => {
+    const editing = editingProps({
+      onSave: vi.fn(() =>
+        Promise.reject(
+          new KontoRoleSaveError(
+            new ApiError("forbidden", 403, { code: "general.permission" }),
+          ),
         ),
       ),
     });
@@ -195,10 +273,9 @@ describe("KontoTab", () => {
 
     expect(
       await screen.findByText(
-        "Die Änderungen konnten nicht gespeichert werden.",
+        "Für die Systemrolle fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Notizen der Leitung")).toBeInTheDocument();
   });
 
   it("sends the new system role only when it differs from the current one", async () => {

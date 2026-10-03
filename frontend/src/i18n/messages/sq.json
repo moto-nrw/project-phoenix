@@ -2150,7 +2150,7 @@
         "preview_stale": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "identity": {
-        "account_already_has_tenant_access": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "account_already_has_tenant_access": "Ky person ka tashmë qasje në këtë shkollë. E gjeni në listën e personelit.",
         "account_inactive": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "demo_access_expired": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "demo_access_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
@@ -2159,6 +2159,7 @@
         "demo_capacity_reached": "{object} nuk është i disponueshëm tani. Provoni përsëri.",
         "demo_school_preparing": "{object} nuk është i disponueshëm tani. Provoni përsëri.",
         "demo_session": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "email_already_exists": "Për këtë adresë email ka tashmë një llogari. Ju lutemi përdorni një adresë tjetër.",
         "invitation_account_login_required": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "invitation_account_mismatch": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "preview_target_not_previewable": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
