@@ -438,6 +438,16 @@ type WeeklySummary struct {
 	PlannedMinutes int
 	TargetMinutes  *int
 	DeltaMinutes   *int
+	// ByShiftType splits PlannedMinutes by Schichtart (#3819); the entries add
+	// up to PlannedMinutes.
+	ByShiftType []ShiftTypeMinutes
+}
+
+// ShiftTypeMinutes is the planned net minutes of one Schichtart in a week;
+// ShiftTypeID is nil for shifts without a Schichtart.
+type ShiftTypeMinutes struct {
+	ShiftTypeID *int64
+	Minutes     int
 }
 
 // StaffScheduleOverview is the read-only week grid: staff, planned shifts,

@@ -78,6 +78,7 @@ function summary(
     plannedMinutes: planned,
     targetMinutes: target,
     deltaMinutes: target === null ? null : planned - target,
+    plannedByShiftType: [],
   };
 }
 

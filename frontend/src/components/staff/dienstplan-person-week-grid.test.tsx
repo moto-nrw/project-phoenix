@@ -220,6 +220,7 @@ describe("DienstplanPersonWeekGrid", () => {
         plannedMinutes: 0,
         targetMinutes: 1200,
         deltaMinutes: -1200,
+        plannedByShiftType: [],
       },
     });
     expect(screen.getByText(/Soll 20 h/)).toBeInTheDocument();
@@ -233,6 +234,7 @@ describe("DienstplanPersonWeekGrid", () => {
         plannedMinutes: 300,
         targetMinutes: 300,
         deltaMinutes: 0,
+        plannedByShiftType: [{ shiftTypeId: null, plannedMinutes: 300 }],
       },
     });
 

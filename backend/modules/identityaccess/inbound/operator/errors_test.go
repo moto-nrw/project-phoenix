@@ -15,7 +15,7 @@ import (
 )
 
 // renderOperatorError renders an error body the way the routes do and
-// returns its status code and message. The cases below moved with
+// returns its status code and error text. The cases below moved with
 // AuthErrorRenderer from api/operator (#3231); they read the rendered body
 // because this adapter's tests do not name api/common.
 func renderOperatorError(t *testing.T, renderer render.Renderer) (int, string) {
@@ -23,10 +23,10 @@ func renderOperatorError(t *testing.T, renderer render.Renderer) (int, string) {
 	rr := httptest.NewRecorder()
 	require.NoError(t, render.Render(rr, httptest.NewRequest(http.MethodGet, "/", nil), renderer))
 	var body struct {
-		Message string `json:"message"`
+		Error string `json:"error"`
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body), rr.Body.String())
-	return rr.Code, body.Message
+	return rr.Code, body.Error
 }
 
 func TestAuthErrorRenderer_InvalidCredentials(t *testing.T) {

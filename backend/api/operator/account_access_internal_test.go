@@ -204,7 +204,7 @@ func TestProvisioningResource_GrantAccountTenantAccess_InvalidRoleMessageSurvive
 	body := decodeBody(t, rr)
 	// The generic provisioning renderer collapses this to "invalid input data";
 	// the access renderer has to keep the concrete reason.
-	assert.Contains(t, body["message"], assert.AnError.Error())
+	assert.Contains(t, body["error"], assert.AnError.Error())
 }
 
 func TestProvisioningResource_UpdateAccountTenantRole(t *testing.T) {

@@ -195,15 +195,10 @@ function OperatorSettingsContent() {
         },
       );
 
-      const data = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
+      const data = (await response.json()) as { error?: string };
       if (!response.ok) {
         const errorMsg =
-          data.error ??
-          data.message ??
-          "Ein unbekannter Fehler ist aufgetreten.";
+          data.error ?? "Ein unbekannter Fehler ist aufgetreten.";
         setEmailChangeError(
           errorMsg.includes("aktuelle Passwort ist falsch")
             ? "Falsches Passwort"

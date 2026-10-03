@@ -146,6 +146,7 @@ func TestWireFormatKeepsBigintIdentifiersAsStrings(t *testing.T) {
 
 	seriesID := int64(9223372036854775807)
 	originShiftID := int64(9223372036854775805)
+	shiftTypeID := int64(9007199254740993)
 	encoded, err := json.Marshal(ToShiftResponse(workforce.PlannedShift{StaffShift: workforce.StaffShift{
 		ID: 9223372036854775806, SeriesID: &seriesID, OriginShiftID: &originShiftID, SeriesOccurrenceDate: "2026-07-06",
 		StartTime: "08:00:00", EndTime: "16:30:00",
@@ -172,6 +173,10 @@ func TestWireFormatKeepsBigintIdentifiersAsStrings(t *testing.T) {
 	encoded, err = json.Marshal(detail)
 	require.NoError(t, err)
 	assert.Contains(t, string(encoded), `"id":"11"`)
+
+	encoded, err = json.Marshal(ShiftTypeMinutesResponse{ShiftTypeID: &shiftTypeID, PlannedMinutes: 60})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"shift_type_id":"9007199254740993","planned_minutes":60}`, string(encoded))
 }
 
 func TestClassifyMapsCapabilityErrors(t *testing.T) {

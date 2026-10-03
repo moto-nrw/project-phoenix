@@ -147,6 +147,10 @@ describe("mapStaffScheduleOverview", () => {
           planned_minutes: 1080,
           target_minutes: 1215,
           delta_minutes: -135,
+          planned_by_shift_type: [
+            { shift_type_id: "5", planned_minutes: 1020 },
+            { shift_type_id: null, planned_minutes: 60 },
+          ],
         },
         {
           staff_id: 8,
@@ -204,6 +208,12 @@ describe("mapStaffScheduleOverview", () => {
           plannedMinutes: 1080,
           targetMinutes: 1215,
           deltaMinutes: -135,
+          // The per-Schichtart split (#3819); int64 ids become strings and
+          // shifts without a Schichtart keep a null id.
+          plannedByShiftType: [
+            { shiftTypeId: "5", plannedMinutes: 1020 },
+            { shiftTypeId: null, plannedMinutes: 60 },
+          ],
         },
         {
           staffId: "8",
@@ -211,6 +221,8 @@ describe("mapStaffScheduleOverview", () => {
           plannedMinutes: 270,
           targetMinutes: null,
           deltaMinutes: null,
+          // An older payload without the split maps to an empty list.
+          plannedByShiftType: [],
         },
       ],
       staff: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],

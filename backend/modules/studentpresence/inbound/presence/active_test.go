@@ -1324,7 +1324,7 @@ func TestAddGroupToCombination(t *testing.T) {
 		require.Equal(t, testutil.StatusOK, first.Code, first.Body.String())
 		second := testutil.ExecuteWithAuthPermissions(t, router, testutil.NewJSONRequest(t, "POST", "/active/mappings/add", body), adminClaims, []string{permissions.GroupsUpdate})
 		assert.Equal(t, testutil.StatusBadRequest, second.Code, second.Body.String())
-		assert.Contains(t, second.Body.String(), "Group Already In Combination")
+		assert.Contains(t, second.Body.String(), "group already part of this combination")
 	})
 
 	t.Run("error with invalid combined group id", func(t *testing.T) {

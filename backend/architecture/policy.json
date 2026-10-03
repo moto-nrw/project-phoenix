@@ -22199,7 +22199,7 @@
       "source_role": "public",
       "target_owner": "school-structure",
       "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2742"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
     },
     {
       "id": "shift-plan-sync.port.workforce",
@@ -22289,7 +22289,7 @@
       "source_role": "application",
       "target_owner": "school-structure",
       "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2742"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
     },
     {
       "id": "shift-plan-sync.application.tenant-runtime",
@@ -22477,7 +22477,7 @@
       "source_role": "adapter-test",
       "target_owner": "school-structure",
       "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2742"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
     },
     {
       "id": "shift-plan-sync.adapter-test.compose",

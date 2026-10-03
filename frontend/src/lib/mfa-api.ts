@@ -152,9 +152,7 @@ async function postJson<T>(
 function extractErrorMessage(data: unknown): string | null {
   if (!data || typeof data !== "object") return null;
   const rec = data as Record<string, unknown>;
-  if (typeof rec.error === "string") return rec.error;
-  if (typeof rec.message === "string") return rec.message;
-  return null;
+  return typeof rec.error === "string" ? rec.error : null;
 }
 
 /**

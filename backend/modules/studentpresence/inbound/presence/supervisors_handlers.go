@@ -32,7 +32,7 @@ func (rs *Resource) listSupervisors(w http.ResponseWriter, r *http.Request) {
 	// Get supervisors
 	responses, err := rs.presenceSupervisionResponses(r.Context(), filter, "ListGroupSupervisors")
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -44,7 +44,7 @@ func (rs *Resource) getSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidSupervisorID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidSupervisorID)))
 		return
 	}
 
@@ -63,7 +63,7 @@ func (rs *Resource) getStaffSupervisions(w http.ResponseWriter, r *http.Request)
 	// Parse staff ID from URL
 	staffID, err := common.ParseIDParam(r, "staffId")
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid staff ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid staff ID")))
 		return
 	}
 
@@ -83,7 +83,7 @@ func (rs *Resource) getStaffActiveSupervisions(w http.ResponseWriter, r *http.Re
 	// Parse staff ID from URL
 	staffID, err := common.ParseIDParam(r, "staffId")
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid staff ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid staff ID")))
 		return
 	}
 
@@ -111,7 +111,7 @@ func (rs *Resource) getSupervisorsByGroup(w http.ResponseWriter, r *http.Request
 	// Parse group ID from URL
 	groupID, err := common.ParseIDParam(r, "groupId")
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidGroupID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidGroupID)))
 		return
 	}
 
@@ -131,7 +131,7 @@ func (rs *Resource) createSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &SupervisorRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -169,14 +169,14 @@ func (rs *Resource) updateSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidSupervisorID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidSupervisorID)))
 		return
 	}
 
 	// Parse request
 	req := &SupervisorRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -216,7 +216,7 @@ func (rs *Resource) deleteSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidSupervisorID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidSupervisorID)))
 		return
 	}
 
@@ -234,7 +234,7 @@ func (rs *Resource) endSupervision(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidSupervisorID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidSupervisorID)))
 		return
 	}
 
@@ -267,18 +267,18 @@ func (rs *Resource) getAllActiveSupervisions(w http.ResponseWriter, r *http.Requ
 	// The route already requires groups:read. The overview scope may broaden
 	// WHICH groups the caller sees, but never replaces the permission check.
 	if rs.SettingsService == nil {
-		common.RenderError(w, r, ErrorForbidden(errors.New("operational group overview is not available")))
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("operational group overview is not available")))
 		return
 	}
 	if !rs.operationalOverview(ctx) {
-		common.RenderError(w, r, ErrorForbidden(errors.New("all-group operational access is not enabled for this school")))
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("all-group operational access is not enabled for this school")))
 		return
 	}
 
 	// Get all active groups with room info (same format as /api/me/groups/supervised)
 	groups, err := rs.listPresenceLiveGroups(ctx, studentpresence.LiveGroupFilter{})
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
