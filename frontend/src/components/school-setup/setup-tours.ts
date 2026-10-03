@@ -28,6 +28,17 @@ export interface SetupTourStop {
    */
   skipCount?: number;
   /**
+   * Die Stelle darf fehlen, etwa ein Reiter, den nur manche Rollen sehen.
+   * Dann entfällt die Station still (mit `skipCount` auch die folgenden),
+   * statt „nicht zu sehen“ zu melden.
+   */
+  optional?: true;
+  /**
+   * Ein anderer Text, solange diese Stelle zu sehen ist, etwa an der
+   * Stempeluhr, wenn die Person schon eingestempelt ist.
+   */
+  textWhenVisible?: { selector: string; text: string };
+  /**
    * Die Markierung endet über dieser Stelle. So zeigt eine Station eine
    * ganze Karte ohne ihren Knopf, der die nächste Station ist.
    */

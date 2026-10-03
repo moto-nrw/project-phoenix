@@ -1123,6 +1123,8 @@ function SidebarContent({
                   : item.href
             }
             className={getLinkClasses(item.href)}
+            // Ziel der geführten Touren (#2832, #3748).
+            data-setup-tour={`nav-${item.href}`}
             {...(collapsed
               ? { title: item.label, "aria-label": item.label }
               : {})}
@@ -1475,6 +1477,7 @@ function SidebarContent({
           icon={GROUP_NAV_ICON}
           concept="groups"
           label="Meine Gruppen"
+          tourId="nav-section-groups"
           activeColor="text-moto-green"
           isExpanded={expanded === "groups" && !areOtherGroupsExpanded}
           {...sectionProps("groups", handleGroupsToggle, () =>
@@ -1609,6 +1612,7 @@ function SidebarContent({
               ? "Aktuelle Aufsichten"
               : "Aktuelle Aufsicht"
           }
+          tourId="nav-section-supervisions"
           activeColor="text-moto-purple"
           isExpanded={expanded === "supervisions" && !areOpenRoomsExpanded}
           {...sectionProps("supervisions", handleSupervisionsToggle, () =>

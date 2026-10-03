@@ -39,7 +39,14 @@ func newHarness(t *testing.T) *harness {
 	h := &harness{db: db}
 	service, err := compose.New(compose.Dependencies{Settings: settings})
 	require.NoError(t, err)
-	resource := schoolsetuphttp.NewResource(service, schoolsetuphttp.Runtime{
+	h.router = schoolsetuphttp.NewResource(service, harnessRuntime(db)).Router()
+	return h
+}
+
+// harnessRuntime stands in for the root composition: the tenant transaction
+// of the test tenant, the account from the request context, and plain JSON.
+func harnessRuntime(db *bun.DB) schoolsetuphttp.Runtime {
+	return schoolsetuphttp.Runtime{
 		Protected: func(r chi.Router, fn func(chi.Router, schoolsetuphttp.Middleware)) {
 			r.Group(func(r chi.Router) { fn(r, testpkg.TenantTxMiddleware(db)) })
 		},
@@ -57,9 +64,7 @@ func newHarness(t *testing.T) *harness {
 			w.Header().Set("X-Conflict-Code", schoolsetup.ConflictCode(err))
 			http.Error(w, err.Error(), status)
 		},
-	})
-	h.router = resource.Router()
-	return h
+	}
 }
 
 // accountKey carries the acting account in these tests. Production takes it

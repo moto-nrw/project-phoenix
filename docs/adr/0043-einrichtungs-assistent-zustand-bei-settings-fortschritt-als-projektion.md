@@ -143,3 +143,46 @@ Rollen. Architektur-Altlasten und Composition-Surface bleiben unverändert.
 - Der Assistent erscheint nur Konten mit `config:update`. Das Ausblenden ist
   keine Berechtigungsgrenze: Jede Seite, auf die ein Schritt führt, prüft ihre
   Rechte selbst.
+
+## Nachtrag: Erste Schritte für Betreuer (#3748)
+
+Betreuungskräfte bekommen eine eigene Checkliste „Erste Schritte“ mit
+geführten Touren durch den Arbeitsalltag: eigene Gruppe, Kind finden, Kind
+an- und abmelden, eigene Termine, Aufsicht, Arbeitszeit. Sie erweitert den
+Owner `school-setup` und seine Pakete; es entsteht kein neuer Owner und keine
+neue Regel.
+
+Was anders ist als beim Assistenten der Schule:
+
+1. **Der Fortschritt gehört der Person und wird gespeichert.** Ein Schritt
+   gilt als erledigt, wenn die Person seine Tour durchlaufen hat. Das hinterlässt
+   in den Daten der Schule keine Spur, also gibt es nichts zu projizieren. Neue
+   Tabelle `config.staff_onboardings` (eine Zeile pro Schule und Konto:
+   erledigte Schritte, übersprungene Schritte, Ausblenden), Write-Owner
+   `settings-platform` wie die beiden Tabellen oben; der Speicher liegt in
+   `database/repositories/config` und erfüllt den Port `StaffStore`.
+2. **Die Projektion beantwortet nur, ob die Schule bereit ist.** Vor der ersten
+   Gruppe oder dem ersten Kind zeigten die Touren leere Seiten; die Checkliste
+   wartet deshalb auf `GroupCreated || StudentEnrolled` aus
+   `school-setup-progress`. Die Projektion bleibt unverändert.
+3. **Welche Schritte gelten, entscheidet der Client.** Es hängt an
+   Einstellungen (Gruppenmodus, Anwesenheitsart, Web-Anwesenheit) und Rechten
+   (`calendar:own`), die der Client ohnehin hält. Der Server kennt nur den
+   Katalog der Schritt-Schlüssel und weist unbekannte ab.
+4. **Die Routen unter `/api/staff-onboarding` verlangen kein Recht.** Jede
+   Person liest und schreibt nur den eigenen Stand, geschlüsselt über das Konto
+   im Token; jede Seite, auf die eine Tour führt, prüft ihre Rechte selbst.
+   Vorschau-Token der Mitarbeiter-Ansicht schreiben wie überall nicht
+   (`ReadOnlyPreviewMiddleware`).
+
+   | Route | Zweck |
+   |---|---|
+   | `GET /` | Stand der aufrufenden Person |
+   | `PUT /steps/{step}` | Schritt erledigt, übersprungen oder wieder offen (`state`) |
+   | `PUT /dismissal` | Checkliste für die Person aus- oder einblenden |
+
+5. **Wer schon mit moto arbeitet, sieht die Checkliste nicht.** Die Migration
+   legt für jedes Konto mit aktivem Zugang zu einer Schule eine ausgeblendete
+   Zeile an. Offene Einladungen bekommen keine: Diese Personen fangen erst an.
+   Die Checkliste erscheint nur Konten, die den Assistenten der Schule nicht
+   sehen (ohne `config:update`), sodass nie beide gleichzeitig stehen.

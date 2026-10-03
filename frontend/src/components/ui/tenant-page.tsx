@@ -368,9 +368,13 @@ export function TenantPage({
                     {statusLine}
                   </div>
                 ) : (
-                  <p className="mt-1 text-sm leading-5 text-gray-600">
+                  // Ein div, kein p: Manche Seiten geben hier Bausteine mit,
+                  // die selbst Blöcke sind (die Kindakte ihr Standort-Badge).
+                  // In einem p wäre das ungültiges HTML und ein
+                  // Hydration-Fehler.
+                  <div className="mt-1 text-sm leading-5 text-gray-600">
                     {statusLine}
-                  </p>
+                  </div>
                 ))}
             </div>
           </div>
