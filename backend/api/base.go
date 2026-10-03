@@ -1826,7 +1826,11 @@ func (a *API) registerRoutes(requestFeed *requestFeedHTTP.Resource, db *bun.DB) 
 	if err != nil {
 		return err
 	}
-	a.registerRoutesWithRateLimiting(requestFeed, schoolSetup)
+	staffOnboarding, err := newStaffOnboardingRoute(db)
+	if err != nil {
+		return err
+	}
+	a.registerRoutesWithRateLimiting(requestFeed, schoolSetup, staffOnboarding)
 	return requireCoreActionClassification(a.Router)
 }
 
