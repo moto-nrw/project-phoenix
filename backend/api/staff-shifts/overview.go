@@ -50,7 +50,7 @@ type WeeklySummaryResponse struct {
 }
 
 type ShiftTypeMinutesResponse struct {
-	ShiftTypeID    *int64 `json:"shift_type_id"`
+	ShiftTypeID    *int64 `json:"shift_type_id,string"`
 	PlannedMinutes int    `json:"planned_minutes"`
 }
 

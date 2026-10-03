@@ -131,7 +131,7 @@ export interface StaffScheduleAssignment {
 }
 
 interface BackendShiftTypeMinutes {
-  shift_type_id: number | null;
+  shift_type_id: string | null;
   planned_minutes: number;
 }
 
@@ -258,8 +258,7 @@ export function mapStaffScheduleOverview(
       deltaMinutes: summary.delta_minutes,
       plannedByShiftType: (summary.planned_by_shift_type ?? []).map(
         (entry) => ({
-          shiftTypeId:
-            entry.shift_type_id != null ? entry.shift_type_id.toString() : null,
+          shiftTypeId: entry.shift_type_id,
           plannedMinutes: entry.planned_minutes,
         }),
       ),

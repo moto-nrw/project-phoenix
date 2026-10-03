@@ -161,8 +161,7 @@ export function DienstplanHoursCard({
         align: "right",
         className: "tabular-nums",
         // Ohne Soll gibt es keine Differenz; solche Zeilen stehen am Ende.
-        sortValue: (row) =>
-          row.summary.deltaMinutes ?? Number.POSITIVE_INFINITY,
+        sortValue: (row) => row.summary.deltaMinutes,
         render: (row) => <DeltaValue summary={row.summary} />,
       },
     ];

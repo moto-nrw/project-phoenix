@@ -145,9 +145,9 @@ describe("DienstplanHoursCard", () => {
     expect(within(table).queryByText("Dienst, Ohne")).not.toBeInTheDocument();
   });
 
-  // Many people only carry a target in a week; sorting by Differenz brings
-  // the ones furthest under target to the top.
-  it("sorts by Differenz", () => {
+  // Many people only carry a target in a week; rows without one must remain
+  // after every numeric difference in both directions.
+  it("sorts by Differenz with missing targets last", () => {
     renderCard([
       summary("7", {
         plannedMinutes: 600,
@@ -170,6 +170,18 @@ describe("DienstplanHoursCard", () => {
       .slice(1)
       .map((row) => within(row).getAllByRole("cell")[0]?.textContent);
     expect(names).toEqual(["Kaya, Deniz", "Müller, Anna", "Dienst, Ohne"]);
+
+    fireEvent.click(within(table).getByRole("button", { name: /Differenz/ }));
+
+    const descendingNames = within(table)
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => within(row).getAllByRole("cell")[0]?.textContent);
+    expect(descendingNames).toEqual([
+      "Müller, Anna",
+      "Kaya, Deniz",
+      "Dienst, Ohne",
+    ]);
   });
 
   it("leaves Soll and Differenz empty when no target resolves", () => {

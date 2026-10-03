@@ -148,7 +148,7 @@ describe("mapStaffScheduleOverview", () => {
           target_minutes: 1215,
           delta_minutes: -135,
           planned_by_shift_type: [
-            { shift_type_id: 5, planned_minutes: 1020 },
+            { shift_type_id: "5", planned_minutes: 1020 },
             { shift_type_id: null, planned_minutes: 60 },
           ],
         },
