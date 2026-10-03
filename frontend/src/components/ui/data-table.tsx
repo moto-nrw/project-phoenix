@@ -611,7 +611,10 @@ export function DataTable<T>({
       {stackedOnMobile && (
         <div className="md:hidden" data-testid="data-table-stacked">
           <StackedRows
-            columns={shownColumns}
+            // The phone layout has its own detail choice. Desktop column
+            // visibility must therefore not remove the title or status that
+            // defines every phone row.
+            columns={columns}
             rows={visibleRows}
             getRowKey={getRowKey}
             onRowClick={onRowClick}

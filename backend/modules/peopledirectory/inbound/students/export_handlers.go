@@ -211,19 +211,39 @@ func decodeStudentExportRequest(r *http.Request) (studentExportRequest, error) {
 // rather than skipped: a silently shortened selection would print a list that
 // looks complete but misses a child the user marked.
 func parseExportStudentIDs(values []string) (map[int64]bool, error) {
+	studentIDs, err := parseExportStudentIDList(values)
+	if err != nil || studentIDs == nil {
+		return nil, err
+	}
+	ids := make(map[int64]bool, len(studentIDs))
+	for _, id := range studentIDs {
+		ids[id] = true
+	}
+	return ids, nil
+}
+
+// parseExportStudentIDList turns the wire selection into IDs suitable for the
+// directory pre-filter. It retains the request order and deduplicates IDs so
+// a repeated selection cannot make downstream queries do duplicate work.
+func parseExportStudentIDList(values []string) ([]int64, error) {
 	if len(values) == 0 {
 		return nil, nil
 	}
 	if len(values) > studentExportPageSize {
 		return nil, errExportSelectionTooLarge(len(values))
 	}
-	ids := make(map[int64]bool, len(values))
+	ids := make([]int64, 0, len(values))
+	seen := make(map[int64]struct{}, len(values))
 	for _, value := range values {
 		id, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
 		if err != nil || id <= 0 {
 			return nil, fmt.Errorf("invalid student id %q", value)
 		}
-		ids[id] = true
+		if _, duplicate := seen[id]; duplicate {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
 	}
 	return ids, nil
 }
@@ -288,6 +308,10 @@ func errExportSelectionTooLarge(total int) error {
 }
 
 func exportRequestToListParams(req studentExportRequest, today timezone.Date) *studentListParams {
+	// decodeStudentExportRequest already rejects malformed IDs. Preserve the
+	// validated selection on the query params so authorization, directory
+	// loading and enrichment only process the marked children.
+	studentIDs, _ := parseExportStudentIDList(req.Filters.StudentIDs)
 	params := &studentListParams{
 		search:              strings.TrimSpace(req.Filters.Search),
 		page:                1,
@@ -304,7 +328,8 @@ func exportRequestToListParams(req studentExportRequest, today timezone.Date) *s
 		// The birthday-month and search filters run in memory after the fetch,
 		// so pull every SQL-matching row: a paginated page would drop matching
 		// children past the boundary and silently shorten the list.
-		fetchAll: true,
+		fetchAll:   true,
+		studentIDs: studentIDs,
 	}
 	params.groupIDs = parseGroupIDList([]string{req.Filters.GroupID})
 	if req.Filters.RoomID != "" {

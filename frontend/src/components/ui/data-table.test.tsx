@@ -515,6 +515,33 @@ describe("DataTable one-line phone list (#3834)", () => {
     expect(onRowClick).not.toHaveBeenCalled();
   });
 
+  it("keeps the phone status when its desktop column is hidden", () => {
+    render(
+      <DataTable
+        columns={[
+          phoneColumns[0]!,
+          {
+            key: "status",
+            header: "Status",
+            render: (row) => `Status ${row.id}`,
+            stacked: "meta",
+          },
+        ]}
+        rows={rows}
+        getRowKey={(row) => row.id}
+        hiddenColumns={new Set(["status"])}
+        stackedOnMobile
+        stackedLayout="row"
+      />,
+    );
+
+    const stacked = within(screen.getByTestId("data-table-stacked"));
+    expect(stacked.getByText("Status 1")).toBeInTheDocument();
+    expect(screen.getByTestId("data-table-table")).not.toHaveTextContent(
+      "Status 1",
+    );
+  });
+
   it("opens the row from anywhere else", () => {
     const { onRowClick, list } = renderPhoneList();
 

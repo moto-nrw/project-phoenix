@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   activeSupervisionRosterKey,
   buildGroupNameToIdMap,
+  canBulkCheckinFromSupervision,
   mapSupervisedGroupsToRooms,
   mapVisitsToSupervisionStudents,
   hasOwnBlock,
@@ -290,6 +291,36 @@ describe("open room sections (#3281)", () => {
       isOwn: true,
       assignableSessionId: "kiosk",
     });
+  });
+});
+
+describe("bulk attendance in active supervisions (#3834)", () => {
+  it("permits it only for an own, non-open supervision", () => {
+    expect(
+      canBulkCheckinFromSupervision(
+        { isCurrentUserSupervising: true },
+        null,
+      ),
+    ).toBe(true);
+    expect(
+      canBulkCheckinFromSupervision(
+        { isCurrentUserSupervising: false },
+        null,
+      ),
+    ).toBe(false);
+    expect(
+      canBulkCheckinFromSupervision(
+        { isCurrentUserSupervising: true },
+        {
+          roomId: "raum-1",
+          name: "Kreativraum",
+          isUserSupervising: true,
+          activeGroupIds: ["eigene", "fremde"],
+          studentCount: 2,
+          students: [],
+        },
+      ),
+    ).toBe(false);
   });
 });
 

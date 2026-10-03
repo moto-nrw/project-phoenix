@@ -44,6 +44,7 @@ import { SpontaneousActivityStart } from "~/components/active-supervisions/spont
 import { TransitStudentsSection } from "~/components/rooms/transit-students-section";
 import {
   additionalSupervisionTarget,
+  canBulkCheckinFromSupervision,
   hasOwnBlock,
   occupiedRoomIdsForSpontaneousStart,
   openRoomSections,
@@ -522,6 +523,10 @@ function MeinRaumPageContent() {
     filters.searchTerm,
     ...filters.activeFilters.map((filter) => `${filter.id}:${filter.label}`),
   ].join("|");
+  const checkinAllowed = canBulkCheckinFromSupervision(
+    currentRoom,
+    currentOpenRoom,
+  );
   const changeView = collectionView.setView;
 
   const buildStudentGridProps = (
@@ -805,7 +810,7 @@ function MeinRaumPageContent() {
             <StudentSelectionScope
               visibleStudents={filters.filteredStudents}
               scopeKey={selectionScope}
-              checkinAllowed
+              checkinAllowed={checkinAllowed}
             >
               {(selection) => renderStudentContent(selection)}
             </StudentSelectionScope>

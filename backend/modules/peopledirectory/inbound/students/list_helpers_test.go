@@ -119,3 +119,24 @@ func TestParseGradeLevelList(t *testing.T) {
 		})
 	}
 }
+
+func TestIntersectStudentIDs(t *testing.T) {
+	t.Parallel()
+
+	assertIDs := func(t *testing.T, candidates, prefiltered, want []int64) {
+		t.Helper()
+		if got := intersectStudentIDs(candidates, prefiltered); !reflect.DeepEqual(got, want) {
+			t.Errorf("intersectStudentIDs(%v, %v) = %v, want %v", candidates, prefiltered, got, want)
+		}
+	}
+
+	t.Run("keeps all candidates without an earlier filter", func(t *testing.T) {
+		assertIDs(t, []int64{3, 1}, nil, []int64{3, 1})
+	})
+	t.Run("narrows room or group candidates to the selection", func(t *testing.T) {
+		assertIDs(t, []int64{3, 1, 2}, []int64{2, 3}, []int64{3, 2})
+	})
+	t.Run("returns no candidates when selection and filter do not overlap", func(t *testing.T) {
+		assertIDs(t, []int64{3, 1}, []int64{2}, []int64{})
+	})
+}
