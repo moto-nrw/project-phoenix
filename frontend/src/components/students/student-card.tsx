@@ -328,7 +328,7 @@ export function DepartureModeIcon() {
  * Where a row renders: on a Kinderkarte (small grey line under the name) or
  * in a table cell (#3834), where the column header already names the value.
  */
-export type StudentRowVariant = "card" | "cell";
+export type StudentRowVariant = "card" | "cell" | "compact";
 
 /** Reusable info row for school class or group */
 export function StudentInfoRow({
@@ -346,7 +346,11 @@ export function StudentInfoRow({
     <div
       className={`flex gap-1.5 ${variant === "card" ? "mt-1" : ""} ${wrap ? "items-start" : "items-center"}`}
     >
-      <span className="flex-shrink-0">{icon}</span>
+      {/* The one-line phone list (#3834) has no room for the icon; the
+          coloured text still carries the state. */}
+      {variant === "compact" ? null : (
+        <span className="flex-shrink-0">{icon}</span>
+      )}
       <span
         className={`${variant === "card" ? "text-xs text-gray-500" : "text-sm text-gray-700"} font-medium ${
           wrap
@@ -488,8 +492,10 @@ function TimeStatusRow({
   // text matching even though the rendered characters are identical.
   // A day without care time says so instead of a time: the card row is too
   // narrow for time plus explanation, and the explanation is the news (#3373).
-  // In a table cell the column header carries the label (#3834).
-  const timeText = `${status.displayTime} Uhr`;
+  // In a table cell the column header carries the label (#3834); the
+  // one-line phone list shows the bare time.
+  const timeText =
+    variant === "compact" ? status.displayTime : `${status.displayTime} Uhr`;
   const fullText =
     status.state === "only-if-lesson-cancelled"
       ? ONLY_IF_LESSON_CANCELLED_LABEL
@@ -504,7 +510,9 @@ function TimeStatusRow({
       ) : (
         fullText
       )}
-      {notes && <span className="ml-1 text-gray-500">({notes})</span>}
+      {notes && variant !== "compact" && (
+        <span className="ml-1 text-gray-500">({notes})</span>
+      )}
     </StudentInfoRow>
   );
 }

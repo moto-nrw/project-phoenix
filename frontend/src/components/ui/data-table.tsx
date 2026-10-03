@@ -28,17 +28,21 @@ export interface DataTableColumn<T> {
   // "title" is the headline of a stacked row, "meta" the muted value beside
   // it, "field" a labelled line below, "hidden" is dropped on phones.
   // Defaults to "field".
-  stacked?: "title" | "meta" | "field" | "hidden";
-  // In the "inline" phone list, false drops the header in front of the value
-  // where the value names itself (a class, a group). Defaults to true.
-  stackedLabel?: boolean;
+  // "end" sits at the right edge of a "row" phone line (#3834).
+  stacked?: "title" | "meta" | "field" | "end" | "hidden";
+  // Extra classes for the cell in the "row" phone line, e.g. to lay a
+  // stacked badge out side by side.
+  stackedClassName?: string;
+  // What the "row" phone line shows for this column, when it needs a
+  // shorter form than the table cell ("15:30" instead of "🕒 15:30 Uhr").
+  stackedRender?: (row: T) => ReactNode;
 }
 
 /**
  * Row selection of a DataTable (#3834): a checkbox column in front, with an
  * "alle auswählen" box in the header that covers every row of the table, not
  * only the rows paged in so far. The caller owns the selection; the table
- * only reports changes. Keys are `String(getRowKey(row))`. The "inline"
+ * only reports changes. Keys are `String(getRowKey(row))`. The "row"
  * stacked phone layout shows the row checkboxes too, without the header box.
  */
 export interface DataTableSelection<T> {
@@ -83,10 +87,10 @@ interface DataTableProps<T> {
   // paging, loading and empty state stay shared between both layouts —
   // per-column roles come from `DataTableColumn.stacked`.
   stackedOnMobile?: boolean;
-  // "lines" (default) gives every field its own labelled line; "inline"
-  // packs the fields into one wrapping line under the title, so a phone
-  // still reads a list (#3834). Only with stackedOnMobile.
-  stackedLayout?: "lines" | "inline";
+  // "lines" (default) gives every field its own labelled line; "row" shows
+  // one line per entry with title, meta and the "end" column only, so a
+  // phone still reads a list (#3834). Only with stackedOnMobile.
+  stackedLayout?: "lines" | "row";
   // Column keys left out of the table. The caller keeps the full column list
   // so a column menu can offer the hidden ones again.
   hiddenColumns?: ReadonlySet<string>;
@@ -164,29 +168,29 @@ function StackedField({
 const STACKED_ROW_CONTROL = "[data-row-control]";
 
 /**
- * The dense phone row (#3834): optional checkbox, the title and the meta
- * value on one line, every other shown column as a short "Label Wert" pair
- * on the wrapping line below. Keeps a list a list on a phone instead of
- * turning each row back into a card.
+ * The phone list row (#3834): one line per entry. Optional checkbox, the
+ * title (truncated), the meta value and the column marked "end" at the right
+ * edge. Every other column stays off the phone: a list that grows back into
+ * several lines per entry reads like cards again.
  */
-function InlineStackedRow<T>({
+function RowStackedRow<T>({
   row,
   rowKey,
   title,
   meta,
-  fields,
+  end,
   selection,
 }: Readonly<{
   row: T;
   rowKey: string;
   title: DataTableColumn<T> | undefined;
   meta: DataTableColumn<T> | undefined;
-  fields: DataTableColumn<T>[];
+  end: DataTableColumn<T> | undefined;
   selection?: DataTableSelection<T>;
 }>) {
   const selected = selection?.selectedKeys.has(rowKey) ?? false;
   return (
-    <div className="flex items-start gap-3">
+    <div className="flex min-h-8 items-center gap-3">
       {selection ? (
         // The row ignores clicks from this label (STACKED_ROW_CONTROL):
         // the checkbox marks the row, it must not also open it.
@@ -202,28 +206,26 @@ function InlineStackedRow<T>({
           <span className="sr-only">{`${selection.rowLabel(row)} auswählen`}</span>
         </label>
       ) : null}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-3">
-          <span className="min-w-0">{title?.render(row)}</span>
-          {meta ? <span className="shrink-0">{meta.render(row)}</span> : null}
-        </div>
-        {fields.length > 0 && (
-          <dl className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm">
-            {fields.map((col) => (
-              <div key={col.key} className="flex min-w-0 items-center gap-1">
-                <dt
-                  className={
-                    col.stackedLabel === false ? "sr-only" : "text-gray-500"
-                  }
-                >
-                  {col.header}
-                </dt>
-                <dd className="min-w-0">{col.render(row)}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
-      </div>
+      {/* The title keeps at least 5rem: a long meta value wraps onto a
+          second line instead of pushing the name out, and the name may use
+          that second line too rather than being cut. */}
+      <span className="line-clamp-2 min-w-20 flex-1 break-words">
+        {title?.render(row)}
+      </span>
+      {meta ? (
+        <span
+          className={`flex min-w-0 justify-end ${meta.stackedClassName ?? ""}`}
+        >
+          {(meta.stackedRender ?? meta.render)(row)}
+        </span>
+      ) : null}
+      {end ? (
+        <span
+          className={`max-w-20 shrink-0 text-right ${end.stackedClassName ?? ""}`}
+        >
+          {(end.stackedRender ?? end.render)(row)}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -260,11 +262,12 @@ function StackedRows<T>({
   hasMore: boolean;
   loadMore: () => void;
   totalCount: number;
-  layout: "lines" | "inline";
+  layout: "lines" | "row";
   selection?: DataTableSelection<T>;
 }>) {
   const title = columns.find((c) => c.stacked === "title") ?? columns[0];
   const meta = columns.find((c) => c.stacked === "meta");
+  const end = columns.find((c) => c.stacked === "end");
   const fields = columns.filter(
     (c) => c !== title && c !== meta && c.stacked !== "hidden",
   );
@@ -307,7 +310,7 @@ function StackedRows<T>({
           {rows.map((row) => (
             <li
               key={getRowKey(row)}
-              className={`p-4 ${clickable ? "cursor-pointer" : ""} ${rowClassName ? rowClassName(row) : ""}`}
+              className={`${layout === "row" ? "px-4 py-2" : "p-4"} ${clickable ? "cursor-pointer" : ""} ${rowClassName ? rowClassName(row) : ""}`}
               onClick={
                 onRowClick
                   ? (event) => {
@@ -335,13 +338,13 @@ function StackedRows<T>({
               tabIndex={keyboardClickable ? 0 : undefined}
               role={keyboardClickable ? "button" : undefined}
             >
-              {layout === "inline" ? (
-                <InlineStackedRow
+              {layout === "row" ? (
+                <RowStackedRow
                   row={row}
                   rowKey={String(getRowKey(row))}
                   title={title}
                   meta={meta}
-                  fields={fields}
+                  end={end}
                   selection={selection}
                 />
               ) : (

@@ -72,6 +72,7 @@ import {
   columnMenuEntries,
 } from "~/components/ui/collection-view-switch";
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
+import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { OpenRoomSections } from "~/components/active-supervisions/open-room-sections";
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
@@ -506,6 +507,9 @@ function MeinRaumPageContent() {
   );
   const tableApplies = openRoomLayout !== null || !currentTimetableRoster;
   const showTable = collectionView.view === "table" && tableApplies;
+  // Die Spaltenwahl wirkt nur am Computer: auf dem Handy zeigt die Liste
+  // je Kind eine Zeile mit Name, Status und Gehzeit (#3834).
+  const isPhone = useMediaQuery(BELOW_MD);
   // Eine Markierung gilt nur für die Liste, in der sie gesetzt wurde: ein
   // anderer Raum, eine andere Suche oder ein anderer Filter leeren sie (wie
   // in der Kindersuche, review #2372).
@@ -659,7 +663,7 @@ function MeinRaumPageContent() {
             {releaseAction}
             {/* Die Spaltenwahl der Liste (#3834) im ⋮-Menü, nicht als
                 eigener Knopf neben dem Umschalter. */}
-            {showTable ? (
+            {showTable && !isPhone ? (
               <OverflowMenu
                 items={columnMenuEntries(
                   tableColumns,

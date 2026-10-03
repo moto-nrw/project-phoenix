@@ -81,6 +81,7 @@ import {
   columnMenuEntries,
 } from "~/components/ui/collection-view-switch";
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
+import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { fetchOgsGroupLive } from "~/lib/ogs-group-live-api";
 import type {
@@ -968,6 +969,9 @@ function OGSGroupPageContent() {
   );
   const collectionView = useCollectionView("ogs-groups", tableColumnDefaults);
   const showTable = collectionView.view === "table";
+  // Die Spaltenwahl wirkt nur am Computer: auf dem Handy zeigt die Liste
+  // je Kind eine Zeile mit Name, Status und Gehzeit (#3834).
+  const isPhone = useMediaQuery(BELOW_MD);
   const changeView = useCallback(
     (next: "tiles" | "table") => {
       if (next === collectionView.view) return;
@@ -1019,7 +1023,7 @@ function OGSGroupPageContent() {
   // Knopf neben dem Umschalter.
   const headMenuItems: OverflowMenuEntry[] = [
     ...overflowItems,
-    ...(showTable
+    ...(showTable && !isPhone
       ? columnMenuEntries(
           tableColumns,
           collectionView.hiddenColumns,

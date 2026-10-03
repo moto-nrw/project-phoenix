@@ -461,7 +461,7 @@ describe("DataTable selection and hidden columns (#3834)", () => {
   });
 });
 
-describe("DataTable inline phone list (#3834)", () => {
+describe("DataTable one-line phone list (#3834)", () => {
   const phoneColumns: DataTableColumn<Row>[] = [
     {
       key: "name",
@@ -470,6 +470,12 @@ describe("DataTable inline phone list (#3834)", () => {
       stacked: "title",
     },
     { key: "id", header: "Nummer", render: (row) => `#${row.id}` },
+    {
+      key: "end",
+      header: "Ende",
+      render: (row) => `bis ${row.id}`,
+      stacked: "end",
+    },
   ];
 
   function renderPhoneList() {
@@ -482,7 +488,7 @@ describe("DataTable inline phone list (#3834)", () => {
         getRowKey={(row) => row.id}
         onRowClick={onRowClick}
         stackedOnMobile
-        stackedLayout="inline"
+        stackedLayout="row"
         selection={{
           selectedKeys: new Set(["1"]),
           onChange,
@@ -517,10 +523,11 @@ describe("DataTable inline phone list (#3834)", () => {
     expect(onRowClick).toHaveBeenCalledWith(rows[1]);
   });
 
-  it("puts the other columns as labelled pairs under the title", () => {
+  it("shows only title and end column, one line per row", () => {
     const { list } = renderPhoneList();
 
-    expect(list.getAllByText("Nummer")).toHaveLength(2);
-    expect(list.getByText("#2")).toBeInTheDocument();
+    expect(list.getByText("bis 2")).toBeInTheDocument();
+    expect(list.queryByText("#2")).not.toBeInTheDocument();
+    expect(list.queryByText("Nummer")).not.toBeInTheDocument();
   });
 });

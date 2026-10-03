@@ -73,7 +73,7 @@ function NameCell({
           rest of the row opens it too. */}
       <Link
         href={href}
-        className="truncate font-medium text-gray-900 hover:underline focus-visible:underline focus-visible:outline-none"
+        className="min-w-0 font-medium break-words text-gray-900 hover:underline focus-visible:underline focus-visible:outline-none"
         onClick={(event) => event.stopPropagation()}
       >
         {name}
@@ -113,7 +113,6 @@ export function classColumn<T extends Student>(
     key: "class",
     header: "Klasse",
     className: "whitespace-nowrap",
-    stackedLabel: false,
     defaultVisible: options.defaultVisible,
     render: (student) => student.school_class || EMPTY,
     sortValue: (student) => student.school_class ?? "",
@@ -125,7 +124,6 @@ export function groupColumn<T extends Student>(): StudentTableColumn<T> {
     key: "group",
     header: "Gruppe",
     className: "whitespace-nowrap",
-    stackedLabel: false,
     render: (student) => student.group_name || EMPTY,
     sortValue: (student) => student.group_name ?? "",
   };
@@ -144,6 +142,10 @@ export function statusColumn<T extends Student>(
     header,
     className: "whitespace-nowrap",
     stacked: "meta",
+    // One line per child on a phone: the badges side by side instead of
+    // stacked. A second badge (Krank, Ungeplant anwesend) stays visible.
+    stackedClassName:
+      "[&>span]:flex-row [&>span]:flex-wrap [&>span]:items-center [&>span]:justify-end [&_.items-end]:flex-row [&_.items-end]:flex-wrap [&_.items-end]:justify-end [&_.items-end]:gap-1 [&_.mt-1]:mt-0 [&_span]:whitespace-nowrap",
     render: (student) => (
       // The badge stacks right-aligned for the card's top-right corner; in a
       // left-aligned column its stack starts at the left edge instead.
@@ -198,6 +200,14 @@ export function pickupColumn<T extends Student>(
   return {
     key: "pickup",
     header: "Gehzeit",
+    // The bare time at the right edge of a phone row (#3834).
+    stacked: "end",
+    stackedRender: (student) => {
+      if (!canSeeDay(student)) return EMPTY;
+      const day = getDay(student);
+      if (day.absence) return EMPTY;
+      return <PickupTimeRow {...day.pickup} variant="compact" />;
+    },
     render: (student) => {
       if (!canSeeDay(student)) return EMPTY;
       const day = getDay(student);
@@ -303,10 +313,10 @@ export function StudentTable<T extends Student>({
       onRowClick={onOpen}
       hiddenColumns={hiddenColumns}
       caption={caption}
-      // On a phone the same rows as a dense list (#3834): name and status
-      // on one line, the other shown columns as short pairs below.
+      // On a phone one line per child (#3834): name, status and pickup
+      // time; the other columns live on the computer and on the child page.
       stackedOnMobile
-      stackedLayout="inline"
+      stackedLayout="row"
       selection={
         selection
           ? {
