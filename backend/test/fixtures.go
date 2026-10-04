@@ -2729,53 +2729,6 @@ func CreateTestClosingDay(tb testing.TB, db *bun.DB, start, end CalendarDate, re
 	return row
 }
 
-// CreateTestClosingDayForTenant inserts a schedule.closing_days row spanning
-// [start, end] for an explicit tenant (a TenantScope's). The tenant-owned row
-// dies with the clone.
-func CreateTestClosingDayForTenant(tb testing.TB, db *bun.DB, tenantID int64, start, end CalendarDate, reason string) *schedule.ClosingDay {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	row := &schedule.ClosingDay{StartDate: schedule.Date(start.String()), EndDate: schedule.Date(end.String()), Reason: reason}
-	row.TenantID = tenantID
-
-	_, err := db.NewInsert().
-		Model(row).
-		ModelTableExpr(`schedule.closing_days`).
-		Exec(ctx)
-	require.NoError(tb, err, "Failed to create test closing day")
-	return row
-}
-
-// CreateTestHolidayPeriodForTenant inserts an ACTIVE Ferien period
-// (period_type holiday) spanning [start, end] for an explicit tenant. Names
-// must be unique per tenant; the tenant-owned row dies with the clone.
-func CreateTestHolidayPeriodForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string, start, end CalendarDate) *schedule.CalendarPeriod {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	row := &schedule.CalendarPeriod{
-		Name:            name,
-		PeriodType:      schedule.PeriodTypeHoliday,
-		StartDate:       schedule.Date(start.String()),
-		EndDate:         schedule.Date(end.String()),
-		WeekCycleLength: 1,
-		IsActive:        true,
-	}
-	row.TenantID = tenantID
-
-	_, err := db.NewInsert().
-		Model(row).
-		ModelTableExpr(`schedule.calendar_periods`).
-		Exec(ctx)
-	require.NoError(tb, err, "Failed to create test holiday period")
-	return row
-}
-
 // CreateTestDateframe inserts a schedule.dateframes row for the test tenant.
 // Dateframes are instants (TIMESTAMPTZ), so the bounds are passed as such.
 func CreateTestDateframe(tb testing.TB, db *bun.DB, name string, start, end time.Time) *schedule.Dateframe {

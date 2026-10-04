@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/schedule"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -21,6 +22,14 @@ import (
 // are real rows.
 type unificationDayCalendar struct {
 	planning.SeriesCalendarReads
+}
+
+func setupBreakSeriesTest(t *testing.T) *seriesTestEnv {
+	t.Helper()
+	// The package support returns its shared pool; this file also inserts its
+	// calendar rows directly, so it must initialize that pool itself.
+	testpkg.SetupTestDB(t)
+	return setupSeriesTest(t)
 }
 
 func (unificationDayCalendar) TenantHolidayDates(_ context.Context, from, to string) (map[string]bool, error) {
@@ -56,6 +65,42 @@ func (e *seriesTestEnv) createBreakSeries(t *testing.T, series *planning.StaffSh
 	return result
 }
 
+func (e *seriesTestEnv) createClosingDay(t *testing.T, start, end timezone.Date, reason string) {
+	t.Helper()
+
+	row := &schedule.ClosingDay{
+		StartDate: schedule.Date(start),
+		EndDate:   schedule.Date(end),
+		Reason:    reason,
+	}
+	row.TenantID = e.scope.TenantID
+	_, err := e.db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.closing_days`).
+		Exec(e.scope.Context())
+	require.NoError(t, err)
+}
+
+func (e *seriesTestEnv) createHolidayPeriod(t *testing.T, name string, start, end timezone.Date) *schedule.CalendarPeriod {
+	t.Helper()
+
+	row := &schedule.CalendarPeriod{
+		Name:            name,
+		PeriodType:      schedule.PeriodTypeHoliday,
+		StartDate:       schedule.Date(start),
+		EndDate:         schedule.Date(end),
+		WeekCycleLength: 1,
+		IsActive:        true,
+	}
+	row.TenantID = e.scope.TenantID
+	_, err := e.db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.calendar_periods`).
+		Exec(e.scope.Context())
+	require.NoError(t, err)
+	return row
+}
+
 // The window 2026-09-28 … 2026-10-11 holds a closing day (Thu 1 Oct), the
 // Tag der Deutschen Einheit (Sat 3 Oct) and the Herbstferien, which start on
 // 5 Oct and reach past the window's end.
@@ -87,12 +132,11 @@ func TestStaffShiftSeries_SkipsSchoolBreaksUnlessIncluded(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			env := setupSeriesTest(t)
-			tenantID := env.scope.TenantID
+			env := setupBreakSeriesTest(t)
 			closingDay := timezone.Date("2026-10-01")
 			ferienStart, ferienEnd := timezone.Date("2026-10-05"), timezone.Date("2026-10-17")
-			testpkg.CreateTestClosingDayForTenant(t, env.db, tenantID, closingDay, closingDay, "Pädagogischer Tag")
-			testpkg.CreateTestHolidayPeriodForTenant(t, env.db, tenantID, fmt.Sprintf("Herbstferien-%d", tenantID), ferienStart, ferienEnd)
+			env.createClosingDay(t, closingDay, closingDay, "Pädagogischer Tag")
+			env.createHolidayPeriod(t, fmt.Sprintf("Herbstferien-%d", env.scope.TenantID), ferienStart, ferienEnd)
 			periodID := env.createPeriod(t, periodStart, periodEnd, 1, nil)
 			series := env.buildSeries(t, periodID, periodStart, nil, planning.WeekPatternEvery)
 			series.IncludeSchoolBreaks = tc.include
@@ -118,9 +162,9 @@ func TestStaffShiftSeries_SkipsSchoolBreaksUnlessIncluded(t *testing.T) {
 func TestStaffShiftSeries_FerienSeriesKeepsItsOwnPeriod(t *testing.T) {
 	t.Parallel()
 
-	env := setupSeriesTest(t)
+	env := setupBreakSeriesTest(t)
 	start, end := timezone.NewDate(2026, 10, 5), timezone.NewDate(2026, 10, 9)
-	period := testpkg.CreateTestHolidayPeriodForTenant(t, env.db, env.scope.TenantID, fmt.Sprintf("Ferienbetreuung-%d", env.scope.TenantID), start, end)
+	period := env.createHolidayPeriod(t, fmt.Sprintf("Ferienbetreuung-%d", env.scope.TenantID), start, end)
 	series := env.buildSeries(t, period.ID, start, nil, planning.WeekPatternEvery)
 
 	result := env.createBreakSeries(t, series)
