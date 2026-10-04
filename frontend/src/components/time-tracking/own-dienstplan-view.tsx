@@ -162,12 +162,13 @@ export function OwnDienstplanView() {
   // zurück, bis die Session steht, und meldet so lange isLoading=false. Eine
   // leere Woche darf erst nach einer Antwort erscheinen.
   const loading = shifts === undefined && !shiftsError;
+  const hasShiftData = shifts !== undefined;
 
   return (
     <TenantPage
       title="Mein Dienstplan"
       testId="own-dienstplan-page"
-      stats={loading ? undefined : <TenantPageStats items={statsItems} />}
+      stats={hasShiftData ? <TenantPageStats items={statsItems} /> : undefined}
       statsLoading={loading}
       loading={loading ? <DienstplanGridSkeleton /> : false}
       error={

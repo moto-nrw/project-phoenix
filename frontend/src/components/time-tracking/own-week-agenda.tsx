@@ -5,6 +5,7 @@ import {
   resolveShiftColor,
   shiftLabel,
 } from "~/components/staff/dienstplan-person-week-grid";
+import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { plannedWeekMinutes } from "~/lib/own-dienstplan-helpers";
 import {
@@ -46,41 +47,40 @@ export function OwnWeekAgenda({
     .filter((day) => day.shifts.length > 0);
 
   return (
-    <div
-      className="moto-content-surface divide-y divide-gray-100 overflow-hidden rounded-2xl border shadow-sm"
-      data-testid="own-week-agenda"
-    >
-      <p className="px-4 py-3 text-xs text-gray-500">
-        Nur zur Information. Ihre Schichten plant die Leitung im Dienstplan.
-      </p>
-      {days.map((day) => {
-        const closingReason = closingDays?.get(day.date);
-        return (
-          <section key={day.date} className="divide-y divide-gray-100">
-            <div className="flex items-baseline justify-between gap-2 bg-gray-50 px-4 py-2">
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <h2 className="text-sm font-semibold text-gray-900">
-                  {day.label}
-                </h2>
-                {closingReason !== undefined && (
-                  <ClosingDayChip reason={closingReason} />
-                )}
+    <SectionCard className="!p-0" testId="own-week-agenda">
+      <div className="divide-y divide-gray-100">
+        <p className="px-4 py-3 text-xs text-gray-500">
+          Nur zur Information. Ihre Schichten plant die Leitung im Dienstplan.
+        </p>
+        {days.map((day) => {
+          const closingReason = closingDays?.get(day.date);
+          return (
+            <section key={day.date} className="divide-y divide-gray-100">
+              <div className="flex items-baseline justify-between gap-2 bg-gray-50 px-4 py-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <h2 className="text-sm font-semibold text-gray-900">
+                    {day.label}
+                  </h2>
+                  {closingReason !== undefined && (
+                    <ClosingDayChip reason={closingReason} />
+                  )}
+                </div>
+                <span className="shrink-0 text-xs text-gray-500 tabular-nums">
+                  {formatPlannedHours(plannedWeekMinutes(day.shifts))}
+                </span>
               </div>
-              <span className="shrink-0 text-xs text-gray-500 tabular-nums">
-                {formatPlannedHours(plannedWeekMinutes(day.shifts))}
-              </span>
-            </div>
-            {day.shifts.map((shift) => (
-              <AgendaShiftRow
-                key={shift.id}
-                shift={shift}
-                typesById={typesById}
-              />
-            ))}
-          </section>
-        );
-      })}
-    </div>
+              {day.shifts.map((shift) => (
+                <AgendaShiftRow
+                  key={shift.id}
+                  shift={shift}
+                  typesById={typesById}
+                />
+              ))}
+            </section>
+          );
+        })}
+      </div>
+    </SectionCard>
   );
 }
 

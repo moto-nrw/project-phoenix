@@ -286,6 +286,7 @@ describe("OwnDienstplanView", () => {
     expect(
       screen.getByText(/Ihr Dienstplan konnte nicht geladen werden/),
     ).toBeInTheDocument();
+    expect(screen.queryByText("geplant")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
     expect(state.mutate).toHaveBeenCalled();
   });
