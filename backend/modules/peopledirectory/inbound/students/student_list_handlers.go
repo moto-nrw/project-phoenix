@@ -284,6 +284,27 @@ func retainedStudentIDs(candidates []int64, participating map[int64]bool) []int6
 	return retained
 }
 
+// intersectStudentIDs keeps candidates that match an earlier pre-filter. A
+// student selection is already present in params.studentIDs when a room,
+// location or group filter resolves its own candidates; overwriting it would
+// make export enrichment load every child from that broader filter.
+func intersectStudentIDs(candidates, prefiltered []int64) []int64 {
+	if len(prefiltered) == 0 {
+		return candidates
+	}
+	allowed := make(map[int64]struct{}, len(prefiltered))
+	for _, id := range prefiltered {
+		allowed[id] = struct{}{}
+	}
+	matched := make([]int64, 0, min(len(candidates), len(prefiltered)))
+	for _, id := range candidates {
+		if _, ok := allowed[id]; ok {
+			matched = append(matched, id)
+		}
+	}
+	return matched
+}
+
 // resolveLocationStateFilter resolves the present/transit pre-filter into
 // params.studentIDs. It reports nonEmpty=false when the resolved set is empty so
 // the caller can short-circuit with an empty page.
@@ -319,8 +340,8 @@ func (rs *Resource) resolveLocationStateFilter(ctx context.Context, params *stud
 		}
 	}
 
-	params.studentIDs = ids
-	return true, nil
+	params.studentIDs = intersectStudentIDs(ids, params.studentIDs)
+	return len(params.studentIDs) > 0, nil
 }
 
 // resolveRoomFilter resolves the room_id pre-filter (#1323): students currently
@@ -355,8 +376,8 @@ func (rs *Resource) resolveRoomFilter(ctx context.Context, params *studentListPa
 	// params.groupIDs is intentionally NOT cleared even though buildBaseFilter
 	// ignores it, because the room and group intersection was already computed
 	// above, so re-applying group_id downstream would be redundant.
-	params.studentIDs = ids
-	return true, nil
+	params.studentIDs = intersectStudentIDs(ids, params.studentIDs)
+	return len(params.studentIDs) > 0, nil
 }
 
 // resolveGroupFilter handles the group-only path. When the request qualifies for
@@ -399,7 +420,10 @@ func (rs *Resource) resolveGroupFilter(ctx context.Context, params *studentListP
 		return []*Student{}, 0, true, nil
 	}
 
-	params.studentIDs = ids
+	params.studentIDs = intersectStudentIDs(ids, params.studentIDs)
+	if len(params.studentIDs) == 0 {
+		return []*Student{}, 0, true, nil
+	}
 	return nil, 0, false, nil
 }
 

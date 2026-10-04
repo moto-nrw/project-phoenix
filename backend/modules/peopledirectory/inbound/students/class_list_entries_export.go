@@ -31,7 +31,8 @@ func classListEntryExportEligible(preset lists.Preset, f studentExportFilters) b
 		!isActiveFilterValue(f.Status) && !isActiveFilterValue(f.Bus) &&
 		!isActiveFilterValue(f.PhotoConsent) && !isActiveFilterValue(f.PickupStatus) &&
 		!isActiveFilterValue(f.DayStatus) &&
-		f.PickupTime == "" && f.ArrivalTime == "" && len(f.Months) == 0
+		f.PickupTime == "" && f.ArrivalTime == "" && len(f.Months) == 0 &&
+		len(f.StudentIDs) == 0
 }
 
 // classListEntriesForExport loads and filters the entries for the export:

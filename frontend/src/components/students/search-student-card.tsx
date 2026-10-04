@@ -39,6 +39,7 @@ import {
   getStudentPresenceBadgePlanning,
 } from "~/lib/day-planning-helper";
 import { deriveCheckinState } from "~/lib/hooks/use-school-checkin-mode";
+import type { StudentTableDay } from "~/components/students/student-table";
 
 const DAILY_DEPARTURE_MODE_LABELS: Record<DepartureMode, string> = {
   alone: "Geht alleine nach Hause",
@@ -55,6 +56,109 @@ export function dailyDepartureLabelForStudent(student: Student): string {
   const modes = student.departure_modes ?? [];
   if (modes.length === 0) return "–";
   return modes.map((mode) => DAILY_DEPARTURE_MODE_LABELS[mode]).join(", ");
+}
+
+/**
+ * Status of one child in the Kindersuche: live presence today, the planned
+ * expectation on any other day (#1939). Shared by the card and the table
+ * view (#3834).
+ */
+export function SearchStudentStatusBadge({
+  student,
+  isToday,
+  userGroups,
+  groupRooms,
+  supervisedRooms,
+}: Readonly<{
+  student: Student;
+  isToday: boolean;
+  userGroups: string[];
+  groupRooms: string[];
+  supervisedRooms: string[];
+}>) {
+  return isToday ? (
+    <StudentPresenceBadge
+      student={(() => {
+        const badgePlanning = getStudentPresenceBadgePlanning(student);
+        return {
+          ...student,
+          not_arrival_today: badgePlanning.notArrivalToday,
+          not_arrival_reason: badgePlanning.notArrivalReason,
+        };
+      })()}
+      displayMode="contextAware"
+      userGroups={userGroups}
+      groupRooms={groupRooms}
+      supervisedRooms={supervisedRooms}
+      variant="modern"
+      size="md"
+    />
+  ) : (
+    // Non-today dates show the planned expectation, never the live
+    // location (#1939). When the caller lacks full access the backend
+    // skips day-planning enrichment and omits day_planning_status; render
+    // an unknown state rather than asserting "Kommt nicht" for a result
+    // that was never calculated or disclosed.
+    <DataTableStatusBadge
+      active={student.day_planning_status === "comes_today"}
+      unknown={student.day_planning_status === undefined}
+      activeLabel="Kommt"
+      inactiveLabel="Kommt nicht"
+      unknownLabel="Keine Angabe"
+    />
+  );
+}
+
+/**
+ * Arrival, pickup or absence of one child for the table view (#3834). Same
+ * branches as the card below: a known absence or a "kommt nicht" plan
+ * replaces both times unless the child has already been picked up.
+ */
+export function searchStudentDay(
+  student: Student,
+  isToday: boolean,
+): StudentTableDay {
+  const absenceWording = isToday ? undefined : "Kommt nicht";
+  const dayTimes = getStudentDayTimes(student, {
+    ignoreCurrentAttendance: !isToday,
+  });
+  const arrival = {
+    arrivalTime: student.arrival_time,
+    actualTime: student.actual_arrival_time,
+    isException: student.arrival_is_exception ?? false,
+    isAbsent: (student.arrival_is_exception ?? false) && !student.arrival_time,
+    notes: student.arrival_notes,
+    absentWording: absenceWording,
+    day: dayTimes,
+  };
+  const pickup = {
+    pickupTime: student.pickup_time ?? undefined,
+    actualTime: student.actual_pickup_time,
+    isException: student.pickup_is_exception ?? false,
+    notes: student.pickup_notes,
+    day: dayTimes,
+  };
+  if (student.actual_pickup_time) return { arrival, pickup };
+  const absence = getStudentAbsence({
+    sick: student.sick,
+    classTrip: student.class_trip,
+    excused: student.excused,
+  });
+  const absenceLabel =
+    absence?.label ??
+    getDayPlanningNotComingLabel(student, {
+      ignoreCurrentAttendance: !isToday,
+    });
+  if (!absenceLabel) return { arrival, pickup };
+  return {
+    absence: {
+      label: absenceLabel,
+      wording: absenceWording,
+      note: student.pickup_notes,
+    },
+    arrival,
+    pickup,
+  };
 }
 
 export interface SearchStudentCardProps {
@@ -111,37 +215,13 @@ function SearchStudentCardImpl({
       isCheckinPending={isCheckinPending}
       onCheckinClick={() => onCheckinClick(student)}
       locationBadge={
-        isToday ? (
-          <StudentPresenceBadge
-            student={(() => {
-              const badgePlanning = getStudentPresenceBadgePlanning(student);
-              return {
-                ...student,
-                not_arrival_today: badgePlanning.notArrivalToday,
-                not_arrival_reason: badgePlanning.notArrivalReason,
-              };
-            })()}
-            displayMode="contextAware"
-            userGroups={userGroups}
-            groupRooms={groupRooms}
-            supervisedRooms={supervisedRooms}
-            variant="modern"
-            size="md"
-          />
-        ) : (
-          // Non-today dates show the planned expectation, never the live
-          // location (#1939). When the caller lacks full access the backend
-          // skips day-planning enrichment and omits day_planning_status; render
-          // an unknown state rather than asserting "Kommt nicht" for a result
-          // that was never calculated or disclosed.
-          <DataTableStatusBadge
-            active={student.day_planning_status === "comes_today"}
-            unknown={student.day_planning_status === undefined}
-            activeLabel="Kommt"
-            inactiveLabel="Kommt nicht"
-            unknownLabel="Keine Angabe"
-          />
-        )
+        <SearchStudentStatusBadge
+          student={student}
+          isToday={isToday}
+          userGroups={userGroups}
+          groupRooms={groupRooms}
+          supervisedRooms={supervisedRooms}
+        />
       }
       extraContent={
         <>
