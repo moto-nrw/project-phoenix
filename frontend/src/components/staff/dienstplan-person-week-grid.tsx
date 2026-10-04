@@ -200,7 +200,7 @@ function layoutShifts(shifts: readonly StaffShift[]): PlacedShift[] {
   return placed;
 }
 
-function resolveShiftColor(
+export function resolveShiftColor(
   shift: StaffShift,
   typesById: Map<string, ShiftType>,
 ): string | undefined {
@@ -210,7 +210,7 @@ function resolveShiftColor(
   return raw && HEX6_RE.test(raw) ? raw : undefined;
 }
 
-function shiftLabel(
+export function shiftLabel(
   shift: StaffShift,
   typesById: Map<string, ShiftType>,
 ): string {

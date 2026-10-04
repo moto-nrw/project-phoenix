@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { StaffShift } from "~/lib/shift-helpers";
@@ -174,7 +174,8 @@ describe("OwnDienstplanView", () => {
     expect(
       screen.getAllByRole("group", { name: "08:00–12:00 Frühdienst" }),
     ).toHaveLength(2);
-    expect(screen.getByText(/Nur zur Information/)).toBeInTheDocument();
+    // Raster (ab lg) und Tagesliste (Handy) tragen beide den Hinweis.
+    expect(screen.getAllByText(/Nur zur Information/)).toHaveLength(2);
 
     const hours = screen.getByTestId("own-week-hours-card");
     expect(hours).toHaveTextContent("Frühdienst8 h");
@@ -184,6 +185,39 @@ describe("OwnDienstplanView", () => {
     // Wochenend-Spalten nur bei Wochenend-Diensten; der Schließtag ist markiert.
     expect(screen.queryByText(/^Sa /)).not.toBeInTheDocument();
     expect(screen.getByTitle("Schließtag: Brückentag")).toBeInTheDocument();
+  });
+
+  it("lists the week per day on small screens, like Mein Kalender", () => {
+    state.shifts = [
+      shift(),
+      shift({
+        id: "12",
+        startTime: "12:30",
+        endTime: "16:00",
+        breakMinutes: 30,
+        shiftTypeId: "22",
+        shiftTypeName: "Spätdienst",
+        shiftTypeColor: "#5080D8",
+      }),
+      shift({ id: "14", date: "2026-09-09", cancelled: true }),
+      shift({ id: "15", date: "2026-09-12", startTime: "10:00" }),
+    ];
+
+    render(<OwnDienstplanView />);
+
+    const agenda = within(screen.getByTestId("own-week-agenda"));
+    const headings = agenda
+      .getAllByRole("heading", { level: 2 })
+      .map((heading) => heading.textContent);
+    // Tage ohne Schicht fallen weg, ein Samstagsdienst steht mit drin.
+    expect(headings).toEqual(["Mo 07.09.", "Mi 09.09.", "Sa 12.09."]);
+    // Tagessumme ohne Pause; die ausgefallene Schicht zählt nicht.
+    expect(agenda.getByText("7 h")).toBeInTheDocument();
+    expect(agenda.getByText("0 h")).toBeInTheDocument();
+    expect(agenda.getByText("Pause 30 min")).toBeInTheDocument();
+    expect(agenda.getByText("Fällt aus")).toBeInTheDocument();
+    // Nur lesend: keine Knöpfe in der Liste.
+    expect(agenda.queryAllByRole("button")).toHaveLength(0);
   });
 
   it("loads Monday to Sunday so weekend shifts count and show", () => {
@@ -197,8 +231,13 @@ describe("OwnDienstplanView", () => {
     expect(state.keys).toContain(
       "time-tracking-schedule-targets-2026-09-07-2026-09-13",
     );
-    expect(screen.getByText("So 13.09.")).toBeInTheDocument();
-    expect(screen.getByText("Sa 12.09.")).toBeInTheDocument();
+    // Das Raster bekommt Sa und So als Spalten.
+    expect(
+      screen.getByTestId("person-week-day-2026-09-13"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("person-week-day-2026-09-12"),
+    ).toBeInTheDocument();
   });
 
   it("omits Soll and Differenz while no target is known", () => {

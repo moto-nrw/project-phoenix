@@ -5,6 +5,7 @@ import { useCallback, useMemo } from "react";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { DienstplanPersonWeekGrid } from "~/components/staff/dienstplan-person-week-grid";
 import { DienstplanGridSkeleton } from "~/components/staff/dienstplan-skeleton";
+import { OwnWeekAgenda } from "~/components/time-tracking/own-week-agenda";
 import { OwnWeekHoursCard } from "~/components/time-tracking/own-week-hours-card";
 import { Button } from "~/components/ui/button";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
@@ -207,14 +208,26 @@ export function OwnDienstplanView() {
         />
       }
     >
-      <DienstplanPersonWeekGrid
-        shiftsByDate={shiftsByDate}
-        weekDays={gridDays}
-        todayIso={today}
-        closingDays={closingDays}
-        typesById={typesById}
-        shiftTypes={shiftTypes}
-      />
+      {/* Raster ab lg, darunter eine Liste je Tag: dieselbe Grenze wie
+          „Mein Kalender“, damit man auf dem Handy nicht seitlich wischt. */}
+      <div className="hidden lg:block">
+        <DienstplanPersonWeekGrid
+          shiftsByDate={shiftsByDate}
+          weekDays={gridDays}
+          todayIso={today}
+          closingDays={closingDays}
+          typesById={typesById}
+          shiftTypes={shiftTypes}
+        />
+      </div>
+      <div className="lg:hidden">
+        <OwnWeekAgenda
+          weekDays={weekDays}
+          shiftsByDate={shiftsByDate}
+          typesById={typesById}
+          closingDays={closingDays}
+        />
+      </div>
       <OwnWeekHoursCard
         weekDays={weekDays}
         shiftsByDate={shiftsByDate}

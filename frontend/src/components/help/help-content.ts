@@ -1878,7 +1878,7 @@ function ownShiftPlanTopic(): HelpTopic {
       "Das Soll ist dasselbe wie in der Zeiterfassung. Feiertage und Schließtage sind schon eingerechnet.",
     ],
     differences: [
-      "Auf dem Handy finden Sie `Mein Dienstplan` unten unter `Mehr`.",
+      "Auf dem Handy finden Sie `Mein Dienstplan` unten unter `Mehr`. Dort stehen die Schichten als Liste je Tag statt im Wochenraster.",
       "Sie können den Plan hier nur ansehen. Änderungen trägt die Leitung im Dienstplan ein.",
       "Samstag und Sonntag erscheinen nur, wenn Sie dort eine Schicht haben.",
     ],
