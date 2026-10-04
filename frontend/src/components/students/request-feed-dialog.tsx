@@ -4,14 +4,13 @@ import { useEffect, useState } from "react";
 import { Check, Copy, RefreshCw, Rss } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
-import {
-  useApiErrorDisplay,
-  useApiLoadError,
-  useToast,
-} from "~/contexts/ToastContext";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import {
   createRequestFeed,
   getRequestFeedStatus,
@@ -28,8 +27,9 @@ interface RequestFeedDialogProps {
 }
 
 export function RequestFeedDialog({ isOpen, onClose }: RequestFeedDialogProps) {
-  const toast = useToast();
-  const { show: showActionError } = useApiErrorDisplay();
+  // Fehler und Rückmeldungen stehen im Dialog: ein Toast läge hinter seinem
+  // Hintergrund und bliebe unsichtbar.
+  const actionErrors = useApiFormError();
   const {
     error: loadError,
     show: showLoadError,
@@ -74,12 +74,13 @@ export function RequestFeedDialog({ isOpen, onClose }: RequestFeedDialogProps) {
 
   const create = async () => {
     setSaving(true);
+    actionErrors.clear();
     try {
       const result = await createRequestFeed();
       setURL(result.url);
       setActive(true);
     } catch (err) {
-      await showActionError(err, {
+      await actionErrors.show(err, {
         object: FEED_OBJECT,
         retry: () => void create(),
       });
@@ -90,14 +91,14 @@ export function RequestFeedDialog({ isOpen, onClose }: RequestFeedDialogProps) {
 
   const rotate = async () => {
     setSaving(true);
+    actionErrors.clear();
     try {
       const result = await rotateRequestFeed();
       setURL(result.url);
       setActive(true);
       setConfirmRotate(false);
-      toast.success("Der neue RSS-Link ist bereit.");
     } catch (err) {
-      await showActionError(err, {
+      await actionErrors.show(err, {
         object: FEED_OBJECT,
         retry: () => void rotate(),
       });
@@ -108,12 +109,12 @@ export function RequestFeedDialog({ isOpen, onClose }: RequestFeedDialogProps) {
 
   const copyURL = async () => {
     if (!url) return;
-    if (await copy(url)) {
-      toast.success("Der RSS-Link ist kopiert.");
-    } else {
+    actionErrors.clear();
+    // Gelungenes Kopieren zeigt der Knopf selbst („Kopiert“).
+    if (!(await copy(url))) {
       // Kein API-Fehler: die Zwischenablage hat abgelehnt. Der Link steht
       // markierbar im Feld, also nennt der Text den Weg von Hand.
-      toast.error(
+      actionErrors.invalid(
         "Kopieren hat nicht geklappt. Bitte markieren Sie den Link und kopieren Sie ihn selbst.",
       );
     }
@@ -195,6 +196,7 @@ export function RequestFeedDialog({ isOpen, onClose }: RequestFeedDialogProps) {
         {checking ? <p role="status">RSS-Link wird geprüft…</p> : null}
 
         <LoadErrorAlert error={loadError} />
+        <FormErrorAlert message={actionErrors.error} />
 
         {active && !url ? <p>Es gibt schon einen RSS-Link.</p> : null}
 

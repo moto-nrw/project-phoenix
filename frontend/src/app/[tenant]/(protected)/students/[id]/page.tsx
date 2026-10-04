@@ -21,11 +21,14 @@ import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import {
-  useApiErrorDisplay,
+  useApiFormError,
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { ApiError } from "~/lib/api-error";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -409,12 +412,15 @@ function StudentDetailPageContent() {
     ? "Zurück zu den Kinderdaten"
     : "Zurück zur Kinderübersicht";
   const toast = useToast();
-  const { show: showActionError } = useApiErrorDisplay();
-  // „Wiederholen“ im Fehler-Toast ruft die aktuelle Fassung der Aktion auf,
+  // „Wiederholen“ im Fehlerkasten ruft die aktuelle Fassung der Aktion auf,
   // nicht die vom Zeitpunkt des Fehlers.
   const latestActionsRef = useRef<Record<string, () => Promise<void>>>({});
   const retryAction = (name: string) => () =>
     void latestActionsRef.current[name]?.();
+  // Die Bestätigungsdialoge bleiben bei einem Fehler offen. Ein Toast läge
+  // hinter ihrem Hintergrund, also steht der Fehler im Dialog selbst. Es ist
+  // immer nur einer offen, deshalb teilen sie sich einen Fehlerzustand.
+  const dialogErrors = useApiFormError();
   const { data: session, status: sessionStatus } = useSession();
 
   // Switch tabs by updating the `?tab=` query param in place (preserves the
@@ -965,6 +971,7 @@ function StudentDetailPageContent() {
     if (!student) return;
 
     setCheckingOut(true);
+    dialogErrors.clear();
     try {
       await schoolCheckinStudent(
         studentId,
@@ -979,8 +986,8 @@ function StudentDetailPageContent() {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
       });
-      await showActionError(err, {
-        object: "das Abmelden",
+      await dialogErrors.show(err, {
+        object: "die Anwesenheit",
         retry: retryAction("checkout"),
       });
     } finally {
@@ -992,6 +999,7 @@ function StudentDetailPageContent() {
     if (!student) return;
 
     setCheckingIn(true);
+    dialogErrors.clear();
     try {
       await schoolCheckinStudent(studentId, "in");
       refreshData();
@@ -1002,8 +1010,8 @@ function StudentDetailPageContent() {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
       });
-      await showActionError(err, {
-        object: "das Anmelden",
+      await dialogErrors.show(err, {
+        object: "die Anwesenheit",
         retry: retryAction("checkin"),
       });
     } finally {
@@ -1015,6 +1023,7 @@ function StudentDetailPageContent() {
     if (!student) return;
 
     setSickLoading(true);
+    dialogErrors.clear();
     try {
       const newSickStatus = !(student.sick ?? false);
       const trimmedReason = sickReason.trim();
@@ -1039,7 +1048,7 @@ function StudentDetailPageContent() {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
       });
-      await showActionError(err, {
+      await dialogErrors.show(err, {
         object: "die Krankmeldung",
         retry: retryAction("sick"),
       });
@@ -1052,6 +1061,7 @@ function StudentDetailPageContent() {
     if (!student) return;
 
     setExcusedLoading(true);
+    dialogErrors.clear();
     try {
       const newExcusedStatus = !isQuickExcused;
       await studentService.updateStudent(studentId, {
@@ -1070,7 +1080,7 @@ function StudentDetailPageContent() {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
       });
-      await showActionError(err, {
+      await dialogErrors.show(err, {
         object: "die Entschuldigung",
         retry: retryAction("excused"),
       });
@@ -1110,6 +1120,7 @@ function StudentDetailPageContent() {
     if (!student || !switchTarget) return;
 
     setSwitchLoading(true);
+    dialogErrors.clear();
     try {
       // Send both flags in one request so the backend's mutual-exclusion guard
       // sees only the final state (one true, the other explicitly false).
@@ -1131,7 +1142,7 @@ function StudentDetailPageContent() {
         target: switchTarget,
         error: err instanceof Error ? err.message : String(err),
       });
-      await showActionError(err, {
+      await dialogErrors.show(err, {
         object: "die Änderung des Status",
         retry: retryAction("switch"),
       });
@@ -1379,13 +1390,17 @@ function StudentDetailPageContent() {
           {/* Checkout Confirmation Modal */}
           <ConfirmationModal
             isOpen={showConfirmCheckout}
-            onClose={() => setShowConfirmCheckout(false)}
+            onClose={() => {
+              setShowConfirmCheckout(false);
+              dialogErrors.clear();
+            }}
             onConfirm={handleConfirmCheckout}
             title="Kind abmelden"
             confirmText={checkingOut ? "Wird abgemeldet…" : "Geht nach Hause"}
             cancelText="Abbrechen"
             isConfirmLoading={checkingOut}
           >
+            <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>
               Möchten Sie <strong>{student.name}</strong> jetzt abmelden?
             </p>
@@ -1402,13 +1417,17 @@ function StudentDetailPageContent() {
           {/* Checkin Confirmation Modal */}
           <ConfirmationModal
             isOpen={showConfirmCheckin}
-            onClose={() => setShowConfirmCheckin(false)}
+            onClose={() => {
+              setShowConfirmCheckin(false);
+              dialogErrors.clear();
+            }}
             onConfirm={handleConfirmCheckin}
             title="Kind anmelden"
             confirmText={checkingIn ? "Wird angemeldet…" : "Anmelden"}
             cancelText="Abbrechen"
             isConfirmLoading={checkingIn}
           >
+            <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>
               Möchten Sie <strong>{student.name}</strong> jetzt anmelden?
             </p>
@@ -1420,6 +1439,7 @@ function StudentDetailPageContent() {
             onClose={() => {
               setShowConfirmSick(false);
               setSickReason("");
+              dialogErrors.clear();
             }}
             onConfirm={handleConfirmSickToggle}
             title={student.sick ? "Krankmeldung aufheben" : "Kind krankmelden"}
@@ -1427,6 +1447,7 @@ function StudentDetailPageContent() {
             cancelText="Abbrechen"
             isConfirmLoading={sickLoading}
           >
+            <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>
               {student.sick ? (
                 <>
@@ -1464,7 +1485,10 @@ function StudentDetailPageContent() {
           {/* Excused Confirmation Modal */}
           <ConfirmationModal
             isOpen={showConfirmExcused && hasSickExcusedWriteAccess}
-            onClose={() => setShowConfirmExcused(false)}
+            onClose={() => {
+              setShowConfirmExcused(false);
+              dialogErrors.clear();
+            }}
             onConfirm={handleConfirmExcusedToggle}
             title={
               isQuickExcused ? "Entschuldigung aufheben" : "Kind entschuldigen"
@@ -1473,6 +1497,7 @@ function StudentDetailPageContent() {
             cancelText="Abbrechen"
             isConfirmLoading={excusedLoading}
           >
+            <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>
               {isQuickExcused ? (
                 <>
@@ -1492,7 +1517,10 @@ function StudentDetailPageContent() {
           {/* Switch Dialog, shown when user clicks one flag but the other is set */}
           <ConfirmationModal
             isOpen={switchTarget !== null && hasSickExcusedWriteAccess}
-            onClose={() => setSwitchTarget(null)}
+            onClose={() => {
+              setSwitchTarget(null);
+              dialogErrors.clear();
+            }}
             onConfirm={handleConfirmSwitch}
             title={
               switchTarget === "sick"
@@ -1503,6 +1531,7 @@ function StudentDetailPageContent() {
             cancelText="Abbrechen"
             isConfirmLoading={switchLoading}
           >
+            <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>
               {switchTarget === "sick" ? (
                 <>

@@ -437,7 +437,7 @@ describe("useSchoolCheckinMode selection sub-mode", () => {
 
     await waitFor(() =>
       expect(mockToastError).toHaveBeenCalledWith(
-        "Die Anmeldung konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+        "Die Anwesenheit konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
         { retry: undefined },
       ),
     );
@@ -465,7 +465,7 @@ describe("useSchoolCheckinMode selection sub-mode", () => {
     expect(result.current.selectedIds.has("1")).toBe(true);
     await waitFor(() =>
       expect(mockToastError).toHaveBeenCalledWith(
-        "Für die Abmeldung fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+        "Für die Anwesenheit fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         { retry: undefined },
       ),
     );

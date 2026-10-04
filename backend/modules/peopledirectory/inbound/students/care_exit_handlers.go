@@ -633,11 +633,3 @@ func withdrawalDeletionErrorRenderer(err error) render.Renderer {
 	}
 	return studentDeletionErrorRenderer(err)
 }
-
-func invalidWithCode(code string) func(error) render.Renderer {
-	return func(err error) render.Renderer { return common.ErrorInvalidRequestWithCode(err, code) }
-}
-
-func notFoundWithCode(code string) func(error) render.Renderer {
-	return func(err error) render.Renderer { return common.ErrorNotFoundWithCode(err, code) }
-}

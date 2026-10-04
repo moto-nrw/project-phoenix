@@ -291,12 +291,14 @@ func exportSelectionCapError(count int) render.Renderer {
 	if !exportSelectionTooLarge(count) {
 		return nil
 	}
-	resp := common.ErrorInvalidRequestWithCode(
+	rendered := common.ErrorInvalidRequestWithCode(
 		errExportSelectionTooLarge(count),
 		common.CodeStudentsExportSelectionTooLarge,
-	).(*common.ErrResponse)
-	resp.Details = map[string]any{"total": count, "limit": studentExportPageSize}
-	return resp
+	)
+	if resp, ok := rendered.(*common.ErrResponse); ok {
+		resp.Details = map[string]any{"total": count, "limit": studentExportPageSize}
+	}
+	return rendered
 }
 
 // exportSelectionTooLarge reports whether a filtered export exceeds what a single

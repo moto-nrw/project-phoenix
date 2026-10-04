@@ -5,7 +5,8 @@ import { useCallback, useRef, useState } from "react";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
-import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import {
   cancelCareExit,
   canResumeCare,
@@ -52,8 +53,12 @@ export function StudentRecordActions({
   onDeleted,
 }: StudentRecordActionsProps) {
   const { success: toastSuccess } = useToast();
-  const { show: showError } = useApiErrorDisplay();
-  // „Wiederholen“ im Fehler-Toast ruft die aktuelle Fassung auf.
+  // Der Dialog bleibt bei einem Fehler offen; ein Toast läge hinter seinem
+  // Hintergrund. Deshalb steht der Fehler im Dialog.
+  const cancelErrors = useApiFormError();
+  const showError = cancelErrors.show;
+  const clearCancelError = cancelErrors.clear;
+  // „Wiederholen“ ruft die aktuelle Fassung auf.
   const latestCancelRef = useRef<() => Promise<void>>(async () => undefined);
   const [careExitOpen, setCareExitOpen] = useState(false);
   const [cancelExitOpen, setCancelExitOpen] = useState(false);
@@ -69,6 +74,7 @@ export function StudentRecordActions({
   // werden, mit neuem Beginn und ausdrücklicher Prüfung.
   const cancelPlannedExit = useCallback(async () => {
     setCancellingExit(true);
+    clearCancelError();
     try {
       await cancelCareExit([studentId]);
       // Sagt beides: das Ende ist weg UND der Plan ist zurück. Ohne den
@@ -94,7 +100,14 @@ export function StudentRecordActions({
     } finally {
       setCancellingExit(false);
     }
-  }, [displayName, onChanged, showError, studentId, toastSuccess]);
+  }, [
+    clearCancelError,
+    displayName,
+    onChanged,
+    showError,
+    studentId,
+    toastSuccess,
+  ]);
   latestCancelRef.current = cancelPlannedExit;
 
   const items: OverflowMenuItem[] = [];
@@ -158,8 +171,12 @@ export function StudentRecordActions({
         isConfirmLoading={cancellingExit}
         isDismissDisabled={cancellingExit}
         onConfirm={() => void cancelPlannedExit()}
-        onClose={() => setCancelExitOpen(false)}
+        onClose={() => {
+          setCancelExitOpen(false);
+          clearCancelError();
+        }}
       >
+        <FormErrorAlert message={cancelErrors.error} className="mb-3" />
         <p className="text-sm text-gray-700">
           Das geplante Betreuungsende von <strong>{displayName}</strong>
           {student.care_ends_on

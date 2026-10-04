@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RequestFeedDialog } from "./request-feed-dialog";
@@ -55,8 +61,6 @@ function renderDialog() {
     </ToastProvider>,
   );
 }
-
-const toastAlert = () => screen.findByRole("alert", { name: /^Fehler:/ });
 
 describe("RequestFeedDialog", () => {
   beforeEach(() => {
@@ -150,7 +154,7 @@ describe("RequestFeedDialog", () => {
     expect(screen.queryByText(/nicht erreichbar/)).toBeNull();
   });
 
-  it("meldet ein gescheitertes Erstellen als Toast mit dem Katalogtext", async () => {
+  it("meldet ein gescheitertes Erstellen im Dialog mit dem Katalogtext", async () => {
     status.mockResolvedValue({ active: false });
     create.mockRejectedValueOnce(
       new ApiError("forbidden", 403, { code: "general.permission" }),
@@ -164,9 +168,15 @@ describe("RequestFeedDialog", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "RSS-Link erstellen" }));
 
-    expect(await toastAlert()).toHaveTextContent(
-      "Für das Abo fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
-    );
+    // Im Dialog, nicht als Toast: der läge hinter dem Hintergrund.
+    expect(
+      await within(screen.getByRole("dialog")).findByText(
+        "Für das Abo fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("alert", { name: /^Fehler:/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("nennt den Weg von Hand, wenn das Kopieren scheitert", async () => {
@@ -183,8 +193,10 @@ describe("RequestFeedDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "RSS-Link erstellen" }));
     fireEvent.click(await screen.findByRole("button", { name: "Kopieren" }));
 
-    expect(await toastAlert()).toHaveTextContent(
-      /markieren Sie den Link und kopieren Sie ihn selbst/,
-    );
+    expect(
+      await within(screen.getByRole("dialog")).findByText(
+        /markieren Sie den Link und kopieren Sie ihn selbst/,
+      ),
+    ).toBeVisible();
   });
 });

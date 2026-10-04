@@ -1006,6 +1006,32 @@ describe("PersonalInfoEditPanel", () => {
         "1",
       );
     });
+
+    it("retries only the photo after the student was saved", async () => {
+      photosEnabledState.enabled = true;
+      mockOnSave.mockResolvedValue(undefined);
+      uploadStudentPhotoMock.mockRejectedValueOnce(
+        new ApiError("unavailable", 503, { code: "general.unavailable" }),
+      );
+
+      render(
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
+          student={createMockStudent({ photo_consent_given: true })}
+          onSave={mockOnSave}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId("pick-photo"));
+      fireEvent.click(screen.getByText("Speichern"));
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Wiederholen" }),
+      );
+
+      await waitFor(() => expect(mockOnCancel).toHaveBeenCalled());
+      expect(uploadStudentPhotoMock).toHaveBeenCalledTimes(2);
+      expect(mockOnSave).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("Textarea inputs", () => {

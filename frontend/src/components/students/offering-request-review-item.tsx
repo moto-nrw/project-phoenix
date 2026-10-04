@@ -13,7 +13,8 @@ import {
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { formatDate, isoWeekNumber } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
-import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Checkbox } from "~/components/ui/checkbox";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -131,6 +132,9 @@ export function OfferingRequestReviewItem({
 }>) {
   const t = useTranslations("parentMasterData");
   const { show: showError } = useApiErrorDisplay();
+  // Scheitert die Freigabe im offenen Bestätigungsdialog, steht der Fehler
+  // dort: ein Toast läge hinter dem Hintergrund des Dialogs.
+  const confirmErrors = useApiFormError();
   // „Wiederholen“ ruft immer die aktuelle Fassung auf, mit der aktuellen
   // Begründung, Abwahl und dem aktuellen Datum.
   const decideRef = useRef<
@@ -166,6 +170,7 @@ export function OfferingRequestReviewItem({
       return;
     }
     setBusy(true);
+    confirmErrors.clear();
     const excludedIds = approve ? excluded : [];
     try {
       const args = [
@@ -212,7 +217,9 @@ export function OfferingRequestReviewItem({
         setConfirmationRequired(true);
         return;
       }
-      await showError(err, {
+      const showDecideError =
+        approve && approvalPreview !== null ? confirmErrors.show : showError;
+      await showDecideError(err, {
         object: "die Anfrage",
         retry: () => void decideRef.current(approve, confirmWithdrawal),
       });
@@ -557,7 +564,10 @@ export function OfferingRequestReviewItem({
       </div>
       <ConfirmationModal
         isOpen={approvalPreview !== null}
-        onClose={() => setApprovalPreview(null)}
+        onClose={() => {
+          setApprovalPreview(null);
+          confirmErrors.clear();
+        }}
         onConfirm={() => void decide(true, withdrawalConfirmation)}
         title={
           withdrawalConfirmation
@@ -572,6 +582,7 @@ export function OfferingRequestReviewItem({
         loadingText="Wird freigegeben..."
         mobileSheet
       >
+        <FormErrorAlert message={confirmErrors.error} className="mb-4" />
         {approvalPreview && (
           <div className="space-y-4">
             {withdrawalConfirmation && (

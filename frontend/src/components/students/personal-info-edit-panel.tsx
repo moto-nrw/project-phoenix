@@ -149,6 +149,11 @@ export function PersonalInfoEditPanel({
   const clearErrors = errors.clear;
   // „Wiederholen“ speichert den aktuellen Entwurf, nicht den vom Fehler.
   const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
+  // Scheitert nach gespeicherten Angaben nur das Foto, versucht
+  // „Wiederholen“ nur das Foto erneut, nicht das ganze Kind.
+  const latestPhotoRetryRef = useRef<() => Promise<void>>(
+    async () => undefined,
+  );
   const { success: toastSuccess } = useToast();
   // Ladefehler stehen dort, wo die Daten fehlen.
   const consentLoad = useApiLoadError();
@@ -558,12 +563,9 @@ export function PersonalInfoEditPanel({
         });
         // Die Angaben sind gespeichert, nur das Foto nicht: das sagt eine
         // Erfolgsmeldung, der Fehler im Formular nennt nur das Foto. Der
-        // Foto-Entwurf bleibt stehen, „Wiederholen“ versucht ihn erneut.
+        // Foto-Entwurf bleibt stehen, „Wiederholen“ versucht nur ihn erneut.
         toastSuccess("Die Angaben sind gespeichert.");
-        await errors.show(photoError, {
-          object: "das Foto",
-          retry: () => void latestSaveRef.current(),
-        });
+        await showPhotoError(photoError);
         return;
       }
       onCancel();
@@ -609,6 +611,29 @@ export function PersonalInfoEditPanel({
   };
 
   latestSaveRef.current = handleSave;
+
+  const showPhotoError = (photoError: unknown) =>
+    errors.show(photoError, {
+      object: "das Foto",
+      retry: () => void latestPhotoRetryRef.current(),
+    });
+
+  latestPhotoRetryRef.current = async () => {
+    errors.clear();
+    setIsSaving(true);
+    try {
+      await persistPendingPhoto();
+      onCancel();
+    } catch (photoError) {
+      logger.error("error saving student photo", {
+        error:
+          photoError instanceof Error ? photoError.message : String(photoError),
+      });
+      await showPhotoError(photoError);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleCancel = () => {
     setEditedStudent(student);

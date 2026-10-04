@@ -290,7 +290,7 @@ describe("useSchoolCheckinMode", () => {
 
     await waitFor(() =>
       expect(mockToastError).toHaveBeenCalledWith(
-        "Die Anmeldung konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+        "Die Anwesenheit konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
         { retry: expect.any(Function) },
       ),
     );
@@ -314,7 +314,7 @@ describe("useSchoolCheckinMode", () => {
 
     await waitFor(() =>
       expect(mockToastError).toHaveBeenCalledWith(
-        "Für die Abmeldung fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+        "Für die Anwesenheit fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         expect.anything(),
       ),
     );
@@ -338,7 +338,7 @@ describe("useSchoolCheckinMode", () => {
 
     await waitFor(() =>
       expect(mockToastError).toHaveBeenCalledWith(
-        "Die Abmeldung konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+        "Die Anwesenheit konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
         { retry: expect.any(Function) },
       ),
     );
@@ -356,7 +356,7 @@ describe("useSchoolCheckinMode", () => {
 
     await waitFor(() =>
       expect(mockToastError).toHaveBeenCalledWith(
-        "Die Abmeldung ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+        "Die Anwesenheit ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
         { retry: expect.any(Function) },
       ),
     );

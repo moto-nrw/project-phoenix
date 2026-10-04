@@ -233,6 +233,8 @@ const (
 	CodeStudentsCareWithdrawalNotFound                   = "students.care_withdrawal_not_found"
 	CodeStudentsChangeRequestNotPending                  = "students.change_request_not_pending"
 	CodeStudentsChangeRequestStale                       = "students.change_request_stale"
+	CodeStudentsCheckinCareEnded                         = "students.checkin_care_ended"
+	CodeStudentsCheckoutNoteTooLong                      = "students.checkout_note_too_long"
 	CodeStudentsChildQuotaReached                        = "students.child_quota_reached"
 	CodeStudentsCompanionLockBusy                        = "students.companion_lock_busy"
 	CodeStudentsCompanionWouldLoseDeparture              = "students.companion_would_lose_departure"
@@ -256,6 +258,9 @@ const (
 	CodeStudentsOfferingChangesNoEnrollment              = "students.offering_changes_no_enrollment"
 	CodeStudentsPartialAbsenceConflict                   = "students.partial_absence_conflict"
 	CodeStudentsPartialAbsenceRequiresDedicatedAction    = "students.partial_absence_requires_dedicated_action"
+	CodeStudentsPhotoConsentRequired                     = "students.photo_consent_required"
+	CodeStudentsPhotoConsentWithdrawn                    = "students.photo_consent_withdrawn"
+	CodeStudentsPhotosDisabled                           = "students.photos_disabled"
 	CodeStudentsPickupChangeCompleted                    = "students.pickup_change_completed"
 	CodeStudentsPickupChangeConflict                     = "students.pickup_change_conflict"
 	CodeStudentsPickupChangeExpired                      = "students.pickup_change_expired"
@@ -565,6 +570,8 @@ var errorClassByCode = map[string]string{
 	"students.care_withdrawal_not_found":                   "business_rejection",
 	"students.change_request_not_pending":                  "business_rejection",
 	"students.change_request_stale":                        "business_rejection",
+	"students.checkin_care_ended":                          "business_rejection",
+	"students.checkout_note_too_long":                      "input",
 	"students.child_quota_reached":                         "business_rejection",
 	"students.companion_lock_busy":                         "business_rejection",
 	"students.companion_would_lose_departure":              "input",
@@ -588,6 +595,9 @@ var errorClassByCode = map[string]string{
 	"students.offering_changes_no_enrollment":              "permission",
 	"students.partial_absence_conflict":                    "business_rejection",
 	"students.partial_absence_requires_dedicated_action":   "business_rejection",
+	"students.photo_consent_required":                      "input",
+	"students.photo_consent_withdrawn":                     "business_rejection",
+	"students.photos_disabled":                             "permission",
 	"students.pickup_change_completed":                     "business_rejection",
 	"students.pickup_change_conflict":                      "business_rejection",
 	"students.pickup_change_expired":                       "business_rejection",

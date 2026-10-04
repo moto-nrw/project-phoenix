@@ -25,9 +25,17 @@ vi.mock("~/lib/care-exit-api", async (importOriginal) => {
 
 const toastSuccess = vi.fn();
 const showError = vi.fn();
+const clearError = vi.fn();
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({ success: toastSuccess }),
-  useApiErrorDisplay: () => ({ show: showError }),
+  // Der Fehler steht im Stornieren-Dialog, nicht im Toast dahinter.
+  useApiFormError: () => ({
+    show: showError,
+    clear: clearError,
+    error: null,
+    invalid: vi.fn(),
+    fieldError: () => undefined,
+  }),
 }));
 
 vi.mock("./care-exit-modal", () => ({

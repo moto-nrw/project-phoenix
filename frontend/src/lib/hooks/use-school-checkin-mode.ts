@@ -82,10 +82,12 @@ export function checkoutConfirmationRoom(
   return room && room.length > 0 ? room : null;
 }
 
-/** Names the action in the shared error text: „Für die Anmeldung fehlt …“. */
-function checkinObject(action: SchoolCheckinAction): string {
-  return action === "in" ? "die Anmeldung" : "die Abmeldung";
-}
+/**
+ * Names what an action changes in the shared error text: „Die Anwesenheit
+ * konnte nicht geändert werden.“ Not „die Anmeldung“: in moto that word
+ * also means a child's enrolment.
+ */
+const CHECKIN_OBJECT = "die Anwesenheit";
 
 interface CheckinModeSession {
   isActive: boolean;
@@ -370,7 +372,7 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
           error: message,
         });
         void showError(error, {
-          object: checkinObject(action),
+          object: CHECKIN_OBJECT,
           retry: () =>
             void latestToggleRef.current(studentId, currentState, checkoutNote),
         });
@@ -462,7 +464,7 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
         });
         // No retry button: the caller shows the outcome of a run, which a
         // toast retry would bypass. The selection stays marked for a new tap.
-        void showError(error, { object: checkinObject(action) });
+        void showError(error, { object: CHECKIN_OBJECT });
         return null;
       } finally {
         setPendingIds((prev) => {

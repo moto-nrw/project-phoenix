@@ -4,6 +4,7 @@ import {
   render as renderComponent,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -23,6 +24,15 @@ async function expectErrorToast(expected: RegExp | string) {
   expect(
     await screen.findByRole("alert", { name: /^Fehler:/ }),
   ).toHaveTextContent(expected);
+  await act(async () => undefined);
+}
+
+// Eine gescheiterte Freigabe steht im offenen Bestätigungsdialog: ein Toast
+// läge hinter seinem Hintergrund.
+async function expectDialogError(expected: RegExp | string) {
+  const dialog = await screen.findByRole("dialog");
+  expect(await within(dialog).findByText(expected)).toBeVisible();
+  expect(screen.queryByRole("alert", { name: /^Fehler:/ })).toBeNull();
   await act(async () => undefined);
 }
 
@@ -204,7 +214,7 @@ describe("OfferingRequestReviewItem", () => {
 
     await confirmApproval();
 
-    await expectErrorToast(
+    await expectDialogError(
       catalogText("students.offering_change_capacity_full", "die Anfrage"),
     );
     // The card survives a failed approval: the switch was not applied.
@@ -223,7 +233,7 @@ describe("OfferingRequestReviewItem", () => {
 
     await confirmApproval();
 
-    await expectErrorToast(
+    await expectDialogError(
       catalogText("students.change_request_not_pending", "die Anfrage"),
     );
   });
@@ -239,7 +249,7 @@ describe("OfferingRequestReviewItem", () => {
 
     await confirmApproval();
 
-    await expectErrorToast(
+    await expectDialogError(
       catalogText("students.offering_changes_no_enrollment", "die Anfrage"),
     );
   });
@@ -254,7 +264,7 @@ describe("OfferingRequestReviewItem", () => {
 
     await confirmApproval();
 
-    await expectErrorToast(
+    await expectDialogError(
       "Die Anfrage konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
     );
     fireEvent.click(screen.getByRole("button", { name: /Wiederholen/ }));

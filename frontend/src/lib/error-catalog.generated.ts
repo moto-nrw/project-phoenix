@@ -253,7 +253,7 @@ export const ERROR_CATALOG = {
       "students.care_exit_no_students":
         "Bitte wählen Sie mindestens ein Kind aus.",
       "students.care_exit_not_planned":
-        "Für dieses Kind ist kein Ende der Betreuung geplant.",
+        "Für dieses Kind ist kein Ende der Betreuung geplant. Bitte laden Sie die Seite neu.",
       "students.care_exit_note_not_allowed":
         "Eine eigene Begründung ist nur bei „Anderer Grund“ möglich.",
       "students.care_exit_note_required": "Bitte geben Sie den Grund ein.",
@@ -270,7 +270,7 @@ export const ERROR_CATALOG = {
       "students.care_resume_not_checked":
         "Bitte bestätigen Sie zuerst die Prüfung. Sonst bleiben Gruppe, Angebote, Wochenplan und Zeiten ungeprüft.",
       "students.care_resume_not_ended":
-        "Die Betreuung dieses Kindes läuft noch.",
+        "Die Betreuung dieses Kindes läuft noch. Sie müssen sie nicht wieder aufnehmen.",
       "students.care_resume_start_in_past":
         "Der neue Beginn darf nicht in der Vergangenheit liegen.",
       "students.care_withdrawal_after_gap":
@@ -283,6 +283,10 @@ export const ERROR_CATALOG = {
         "{object} ist nicht mehr offen. Bitte laden Sie die Seite neu.",
       "students.change_request_stale":
         "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
+      "students.checkin_care_ended":
+        "Die Betreuung dieses Kindes ist beendet. Bitte laden Sie die Seite neu.",
+      "students.checkout_note_too_long":
+        "Die Notiz ist zu lang. Bitte kürzen Sie sie.",
       "students.child_quota_reached":
         "Das Kinderkontingent Ihrer Schule ist voll ({occupied_places} von {booked_places} Kindern). Bitte melden Sie sich beim moto-Team.",
       "students.companion_lock_busy":
@@ -319,6 +323,12 @@ export const ERROR_CATALOG = {
         "Für das Kind gibt es keine gültige Anmeldung mehr. Bitte lehnen Sie {object} ab.",
       "students.partial_absence_conflict":
         "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+      "students.photo_consent_required":
+        "Für ein Foto fehlt die Einwilligung der Eltern. Bitte bestätigen Sie zuerst die Einwilligung.",
+      "students.photo_consent_withdrawn":
+        "Die Eltern haben die Einwilligung für Fotos zurückgezogen. Bitte prüfen Sie die Einwilligung erneut.",
+      "students.photos_disabled":
+        "Kinderfotos sind an dieser Schule ausgeschaltet. Bitte fragen Sie die Schulleitung.",
       "students.pickup_change_completed":
         "Das Kind ist schon abgemeldet. Die Abholzeit lässt sich nicht mehr ändern.",
       "students.pickup_change_conflict":

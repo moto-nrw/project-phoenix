@@ -97,11 +97,11 @@ func (rs *Resource) schoolCheckinHandler(w http.ResponseWriter, r *http.Request)
 		// race — is treated like an unknown/absent student (404), matching the
 		// IoT and timetable mappers rather than surfacing a 500 (#405).
 		if errors.Is(changeErr, studentpresence.ErrStudentGraduated) || errors.Is(changeErr, studentpresence.ErrStudentCareEnded) {
-			common.RenderError(w, r, common.ErrorNotFound(changeErr))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(changeErr, common.CodeStudentsCheckinCareEnded))
 			return
 		}
 		if errors.Is(changeErr, studentpresence.ErrCheckoutNoteTooLong) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(changeErr))
+			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(changeErr, common.CodeStudentsCheckoutNoteTooLong))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(changeErr))

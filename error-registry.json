@@ -1425,6 +1425,18 @@
       "legacy": "change_request_stale"
     },
     {
+      "code": "students.checkin_care_ended",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.checkin_care_ended"
+    },
+    {
+      "code": "students.checkout_note_too_long",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.checkout_note_too_long"
+    },
+    {
       "code": "students.child_quota_reached",
       "class": "business_rejection",
       "parameters": [
@@ -1568,6 +1580,24 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "partial_absence_requires_dedicated_action"
+    },
+    {
+      "code": "students.photo_consent_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.photo_consent_required"
+    },
+    {
+      "code": "students.photo_consent_withdrawn",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.photo_consent_withdrawn"
+    },
+    {
+      "code": "students.photos_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "students.photos_disabled"
     },
     {
       "code": "students.pickup_change_completed",
