@@ -10,6 +10,7 @@ import {
   fetchWithRetry,
   ApiResponseError,
 } from "./api-helpers";
+import { ApiError } from "./api-error";
 import {
   extractParams,
   handleApiError,
@@ -684,6 +685,20 @@ describe("authFetch", () => {
     await expect(
       authFetch("http://api.test/endpoint", { token: "test-token" }),
     ).rejects.toThrow("API error (404): Not Found");
+  });
+
+  it("normalizes a transport failure as a retryable unavailable error", async () => {
+    mockFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    const error = await authFetch("http://api.test/endpoint").catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 503,
+      code: "general.unavailable",
+    });
   });
 });
 

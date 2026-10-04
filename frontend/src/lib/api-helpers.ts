@@ -187,13 +187,23 @@ export async function authFetch<T>(
       ? buildAuthHeaders(token)
       : buildAuthHeadersWithBody(token);
 
-  const response = await fetch(url, {
-    method,
-    credentials: "include",
-    headers,
-    cache: "no-store", // Prevent caching of dynamic API responses
-    ...(body !== undefined && { body: JSON.stringify(body) }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method,
+      credentials: "include",
+      headers,
+      cache: "no-store", // Prevent caching of dynamic API responses
+      ...(body !== undefined && { body: JSON.stringify(body) }),
+    });
+  } catch {
+    // A rejected fetch has no HTTP response or backend error envelope. Keep
+    // this transport failure structured so the shared error path can offer a
+    // retry instead of treating it as a frontend crash.
+    throw new ApiError("Network request failed", 503, {
+      code: "general.unavailable",
+    });
+  }
 
   if (!response.ok) {
     const bodyText =
