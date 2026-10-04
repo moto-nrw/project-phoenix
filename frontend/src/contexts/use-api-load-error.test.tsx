@@ -1,9 +1,49 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { ToastProvider, useApiLoadError } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+
+const presenterImportGate = vi.hoisted(() => {
+  let releaseImport: (() => void) | undefined;
+  let importStarted = Promise.resolve();
+  let resolveImportStarted: (() => void) | undefined;
+  let importPromise = Promise.resolve();
+
+  return {
+    defer() {
+      importPromise = new Promise<void>((resolve) => {
+        releaseImport = resolve;
+      });
+      importStarted = new Promise<void>((resolve) => {
+        resolveImportStarted = resolve;
+      });
+    },
+    release() {
+      releaseImport?.();
+    },
+    waitForStart() {
+      return importStarted;
+    },
+    async wait() {
+      resolveImportStarted?.();
+      await importPromise;
+    },
+  };
+});
+
+vi.mock("~/lib/error-presentation", async (importOriginal) => {
+  await presenterImportGate.wait();
+  return importOriginal<typeof import("~/lib/error-presentation")>();
+});
 
 function TestSection({
   error,
@@ -39,6 +79,28 @@ function renderSection(error: unknown, retry?: () => void) {
 }
 
 describe("useApiLoadError", () => {
+  it("does not restore a cleared error after the catalog import finishes", async () => {
+    presenterImportGate.defer();
+    const { result } = renderHook(() => useApiLoadError(), {
+      wrapper: ToastProvider,
+    });
+
+    let pendingShow: Promise<unknown>;
+    act(() => {
+      pendingShow = result.current.show(
+        new ApiError("boom", 500, { code: "general.server" }),
+        { object: "die Liste" },
+      );
+    });
+    await presenterImportGate.waitForStart();
+
+    act(() => result.current.clear());
+    presenterImportGate.release();
+    await act(async () => pendingShow);
+
+    expect(result.current.error).toBeNull();
+  });
+
   it("shows a failed load in place with retry and request ID, never as a toast", async () => {
     const retry = vi.fn();
     renderSection(

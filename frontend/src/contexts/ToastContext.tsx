@@ -457,6 +457,14 @@ function useApiErrorCore(
   markFields = true,
 ) {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  // A catalog import can finish after the caller has cleared the error, shown
+  // another one, or unmounted. Only the latest request may update its state.
+  const showVersion = useRef(0);
+  const invalidatePendingShow = useCallback(() => {
+    showVersion.current += 1;
+  }, []);
+
+  useEffect(() => invalidatePendingShow, [invalidatePendingShow]);
 
   useEffect(() => {
     const firstField = Object.keys(fieldErrors)[0];
@@ -477,6 +485,8 @@ function useApiErrorCore(
 
   const show = useCallback(
     async (error: unknown, options: ApiErrorDisplayOptions) => {
+      const version = showVersion.current + 1;
+      showVersion.current = version;
       const locale = normalizeLocale(document.documentElement.lang);
       // The provider is mounted on every route. Load the catalog only when a
       // screen actually uses the opt-in error path.
@@ -484,6 +494,7 @@ function useApiErrorCore(
       try {
         presenter = await import("~/lib/error-presentation");
       } catch {
+        if (showVersion.current !== version) return;
         if (error instanceof ApiError && error.status === 401) {
           window.location.assign(
             loginUrl(window.location.host, window.location.pathname),
@@ -501,6 +512,7 @@ function useApiErrorCore(
         );
         return;
       }
+      if (showVersion.current !== version) return;
       const { presentError, errorDisplayLabels } = presenter;
       const presentation = presentError(error, options.object, locale);
       if (presentation.requiresLogin) {
@@ -541,6 +553,7 @@ function useApiErrorCore(
     fieldError: (name: string) => fieldErrors[name],
     clearFieldErrors,
     setFieldErrors,
+    invalidatePendingShow,
   };
 }
 
@@ -591,12 +604,18 @@ export function useApiFormError(formRef?: RefObject<HTMLElement | null>) {
       setError(toFormErrorDetail(shown, locale)),
     [setError],
   );
-  const { show, fieldError, clearFieldErrors, setFieldErrors } =
-    useApiErrorCore(formRef, deliver);
+  const {
+    show,
+    fieldError,
+    clearFieldErrors,
+    setFieldErrors,
+    invalidatePendingShow,
+  } = useApiErrorCore(formRef, deliver);
   const clear = useCallback(() => {
+    invalidatePendingShow();
     setError(null);
     clearFieldErrors();
-  }, [clearFieldErrors, setError]);
+  }, [clearFieldErrors, invalidatePendingShow, setError]);
   /**
    * A check the form runs before sending (#2513): same alert, the named
    * fields marked with their own hint, the first of them focused. `fields`
@@ -604,10 +623,11 @@ export function useApiFormError(formRef?: RefObject<HTMLElement | null>) {
    */
   const invalid = useCallback(
     (message: string, fields: Readonly<Record<string, string>> = {}) => {
+      invalidatePendingShow();
       setError(message);
       setFieldErrors({ ...fields });
     },
-    [setError, setFieldErrors],
+    [invalidatePendingShow, setError, setFieldErrors],
   );
   return {
     error,
@@ -632,7 +652,14 @@ export function useApiLoadError() {
       setError(toFormErrorDetail(shown, locale)),
     [setError],
   );
-  const { show } = useApiErrorCore(undefined, deliver, false);
-  const clear = useCallback(() => setError(null), [setError]);
+  const { show, invalidatePendingShow } = useApiErrorCore(
+    undefined,
+    deliver,
+    false,
+  );
+  const clear = useCallback(() => {
+    invalidatePendingShow();
+    setError(null);
+  }, [invalidatePendingShow, setError]);
   return { error, show, clear };
 }
