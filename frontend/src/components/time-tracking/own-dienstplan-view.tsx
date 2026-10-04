@@ -75,7 +75,11 @@ export function OwnDienstplanView() {
 
   // Derselbe Key und dieselbe Nutzlast wie Tagestabelle und Wochen-KPI der
   // Zeiterfassung: das Soll hier ist dasselbe wie dort.
-  const { data: projection } = useSWRAuth(
+  const {
+    data: projection,
+    error: projectionError,
+    mutate: mutateProjection,
+  } = useSWRAuth(
     timetableEnabled
       ? `time-tracking-schedule-targets-${weekFrom}-${weekTo}`
       : null,
@@ -182,7 +186,23 @@ export function OwnDienstplanView() {
                 </Button>
               ),
             }
-          : null
+          : projectionError
+            ? {
+                message:
+                  "Ihr Soll für diese Woche konnte nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+                action: (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={() => void mutateProjection()}
+                  >
+                    Erneut laden
+                  </Button>
+                ),
+                keepContent: true,
+              }
+            : null
       }
       empty={
         !loading && !shiftsError && weekShifts.length === 0

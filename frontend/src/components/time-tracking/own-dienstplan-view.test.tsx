@@ -18,11 +18,13 @@ const state = vi.hoisted(() => ({
   // zurückhält.
   shiftsHeldBack: false,
   projection: undefined as ReadonlyMap<string, DayProjection> | undefined,
+  projectionError: undefined as Error | undefined,
   timetableEnabled: true,
   day: null as string | null,
   keys: [] as (string | null)[],
   updateParams: vi.fn(),
   mutate: vi.fn(() => Promise.resolve(undefined)),
+  mutateProjection: vi.fn(() => Promise.resolve(undefined)),
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -42,9 +44,9 @@ vi.mock("~/lib/swr", () => ({
     if (key?.startsWith("time-tracking-schedule-targets-")) {
       return {
         data: state.projection,
-        error: undefined,
+        error: state.projectionError,
         isLoading: false,
-        mutate: state.mutate,
+        mutate: state.mutateProjection,
       };
     }
     return {
@@ -131,11 +133,13 @@ describe("OwnDienstplanView", () => {
     state.shiftsError = undefined;
     state.shiftsHeldBack = false;
     state.projection = undefined;
+    state.projectionError = undefined;
     state.timetableEnabled = true;
     state.day = null;
     state.keys = [];
     state.updateParams.mockClear();
     state.mutate.mockClear();
+    state.mutateProjection.mockClear();
   });
 
   it("shows the own week read-only with sums by Schichtart and the Soll", () => {
@@ -284,6 +288,23 @@ describe("OwnDienstplanView", () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
     expect(state.mutate).toHaveBeenCalled();
+  });
+
+  it("keeps the shifts visible and offers a retry when the Soll fails to load", () => {
+    state.shifts = [shift()];
+    state.projectionError = new Error("boom");
+
+    render(<OwnDienstplanView />);
+
+    expect(
+      screen.getByText(/Ihr Soll für diese Woche konnte nicht geladen werden/),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("own-week-hours-card")).toHaveTextContent(
+      "Gesamt4 h",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
+    expect(state.mutateProjection).toHaveBeenCalled();
+    expect(state.mutate).not.toHaveBeenCalled();
   });
 
   it("navigates by week through the d parameter", () => {

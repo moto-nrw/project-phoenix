@@ -90,6 +90,7 @@ const STAFF_TIME_TRACKING_CACHE_KEY_PARTS = [
   "time-tracking-schedule-targets-",
   "time-tracking-own-schedule-",
   "time-tracking-own-shifts-today-",
+  "time-tracking-own-shifts-week-",
 ] as const;
 
 // Per-student SWR keys carry the id as a segment: "student-detail-<id>",

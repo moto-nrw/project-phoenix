@@ -1880,7 +1880,7 @@ function ownShiftPlanTopic(): HelpTopic {
     differences: [
       "Auf dem Handy finden Sie `Mein Dienstplan` unten unter `Mehr`. Dort stehen die Schichten als Liste je Tag statt im Wochenraster.",
       "Sie können den Plan hier nur ansehen. Änderungen trägt die Leitung im Dienstplan ein.",
-      "Samstag und Sonntag erscheinen nur, wenn Sie dort eine Schicht haben.",
+      "Auf dem Handy erscheinen Samstag und Sonntag nur mit einer Schicht. Bei einem Sonntagsdienst kann im Wochenraster auch der Samstag erscheinen.",
     ],
     troubleshootingDetails: [
       "`Mein Dienstplan` fehlt? Dann plant Ihre OGS die Schichten nicht in moto.",
