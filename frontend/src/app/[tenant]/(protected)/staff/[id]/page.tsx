@@ -37,7 +37,11 @@ import { AbwesenheitenTab } from "~/components/staff/abwesenheiten-tab";
 import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
 import { DokumenteTab } from "~/components/staff/dokumente-tab";
 import { KlassenTab } from "~/components/staff/klassen-tab";
-import { KontoTab, type KontoDraft } from "~/components/staff/konto-tab";
+import {
+  KontoRoleSaveError,
+  KontoTab,
+  type KontoDraft,
+} from "~/components/staff/konto-tab";
 import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { StammdatenTab } from "~/components/staff/stammdaten-tab";
@@ -231,9 +235,7 @@ export default function StaffDetailContent() {
             staff_id: staffId,
             error: err instanceof Error ? err.message : String(err),
           });
-          throw new Error("Die Änderungen konnten nicht gespeichert werden.", {
-            cause: err,
-          });
+          throw err;
         }
       }
       if (targetRoleId !== undefined) {
@@ -247,12 +249,12 @@ export default function StaffDetailContent() {
             error: err instanceof Error ? err.message : String(err),
           });
           await refreshRecord();
-          throw new Error(
-            hasRecordChanges
-              ? "Name, Position und Notizen sind gespeichert. Die Systemrolle konnte nicht geändert werden."
-              : "Die Systemrolle konnte nicht geändert werden.",
-            { cause: err },
-          );
+          // Der Datensatz ist gespeichert; das sagt eine Erfolgsmeldung,
+          // der Fehler im Formular nennt nur die Systemrolle.
+          if (hasRecordChanges) {
+            toastSuccess("Name, Position und Notizen sind gespeichert.");
+          }
+          throw new KontoRoleSaveError(err);
         }
         await tenantMutate(roleAssignmentKey(accountId));
       }

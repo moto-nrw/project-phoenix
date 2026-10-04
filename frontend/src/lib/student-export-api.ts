@@ -65,6 +65,11 @@ export interface StudentExportFilters {
    * (#3323); they print "Nicht hinterlegt". Other lists ignore it.
    */
   include_without_health_info?: boolean;
+  /**
+   * Only these children (#3834): the selection of a table view. Narrows the
+   * other filters and never widens them.
+   */
+  student_ids?: string[];
 }
 
 export interface BirthdayMonthOption {

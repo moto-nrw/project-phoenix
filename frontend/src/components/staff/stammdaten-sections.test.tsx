@@ -1,8 +1,26 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as renderUi,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
+import { ToastProvider } from "~/contexts/ToastContext";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import { StammdatenTab } from "./stammdaten-tab";
-import { staffStammdatenService, type StaffStammdaten } from "~/lib/staff-api";
+import {
+  staffPayrollNumberService,
+  staffStammdatenService,
+  type StaffStammdaten,
+} from "~/lib/staff-api";
+
+// The tab reports a failed reveal as a toast (#2511); the app mounts the
+// provider globally.
+function render(ui: ReactElement) {
+  return renderUi(ui, { wrapper: ToastProvider });
+}
 
 // Section rendering + permission gating of the Stammdaten tab (#1423). The
 // SWR mock switches on the cache key so the aggregate, payroll and financial
@@ -187,6 +205,152 @@ describe("StammdatenTab Sektionen (#1423)", () => {
     );
   });
 
+  it("meldet einen abgelehnten Abschnitt im Alert oben und markiert die Felder", async () => {
+    seedSWR();
+    vi.mocked(staffStammdatenService.updatePerson).mockRejectedValue(
+      new ApiError("first_name: is required.", 400, {
+        code: "general.input",
+        errors: [{ field: "first_name", reason: "is required" }],
+      }),
+    );
+    render(
+      <StammdatenTab
+        staffId="42"
+        canManagePayroll={false}
+        canManagePayrollSettings={false}
+        canViewSections
+        canEditSections
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Bearbeiten" })[0]!);
+    fireEvent.change(screen.getByLabelText("Geburtsdatum"), {
+      target: { value: "17.04.1982" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        "Die Änderung an „Person“ konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
+      ),
+    ).toBeInTheDocument();
+    const first = screen.getByLabelText("Vorname");
+    await waitFor(() => expect(first).toHaveFocus());
+    expect(first).toHaveAttribute("aria-invalid", "true");
+    expect(screen.queryByRole("alert", { name: /^Fehler:/ })).toBeNull();
+  });
+
+  it("zeigt bei einem Serverfehler die Vorgangskennung zum Kopieren", async () => {
+    seedSWR();
+    vi.mocked(staffStammdatenService.updatePerson).mockRejectedValue(
+      new ApiError("boom", 500, {
+        code: "general.server",
+        instance: "req-stamm-1",
+      }),
+    );
+    render(
+      <StammdatenTab
+        staffId="42"
+        canManagePayroll={false}
+        canManagePayrollSettings={false}
+        canViewSections
+        canEditSections
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Bearbeiten" })[0]!);
+    fireEvent.change(screen.getByLabelText("Geburtsdatum"), {
+      target: { value: "17.04.1982" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("Vorgangskennung: req-stamm-1");
+    expect(
+      screen.getByText(
+        "Die Änderung an „Person“ konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("nennt eine vergebene Personalnummer und schickt gespeicherte Abschnitte nicht erneut", async () => {
+    seedSWR();
+    vi.mocked(staffStammdatenService.updatePerson).mockResolvedValue(undefined);
+    vi.mocked(staffPayrollNumberService.update).mockReset();
+    vi.mocked(staffPayrollNumberService.update)
+      .mockRejectedValueOnce(
+        new ApiError("personnel number taken", 409, {
+          code: "workforce.personnel_number_taken",
+        }),
+      )
+      .mockResolvedValueOnce("90002");
+    render(
+      <StammdatenTab
+        staffId="42"
+        canManagePayroll
+        canManagePayrollSettings={false}
+        canViewSections
+        canEditSections
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Bearbeiten" })[0]!);
+    fireEvent.change(screen.getByLabelText("Geburtsdatum"), {
+      target: { value: "17.04.1982" },
+    });
+    fireEvent.change(screen.getByLabelText("Personalnummer"), {
+      target: { value: "90002" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        "Die Personalnummer gibt es bereits. Bitte wählen Sie eine andere Angabe.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(staffPayrollNumberService.update).toHaveBeenCalledTimes(2),
+    );
+    expect(staffStammdatenService.updatePerson).toHaveBeenCalledTimes(1);
+  });
+
+  it("hält beim ersten abgelehnten Abschnitt an", async () => {
+    seedSWR();
+    vi.mocked(staffStammdatenService.updatePerson).mockRejectedValue(
+      new ApiError("boom", 503, { code: "general.unavailable" }),
+    );
+    vi.mocked(staffPayrollNumberService.update).mockReset();
+    render(
+      <StammdatenTab
+        staffId="42"
+        canManagePayroll
+        canManagePayrollSettings={false}
+        canViewSections
+        canEditSections
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Bearbeiten" })[0]!);
+    fireEvent.change(screen.getByLabelText("Geburtsdatum"), {
+      target: { value: "17.04.1982" },
+    });
+    fireEvent.change(screen.getByLabelText("Personalnummer"), {
+      target: { value: "90002" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        "Die Änderung an „Person“ ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+      ),
+    ).toBeInTheDocument();
+    expect(staffPayrollNumberService.update).not.toHaveBeenCalled();
+  });
+
   it("zeigt ohne staff:financial die Sperre statt der Bank-Sektion", () => {
     seedSWR();
     render(
@@ -237,6 +401,31 @@ describe("StammdatenTab Sektionen (#1423)", () => {
     expect(
       screen.queryByText("DE89370400440532013000"),
     ).not.toBeInTheDocument();
+    expect(screen.getByText("•••• 3000")).toBeInTheDocument();
+  });
+
+  it("meldet ein abgelehntes Anzeigen der Bankdaten als Toast", async () => {
+    seedSWR({ financial: true });
+    revealFinancial.mockRejectedValue(
+      new ApiError("forbidden", 403, { code: "general.permission" }),
+    );
+    render(
+      <StammdatenTab
+        staffId="42"
+        canManagePayroll={false}
+        canManagePayrollSettings={false}
+        canViewSections
+        canViewFinancial
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Anzeigen" }));
+
+    expect(
+      await screen.findByRole("alert", {
+        name: "Fehler: Für die Anzeige der Bank- und Steuerdaten fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+      }),
+    ).toBeInTheDocument();
     expect(screen.getByText("•••• 3000")).toBeInTheDocument();
   });
 

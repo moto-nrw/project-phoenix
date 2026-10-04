@@ -915,6 +915,12 @@
       "legacy": "demo_session"
     },
     {
+      "code": "identity.email_already_exists",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.email_already_exists"
+    },
+    {
       "code": "identity.invitation_account_login_required",
       "class": "permission",
       "parameters": [],

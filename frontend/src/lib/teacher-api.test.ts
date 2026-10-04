@@ -200,7 +200,9 @@ describe("teacher-api", () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({
         ok: false,
+        status: 404,
         statusText: "Not Found",
+        text: () => Promise.resolve(""),
       } as Response);
 
       await expect(teacherService.getTeacher("999")).rejects.toThrow(
@@ -741,7 +743,9 @@ describe("teacher-api", () => {
       // Mock person GET failure
       mockFetch.mockResolvedValueOnce({
         ok: false,
+        status: 404,
         statusText: "Not Found",
+        text: () => Promise.resolve(""),
       } as Response);
 
       await expect(

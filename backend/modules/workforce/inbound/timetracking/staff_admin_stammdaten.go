@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
 	"github.com/go-chi/render"
+	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
@@ -73,11 +74,17 @@ type StammdatenPersonRequest struct {
 	Note string `json:"note"`
 }
 
+// Bind reports every blank name as its own field, so the form can mark all of
+// them at once (#2511).
 func (r *StammdatenPersonRequest) Bind(_ *http.Request) error {
-	if strings.TrimSpace(r.FirstName) == "" || strings.TrimSpace(r.LastName) == "" {
-		return errors.New("first_name and last_name are required")
+	missing := validation.Errors{}
+	if strings.TrimSpace(r.FirstName) == "" {
+		missing["first_name"] = errors.New("is required")
 	}
-	return nil
+	if strings.TrimSpace(r.LastName) == "" {
+		missing["last_name"] = errors.New("is required")
+	}
+	return missing.Filter()
 }
 
 // StammdatenKontaktRequest binds the contact section PUT.

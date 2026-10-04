@@ -2150,7 +2150,7 @@
         "preview_stale": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
       "identity": {
-        "account_already_has_tenant_access": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "account_already_has_tenant_access": "Ця особа вже має доступ до цієї школи. Її можна знайти в списку персоналу.",
         "account_inactive": "У вас немає доступу до: {object}. Зверніться до школи.",
         "demo_access_expired": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "demo_access_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
@@ -2159,6 +2159,7 @@
         "demo_capacity_reached": "{object} зараз недоступний. Спробуйте ще раз.",
         "demo_school_preparing": "{object} зараз недоступний. Спробуйте ще раз.",
         "demo_session": "У вас немає доступу до: {object}. Зверніться до школи.",
+        "email_already_exists": "Для цієї адреси електронної пошти вже є обліковий запис. Укажіть іншу адресу.",
         "invitation_account_login_required": "У вас немає доступу до: {object}. Зверніться до школи.",
         "invitation_account_mismatch": "У вас немає доступу до: {object}. Зверніться до школи.",
         "preview_target_not_previewable": "У вас немає доступу до: {object}. Зверніться до школи.",

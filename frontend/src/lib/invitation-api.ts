@@ -1,5 +1,4 @@
-import type { ApiError } from "~/lib/auth-api";
-import { wireErrorCode } from "~/lib/api-error";
+import { type ApiError, apiErrorFromBody } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "InvitationAPI" });
@@ -31,23 +30,25 @@ const parseRetryAfter = (value: string | null): number | undefined => {
   return undefined;
 };
 
+// Deliberately not auth-api's buildApiError: importing that module puts it
+// into the /invite bundle. The result is the same structured ApiError with
+// code, field errors and request ID (#2511).
 const createApiError = async (
   response: Response,
   fallbackMessage: string,
 ): Promise<ApiError> => {
   let message = fallbackMessage;
-  let code: string | undefined;
+  let payload: unknown;
 
   try {
     const contentType = response.headers.get("Content-Type") ?? "";
-    if (contentType.includes("application/json")) {
-      const payload = (await response.json()) as {
+    if (contentType.includes("json")) {
+      const body = (await response.json()) as {
         error?: string;
         message?: string;
-        code?: string;
       };
-      message = payload.error ?? payload.message ?? fallbackMessage;
-      code = payload.code;
+      message = body.error ?? body.message ?? fallbackMessage;
+      payload = body;
     } else {
       const text = (await response.text()).trim();
       if (text) {
@@ -60,9 +61,7 @@ const createApiError = async (
     });
   }
 
-  const apiError = new Error(message) as ApiError;
-  apiError.status = response.status;
-  apiError.code = wireErrorCode(code);
+  const apiError = apiErrorFromBody(message, response.status, payload);
   const retry = parseRetryAfter(response.headers.get("Retry-After"));
   if (retry !== undefined) {
     apiError.retryAfterSeconds = retry;

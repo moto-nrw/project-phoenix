@@ -329,7 +329,7 @@ const ROW_ACTION_BASELINE = new Map(
     ],
     "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1233"],
     "src/components/staff/stammdaten-section-forms.tsx": [
-      "Qualifikation entfernen@415",
+      "Qualifikation entfernen@422",
     ],
     "src/components/students/companion-picker.tsx": ["entfernen@274"],
     "src/components/students/student-create-modal.tsx": [

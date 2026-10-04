@@ -25,6 +25,7 @@ func TestExportRequestToListParamsPreservesRoomFilter(t *testing.T) {
 			GroupID:     "17",
 			RoomID:      "42",
 			SchoolClass: "3a",
+			StudentIDs:  []string{"12", "7", "12"},
 		},
 	}, testExportDate)
 
@@ -32,6 +33,7 @@ func TestExportRequestToListParamsPreservesRoomFilter(t *testing.T) {
 	assert.Equal(t, []int64{17}, params.groupIDs)
 	assert.Equal(t, int64(42), params.roomID)
 	assert.Equal(t, []string{"3a"}, params.schoolClasses)
+	assert.Equal(t, []int64{12, 7}, params.studentIDs)
 	assert.Equal(t, studentExportPageSize, params.pageSize)
 	assert.Equal(t, CareStatusRunning, params.careStatus)
 	assert.Equal(t, testExportDate, params.careStatusOn)

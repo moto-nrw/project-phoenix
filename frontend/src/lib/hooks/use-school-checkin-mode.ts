@@ -182,6 +182,12 @@ interface UseSchoolCheckinModeResult {
   selectedIds: ReadonlySet<string>;
   toggleSelected: (studentId: string) => void;
   /**
+   * Mark or unmark several students at once: the table view's checkboxes,
+   * including its "alle auswählen" box (#3834). Works without the check-in
+   * mode — the table marks children directly.
+   */
+  setSelected: (studentIds: readonly string[], selected: boolean) => void;
+  /**
    * Empty the selection. While a bulk request is in flight the clear is
    * DEFERRED until the run settles (review #2372): the page fires this on
    * every search/filter scope change, and clearing mid-flight would race the
@@ -303,6 +309,20 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
       return next;
     });
   }, []);
+
+  const setSelected = useCallback(
+    (studentIds: readonly string[], selected: boolean) => {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of studentIds) {
+          if (selected) next.add(id);
+          else next.delete(id);
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
   const toggle = useCallback(
     async (
@@ -495,6 +515,7 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
     setSelectionActive,
     selectedIds,
     toggleSelected,
+    setSelected,
     clearSelection,
     isBulkRunning,
     runBulk,

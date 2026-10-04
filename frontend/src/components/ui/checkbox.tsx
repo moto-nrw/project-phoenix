@@ -14,7 +14,9 @@ import { cn } from "~/lib/utils";
  * need so it composes into dense multi-select lists and single toggle rows
  * alike.
  */
-type CheckboxProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "type">;
+// ComponentProps (not InputHTMLAttributes) so a caller can pass `ref`, e.g.
+// to set the native `indeterminate` state of a "select all" box.
+type CheckboxProps = Omit<React.ComponentProps<"input">, "type">;
 
 export function Checkbox({ className, ...props }: CheckboxProps) {
   return (

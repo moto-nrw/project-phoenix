@@ -2150,7 +2150,7 @@
         "preview_stale": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "identity": {
-        "account_already_has_tenant_access": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "account_already_has_tenant_access": "Bu kişinin bu okula zaten erişimi var. Kişiyi personel listesinde bulabilirsiniz.",
         "account_inactive": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "demo_access_expired": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "demo_access_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
@@ -2159,6 +2159,7 @@
         "demo_capacity_reached": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
         "demo_school_preparing": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
         "demo_session": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "email_already_exists": "Bu e-posta adresi için zaten bir hesap var. Lütfen başka bir adres kullanın.",
         "invitation_account_login_required": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "invitation_account_mismatch": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "preview_target_not_previewable": "{object} için erişim izniniz yok. Okulla iletişime geçin.",

@@ -2150,7 +2150,7 @@
         "preview_stale": "{object} could not be changed. Please check its current status."
       },
       "identity": {
-        "account_already_has_tenant_access": "{object} could not be changed. Please check its current status.",
+        "account_already_has_tenant_access": "This person already has access to this school. You can find them in the staff list.",
         "account_inactive": "You cannot access {object}. Please contact the school.",
         "demo_access_expired": "{object} could not be changed. Please check its current status.",
         "demo_access_invalid": "{object} could not be saved. Please check your entries.",
@@ -2159,6 +2159,7 @@
         "demo_capacity_reached": "{object} is unavailable right now. Please try again.",
         "demo_school_preparing": "{object} is unavailable right now. Please try again.",
         "demo_session": "You cannot access {object}. Please contact the school.",
+        "email_already_exists": "There is already an account for this email address. Please use a different address.",
         "invitation_account_login_required": "You cannot access {object}. Please contact the school.",
         "invitation_account_mismatch": "You cannot access {object}. Please contact the school.",
         "preview_target_not_previewable": "You cannot access {object}. Please contact the school.",
