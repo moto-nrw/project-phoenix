@@ -1,10 +1,4 @@
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
 
@@ -19,19 +13,8 @@ const getSeries = vi.fn();
 const updateShift = vi.fn();
 const deleteShift = vi.fn();
 const listPeriods = vi.fn();
-const mockUseClosingDaysState = vi.hoisted(() =>
-  vi.fn(() => ({
-    closingDays: new Map<string, string>(),
-    closingDayRanges: [],
-    isLoading: false,
-  })),
-);
 const mockDatePickerValue = vi.hoisted(() => ({
   value: new Date(2026, 11, 31),
-}));
-
-vi.mock("~/lib/hooks/use-closing-days", () => ({
-  useClosingDaysState: mockUseClosingDaysState,
 }));
 
 vi.mock("~/lib/shift-api", () => ({
@@ -153,17 +136,13 @@ const seriesRule = {
   weekPattern: 0,
   validFrom: "2026-09-01",
   validUntil: null,
+  includeSchoolBreaks: false,
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockDatePickerValue.value = new Date(2026, 11, 31);
   listPeriods.mockResolvedValue([halbjahr]);
-  mockUseClosingDaysState.mockReturnValue({
-    closingDays: new Map(),
-    closingDayRanges: [],
-    isLoading: false,
-  });
   getSeries.mockResolvedValue(seriesRule);
 });
 
@@ -212,79 +191,63 @@ describe("ShiftEditModal series creation", () => {
         weekPattern: 0,
         validFrom: "2026-09-07",
         validUntil: null,
+        includeSchoolBreaks: false,
       });
     });
     expect(onSaved).toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("asks when a generated series shift falls on a closing day", async () => {
+  // #3820: Ferien und Schließtage lässt die Serie standardmäßig aus; der
+  // Haken ersetzt die frühere Schließtag-Rückfrage (#2032).
+  it("plans Ferien and closing days only when the box is ticked", async () => {
     createSeries.mockResolvedValue({
       seriesId: "5",
       created: 20,
       skippedDates: [],
+      skippedNonWorkingDays: 0,
     });
-    renderModal({
-      closingDayRanges: [
-        {
-          startDate: "2026-09-14",
-          endDate: "2026-09-14",
-          reason: "Pädagogischer Tag",
-        },
-      ],
-    });
+    renderModal({});
 
     fireEvent.click(screen.getByLabelText("Als Serie wiederholen"));
     await screen.findByText("1. Halbjahr 2026/27");
+    const box = screen.getByLabelText(
+      /Auch in den Ferien und an Schließtagen planen/,
+    );
+    expect(box).not.toBeChecked();
+    fireEvent.click(box);
     fireEvent.click(screen.getByRole("button", { name: "Serie anlegen" }));
 
-    const dialog = await screen.findByRole("dialog", {
-      name: "An einem Schließtag planen?",
+    await waitFor(() => {
+      expect(createSeries).toHaveBeenCalledWith(
+        expect.objectContaining({ includeSchoolBreaks: true }),
+      );
     });
-    expect(within(dialog).getByText(/14\.09\.2026/)).toBeInTheDocument();
-    expect(createSeries).not.toHaveBeenCalled();
-
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Trotzdem planen" }),
-    );
-    await waitFor(() => expect(createSeries).toHaveBeenCalled());
+    expect(
+      screen.queryByRole("dialog", { name: "An einem Schließtag planen?" }),
+    ).not.toBeInTheDocument();
   });
 
-  it("uses the permitted window lookup when full closing-day ranges are unavailable", async () => {
-    mockUseClosingDaysState.mockReturnValue({
-      closingDays: new Map([["2026-09-14", "Pädagogischer Tag"]]),
-      closingDayRanges: [],
-      isLoading: false,
+  it("says how many days stayed free in the Ferien, on closing days or holidays", async () => {
+    createSeries.mockResolvedValue({
+      seriesId: "5",
+      created: 15,
+      skippedDates: [],
+      skippedNonWorkingDays: 5,
     });
-    renderModal({});
+    const onClose = vi.fn();
+    renderModal({ onClose });
 
     fireEvent.click(screen.getByLabelText("Als Serie wiederholen"));
     await screen.findByText("1. Halbjahr 2026/27");
     fireEvent.click(screen.getByRole("button", { name: "Serie anlegen" }));
 
     expect(
-      await screen.findByRole("dialog", {
-        name: "An einem Schließtag planen?",
-      }),
+      await screen.findByText(
+        "5 Tage liegen in den Ferien, an Schließtagen oder Feiertagen und bleiben frei.",
+      ),
     ).toBeInTheDocument();
-    expect(createSeries).not.toHaveBeenCalled();
-  });
-
-  it("keeps series submission disabled while closing days are loading", async () => {
-    mockUseClosingDaysState.mockReturnValue({
-      closingDays: new Map(),
-      closingDayRanges: [],
-      isLoading: true,
-    });
-    renderModal({});
-
-    fireEvent.click(screen.getByLabelText("Als Serie wiederholen"));
-    await screen.findByText("1. Halbjahr 2026/27");
-
-    const submit = screen.getByRole("button", { name: "Serie anlegen" });
-    expect(submit).toBeDisabled();
-    fireEvent.click(submit);
-    expect(createSeries).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("drops a stale A/B pattern when switching to a period without a week cycle", async () => {
@@ -523,6 +486,7 @@ describe("ShiftEditModal series rule editing", () => {
         weekdays: [1, 3, 5],
         weekPattern: 0,
         validUntil: null,
+        includeSchoolBreaks: false,
       });
     });
     expect(updateShift).not.toHaveBeenCalled();
@@ -668,108 +632,36 @@ describe("ShiftEditModal series rule editing", () => {
     ).not.toBeInTheDocument();
   });
 
-  // #2032: Die Serienbearbeitung plant ab dieser Stelle neu und kann dabei
-  // spätere Termine auf einen Schließtag legen — dieselbe Rückfrage wie beim
-  // Anlegen einer Serie.
-  it("asks before a series edit replans onto a closing day", async () => {
-    mockUseClosingDaysState.mockReturnValue({
-      // 2026-09-14 ist ein Montag und damit ein Termin der Mo/Mi-Serie.
-      closingDays: new Map([["2026-09-14", "Pädagogischer Tag"]]),
-      closingDayRanges: [],
-      isLoading: false,
-    });
+  // #3820: Der Haken zeigt die gespeicherte Wahl und geht beim Speichern mit.
+  it("shows the stored school-break choice and saves a changed one", async () => {
+    getSeries.mockResolvedValue({ ...seriesRule, includeSchoolBreaks: true });
     splitSeries.mockResolvedValue({
       seriesId: "6",
       created: 12,
       skippedDates: [],
+      skippedNonWorkingDays: 0,
     });
     renderModal({ mode: "edit", shift: seriesShift });
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Serie bearbeiten" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
-
-    const dialog = await screen.findByRole("dialog", {
-      name: "An einem Schließtag planen?",
-    });
-    expect(within(dialog).getByText(/14\.09\.2026/)).toBeInTheDocument();
-    expect(splitSeries).not.toHaveBeenCalled();
-
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Trotzdem planen" }),
+    const box = screen.getByLabelText(
+      /Auch in den Ferien und an Schließtagen planen/,
     );
+    expect(box).toBeChecked();
+    fireEvent.click(box);
+    fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
 
     await waitFor(() => {
       expect(splitSeries).toHaveBeenCalledWith(
         "5",
-        expect.objectContaining({ effectiveDate: "2026-09-07" }),
+        expect.objectContaining({
+          effectiveDate: "2026-09-07",
+          includeSchoolBreaks: false,
+        }),
       );
     });
-  });
-
-  it("writes nothing when the series closing-day warning is dismissed", async () => {
-    mockUseClosingDaysState.mockReturnValue({
-      closingDays: new Map([["2026-09-14", "Pädagogischer Tag"]]),
-      closingDayRanges: [],
-      isLoading: false,
-    });
-    renderModal({ mode: "edit", shift: seriesShift });
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Serie bearbeiten" }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
-
-    const dialog = await screen.findByRole("dialog", {
-      name: "An einem Schließtag planen?",
-    });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Abbrechen" }));
-
-    expect(splitSeries).not.toHaveBeenCalled();
-  });
-
-  it("saves a series edit without asking when no occurrence hits a closing day", async () => {
-    mockUseClosingDaysState.mockReturnValue({
-      // Ein Dienstag: die Mo/Mi-Serie erzeugt dort keinen Termin.
-      closingDays: new Map([["2026-09-15", "Brückentag"]]),
-      closingDayRanges: [],
-      isLoading: false,
-    });
-    splitSeries.mockResolvedValue({
-      seriesId: "6",
-      created: 12,
-      skippedDates: [],
-    });
-    renderModal({ mode: "edit", shift: seriesShift });
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Serie bearbeiten" }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
-
-    await waitFor(() => expect(splitSeries).toHaveBeenCalled());
-    expect(
-      screen.queryByRole("dialog", { name: "An einem Schließtag planen?" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("keeps the series save disabled until closing days have loaded", async () => {
-    mockUseClosingDaysState.mockReturnValue({
-      closingDays: new Map<string, string>(),
-      closingDayRanges: [],
-      isLoading: true,
-    });
-    renderModal({ mode: "edit", shift: seriesShift });
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Serie bearbeiten" }),
-    );
-    const save = screen.getByRole("button", { name: "Serie speichern" });
-    expect(save).toBeDisabled();
-
-    fireEvent.click(save);
-    expect(splitSeries).not.toHaveBeenCalled();
   });
 });
 
@@ -832,6 +724,7 @@ describe("ShiftEditModal series rule editing at the end of a segment", () => {
         weekPattern: 0,
         // Picker is inclusive, the API's valid_until exclusive.
         validUntil: "2027-01-01",
+        includeSchoolBreaks: false,
       });
     });
   });
