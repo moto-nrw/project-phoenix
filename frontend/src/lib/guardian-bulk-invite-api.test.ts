@@ -76,11 +76,11 @@ describe("bulkInviteGuardians", () => {
     mockFetch(403, {});
     await expect(
       bulkInviteGuardians(["4"], { dryRun: false, resendOpen: false }),
-    ).rejects.toThrow("403");
+    ).rejects.toMatchObject({ status: 403, code: "general.permission" });
 
     mockFetch(200, { status: "error", error: "nope" });
     await expect(
       bulkInviteGuardians(["4"], { dryRun: false, resendOpen: false }),
-    ).rejects.toThrow("nope");
+    ).rejects.toMatchObject({ status: 500, code: "general.server" });
   });
 });

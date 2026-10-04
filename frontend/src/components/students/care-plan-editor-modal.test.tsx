@@ -6,14 +6,17 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
 import { CarePlanEditorModal } from "./care-plan-editor-modal";
 import type { ArrivalDayData } from "~/lib/arrival-schedule-helpers";
 import type { DayData as PickupDayData } from "~/lib/pickup-schedule-helpers";
+import { catalogText } from "~/test/error-catalog-text";
 
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: toastSuccess,
     error: toastError,
@@ -22,59 +25,58 @@ vi.mock("~/contexts/ToastContext", () => ({
 
 // Der Editor laeuft als SlideOver (Vaul). Vaul rendert in jsdom nicht, deshalb
 // steht hier dieselbe Struktur ohne Animationsschicht.
-vi.mock("~/components/ui/slide-over", () => ({
-  SlideOver: ({
-    open,
-    onOpenChange,
-    children,
-  }: {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    children: React.ReactNode;
-  }) =>
-    open ? (
+vi.mock("~/components/ui/slide-over", async () => {
+  const { FormErrorAlert } = await import("~/components/ui/form-error-alert");
+  return {
+    SlideOver: ({
+      open,
+      onOpenChange,
+      children,
+    }: {
+      open: boolean;
+      onOpenChange: (open: boolean) => void;
+      children: React.ReactNode;
+    }) =>
+      open ? (
+        <div>
+          <button type="button" onClick={() => onOpenChange(false)}>
+            Panel schließen
+          </button>
+          {children}
+        </div>
+      ) : null,
+    SlideOverContent: ({ children }: { children: React.ReactNode }) => (
+      <div>{children}</div>
+    ),
+    SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
+      <div>{children}</div>
+    ),
+    SlideOverBody: ({
+      error,
+      children,
+    }: {
+      error?: React.ComponentProps<typeof FormErrorAlert>["message"];
+      children: React.ReactNode;
+    }) => (
       <div>
-        <button type="button" onClick={() => onOpenChange(false)}>
-          Panel schließen
-        </button>
+        <FormErrorAlert message={error} />
         {children}
       </div>
-    ) : null,
-  SlideOverContent: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  SlideOverBody: ({
-    error,
-    children,
-  }: {
-    error?: string | { message: string } | null;
-    children: React.ReactNode;
-  }) => (
-    <div>
-      {error ? (
-        <div role="alert">
-          {typeof error === "string" ? error : error.message}
-        </div>
-      ) : null}
-      {children}
-    </div>
-  ),
-  SlideOverFooter: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  SlideOverTitle: ({ children }: { children: React.ReactNode }) => (
-    <h2>{children}</h2>
-  ),
-  SlideOverDescription: ({ children }: { children: React.ReactNode }) => (
-    <p>{children}</p>
-  ),
-  SlideOverCloseButton: (
-    props: React.ButtonHTMLAttributes<HTMLButtonElement>,
-  ) => <button type="button" {...props} />,
-}));
+    ),
+    SlideOverFooter: ({ children }: { children: React.ReactNode }) => (
+      <div>{children}</div>
+    ),
+    SlideOverTitle: ({ children }: { children: React.ReactNode }) => (
+      <h2>{children}</h2>
+    ),
+    SlideOverDescription: ({ children }: { children: React.ReactNode }) => (
+      <p>{children}</p>
+    ),
+    SlideOverCloseButton: (
+      props: React.ButtonHTMLAttributes<HTMLButtonElement>,
+    ) => <button type="button" {...props} />,
+  };
+});
 
 vi.mock("~/components/ui/modal", () => ({
   // ConfirmDeleteModal (Hinweis löschen, #3109) renders through the kit Modal.
@@ -327,7 +329,7 @@ describe("CarePlanEditorModal", () => {
     save();
 
     expect(
-      await screen.findByText("Bitte zuerst eine Zeit ändern."),
+      await screen.findByText("Bitte ändern Sie zuerst eine Zeit."),
     ).toBeInTheDocument();
     expect(onSubmitException).not.toHaveBeenCalled();
   });
@@ -343,7 +345,7 @@ describe("CarePlanEditorModal", () => {
     save();
 
     expect(
-      await screen.findByText("Bitte eine gültige Ankunftszeit eingeben."),
+      await screen.findByText("Bitte geben Sie eine gültige Ankunftszeit ein."),
     ).toBeInTheDocument();
     expect(onSubmitException).not.toHaveBeenCalled();
   });
@@ -395,9 +397,11 @@ describe("CarePlanEditorModal", () => {
   });
 
   it("explains when a pickup exception needs a staff profile", async () => {
-    const onSubmitException = vi
-      .fn()
-      .mockRejectedValue(new Error("students.staff_profile_required"));
+    const onSubmitException = vi.fn().mockRejectedValue(
+      new ApiError("staff profile required", 403, {
+        code: "students.staff_profile_required",
+      }),
+    );
     renderEditor({
       onSubmitException,
       pickupDay: {
@@ -428,11 +432,12 @@ describe("CarePlanEditorModal", () => {
       await screen.findByRole("button", { name: "Trotzdem überschreiben" }),
     );
 
-    expect(
-      await screen.findByText(
-        "Diese Zeit wurde von den Eltern gesetzt und kann nur von Mitarbeitenden mit Personalprofil geändert werden.",
-      ),
-    ).toBeInTheDocument();
+    // Der Text kommt aus dem Katalog zum Code, nie aus der Servermeldung.
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      catalogText("students.staff_profile_required", "die Ausnahme"),
+    );
+    expect(alert).not.toHaveTextContent(/staff profile|staff_profile/);
     expect(onSubmitException).toHaveBeenCalled();
   });
 
@@ -475,7 +480,9 @@ describe("CarePlanEditorModal", () => {
   it("shows a note mutation error and keeps the draft", async () => {
     const onCreateArrivalNote = vi
       .fn()
-      .mockRejectedValue(new Error("Hinweis konnte nicht gespeichert werden"));
+      .mockRejectedValue(
+        new ApiError("note failed", 400, { code: "general.input" }),
+      );
     renderEditor({ onCreateArrivalNote });
 
     const draft = screen.getByLabelText("Ankunft Hinweis hinzufügen");
@@ -483,7 +490,7 @@ describe("CarePlanEditorModal", () => {
     fireEvent.click(draft.parentElement!.querySelector("button")!);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Hinweis konnte nicht gespeichert werden",
+      "Die Notiz konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
     );
     expect(toastError).not.toHaveBeenCalled();
     expect(draft).toHaveValue("Bitte klingeln");
@@ -586,7 +593,10 @@ describe("CarePlanEditorModal", () => {
   it("shows an error when resetting to the offering pickup time fails", async () => {
     const onResetPickupToOffering = vi
       .fn()
-      .mockRejectedValue(new Error("request failed"));
+      .mockRejectedValueOnce(
+        new ApiError("request failed", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce(undefined);
     renderEditor({ onResetPickupToOffering });
 
     fireEvent.click(
@@ -598,9 +608,14 @@ describe("CarePlanEditorModal", () => {
     expect(onResetPickupToOffering).toHaveBeenCalledWith(1, "2026-05-25");
 
     const message =
-      "Die Abholung konnte nicht zurückgesetzt werden. Bitte versuchen Sie es noch einmal.";
+      "Die Abholung ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.";
     expect(await screen.findByRole("alert")).toHaveTextContent(message);
     expect(toastError).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() =>
+      expect(onResetPickupToOffering).toHaveBeenCalledTimes(2),
+    );
   });
 
   it("limits day notes to the API-supported length", () => {

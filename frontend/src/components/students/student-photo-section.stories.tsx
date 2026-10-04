@@ -42,6 +42,9 @@ export const NoConsentNoPhoto: Story = {
     onCancelRemove: () => {
       // no-op for story
     },
+    onPhotoError: () => {
+      // no-op for story
+    },
   },
 };
 
@@ -64,6 +67,9 @@ export const ConsentGivenNoPhoto: Story = {
       // no-op for story
     },
     onCancelRemove: () => {
+      // no-op for story
+    },
+    onPhotoError: () => {
       // no-op for story
     },
   },
@@ -91,6 +97,9 @@ export const ConsentGivenWithServerPhoto: Story = {
     onCancelRemove: () => {
       // no-op for story
     },
+    onPhotoError: () => {
+      // no-op for story
+    },
   },
 };
 
@@ -114,6 +123,9 @@ export const PendingRemoval: Story = {
       // no-op for story
     },
     onCancelRemove: () => {
+      // no-op for story
+    },
+    onPhotoError: () => {
       // no-op for story
     },
   },

@@ -1,25 +1,26 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as renderComponent,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Fehler laufen als Toast; die Karte selbst zeigt keinen Fehlerkasten mehr.
-const mockToast = {
-  success: vi.fn(),
-  error: vi.fn(),
-  warning: vi.fn(),
-  info: vi.fn(),
-};
-vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => mockToast,
-}));
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
-// Fehlermeldungen laufen als Toast: geprüft wird der Toast-Aufruf, nicht die DOM.
-async function expectErrorToast(pattern: RegExp) {
-  await waitFor(() =>
-    expect(mockToast.error).toHaveBeenCalledWith(
-      expect.stringMatching(pattern),
-      expect.anything(),
-    ),
-  );
+// Fehler laufen als Toast über den gemeinsamen Fehlerweg; die Karte selbst
+// zeigt keinen Fehlerkasten.
+function render(ui: ReactElement) {
+  return renderComponent(ui, { wrapper: ToastProvider });
+}
+
+async function expectErrorToast(expected: RegExp | string) {
+  expect(
+    await screen.findByRole("alert", { name: /^Fehler:/ }),
+  ).toHaveTextContent(expected);
 }
 
 import { CareRequestReviewItem } from "./care-request-review-item";
@@ -312,7 +313,9 @@ describe("CareRequestReviewItem", () => {
   });
 
   it("shows a generic decision error without calling onDecided", async () => {
-    mockDecide.mockRejectedValueOnce(new Error("boom"));
+    mockDecide.mockRejectedValueOnce(
+      new ApiError("boom", 500, { code: "general.server" }),
+    );
     const onDecided = vi.fn();
 
     render(<CareRequestReviewItem row={row()} onDecided={onDecided} />);
@@ -321,7 +324,7 @@ describe("CareRequestReviewItem", () => {
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
     await expectErrorToast(
-      /Die Entscheidung konnte nicht gespeichert werden\./,
+      /Die Anfrage konnte nicht bearbeitet werden\. Bitte versuchen Sie es später erneut\./,
     );
     expect(onDecided).not.toHaveBeenCalled();
     expect(screen.getByText("Lara Beispiel")).toBeInTheDocument();
@@ -339,7 +342,9 @@ describe("CareRequestReviewItem", () => {
     expand();
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
-    await expectErrorToast(/Der Betreuungsplan hat sich geändert\./);
+    await expectErrorToast(
+      catalogText("students.pickup_change_impact_changed", "die Anfrage"),
+    );
   });
 
   it("surfaces the recovery action when approval is blocked by pickup_change_conflict", async () => {
@@ -362,7 +367,7 @@ describe("CareRequestReviewItem", () => {
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
     await expectErrorToast(
-      /Für diesen Tag wurde inzwischen bereits eine Änderung durch die OGS eingetragen\./,
+      catalogText("students.pickup_change_conflict", "die Anfrage"),
     );
     expect(onDecided).not.toHaveBeenCalled();
   });
@@ -380,7 +385,9 @@ describe("CareRequestReviewItem", () => {
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
     await expectErrorToast(
-      /Dieser Betreuungstag gehört zu einem gebuchten Angebot\. Ändern Sie zuerst die Buchung des Kindes\./,
+      catalogText("students.care_day_managed_by_booking", "die Anfrage"),
     );
+    // Kein Backend-Satz in der Anzeige (ADR 0006).
+    expect(screen.queryByText(/managed by an offering booking/)).toBeNull();
   });
 });

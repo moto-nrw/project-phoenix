@@ -4,7 +4,7 @@
 // client-side and hands the Blob to the parent — no API calls here. The
 // parent persists on Speichern.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Trash2, Upload } from "lucide-react";
 import { Avatar } from "~/components/ui/avatar";
 import { Button } from "~/components/ui/button";
@@ -26,7 +26,15 @@ interface StudentPhotoSectionProps {
   onPickPhoto: (blob: Blob | null) => void;
   onMarkRemoved: () => void;
   onCancelRemove: () => void;
+  /**
+   * Das gewählte Bild ließ sich nicht verkleinern. Das Formular zeigt den
+   * Satz in seinem Fehlerkasten (#2513); hier gibt es keinen eigenen.
+   */
+  onPhotoError: (message: string) => void;
 }
+
+const PHOTO_PROCESSING_FAILED =
+  "Dieses Foto lässt sich nicht verwenden. Bitte wählen Sie ein anderes Foto.";
 
 const ACCEPTED_TYPES = "image/jpeg,image/jpg,image/png,image/webp";
 
@@ -52,9 +60,9 @@ export function StudentPhotoSection({
   onPickPhoto,
   onMarkRemoved,
   onCancelRemove,
+  onPhotoError,
 }: StudentPhotoSectionProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [error, setError] = useState<string | null>(null);
 
   // Synchronous URL creation + revoke-on-change to avoid leaks.
   const blobUrl = useMemo(
@@ -96,24 +104,21 @@ export function StudentPhotoSection({
       if (event.target) event.target.value = "";
       if (!file) return;
 
-      setError(null);
       try {
         const compressed = await compressAvatar(file);
         onPickPhoto(compressed);
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        setError(message || "Foto konnte nicht verarbeitet werden");
         logger.error("student_photo_compress_failed", {
           student_id: student.id,
-          error: message,
+          error: err instanceof Error ? err.message : String(err),
         });
+        onPhotoError(PHOTO_PROCESSING_FAILED);
       }
     },
-    [onPickPhoto, student.id],
+    [onPickPhoto, onPhotoError, student.id],
   );
 
   const handleRemoveClick = useCallback(() => {
-    setError(null);
     if (pendingPhotoBlob !== null) {
       onPickPhoto(null); // discard pending pick
       return;
@@ -245,12 +250,6 @@ export function StudentPhotoSection({
             </span>
           ) : null}
         </div>
-      ) : null}
-
-      {error ? (
-        <p className="text-moto-red-hover mt-2 text-xs" role="alert">
-          {error}
-        </p>
       ) : null}
     </div>
   );

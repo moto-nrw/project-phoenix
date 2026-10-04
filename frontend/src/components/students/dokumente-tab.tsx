@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FileText, FileImage, File as FileIcon, Upload } from "lucide-react";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -18,6 +18,12 @@ import {
   type SegmentedControlItem,
 } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { formatFileSize } from "~/lib/staff-documents-api";
@@ -63,14 +69,28 @@ export function StudentDokumenteTab({
   const [filter, setFilter] = useState<string>("alle");
   const [uploadCategory, setUploadCategory] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [actionError, setActionError] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<StudentDocument | null>(
     null,
   );
   const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const toast = useToast();
+  const uploadErrors = useApiErrorDisplay();
+  const deleteErrors = useApiFormError();
+  const load = useApiLoadError();
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
+  useEffect(() => {
+    if (error) {
+      void showLoadError(error, {
+        object: "die Liste der Dokumente",
+        retry: () => void mutate(),
+      });
+    } else {
+      clearLoadError();
+    }
+  }, [error, mutate, showLoadError, clearLoadError]);
 
   const visibleCategories = useMemo(
     () => data?.visibleCategories ?? [],
@@ -102,10 +122,11 @@ export function StudentDokumenteTab({
       return;
     }
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      setActionError("Die Datei ist größer als 10 MB.");
+      toast.error(
+        "Die Datei ist größer als 10 MB. Bitte wählen Sie eine kleinere Datei.",
+      );
       return;
     }
-    setActionError("");
     setUploading(true);
     try {
       await studentDocumentsService.upload(
@@ -119,11 +140,8 @@ export function StudentDokumenteTab({
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
       });
-      setActionError(
-        err instanceof Error
-          ? err.message
-          : "Dokument konnte nicht hochgeladen werden.",
-      );
+      // Kein Wiederholen: die Datei muss neu gewählt werden.
+      await uploadErrors.show(err, { object: "das Dokument" });
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
@@ -137,7 +155,7 @@ export function StudentDokumenteTab({
       return;
     }
     setDeleting(true);
-    setDeleteError("");
+    deleteErrors.clear();
     try {
       await studentDocumentsService.delete(studentId, deleteTarget.id);
       setDeleteTarget(null);
@@ -148,11 +166,10 @@ export function StudentDokumenteTab({
         document_id: deleteTarget.id,
         error: err instanceof Error ? err.message : String(err),
       });
-      setDeleteError(
-        err instanceof Error
-          ? err.message
-          : "Dokument konnte nicht gelöscht werden.",
-      );
+      await deleteErrors.show(err, {
+        object: "das Dokument",
+        retry: () => void handleDelete(),
+      });
     } finally {
       setDeleting(false);
     }
@@ -225,7 +242,7 @@ export function StudentDokumenteTab({
             label: "Löschen",
             destructive: true,
             onClick: () => {
-              setDeleteError("");
+              deleteErrors.clear();
               setDeleteTarget(doc);
             },
           },
@@ -241,9 +258,7 @@ export function StudentDokumenteTab({
   ];
 
   if (error) {
-    return (
-      <Alert type="error" message="Dokumente konnten nicht geladen werden." />
-    );
+    return <LoadErrorAlert error={load.error} />;
   }
 
   return (
@@ -252,12 +267,6 @@ export function StudentDokumenteTab({
         title="Dokumente"
         description="Dateien zum Kind. Uploads und Löschungen werden im Änderungsprotokoll festgehalten. Beim Löschen wird die Datei sofort entfernt, der Protokolleintrag bleibt."
       >
-        {actionError !== "" && (
-          <div className="mb-4">
-            <Alert type="error" message={actionError} />
-          </div>
-        )}
-
         {/* Upload row: category choice + drop zone */}
         <div className="mb-5 space-y-3">
           <div className="flex flex-wrap items-center gap-3">
@@ -382,7 +391,7 @@ export function StudentDokumenteTab({
           }
         }}
         loading={deleting}
-        error={deleteError}
+        error={deleteErrors.error}
       />
     </div>
   );

@@ -82,6 +82,44 @@ describe("ConfirmDeleteModal", () => {
     expect(finalStep).toHaveClass("bg-moto-red", "text-white", "px-4", "py-2");
   });
 
+  it("shows retry and the request ID of a failed deletion from the error path", () => {
+    const retry = vi.fn();
+    render(
+      <ModalProvider>
+        <ConfirmDeleteModal
+          isOpen
+          title="Eintrag löschen"
+          description="Diese Aktion kann nicht rückgängig gemacht werden."
+          gate={{ mode: "twoStep" }}
+          onConfirm={vi.fn()}
+          onClose={vi.fn()}
+          loading={false}
+          error={{
+            attempt: 1,
+            message: "Der Eintrag konnte nicht bearbeitet werden.",
+            retry: { label: "Wiederholen", onClick: retry },
+            requestId: {
+              value: "req-9",
+              label: "Vorgangskennung: req-9",
+              copyLabel: "Vorgangskennung kopieren",
+              copiedLabel: "Kopiert.",
+              copyFailedLabel: "Kopieren nicht möglich.",
+            },
+          }}
+        />
+      </ModalProvider>,
+    );
+
+    expect(
+      screen.getByText("Der Eintrag konnte nicht bearbeitet werden."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("Vorgangskennung: req-9");
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
   it("exposes a named dialog and closes on Escape", async () => {
     vi.useFakeTimers();
     const onClose = vi.fn();

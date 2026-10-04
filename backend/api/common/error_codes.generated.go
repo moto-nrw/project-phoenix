@@ -211,11 +211,30 @@ const (
 	CodeStudentsBulkApprovalIneligible                   = "students.bulk_approval_ineligible"
 	CodeStudentsCareDayManagedByBooking                  = "students.care_day_managed_by_booking"
 	CodeStudentsCareExceptionRaced                       = "students.care_exception_raced"
+	CodeStudentsCareExitAlreadyEffective                 = "students.care_exit_already_effective"
+	CodeStudentsCareExitBlocked                          = "students.care_exit_blocked"
+	CodeStudentsCareExitDayInPast                        = "students.care_exit_day_in_past"
+	CodeStudentsCareExitInvalidReason                    = "students.care_exit_invalid_reason"
+	CodeStudentsCareExitNoStudents                       = "students.care_exit_no_students"
+	CodeStudentsCareExitNotPlanned                       = "students.care_exit_not_planned"
+	CodeStudentsCareExitNoteNotAllowed                   = "students.care_exit_note_not_allowed"
+	CodeStudentsCareExitNoteRequired                     = "students.care_exit_note_required"
+	CodeStudentsCareExitNoteTooLong                      = "students.care_exit_note_too_long"
+	CodeStudentsCareExitPreviewChanged                   = "students.care_exit_preview_changed"
+	CodeStudentsCareExitTooManyStudents                  = "students.care_exit_too_many_students"
 	CodeStudentsCareOfferingsDisabled                    = "students.care_offerings_disabled"
+	CodeStudentsCareResumeMissing                        = "students.care_resume_missing"
+	CodeStudentsCareResumeNotChecked                     = "students.care_resume_not_checked"
+	CodeStudentsCareResumeNotEnded                       = "students.care_resume_not_ended"
+	CodeStudentsCareResumeStartInPast                    = "students.care_resume_start_in_past"
+	CodeStudentsCareWithdrawalAfterGap                   = "students.care_withdrawal_after_gap"
 	CodeStudentsCareWithdrawalAlreadyResolved            = "students.care_withdrawal_already_resolved"
+	CodeStudentsCareWithdrawalDateInvalid                = "students.care_withdrawal_date_invalid"
 	CodeStudentsCareWithdrawalNotFound                   = "students.care_withdrawal_not_found"
 	CodeStudentsChangeRequestNotPending                  = "students.change_request_not_pending"
 	CodeStudentsChangeRequestStale                       = "students.change_request_stale"
+	CodeStudentsCheckinCareEnded                         = "students.checkin_care_ended"
+	CodeStudentsCheckoutNoteTooLong                      = "students.checkout_note_too_long"
 	CodeStudentsChildQuotaReached                        = "students.child_quota_reached"
 	CodeStudentsCompanionLockBusy                        = "students.companion_lock_busy"
 	CodeStudentsCompanionWouldLoseDeparture              = "students.companion_would_lose_departure"
@@ -232,12 +251,16 @@ const (
 	CodeStudentsDeletionPreviewChanged                   = "students.deletion_preview_changed"
 	CodeStudentsDeletionRetentionNotEnded                = "students.deletion_retention_not_ended"
 	CodeStudentsExcusedRequestStatusConflict             = "students.excused_request_status_conflict"
+	CodeStudentsExportSelectionTooLarge                  = "students.export_selection_too_large"
 	CodeStudentsGuardianAccessRevoked                    = "students.guardian_access_revoked"
 	CodeStudentsOfferingChangeCapacityFull               = "students.offering_change_capacity_full"
 	CodeStudentsOfferingChangeDateOutOfRange             = "students.offering_change_date_out_of_range"
 	CodeStudentsOfferingChangesNoEnrollment              = "students.offering_changes_no_enrollment"
 	CodeStudentsPartialAbsenceConflict                   = "students.partial_absence_conflict"
 	CodeStudentsPartialAbsenceRequiresDedicatedAction    = "students.partial_absence_requires_dedicated_action"
+	CodeStudentsPhotoConsentRequired                     = "students.photo_consent_required"
+	CodeStudentsPhotoConsentWithdrawn                    = "students.photo_consent_withdrawn"
+	CodeStudentsPhotosDisabled                           = "students.photos_disabled"
 	CodeStudentsPickupChangeCompleted                    = "students.pickup_change_completed"
 	CodeStudentsPickupChangeConflict                     = "students.pickup_change_conflict"
 	CodeStudentsPickupChangeExpired                      = "students.pickup_change_expired"
@@ -251,6 +274,7 @@ const (
 	CodeStudentsStaffProfileRequired                     = "students.staff_profile_required"
 	CodeStudentsStaffValueInvalid                        = "students.staff_value_invalid"
 	CodeStudentsStaffValueUnsupported                    = "students.staff_value_unsupported"
+	CodeStudentsStatusDayConflict                        = "students.status_day_conflict"
 	CodeSubstitutionsAlreadyAssigned                     = "substitutions.already_assigned"
 	CodeSubstitutionsConflict                            = "substitutions.conflict"
 	CodeSubstitutionsForbidden                           = "substitutions.forbidden"
@@ -524,11 +548,30 @@ var errorClassByCode = map[string]string{
 	"students.bulk_approval_ineligible":                    "business_rejection",
 	"students.care_day_managed_by_booking":                 "business_rejection",
 	"students.care_exception_raced":                        "business_rejection",
+	"students.care_exit_already_effective":                 "business_rejection",
+	"students.care_exit_blocked":                           "business_rejection",
+	"students.care_exit_day_in_past":                       "input",
+	"students.care_exit_invalid_reason":                    "input",
+	"students.care_exit_no_students":                       "input",
+	"students.care_exit_not_planned":                       "business_rejection",
+	"students.care_exit_note_not_allowed":                  "input",
+	"students.care_exit_note_required":                     "input",
+	"students.care_exit_note_too_long":                     "input",
+	"students.care_exit_preview_changed":                   "business_rejection",
+	"students.care_exit_too_many_students":                 "input",
 	"students.care_offerings_disabled":                     "permission",
+	"students.care_resume_missing":                         "business_rejection",
+	"students.care_resume_not_checked":                     "input",
+	"students.care_resume_not_ended":                       "business_rejection",
+	"students.care_resume_start_in_past":                   "input",
+	"students.care_withdrawal_after_gap":                   "input",
 	"students.care_withdrawal_already_resolved":            "business_rejection",
+	"students.care_withdrawal_date_invalid":                "input",
 	"students.care_withdrawal_not_found":                   "business_rejection",
 	"students.change_request_not_pending":                  "business_rejection",
 	"students.change_request_stale":                        "business_rejection",
+	"students.checkin_care_ended":                          "business_rejection",
+	"students.checkout_note_too_long":                      "input",
 	"students.child_quota_reached":                         "business_rejection",
 	"students.companion_lock_busy":                         "business_rejection",
 	"students.companion_would_lose_departure":              "input",
@@ -545,12 +588,16 @@ var errorClassByCode = map[string]string{
 	"students.deletion_preview_changed":                    "business_rejection",
 	"students.deletion_retention_not_ended":                "business_rejection",
 	"students.excused_request_status_conflict":             "business_rejection",
+	"students.export_selection_too_large":                  "input",
 	"students.guardian_access_revoked":                     "business_rejection",
 	"students.offering_change_capacity_full":               "business_rejection",
 	"students.offering_change_date_out_of_range":           "input",
 	"students.offering_changes_no_enrollment":              "permission",
 	"students.partial_absence_conflict":                    "business_rejection",
 	"students.partial_absence_requires_dedicated_action":   "business_rejection",
+	"students.photo_consent_required":                      "input",
+	"students.photo_consent_withdrawn":                     "business_rejection",
+	"students.photos_disabled":                             "permission",
 	"students.pickup_change_completed":                     "business_rejection",
 	"students.pickup_change_conflict":                      "business_rejection",
 	"students.pickup_change_expired":                       "business_rejection",
@@ -564,6 +611,7 @@ var errorClassByCode = map[string]string{
 	"students.staff_profile_required":                      "permission",
 	"students.staff_value_invalid":                         "input",
 	"students.staff_value_unsupported":                     "input",
+	"students.status_day_conflict":                         "business_rejection",
 	"substitutions.already_assigned":                       "business_rejection",
 	"substitutions.conflict":                               "business_rejection",
 	"substitutions.forbidden":                              "permission",

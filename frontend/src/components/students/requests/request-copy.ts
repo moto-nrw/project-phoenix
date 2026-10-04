@@ -162,6 +162,3 @@ export const CURRENT_VALUE_CHANGED_WARNING =
 
 export const PAST_REQUEST_HINT =
   "Diese Anfrage betrifft nur vergangene Tage. Sie ändert nichts mehr.";
-
-export const STALE_REQUEST_NOTICE =
-  "Die Anfrage wurde inzwischen geändert. Die neue Fassung wird geladen.";

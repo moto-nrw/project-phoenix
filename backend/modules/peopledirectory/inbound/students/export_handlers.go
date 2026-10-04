@@ -288,10 +288,17 @@ func (rs *Resource) fetchStudentsForExport(r *http.Request, params *studentListP
 // only a genuinely oversized result is refused. Because the fetch is complete
 // (params.fetchAll), refusing here is never silent truncation.
 func exportSelectionCapError(count int) render.Renderer {
-	if exportSelectionTooLarge(count) {
-		return common.ErrorInvalidRequest(errExportSelectionTooLarge(count))
+	if !exportSelectionTooLarge(count) {
+		return nil
 	}
-	return nil
+	rendered := common.ErrorInvalidRequestWithCode(
+		errExportSelectionTooLarge(count),
+		common.CodeStudentsExportSelectionTooLarge,
+	)
+	if resp, ok := rendered.(*common.ErrResponse); ok {
+		resp.Details = map[string]any{"total": count, "limit": studentExportPageSize}
+	}
+	return rendered
 }
 
 // exportSelectionTooLarge reports whether a filtered export exceeds what a single
@@ -300,9 +307,9 @@ func exportSelectionTooLarge(total int) bool {
 	return total > studentExportPageSize
 }
 
-// errExportSelectionTooLarge is the user-facing message shown when the selection
-// is over the cap. Lowercase and unpunctuated to satisfy Go error-string linting
-// while still reading as a full sentence in the frontend toast.
+// errExportSelectionTooLarge is the diagnostic for a selection over the cap. The
+// frontend words the refusal from students.export_selection_too_large and its
+// details (ADR 0006).
 func errExportSelectionTooLarge(total int) error {
 	return fmt.Errorf("die Auswahl umfasst %d Kinder, ein Export ist auf höchstens %d Kinder begrenzt, bitte die Auswahl eingrenzen (etwa nach Gruppe oder Klasse)", total, studentExportPageSize)
 }

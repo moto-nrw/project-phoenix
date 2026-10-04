@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { fetchStudentPrivacyConsent } from "~/lib/student-api";
 import type { PrivacyConsent } from "~/lib/student-helpers";
 import { createLogger } from "~/lib/logger";
@@ -16,23 +18,44 @@ export function PrivacyConsentSection({
 }: PrivacyConsentSectionProps) {
   const [consent, setConsent] = useState<PrivacyConsent | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reload, setReload] = useState(0);
+  // Ein Ladefehler steht hier vor Ort, nie als „Keine Einwilligung“ (#2513).
+  const load = useApiLoadError();
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
 
   useEffect(() => {
+    let cancelled = false;
     const loadConsent = async () => {
+      setLoading(true);
+      clearLoadError();
       try {
         const consentData = await fetchStudentPrivacyConsent(studentId);
-        setConsent(consentData);
+        if (!cancelled) setConsent(consentData);
       } catch (error) {
         logger.error("failed to load privacy consent", {
           error: error instanceof Error ? error.message : String(error),
         });
+        if (!cancelled) {
+          await showLoadError(error, {
+            object: "die Einwilligung",
+            retry: () => setReload((count) => count + 1),
+          });
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     void loadConsent();
-  }, [studentId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [studentId, reload, showLoadError, clearLoadError]);
+
+  if (load.error) {
+    return <LoadErrorAlert error={load.error} />;
+  }
 
   if (loading) {
     return (

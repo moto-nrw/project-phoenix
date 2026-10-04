@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect, useMemo, useCallback } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
   useParams,
   usePathname,
@@ -13,7 +13,16 @@ import { hasPermission } from "~/lib/auth-utils";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { ApiError } from "~/lib/api-error";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { resolveDetailReferrer } from "~/lib/tenant-path";
@@ -396,6 +405,12 @@ function StudentDetailPageContent() {
     ? "Zurück zu den Kinderdaten"
     : "Zurück zur Kinderübersicht";
   const toast = useToast();
+  // Die Bestätigungsdialoge bleiben bei einem Fehler offen. Ein Toast läge
+  // hinter ihrem Hintergrund, also steht der Fehler im Dialog selbst. Es ist
+  // immer nur einer offen, deshalb teilen sie sich einen Fehlerzustand. Ohne
+  // eigenes „Wiederholen“: der Bestätigen-Knopf des Dialogs wiederholt mit
+  // dem aktuellen Stand, etwa einer inzwischen geänderten Notiz.
+  const dialogErrors = useApiFormError();
   const { data: session, status: sessionStatus } = useSession();
 
   // Switch tabs by updating the `?tab=` query param in place (preserves the
@@ -442,6 +457,28 @@ function StudentDetailPageContent() {
     mySupervisedRooms,
     refreshData,
   } = useStudentData(studentId);
+  // Ladefehler der Akte über den gemeinsamen Fehlerweg (#2513). Ein 404 ist
+  // kein Fehler zum Wiederholen, sondern „Kind nicht gefunden“.
+  const studentNotFound = error instanceof ApiError && error.status === 404;
+  const studentLoad = useApiLoadError();
+  const showStudentLoadError = studentLoad.show;
+  const clearStudentLoadError = studentLoad.clear;
+  useEffect(() => {
+    if (!error || studentNotFound) {
+      clearStudentLoadError();
+      return;
+    }
+    void showStudentLoadError(error, {
+      object: "die Kindakte",
+      retry: refreshData,
+    });
+  }, [
+    clearStudentLoadError,
+    error,
+    refreshData,
+    showStudentLoadError,
+    studentNotFound,
+  ]);
   // Gruppen für das Auswahlfeld im Bearbeiten-Zustand der Stammdaten (#3115).
   // Derselbe Schlüssel wie im Register der Kinderdaten, damit beide denselben
   // Zwischenspeicher teilen; ohne Schreibrecht wird gar nicht erst geladen.
@@ -491,8 +528,11 @@ function StudentDetailPageContent() {
     sessionStatus === "authenticated" && hasPermission(session, "users:delete");
   const [careWithdrawal, setCareWithdrawal] =
     useState<CareWithdrawalCompletion | null>(null);
-  const [careWithdrawalLoadFailed, setCareWithdrawalLoadFailed] =
-    useState(false);
+  const careWithdrawalLoad = useApiLoadError();
+  const showCareWithdrawalError = careWithdrawalLoad.show;
+  const clearCareWithdrawalError = careWithdrawalLoad.clear;
+  // Bumped by „Wiederholen“ on a failed load of the open withdrawal.
+  const [careWithdrawalAttempt, setCareWithdrawalAttempt] = useState(0);
   const [careWithdrawalModalOpen, setCareWithdrawalModalOpen] = useState(false);
   const visibleTabs = useMemo(
     () =>
@@ -762,7 +802,7 @@ function StudentDetailPageContent() {
   useEffect(() => {
     if (!canCompleteCareWithdrawal || !studentId) {
       setCareWithdrawal(null);
-      setCareWithdrawalLoadFailed(false);
+      clearCareWithdrawalError();
       return;
     }
     let cancelled = false;
@@ -771,7 +811,7 @@ function StudentDetailPageContent() {
         .then((result) => {
           if (cancelled) return;
           setCareWithdrawal(result);
-          setCareWithdrawalLoadFailed(false);
+          clearCareWithdrawalError();
         })
         .catch((error: unknown) => {
           if (cancelled) return;
@@ -780,7 +820,10 @@ function StudentDetailPageContent() {
             error: error instanceof Error ? error.message : String(error),
           });
           setCareWithdrawal(null);
-          setCareWithdrawalLoadFailed(true);
+          void showCareWithdrawalError(error, {
+            object: "die offene Abmeldung",
+            retry: () => setCareWithdrawalAttempt((attempt) => attempt + 1),
+          });
         });
     };
     load();
@@ -789,7 +832,13 @@ function StudentDetailPageContent() {
       cancelled = true;
       window.removeEventListener("change-requests-refresh", load);
     };
-  }, [canCompleteCareWithdrawal, studentId]);
+  }, [
+    canCompleteCareWithdrawal,
+    careWithdrawalAttempt,
+    clearCareWithdrawalError,
+    showCareWithdrawalError,
+    studentId,
+  ]);
 
   useEffect(() => {
     if (loading || !student || sessionStatus === "loading") return;
@@ -818,7 +867,9 @@ function StudentDetailPageContent() {
         back
         backHref={referrer}
         backLabel={backLabel}
-        error={error ?? "Kind nicht gefunden"}
+        error={
+          error && !studentNotFound ? studentLoad.error : "Kind nicht gefunden"
+        }
       />
     );
   }
@@ -903,13 +954,14 @@ function StudentDetailPageContent() {
     });
 
     await refreshDataAndHistory();
-    toast.success("Persönliche Informationen erfolgreich aktualisiert");
+    toast.success("Die Angaben sind gespeichert.");
   };
 
   const handleConfirmCheckout = async () => {
     if (!student) return;
 
     setCheckingOut(true);
+    dialogErrors.clear();
     try {
       await schoolCheckinStudent(
         studentId,
@@ -918,13 +970,15 @@ function StudentDetailPageContent() {
       );
       refreshData();
       setShowConfirmCheckout(false);
-      toast.success(`${student.name} wurde erfolgreich abgemeldet`);
+      toast.success(`${student.name} ist abgemeldet.`);
     } catch (err) {
       logger.error("failed to checkout student", {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error("Fehler beim Abmelden des Kindes");
+      await dialogErrors.show(err, {
+        object: "die Anwesenheit",
+      });
     } finally {
       setCheckingOut(false);
     }
@@ -934,17 +988,20 @@ function StudentDetailPageContent() {
     if (!student) return;
 
     setCheckingIn(true);
+    dialogErrors.clear();
     try {
       await schoolCheckinStudent(studentId, "in");
       refreshData();
       setShowConfirmCheckin(false);
-      toast.success(`${student.name} wurde erfolgreich angemeldet`);
+      toast.success(`${student.name} ist angemeldet.`);
     } catch (err) {
       logger.error("failed to check in student", {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error("Fehler beim Anmelden des Kindes");
+      await dialogErrors.show(err, {
+        object: "die Anwesenheit",
+      });
     } finally {
       setCheckingIn(false);
     }
@@ -954,6 +1011,7 @@ function StudentDetailPageContent() {
     if (!student) return;
 
     setSickLoading(true);
+    dialogErrors.clear();
     try {
       const newSickStatus = !(student.sick ?? false);
       const trimmedReason = sickReason.trim();
@@ -970,15 +1028,17 @@ function StudentDetailPageContent() {
       setSickReason("");
       toast.success(
         newSickStatus
-          ? `${student.name} wurde krankgemeldet`
-          : `Krankmeldung für ${student.name} wurde aufgehoben`,
+          ? `${student.name} ist krankgemeldet.`
+          : `Die Krankmeldung für ${student.name} ist aufgehoben.`,
       );
     } catch (err) {
       logger.error("sick_status_toggle_failed", {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error("Fehler beim Ändern des Krankheitsstatus");
+      await dialogErrors.show(err, {
+        object: "die Krankmeldung",
+      });
     } finally {
       setSickLoading(false);
     }
@@ -988,6 +1048,7 @@ function StudentDetailPageContent() {
     if (!student) return;
 
     setExcusedLoading(true);
+    dialogErrors.clear();
     try {
       const newExcusedStatus = !isQuickExcused;
       await studentService.updateStudent(studentId, {
@@ -998,15 +1059,17 @@ function StudentDetailPageContent() {
       setShowConfirmExcused(false);
       toast.success(
         newExcusedStatus
-          ? `${student.name} wurde als entschuldigt markiert`
-          : `Entschuldigung für ${student.name} wurde aufgehoben`,
+          ? `${student.name} ist entschuldigt.`
+          : `Die Entschuldigung für ${student.name} ist aufgehoben.`,
       );
     } catch (err) {
       logger.error("excused_status_toggle_failed", {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error("Fehler beim Ändern des Entschuldigungsstatus");
+      await dialogErrors.show(err, {
+        object: "die Entschuldigung",
+      });
     } finally {
       setExcusedLoading(false);
     }
@@ -1043,6 +1106,7 @@ function StudentDetailPageContent() {
     if (!student || !switchTarget) return;
 
     setSwitchLoading(true);
+    dialogErrors.clear();
     try {
       // Send both flags in one request so the backend's mutual-exclusion guard
       // sees only the final state (one true, the other explicitly false).
@@ -1054,8 +1118,8 @@ function StudentDetailPageContent() {
       await mutateStatusDays();
       toast.success(
         switchTarget === "sick"
-          ? `${student.name} wurde krankgemeldet (Entschuldigung aufgehoben)`
-          : `${student.name} wurde entschuldigt (Krankmeldung aufgehoben)`,
+          ? `${student.name} ist krankgemeldet. Die Entschuldigung ist aufgehoben.`
+          : `${student.name} ist entschuldigt. Die Krankmeldung ist aufgehoben.`,
       );
       setSwitchTarget(null);
     } catch (err) {
@@ -1064,7 +1128,9 @@ function StudentDetailPageContent() {
         target: switchTarget,
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error("Fehler beim Wechseln des Status");
+      await dialogErrors.show(err, {
+        object: "die Änderung des Status",
+      });
     } finally {
       setSwitchLoading(false);
     }
@@ -1096,7 +1162,7 @@ function StudentDetailPageContent() {
           : plannedStatusModal === "class_trip"
             ? "Klassenfahrt"
             : "Entschuldigung";
-      toast.success(`${statusLabel} für ${student.name} wurde gespeichert`);
+      toast.success(`${statusLabel} für ${student.name} ist gespeichert.`);
       setPlannedStatusModal(null);
     } catch (err) {
       logger.error("planned_status_create_failed", {
@@ -1119,16 +1185,15 @@ function StudentDetailPageContent() {
       await deleteStudentStatusDay(studentId, statusDayId);
       refreshData();
       await mutateStatusDays();
-      toast.success("Geplante Abwesenheit wurde entfernt");
+      toast.success("Die geplante Abwesenheit ist entfernt.");
     } catch (err) {
       logger.error("planned_status_delete_failed", {
         student_id: studentId,
         status_day_id: statusDayId,
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error("Geplanter Status konnte nicht entfernt werden");
-      // Re-throw so the modal does not clear local conflict state for a
-      // delete that never landed on the server.
+      // The confirmation dialog of the caller shows the failure; re-throw
+      // so it stays open and keeps its local conflict state.
       throw err;
     } finally {
       setDeletingPlannedStatusDayId(null);
@@ -1159,8 +1224,8 @@ function StudentDetailPageContent() {
       refreshData();
       toast.success(
         partialAbsenceId
-          ? `Entschuldigung für ${student.name} wurde aktualisiert`
-          : `Entschuldigung für ${student.name} wurde gespeichert`,
+          ? `Die Entschuldigung für ${student.name} ist geändert.`
+          : `Die Entschuldigung für ${student.name} ist gespeichert.`,
       );
       setPlannedStatusModal(null);
     } catch (err) {
@@ -1185,14 +1250,14 @@ function StudentDetailPageContent() {
         mutate(`pickup-data-${studentId}`),
       ]);
       refreshData();
-      toast.success("Teilentschuldigung wurde entfernt");
+      toast.success("Die Teilentschuldigung ist entfernt.");
     } catch (err) {
       logger.error("partial_absence_delete_failed", {
         student_id: studentId,
         partial_absence_id: partialAbsenceId,
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error("Teilentschuldigung konnte nicht entfernt werden");
+      // The confirmation dialog shows the failure (Bauart 2 Regel 5).
       throw err;
     } finally {
       setPlannedStatusLoading(false);
@@ -1302,13 +1367,17 @@ function StudentDetailPageContent() {
           {/* Checkout Confirmation Modal */}
           <ConfirmationModal
             isOpen={showConfirmCheckout}
-            onClose={() => setShowConfirmCheckout(false)}
+            onClose={() => {
+              setShowConfirmCheckout(false);
+              dialogErrors.clear();
+            }}
             onConfirm={handleConfirmCheckout}
             title="Kind abmelden"
             confirmText={checkingOut ? "Wird abgemeldet…" : "Geht nach Hause"}
             cancelText="Abbrechen"
             isConfirmLoading={checkingOut}
           >
+            <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>
               Möchten Sie <strong>{student.name}</strong> jetzt abmelden?
             </p>
@@ -1325,13 +1394,17 @@ function StudentDetailPageContent() {
           {/* Checkin Confirmation Modal */}
           <ConfirmationModal
             isOpen={showConfirmCheckin}
-            onClose={() => setShowConfirmCheckin(false)}
+            onClose={() => {
+              setShowConfirmCheckin(false);
+              dialogErrors.clear();
+            }}
             onConfirm={handleConfirmCheckin}
             title="Kind anmelden"
             confirmText={checkingIn ? "Wird angemeldet…" : "Anmelden"}
             cancelText="Abbrechen"
             isConfirmLoading={checkingIn}
           >
+            <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>
               Möchten Sie <strong>{student.name}</strong> jetzt anmelden?
             </p>
@@ -1343,6 +1416,7 @@ function StudentDetailPageContent() {
             onClose={() => {
               setShowConfirmSick(false);
               setSickReason("");
+              dialogErrors.clear();
             }}
             onConfirm={handleConfirmSickToggle}
             title={student.sick ? "Krankmeldung aufheben" : "Kind krankmelden"}
@@ -1350,6 +1424,7 @@ function StudentDetailPageContent() {
             cancelText="Abbrechen"
             isConfirmLoading={sickLoading}
           >
+            <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>
               {student.sick ? (
                 <>
@@ -1387,7 +1462,10 @@ function StudentDetailPageContent() {
           {/* Excused Confirmation Modal */}
           <ConfirmationModal
             isOpen={showConfirmExcused && hasSickExcusedWriteAccess}
-            onClose={() => setShowConfirmExcused(false)}
+            onClose={() => {
+              setShowConfirmExcused(false);
+              dialogErrors.clear();
+            }}
             onConfirm={handleConfirmExcusedToggle}
             title={
               isQuickExcused ? "Entschuldigung aufheben" : "Kind entschuldigen"
@@ -1396,6 +1474,7 @@ function StudentDetailPageContent() {
             cancelText="Abbrechen"
             isConfirmLoading={excusedLoading}
           >
+            <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>
               {isQuickExcused ? (
                 <>
@@ -1415,7 +1494,10 @@ function StudentDetailPageContent() {
           {/* Switch Dialog, shown when user clicks one flag but the other is set */}
           <ConfirmationModal
             isOpen={switchTarget !== null && hasSickExcusedWriteAccess}
-            onClose={() => setSwitchTarget(null)}
+            onClose={() => {
+              setSwitchTarget(null);
+              dialogErrors.clear();
+            }}
             onConfirm={handleConfirmSwitch}
             title={
               switchTarget === "sick"
@@ -1426,6 +1508,7 @@ function StudentDetailPageContent() {
             cancelText="Abbrechen"
             isConfirmLoading={switchLoading}
           >
+            <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>
               {switchTarget === "sick" ? (
                 <>
@@ -1472,12 +1555,9 @@ function StudentDetailPageContent() {
         </>
       }
     >
-      {careWithdrawalLoadFailed ? (
+      {careWithdrawalLoad.error ? (
         <div>
-          <Alert
-            type="error"
-            message="Die offene Abmeldung konnte nicht geladen werden."
-          />
+          <LoadErrorAlert error={careWithdrawalLoad.error} />
         </div>
       ) : careWithdrawal ? (
         <div>

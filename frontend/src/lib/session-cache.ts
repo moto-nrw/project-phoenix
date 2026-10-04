@@ -10,6 +10,7 @@
 export const DELIBERATE_LOGOUT_KEY = "deliberateLogout";
 
 import { getSession } from "next-auth/react";
+import { unavailableApiError } from "./api-error";
 import { clearRateLimitBackoff } from "./rate-limit-backoff";
 
 let cached: {
@@ -24,6 +25,17 @@ let inflight: Promise<Awaited<ReturnType<typeof getSession>>> | null = null;
 let cachedTenantId: number | undefined;
 
 const TTL_MS = 10_000; // 10 second cache window
+
+async function transportFetch(
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (error) {
+    throw unavailableApiError(error);
+  }
+}
 
 /**
  * Invalidate the cached session so the next call fetches a fresh one.
@@ -120,7 +132,7 @@ export async function sessionFetch(
     },
   };
 
-  const response = await fetch(url, mergedInit);
+  const response = await transportFetch(url, mergedInit);
 
   if (response.status === 401) {
     clearSessionCache();
@@ -133,7 +145,7 @@ export async function sessionFetch(
     if (refreshed) {
       const freshSession = await getCachedSession();
       const freshToken = freshSession?.user?.token;
-      return fetch(url, {
+      return transportFetch(url, {
         ...init,
         headers: {
           "Content-Type": "application/json",

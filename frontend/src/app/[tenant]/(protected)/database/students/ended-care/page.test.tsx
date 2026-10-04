@@ -56,8 +56,11 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutateMatching: () => vi.fn(),
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+// The form and load error hooks stay real; they need no provider.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
+  useApiErrorDisplay: () => ({ show: vi.fn() }),
 }));
 
 let lastSwrKey: string | null = null;

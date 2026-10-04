@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
 
 import { ModalProvider } from "~/components/dashboard/modal-context";
+import { ApiError } from "~/lib/api-error";
 import type { CareExitImpact, CareExitPreview } from "~/lib/care-exit-api";
 import { CareExitModal } from "./care-exit-modal";
 
@@ -236,11 +237,11 @@ describe("CareExitModal", () => {
     await waitFor(() => expect(onFinished).toHaveBeenCalled());
   });
 
-  it("shows the server's reason and reloads the preview after a refusal", async () => {
+  it("shows the catalog text and reloads the preview after a refusal", async () => {
     mockConfirm.mockRejectedValue(
-      new Error(
-        "Die Betreuung wurde nicht beendet. Die Daten haben sich seit der Vorschau geändert.",
-      ),
+      new ApiError("care exit preview changed", 409, {
+        code: "general.business_rejection",
+      }),
     );
     renderModal();
     pickReason("Umzug");
@@ -252,10 +253,37 @@ describe("CareExitModal", () => {
 
     expect(
       await screen.findByText(
-        /Die Daten haben sich seit der Vorschau geändert/,
+        "Das Betreuungsende konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
       ),
     ).toBeVisible();
     await waitFor(() => expect(mockPreview).toHaveBeenCalledTimes(2));
+  });
+
+  it("names the preview when it cannot be loaded and retries it", async () => {
+    mockPreview.mockReset();
+    mockPreview
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, {
+          code: "general.unavailable",
+          instance: "req-preview",
+        }),
+      )
+      .mockResolvedValueOnce(preview());
+    renderModal();
+    pickReason("Umzug");
+
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(
+      await screen.findByText(
+        "Die Vorschau ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+      ),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(
+      await screen.findByRole("button", { name: /Betreuung beenden/ }),
+    ).toBeVisible();
+    expect(mockPreview).toHaveBeenCalledTimes(2);
   });
 
   it("says that a selection shares one day and one reason", () => {

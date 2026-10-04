@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { todayISO } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { resumeCare } from "~/lib/care-exit-api";
-import { childQuotaMessage } from "~/lib/child-quota-error";
 
 const logger = createLogger({ component: "CareResumeModal" });
 
@@ -46,19 +46,22 @@ export function CareResumeModal({
   const [newStart, setNewStart] = useState(todayISO());
   const [checked, setChecked] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const errors = useApiFormError();
+  const clearErrors = errors.clear;
+  // „Wiederholen“ sendet den aktuellen Stand, nicht den vom Fehler.
+  const latestResumeRef = useRef<() => Promise<void>>(async () => undefined);
 
   useEffect(() => {
     if (isOpen) return;
     setNewStart(todayISO());
     setChecked(false);
-    setError("");
-  }, [isOpen]);
+    clearErrors();
+  }, [isOpen, clearErrors]);
 
   const handleResume = async () => {
     if (!newStart || !checked) return;
     setSaving(true);
-    setError("");
+    errors.clear();
     try {
       await resumeCare(studentId, newStart, true);
       try {
@@ -74,20 +77,24 @@ export function CareResumeModal({
         onClose();
       }
     } catch (resumeError) {
-      const message =
-        childQuotaMessage(resumeError) ??
-        (resumeError instanceof Error
-          ? resumeError.message
-          : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.");
       logger.error("care_resume_failed", {
         student_id: studentId,
-        error: message,
+        error:
+          resumeError instanceof Error
+            ? resumeError.message
+            : String(resumeError),
       });
-      setError(message);
+      await errors.show(resumeError, {
+        object: "die Wiederaufnahme",
+        retry: () => void latestResumeRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+  useLayoutEffect(() => {
+    latestResumeRef.current = handleResume;
+  });
 
   return (
     <Modal
@@ -127,7 +134,7 @@ export function CareResumeModal({
           und Zeiten schaltet moto nicht von selbst wieder ein.
         </p>
 
-        {error ? <Alert type="error" message={error} /> : null}
+        <FormErrorAlert message={errors.error} />
 
         <ISODatePicker
           id="care-resume-start"

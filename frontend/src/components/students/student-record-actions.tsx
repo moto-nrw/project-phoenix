@@ -1,11 +1,12 @@
 "use client";
 
 import { LogOut, Trash2, Undo2, XCircle } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import {
   cancelCareExit,
   canResumeCare,
@@ -51,7 +52,14 @@ export function StudentRecordActions({
   onChanged,
   onDeleted,
 }: StudentRecordActionsProps) {
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
+  // Der Dialog bleibt bei einem Fehler offen; ein Toast läge hinter seinem
+  // Hintergrund. Deshalb steht der Fehler im Dialog.
+  const cancelErrors = useApiFormError();
+  const showError = cancelErrors.show;
+  const clearCancelError = cancelErrors.clear;
+  // „Wiederholen“ ruft die aktuelle Fassung auf.
+  const latestCancelRef = useRef<() => Promise<void>>(async () => undefined);
   const [careExitOpen, setCareExitOpen] = useState(false);
   const [cancelExitOpen, setCancelExitOpen] = useState(false);
   const [cancellingExit, setCancellingExit] = useState(false);
@@ -66,30 +74,43 @@ export function StudentRecordActions({
   // werden, mit neuem Beginn und ausdrücklicher Prüfung.
   const cancelPlannedExit = useCallback(async () => {
     setCancellingExit(true);
+    clearCancelError();
     try {
       await cancelCareExit([studentId]);
       // Sagt beides: das Ende ist weg UND der Plan ist zurück. Ohne den
       // zweiten Halbsatz bliebe offen, ob die Termine neu eingetragen werden
       // müssen (#2487).
       toastSuccess(
-        `Das geplante Betreuungsende von ${displayName} wurde storniert. Termine und Angebote gelten wieder.`,
+        `Das Betreuungsende von ${displayName} ist storniert. Termine und Angebote gelten wieder.`,
       );
       setCancelExitOpen(false);
       await onChanged();
     } catch (cancelError) {
-      const message =
-        cancelError instanceof Error
-          ? cancelError.message
-          : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
       logger.error("care_exit_cancel_failed", {
         student_id: studentId,
-        error: message,
+        error:
+          cancelError instanceof Error
+            ? cancelError.message
+            : String(cancelError),
       });
-      toastError(message);
+      await showError(cancelError, {
+        object: "die Stornierung",
+        retry: () => void latestCancelRef.current(),
+      });
     } finally {
       setCancellingExit(false);
     }
-  }, [displayName, onChanged, studentId, toastError, toastSuccess]);
+  }, [
+    clearCancelError,
+    displayName,
+    onChanged,
+    showError,
+    studentId,
+    toastSuccess,
+  ]);
+  useLayoutEffect(() => {
+    latestCancelRef.current = cancelPlannedExit;
+  });
 
   const items: OverflowMenuItem[] = [];
   if (student.care_ended) {
@@ -152,8 +173,12 @@ export function StudentRecordActions({
         isConfirmLoading={cancellingExit}
         isDismissDisabled={cancellingExit}
         onConfirm={() => void cancelPlannedExit()}
-        onClose={() => setCancelExitOpen(false)}
+        onClose={() => {
+          setCancelExitOpen(false);
+          clearCancelError();
+        }}
       >
+        <FormErrorAlert message={cancelErrors.error} className="mb-3" />
         <p className="text-sm text-gray-700">
           Das geplante Betreuungsende von <strong>{displayName}</strong>
           {student.care_ends_on
@@ -185,7 +210,7 @@ export function StudentRecordActions({
           onClose={() => setDeleteOpen(false)}
           onDeleted={async () => {
             setDeleteOpen(false);
-            toastSuccess(`${displayName} wurde gelöscht.`);
+            toastSuccess(`${displayName} ist gelöscht.`);
             await onDeleted();
           }}
         />

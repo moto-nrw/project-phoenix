@@ -7,11 +7,18 @@
 // Grund, sie sagt, dass die Änderung protokolliert wird, und sie zeigt die
 // bisherigen Korrekturen desselben Eintrags direkt darunter.
 
-import { useCallback, useEffect, useState } from "react";
-import { Alert } from "~/components/ui/alert";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormModal } from "~/components/ui/form-modal";
+import { useApiFormError } from "~/contexts/ToastContext";
+import { apiErrorFromResponse } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { getCachedSession } from "~/lib/session-cache";
 
@@ -101,7 +108,10 @@ export function AttendanceCorrectionModal({
   const [note, setNote] = useState(slot.note ?? "");
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const errors = useApiFormError();
+  const clearErrors = errors.clear;
+  // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehler.
+  const latestSubmitRef = useRef<() => Promise<void>>(async () => undefined);
   const [history, setHistory] = useState<CorrectionEntry[]>([]);
 
   // Reset whenever a different slot opens the modal — otherwise the previous
@@ -112,8 +122,8 @@ export function AttendanceCorrectionModal({
     setSubstatus(slot.substatus ?? "");
     setNote(slot.note ?? "");
     setReason("");
-    setError(null);
-  }, [isOpen, slot]);
+    clearErrors();
+  }, [isOpen, slot, clearErrors]);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -121,6 +131,7 @@ export function AttendanceCorrectionModal({
         `/api/timetable/instances/${slot.instanceId}/students/${studentId}/corrections`,
         { credentials: "include", headers: await authorizedHeaders() },
       );
+      // Ohne Verlauf bleibt die Korrektur möglich; die Liste fehlt dann nur.
       if (!response.ok) return;
       const payload = (await response.json()) as {
         data?: { corrections?: CorrectionEntry[] };
@@ -145,13 +156,17 @@ export function AttendanceCorrectionModal({
     note === (slot.note ?? "");
 
   const handleSubmit = async () => {
-    setError(null);
+    errors.clear();
     if (trimmedReason === "") {
-      setError("Bitte geben Sie einen Grund für die Korrektur an.");
+      errors.invalid("Bitte geben Sie einen Grund für die Korrektur an.", {
+        reason: "Bitte geben Sie einen Grund an.",
+      });
       return;
     }
     if (nothingChanged) {
-      setError("Es gibt nichts zu speichern. Bitte ändern Sie zuerst etwas.");
+      errors.invalid(
+        "Es gibt nichts zu speichern. Bitte ändern Sie zuerst etwas.",
+      );
       return;
     }
 
@@ -179,24 +194,29 @@ export function AttendanceCorrectionModal({
         },
       );
       if (!response.ok) {
-        setError(
-          response.status === 409
-            ? "Dieser Termin lässt sich nicht korrigieren. Nur abgeschlossene Termine können Sie nachträglich ändern."
-            : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+        throw await apiErrorFromResponse(
+          response,
+          "attendance correction failed",
         );
-        return;
       }
       onCorrected();
       onClose();
     } catch (err) {
-      logger.error("Korrektur fehlgeschlagen", { err });
-      setError(
-        "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
-      );
+      logger.error("attendance_correction_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await errors.show(err, {
+        object: "die Korrektur",
+        retry: () => void latestSubmitRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+  useLayoutEffect(() => {
+    latestSubmitRef.current = handleSubmit;
+  });
+  const reasonError = errors.fieldError("reason");
 
   return (
     <FormModal
@@ -204,6 +224,7 @@ export function AttendanceCorrectionModal({
       onClose={onClose}
       title="Eintrag korrigieren"
       size="md"
+      error={errors.error}
       footer={
         <div className="flex justify-end gap-2">
           <Button
@@ -233,8 +254,6 @@ export function AttendanceCorrectionModal({
           Termin ist abgeschlossen. Ihre Änderung wird mit Ihrem Namen, der
           Uhrzeit und dem Grund gespeichert.
         </p>
-
-        {error ? <Alert type="error" message={error} /> : null}
 
         <div>
           <label
@@ -312,15 +331,30 @@ export function AttendanceCorrectionModal({
           </label>
           <textarea
             id="correction-reason"
+            name="reason"
             value={reason}
             onChange={(event) => setReason(event.target.value)}
             maxLength={REASON_MAX_LENGTH}
             rows={2}
             required
+            aria-invalid={reasonError ? true : undefined}
+            aria-describedby={
+              reasonError
+                ? "correction-reason-error correction-reason-help"
+                : "correction-reason-help"
+            }
             className="moto-content-surface w-full rounded-md border px-4 py-3 text-sm"
             placeholder="Warum wird der Eintrag geändert?"
           />
-          <p className="mt-1 text-xs text-gray-500">
+          {reasonError ? (
+            <p
+              id="correction-reason-error"
+              className="text-moto-red-strong mt-1 text-xs"
+            >
+              {reasonError}
+            </p>
+          ) : null}
+          <p id="correction-reason-help" className="mt-1 text-xs text-gray-500">
             Bitte ausfüllen. Der Grund bleibt dauerhaft gespeichert.
           </p>
         </div>

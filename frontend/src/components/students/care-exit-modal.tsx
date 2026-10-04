@@ -1,11 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { LogOut } from "lucide-react";
 
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { InfoCard } from "~/components/ui/info-card";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -19,6 +26,7 @@ import {
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
+import { useApiFormError } from "~/contexts/ToastContext";
 import {
   formatDate,
   parseISODate,
@@ -108,7 +116,12 @@ export function CareExitModal({
   const [preview, setPreview] = useState<CareExitPreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const errors = useApiFormError();
+  const showError = errors.show;
+  const clearErrors = errors.clear;
+  // „Wiederholen“ arbeitet mit dem aktuellen Stand, nicht dem vom Fehler.
+  const latestContinueRef = useRef<() => Promise<void>>(async () => undefined);
+  const latestConfirmRef = useRef<() => Promise<void>>(async () => undefined);
 
   const ids = useMemo(() => [...studentIds], [studentIds]);
 
@@ -119,8 +132,8 @@ export function CareExitModal({
     setReason(completionId ? "no_care_needed" : "");
     setNote("");
     setPreview(null);
-    setError("");
-  }, [completionId, isOpen, initialLastCareDay]);
+    clearErrors();
+  }, [completionId, isOpen, initialLastCareDay, clearErrors]);
 
   const noteRequired = reason === "other";
   const detailsComplete =
@@ -147,32 +160,37 @@ export function CareExitModal({
       setPreview(result);
       return result;
     } catch (previewError) {
-      const message =
-        previewError instanceof Error
-          ? previewError.message
-          : "Die Vorschau konnte nicht geladen werden. Bitte versuchen Sie es noch einmal.";
       logger.error("care_exit_preview_failed", {
         student_count: ids.length,
-        error: message,
+        error:
+          previewError instanceof Error
+            ? previewError.message
+            : String(previewError),
       });
-      setError(message);
       setPreview(null);
+      await showError(previewError, {
+        object: "die Vorschau",
+        retry: () => void latestContinueRef.current(),
+      });
       return null;
     } finally {
       setLoading(false);
     }
-  }, [completionId, ids, lastCareDay, note, reason]);
+  }, [completionId, ids, lastCareDay, note, reason, showError]);
 
   const handleContinue = async () => {
-    setError("");
+    errors.clear();
     const result = await loadPreview();
     if (result) setStep(2);
   };
+  useLayoutEffect(() => {
+    latestContinueRef.current = handleContinue;
+  });
 
   const handleConfirm = async () => {
     if (!preview || !reason || preview.blocked) return;
     setSaving(true);
-    setError("");
+    errors.clear();
     try {
       const input = {
         studentIds: ids,
@@ -200,22 +218,29 @@ export function CareExitModal({
         onClose();
       }
     } catch (confirmError) {
-      const message =
-        confirmError instanceof Error
-          ? confirmError.message
-          : "Die Betreuung wurde nicht beendet. Bitte versuchen Sie es noch einmal.";
       logger.error("care_exit_confirm_failed", {
         student_count: ids.length,
-        error: message,
+        error:
+          confirmError instanceof Error
+            ? confirmError.message
+            : String(confirmError),
       });
-      setError(message);
       // Der Vorschau-Stand ist verbraucht: neu laden, damit die Liste zeigt,
-      // was sich geändert hat.
-      await loadPreview();
+      // was sich geändert hat. Scheitert auch das, steht dessen Meldung.
+      const reloaded = await loadPreview();
+      if (reloaded) {
+        await errors.show(confirmError, {
+          object: "das Betreuungsende",
+          retry: () => void latestConfirmRef.current(),
+        });
+      }
     } finally {
       setSaving(false);
     }
   };
+  useLayoutEffect(() => {
+    latestConfirmRef.current = handleConfirm;
+  });
 
   const footer =
     step === 1 ? (
@@ -305,7 +330,7 @@ export function CareExitModal({
                 : "Das Kind nimmt am letzten Betreuungstag noch teil. Ab dem Folgetag ist seine Betreuung beendet. Die bisherigen Daten bleiben erhalten."}
           </p>
 
-          {error ? <Alert type="error" message={error} /> : null}
+          <FormErrorAlert message={errors.error} />
 
           {step === 1 ? (
             <div className="space-y-4">

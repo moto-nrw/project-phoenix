@@ -1,10 +1,22 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Shield, ShieldCheck } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import type { FormError } from "~/components/ui/form-error";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { LockIcon } from "@phosphor-icons/react/ssr";
 
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -13,6 +25,9 @@ import {
   getFamilyProtection,
   setFamilyProtection,
 } from "~/lib/change-request-list-api";
+
+/** Objekt der Fehlertexte aus dem Katalog (#2513). */
+const PROTECTION_OBJECT = "die Einstellung zum Familienschutz";
 
 interface FamilyProtectionControlProps {
   readonly studentId: string;
@@ -26,7 +41,13 @@ function useProtectionValue(studentId: string, initialEnabled?: boolean) {
   const [enabled, setEnabled] = useState<boolean | null>(
     initialEnabled ?? null,
   );
-  const [loadError, setLoadError] = useState(false);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  // „Wiederholen“ zählt hoch und lädt damit neu.
+  const [loadAttempt, setLoadAttempt] = useState(0);
   useEffect(() => {
     if (initialEnabled !== undefined) {
       setEnabled(initialEnabled);
@@ -34,13 +55,20 @@ function useProtectionValue(studentId: string, initialEnabled?: boolean) {
     }
     let active = true;
     setEnabled(null);
+    clearLoadError();
     void getFamilyProtection(studentId)
       .then((state) => active && setEnabled(state.enabled))
-      .catch(() => active && setLoadError(true));
+      .catch((err: unknown) => {
+        if (!active) return;
+        void showLoadError(err, {
+          object: PROTECTION_OBJECT,
+          retry: () => setLoadAttempt((attempt) => attempt + 1),
+        });
+      });
     return () => {
       active = false;
     };
-  }, [initialEnabled, studentId]);
+  }, [clearLoadError, initialEnabled, loadAttempt, showLoadError, studentId]);
   return { enabled, setEnabled, loadError };
 }
 
@@ -50,27 +78,42 @@ function useProtectionSave(
   onSaved: (enabled: boolean) => void,
 ) {
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState(false);
+  const formRef = useRef<HTMLDivElement>(null);
+  const errors = useApiFormError(formRef);
+  const { show: showError, clear: clearError } = errors;
+  // „Wiederholen“ sendet den aktuellen Grund, nicht den vom Fehler.
+  const latestSaveRef = useRef<() => void>(() => undefined);
   const save = useCallback(
     async (reason: string) => {
       if (enabled === null || reason.trim() === "") return false;
       setSaving(true);
-      setSaveError(false);
+      clearError();
       try {
         const next = !enabled;
         await setFamilyProtection(studentId, next, reason.trim());
         onSaved(next);
         return true;
-      } catch {
-        setSaveError(true);
+      } catch (err) {
+        await showError(err, {
+          object: PROTECTION_OBJECT,
+          retry: () => latestSaveRef.current(),
+        });
         return false;
       } finally {
         setSaving(false);
       }
     },
-    [enabled, onSaved, studentId],
+    [clearError, enabled, onSaved, showError, studentId],
   );
-  return { save, saveError, saving };
+  return {
+    save,
+    saveError: errors.error,
+    fieldError: errors.fieldError,
+    clearError,
+    formRef,
+    latestSaveRef,
+    saving,
+  };
 }
 
 function ProtectionStatus({
@@ -103,6 +146,9 @@ interface ProtectionModalProps {
   readonly enabled: boolean;
   readonly open: boolean;
   readonly saving: boolean;
+  readonly error: FormError | null;
+  readonly fieldError: (name: string) => string | undefined;
+  readonly formRef: React.RefObject<HTMLDivElement | null>;
   readonly reason: string;
   readonly setReason: (value: string) => void;
   readonly close: () => void;
@@ -110,8 +156,19 @@ interface ProtectionModalProps {
 }
 
 function ProtectionModal(props: ProtectionModalProps) {
-  const { studentId, enabled, open, saving, reason, setReason, close, save } =
-    props;
+  const {
+    studentId,
+    enabled,
+    open,
+    saving,
+    error,
+    fieldError,
+    formRef,
+    reason,
+    setReason,
+    close,
+    save,
+  } = props;
   return (
     <ConfirmationModal
       isOpen={open}
@@ -125,24 +182,29 @@ function ProtectionModal(props: ProtectionModalProps) {
       isDismissDisabled={saving}
       mobileSheet
     >
-      <p className="mb-4 text-sm text-gray-700">
-        {enabled
-          ? "Die Eltern können Anfragen danach wieder miteinander teilen."
-          : "Andere Sorgeberechtigte sehen dann keine geteilten Anfragen und Begründungen mehr."}
-      </p>
-      <label
-        htmlFor={`family-protection-reason-${studentId}`}
-        className="block space-y-1 text-sm font-medium text-gray-800"
-      >
-        <span>Grund für die Änderung</span>
-        <Textarea
-          id={`family-protection-reason-${studentId}`}
-          value={reason}
-          onChange={(event) => setReason(event.target.value)}
-          rows={3}
-          placeholder="Zum Beispiel besondere Familiensituation"
-        />
-      </label>
+      <div ref={formRef}>
+        <FormErrorAlert message={error} className="mb-4" />
+        <p className="mb-4 text-sm text-gray-700">
+          {enabled
+            ? "Die Eltern können Anfragen danach wieder miteinander teilen."
+            : "Andere Sorgeberechtigte sehen dann keine geteilten Anfragen und Begründungen mehr."}
+        </p>
+        <label
+          htmlFor={`family-protection-reason-${studentId}`}
+          className="block space-y-1 text-sm font-medium text-gray-800"
+        >
+          <span>Grund für die Änderung</span>
+          <Textarea
+            id={`family-protection-reason-${studentId}`}
+            name="reason"
+            value={reason}
+            error={fieldError("reason")}
+            onChange={(event) => setReason(event.target.value)}
+            rows={3}
+            placeholder="Zum Beispiel besondere Familiensituation"
+          />
+        </label>
+      </div>
     </ConfirmationModal>
   );
 }
@@ -153,26 +215,6 @@ function ProtectionDescription() {
       Eltern können einzelne Anfragen miteinander teilen. Der Familienschutz
       verhindert das für dieses Kind.
     </p>
-  );
-}
-
-function ProtectionErrors({
-  load,
-  save,
-}: Readonly<{ load: boolean; save: boolean }>) {
-  return (
-    <>
-      {load ? (
-        <p className="text-moto-red text-sm">
-          Der Familienschutz konnte nicht geladen werden.
-        </p>
-      ) : null}
-      {save ? (
-        <p className="text-moto-red text-sm">
-          Die Änderung konnte nicht gespeichert werden.
-        </p>
-      ) : null}
-    </>
   );
 }
 
@@ -211,8 +253,7 @@ function ProtectionAction({
 interface ProtectionViewProps {
   enabled: boolean | null;
   canManage: boolean;
-  loadError: boolean;
-  saveError: boolean;
+  loadError: FormError | null;
   open: () => void;
   modal: ReactNode;
 }
@@ -224,7 +265,7 @@ function CompactProtectionView(props: ProtectionViewProps) {
       {props.canManage ? (
         <ProtectionAction enabled={props.enabled} compact open={props.open} />
       ) : null}
-      <ProtectionErrors load={props.loadError} save={props.saveError} />
+      <LoadErrorAlert error={props.loadError} />
       {props.modal}
     </div>
   );
@@ -244,7 +285,7 @@ function FullProtectionView(props: ProtectionViewProps) {
           />
         ) : null}
       </div>
-      <ProtectionErrors load={props.loadError} save={props.saveError} />
+      <LoadErrorAlert error={props.loadError} />
       {props.modal}
     </div>
   );
@@ -267,20 +308,31 @@ function useProtectionControl(props: FamilyProtectionControlProps) {
     },
     [onChanged, setEnabled],
   );
-  const { save, saveError, saving } = useProtectionSave(
-    studentId,
-    enabled,
-    onSaved,
-  );
+  const {
+    save,
+    saveError,
+    fieldError,
+    clearError,
+    formRef,
+    latestSaveRef,
+    saving,
+  } = useProtectionSave(studentId, enabled, onSaved);
+  latestSaveRef.current = () => void save(reason);
   const modal = enabled !== null && (
     <ProtectionModal
       studentId={studentId}
       enabled={enabled}
       open={modalOpen}
       saving={saving}
+      error={saveError}
+      fieldError={fieldError}
+      formRef={formRef}
       reason={reason}
       setReason={setReason}
-      close={() => setModalOpen(false)}
+      close={() => {
+        clearError();
+        setModalOpen(false);
+      }}
       save={() => void save(reason)}
     />
   );
@@ -288,7 +340,6 @@ function useProtectionControl(props: FamilyProtectionControlProps) {
     enabled,
     canManage,
     loadError,
-    saveError,
     modal,
     open: () => setModalOpen(true),
   };

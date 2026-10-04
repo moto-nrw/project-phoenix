@@ -1,14 +1,17 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
 import { releaseFakeTimers } from "~/test/clock";
 import { preloadDayPicker } from "~/components/ui/lazy-day-picker";
 import { CareWeeklyPlanEditForm } from "./care-weekly-plan-editor";
 import type { PickupAdjustmentPreview } from "~/lib/pickup-schedule-api";
+import { catalogText } from "~/test/error-catalog-text";
 
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: toastSuccess,
     error: toastError,
@@ -18,33 +21,32 @@ vi.mock("~/contexts/ToastContext", () => ({
 // Die Angebots-Entscheidung öffnet aus dem Speichern heraus ein FormModal. Das
 // Kit-Modal rendert in jsdom nicht vollständig, deshalb steht hier dieselbe
 // Struktur (Titel, Fehler-Slot, Inhalt, Fuß) ohne Portal.
-vi.mock("~/components/ui/form-modal", () => ({
-  FormModal: ({
-    isOpen,
-    title,
-    children,
-    footer,
-    error,
-  }: {
-    isOpen: boolean;
-    title: string;
-    children: React.ReactNode;
-    footer?: React.ReactNode;
-    error?: string | { message: string } | null;
-  }) =>
-    isOpen ? (
-      <div role="dialog" aria-label={title}>
-        <h2>{title}</h2>
-        {error ? (
-          <div role="alert">
-            {typeof error === "string" ? error : error.message}
-          </div>
-        ) : null}
-        {children}
-        <div>{footer}</div>
-      </div>
-    ) : null,
-}));
+vi.mock("~/components/ui/form-modal", async () => {
+  const { FormErrorAlert } = await import("~/components/ui/form-error-alert");
+  return {
+    FormModal: ({
+      isOpen,
+      title,
+      children,
+      footer,
+      error,
+    }: {
+      isOpen: boolean;
+      title: string;
+      children: React.ReactNode;
+      footer?: React.ReactNode;
+      error?: React.ComponentProps<typeof FormErrorAlert>["message"];
+    }) =>
+      isOpen ? (
+        <div role="dialog" aria-label={title}>
+          <h2>{title}</h2>
+          <FormErrorAlert message={error} />
+          {children}
+          <div>{footer}</div>
+        </div>
+      ) : null,
+  };
+});
 
 vi.mock("~/components/ui/modal", () => ({
   Modal: ({
@@ -242,36 +244,59 @@ describe("CareWeeklyPlanEditForm", () => {
     save();
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
-    expect(toastSuccess).toHaveBeenCalledWith("Wochenplan wurde gespeichert");
+    expect(toastSuccess).toHaveBeenCalledWith(
+      "Der Wochenplan ist gespeichert.",
+    );
   });
 
   it("shows a save error in the alert on top and stays in the edit state", async () => {
     const onSubmitWeekly = vi
       .fn()
-      .mockRejectedValue(new Error("Backend kaputt"));
+      .mockRejectedValueOnce(
+        new ApiError("Backend kaputt", 500, {
+          code: "general.server",
+          instance: "req-weekly",
+        }),
+      )
+      .mockResolvedValueOnce(null);
     const { onSaved } = renderForm({ onSubmitWeekly });
 
     save();
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Backend kaputt",
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Die Änderung am Wochenplan konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
     );
+    expect(alert).not.toHaveTextContent("Backend kaputt");
+    expect(alert).toHaveTextContent("req-weekly");
     expect(toastError).not.toHaveBeenCalled();
     expect(onSaved).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(onSubmitWeekly).toHaveBeenCalledTimes(2);
   });
 
   it("explains when a weekly change needs a staff profile", async () => {
-    const onSubmitWeekly = vi
-      .fn()
-      .mockRejectedValue(new Error("students.staff_profile_required"));
+    const onSubmitWeekly = vi.fn().mockRejectedValue(
+      new ApiError("staff profile required", 403, {
+        code: "students.staff_profile_required",
+      }),
+    );
     renderForm({ onSubmitWeekly });
 
     save();
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Diese Zeit wurde von den Eltern gesetzt",
+    // Der Text kommt aus dem Katalog zum Code, nie aus der Servermeldung.
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      catalogText(
+        "students.staff_profile_required",
+        "die Änderung am Wochenplan",
+      ),
     );
+    expect(alert).not.toHaveTextContent(/staff profile|staff_profile/);
   });
 
   it("toggles a care day when the visible checkbox is clicked", () => {
@@ -324,7 +349,7 @@ describe("CareWeeklyPlanEditForm", () => {
     });
     expect(onSaved).toHaveBeenCalledTimes(1);
     expect(toastSuccess).toHaveBeenCalledWith(
-      "Dauerhafte Ausnahme wurde gespeichert",
+      "Die dauerhafte Ausnahme ist gespeichert.",
     );
   });
 
@@ -382,7 +407,11 @@ describe("CareWeeklyPlanEditForm", () => {
       .fn()
       .mockResolvedValueOnce(initial)
       .mockResolvedValueOnce(readyA)
-      .mockRejectedValueOnce(new Error("Angebot B ist nicht mehr verfügbar"));
+      .mockRejectedValueOnce(
+        new ApiError("offering gone", 409, {
+          code: "students.offering_change_capacity_full",
+        }),
+      );
     renderForm({ onSubmitWeekly });
 
     save();
@@ -394,7 +423,9 @@ describe("CareWeeklyPlanEditForm", () => {
       screen.getByRole("button", { name: "Auf „Angebot B“ umbuchen" }),
     );
 
-    await screen.findByText("Angebot B ist nicht mehr verfügbar");
+    await screen.findByText(
+      catalogText("students.offering_change_capacity_full", "die Umbuchung"),
+    );
     expect(
       screen.queryByRole("button", { name: "Angebot ändern und speichern" }),
     ).not.toBeInTheDocument();
@@ -631,7 +662,7 @@ describe("CareWeeklyPlanEditForm", () => {
     });
     expect(onSaved).toHaveBeenCalledTimes(1);
     expect(toastSuccess).toHaveBeenCalledWith(
-      "Angebot und Wochenplan wurden geändert",
+      "Angebot und Wochenplan sind geändert.",
     );
   });
 

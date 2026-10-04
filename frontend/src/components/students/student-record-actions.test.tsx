@@ -11,6 +11,7 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import { StudentRecordActions } from "./student-record-actions";
 
 const { mockCancelCareExit } = vi.hoisted(() => ({
@@ -23,9 +24,18 @@ vi.mock("~/lib/care-exit-api", async (importOriginal) => {
 });
 
 const toastSuccess = vi.fn();
-const toastError = vi.fn();
+const showError = vi.fn();
+const clearError = vi.fn();
 vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => ({ success: toastSuccess, error: toastError }),
+  useToast: () => ({ success: toastSuccess }),
+  // Der Fehler steht im Stornieren-Dialog, nicht im Toast dahinter.
+  useApiFormError: () => ({
+    show: showError,
+    clear: clearError,
+    error: null,
+    invalid: vi.fn(),
+    fieldError: () => undefined,
+  }),
 }));
 
 vi.mock("./care-exit-modal", () => ({
@@ -218,18 +228,29 @@ describe("StudentRecordActions", () => {
     expect(onChanged).toHaveBeenCalled();
   });
 
-  it("shows the server's reason when the cancellation is refused", async () => {
-    mockCancelCareExit.mockRejectedValue(
-      new Error("Die Betreuung ist bereits beendet."),
-    );
-    renderWith(PLANNED);
+  it("hands a refused cancellation to the shared error path with a retry", async () => {
+    const refusal = new ApiError("already ended", 409, {
+      code: "general.business_rejection",
+    });
+    mockCancelCareExit.mockRejectedValueOnce(refusal);
+    const { onChanged } = renderWith(PLANNED);
     confirmCancelExit();
 
     await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith(
-        "Die Betreuung ist bereits beendet.",
-      ),
+      expect(showError).toHaveBeenCalledWith(refusal, {
+        object: "die Stornierung",
+        retry: expect.any(Function),
+      }),
     );
+    expect(toastSuccess).not.toHaveBeenCalled();
+
+    const [, options] = showError.mock.calls[0] as [
+      unknown,
+      { retry: () => void },
+    ];
+    options.retry();
+    await waitFor(() => expect(mockCancelCareExit).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
   });
 
   it("offers resuming the care once the exit took effect", () => {

@@ -24,14 +24,14 @@ describe("PersonalInfoSection", () => {
   };
 
   const mockOnChange = vi.fn();
-  const mockErrors = {};
+  const noFieldError = () => undefined;
 
   it("renders all personal info fields", () => {
     render(
       <PersonalInfoSection
         formData={mockFormData}
         onChange={mockOnChange}
-        errors={mockErrors}
+        fieldError={noFieldError}
       />,
     );
 
@@ -45,7 +45,7 @@ describe("PersonalInfoSection", () => {
       <PersonalInfoSection
         formData={mockFormData}
         onChange={mockOnChange}
-        errors={mockErrors}
+        fieldError={noFieldError}
       />,
     );
 
@@ -55,17 +55,26 @@ describe("PersonalInfoSection", () => {
     expect(mockOnChange).toHaveBeenCalledWith("first_name", "Maxine");
   });
 
-  it("displays error messages", () => {
-    const errors = { first_name: "Required field" };
+  it("shows a field error at its field, named after the API field", () => {
     render(
       <PersonalInfoSection
         formData={mockFormData}
         onChange={mockOnChange}
-        errors={errors}
+        fieldError={(name) =>
+          name === "last_name"
+            ? "Bitte geben Sie den Nachnamen ein."
+            : undefined
+        }
       />,
     );
 
-    expect(screen.getByText("Required field")).toBeInTheDocument();
+    const lastName = screen.getByDisplayValue("Mustermann");
+    expect(lastName).toHaveAttribute("name", "last_name");
+    expect(lastName).toHaveAttribute("aria-invalid", "true");
+    expect(
+      document.getElementById(lastName.getAttribute("aria-describedby")!),
+    ).toHaveTextContent("Bitte geben Sie den Nachnamen ein.");
+    expect(screen.getByDisplayValue("Max")).not.toHaveAttribute("aria-invalid");
   });
 
   it("renders group select when groups provided", () => {
@@ -78,7 +87,7 @@ describe("PersonalInfoSection", () => {
       <PersonalInfoSection
         formData={mockFormData}
         onChange={mockOnChange}
-        errors={mockErrors}
+        fieldError={noFieldError}
         groups={groups}
       />,
     );
@@ -134,14 +143,14 @@ describe("PrivacyConsentSection", () => {
   };
 
   const mockOnChange = vi.fn();
-  const mockErrors = {};
+  const noFieldError = () => undefined;
 
   it("renders privacy consent checkbox", () => {
     render(
       <PrivacyConsentSection
         formData={mockFormData}
         onChange={mockOnChange}
-        errors={mockErrors}
+        fieldError={noFieldError}
       />,
     );
 
@@ -154,7 +163,7 @@ describe("PrivacyConsentSection", () => {
       <PrivacyConsentSection
         formData={mockFormData}
         onChange={mockOnChange}
-        errors={mockErrors}
+        fieldError={noFieldError}
       />,
     );
 
@@ -167,7 +176,7 @@ describe("PrivacyConsentSection", () => {
       <PrivacyConsentSection
         formData={mockFormData}
         onChange={mockOnChange}
-        errors={mockErrors}
+        fieldError={noFieldError}
       />,
     );
 
@@ -185,7 +194,7 @@ describe("PrivacyConsentSection", () => {
       <PrivacyConsentSection
         formData={mockFormData}
         onChange={mockOnChange}
-        errors={mockErrors}
+        fieldError={noFieldError}
       />,
     );
 
@@ -200,7 +209,7 @@ describe("PrivacyConsentSection", () => {
       <PrivacyConsentSection
         formData={mockFormData}
         onChange={mockOnChange}
-        errors={mockErrors}
+        fieldError={noFieldError}
       />,
     );
 

@@ -12,7 +12,16 @@
  * der Seite dutzende Abrufe ausgelöst.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import { useApiLoadError } from "~/contexts/ToastContext";
 
 import {
   fetchCareWithdrawals,
@@ -37,6 +46,19 @@ import type { AnyItem } from "./case-model";
 import type { AggregatedRequestFilters } from "./filters";
 
 const logger = createLogger({ component: "AggregatedRequestList" });
+
+/** Objekt der Ladefehler im Katalogsatz (#2513). */
+const LIST_OBJECT = "die Liste der Anfragen";
+const WITHDRAWAL_OBJECT = "die Liste der Abmeldungen";
+
+/**
+ * Meldet einen Ladefehler vor Ort, mit Wiederholen (#2513). `null` leert ihn.
+ */
+export type ReportLoadError = (
+  error: unknown,
+  object: string,
+  retry: () => void,
+) => void;
 
 /** Wie viele Zeilen eine Seite zeigt. */
 const PAGE_SIZE = 25;
@@ -137,12 +159,14 @@ function useInitialFeed(
   setItems: (items: AnyItem[]) => void,
   setHasMore: (value: boolean) => void,
   setLoading: (value: boolean) => void,
-  setError: (value: string | null) => void,
+  clearError: () => void,
+  reportError: ReportLoadError,
+  retry: () => void,
 ) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setError(null);
+    clearError();
     const { page, isCurrent } = start();
     void page
       .then((result) => {
@@ -156,13 +180,13 @@ function useInitialFeed(
         logger.warn("aggregated_request_list_load_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        setError("Anfragen konnten nicht geladen werden.");
+        reportError(err, LIST_OBJECT, retry);
         setLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [setError, setHasMore, setItems, setLoading, start]);
+  }, [clearError, reportError, retry, setHasMore, setItems, setLoading, start]);
 }
 
 /**
@@ -187,27 +211,58 @@ export function useMergedRequestFeed(
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [autoLoadFailed, setAutoLoadFailed] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const loadError = useApiLoadError();
+  const { error, clear: clearError } = loadError;
+  const showLoadError = loadError.show;
+  const reportError = useCallback<ReportLoadError>(
+    (err, object, retry) => void showLoadError(err, { object, retry }),
+    [showLoadError],
+  );
   const lifecycle = useFeedLifecycle(sources);
   useEffect(() => setAutoLoadFailed(false), [sources, view]);
-  useInitialFeed(lifecycle.start, setItems, setHasMore, setLoading, setError);
-  const reload = useCallback(async () => {
-    setAutoLoadFailed(false);
-    const { generation, page } = lifecycle.start();
-    try {
-      const result = await page;
-      if (generation !== lifecycle.generationRef.current) return;
-      setItems(result.items);
-      setHasMore(result.hasMore);
-      setLoading(false);
-    } catch (err) {
-      if (generation !== lifecycle.generationRef.current) return;
-      logger.warn("aggregated_request_list_reload_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setLoading(false);
-    }
-  }, [lifecycle]);
+  // Als Ref: „Wiederholen“ ruft immer den aktuellen Abruf auf.
+  const retryRef = useRef<() => void>(() => undefined);
+  const retry = useCallback(() => retryRef.current(), []);
+  useInitialFeed(
+    lifecycle.start,
+    setItems,
+    setHasMore,
+    setLoading,
+    clearError,
+    reportError,
+    retry,
+  );
+  /**
+   * Lädt die Liste neu. Fokus, Sichtbarkeit und Ereignisse anderer Flächen
+   * rufen ohne `report` auf: scheitert so ein Hintergrundabruf, bleibt die
+   * geladene Liste bewusst stehen, ohne Meldung (kein Fehler ohne
+   * Nutzeraktion). „Wiederholen“ meldet dagegen jeden Fehlschlag.
+   */
+  const reload = useCallback(
+    async (options: { report?: boolean } = {}) => {
+      setAutoLoadFailed(false);
+      const { generation, page } = lifecycle.start();
+      try {
+        const result = await page;
+        if (generation !== lifecycle.generationRef.current) return;
+        setItems(result.items);
+        setHasMore(result.hasMore);
+        setLoading(false);
+        clearError();
+      } catch (err) {
+        if (generation !== lifecycle.generationRef.current) return;
+        logger.warn("aggregated_request_list_reload_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (options.report) reportError(err, LIST_OBJECT, retry);
+        setLoading(false);
+      }
+    },
+    [clearError, lifecycle, reportError, retry],
+  );
+  useLayoutEffect(() => {
+    retryRef.current = () => void reload({ report: true });
+  });
   const loadMore = useCallback(async () => {
     if (
       !hasMore ||
@@ -218,7 +273,7 @@ export function useMergedRequestFeed(
     const generation = lifecycle.generationRef.current;
     lifecycle.loadMoreRef.current = true;
     setLoadingMore(true);
-    setError(null);
+    clearError();
     try {
       const page = await takeMergedPage(
         sources,
@@ -235,7 +290,7 @@ export function useMergedRequestFeed(
         logger.warn("aggregated_request_list_load_more_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        setError("Weitere Anfragen konnten nicht geladen werden.");
+        reportError(err, LIST_OBJECT, () => void loadMoreRef.current());
         setAutoLoadFailed(true);
       }
     } finally {
@@ -244,7 +299,11 @@ export function useMergedRequestFeed(
         setLoadingMore(false);
       }
     }
-  }, [hasMore, lifecycle, sources]);
+  }, [clearError, hasMore, lifecycle, reportError, sources]);
+  const loadMoreRef = useRef(loadMore);
+  useLayoutEffect(() => {
+    loadMoreRef.current = loadMore;
+  });
   useEffect(() => {
     if (
       view === "open" &&
@@ -272,7 +331,8 @@ export function useMergedRequestFeed(
     loading,
     loadingMore,
     error,
-    setError,
+    clearError,
+    reportError,
     reload,
     loadMore,
   };
@@ -300,7 +360,8 @@ async function fetchWithdrawalPage(
 export function useWithdrawalFeed(
   view: "open" | "history",
   filters: AggregatedRequestFilters,
-  reportError: (message: string | null) => void,
+  reportError: ReportLoadError,
+  clearError: () => void,
 ) {
   const [items, setItems] = useState<CareWithdrawalCompletion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -324,9 +385,13 @@ export function useWithdrawalFeed(
       logger.warn("care_withdrawal_list_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      reportError("Abmeldungen konnten nicht geladen werden.");
+      reportError(err, WITHDRAWAL_OBJECT, () => void loadRef.current());
     }
   }, [filters, reportError, view]);
+  const loadRef = useRef(load);
+  useLayoutEffect(() => {
+    loadRef.current = load;
+  });
   useEffect(() => {
     let cancelled = false;
     setLoading(filters.includeCareWithdrawals === true);
@@ -339,7 +404,7 @@ export function useWithdrawalFeed(
     if (!hasMore || loadingMore) return;
     const generation = generationRef.current;
     setLoadingMore(true);
-    reportError(null);
+    clearError();
     try {
       const pageNumber = nextPageRef.current;
       const page = await fetchWithdrawalPage(view, filters, pageNumber);
@@ -348,15 +413,22 @@ export function useWithdrawalFeed(
       setHasMore(pageNumber * WITHDRAWAL_PAGE_SIZE < page.total);
       nextPageRef.current = pageNumber + 1;
       setAutoLoadFailed(false);
-    } catch {
+    } catch (err) {
       if (generation === generationRef.current) {
+        logger.warn("care_withdrawal_list_load_more_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         setAutoLoadFailed(true);
-        reportError("Weitere Abmeldungen konnten nicht geladen werden.");
+        reportError(err, WITHDRAWAL_OBJECT, () => void loadMoreRef.current());
       }
     } finally {
       if (generation === generationRef.current) setLoadingMore(false);
     }
-  }, [filters, hasMore, loadingMore, reportError, view]);
+  }, [clearError, filters, hasMore, loadingMore, reportError, view]);
+  const loadMoreRef = useRef(loadMore);
+  useLayoutEffect(() => {
+    loadMoreRef.current = loadMore;
+  });
   useEffect(() => {
     if (
       view === "open" &&

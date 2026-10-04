@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ApiError } from "~/lib/api-error";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { toISODate } from "~/lib/date-helpers";
@@ -37,7 +38,8 @@ vi.mock("~/lib/timetable-api", () => ({
   timetableService: { getWeek: mockGetWeek, getTemplates: mockGetTemplates },
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: mockToastSuccess,
     error: mockToastError,
@@ -179,7 +181,7 @@ describe("ClassArrivalExceptionPanel", () => {
       });
     });
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      "Klasse 4a kommt am 02.03.2099 um 12:45 Uhr",
+      "Klasse 4a kommt am 02.03.2099 um 12:45 Uhr.",
     );
     expect(onChanged).toHaveBeenCalled();
     expect(mockFetchExceptions).toHaveBeenCalledTimes(2);
@@ -397,12 +399,16 @@ describe("ClassArrivalExceptionPanel", () => {
       screen.getByRole("button", { name: "Unterricht fällt aus" }),
     );
 
-    await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith(
-        "Für diesen Tag ist kein Betreuungsblock geplant. Bitte die Uhrzeit selbst eintragen.",
-      );
-    });
-    expect(screen.getByLabelText("Kommt um")).toHaveValue("");
+    expect(
+      await screen.findByText(
+        "Für diesen Tag ist kein Betreuungsblock geplant. Bitte tragen Sie die Uhrzeit selbst ein.",
+      ),
+    ).toBeInTheDocument();
+    const time = screen.getByLabelText("Kommt um");
+    expect(time).toHaveValue("");
+    expect(time).toHaveAttribute("aria-invalid", "true");
+    await waitFor(() => expect(time).toHaveFocus());
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 
   it("removes an entered day", async () => {
@@ -436,7 +442,7 @@ describe("ClassArrivalExceptionPanel", () => {
       expect(mockDelete).toHaveBeenCalledWith("4a", "2099-03-02");
     });
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      "Abweichung am 02.03.2099 entfernt",
+      "Die Abweichung am 02.03.2099 ist entfernt.",
     );
     await waitFor(() => {
       expect(
@@ -477,7 +483,11 @@ describe("ClassArrivalExceptionPanel", () => {
       can_edit: true,
       exceptions: [savedException],
     });
-    mockDelete.mockRejectedValue(new Error("boom"));
+    mockDelete.mockRejectedValue(
+      new ApiError("boom", 409, {
+        code: "classday.arrival_exception_class_not_found",
+      }),
+    );
 
     render(
       <ClassArrivalExceptionPanel schoolClass="4a" classLabel="Klasse 4a" />,
@@ -494,12 +504,80 @@ describe("ClassArrivalExceptionPanel", () => {
 
     expect(
       await screen.findByText(
-        "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+        "Die Abweichung wurde nicht gefunden. Bitte laden Sie die Seite neu.",
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText("boom")).not.toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Abweichung entfernen?" }),
     ).toBeInTheDocument();
     expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it("shows a failed save in the form with the catalog text and retries", async () => {
+    mockFetchExceptions.mockResolvedValue({
+      school_class: "4a",
+      can_edit: true,
+      exceptions: [],
+    });
+    mockUpsert
+      .mockRejectedValueOnce(
+        new ApiError("boom", 500, {
+          code: "general.server",
+          instance: "req-class",
+        }),
+      )
+      .mockResolvedValueOnce(savedException);
+
+    render(
+      <ClassArrivalExceptionPanel schoolClass="4a" classLabel="Klasse 4a" />,
+    );
+    await screen.findByLabelText("Kommt um");
+    fireEvent.change(screen.getByLabelText("Datum"), {
+      target: { value: "2099-03-02" },
+    });
+    fireEvent.change(screen.getByLabelText("Kommt um"), {
+      target: { value: "12:45" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tag speichern" }));
+
+    expect(
+      await screen.findByText(
+        "Die Abweichung konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/req-class/)).toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalledTimes(2));
+  });
+
+  it("shows a failed load in place with a retry", async () => {
+    mockFetchExceptions
+      .mockRejectedValueOnce(
+        new ApiError("offline", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce({
+        school_class: "4a",
+        can_edit: true,
+        exceptions: [],
+      });
+
+    render(
+      <ClassArrivalExceptionPanel schoolClass="4a" classLabel="Klasse 4a" />,
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Liste der Abweichungen ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(await screen.findByLabelText("Kommt um")).toBeInTheDocument();
   });
 });

@@ -91,9 +91,10 @@ describe("studentDocumentsService.list", () => {
       new Response(null, { status: 500, statusText: "Internal Server Error" }),
     );
 
-    await expect(studentDocumentsService.list("42")).rejects.toThrow(
-      "Failed to fetch student documents: Internal Server Error",
-    );
+    await expect(studentDocumentsService.list("42")).rejects.toMatchObject({
+      status: 500,
+      code: "general.server",
+    });
   });
 });
 
@@ -134,7 +135,7 @@ describe("studentDocumentsService.upload", () => {
 
     await expect(
       studentDocumentsService.upload("42", pdf(), "attest"),
-    ).rejects.toThrow("Authentifizierung erforderlich");
+    ).rejects.toMatchObject({ status: 401 });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -143,18 +144,27 @@ describe("studentDocumentsService.upload", () => {
 
     await expect(
       studentDocumentsService.upload("42", pdf(), "attest"),
-    ).rejects.toThrow("Authentifizierung erforderlich");
+    ).rejects.toMatchObject({ status: 401 });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("surfaces the backend error message", async () => {
+  // ADR 0006: the backend sentence is diagnosis only; the code is what the
+  // display path reads.
+  it("carries the code and request ID of a refused upload", async () => {
     fetchMock.mockResolvedValueOnce(
-      Response.json({ error: "Datei zu groß." }, { status: 400 }),
+      Response.json(
+        { error: "Datei zu groß.", code: "general.input", instance: "req-1" },
+        { status: 400 },
+      ),
     );
 
     await expect(
       studentDocumentsService.upload("42", pdf(), "attest"),
-    ).rejects.toThrow("Datei zu groß.");
+    ).rejects.toMatchObject({
+      message: "Dokument konnte nicht hochgeladen werden.",
+      code: "general.input",
+      requestId: "req-1",
+    });
   });
 
   it("falls back to the generic message when the body carries no error", async () => {
@@ -162,29 +172,33 @@ describe("studentDocumentsService.upload", () => {
 
     await expect(
       studentDocumentsService.upload("42", pdf(), "attest"),
-    ).rejects.toThrow("Dokument konnte nicht hochgeladen werden.");
+    ).rejects.toMatchObject({
+      message: "Dokument konnte nicht hochgeladen werden.",
+      code: "general.input",
+    });
   });
 
-  it("falls back to the generic message on a non-JSON body", async () => {
+  it("classifies a non-JSON body by its status", async () => {
     fetchMock.mockResolvedValueOnce(
       new Response("<html>502</html>", { status: 502 }),
     );
 
     await expect(
       studentDocumentsService.upload("42", pdf(), "attest"),
-    ).rejects.toThrow("Dokument konnte nicht hochgeladen werden.");
+    ).rejects.toMatchObject({
+      message: "Dokument konnte nicht hochgeladen werden.",
+      code: "general.unavailable",
+    });
   });
 
-  it("reports a missing category permission as such, whatever the body says", async () => {
+  it("reports a missing category permission as the permission class", async () => {
     fetchMock.mockResolvedValueOnce(
       Response.json({ error: "forbidden" }, { status: 403 }),
     );
 
-    // 403 on this route means the caller lacks the category's permission, so
-    // the raw backend wording would be less useful than the German hint.
     await expect(
       studentDocumentsService.upload("42", pdf(), "attest"),
-    ).rejects.toThrow("Keine Berechtigung für diese Dokument-Kategorie.");
+    ).rejects.toMatchObject({ status: 403, code: "general.permission" });
   });
 });
 
@@ -205,14 +219,17 @@ describe("studentDocumentsService.delete", () => {
     );
   });
 
-  it("surfaces the backend error message", async () => {
+  it("keeps the backend sentence out of the message", async () => {
     mockSessionFetch.mockResolvedValueOnce(
       Response.json({ error: "Dokument nicht gefunden." }, { status: 404 }),
     );
 
-    await expect(studentDocumentsService.delete("42", "91")).rejects.toThrow(
-      "Dokument nicht gefunden.",
-    );
+    await expect(
+      studentDocumentsService.delete("42", "91"),
+    ).rejects.toMatchObject({
+      message: "Dokument konnte nicht gelöscht werden.",
+      status: 404,
+    });
   });
 
   it("falls back to the generic delete message", async () => {
@@ -230,9 +247,9 @@ describe("studentDocumentsService.delete", () => {
       Response.json({ error: "forbidden" }, { status: 403 }),
     );
 
-    await expect(studentDocumentsService.delete("42", "91")).rejects.toThrow(
-      "Keine Berechtigung für diese Dokument-Kategorie.",
-    );
+    await expect(
+      studentDocumentsService.delete("42", "91"),
+    ).rejects.toMatchObject({ status: 403, code: "general.permission" });
   });
 });
 

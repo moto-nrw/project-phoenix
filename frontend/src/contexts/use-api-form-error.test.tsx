@@ -36,6 +36,16 @@ function TestForm({
       <button type="button" onClick={errors.clear}>
         Abbrechen
       </button>
+      <button
+        type="button"
+        onClick={() =>
+          errors.invalid("Bitte geben Sie einen Nachnamen an.", {
+            last_name: "Der Nachname fehlt.",
+          })
+        }
+      >
+        Prüfen
+      </button>
     </form>
   );
 }
@@ -164,5 +174,44 @@ describe("useApiFormError", () => {
       ),
     ).toBeInTheDocument();
     expect(toastAlert()).not.toBeInTheDocument();
+  });
+
+  it("reports a local check in the form, marks its field and focuses it", async () => {
+    renderForm(new Error("unused"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Prüfen" }));
+
+    const last = screen.getByRole("textbox", { name: "Nachname" });
+    await waitFor(() => expect(last).toHaveFocus());
+    expect(last).toHaveAttribute("aria-invalid", "true");
+    expect(
+      document.getElementById(last.getAttribute("aria-describedby")!),
+    ).toHaveTextContent("Der Nachname fehlt.");
+    expect(
+      screen.getByText("Bitte geben Sie einen Nachnamen an."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Vorname" }),
+    ).not.toHaveAttribute("aria-invalid");
+    expect(toastAlert()).not.toBeInTheDocument();
+  });
+
+  it("replaces earlier API field errors with the local check", async () => {
+    renderForm(
+      new ApiError("validation failed", 400, {
+        code: "general.input",
+        errors: [{ field: "first_name", reason: "is required" }],
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    const first = screen.getByRole("textbox", { name: "Vorname" });
+    await waitFor(() => expect(first).toHaveAttribute("aria-invalid", "true"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Prüfen" }));
+
+    await waitFor(() => expect(first).not.toHaveAttribute("aria-invalid"));
+    expect(
+      screen.queryByText(/konnte nicht übernommen werden/),
+    ).not.toBeInTheDocument();
   });
 });

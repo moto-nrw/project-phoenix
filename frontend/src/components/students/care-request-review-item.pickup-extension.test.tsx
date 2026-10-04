@@ -18,6 +18,7 @@ const mockToast = vi.hoisted(() => ({
 }));
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => mockToast,
+  useApiErrorDisplay: () => ({ show: vi.fn() }),
 }));
 vi.mock("~/lib/care-request-review-api", async (importActual) => {
   const actual =

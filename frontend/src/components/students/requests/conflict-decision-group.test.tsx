@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConflictDecisionGroup } from "./conflict-decision-group";
 import type { ConflictGroup, ReviewItem } from "./case-model";
-import { resolveRequestConflict } from "~/lib/change-request-list-api";
+import { ApiError } from "~/lib/api-error";
+import {
+  ChangeRequestStaleError,
+  resolveRequestConflict,
+} from "~/lib/change-request-list-api";
 
 vi.mock("~/lib/change-request-list-api", async () => {
   const actual = await vi.importActual<
@@ -275,5 +279,57 @@ describe("ConflictDecisionGroup", () => {
       }),
     );
     await waitFor(() => expect(onResolved).toHaveBeenCalled());
+  });
+
+  function chooseAndConfirm() {
+    fireEvent.click(screen.getAllByRole("radio")[0]!);
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Mit den Eltern geklärt" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ergebnis festlegen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ergebnis speichern" }));
+  }
+
+  it("zeigt einen Feldfehler der Begründung im Formular und am Feld", async () => {
+    mockResolve.mockRejectedValueOnce(
+      new ApiError("reason required", 400, {
+        code: "students.reason_required",
+        errors: [{ field: "reason", reason: "required" }],
+      }),
+    );
+    render(
+      <ConflictDecisionGroup
+        group={group()}
+        onResolved={vi.fn()}
+        onStale={vi.fn()}
+      />,
+    );
+
+    chooseAndConfirm();
+
+    const reason = screen.getByLabelText("Begründung");
+    await waitFor(() => expect(reason).toHaveAttribute("aria-invalid", "true"));
+    expect(reason).toHaveFocus();
+    expect(screen.getByText(/Für die Entscheidung fehlt/)).toBeVisible();
+  });
+
+  it("meldet eine veraltete Gruppe und lädt neu, ohne Wiederholen", async () => {
+    const onStale = vi.fn();
+    mockResolve.mockRejectedValueOnce(new ChangeRequestStaleError());
+    render(
+      <ConflictDecisionGroup
+        group={group()}
+        onResolved={vi.fn()}
+        onStale={onStale}
+      />,
+    );
+
+    chooseAndConfirm();
+
+    await waitFor(() => expect(onStale).toHaveBeenCalledOnce());
+    expect(screen.getByText(/wurde inzwischen geändert/)).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Wiederholen" }),
+    ).not.toBeInTheDocument();
   });
 });
