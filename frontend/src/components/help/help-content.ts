@@ -1855,6 +1855,39 @@ function correctWorkTimeTopic(): HelpTopic {
   };
 }
 
+// Eigener Dienstplan (#3821): Unterseite der Zeiterfassung, nur lesend.
+function ownShiftPlanTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.ownShiftPlan,
+    title: "Eigenen Dienstplan ansehen",
+    question: "Wo sehe ich meinen Dienstplan für die Woche?",
+    summary:
+      "Sehen Sie Ihre Schichten der Woche, die Stunden je Schichtart und Ihr Soll.",
+    group: "arbeitszeit",
+    audience: ["caregiver", "lead"],
+    icon: "CalendarCheck",
+    steps: [
+      "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Zeiterfassung`.",
+      "Wählen Sie oben `Mein Dienstplan`.",
+      "Wechseln Sie mit den Pfeilen zur gewünschten Woche. `Diese Woche` bringt Sie zurück.",
+    ],
+    result:
+      "Sie sehen jede Schicht im Wochenraster. Darunter stehen die Stunden je Tag und je Schichtart.",
+    notes: [
+      "Oben stehen die geplanten Stunden, Ihr `Soll` und die `Differenz`.",
+      "Das Soll ist dasselbe wie in der Zeiterfassung. Feiertage und Schließtage sind schon eingerechnet.",
+    ],
+    differences: [
+      "Sie können den Plan hier nur ansehen. Änderungen trägt die Leitung im Dienstplan ein.",
+      "Samstag und Sonntag erscheinen nur, wenn Sie dort eine Schicht haben.",
+    ],
+    troubleshootingDetails: [
+      "`Mein Dienstplan` fehlt? Dann plant Ihre OGS die Schichten nicht in moto.",
+    ],
+    related: [HELP_TOPICS.trackWorkTime, HELP_TOPICS.mySchedule],
+  };
+}
+
 function vacationTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.vacation,
@@ -2625,6 +2658,7 @@ function caregiverTopics(
     sharedFilesTopic(),
     trackWorkTimeTopic(),
     correctWorkTimeTopic(),
+    ownShiftPlanTopic(),
     vacationTopic(),
     ownAbsenceTopic(),
 

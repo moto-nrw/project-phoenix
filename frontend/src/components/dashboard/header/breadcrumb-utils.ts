@@ -25,6 +25,8 @@ const exactPageTitles: Record<string, string> = {
   [STAFF_FLAT_PAGES.studentSearch.href]: STAFF_FLAT_PAGES.studentSearch.label,
   // Kinder ohne Raumzuweisung (#3115); liegt unter /rooms/, ist aber kein Raum.
   "/rooms/unterwegs": "Unterwegs",
+  // Eigener Dienstplan (#3821); Unterseite der Zeiterfassung.
+  "/time-tracking/dienstplan": "Mein Dienstplan",
 };
 
 const detailRouteTitles: Array<{

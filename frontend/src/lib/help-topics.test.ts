@@ -314,7 +314,8 @@ describe("getParentHelpTopicForPath", () => {
     expect(caregiverTopics[16]).toMatchObject({
       id: HELP_TOPICS.transferGroup,
     });
-    expect(caregiverTopics).toHaveLength(41);
+    // 42 seit #3821 („Eigenen Dienstplan ansehen“).
+    expect(caregiverTopics).toHaveLength(42);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -484,7 +485,7 @@ describe("getParentHelpTopicForPath", () => {
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            41 -
+            42 -
             (nfcEnabled ? 0 : 7) -
             (presenceMode === "binary" ? (nfcEnabled ? 5 : 4) : 0) -
             (groupMode === "open_care" ? 2 : 0);
@@ -521,7 +522,8 @@ describe("getParentHelpTopicForPath", () => {
     // Arbeitszeit, der eigene Kalender, der Aufbau der Navigation, die Seiten
     // des Tagesbetriebs, der Umgang mit dem NFC-Tablet und die Notizen zu
     // einem Kind.
-    expect(leadTopics).toHaveLength(82);
+    // 83 seit #3821: der eigene Dienstplan ist ein geteilter Artikel.
+    expect(leadTopics).toHaveLength(83);
     expect(
       leadTopics.every(
         (topic) =>

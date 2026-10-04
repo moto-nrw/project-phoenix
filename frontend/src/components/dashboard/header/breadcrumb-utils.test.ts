@@ -539,6 +539,15 @@ describe("breadcrumb-utils", () => {
       });
     });
 
+    describe("own Dienstplan (#3821)", () => {
+      it("titles the subpage instead of falling back to Home", () => {
+        expect(getPageTitle("/time-tracking/dienstplan")).toBe(
+          "Mein Dienstplan",
+        );
+        expect(getPageTitle("/time-tracking")).toBe("Zeiterfassung");
+      });
+    });
+
     describe("announcement detail page (#3115)", () => {
       it("identifies the announcement page and not the list", () => {
         expect(

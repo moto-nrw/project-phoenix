@@ -108,6 +108,7 @@ export const nodeLogicTestFiles = [
   "src/lib/operator/child-quota.test.ts",
   "src/lib/operator/operator-invitation-helpers.test.ts",
   "src/lib/operator/provisioning-api.test.ts",
+  "src/lib/own-dienstplan-helpers.test.ts",
   "src/lib/parent-message-error.test.ts",
   "src/lib/permission-labels.test.ts",
   "src/lib/pickup-schedule-helpers.test.ts",

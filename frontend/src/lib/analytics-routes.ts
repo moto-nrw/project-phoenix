@@ -101,6 +101,7 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/tagesinformationen",
   "/tagesplan",
   "/time-tracking",
+  "/time-tracking/dienstplan",
   "/timetables",
   "/vertretung",
   "/vertretungsplan",

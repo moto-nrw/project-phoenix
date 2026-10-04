@@ -133,6 +133,7 @@ const BAUART: Readonly<Record<string, Bauart>> = {
   "substitutions/page.tsx": "werkzeug",
   "tagesplan/page.tsx": "werkzeug",
   "time-tracking/page.tsx": "werkzeug",
+  "time-tracking/dienstplan/page.tsx": "werkzeug",
   "vertretung/page.tsx": "werkzeug",
 
   // Bauart 4 — Einstellungen: Konfiguration einer Schule.
