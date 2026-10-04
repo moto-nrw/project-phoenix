@@ -1,4 +1,4 @@
-import { ApiError, apiErrorFromText } from "./api-error";
+import { ApiError, apiErrorFromText, unavailableApiError } from "./api-error";
 import { getCachedSession } from "./session-cache";
 
 /**
@@ -146,6 +146,18 @@ async function authHeaders(): Promise<HeadersInit> {
   return headers;
 }
 
+/** Keeps transport failures on the shared, retryable error path. */
+async function transportFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    throw unavailableApiError(error);
+  }
+}
+
 /**
  * The failed response as an ApiError: code, field errors and request ID come
  * from the envelope, so the screen shows the catalog text (#2513). The
@@ -180,7 +192,7 @@ export async function fetchArrivalData(
   if (date) query.set("date", date);
   if (toDate) query.set("to", toDate);
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/arrival-schedules${suffix}`,
     {
       method: "GET",
@@ -194,20 +206,23 @@ export async function fetchArrivalData(
 export async function fetchBulkArrivalScheduleStatus(
   studentIds: string[],
 ): Promise<number> {
-  const response = await fetch("/api/students/arrival-schedules/status", {
-    method: "POST",
-    headers: await authHeaders(),
-    credentials: "include",
-    body: JSON.stringify({
-      student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
-    }),
-  });
+  const response = await transportFetch(
+    "/api/students/arrival-schedules/status",
+    {
+      method: "POST",
+      headers: await authHeaders(),
+      credentials: "include",
+      body: JSON.stringify({
+        student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
+      }),
+    },
+  );
   const status = await parseResponse<{ student_ids: number[] }>(response);
   return status.student_ids.length;
 }
 
 export async function fetchArrivalSettings(): Promise<ArrivalSettings> {
-  const response = await fetch("/api/students/arrival-settings", {
+  const response = await transportFetch("/api/students/arrival-settings", {
     method: "GET",
     headers: await authHeaders(),
     credentials: "include",
@@ -226,12 +241,15 @@ export async function updateArrivalSchedules(
   schedules: ArrivalScheduleInput[],
 ): Promise<ArrivalSchedule[]> {
   const body: UpdateArrivalSchedulesBody = { schedules };
-  const response = await fetch(`/api/students/${studentId}/arrival-schedules`, {
-    method: "PUT",
-    headers: await authHeaders(),
-    credentials: "include",
-    body: JSON.stringify(body),
-  });
+  const response = await transportFetch(
+    `/api/students/${studentId}/arrival-schedules`,
+    {
+      method: "PUT",
+      headers: await authHeaders(),
+      credentials: "include",
+      body: JSON.stringify(body),
+    },
+  );
   return parseResponse<ArrivalSchedule[]>(response);
 }
 
@@ -265,12 +283,15 @@ export async function bulkUpsertArrivalSchedules(
     }
     body.student_ids = studentIds;
   }
-  const response = await fetch("/api/students/arrival-schedules/bulk", {
-    method: "POST",
-    headers: await authHeaders(),
-    credentials: "include",
-    body: JSON.stringify(body),
-  });
+  const response = await transportFetch(
+    "/api/students/arrival-schedules/bulk",
+    {
+      method: "POST",
+      headers: await authHeaders(),
+      credentials: "include",
+      body: JSON.stringify(body),
+    },
+  );
   return parseResponse<unknown>(response);
 }
 
@@ -285,7 +306,7 @@ export async function createArrivalException(
   studentId: string,
   input: ArrivalExceptionInput,
 ): Promise<ArrivalException> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/arrival-exceptions`,
     {
       method: "POST",
@@ -302,7 +323,7 @@ export async function updateArrivalException(
   exceptionId: number,
   input: ArrivalExceptionInput,
 ): Promise<ArrivalException> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/arrival-exceptions/${exceptionId}`,
     {
       method: "PUT",
@@ -318,7 +339,7 @@ export async function deleteArrivalException(
   studentId: string,
   exceptionId: number,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/arrival-exceptions/${exceptionId}`,
     {
       method: "DELETE",
@@ -340,12 +361,15 @@ export async function createArrivalNote(
   studentId: string,
   input: ArrivalNoteInput,
 ): Promise<ArrivalNote> {
-  const response = await fetch(`/api/students/${studentId}/arrival-notes`, {
-    method: "POST",
-    headers: await authHeaders(),
-    credentials: "include",
-    body: JSON.stringify(input),
-  });
+  const response = await transportFetch(
+    `/api/students/${studentId}/arrival-notes`,
+    {
+      method: "POST",
+      headers: await authHeaders(),
+      credentials: "include",
+      body: JSON.stringify(input),
+    },
+  );
   return parseResponse<ArrivalNote>(response);
 }
 
@@ -354,7 +378,7 @@ export async function updateArrivalNote(
   noteId: number,
   input: ArrivalNoteInput,
 ): Promise<ArrivalNote> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/arrival-notes/${noteId}`,
     {
       method: "PUT",
@@ -370,7 +394,7 @@ export async function deleteArrivalNote(
   studentId: string,
   noteId: number,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/arrival-notes/${noteId}`,
     {
       method: "DELETE",
@@ -442,7 +466,7 @@ export async function fetchBulkArrivalTimes(
     return new Map();
   }
 
-  const response = await fetch("/api/students/arrival-times/bulk", {
+  const response = await transportFetch("/api/students/arrival-times/bulk", {
     method: "POST",
     headers: await authHeaders(),
     credentials: "include",
@@ -474,7 +498,7 @@ export interface ClassArrivalTimes {
 export async function fetchClassArrivalTimes(
   schoolClass: string,
 ): Promise<ClassArrivalTimes> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/class-arrival-times/${encodeURIComponent(schoolClass)}`,
     { headers: await authHeaders() },
   );
@@ -519,9 +543,12 @@ function classArrivalExceptionPath(schoolClass: string, date?: string): string {
 export async function fetchClassArrivalExceptions(
   schoolClass: string,
 ): Promise<ClassArrivalExceptionList> {
-  const response = await fetch(classArrivalExceptionPath(schoolClass), {
-    headers: await authHeaders(),
-  });
+  const response = await transportFetch(
+    classArrivalExceptionPath(schoolClass),
+    {
+      headers: await authHeaders(),
+    },
+  );
   return parseResponse<ClassArrivalExceptionList>(response);
 }
 
@@ -530,12 +557,15 @@ export async function upsertClassArrivalException(
   date: string,
   input: ClassArrivalExceptionInput,
 ): Promise<ClassArrivalException> {
-  const response = await fetch(classArrivalExceptionPath(schoolClass, date), {
-    method: "PUT",
-    headers: await authHeaders(),
-    credentials: "include",
-    body: JSON.stringify(input),
-  });
+  const response = await transportFetch(
+    classArrivalExceptionPath(schoolClass, date),
+    {
+      method: "PUT",
+      headers: await authHeaders(),
+      credentials: "include",
+      body: JSON.stringify(input),
+    },
+  );
   return parseResponse<ClassArrivalException>(response);
 }
 
@@ -543,10 +573,13 @@ export async function deleteClassArrivalException(
   schoolClass: string,
   date: string,
 ): Promise<void> {
-  const response = await fetch(classArrivalExceptionPath(schoolClass, date), {
-    method: "DELETE",
-    headers: await authHeaders(),
-    credentials: "include",
-  });
+  const response = await transportFetch(
+    classArrivalExceptionPath(schoolClass, date),
+    {
+      method: "DELETE",
+      headers: await authHeaders(),
+      credentials: "include",
+    },
+  );
   await parseResponse<void>(response);
 }

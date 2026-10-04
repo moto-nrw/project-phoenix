@@ -8,7 +8,7 @@
  * Go backend with the staff JWT. Backend int64 ids arrive already stringified.
  */
 
-import { apiErrorFromResponse } from "~/lib/api-error";
+import { apiErrorFromResponse, unavailableApiError } from "~/lib/api-error";
 import type { ChatMessage } from "~/lib/messaging-status";
 import { getRelationshipTypeLabel } from "~/lib/guardian-helpers";
 
@@ -132,9 +132,14 @@ export async function fetchStudentThreads(
 ): Promise<InboxThread[]> {
   // The child page shows a failed load through the shared display path
   // (#2513), which reads the code and request ID, not the backend sentence.
-  const response = await fetch(
-    `/api/messages/students/${encodeURIComponent(studentId)}/threads`,
-  );
+  let response: Response;
+  try {
+    response = await fetch(
+      `/api/messages/students/${encodeURIComponent(studentId)}/threads`,
+    );
+  } catch (error) {
+    throw unavailableApiError(error);
+  }
   if (!response.ok) {
     throw await apiErrorFromResponse(
       response,

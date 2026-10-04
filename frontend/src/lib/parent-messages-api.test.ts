@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { ApiError } from "./api-error";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -221,6 +222,23 @@ describe("fetchStudentThreads", () => {
     await expect(fetchStudentThreads("99")).rejects.toMatchObject({
       message: "Nachrichten konnten nicht geladen werden",
       code: "general.unavailable",
+    });
+  });
+
+  it("classifies a network failure as unavailable", async () => {
+    mockFetch(async () => {
+      throw new TypeError("Network unavailable");
+    });
+
+    const error = await fetchStudentThreads("99").catch(
+      (failure: unknown) => failure,
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 503,
+      code: "general.unavailable",
+      message: "Network unavailable",
     });
   });
 });

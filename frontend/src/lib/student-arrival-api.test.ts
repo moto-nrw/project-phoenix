@@ -195,6 +195,21 @@ describe("student-arrival-api", () => {
         "Request failed (404)",
       );
     });
+
+    it("classifies a network failure as unavailable", async () => {
+      fetchSpy.mockRejectedValueOnce(new TypeError("Network unavailable"));
+
+      const error = await fetchArrivalData("42").catch(
+        (failure: unknown) => failure,
+      );
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error).toMatchObject({
+        status: 503,
+        code: "general.unavailable",
+        message: "Network unavailable",
+      });
+    });
   });
 
   describe("fetchBulkArrivalScheduleStatus", () => {
