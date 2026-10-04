@@ -19,6 +19,7 @@ const state = vi.hoisted(() => ({
   shiftsHeldBack: false,
   projection: undefined as ReadonlyMap<string, DayProjection> | undefined,
   projectionError: undefined as Error | undefined,
+  permissionReady: true,
   timetableEnabled: true,
   day: null as string | null,
   keys: [] as (string | null)[],
@@ -59,6 +60,9 @@ vi.mock("~/lib/swr", () => ({
 }));
 vi.mock("~/lib/hooks/use-berlin-today", () => ({
   useBerlinToday: () => "2026-09-09",
+}));
+vi.mock("~/lib/hooks/use-require-permission", () => ({
+  useRequirePermission: () => ({ isReady: state.permissionReady }),
 }));
 vi.mock("~/lib/hooks/use-url-params", () => ({
   useUrlParams: () => ({
@@ -134,6 +138,7 @@ describe("OwnDienstplanView", () => {
     state.shiftsHeldBack = false;
     state.projection = undefined;
     state.projectionError = undefined;
+    state.permissionReady = true;
     state.timetableEnabled = true;
     state.day = null;
     state.keys = [];
@@ -275,6 +280,15 @@ describe("OwnDienstplanView", () => {
     expect(
       screen.queryByText(/Keine Schichten in dieser Woche/),
     ).not.toBeInTheDocument();
+    expect(screen.queryByText("geplant")).not.toBeInTheDocument();
+  });
+
+  it("waits for the permission guard before loading own time-tracking data", () => {
+    state.permissionReady = false;
+
+    render(<OwnDienstplanView />);
+
+    expect(state.keys).toEqual([]);
     expect(screen.queryByText("geplant")).not.toBeInTheDocument();
   });
 

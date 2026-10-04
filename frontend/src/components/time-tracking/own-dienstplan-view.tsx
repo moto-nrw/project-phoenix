@@ -13,6 +13,7 @@ import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
+import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
 import {
   calendarWeekDays,
@@ -50,6 +51,21 @@ const OWN_WEEK_SHIFTS_KEY_PREFIX = "time-tracking-own-shifts-week-";
 const EMPTY_SHIFTS: readonly StaffShift[] = [];
 
 export function OwnDienstplanView() {
+  const { isReady } = useRequirePermission("time_tracking:own");
+
+  if (!isReady) {
+    return (
+      <TenantPage
+        title="Mein Dienstplan"
+        loading={<DienstplanGridSkeleton />}
+      />
+    );
+  }
+
+  return <OwnDienstplanContent />;
+}
+
+function OwnDienstplanContent() {
   const timetableEnabled = useTimetableEnabled();
   const today = useBerlinToday();
   const { params, updateParams } = useUrlParams(ALLOWED_URL_PARAMS);
