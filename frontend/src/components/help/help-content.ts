@@ -4755,12 +4755,15 @@ function calendarPeriodsTopic(): HelpTopic {
       },
     ],
     result:
-      "An Schließtagen und gesetzlichen Feiertagen plant moto keine Termine. Abgesagte Termine verschwinden aus dem Plan. Eltern bekommen keine Nachricht.",
+      "Im Betreuungsplan plant moto an Schließtagen und gesetzlichen Feiertagen keine Termine. Abgesagte Termine verschwinden aus dem Plan. Eltern bekommen keine Nachricht.",
     notes: [
       "Die Seite heißt oben `Zeiträume`. In der Seitenleiste steht `Schuljahr und Ferien`.",
       "Ein Zeitraum, den noch nichts benutzt, trägt `Nicht verwendet`.",
       "Ferienbetreuung an Schließtagen: Wählen Sie beim Speichern der Serie `Auch an Schließtagen planen`. Tragen Sie bei `Letzter Tag` den letzten Ferientag ein. Dann endet die Serie mit den Ferien.",
-      "Schicht-Serien im Dienstplan lassen Ferien und Schließtage aus. Schichten, die schon geplant waren, bleiben stehen.",
+      "Schicht-Serien im Dienstplan lassen Ferien und Schließtage aus.",
+      "Mit `Auch in den Ferien und an Schließtagen planen` planen Sie auch dann Schichten.",
+      "An gesetzlichen Feiertagen plant eine Serie nie Schichten.",
+      "Schichten, die schon geplant waren, bleiben stehen.",
       "Termine ohne Schließtag absagen: Wählen Sie im Betreuungsplan im Menü `Termine im Zeitraum absagen`.",
     ],
     differences: [
