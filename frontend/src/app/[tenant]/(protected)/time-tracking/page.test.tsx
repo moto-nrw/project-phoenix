@@ -71,6 +71,14 @@ vi.mock("~/lib/time-tracking-api", () => ({
   timeTrackingService: mockTimeTrackingService,
 }));
 
+// Dienstplan der Schule eingeschaltet? Steuert den Kopf-Link „Mein
+// Dienstplan“ (#3821).
+const timetableState = vi.hoisted(() => ({ enabled: true }));
+vi.mock("~/lib/tenant-context", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/tenant-context")>()),
+  useTimetableEnabled: () => timetableState.enabled,
+}));
+
 vi.mock("~/components/staff/staff-export-button", async () => {
   const React = await vi.importActual<typeof import("react")>("react");
   return {
@@ -420,6 +428,8 @@ vi.mock("lucide-react", () => ({
   // Whitelist mock: every icon the page's tree renders must be listed, or the
   // component using it throws "No export is defined". The Check/Pencil/Plus/
   // Search/X group belongs to the Abwesenheitsart-Dropdown (#2403).
+  // CalendarRange is the "Mein Dienstplan" head link (#3821).
+  CalendarRange: () => <span data-testid="calendar-range-icon" />,
   Check: () => <span data-testid="check-icon" />,
   ChevronDown: () => <span data-testid="chevron-down" />,
   ChevronLeft: () => <span data-testid="chevron-left" />,
@@ -1521,6 +1531,27 @@ describe("TimeTrackingPage", () => {
       setupDefaultMocks();
       render(<TimeTrackingPage />);
       expect(screen.getByLabelText("Export")).toBeInTheDocument();
+    });
+
+    it("links to the own Dienstplan (#3821)", () => {
+      setupDefaultMocks();
+      render(<TimeTrackingPage />);
+      expect(
+        screen.getByRole("link", { name: /Mein Dienstplan/ }),
+      ).toHaveAttribute("href", "/mein-dienstplan");
+    });
+
+    it("hides the Dienstplan link when the school plans no shifts in moto", () => {
+      timetableState.enabled = false;
+      try {
+        setupDefaultMocks();
+        render(<TimeTrackingPage />);
+        expect(
+          screen.queryByRole("link", { name: /Mein Dienstplan/ }),
+        ).not.toBeInTheDocument();
+      } finally {
+        timetableState.enabled = true;
+      }
     });
   });
 

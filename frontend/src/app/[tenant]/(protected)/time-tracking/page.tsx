@@ -10,12 +10,15 @@ import React, {
   useRef,
 } from "react";
 import dynamic from "next/dynamic";
+import { CalendarRange } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { hasPermission } from "~/lib/auth-utils";
+import { useTimetableEnabled } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { SectionCard } from "~/components/ui/section-card";
@@ -3265,6 +3268,10 @@ function TimeTrackingContent() {
     { revalidateOnFocus: false },
   );
   const ownStaffId = ownStaff?.id ?? null;
+  // Der eigene Dienstplan (#3821) zeigt nur Schichten; ohne Dienstplan in der
+  // Schule führte der Knopf auf eine leere Seite.
+  const timetableEnabled = useTimetableEnabled();
+  const tenantPath = useTenantAwarePath();
 
   const { data: ownSchedule } = useSWRAuth(
     ownStaffId ? `time-tracking-own-schedule-${ownStaffId}` : null,
@@ -3698,10 +3705,25 @@ function TimeTrackingContent() {
       // mitten in einer Inhaltskarte.
       actions={
         ownStaffId ? (
-          <StaffExportButton
-            staffId={ownStaffId}
-            yearStart={startOfYear(parseISODate(todayISO))}
-          />
+          <>
+            {timetableEnabled && (
+              <ButtonLink
+                href={tenantPath("/mein-dienstplan")}
+                variant="outline"
+                size="md"
+              >
+                <CalendarRange
+                  className="mr-1.5 h-4 w-4 shrink-0"
+                  aria-hidden
+                />
+                <span className="whitespace-nowrap">Mein Dienstplan</span>
+              </ButtonLink>
+            )}
+            <StaffExportButton
+              staffId={ownStaffId}
+              yearStart={startOfYear(parseISODate(todayISO))}
+            />
+          </>
         ) : undefined
       }
       // Bauart 3, Regel 1: eine Zeitnavigation im Bedienband der Kopfkarte,
