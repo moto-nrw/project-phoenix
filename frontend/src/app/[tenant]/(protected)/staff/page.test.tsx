@@ -7,6 +7,8 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import StaffPage from "./page";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
@@ -210,18 +212,30 @@ describe("StaffPage", () => {
     });
   });
 
-  it("shows error message when staff fetch fails", () => {
+  it("shows the catalog text with retry when staff fetch fails", async () => {
+    const mutate = vi.fn();
     vi.mocked(useSWRAuth).mockReturnValue({
       data: [],
       isLoading: false,
-      error: new Error("Boom"),
+      error: new ApiError("boom", 500, {
+        code: "general.server",
+        instance: "req-staff",
+      }),
+      mutate,
     } as never);
 
     render(<StaffPage />);
 
     expect(
-      screen.getByText("Fehler beim Laden der Personaldaten."),
+      await screen.findByText(
+        catalogText("general.server", "die Personalliste"),
+      ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-staff");
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mutate).toHaveBeenCalled();
   });
 
   it("shows empty state when no staff match filters", async () => {

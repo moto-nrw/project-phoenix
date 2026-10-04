@@ -41,7 +41,12 @@ const stable = vi.hoisted(() => ({
   swrMutate: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({ useToast: () => stable.toast }));
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useToast: () => stable.toast,
+  useApiErrorDisplay: () => ({ show: actionErrors.show }),
+}));
+const actionErrors = vi.hoisted(() => ({ show: vi.fn() }));
 vi.mock("swr", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useSWRConfig: () => ({ mutate: stable.swrMutate }),

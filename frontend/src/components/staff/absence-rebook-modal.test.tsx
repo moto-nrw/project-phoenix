@@ -1,8 +1,16 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AbsenceType } from "~/lib/absence-type-api";
+import { ApiError } from "~/lib/api-error";
 import type { AbsenceRebooking, StaffAbsenceRow } from "~/lib/staff-api";
+import { catalogText } from "~/test/error-catalog-text";
 import { suppressConsole } from "~/test/helpers/console";
 
 vi.mock("~/components/ui/modal", () => ({
@@ -25,7 +33,12 @@ vi.mock("~/components/ui/modal", () => ({
 const stable = vi.hoisted(() => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
-vi.mock("~/contexts/ToastContext", () => ({ useToast: () => stable.toast }));
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useToast: () => stable.toast,
+  useApiErrorDisplay: () => ({ show: actionErrors.show }),
+}));
+const actionErrors = vi.hoisted(() => ({ show: vi.fn() }));
 
 const mocks = vi.hoisted(() => ({
   getVacationQuota: vi.fn(),
@@ -33,21 +46,16 @@ const mocks = vi.hoisted(() => ({
   getAllowance: vi.fn(),
 }));
 
-vi.mock("~/lib/staff-api", async () => {
-  class AbsenceRebookingBlockedError extends Error {}
-  return {
-    AbsenceRebookingBlockedError,
-    staffAbsenceService: {
-      getVacationQuota: mocks.getVacationQuota,
-      rebookAbsences: mocks.rebookAbsences,
-    },
-  };
-});
+vi.mock("~/lib/staff-api", () => ({
+  staffAbsenceService: {
+    getVacationQuota: mocks.getVacationQuota,
+    rebookAbsences: mocks.rebookAbsences,
+  },
+}));
 vi.mock("~/lib/absence-type-api", () => ({
   absenceTypeService: { getAllowance: mocks.getAllowance },
 }));
 
-import { AbsenceRebookingBlockedError } from "~/lib/staff-api";
 import {
   AbsenceRebookModal,
   isRebookableAbsence,
@@ -256,27 +264,47 @@ describe("AbsenceRebookModal", () => {
 
   it("shows why a rebooking is blocked and keeps it disabled", async () => {
     mocks.rebookAbsences.mockRejectedValue(
-      new AbsenceRebookingBlockedError("Der August 2026 ist abgeschlossen."),
+      new ApiError("absence rebooking blocked", 409, {
+        code: "workforce.rebooking_into_sick_report",
+      }),
+    );
+    renderModal();
+
+    fireEvent.click(screen.getByRole("radio", { name: /Krank-Urlaubstag/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      await within(dialog).findByText(
+        catalogText(
+          "workforce.rebooking_into_sick_report",
+          "die Änderung der Art",
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(submitButton()).toBeDisabled();
+  });
+
+  it("reports a failed preview without enabling the save", async () => {
+    mocks.rebookAbsences.mockRejectedValueOnce(
+      new ApiError("boom", 500, { code: "general.server", instance: "req-r" }),
     );
     renderModal();
 
     fireEvent.click(screen.getByRole("radio", { name: /Krank-Urlaubstag/ }));
 
     expect(
-      await screen.findByText("Der August 2026 ist abgeschlossen."),
+      await screen.findByText(
+        catalogText("general.server", "die Änderung der Art"),
+      ),
     ).toBeInTheDocument();
     expect(submitButton()).toBeDisabled();
-  });
 
-  it("reports a failed preview without enabling the save", async () => {
-    mocks.rebookAbsences.mockRejectedValue(new Error("boom"));
-    renderModal();
-
-    fireEvent.click(screen.getByRole("radio", { name: /Krank-Urlaubstag/ }));
-
+    // Wiederholen rechnet die Folgen neu; danach lässt sich speichern.
+    mocks.rebookAbsences.mockResolvedValue(rebooking());
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText("+16h")).toBeInTheDocument();
     expect(
-      await screen.findByText(/Die Folgen konnten nicht berechnet werden/),
-    ).toBeInTheDocument();
-    expect(submitButton()).toBeDisabled();
+      screen.queryByText(catalogText("general.server", "die Änderung der Art")),
+    ).not.toBeInTheDocument();
   });
 });

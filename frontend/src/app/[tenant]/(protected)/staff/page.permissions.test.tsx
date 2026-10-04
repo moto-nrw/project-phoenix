@@ -8,6 +8,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useSession } from "next-auth/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import StaffPage from "./page";
 
 const getTimeAccounts = vi.hoisted(() => vi.fn());
@@ -377,21 +379,21 @@ describe("/staff — Berechtigungs-Split", () => {
   });
 
   it("zeigt einen fehlgeschlagenen Abschlussstatus mit Retry statt Abschlussaktionen", async () => {
-    monthCloseRequest.error = new Error("Bad Gateway");
+    monthCloseRequest.error = new ApiError("Bad Gateway", 502);
     mockSession(["time_tracking:manage"]);
 
     render(<StaffPage />);
 
     expect(
-      screen.getByText(/Der Abschlussstatus konnte nicht geladen werden/),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Anzeige des Monatsabschlusses"),
+      ),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Monat abschließen" }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Abschlussstatus erneut laden" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 
     await waitFor(() => {
       expect(mutateMonthClose).toHaveBeenCalledTimes(1);
@@ -399,19 +401,21 @@ describe("/staff — Berechtigungs-Split", () => {
   });
 
   it("zeigt einen retrybaren Fehler, wenn das Dokumentenverzeichnis nicht lädt", async () => {
-    documentDirectoryRequest.error = new Error("Bad Gateway");
+    documentDirectoryRequest.error = new ApiError("Bad Gateway", 502);
     mockSession(["staff_documents:health"]);
 
     render(<StaffPage />);
 
     expect(
-      screen.getByText("Das Personalverzeichnis konnte nicht geladen werden."),
+      await screen.findByText(
+        catalogText("general.unavailable", "das Personalverzeichnis"),
+      ),
     ).toBeInTheDocument();
     expect(
       screen.queryByText("Keine Personen gefunden."),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 
     await waitFor(() => {
       expect(mutateDocumentDirectory).toHaveBeenCalledTimes(1);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -8,15 +8,17 @@ import { ChoiceModal } from "~/components/ui/choice-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DatePicker } from "~/components/ui/date-picker";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   SlideOver,
+  SlideOverBody,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverFooter,
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
-import { getApiErrorMessage } from "~/lib/api-error-message";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import {
   findPeriodForDate,
@@ -31,7 +33,6 @@ import {
   getStableObjectKey,
 } from "~/lib/stable-object-key";
 import {
-  ShiftApiError,
   staffShiftService,
   staffShiftSeriesService,
   type SeriesResult,
@@ -58,49 +59,8 @@ const EMPTY_STAFF_OPTIONS: readonly StaffScheduleStaff[] = [];
 // Stable empty default for the optional existingReplacements prop (same
 // rationale as EMPTY_STAFF_OPTIONS).
 const EMPTY_REPLACEMENTS: readonly StaffShift[] = [];
-
-function getShiftMutationErrorMessage(
-  err: unknown,
-  action: "speichern" | "löschen",
-): string {
-  if (err instanceof ShiftApiError) {
-    const detail = err.detail.toLowerCase();
-    if (err.status === 409 || detail.includes("overlap")) {
-      return "Diese Schicht überschneidet sich mit einer bestehenden Schicht.";
-    }
-    if (err.status === 400) {
-      // A series edit rejects for reasons that have nothing to do with the
-      // times, so translate those instead of sending the planner to check
-      // Beginn/Ende/Pause (#2028).
-      if (detail.includes("no occurrences left")) {
-        return 'Diese Serie hat ab morgen keine Termine mehr. Setzen Sie „Gültig bis" auf ein späteres Datum, um sie fortzuführen.';
-      }
-      if (detail.includes("calendar period")) {
-        return "Der gewählte Zeitraum liegt außerhalb des Kalenderzeitraums der Serie.";
-      }
-      if (detail.includes("week cycle")) {
-        return "Woche A/B benötigt einen Kalenderzeitraum mit gepflegtem Wochenzyklus.";
-      }
-      return "Ungültige Schichtdaten. Bitte prüfen Sie Beginn, Ende und Pause.";
-    }
-    if (err.status === 401) {
-      return "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
-    }
-    if (err.status === 403) {
-      return `Sie haben keine Berechtigung, diese Schicht zu ${action}.`;
-    }
-    return err.detail || `Schicht konnte nicht ${action} werden.`;
-  }
-
-  return getApiErrorMessage(
-    err,
-    action,
-    "Schicht",
-    action === "speichern"
-      ? "Speichern fehlgeschlagen."
-      : "Löschen fehlgeschlagen.",
-  );
-}
+const WEEKDAY_REQUIRED_MESSAGE =
+  "Bitte wählen Sie mindestens einen Wochentag aus.";
 
 // Create/edit modal for one planned shift (Dienstplan). Times are plain
 // "HH:MM" strings end-to-end — no Date/ISO conversion, which sidesteps the
@@ -213,7 +173,18 @@ export function ShiftEditModal({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const deleteErrors = useApiFormError();
+  const periodsLoad = useApiLoadError();
+  const seriesRuleLoad = useApiLoadError();
+  const [periodsReload, setPeriodsReload] = useState(0);
+  const [seriesRuleReload, setSeriesRuleReload] = useState(0);
+  // „Wiederholen“ sendet den aktuellen Stand, nicht den vom Fehlerzeitpunkt.
+  const latestSaveRef = useRef<() => void>(() => undefined);
+  const latestDeleteRef = useRef<() => void>(() => undefined);
+  // Which scope the last series save chose, so a retry repeats it.
+  const scopeChoiceRef = useRef<"single" | "following" | null>(null);
 
   // Flexible daily changes (#1841): optional reason, "Ausfall" (leave the gap
   // open), and one or more replacements that split the gap across people.
@@ -249,7 +220,6 @@ export function ShiftEditModal({
   // row is opened so its rhythm is visible right away instead of only after
   // the user tries to save.
   const [seriesRule, setSeriesRule] = useState<SeriesRule | null>(null);
-  const [seriesRuleError, setSeriesRuleError] = useState(false);
   const [seriesEditOpen, setSeriesEditOpen] = useState(false);
   const [seriesWeekdays, setSeriesWeekdays] = useState<number[]>([]);
   const [seriesBiweekly, setSeriesBiweekly] = useState(false);
@@ -265,6 +235,8 @@ export function ShiftEditModal({
   const [seriesIncludeSchoolBreaks, setSeriesIncludeSchoolBreaks] =
     useState(false);
 
+  const clearFormError = formErrors.clear;
+  const clearDeleteError = deleteErrors.clear;
   const isSeriesRow = mode === "edit" && shift?.seriesId != null;
   // A moved occurrence keeps its original recurrence slot. Series changes
   // begin at that slot, so every editor hint must describe the same date.
@@ -276,7 +248,8 @@ export function ShiftEditModal({
     setEndTime(initial.endTime);
     setBreakMinutesStr(String(initial.breakMinutes));
     setShiftTypeId(initial.shiftTypeId);
-    setError(null);
+    clearFormError();
+    clearDeleteError();
     setConfirmDeleteOpen(false);
     setRepeatEnabled(false);
     setWeekdays([isoWeekdayOf(date)]);
@@ -288,7 +261,6 @@ export function ShiftEditModal({
     setIncludeSchoolBreaks(false);
     setScopeQuestion(null);
     setSeriesRule(null);
-    setSeriesRuleError(false);
     setSeriesEditOpen(false);
     setOccurrenceDraft(null);
     setChangeReason(shift?.changeReason ?? "");
@@ -305,7 +277,20 @@ export function ShiftEditModal({
         shiftTypeId: cover.shiftTypeId ?? "",
       })),
     );
-  }, [isOpen, initial, date, shift, existingReplacements]);
+  }, [
+    isOpen,
+    initial,
+    date,
+    shift,
+    existingReplacements,
+    clearFormError,
+    clearDeleteError,
+  ]);
+
+  const showPeriodsLoadError = periodsLoad.show;
+  const clearPeriodsLoadError = periodsLoad.clear;
+  const showSeriesRuleLoadError = seriesRuleLoad.show;
+  const clearSeriesRuleLoadError = seriesRuleLoad.clear;
 
   // Calendar periods load once the series section is opened; the period is
   // required (it bounds the series and anchors Woche A/B). A series row needs
@@ -314,6 +299,7 @@ export function ShiftEditModal({
   useEffect(() => {
     if ((!repeatEnabled && !isSeriesRow) || periods !== null) return;
     let cancelled = false;
+    clearPeriodsLoadError();
     calendarPeriodService
       .list()
       .then((loaded) => {
@@ -327,12 +313,25 @@ export function ShiftEditModal({
         logger.error("shift_series_periods_load_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        setPeriods([]);
+        // Periods stay unloaded: an empty list would claim the school has
+        // no calendar period at all.
+        void showPeriodsLoadError(err, {
+          object: "die Liste der Kalenderzeiträume",
+          retry: () => setPeriodsReload((n) => n + 1),
+        });
       });
     return () => {
       cancelled = true;
     };
-  }, [repeatEnabled, isSeriesRow, periods, date]);
+  }, [
+    repeatEnabled,
+    isSeriesRow,
+    periods,
+    date,
+    periodsReload,
+    showPeriodsLoadError,
+    clearPeriodsLoadError,
+  ]);
 
   // The rule behind a series shift (#2028). Loaded on open so the modal can
   // state the rhythm up front — "Diese Schicht ist Teil einer Serie" alone
@@ -341,6 +340,7 @@ export function ShiftEditModal({
   useEffect(() => {
     if (!isOpen || mode !== "edit" || seriesId === null) return;
     let cancelled = false;
+    clearSeriesRuleLoadError();
     staffShiftSeriesService
       .getSeries(seriesId)
       .then((rule) => {
@@ -352,12 +352,22 @@ export function ShiftEditModal({
           series_id: seriesId,
           error: err instanceof Error ? err.message : String(err),
         });
-        setSeriesRuleError(true);
+        void showSeriesRuleLoadError(err, {
+          object: "die Serie",
+          retry: () => setSeriesRuleReload((n) => n + 1),
+        });
       });
     return () => {
       cancelled = true;
     };
-  }, [isOpen, mode, seriesId]);
+  }, [
+    isOpen,
+    mode,
+    seriesId,
+    seriesRuleReload,
+    showSeriesRuleLoadError,
+    clearSeriesRuleLoadError,
+  ]);
 
   const selectedPeriod = useMemo(
     () => periods?.find((p) => p.id === periodId) ?? null,
@@ -538,13 +548,9 @@ export function ShiftEditModal({
    *  behind the shift (weekdays, rhythm, window, validity) instead of the
    *  single day. */
   const openSeriesEdit = () => {
-    if (!seriesRule) {
-      setError(
-        "Die Serie konnte nicht geladen werden. Bitte schließen Sie das Fenster und versuchen Sie es erneut.",
-      );
-      return;
-    }
-    setError(null);
+    // The button stays disabled until the rule has loaded.
+    if (!seriesRule) return;
+    formErrors.clear();
     setOccurrenceDraft({ startTime, endTime, breakMinutesStr, shiftTypeId });
     setSeriesWeekdays([...seriesRule.weekdays].sort((a, b) => a - b));
     setSeriesBiweekly(seriesRule.weekPattern !== 0);
@@ -568,11 +574,11 @@ export function ShiftEditModal({
     if (!seriesRule || !shift) return;
     if (!validateInputs()) return;
     if (seriesWeekdays.length === 0) {
-      setError("Bitte mindestens einen Wochentag auswählen.");
+      formErrors.invalid(WEEKDAY_REQUIRED_MESSAGE);
       return;
     }
     if (!seriesHasRemainingOccurrence) {
-      setError(seriesNoOccurrenceMessage);
+      formErrors.invalid(seriesNoOccurrenceMessage);
       return;
     }
     setIsSaving(true);
@@ -597,7 +603,10 @@ export function ShiftEditModal({
         series_id: seriesRule.id,
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(getShiftMutationErrorMessage(err, "speichern"));
+      await formErrors.show(err, {
+        object: "die Serie",
+        retry: () => latestSaveRef.current(),
+      });
     } finally {
       setIsSaving(false);
     }
@@ -632,29 +641,36 @@ export function ShiftEditModal({
   };
 
   const validateInputs = (): boolean => {
-    setError(null);
+    formErrors.clear();
     if (!timesValid) {
-      setError("Ende muss nach Beginn liegen.");
+      formErrors.invalid("Das Ende muss nach dem Beginn liegen.", {
+        end_time: "Bitte eine spätere Zeit wählen.",
+      });
       return false;
     }
     if (!breakValid || breakMinutes === null) {
-      setError(
-        `Pause muss eine ganze Zahl zwischen 0 und ${breakMaxMinutes} sein.`,
+      formErrors.invalid(
+        `Die Pause muss zwischen 0 und ${breakMaxMinutes} Minuten liegen.`,
+        { break_minutes: `Bitte 0 bis ${breakMaxMinutes} Minuten eintragen.` },
       );
       return false;
     }
     if (repeatEnabled && weekdays.length === 0) {
-      setError("Bitte mindestens einen Wochentag auswählen.");
+      formErrors.invalid(WEEKDAY_REQUIRED_MESSAGE);
       return false;
     }
     if (repeatEnabled && periodId === "") {
-      setError("Bitte einen Kalenderzeitraum auswählen.");
+      formErrors.invalid("Bitte wählen Sie einen Kalenderzeitraum aus.", {
+        calendar_period_id: "Bitte einen Zeitraum wählen.",
+      });
       return false;
     }
     if (mode === "edit" && cancelled) {
       for (const row of replacements) {
         if (row.staffId === "") {
-          setError("Bitte für jede Vertretung eine Person auswählen.");
+          formErrors.invalid(
+            "Bitte wählen Sie für jede Vertretung eine Person aus.",
+          );
           return false;
         }
         if (!(
@@ -662,7 +678,9 @@ export function ShiftEditModal({
           row.endTime !== "" &&
           row.startTime < row.endTime
         )) {
-          setError("Vertretung: Ende muss nach Beginn liegen.");
+          formErrors.invalid(
+            "Bei jeder Vertretung muss das Ende nach dem Beginn liegen.",
+          );
           return false;
         }
       }
@@ -697,7 +715,10 @@ export function ShiftEditModal({
         date,
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(getShiftMutationErrorMessage(err, "speichern"));
+      await formErrors.show(err, {
+        object: "die Serie",
+        retry: () => latestSaveRef.current(),
+      });
     } finally {
       setIsSaving(false);
     }
@@ -770,7 +791,10 @@ export function ShiftEditModal({
         mode,
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(getShiftMutationErrorMessage(err, "speichern"));
+      await formErrors.show(err, {
+        object: "die Schicht",
+        retry: () => latestSaveRef.current(),
+      });
     } finally {
       setIsSaving(false);
       setScopeQuestion(null);
@@ -796,7 +820,10 @@ export function ShiftEditModal({
         date: shift.date,
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(getShiftMutationErrorMessage(err, "speichern"));
+      await formErrors.show(err, {
+        object: "die Serie",
+        retry: () => latestSaveRef.current(),
+      });
     } finally {
       setIsSaving(false);
       setScopeQuestion(null);
@@ -804,6 +831,7 @@ export function ShiftEditModal({
   };
 
   const handleSubmit = async () => {
+    scopeChoiceRef.current = null;
     if (!validateInputs()) return;
     if (mode === "create" && repeatEnabled) {
       await createSeries();
@@ -823,6 +851,7 @@ export function ShiftEditModal({
   const deleteSingleShift = async () => {
     if (!shift) return;
     setIsDeleting(true);
+    deleteErrors.clear();
     try {
       await staffShiftService.deleteShift(shift.id);
       setConfirmDeleteOpen(false);
@@ -833,8 +862,11 @@ export function ShiftEditModal({
         shift_id: shift.id,
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(getShiftMutationErrorMessage(err, "löschen"));
-      setConfirmDeleteOpen(false);
+      // The confirmation stays open and says why.
+      await deleteErrors.show(err, {
+        object: "die Schicht",
+        retry: () => latestDeleteRef.current(),
+      });
     } finally {
       setIsDeleting(false);
       setScopeQuestion(null);
@@ -844,11 +876,13 @@ export function ShiftEditModal({
   const endSeriesFromHere = async () => {
     if (!shift?.seriesId) return;
     setIsDeleting(true);
+    deleteErrors.clear();
     try {
       await staffShiftSeriesService.endSeries(
         shift.seriesId,
         seriesEffectiveDate,
       );
+      setConfirmDeleteOpen(false);
       onSaved();
       onClose();
     } catch (err: unknown) {
@@ -857,7 +891,10 @@ export function ShiftEditModal({
         date: seriesEffectiveDate,
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(getShiftMutationErrorMessage(err, "löschen"));
+      await deleteErrors.show(err, {
+        object: "die Serie",
+        retry: () => latestDeleteRef.current(),
+      });
     } finally {
       setIsDeleting(false);
       setScopeQuestion(null);
@@ -867,6 +904,7 @@ export function ShiftEditModal({
   // Löschen (#3110): ein Dialog; bei einer Serienschicht liegt die Scope-Wahl
   // (nur diese Woche / ab jetzt dauerhaft) als Slot in der ConfirmDeleteModal.
   const handleDeleteClick = () => {
+    deleteErrors.clear();
     setDeleteScope(isSeriesRow ? null : "single");
     setConfirmDeleteOpen(true);
   };
@@ -876,7 +914,21 @@ export function ShiftEditModal({
     else await deleteSingleShift();
   };
 
+  useLayoutEffect(() => {
+    // Retry repeats the action that failed, with what the form holds now.
+    latestSaveRef.current = () => {
+      if (seriesEditOpen) void saveSeriesRule();
+      else if (scopeChoiceRef.current === "following") {
+        if (validateInputs()) void splitSeriesFromHere();
+      } else if (scopeChoiceRef.current === "single") {
+        if (validateInputs()) void saveSingleShift();
+      } else void handleSubmit();
+    };
+    latestDeleteRef.current = () => void handleConfirmDelete();
+  });
+
   const handleScopeSelect = (value: string) => {
+    scopeChoiceRef.current = value === "single" ? "single" : "following";
     if (value === "single") void saveSingleShift();
     else void splitSeriesFromHere();
   };
@@ -904,7 +956,7 @@ export function ShiftEditModal({
           }
           setSeriesEditOpen(false);
           setOccurrenceDraft(null);
-          setError(null);
+          formErrors.clear();
         }}
         disabled={isSaving}
       >
@@ -973,6 +1025,27 @@ export function ShiftEditModal({
 
   const scopeOverlayOpen = scopeQuestion !== null;
 
+  /** Binds a plain control to its API field: name for focus, marking. */
+  const fieldControl = (name: string) => {
+    const invalid = formErrors.fieldError(name) !== undefined;
+    return {
+      name,
+      "aria-invalid": invalid ? true : undefined,
+      "aria-describedby": invalid ? `shift-${name}-error` : undefined,
+    };
+  };
+  const fieldHint = (name: string) => {
+    const hint = formErrors.fieldError(name);
+    return hint ? (
+      <p
+        id={`shift-${name}-error`}
+        className="text-moto-red-strong mt-1 text-xs"
+      >
+        {hint}
+      </p>
+    ) : null;
+  };
+
   return (
     <>
       {/* Hidden while another confirmation is open — all use the same fixed
@@ -991,7 +1064,7 @@ export function ShiftEditModal({
             </div>
             <SlideOverCloseButton />
           </SlideOverHeader>
-          <div className="flex-1 overflow-y-auto px-5 py-4">
+          <SlideOverBody error={seriesNotice ? null : formErrors.error}>
             {seriesNotice ? (
               <div className="space-y-3 text-sm">
                 <p className="text-gray-700">Die Serie wurde gespeichert.</p>
@@ -1000,7 +1073,7 @@ export function ShiftEditModal({
                 </p>
               </div>
             ) : (
-              <div className="space-y-4 text-sm">
+              <div ref={formRef} className="space-y-4 text-sm">
                 <p className="text-sm text-gray-600">{staffName}</p>
                 {isSeriesRow && (
                   // The series panel states the rule itself (#2028). Knowing only
@@ -1018,12 +1091,8 @@ export function ShiftEditModal({
                         {describeSeriesRule(seriesRule)}
                       </p>
                     )}
-                    {seriesRuleError && (
-                      <p className="text-xs text-gray-500">
-                        Die Serienangaben konnten nicht geladen werden.
-                        Änderungen an dieser Schicht sind weiterhin möglich.
-                      </p>
-                    )}
+                    <LoadErrorAlert error={seriesRuleLoad.error} />
+                    <LoadErrorAlert error={periodsLoad.error} />
                     {!seriesEditOpen && (
                       <Button
                         type="button"
@@ -1041,24 +1110,29 @@ export function ShiftEditModal({
                   <Field label="Beginn">
                     <input
                       type="time"
+                      {...fieldControl("start_time")}
                       value={startTime}
                       onChange={(e) => setStartTime(e.target.value)}
                       className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
                     />
+                    {fieldHint("start_time")}
                   </Field>
                   <Field label="Ende">
                     <input
                       type="time"
+                      {...fieldControl("end_time")}
                       value={endTime}
                       onChange={(e) => setEndTime(e.target.value)}
                       className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
                     />
+                    {fieldHint("end_time")}
                   </Field>
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="Pause (Minuten)">
                     <input
                       type="number"
+                      {...fieldControl("break_minutes")}
                       min={0}
                       max={breakMaxMinutes}
                       inputMode="numeric"
@@ -1066,6 +1140,7 @@ export function ShiftEditModal({
                       onChange={(e) => setBreakMinutesStr(e.target.value)}
                       className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
                     />
+                    {fieldHint("break_minutes")}
                   </Field>
                 </div>
                 {typeOptions.length > 1 && (
@@ -1074,6 +1149,8 @@ export function ShiftEditModal({
                       value={shiftTypeId}
                       options={typeOptions}
                       onChange={setShiftTypeId}
+                      name="shift_type_id"
+                      invalid={!!formErrors.fieldError("shift_type_id")}
                       ariaLabel="Schichtart"
                       placeholder="Keine Schichtart"
                     />
@@ -1083,12 +1160,14 @@ export function ShiftEditModal({
                   <Field label="Grund der Änderung (optional)">
                     <input
                       type="text"
+                      {...fieldControl("change_reason")}
                       value={changeReason}
                       maxLength={200}
                       onChange={(e) => setChangeReason(e.target.value)}
                       placeholder="z. B. Krankheit, Fortbildung, Tausch"
                       className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none"
                     />
+                    {fieldHint("change_reason")}
                     {/* A permanent series change ("Ab jetzt dauerhaft") re-plans the
                     series and carries no per-day reason, so be honest that the
                     reason only sticks to a single-occurrence change. */}
@@ -1322,7 +1401,9 @@ export function ShiftEditModal({
                           />
                         </FieldGroup>
                         <Field label="Kalenderzeitraum">
-                          {periods !== null && periodOptions.length === 0 ? (
+                          {periodsLoad.error ? (
+                            <LoadErrorAlert error={periodsLoad.error} />
+                          ) : periods !== null && periodOptions.length === 0 ? (
                             <p className="bg-moto-amber/10 text-moto-amber-strong rounded-md px-3 py-2 text-xs">
                               Kein aktiver Kalenderzeitraum vorhanden. Bitte
                               zuerst unter Planung → Kalenderzeiträume einen
@@ -1333,6 +1414,10 @@ export function ShiftEditModal({
                               value={periodId}
                               options={periodOptions}
                               onChange={setPeriodId}
+                              name="calendar_period_id"
+                              invalid={
+                                !!formErrors.fieldError("calendar_period_id")
+                              }
                               ariaLabel="Kalenderzeitraum"
                               placeholder={
                                 periods === null
@@ -1404,14 +1489,9 @@ export function ShiftEditModal({
                     )}
                   </div>
                 )}
-                {error && (
-                  <p className="bg-moto-red-soft text-moto-red-strong rounded-md px-3 py-2 text-xs">
-                    {error}
-                  </p>
-                )}
               </div>
             )}
-          </div>
+          </SlideOverBody>
           <SlideOverFooter className="flex-row justify-end gap-2">
             {footer}
           </SlideOverFooter>
@@ -1463,9 +1543,12 @@ export function ShiftEditModal({
         gate={{ mode: "twoStep" }}
         confirmLabel={isSeriesRow ? "Löschen" : "Endgültig löschen"}
         loading={isDeleting}
-        error=""
+        error={deleteErrors.error}
         onConfirm={handleConfirmDelete}
-        onClose={() => setConfirmDeleteOpen(false)}
+        onClose={() => {
+          deleteErrors.clear();
+          setConfirmDeleteOpen(false);
+        }}
       />
       <ChoiceModal
         isOpen={isOpen && scopeQuestion === "edit"}

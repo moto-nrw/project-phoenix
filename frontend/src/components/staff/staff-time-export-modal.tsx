@@ -4,10 +4,16 @@ import { useEffect, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
+import { useLatest } from "~/lib/hooks/use-latest";
 import { formatOverviewMonth } from "~/components/staff/staff-time-accounts-table";
 import {
-  DatevConfigIncompleteError,
   fetchDatevExportReport,
   type DatevExportReport,
   type DatevFormat,
@@ -34,6 +40,9 @@ type TransferState =
   | { readonly status: "running" }
   | { readonly status: "done"; readonly outcome: TransferOutcome }
   | { readonly status: "error" };
+
+// Wo die Vorschau fehlt, steht der Grund aus dem Fehlerkatalog (#2514).
+const DATEV_REPORT_OBJECT = "die Vorschau der DATEV-Datei";
 type DatevReportState =
   | { readonly status: "idle"; readonly requestKey: null }
   | { readonly status: "loading"; readonly requestKey: string }
@@ -42,7 +51,6 @@ type DatevReportState =
       readonly requestKey: string;
       readonly report: DatevExportReport;
     }
-  | { readonly status: "config-incomplete"; readonly requestKey: string }
   | { readonly status: "failed"; readonly requestKey: string };
 
 const isDatevFormat = (format: FileFormat): format is DatevFormat =>
@@ -97,39 +105,23 @@ function OptionGroup<T extends string>({
 // nicht geben — fehlende Personalnummern sperren den Export.
 function DatevReportPanel({
   state,
-  onRetry,
+  error,
 }: {
   readonly state: DatevReportState;
-  readonly onRetry: () => void;
+  readonly error: FormErrorInput;
 }) {
-  if (state.status === "idle" || state.status === "loading") {
-    return <p className="text-sm text-gray-500">Bericht wird geladen …</p>;
-  }
-  if (state.status === "config-incomplete") {
-    return (
-      <Alert
-        type="error"
-        message="Die DATEV-Konfiguration ist unvollständig (Lohnarten bzw. Berater-/Mandantennummer). Ohne vollständige Konfiguration wird keine Datei erzeugt. Die Pflege erfolgt auf der Seite Abrechnung."
-      />
-    );
-  }
   if (state.status === "failed") {
     return (
-      <div className="space-y-2">
-        <Alert
-          type="error"
-          message="Der DATEV-Bericht konnte nicht geladen werden. Ohne erfolgreichen Vorab-Bericht ist der Export gesperrt."
-        />
-        <Button
-          type="button"
-          size="compact"
-          variant="outline"
-          onClick={onRetry}
-        >
-          Bericht erneut laden
-        </Button>
+      <div className="space-y-1">
+        <LoadErrorAlert error={error} />
+        <p className="text-xs text-gray-500">
+          Ohne Vorschau bleibt der Export gesperrt.
+        </p>
       </div>
     );
+  }
+  if (state.status === "idle" || state.status === "loading") {
+    return <p className="text-sm text-gray-500">Bericht wird geladen …</p>;
   }
   const { report } = state;
   return (
@@ -176,14 +168,8 @@ function TransferResultPanel({ state }: { readonly state: TransferState }) {
   if (state.status === "running") {
     return <p className="text-sm text-gray-500">Datei wird übertragen …</p>;
   }
-  if (state.status === "error") {
-    return (
-      <Alert
-        type="error"
-        message="Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal."
-      />
-    );
-  }
+  // Ein Fehler der Anfrage selbst steht im Fehlerkasten des Dialogs.
+  if (state.status === "error") return null;
   const { outcome } = state;
   if (!outcome.transferred) {
     return (
@@ -216,6 +202,10 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
   const [transferState, setTransferState] = useState<TransferState>({
     status: "idle",
   });
+  const transferErrors = useApiFormError();
+  const reportLoad = useApiLoadError();
+  const showReportError = reportLoad.show;
+  const clearReportError = reportLoad.clear;
 
   // Der Status entscheidet, ob die Übertragung überhaupt angeboten wird. Ohne
   // ihn bleibt es beim Download — eine Schaltfläche, die nichts tun kann, ist
@@ -232,6 +222,7 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
         logger.error("sftp_status_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
+        // Bewusst still: ohne Status bleibt der Download, der immer geht.
         setSftpStatus({ enabled: false, ready: false, missingSettings: [] });
       });
     return () => {
@@ -261,11 +252,13 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
   useEffect(() => {
     if (!isOpen || !isDatevFormat(format)) {
       setReportState({ status: "idle", requestKey: null });
+      clearReportError();
       return;
     }
     const requestKey = `${format}:${year}:${month}`;
     let cancelled = false;
     setReportState({ status: "loading", requestKey });
+    clearReportError();
     fetchDatevExportReport(year, month, format)
       .then((result) => {
         if (!cancelled) {
@@ -274,19 +267,29 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
       })
       .catch((error: unknown) => {
         if (cancelled) return;
-        if (error instanceof DatevConfigIncompleteError) {
-          setReportState({ status: "config-incomplete", requestKey });
-          return;
-        }
         logger.error("datev_report_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
         setReportState({ status: "failed", requestKey });
+        // The incomplete payroll setup arrives as DatevConfigIncompleteError
+        // with its own code; the catalog names the next step.
+        void showReportError(error, {
+          object: DATEV_REPORT_OBJECT,
+          retry: () => setReportAttempt((attempt) => attempt + 1),
+        });
       });
     return () => {
       cancelled = true;
     };
-  }, [isOpen, format, year, month, reportAttempt]);
+  }, [
+    isOpen,
+    format,
+    year,
+    month,
+    reportAttempt,
+    showReportError,
+    clearReportError,
+  ]);
 
   const handleExport = () => {
     if (
@@ -314,6 +317,7 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
   // damit das Ergebnis sichtbar ist — auch ein Fehlschlag.
   const handleTransfer = async () => {
     setTransferState({ status: "running" });
+    transferErrors.clear();
     try {
       const outcome = await transferExportViaSFTP({
         year,
@@ -329,8 +333,14 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
         error: error instanceof Error ? error.message : String(error),
       });
       setTransferState({ status: "error" });
+      await transferErrors.show(error, {
+        object: "die Übertragung",
+        retry: () => void latestTransfer.current(),
+      });
     }
   };
+  // „Wiederholen“ überträgt mit der aktuellen Auswahl.
+  const latestTransfer = useLatest(handleTransfer);
 
   const datevBlocked =
     datev &&
@@ -366,6 +376,7 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
       }
     >
       <div className="space-y-4">
+        <FormErrorAlert message={transferErrors.error} />
         <p className="text-sm text-gray-600">
           Export für alle Mitarbeitenden. Die Werte entsprechen der
           Zeitkonten-Tabelle; abgeschlossene Monate tragen den eingefrorenen
@@ -475,7 +486,7 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
             </p>
             <DatevReportPanel
               state={activeReportState}
-              onRetry={() => setReportAttempt((attempt) => attempt + 1)}
+              error={reportLoad.error}
             />
           </div>
         )}

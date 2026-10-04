@@ -1,10 +1,12 @@
 import {
-  render,
+  render as rtlRender,
   screen,
   fireEvent,
   waitFor,
   act,
+  within,
 } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
 
@@ -54,7 +56,10 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutateMatching: vi.fn(() => vi.fn()),
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+// The real error paths (#2514) render their toasts through the real
+// provider; `useToast` stays a spy for the success messages the page sends.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: vi.fn(() => ({
     success: vi.fn(),
     error: vi.fn(),
@@ -440,7 +445,20 @@ import TimeTrackingPage from "./page";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
-import { useToast } from "~/contexts/ToastContext";
+import { ToastProvider, useToast } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
+
+/** A failed save in a dialog stays in the dialog (#2514). */
+async function expectInDialog(text: string) {
+  expect(
+    await within(screen.getByTestId("modal")).findByText(text),
+  ).toBeInTheDocument();
+}
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import type {
   MonthSummary,
@@ -937,7 +955,7 @@ describe("TimeTrackingPage", () => {
 
       await waitFor(() => {
         expect(mockToast.success).toHaveBeenCalledWith(
-          "Erfolgreich eingestempelt",
+          "Sie sind eingestempelt.",
         );
       });
     });
@@ -953,7 +971,9 @@ describe("TimeTrackingPage", () => {
       vi.mocked(useToast).mockReturnValue(mockToast);
       setupDefaultMocks();
       vi.mocked(timeTrackingService.checkIn).mockRejectedValue(
-        new Error("already checked in"),
+        new ApiError("already checked in", 409, {
+          code: "workforce.already_checked_in",
+        }),
       );
       render(<TimeTrackingPage />);
 
@@ -963,11 +983,14 @@ describe("TimeTrackingPage", () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
       });
 
-      await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith(
-          "Sie sind bereits eingestempelt.",
-        );
-      });
+      // The shared error path (#2514) shows the catalog text in a toast; the
+      // page no longer maps backend sentences itself.
+      expect(
+        await screen.findByText(
+          catalogText("workforce.already_checked_in", "die Arbeitszeit"),
+        ),
+      ).toBeInTheDocument();
+      expect(mockToast.error).not.toHaveBeenCalled();
     });
 
     it("opens absence modal when Abwesend + calendar button clicked", () => {
@@ -1249,10 +1272,13 @@ describe("TimeTrackingPage", () => {
         await waitFor(() => {
           expect(timeTrackingService.endBreak).toHaveBeenCalledTimes(1);
           expect(timeTrackingService.getSessionBreaks).toHaveBeenCalledTimes(2);
-          expect(toast.error).toHaveBeenCalledWith(
-            "Fehler beim Beenden der Pause",
-          );
         });
+        // A failed reload is no API answer: the crash text names the screen.
+        expect(
+          await screen.findByText(
+            "Die Zeiterfassung konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+          ),
+        ).toBeInTheDocument();
         expect(logError).toHaveBeenCalledWith("end_break_failed", {
           error: "session refresh failed",
           status: undefined,
@@ -1288,7 +1314,9 @@ describe("TimeTrackingPage", () => {
           .mockResolvedValueOnce([activeBreak])
           .mockResolvedValue([]);
         vi.mocked(timeTrackingService.endBreak).mockRejectedValue(
-          Object.assign(new Error("no active break found"), { status: 404 }),
+          new ApiError("no active break found", 404, {
+            code: "workforce.no_active_break",
+          }),
         );
 
         render(<TimeTrackingPage />);
@@ -1339,9 +1367,14 @@ describe("TimeTrackingPage", () => {
               plannedEndTime: new Date(Date.now() - 1000).toISOString(),
             },
           ])
-          .mockRejectedValue(new Error("refresh failed"));
+          .mockRejectedValue(
+            new ApiError("refresh failed", 500, { code: "general.server" }),
+          );
         vi.mocked(timeTrackingService.endBreak).mockRejectedValue(
-          Object.assign(new Error("server unavailable"), { status: 500 }),
+          new ApiError("server unavailable", 500, {
+            code: "general.server",
+            instance: "req-break",
+          }),
         );
 
         render(<TimeTrackingPage />);
@@ -1350,10 +1383,18 @@ describe("TimeTrackingPage", () => {
           expect(timeTrackingService.endBreak).toHaveBeenCalledTimes(1);
           expect(timeTrackingService.getSessionBreaks).toHaveBeenCalledTimes(2);
           expect(mockMutate).toHaveBeenCalledTimes(2);
-          expect(toast.error).toHaveBeenCalledWith(
-            "Fehler beim Beenden der Pause",
-          );
         });
+        // One toast for the failed action, with its request ID; the failed
+        // break reload shows in place instead of as a second toast.
+        expect(
+          await screen.findByText(catalogText("general.server", "die Pause")),
+        ).toBeInTheDocument();
+        expect(
+          await screen.findByText(
+            catalogText("general.server", "die Liste der Pausen"),
+          ),
+        ).toBeInTheDocument();
+        expect(toast.error).not.toHaveBeenCalled();
         expect(logError).toHaveBeenCalledWith("end_break_failed", {
           error: "server unavailable",
           status: 500,
@@ -1752,23 +1793,11 @@ describe("TimeTrackingPage", () => {
   });
 
   describe("erneutes Einstempeln nach Checkout (#2402)", () => {
-    function makePlannedStartError(): Error & {
-      code?: string;
-      status?: number;
-      details?: Record<string, unknown>;
-    } {
-      const err = new Error("planned start not reached") as Error & {
-        code?: string;
-        status?: number;
-        details?: Record<string, unknown>;
-      };
-      err.code = "iot.planned_start_not_reached";
-      err.status = 409;
-      err.details = {
-        planned_start_time: "09:00",
-        current_time: "08:45",
-      };
-      return err;
+    function makePlannedStartError(): ApiError {
+      return new ApiError("planned start not reached", 409, {
+        code: "iot.planned_start_not_reached",
+        details: { planned_start_time: "09:00", current_time: "08:45" },
+      });
     }
 
     it("shows planned-start message when check-in is too early", async () => {
@@ -1792,11 +1821,14 @@ describe("TimeTrackingPage", () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
       });
 
-      await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith(
-          "Einstempeln ist erst ab 09:00 Uhr möglich.",
-        );
-      });
+      expect(
+        await screen.findByText(
+          catalogText(
+            "iot.planned_start_not_reached",
+            "die Arbeitszeit",
+          ).replace("{planned_start_time}", "09:00"),
+        ),
+      ).toBeInTheDocument();
     });
 
     it("checking in again with the same status stamps a new block without a modal", async () => {
@@ -2015,7 +2047,9 @@ describe("TimeTrackingPage", () => {
       vi.mocked(useToast).mockReturnValue(mockToast);
       setupDefaultMocks();
       vi.mocked(timeTrackingService.checkIn).mockRejectedValue(
-        new Error("already checked out today"),
+        new ApiError("already checked out today", 409, {
+          code: "general.business_rejection",
+        }),
       );
       render(<TimeTrackingPage />);
 
@@ -2025,11 +2059,11 @@ describe("TimeTrackingPage", () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
       });
 
-      await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith(
-          "Sie haben heute bereits gearbeitet.",
-        );
-      });
+      expect(
+        await screen.findByText(
+          catalogText("general.business_rejection", "die Arbeitszeit"),
+        ),
+      ).toBeInTheDocument();
     });
 
     it("maps 'no active session found' to German", async () => {
@@ -2043,7 +2077,9 @@ describe("TimeTrackingPage", () => {
       vi.mocked(useToast).mockReturnValue(mockToast);
       setupDefaultMocks({ currentSession: mockActiveSession });
       vi.mocked(timeTrackingService.checkOut).mockRejectedValue(
-        new Error("no active session found"),
+        new ApiError("no active session found", 404, {
+          code: "workforce.no_active_session",
+        }),
       );
       render(<TimeTrackingPage />);
 
@@ -2051,11 +2087,11 @@ describe("TimeTrackingPage", () => {
         fireEvent.click(screen.getByLabelText("Ausstempeln"));
       });
 
-      await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith(
-          "Kein aktiver Eintrag vorhanden.",
-        );
-      });
+      expect(
+        await screen.findByText(
+          catalogText("workforce.no_active_session", "die Arbeitszeit"),
+        ),
+      ).toBeInTheDocument();
     });
 
     it("maps 'break already active' to German for startBreak", async () => {
@@ -2069,7 +2105,9 @@ describe("TimeTrackingPage", () => {
       vi.mocked(useToast).mockReturnValue(mockToast);
       setupDefaultMocks({ currentSession: mockActiveSession });
       vi.mocked(timeTrackingService.startBreak).mockRejectedValue(
-        new Error("break already active"),
+        new ApiError("break already active", 409, {
+          code: "workforce.break_already_active",
+        }),
       );
       render(<TimeTrackingPage />);
 
@@ -2079,11 +2117,11 @@ describe("TimeTrackingPage", () => {
         fireEvent.click(screen.getByRole("button", { name: "Starten" }));
       });
 
-      await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith(
-          "Eine Pause läuft bereits.",
-        );
-      });
+      expect(
+        await screen.findByText(
+          catalogText("workforce.break_already_active", "die Pause"),
+        ),
+      ).toBeInTheDocument();
     });
 
     it("maps 'absence overlaps' to German", async () => {
@@ -2097,7 +2135,9 @@ describe("TimeTrackingPage", () => {
       vi.mocked(useToast).mockReturnValue(mockToast);
       setupDefaultMocks();
       vi.mocked(timeTrackingService.createAbsence).mockRejectedValue(
-        new Error('{"error":"absence overlaps with existing absence"}'),
+        new ApiError("absence overlaps with existing absence", 409, {
+          code: "workforce.absence_overlap",
+        }),
       );
       render(<TimeTrackingPage />);
 
@@ -2109,11 +2149,11 @@ describe("TimeTrackingPage", () => {
         fireEvent.click(saveButtons[saveButtons.length - 1]!);
       });
 
-      await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith(
-          "Für diesen Zeitraum ist bereits eine andere Abwesenheitsart eingetragen.",
-        );
-      });
+      // The dialog stays open and shows the reason itself.
+      await expectInDialog(
+        catalogText("workforce.absence_overlap", "die Abwesenheit"),
+      );
+      expect(mockToast.error).not.toHaveBeenCalled();
     });
 
     it("uses fallback for unknown error", async () => {
@@ -2127,7 +2167,10 @@ describe("TimeTrackingPage", () => {
       vi.mocked(useToast).mockReturnValue(mockToast);
       setupDefaultMocks();
       vi.mocked(timeTrackingService.checkIn).mockRejectedValue(
-        new Error("some unknown error xyz"),
+        new ApiError("some unknown error xyz", 500, {
+          code: "general.server",
+          instance: "req-stamp",
+        }),
       );
       render(<TimeTrackingPage />);
 
@@ -2137,9 +2180,22 @@ describe("TimeTrackingPage", () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
       });
 
-      await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith("Fehler beim Einstempeln");
+      expect(
+        await screen.findByText(
+          catalogText("general.server", "die Arbeitszeit"),
+        ),
+      ).toBeInTheDocument();
+      // A server error offers a retry, which stamps again.
+      vi.mocked(timeTrackingService.checkIn).mockResolvedValue(
+        mockActiveSession,
+      );
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /Wiederholen/ }));
       });
+      await waitFor(() => {
+        expect(timeTrackingService.checkIn).toHaveBeenCalledTimes(2);
+      });
+      expect(timeTrackingService.checkIn).toHaveBeenLastCalledWith("present");
     });
 
     it("handles non-Error thrown objects", async () => {
@@ -2161,10 +2217,12 @@ describe("TimeTrackingPage", () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
       });
 
-      await waitFor(() => {
-        // "string error" does not match any key, so fallback is used
-        expect(mockToast.error).toHaveBeenCalled();
-      });
+      // Not an API answer: the crash text, which names the object, too.
+      expect(
+        await screen.findByText(
+          catalogText("general.server", "die Arbeitszeit"),
+        ),
+      ).toBeInTheDocument();
     });
   });
 
@@ -2286,7 +2344,7 @@ describe("TimeTrackingPage", () => {
 
       await waitFor(() => {
         expect(mockToast.success).toHaveBeenCalledWith(
-          "Erfolgreich ausgestempelt",
+          "Sie sind ausgestempelt.",
         );
       });
     });
@@ -2338,7 +2396,7 @@ describe("TimeTrackingPage", () => {
   describe("own shift loading in the Zeiterfassung table", () => {
     // A failed shift fetch must not render as an empty plan: every Plan cell
     // would show "–", telling the staff member no shifts were scheduled.
-    it("warns instead of showing an empty plan when the shift fetch fails", () => {
+    it("warns instead of showing an empty plan when the shift fetch fails", async () => {
       setupDefaultMocks();
       const base = vi.mocked(useSWRAuth).getMockImplementation()!;
       vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
@@ -2348,7 +2406,10 @@ describe("TimeTrackingPage", () => {
             isLoading: false,
             mutate: mockMutate,
             isValidating: false,
-            error: new Error("network down"),
+            error: new ApiError("network down", 503, {
+              code: "general.unavailable",
+              instance: "req-shifts",
+            }),
           } as never;
         }
         return base(key, (() => Promise.resolve()) as never);
@@ -2356,7 +2417,71 @@ describe("TimeTrackingPage", () => {
 
       render(<TimeTrackingPage />);
       expect(
-        screen.getByText(/Der Dienstplan konnte nicht geladen/),
+        await screen.findByText(
+          catalogText("general.unavailable", "die Liste Ihrer Schichten"),
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /Vorgangskennung kopieren/ }),
+      ).toHaveTextContent("req-shifts");
+    });
+
+    // A failed session load must not read as "nothing recorded" (#2514).
+    it("shows a failed session load in place of the table, with retry", async () => {
+      setupDefaultMocks();
+      const base = vi.mocked(useSWRAuth).getMockImplementation()!;
+      const retry = vi.fn();
+      vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
+        if (key && /^time-tracking-table-\d/.test(key)) {
+          return {
+            data: undefined,
+            isLoading: false,
+            mutate: retry,
+            isValidating: false,
+            error: new ApiError("boom", 500, {
+              code: "general.server",
+              instance: "req-table",
+            }),
+          } as never;
+        }
+        return base(key, (() => Promise.resolve()) as never);
+      });
+
+      render(<TimeTrackingPage />);
+      expect(
+        await screen.findByText(
+          catalogText("general.server", "die Liste Ihrer Arbeitszeiten"),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId("staff-session-table")).toBeNull();
+      expect(
+        screen.getByRole("button", { name: /Vorgangskennung kopieren/ }),
+      ).toHaveTextContent("req-table");
+      fireEvent.click(screen.getByRole("button", { name: /Wiederholen/ }));
+      expect(retry).toHaveBeenCalled();
+    });
+
+    it("shows a failed load of the running session above the Stempeluhr", async () => {
+      setupDefaultMocks();
+      const base = vi.mocked(useSWRAuth).getMockImplementation()!;
+      vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
+        if (key === "time-tracking-current") {
+          return {
+            data: undefined,
+            isLoading: false,
+            mutate: mockMutate,
+            isValidating: false,
+            error: new ApiError("down", 503, { code: "general.unavailable" }),
+          } as never;
+        }
+        return base(key, (() => Promise.resolve()) as never);
+      });
+
+      render(<TimeTrackingPage />);
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "die laufende Arbeitszeit"),
+        ),
       ).toBeInTheDocument();
     });
 
@@ -2779,8 +2904,12 @@ describe("TimeTrackingPage", () => {
       });
 
       expect(
-        screen.getByText("Ende muss nach Start liegen."),
+        screen.getByText("Das Ende muss nach dem Beginn liegen."),
       ).toBeInTheDocument();
+      expect(screen.getByLabelText("Ende")).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
 
       const saveButtons = screen.getAllByText("Speichern");
       const saveBtn = saveButtons[saveButtons.length - 1]!;
@@ -2813,7 +2942,9 @@ describe("TimeTrackingPage", () => {
 
       await waitFor(() => {
         expect(timeTrackingService.updateSession).toHaveBeenCalled();
-        expect(mockToast.success).toHaveBeenCalledWith("Eintrag gespeichert");
+        expect(mockToast.success).toHaveBeenCalledWith(
+          "Die Arbeitszeit ist gespeichert.",
+        );
       });
     });
 
@@ -3853,7 +3984,10 @@ describe("TimeTrackingPage", () => {
       vi.mocked(useToast).mockReturnValue(mockToast);
       setupDefaultMocks();
       vi.mocked(timeTrackingService.createAbsence).mockRejectedValue(
-        new Error("invalid absence type"),
+        new ApiError("invalid note", 400, {
+          code: "general.input",
+          errors: [{ field: "note", reason: "too long" }],
+        }),
       );
       render(<TimeTrackingPage />);
 
@@ -3865,11 +3999,15 @@ describe("TimeTrackingPage", () => {
         fireEvent.click(saveButtons[saveButtons.length - 1]!);
       });
 
-      await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith(
-          "Ungültiger Abwesenheitstyp.",
-        );
-      });
+      await expectInDialog(catalogText("general.input", "die Abwesenheit"));
+      // The field the backend names is marked.
+      await waitFor(() =>
+        expect(screen.getByLabelText(/Bemerkung/)).toHaveAttribute(
+          "aria-invalid",
+          "true",
+        ),
+      );
+      expect(mockToast.error).not.toHaveBeenCalled();
     });
   });
 
@@ -3929,7 +4067,9 @@ describe("TimeTrackingPage", () => {
         });
 
         await waitFor(() => {
-          expect(mockToast.success).toHaveBeenCalledWith("Eintrag gespeichert");
+          expect(mockToast.success).toHaveBeenCalledWith(
+            "Die Arbeitszeit ist gespeichert.",
+          );
           // After save, getSessionEdits should be called to auto-expand
           expect(timeTrackingService.getSessionEdits).toHaveBeenCalled();
         });
@@ -3956,7 +4096,9 @@ describe("TimeTrackingPage", () => {
 
       setupDefaultMocks({ history: [pastSession] });
       vi.mocked(timeTrackingService.updateSession).mockRejectedValue(
-        new Error("session not found"),
+        new ApiError("session not found", 404, {
+          code: "general.business_rejection",
+        }),
       );
 
       render(<TimeTrackingPage />);
@@ -3975,11 +4117,9 @@ describe("TimeTrackingPage", () => {
           fireEvent.click(saveBtn);
         });
 
-        await waitFor(() => {
-          expect(mockToast.error).toHaveBeenCalledWith(
-            "Eintrag nicht gefunden.",
-          );
-        });
+        await expectInDialog(
+          catalogText("general.business_rejection", "die Arbeitszeit"),
+        );
       }
     });
 
@@ -4002,7 +4142,9 @@ describe("TimeTrackingPage", () => {
 
       setupDefaultMocks({ absences: [pastAbsence] });
       vi.mocked(timeTrackingService.deleteAbsence).mockRejectedValue(
-        new Error("can only delete own absences"),
+        new ApiError("can only delete own absences", 403, {
+          code: "general.permission",
+        }),
       );
 
       render(<TimeTrackingPage />);
@@ -4021,11 +4163,9 @@ describe("TimeTrackingPage", () => {
             await act(async () => {
               fireEvent.click(deleteBtn);
             });
-            await waitFor(() => {
-              expect(mockToast.error).toHaveBeenCalledWith(
-                "Sie können nur eigene Abwesenheiten löschen.",
-              );
-            });
+            await expectInDialog(
+              catalogText("general.permission", "die Abwesenheit"),
+            );
           }
         }
       }
@@ -4063,7 +4203,9 @@ describe("TimeTrackingPage", () => {
       );
       vi.mocked(timeTrackingService.getSessionEdits).mockResolvedValue([]);
       vi.mocked(timeTrackingService.updateAbsence).mockRejectedValue(
-        new Error("can only update own absences"),
+        new ApiError("can only update own absences", 403, {
+          code: "general.permission",
+        }),
       );
 
       render(<TimeTrackingPage />);
@@ -4088,11 +4230,9 @@ describe("TimeTrackingPage", () => {
           fireEvent.click(saveButtons[saveButtons.length - 1]!);
         });
 
-        await waitFor(() => {
-          expect(mockToast.error).toHaveBeenCalledWith(
-            "Sie können nur eigene Abwesenheiten bearbeiten.",
-          );
-        });
+        await expectInDialog(
+          catalogText("general.permission", "die Abwesenheit"),
+        );
       }
     });
 
@@ -4134,7 +4274,7 @@ describe("TimeTrackingPage", () => {
             });
             await waitFor(() => {
               expect(mockToast.success).toHaveBeenCalledWith(
-                "Abwesenheit gelöscht",
+                "Die Abwesenheit ist gelöscht.",
               );
             });
           }
@@ -4199,7 +4339,7 @@ describe("TimeTrackingPage", () => {
 
         await waitFor(() => {
           expect(mockToast.success).toHaveBeenCalledWith(
-            "Abwesenheit aktualisiert",
+            "Die Abwesenheit ist gespeichert.",
           );
         });
       }
@@ -4529,9 +4669,10 @@ describe("TimeTrackingPage", () => {
       // Exactly what buildApiError produces: the human-readable backend text
       // (carrying the conflicting interval) as the message, the stable code on
       // the error object — never inside the message.
-      const overlapError = Object.assign(
-        new Error("work session overlaps an existing block (08:00–12:00)"),
-        { status: 409, code: "workforce.work_session_overlap" },
+      const overlapError = new ApiError(
+        "work session overlaps an existing block (08:00–12:00)",
+        409,
+        { code: "workforce.work_session_overlap" },
       );
       vi.mocked(timeTrackingService.checkIn).mockRejectedValue(overlapError);
       render(<TimeTrackingPage />);
@@ -4542,11 +4683,11 @@ describe("TimeTrackingPage", () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
       });
 
-      await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith(
-          "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.",
-        );
-      });
+      expect(
+        await screen.findByText(
+          catalogText("workforce.work_session_overlap", "die Arbeitszeit"),
+        ),
+      ).toBeInTheDocument();
     });
 
     it("maps 'no session found for today' error", async () => {
@@ -4560,7 +4701,9 @@ describe("TimeTrackingPage", () => {
       vi.mocked(useToast).mockReturnValue(mockToast);
       setupDefaultMocks({ currentSession: mockActiveSession });
       vi.mocked(timeTrackingService.checkOut).mockRejectedValue(
-        new Error("no session found for today"),
+        new ApiError("no session found for today", 404, {
+          code: "workforce.no_active_session",
+        }),
       );
       render(<TimeTrackingPage />);
 
@@ -4568,11 +4711,11 @@ describe("TimeTrackingPage", () => {
         fireEvent.click(screen.getByLabelText("Ausstempeln"));
       });
 
-      await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith(
-          "Kein Eintrag für heute vorhanden.",
-        );
-      });
+      expect(
+        await screen.findByText(
+          catalogText("workforce.no_active_session", "die Arbeitszeit"),
+        ),
+      ).toBeInTheDocument();
     });
 
     it("maps 'updated dates overlap' error prefix", async () => {
@@ -4586,7 +4729,9 @@ describe("TimeTrackingPage", () => {
       vi.mocked(useToast).mockReturnValue(mockToast);
       setupDefaultMocks();
       vi.mocked(timeTrackingService.createAbsence).mockRejectedValue(
-        new Error('{"error":"updated dates overlap with existing absence"}'),
+        new ApiError("updated dates overlap with existing absence", 409, {
+          code: "workforce.absence_overlap",
+        }),
       );
       render(<TimeTrackingPage />);
 
@@ -4598,11 +4743,11 @@ describe("TimeTrackingPage", () => {
         fireEvent.click(saveButtons[saveButtons.length - 1]!);
       });
 
-      await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith(
-          "Für diesen Zeitraum ist bereits eine andere Abwesenheitsart eingetragen.",
-        );
-      });
+      // The dialog stays open and shows the reason itself.
+      await expectInDialog(
+        catalogText("workforce.absence_overlap", "die Abwesenheit"),
+      );
+      expect(mockToast.error).not.toHaveBeenCalled();
     });
 
     it("maps 'can only update own sessions' error", async () => {
@@ -4625,7 +4770,9 @@ describe("TimeTrackingPage", () => {
 
       setupDefaultMocks({ history: [pastSession] });
       vi.mocked(timeTrackingService.updateSession).mockRejectedValue(
-        new Error("can only update own sessions"),
+        new ApiError("can only update own sessions", 403, {
+          code: "general.permission",
+        }),
       );
 
       render(<TimeTrackingPage />);
@@ -4644,11 +4791,9 @@ describe("TimeTrackingPage", () => {
           fireEvent.click(saveBtn);
         });
 
-        await waitFor(() => {
-          expect(mockToast.error).toHaveBeenCalledWith(
-            "Sie können nur eigene Einträge bearbeiten.",
-          );
-        });
+        await expectInDialog(
+          catalogText("general.permission", "die Arbeitszeit"),
+        );
       }
     });
 
@@ -4717,7 +4862,9 @@ describe("TimeTrackingPage", () => {
 
       setupDefaultMocks({ absences: [pastAbsence] });
       vi.mocked(timeTrackingService.deleteAbsence).mockRejectedValue(
-        new Error("absence not found"),
+        new ApiError("absence not found", 404, {
+          code: "general.business_rejection",
+        }),
       );
 
       render(<TimeTrackingPage />);
@@ -4736,11 +4883,9 @@ describe("TimeTrackingPage", () => {
             await act(async () => {
               fireEvent.click(deleteBtn);
             });
-            await waitFor(() => {
-              expect(mockToast.error).toHaveBeenCalledWith(
-                "Abwesenheit nicht gefunden.",
-              );
-            });
+            await expectInDialog(
+              catalogText("general.business_rejection", "die Abwesenheit"),
+            );
           }
         }
       }
@@ -4858,33 +5003,25 @@ describe("deviation-reason gate (F9)", () => {
     vi.clearAllMocks();
   });
 
-  function makeDeviationError(action: "check_in" | "check_out"): Error & {
-    code?: string;
-    status?: number;
-    details?: Record<string, unknown>;
-  } {
-    const err = new Error("deviation reason required") as Error & {
-      code?: string;
-      status?: number;
-      details?: Record<string, unknown>;
-    };
-    err.code = "iot.deviation_reason_required";
-    err.status = 409;
-    err.details =
-      action === "check_in"
-        ? {
-            action,
-            planned_time: "08:00",
-            actual_time: "07:30",
-            deviation_minutes: "30",
-          }
-        : {
-            action,
-            planned_time: "16:00",
-            actual_time: "16:30",
-            deviation_minutes: "30",
-          };
-    return err;
+  // The client hands every failure over as ApiError (#2514).
+  function makeDeviationError(action: "check_in" | "check_out"): ApiError {
+    return new ApiError("deviation reason required", 409, {
+      code: "iot.deviation_reason_required",
+      details:
+        action === "check_in"
+          ? {
+              action,
+              planned_time: "08:00",
+              actual_time: "07:30",
+              deviation_minutes: "30",
+            }
+          : {
+              action,
+              planned_time: "16:00",
+              actual_time: "16:30",
+              deviation_minutes: "30",
+            },
+    });
   }
 
   it("opens the reason dialog when check-out deviates from the plan", async () => {
@@ -4903,7 +5040,7 @@ describe("deviation-reason gate (F9)", () => {
     });
     expect(screen.getByText(/30 Minuten/)).toBeInTheDocument();
     expect(
-      screen.getByText(/nach deinem geplanten Dienstende/),
+      screen.getByText(/nach Ihrem geplanten Dienstende/),
     ).toBeInTheDocument();
     // Confirm stays disabled until a reason is entered.
     expect(screen.getByText("Mit Begründung ausstempeln")).toBeDisabled();
@@ -4961,7 +5098,7 @@ describe("deviation-reason gate (F9)", () => {
       expect(screen.getByText("Abweichung vom Dienstplan")).toBeInTheDocument();
     });
     expect(
-      screen.getByText(/vor deinem geplanten Dienstbeginn/),
+      screen.getByText(/vor Ihrem geplanten Dienstbeginn/),
     ).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Grund"), {
@@ -4983,7 +5120,12 @@ describe("deviation-reason gate (F9)", () => {
     setupDefaultMocks({ currentSession: mockActiveSession });
     vi.mocked(timeTrackingService.checkOut)
       .mockRejectedValueOnce(makeDeviationError("check_out"))
-      .mockRejectedValueOnce(new Error("network down"));
+      .mockRejectedValueOnce(
+        new ApiError("network down", 503, {
+          code: "general.unavailable",
+          instance: "req-deviation",
+        }),
+      );
     render(<TimeTrackingPage />);
 
     await act(async () => {
@@ -5004,6 +5146,21 @@ describe("deviation-reason gate (F9)", () => {
       expect(timeTrackingService.checkOut).toHaveBeenCalledTimes(2);
     });
     expect(screen.getByText("Abweichung vom Dienstplan")).toBeInTheDocument();
+    // The reason stays and the error shows inside the dialog, with a retry
+    // that resends the same reason.
+    await expectInDialog(catalogText("general.unavailable", "die Arbeitszeit"));
+    expect(screen.getByLabelText("Grund")).toHaveValue("Elterngespräch");
+    vi.mocked(timeTrackingService.checkOut).mockResolvedValueOnce(
+      mockCheckedOutSession,
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Wiederholen/ }));
+    });
+    await waitFor(() => {
+      expect(timeTrackingService.checkOut).toHaveBeenLastCalledWith(
+        "Elterngespräch",
+      );
+    });
   });
 });
 

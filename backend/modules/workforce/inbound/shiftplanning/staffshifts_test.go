@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -304,6 +305,53 @@ func TestStaffShiftsRouteFailureEnvelope(t *testing.T) {
 		}
 		response = route.do(t, http.MethodGet, "/series/5", "")
 		assert.Equal(t, test.status, response.StatusCode, test.err.Error()+": "+responseBody(t, response))
+	}
+}
+
+// Each refusal the Dienstplan explains on its own answers its registered code
+// (#2514); the frontend reads the code, never the message. A reason travels
+// next to its kind, the way the planning service attaches it.
+func TestStaffShiftsRouteFailureCodes(t *testing.T) {
+	t.Parallel()
+	var failure error
+	fake := &fakePlanning{
+		cancelFn: func(context.Context, workforce.CancelStaffShift) (workforce.StaffShiftCancellation, error) {
+			return workforce.StaffShiftCancellation{}, failure
+		},
+	}
+	route := setupStaffShiftsRoute(t, fake)
+	invalidShift := func(reason error) error {
+		return fmt.Errorf("%w: %w", &workforce.InvalidStaffShiftError{Reason: "invalid shift"}, reason)
+	}
+	invalidSeries := func(reason error) error {
+		return fmt.Errorf("%w: %w", &workforce.InvalidShiftSeriesError{Reason: "invalid shift series"}, reason)
+	}
+
+	for _, test := range []struct {
+		err    error
+		status int
+		code   string
+	}{
+		{err: workforce.ErrStaffShiftOverlap, status: http.StatusConflict, code: "workforce.shift_overlap"},
+		{err: workforce.ErrStaffShiftConflict, status: http.StatusConflict, code: "workforce.shift_changed"},
+		{err: &workforce.ConflictError{Kind: workforce.ErrStaffShiftDuplicate}, status: http.StatusConflict, code: "workforce.shift_duplicate"},
+		{err: workforce.ErrShiftTypeInactive, status: http.StatusBadRequest, code: "workforce.shift_type_inactive"},
+		{err: invalidShift(workforce.ErrReplacementOutsideOrigin), status: http.StatusBadRequest, code: "workforce.replacement_outside_origin"},
+		{err: invalidShift(workforce.ErrShiftHasReplacements), status: http.StatusBadRequest, code: "workforce.shift_has_replacements"},
+		{err: invalidSeries(workforce.ErrShiftSeriesNoOccurrences), status: http.StatusBadRequest, code: "workforce.shift_series_no_occurrences"},
+		{err: invalidSeries(workforce.ErrShiftSeriesOutsidePeriod), status: http.StatusBadRequest, code: "workforce.shift_series_outside_period"},
+		{err: invalidSeries(workforce.ErrShiftSeriesWeekCycleMissing), status: http.StatusBadRequest, code: "workforce.shift_series_week_cycle_missing"},
+		{err: &workforce.InvalidStaffShiftError{Reason: "origin shift not found"}, status: http.StatusBadRequest, code: "general.input"},
+	} {
+		failure = test.err
+		response := route.do(t, http.MethodPut, "/5/cancellation", `{"cancelled": true}`)
+		body := responseBody(t, response)
+		assert.Equal(t, test.status, response.StatusCode, test.code+": "+body)
+		var envelope struct {
+			Code string `json:"code"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(body), &envelope), body)
+		assert.Equal(t, test.code, envelope.Code, body)
 	}
 }
 

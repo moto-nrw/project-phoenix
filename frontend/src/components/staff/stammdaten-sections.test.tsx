@@ -9,6 +9,7 @@ import { ToastProvider } from "~/contexts/ToastContext";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { StammdatenTab } from "./stammdaten-tab";
 import {
   staffPayrollNumberService,
@@ -106,7 +107,15 @@ function seedSWR({ financial = false, financialError = false } = {}) {
   ]);
   swrErrors.current = new Map(
     financialError
-      ? [["staff-stammdaten-financial-", new Error("request failed")]]
+      ? [
+          [
+            "staff-stammdaten-financial-",
+            new ApiError("boom", 503, {
+              code: "general.unavailable",
+              instance: "req-financial",
+            }),
+          ],
+        ]
       : [],
   );
 }
@@ -306,7 +315,7 @@ describe("StammdatenTab Sektionen (#1423)", () => {
 
     expect(
       await screen.findByText(
-        "Die Personalnummer gibt es bereits. Bitte wählen Sie eine andere Angabe.",
+        catalogText("workforce.personnel_number_taken", "die Personalnummer"),
       ),
     ).toBeInTheDocument();
 
@@ -429,7 +438,7 @@ describe("StammdatenTab Sektionen (#1423)", () => {
     expect(screen.getByText("•••• 3000")).toBeInTheDocument();
   });
 
-  it("zeigt einen Ladefehler der Bankdaten mit erneutem Laden statt Leerwerten", () => {
+  it("zeigt einen Ladefehler der Bankdaten mit erneutem Laden statt Leerwerten", async () => {
     seedSWR({ financialError: true });
     render(
       <StammdatenTab
@@ -442,16 +451,22 @@ describe("StammdatenTab Sektionen (#1423)", () => {
     );
 
     expect(
-      screen.getByText(
-        "Die Bank- und Steuerdaten konnten nicht geladen werden.",
+      await screen.findByText(
+        catalogText(
+          "general.unavailable",
+          "die Anzeige der Bank- und Steuerdaten",
+        ),
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-financial");
     expect(screen.queryByText("•••• 3000")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Bearbeiten" }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(mutate).toHaveBeenCalledTimes(1);
   });
 

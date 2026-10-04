@@ -201,7 +201,7 @@ func (rs *StaffAdminResource) approveAbsence(w http.ResponseWriter, r *http.Requ
 	}
 	resp, err := rs.StaffAbsenceService.ApproveAbsence(r.Context(), absenceID, claims.AccountID, decidedBy, req.DecisionNote)
 	if err != nil {
-		common.RenderError(w, r, common.RenderWithRules(err, approveAbsenceErrorRules, common.ErrorInternalServer))
+		common.RenderError(w, r, renderApproveAbsenceError(err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, resp, "Absence approved")
@@ -213,8 +213,16 @@ var approveAbsenceErrorRules = []common.ErrorRule{
 	{Target: workforce.ErrVacationQuotaExceeded, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, common.CodeWorkforceVacationQuotaExceeded)
 	}},
-	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
-	{Match: absenceMsgIs("only requested absences can be approved"), Render: common.ErrorConflict},
+	{Match: msgIs("absence not found"), Render: common.ErrorNotFound},
+	{Match: msgIs("only requested absences can be approved"), Render: conflictWithCode(common.CodeWorkforceAbsenceAlreadyDecided)},
+}
+
+// denyAbsenceErrorRules keeps a missing reason and a stale decision out of
+// the 5xx bucket.
+var denyAbsenceErrorRules = []common.ErrorRule{
+	{Match: msgIs("decline reason is required"), Render: invalidWithCode(common.CodeWorkforceDecisionNoteRequired)},
+	{Match: msgIs("absence not found"), Render: common.ErrorNotFound},
+	{Match: msgIs("only requested absences can be declined"), Render: conflictWithCode(common.CodeWorkforceAbsenceAlreadyDecided)},
 }
 
 // denyAbsence handles POST /api/staff/absences/{absenceId}/deny
@@ -241,7 +249,7 @@ func (rs *StaffAdminResource) denyAbsence(w http.ResponseWriter, r *http.Request
 	}
 	resp, err := rs.StaffAbsenceService.DenyAbsence(r.Context(), absenceID, claims.AccountID, decidedBy, req.DecisionNote)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, renderDenyAbsenceError(err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, resp, "Absence declined")
@@ -255,9 +263,9 @@ var questionAbsenceErrorRules = []common.ErrorRule{
 		return common.ErrorConflictWithCode(err, common.CodeWorkforceAbsenceTypeInactive)
 	}},
 	{Target: workforce.ErrAbsenceTypeNotFound, Render: common.ErrorInvalidRequest},
-	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
-	{Match: absenceMsgIs("question note is required"), Render: common.ErrorInvalidRequest},
-	{Match: absenceMsgIs("only requested absences can be questioned"), Render: common.ErrorInvalidRequest},
+	{Match: msgIs("absence not found"), Render: common.ErrorNotFound},
+	{Match: msgIs("question note is required"), Render: invalidWithCode(common.CodeWorkforceDecisionNoteRequired)},
+	{Match: msgIs("only requested absences can be questioned"), Render: invalidWithCode(common.CodeWorkforceAbsenceAlreadyDecided)},
 }
 
 // questionAbsence handles POST /api/staff/absences/{absenceId}/question —
@@ -280,7 +288,7 @@ func (rs *StaffAdminResource) questionAbsence(w http.ResponseWriter, r *http.Req
 	}
 	resp, err := rs.StaffAbsenceService.QuestionAbsence(r.Context(), absenceID, claims.AccountID, req.DecisionNote)
 	if err != nil {
-		common.RenderError(w, r, common.RenderWithRules(err, questionAbsenceErrorRules, common.ErrorInternalServer))
+		common.RenderError(w, r, renderQuestionAbsenceError(err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, resp, "Absence question sent")
@@ -583,24 +591,51 @@ var adminAbsenceErrorRules = []common.ErrorRule{
 	{Target: workforce.ErrVacationQuotaExceeded, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, common.CodeWorkforceVacationQuotaExceeded)
 	}},
-	{Target: workforce.ErrAllowanceBookingOverlap, Render: common.ErrorConflict},
-	{Target: workforce.ErrAbsenceRebookingBlocked, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, common.CodeWorkforceAbsenceRebookingBlocked)
-	}},
-	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
-	{Match: absenceMsgIs("can only delete own absences"), Render: common.ErrorForbidden},
-	{Match: absenceMsgPrefix("absence overlaps"), Render: common.ErrorConflict},
-	{Match: absenceMsgPrefix("dates overlap"), Render: common.ErrorConflict},
-	{Target: workforce.ErrStaffShiftOverlap, Render: common.ErrorConflict},
-	{Match: absenceMsgPrefix("invalid"), Render: common.ErrorInvalidRequest},
-	{Match: absenceMsgPrefix("vacation"), Render: common.ErrorInvalidRequest},
+	{Target: workforce.ErrAllowanceBookingOverlap, Render: conflictWithCode(common.CodeWorkforceAbsenceOverlap)},
+	// Each blocked rebooking names its own code and values (#2514); the
+	// generic code covers a refusal raised without them.
+	{Target: workforce.ErrAbsenceRebookingBlocked, Render: common.ErrorBusinessRejectionOr(common.CodeWorkforceAbsenceRebookingBlocked)},
+	{Match: msgIs("absence not found"), Render: common.ErrorNotFound},
+	{Match: msgIs("can only delete own absences"), Render: common.ErrorForbidden},
+	{Match: msgPrefix("absence overlaps"), Render: conflictWithCode(common.CodeWorkforceAbsenceOverlap)},
+	{Match: msgPrefix("dates overlap"), Render: conflictWithCode(common.CodeWorkforceAbsenceOverlap)},
+	{Target: workforce.ErrStaffShiftOverlap, Render: conflictWithCode(common.CodeWorkforceShiftOverlap)},
+	{Match: msgPrefix("invalid"), Render: common.ErrorInvalidRequest},
+	{Match: msgIs("vacation range contains no working days"), Render: invalidWithCode(common.CodeWorkforceAbsenceNoWorkingDays)},
+	{Match: msgPrefix("vacation"), Render: common.ErrorInvalidRequest},
 }
 
-func absenceMsgIs(msg string) func(error) bool {
+// The absence renderers apply one rule set each; anything unlisted is a
+// server error.
+func renderApproveAbsenceError(err error) render.Renderer {
+	return common.RenderWithRules(err, approveAbsenceErrorRules, common.ErrorInternalServer)
+}
+
+func renderDenyAbsenceError(err error) render.Renderer {
+	return common.RenderWithRules(err, denyAbsenceErrorRules, common.ErrorInternalServer)
+}
+
+func renderQuestionAbsenceError(err error) render.Renderer {
+	return common.RenderWithRules(err, questionAbsenceErrorRules, common.ErrorInternalServer)
+}
+
+func renderAdminAbsenceError(err error) render.Renderer {
+	return common.RenderWithRules(err, adminAbsenceErrorRules, common.ErrorInternalServer)
+}
+
+func conflictWithCode(code string) func(error) render.Renderer {
+	return func(err error) render.Renderer { return common.ErrorConflictWithCode(err, code) }
+}
+
+func invalidWithCode(code string) func(error) render.Renderer {
+	return func(err error) render.Renderer { return common.ErrorInvalidRequestWithCode(err, code) }
+}
+
+func msgIs(msg string) func(error) bool {
 	return func(err error) bool { return err.Error() == msg }
 }
 
-func absenceMsgPrefix(prefix string) func(error) bool {
+func msgPrefix(prefix string) func(error) bool {
 	return func(err error) bool { return strings.HasPrefix(err.Error(), prefix) }
 }
 
@@ -639,7 +674,7 @@ func (rs *StaffAdminResource) adminCreateStaffAbsence(w http.ResponseWriter, r *
 	resp, err := rs.StaffAbsenceService.CreateAbsenceFor(r.Context(), staffID, editorStaffID, &actorAccountID, req)
 	if err != nil {
 		tenant.MarkRollback(r.Context())
-		common.RenderError(w, r, common.RenderWithRules(err, adminAbsenceErrorRules, common.ErrorInternalServer))
+		common.RenderError(w, r, renderAdminAbsenceError(err))
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, resp, "Absence created successfully")
@@ -676,7 +711,7 @@ func (rs *StaffAdminResource) adminDeleteStaffAbsence(w http.ResponseWriter, r *
 	actorAccountID := claims.AccountID
 	if err := rs.StaffAbsenceService.DeleteAbsenceFor(r.Context(), staffID, editorStaffID, &actorAccountID, absenceID); err != nil {
 		tenant.MarkRollback(r.Context())
-		common.RenderError(w, r, common.RenderWithRules(err, adminAbsenceErrorRules, common.ErrorInternalServer))
+		common.RenderError(w, r, renderAdminAbsenceError(err))
 		return
 	}
 	common.RespondNoContent(w, r)
@@ -710,7 +745,7 @@ func (rs *StaffAdminResource) adminRebookStaffAbsences(w http.ResponseWriter, r 
 	result, err := rs.StaffAbsenceService.RebookAbsences(r.Context(), staffID, claims.AccountID, req)
 	if err != nil {
 		tenant.MarkRollback(r.Context())
-		common.RenderError(w, r, common.RenderWithRules(err, adminAbsenceErrorRules, common.ErrorInternalServer))
+		common.RenderError(w, r, renderAdminAbsenceError(err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, result, "Absences rebooked successfully")
@@ -757,7 +792,7 @@ func (rs *StaffAdminResource) getCompTimeBalancePreview(w http.ResponseWriter, r
 			"staff_id", staffID,
 			"error", err.Error(),
 		)
-		common.RenderError(w, r, common.RenderWithRules(err, adminAbsenceErrorRules, common.ErrorInternalServer))
+		common.RenderError(w, r, renderAdminAbsenceError(err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, preview, "Comp time preview computed successfully")

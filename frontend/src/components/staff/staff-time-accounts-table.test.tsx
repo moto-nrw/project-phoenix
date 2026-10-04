@@ -26,6 +26,33 @@ const baseProps = {
 };
 
 describe("StaffTimeAccountsTable", () => {
+  it("zeigt einen Ladefehler vor Ort statt einer leeren Liste", () => {
+    const retry = vi.fn();
+    render(
+      <StaffTimeAccountsTable
+        {...baseProps}
+        error={{
+          message: "Die Zeitkonten sind gerade nicht erreichbar.",
+          attempt: 1,
+          retry: { label: "Wiederholen", onClick: retry },
+        }}
+        onSaldoPresetChange={vi.fn()}
+        onCustomSaldoHoursChange={vi.fn()}
+        showCustomSaldo={false}
+        onShowCustomSaldoChange={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Die Zeitkonten sind gerade nicht erreichbar."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Keine Zeitkonten gefunden"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(retry).toHaveBeenCalled();
+  });
+
   it("setzt eine eigene Grenze beim Auswählen eines Presets vollständig zurück", () => {
     const onSaldoPresetChange = vi.fn();
     const onCustomSaldoHoursChange = vi.fn();

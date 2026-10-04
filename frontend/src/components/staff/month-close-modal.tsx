@@ -8,11 +8,14 @@
 import { useState, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
-import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
 import { Textarea } from "~/components/ui/textarea";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { useLatest } from "~/lib/hooks/use-latest";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "MonthCloseReasonModal" });
 
 export function MonthCloseReasonModal({
   title,
@@ -20,6 +23,7 @@ export function MonthCloseReasonModal({
   submitLabel,
   successMessage,
   destructive = false,
+  errorObject = "das Abschließen des Monats",
   onSubmit,
   onClose,
 }: {
@@ -31,12 +35,14 @@ export function MonthCloseReasonModal({
   readonly successMessage?: string;
   /** Reopen ist die Ausnahme-Aktion und bekommt die rote Variante. */
   readonly destructive?: boolean;
+  /** Was im Fehlertext genannt wird, mit Artikel, feminin oder neutral. */
+  readonly errorObject?: string;
   readonly onSubmit: (reason: string) => Promise<void>;
   readonly onClose: () => void;
 }) {
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useFormError();
+  const formErrors = useApiFormError();
   const toast = useToast();
 
   const canSubmit = !submitting && reason.trim() !== "";
@@ -44,16 +50,24 @@ export function MonthCloseReasonModal({
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
-    setError(null);
+    formErrors.clear();
     try {
       await onSubmit(reason.trim());
       if (successMessage) toast.success(successMessage);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Aktion fehlgeschlagen.");
+      logger.error("month_close_action_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setSubmitting(false);
+      await formErrors.show(err, {
+        object: errorObject,
+        retry: () => void latestSubmit.current(),
+      });
     }
   };
+  // „Wiederholen“ sendet die aktuelle Begründung.
+  const latestSubmit = useLatest(handleSubmit);
 
   return (
     <Modal
@@ -84,7 +98,7 @@ export function MonthCloseReasonModal({
       }
     >
       <div className="space-y-4">
-        <FormErrorAlert message={error} />
+        <FormErrorAlert message={formErrors.error} />
         <div className="space-y-2 text-sm text-gray-600">{description}</div>
         <div>
           <label
@@ -95,6 +109,8 @@ export function MonthCloseReasonModal({
           </label>
           <Textarea
             id="month-close-reason"
+            name="reason"
+            error={formErrors.fieldError("reason")}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={2}

@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { CustomSelect } from "~/components/ui/custom-select";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
+import { useApiFormError } from "~/contexts/ToastContext";
+import { useLatest } from "~/lib/hooks/use-latest";
 import { createLogger } from "~/lib/logger";
 import type { StaffHistorySession } from "~/lib/staff-api";
 import { staffSessionService } from "~/lib/staff-api";
@@ -73,7 +76,8 @@ export function AdminSessionEditModal({
   );
   const [notes, setNotes] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const formErrors = useApiFormError();
+  const clearErrors = formErrors.clear;
 
   // Reset form when the modal opens or the target row changes — otherwise
   // closing the modal and opening a different day would leak the previous
@@ -85,8 +89,8 @@ export function AdminSessionEditModal({
     setBreakMinutesStr(String(initial.breakMinutes));
     setStatus(initial.status);
     setNotes("");
-    setError(null);
-  }, [isOpen, initial]);
+    clearErrors();
+  }, [isOpen, initial, clearErrors]);
 
   const notesValid = notes.trim().length > 0;
   const timesValid = checkIn < checkOut;
@@ -94,17 +98,23 @@ export function AdminSessionEditModal({
   const breakValid = breakMinutes !== null;
 
   const handleSubmit = async () => {
-    setError(null);
+    formErrors.clear();
     if (!notesValid) {
-      setError("Begründung ist erforderlich.");
+      formErrors.invalid("Bitte geben Sie eine Begründung ein.", {
+        notes: "Bitte geben Sie eine Begründung ein.",
+      });
       return;
     }
     if (!timesValid) {
-      setError("Check-out muss nach Check-in liegen.");
+      formErrors.invalid("Bitte prüfen Sie die Uhrzeiten.", {
+        check_out_time: "Das Ende muss nach dem Beginn liegen.",
+      });
       return;
     }
     if (!breakValid || breakMinutes === null) {
-      setError("Pause muss eine ganze Zahl ≥ 0 sein.");
+      formErrors.invalid("Bitte prüfen Sie die Pause.", {
+        break_minutes: "Bitte geben Sie volle Minuten von 0 bis 300 ein.",
+      });
       return;
     }
 
@@ -141,21 +151,24 @@ export function AdminSessionEditModal({
       onSaved();
       onClose();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
       logger.error("admin_session_save_failed", {
         staff_id: staffId,
         mode,
         session_id: session?.id ?? null,
-        error: msg,
+        error: err instanceof Error ? err.message : String(err),
       });
-      // The overlap 409 carries a stable code (#2402); staffSessionService
-      // already maps it to its German message, the raw backend text (with the
-      // dynamic conflicting interval) never reaches here.
-      setError(msg || "Speichern fehlgeschlagen.");
+      // The overlap 409 carries workforce.work_session_overlap (#2402); the
+      // catalog explains it, the raw backend text never reaches the screen.
+      await formErrors.show(err, {
+        object: "die Arbeitszeit",
+        retry: () => void latestSubmit.current(),
+      });
     } finally {
       setIsSaving(false);
     }
   };
+  // „Wiederholen“ sendet den aktuellen Entwurf.
+  const latestSubmit = useLatest(handleSubmit);
 
   const title =
     mode === "edit"
@@ -190,6 +203,7 @@ export function AdminSessionEditModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} footer={footer}>
       <div className="space-y-4 text-sm">
+        <FormErrorAlert message={formErrors.error} />
         {mode === "edit" && session?.auto_checked_out && (
           <p className="bg-moto-amber/10 text-moto-amber-strong rounded-md px-3 py-2 text-xs">
             Diese Sitzung wurde automatisch zum geplanten Dienstende
@@ -197,17 +211,39 @@ export function AdminSessionEditModal({
           </p>
         )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Check-in">
+          <Field
+            label="Check-in"
+            error={formErrors.fieldError("check_in_time")}
+          >
             <input
               type="time"
+              name="check_in_time"
+              aria-invalid={
+                formErrors.fieldError("check_in_time") ? true : undefined
+              }
+              aria-describedby={describedBy(
+                formErrors.fieldError("check_in_time"),
+                "check_in_time",
+              )}
               value={checkIn}
               onChange={(e) => setCheckIn(e.target.value)}
               className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
             />
           </Field>
-          <Field label="Check-out">
+          <Field
+            label="Check-out"
+            error={formErrors.fieldError("check_out_time")}
+          >
             <input
               type="time"
+              name="check_out_time"
+              aria-invalid={
+                formErrors.fieldError("check_out_time") ? true : undefined
+              }
+              aria-describedby={describedBy(
+                formErrors.fieldError("check_out_time"),
+                "check_out_time",
+              )}
               value={checkOut}
               onChange={(e) => setCheckOut(e.target.value)}
               className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
@@ -215,9 +251,20 @@ export function AdminSessionEditModal({
           </Field>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Pause (Minuten)">
+          <Field
+            label="Pause (Minuten)"
+            error={formErrors.fieldError("break_minutes")}
+          >
             <input
               type="number"
+              name="break_minutes"
+              aria-invalid={
+                formErrors.fieldError("break_minutes") ? true : undefined
+              }
+              aria-describedby={describedBy(
+                formErrors.fieldError("break_minutes"),
+                "break_minutes",
+              )}
               min={0}
               max={300}
               inputMode="numeric"
@@ -238,8 +285,14 @@ export function AdminSessionEditModal({
             />
           </Field>
         </div>
-        <Field label="Begründung *">
+        <Field label="Begründung *" error={formErrors.fieldError("notes")}>
           <textarea
+            name="notes"
+            aria-invalid={formErrors.fieldError("notes") ? true : undefined}
+            aria-describedby={describedBy(
+              formErrors.fieldError("notes"),
+              "notes",
+            )}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
@@ -247,22 +300,23 @@ export function AdminSessionEditModal({
             className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none"
           />
         </Field>
-        {error && (
-          <p className="bg-moto-red-soft text-moto-red-strong rounded-md px-3 py-2 text-xs">
-            {error}
-          </p>
-        )}
       </div>
     </Modal>
   );
 }
 
+function describedBy(error: string | undefined, name: string) {
+  return error ? `admin-session-${name}-error` : undefined;
+}
+
 function Field({
   label,
+  error,
   children,
 }: {
   readonly label: string;
-  readonly children: React.ReactNode;
+  readonly error?: string;
+  readonly children: React.ReactElement<{ name?: string }>;
 }) {
   return (
     <label className="block">
@@ -270,6 +324,15 @@ function Field({
         {label}
       </span>
       {children}
+      {error ? (
+        <span
+          id={`admin-session-${children.props.name ?? ""}-error`}
+          role="alert"
+          className="text-moto-red mt-1 block text-xs"
+        >
+          {error}
+        </span>
+      ) : null}
     </label>
   );
 }

@@ -486,8 +486,8 @@ src/components/students/care-schedule-manager.tsx|text-[10px]@1223 text-[11px]@1
 src/components/students/planned-status-days-modal.tsx|text-[10px]@927 text-[11px]@927
 src/components/students/school-checkin-fab.tsx|text-[10px]@198
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
-src/components/time-tracking/leave-requests-card.tsx|text-[10px]@488
-src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@377
+src/components/time-tracking/leave-requests-card.tsx|text-[10px]@538
+src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@366
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@437 text-[11px]@479
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@295 text-[11px]@301
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@157 text-[11px]@227 text-[11px]@260 text-[11px]@321 text-[11px]@327 text-[11px]@375

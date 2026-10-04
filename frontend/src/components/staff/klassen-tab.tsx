@@ -12,17 +12,30 @@
 // jeder Chip-Klick sofort, ohne Abbrechen und ohne Hinweis.
 
 import { Plus, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert } from "~/components/ui/alert";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { authFetch } from "~/lib/api-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StaffKlassenTab" });
+
+const OBJECT = "die Zuweisung der Schulklassen";
 
 // Klassennamen sind Freitext — manche Schulen speichern "1a", andere schon
 // "Klasse 1a". Kein doppeltes Präfix anzeigen.
@@ -79,25 +92,38 @@ export function KlassenTab({
   const [draft, setDraft] = useState<string[] | null>(null);
   const [newClass, setNewClass] = useState("");
   const [saving, setSaving] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  // Ladefehler stehen vor Ort, Speicherfehler oben im Bearbeiten-Bereich
+  // und am Feld (#2514).
+  const load = useApiLoadError();
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { clear: clearFormError, show: showFormError } = formErrors;
+  // „Wiederholen“ speichert den aktuellen Entwurf, nicht den vom
+  // Fehlerzeitpunkt.
+  const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
   // Zählt die Ladeversuche: ein fehlgeschlagener Initial-Load (transienter
-  // 500) darf die Zuweisungs-UI nicht dauerhaft sperren — "Erneut versuchen"
+  // 500) darf die Zuweisungs-UI nicht dauerhaft sperren — „Wiederholen“
   // stößt den Effect neu an, statt einen Full Reload zu erzwingen.
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
 
   useEffect(() => {
     let cancelled = false;
+    clearLoadError();
     fetchAssignedClasses(staffId)
       .then((classes) => {
         if (!cancelled) setAssigned(classes);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setLoadError("Die Klassen-Zuweisung konnte nicht geladen werden.");
         logger.error("staff_school_classes_fetch_failed", {
           staff_id: staffId,
           error: err instanceof Error ? err.message : String(err),
+        });
+        void showLoadError(err, {
+          object: OBJECT,
+          retry: () => setLoadAttempt((attempt) => attempt + 1),
         });
       });
     fetchKnownClasses()
@@ -110,25 +136,20 @@ export function KlassenTab({
     return () => {
       cancelled = true;
     };
-  }, [staffId, loadAttempt]);
-
-  const retryLoad = useCallback(() => {
-    setLoadError(null);
-    setLoadAttempt((attempt) => attempt + 1);
-  }, []);
+  }, [staffId, loadAttempt, showLoadError, clearLoadError]);
 
   const startEditing = useCallback(() => {
     if (!assigned) return;
     setDraft([...assigned]);
     setNewClass("");
-    setSaveError(null);
-  }, [assigned]);
+    clearFormError();
+  }, [assigned, clearFormError]);
 
   const cancelEditing = useCallback(() => {
     setDraft(null);
     setNewClass("");
-    setSaveError(null);
-  }, []);
+    clearFormError();
+  }, [clearFormError]);
 
   const addClass = useCallback(() => {
     const value = newClass.trim();
@@ -150,22 +171,29 @@ export function KlassenTab({
   const handleSave = useCallback(async () => {
     if (!draft) return;
     setSaving(true);
-    setSaveError(null);
+    clearFormError();
     try {
       const stored = await saveAssignedClasses(staffId, draft);
       setAssigned(stored);
       setDraft(null);
       setNewClass("");
     } catch (err) {
-      setSaveError("Die Klassen-Zuweisung konnte nicht gespeichert werden.");
       logger.error("staff_school_classes_save_failed", {
         staff_id: staffId,
         error: err instanceof Error ? err.message : String(err),
       });
+      await showFormError(err, {
+        object: OBJECT,
+        retry: () => void latestSaveRef.current(),
+      });
     } finally {
       setSaving(false);
     }
-  }, [draft, staffId]);
+  }, [draft, staffId, clearFormError, showFormError]);
+
+  useLayoutEffect(() => {
+    latestSaveRef.current = handleSave;
+  });
 
   const suggestions = useMemo(() => {
     const base = draft ?? assigned ?? [];
@@ -196,23 +224,9 @@ export function KlassenTab({
         ) : undefined
       }
     >
-      {loadError && (
-        <div className="space-y-3">
-          <Alert type="error" message={loadError} />
-          {assigned === null && (
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={retryLoad}
-            >
-              Erneut versuchen
-            </Button>
-          )}
-        </div>
-      )}
+      {assigned === null ? <LoadErrorAlert error={load.error} /> : null}
 
-      {assigned === null && !loadError ? (
+      {assigned === null && !load.error ? (
         <div className="space-y-2">
           <Skeleton className="h-9 w-64" />
           <Skeleton className="h-9 w-40" />
@@ -220,8 +234,8 @@ export function KlassenTab({
       ) : null}
 
       {shown !== null && (
-        <div className="space-y-4">
-          {editing && saveError && <Alert type="error" message={saveError} />}
+        <div ref={formRef} className="space-y-4">
+          {editing && <FormErrorAlert message={formErrors.error} />}
 
           <div className="flex flex-wrap gap-2">
             {shown.length === 0 && (
@@ -268,6 +282,8 @@ export function KlassenTab({
                         addClass();
                       }
                     }}
+                    name="school_classes"
+                    error={formErrors.fieldError("school_classes")}
                     list="staff-known-classes"
                     placeholder="z. B. 1a"
                     aria-label="Klassenname"

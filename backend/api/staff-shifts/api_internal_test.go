@@ -183,6 +183,8 @@ func TestClassifyMapsCapabilityErrors(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, FailureConflict, classify(workforce.ErrStaffShiftOverlap))
+	assert.Equal(t, FailureConflict, classify(&workforce.ConflictError{Kind: workforce.ErrStaffShiftDuplicate}),
+		"a duplicate start is a conflict the planner resolves, not a server fault")
 	assert.Equal(t, FailureNotFound, classify(workforce.ErrShiftSeriesNotFound))
 	assert.Equal(t, FailureInvalid, classify(&workforce.InvalidStaffShiftError{Reason: "x"}))
 	assert.Equal(t, FailureInvalid, classify(workforce.ErrShiftTypeNotFound), "an unknown type on a shift is client input")

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -8,6 +8,7 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { DatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
+import { useApiFormError } from "~/contexts/ToastContext";
 import {
   formatDate,
   parseISODate,
@@ -56,7 +57,10 @@ export function SickReportModal({
   const [halfDay, setHalfDay] = useState(false);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const formErrors = useApiFormError();
+  const clearFormErrors = formErrors.clear;
+  // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
+  const latestSubmitRef = useRef<() => Promise<void>>(async () => undefined);
   // Non-null after a successful create — holds the start date the "Zur
   // Vertretung" jump should open the day view on.
   const [createdStart, setCreatedStart] = useState<string | null>(null);
@@ -69,11 +73,11 @@ export function SickReportModal({
       setDateEnd(start);
       setHalfDay(false);
       setNote("");
-      setError(null);
+      clearFormErrors();
       setCreatedStart(null);
       setSubmitting(false);
     }
-  }, [isOpen, initialDate]);
+  }, [isOpen, initialDate, clearFormErrors]);
 
   const staffName = `${staff.firstName} ${staff.lastName}`;
 
@@ -94,7 +98,7 @@ export function SickReportModal({
 
   const handleSubmit = async () => {
     setSubmitting(true);
-    setError(null);
+    formErrors.clear();
     try {
       const created = await staffAbsenceService.createAbsence(staff.id, {
         absence_type: "sick",
@@ -110,15 +114,18 @@ export function SickReportModal({
         staff_id: staff.id,
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        err instanceof Error && err.message
-          ? err.message
-          : "Krankmeldung fehlgeschlagen.",
-      );
+      await formErrors.show(err, {
+        object: "die Krankmeldung",
+        retry: () => void latestSubmitRef.current(),
+      });
     } finally {
       setSubmitting(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestSubmitRef.current = handleSubmit;
+  });
 
   const goToVertretung = () => {
     const day = createdStart ?? dateStart;
@@ -178,6 +185,7 @@ export function SickReportModal({
       title={`Krank melden: ${staffName}`}
       size="md"
       footer={footer}
+      error={isSuccess ? null : formErrors.error}
     >
       {isSuccess ? (
         <div className="space-y-3 text-sm">
@@ -190,7 +198,7 @@ export function SickReportModal({
             }
           />
           <p className="text-gray-600">
-            Öffne die Vertretung, um offene Betreuungsblöcke neu zu besetzen.
+            Offene Betreuungsblöcke besetzen Sie in der Vertretung neu.
           </p>
         </div>
       ) : (
@@ -254,14 +262,14 @@ export function SickReportModal({
           </div>
 
           <Input
-            name="managed-absence-note"
+            id="managed-absence-note"
+            name="note"
             label="Notiz (optional)"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="z. B. Grippe, Arzttermin …"
+            error={formErrors.fieldError("note")}
           />
-
-          {error && <Alert type="error" message={error} />}
         </div>
       )}
     </FormModal>

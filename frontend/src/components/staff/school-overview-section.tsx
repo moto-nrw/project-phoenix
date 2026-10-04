@@ -20,15 +20,15 @@
 // border-gray-200, shadow-sm — das Kit-Standardmaß) mit Haarlinien-Rastern
 // darin; der Kontostand sitzt als Fußzeile in derselben Fläche.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { getDeltaStatus } from "~/lib/staff-metrics-helpers";
 import {
   formatDuration,
@@ -73,7 +73,6 @@ export function SchoolOverviewSection() {
     data: summary,
     error,
     isLoading,
-    isValidating,
     mutate,
   } = useSWRAuth(
     `staff-dashboard-summary-${period}`,
@@ -86,6 +85,20 @@ export function SchoolOverviewSection() {
       revalidateOnFocus: false,
     },
   );
+
+  const load = useApiLoadError();
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
+  useEffect(() => {
+    if (error) {
+      void showLoadError(error, {
+        object: "die Übersicht der Einrichtung",
+        retry: () => void mutate(),
+      });
+    } else {
+      clearLoadError();
+    }
+  }, [error, mutate, showLoadError, clearLoadError]);
 
   const dash = "–";
   const clockedInPct =
@@ -117,26 +130,14 @@ export function SchoolOverviewSection() {
         />
       }
     >
-      {error && (
-        <div className="mb-3 space-y-2">
-          <Alert
-            type="error"
-            message={
-              summary
-                ? "Die Einrichtungs-Übersicht konnte nicht aktualisiert werden. Die zuletzt geladenen Werte bleiben sichtbar."
-                : "Die Einrichtungs-Übersicht konnte nicht geladen werden."
-            }
-          />
-          <Button
-            type="button"
-            size="compact"
-            variant="outline"
-            isLoading={isValidating}
-            loadingText="Wird geladen..."
-            onClick={() => void mutate()}
-          >
-            Erneut laden
-          </Button>
+      {load.error && (
+        <div className="mb-3 space-y-1">
+          <LoadErrorAlert error={load.error} />
+          {summary ? (
+            <p className="text-xs text-gray-500">
+              Die zuletzt geladenen Werte bleiben sichtbar.
+            </p>
+          ) : null}
         </div>
       )}
 

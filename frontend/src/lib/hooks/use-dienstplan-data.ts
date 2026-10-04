@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import type { KeyedMutator } from "swr";
 
@@ -156,7 +156,8 @@ export function useDienstplanData(
     mutate: mutateLegacyStaff,
   } = useSWRAuth<Staff[]>(
     canUseAssignmentOverview ? null : "dienstplan-staff",
-    () => staffService.getAllStaff(),
+    // strict: a failed load must reject, not arrive as an empty staff list.
+    () => staffService.getAllStaff(undefined, { strict: true }),
   );
 
   const {
@@ -235,13 +236,18 @@ export function useDienstplanData(
   const scheduleLoading = canUseAssignmentOverview
     ? overviewLoading
     : legacyStaffLoading || legacyShiftsLoading;
-  const retryLoad = () => {
+  const retryLoad = useCallback(() => {
     void Promise.all(
       canUseAssignmentOverview
         ? [mutateOverview()]
         : [mutateLegacyStaff(), mutateLegacyShifts()],
     );
-  };
+  }, [
+    canUseAssignmentOverview,
+    mutateOverview,
+    mutateLegacyStaff,
+    mutateLegacyShifts,
+  ]);
   return {
     canManageAbsences,
     reducedPath: !canUseAssignmentOverview,

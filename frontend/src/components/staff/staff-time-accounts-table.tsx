@@ -14,9 +14,10 @@
 import { useMemo } from "react";
 import { ChevronLeft, ChevronRight, Download, Lock } from "lucide-react";
 
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
@@ -83,7 +84,9 @@ interface Props {
   readonly onNextMonth: () => void;
   readonly canGoNextMonth: boolean;
   readonly monthClose: MonthCloseState | null;
-  readonly monthCloseError: string | null;
+  /** Ladefehler des Abschlussstatus, am besten aus `useApiLoadError` (mit
+   *  Wiederholen und Vorgangskennung, #2514). */
+  readonly monthCloseError: FormErrorInput;
   readonly onRetryMonthClose: () => void;
   /** True, wenn der angezeigte Monat vorbei ist — nur dann kann er
    *  abgeschlossen werden (Backend: ErrMonthNotClosable). */
@@ -96,7 +99,8 @@ interface Props {
    *  der Datenverwaltung liegt und damit nur Admins offensteht. */
   readonly onOpeningBalances?: () => void;
   readonly isLoading: boolean;
-  readonly error: string | null;
+  /** Ladefehler der Zeitkonten, am besten aus `useApiLoadError`. */
+  readonly error: FormErrorInput;
   readonly onRowClick: (row: TimeAccountRow) => void;
   /** Nur die Freieingabe der Saldo-Grenzen; die Presets stehen darüber. */
   readonly saldoPreset: SaldoPresetId;
@@ -354,16 +358,20 @@ export function StaffTimeAccountsTable({
       {monthCloseError && (
         <div className="flex flex-wrap items-center gap-2">
           <div className="min-w-64 flex-1">
-            <Alert type="error" message={monthCloseError} />
+            <LoadErrorAlert error={monthCloseError} />
           </div>
-          <Button
-            type="button"
-            size="compact"
-            variant="outline"
-            onClick={onRetryMonthClose}
-          >
-            Abschlussstatus erneut laden
-          </Button>
+          {/* Ein Fehler vom gemeinsamen Fehlerweg bringt „Wiederholen“ selbst
+              mit, sobald Wiederholen etwas ändern kann. */}
+          {typeof monthCloseError === "string" ? (
+            <Button
+              type="button"
+              size="compact"
+              variant="outline"
+              onClick={onRetryMonthClose}
+            >
+              Abschlussstatus erneut laden
+            </Button>
+          ) : null}
         </div>
       )}
 
@@ -387,35 +395,34 @@ export function StaffTimeAccountsTable({
         </div>
       )}
 
-      {error && (
-        <div className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong rounded-lg border p-4">
-          {error}
-        </div>
-      )}
+      <LoadErrorAlert error={error} />
 
-      <DataTable
-        columns={columns}
-        rows={rows}
-        getRowKey={(row) => row.staffId}
-        onRowClick={onRowClick}
-        isLoading={isLoading}
-        defaultSortKey="name"
-        // Trägerbetrieb mit mehreren hundert Mitarbeitenden: die Tabelle
-        // rendert nur die ersten 50 Zeilen und lädt auf Klick nach. Sortiert
-        // wird trotzdem über den vollen Datensatz, nicht über die Seite.
-        pageSize={50}
-        paginationResetKey={paginationResetKey}
-        emptyState={
-          <div className="py-10 text-center">
-            <p className="font-medium text-gray-900">
-              Keine Zeitkonten gefunden
-            </p>
-            <p className="text-sm text-gray-600">
-              Filter zurücksetzen oder einen anderen Beschäftigungstyp wählen.
-            </p>
-          </div>
-        }
-      />
+      {/* Ohne geladene Zeitkonten ist die Liste nicht leer, sondern fehlt. */}
+      {error && rows.length === 0 ? null : (
+        <DataTable
+          columns={columns}
+          rows={rows}
+          getRowKey={(row) => row.staffId}
+          onRowClick={onRowClick}
+          isLoading={isLoading}
+          defaultSortKey="name"
+          // Trägerbetrieb mit mehreren hundert Mitarbeitenden: die Tabelle
+          // rendert nur die ersten 50 Zeilen und lädt auf Klick nach. Sortiert
+          // wird trotzdem über den vollen Datensatz, nicht über die Seite.
+          pageSize={50}
+          paginationResetKey={paginationResetKey}
+          emptyState={
+            <div className="py-10 text-center">
+              <p className="font-medium text-gray-900">
+                Keine Zeitkonten gefunden
+              </p>
+              <p className="text-sm text-gray-600">
+                Filter zurücksetzen oder einen anderen Beschäftigungstyp wählen.
+              </p>
+            </div>
+          }
+        />
+      )}
     </SectionCard>
   );
 }

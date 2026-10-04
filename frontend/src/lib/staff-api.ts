@@ -2,7 +2,11 @@
 
 import { sessionFetch } from "./session-cache";
 import { createLogger } from "~/lib/logger";
-import { type ApiError, apiErrorFromText } from "~/lib/api-error";
+import {
+  type ApiError,
+  apiErrorFromResponse,
+  apiErrorFromText,
+} from "~/lib/api-error";
 
 const logger = createLogger({ component: "StaffAPI" });
 
@@ -349,7 +353,9 @@ function applyStaffFilters(staff: Staff[], filters?: StaffFilters): Staff[] {
 }
 
 /**
- * Fetches active groups data, returning empty array on failure
+ * Fetches active groups data, returning empty array on failure. Deliberately
+ * quiet: the groups only add the current location to each staff row, and the
+ * staff list itself must not fail because the location could not be read.
  */
 async function fetchActiveGroups(): Promise<ActiveGroupWithId[]> {
   try {
@@ -367,7 +373,8 @@ class StaffService {
   async getDocumentDirectory(): Promise<StaffDocumentDirectoryEntry[]> {
     const response = await sessionFetch("/api/staff/documents-directory");
     if (!response.ok) {
-      throw new Error(
+      throw await apiErrorFromResponse(
+        response,
         `Failed to fetch document directory: ${response.statusText}`,
       );
     }
@@ -399,7 +406,10 @@ class StaffService {
     ]);
 
     if (!staffResponse.ok) {
-      throw new Error(`Failed to fetch staff: ${staffResponse.statusText}`);
+      throw await apiErrorFromResponse(
+        staffResponse,
+        `Failed to fetch staff: ${staffResponse.statusText}`,
+      );
     }
 
     const staffData = (await staffResponse.json()) as
@@ -418,7 +428,10 @@ class StaffService {
   async getStaffById(id: string): Promise<Staff> {
     const response = await sessionFetch(`/api/staff/${id}`);
     if (!response.ok) {
-      throw new Error(`Failed to fetch staff member: ${response.statusText}`);
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to fetch staff member: ${response.statusText}`,
+      );
     }
     const json = (await response.json()) as {
       data: BackendStaffResponse & { employment_type?: string | null };
@@ -477,7 +490,8 @@ class StaffService {
   ): Promise<Staff> {
     const response = await sessionFetch(url);
     if (!response.ok) {
-      throw new Error(
+      throw await apiErrorFromResponse(
+        response,
         `Failed to fetch ${profileType} staff profile: ${response.statusText}`,
       );
     }
@@ -509,7 +523,8 @@ class StaffService {
       );
 
       if (!response.ok) {
-        throw new Error(
+        throw await apiErrorFromResponse(
+          response,
           `Failed to fetch staff supervisions: ${response.statusText}`,
         );
       }
@@ -769,7 +784,10 @@ class StaffHistoryService {
       `/api/staff/${staffId}/time-tracking/history?${params}`,
     );
     if (!response.ok) {
-      throw new Error(`Failed to fetch staff history: ${response.statusText}`);
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to fetch staff history: ${response.statusText}`,
+      );
     }
     // The wire row IS StaffHistorySession — the id arrives quoted, so there is
     // nothing to convert and no number to round.
@@ -952,13 +970,6 @@ interface BackendAbsenceRebooking {
   applied: boolean;
 }
 
-/**
- * Die Umbuchung ist gesperrt, bis die Leitung etwas anderes erledigt hat
- * (abgeschlossener Monat, Krankmeldung, Antrag). Die Meldung ist fertiger
- * Text für die Oberfläche.
- */
-export class AbsenceRebookingBlockedError extends Error {}
-
 interface BackendCompTimeBalancePreview {
   current_balance_minutes: number;
   deduction_minutes: number;
@@ -979,7 +990,10 @@ class StaffAbsenceService {
       `/api/staff/${staffId}/absences?${params}`,
     );
     if (!response.ok) {
-      throw new Error(`Failed to fetch staff absences: ${response.statusText}`);
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to fetch staff absences: ${response.statusText}`,
+      );
     }
     const json = (await response.json()) as {
       data: StaffAbsenceRow[] | null;
@@ -996,7 +1010,10 @@ class StaffAbsenceService {
       `/api/staff/${staffId}/vacation/quota${qs}`,
     );
     if (!response.ok) {
-      throw new Error(`Failed to fetch quota: ${response.statusText}`);
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to fetch quota: ${response.statusText}`,
+      );
     }
     const json = (await response.json()) as {
       data: BackendStaffVacationQuotaSummary;
@@ -1023,14 +1040,9 @@ class StaffAbsenceService {
       },
     );
     if (!response.ok) {
-      const error = await readStaffAPIError(
+      throw await readStaffAPIError(
         response,
         "Der Urlaubsanspruch konnte nicht gespeichert werden.",
-      );
-      throw new Error(
-        error.code === "workforce.vacation_quota_below_used"
-          ? "Der Anspruch ist kleiner als die schon genommenen und beantragten Tage. Bitte einen höheren Wert eintragen."
-          : "Der Urlaubsanspruch konnte nicht gespeichert werden.",
       );
     }
     const json = (await response.json()) as {
@@ -1062,21 +1074,7 @@ class StaffAbsenceService {
       },
     );
     if (!response.ok) {
-      const error = await readStaffAPIError(
-        response,
-        "Übernahme fehlgeschlagen",
-      );
-      if (error.code === "workforce.vacation_opening_already_exists") {
-        throw new Error(
-          "Für dieses Jahr existiert bereits eine Urlaubs-Übernahme. Lösche zuerst die bestehende Übernahme.",
-        );
-      }
-      if (error.code === "workforce.vacation_opening_absences_before_cutoff") {
-        throw new Error(
-          "Es existieren bereits Urlaubs-Abwesenheiten vor dem Stichtag. Die Übernahme würde diese Tage doppelt zählen.",
-        );
-      }
-      throw new Error(error.message);
+      throw await readStaffAPIError(response, "Übernahme fehlgeschlagen");
     }
     const json = (await response.json()) as {
       data: BackendStaffVacationOpening;
@@ -1090,8 +1088,7 @@ class StaffAbsenceService {
       { method: "DELETE" },
     );
     if (!response.ok) {
-      const error = await readStaffAPIError(response, "Löschen fehlgeschlagen");
-      throw new Error(error.message);
+      throw await readStaffAPIError(response, "Löschen fehlgeschlagen");
     }
   }
 
@@ -1108,15 +1105,7 @@ class StaffAbsenceService {
       },
     );
     if (!response.ok) {
-      const error = await readStaffAPIError(
-        response,
-        "Genehmigung fehlgeschlagen",
-      );
-      throw new Error(
-        error.code === "workforce.vacation_quota_exceeded"
-          ? "Dafür reicht der Resturlaub nicht. Erhöhen Sie zuerst den Urlaubsanspruch oder lehnen Sie den Antrag ab."
-          : error.message,
-      );
+      throw await readStaffAPIError(response, "Genehmigung fehlgeschlagen");
     }
   }
 
@@ -1126,7 +1115,8 @@ class StaffAbsenceService {
   async listPending(): Promise<StaffAbsenceRow[]> {
     const response = await sessionFetch(`/api/staff/absences/pending`);
     if (!response.ok) {
-      throw new Error(
+      throw await apiErrorFromResponse(
+        response,
         `Failed to fetch pending absences: ${response.statusText}`,
       );
     }
@@ -1149,7 +1139,8 @@ class StaffAbsenceService {
       `/api/staff/absences/requests?${params.toString()}`,
     );
     if (!response.ok) {
-      throw new Error(
+      throw await apiErrorFromResponse(
+        response,
         `Failed to fetch absence requests: ${response.statusText}`,
       );
     }
@@ -1174,8 +1165,7 @@ class StaffAbsenceService {
       },
     );
     if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new Error(text || "Rückfrage fehlgeschlagen");
+      throw await readStaffAPIError(response, "Rückfrage fehlgeschlagen");
     }
   }
 
@@ -1189,8 +1179,7 @@ class StaffAbsenceService {
       },
     );
     if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new Error(text || "Ablehnung fehlgeschlagen");
+      throw await readStaffAPIError(response, "Ablehnung fehlgeschlagen");
     }
   }
 
@@ -1207,11 +1196,10 @@ class StaffAbsenceService {
       body: JSON.stringify(body),
     });
     if (!response.ok) {
-      const error = await readStaffAPIError(
+      throw await readStaffAPIError(
         response,
         "Abwesenheit konnte nicht eingetragen werden",
       );
-      throw new Error(absenceCreateErrorMessage(error));
     }
     const json = (await response.json()) as { data: StaffAbsenceRow };
     return json.data;
@@ -1234,11 +1222,10 @@ class StaffAbsenceService {
       `/api/staff/${staffId}/time-tracking/comp-time-preview?${params}`,
     );
     if (!response.ok) {
-      const error = await readStaffAPIError(
+      throw await readStaffAPIError(
         response,
         "Die Saldo-Vorschau konnte nicht geladen werden.",
       );
-      throw new Error(error.message);
     }
     const json = (await response.json()) as {
       data: BackendCompTimeBalancePreview;
@@ -1281,14 +1268,10 @@ class StaffAbsenceService {
       },
     );
     if (!response.ok) {
-      const error = await readStaffAPIError(
+      throw await readStaffAPIError(
         response,
         "Die Art konnte nicht geändert werden.",
       );
-      if (error.code === "workforce.absence_rebooking_blocked") {
-        throw new AbsenceRebookingBlockedError(error.message);
-      }
-      throw new Error(absenceCreateErrorMessage(error));
     }
     const json = (await response.json()) as { data: BackendAbsenceRebooking };
     const data = json.data;
@@ -1323,8 +1306,7 @@ class StaffAbsenceService {
       { method: "DELETE" },
     );
     if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new Error(text || "Löschen fehlgeschlagen");
+      throw await readStaffAPIError(response, "Löschen fehlgeschlagen");
     }
   }
 }
@@ -1380,7 +1362,10 @@ class StaffSessionEditsService {
       `/api/staff/${staffId}/time-tracking/sessions/${sessionId}/edits`,
     );
     if (!response.ok) {
-      throw new Error(`Failed to fetch session edits: ${response.statusText}`);
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to fetch session edits: ${response.statusText}`,
+      );
     }
     const json = (await response.json()) as {
       data: BackendWorkSessionEdit[] | null;
@@ -1405,7 +1390,10 @@ class StaffMonthSummaryService {
       `/api/staff/${staffId}/time-tracking/month-summary?${params}`,
     );
     if (!response.ok) {
-      throw new Error(`Failed to fetch month summary: ${response.statusText}`);
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to fetch month summary: ${response.statusText}`,
+      );
     }
     const json = (await response.json()) as { data: BackendMonthSummary };
     return mapMonthSummaryResponse(json.data);
@@ -1424,7 +1412,8 @@ class StaffMonthSummaryService {
       `/api/staff/${staffId}/time-tracking/schedule-targets?${params}`,
     );
     if (!response.ok) {
-      throw new Error(
+      throw await apiErrorFromResponse(
+        response,
         `Failed to fetch daily projection: ${response.statusText}`,
       );
     }
@@ -1447,7 +1436,8 @@ class StaffMonthSummaryService {
       `/api/staff/${staffId}/time-tracking/schedule-targets?${params}`,
     );
     if (!response.ok) {
-      throw new Error(
+      throw await apiErrorFromResponse(
+        response,
         `Failed to fetch schedule targets: ${response.statusText}`,
       );
     }
@@ -1559,7 +1549,7 @@ class StaffSessionService {
       },
     );
     if (!response.ok) {
-      await throwSessionWriteError(
+      throw await readStaffAPIError(
         response,
         `Failed to update session: ${response.statusText}`,
       );
@@ -1581,52 +1571,12 @@ class StaffSessionService {
       },
     );
     if (!response.ok) {
-      await throwSessionWriteError(
+      throw await readStaffAPIError(
         response,
         `Failed to create session: ${response.statusText}`,
       );
     }
   }
-}
-
-// Admin session writes fail with a stable code; the accompanying message
-// carries dynamic content (the conflicting interval) and is not presentable
-// as-is, so the mapping happens here instead of by sniffing the raw body in
-// the modal.
-async function throwSessionWriteError(
-  response: Response,
-  fallback: string,
-): Promise<never> {
-  const error = await readStaffAPIError(response, fallback);
-  if (error.code === "workforce.work_session_overlap") {
-    throw new Error(
-      "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.",
-    );
-  }
-  throw new Error(error.message);
-}
-
-// Kontingente dürfen nicht ins Minus (#3256). Der Server nennt die Grenze nur
-// technisch; der Dialog zeigt die Zahlen selbst, hier steht der Satz dazu.
-function absenceCreateErrorMessage(error: ApiError): string {
-  switch (error.code) {
-    case "workforce.vacation_quota_exceeded":
-      return "Dafür reicht der Resturlaub nicht. Erhöhen Sie zuerst den Urlaubsanspruch.";
-    case "workforce.absence_allowance_exceeded":
-      return "Für diese Art sind nicht mehr genug Tage übrig. Erhöhen Sie zuerst den Anspruch.";
-    case "workforce.absence_type_inactive":
-      return "Diese Abwesenheitsart ist ausgeschaltet. Bitte eine andere wählen.";
-  }
-  if (
-    error.message.includes("dates overlap") ||
-    error.message.includes("absence overlaps")
-  ) {
-    return "An diesen Tagen ist schon eine Abwesenheit eingetragen.";
-  }
-  if (error.message.includes("no working days")) {
-    return "Der Zeitraum enthält keine Werktage.";
-  }
-  return error.message;
 }
 
 // The ApiError keeps code, field errors and request ID for the shared error
@@ -1668,7 +1618,10 @@ class StaffBalanceAdjustmentService {
       `/api/staff/${staffId}/time-tracking/adjustments?${params}`,
     );
     if (!response.ok) {
-      throw new Error(`Failed to fetch adjustments: ${response.statusText}`);
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to fetch adjustments: ${response.statusText}`,
+      );
     }
     const json = (await response.json()) as {
       data: BackendBalanceAdjustment[] | null;
@@ -1701,23 +1654,7 @@ class StaffBalanceAdjustmentService {
       },
     );
     if (!response.ok) {
-      const error = await readStaffAPIError(response, "Buchung fehlgeschlagen");
-      if (error.code === "workforce.dependent_balance_reset") {
-        throw new Error(
-          "Die Buchung liegt vor einem vorhandenen Reset und würde dessen Saldo verfälschen.",
-        );
-      }
-      if (error.code === "workforce.balance_adjustment_exceeds_balance") {
-        throw new Error(
-          "Die Buchung übersteigt die zum gewählten Datum verfügbaren Plus-Stunden.",
-        );
-      }
-      if (error.code === "workforce.adjustment_in_closed_month") {
-        throw new Error(
-          "Der gewählte Monat ist abgeschlossen. Buche die Korrektur mit einem Datum im offenen Monat oder öffne den Monatsabschluss wieder.",
-        );
-      }
-      throw new Error(error.message);
+      throw await readStaffAPIError(response, "Buchung fehlgeschlagen");
     }
     const json = (await response.json()) as { data: BackendBalanceAdjustment };
     return mapBalanceAdjustmentResponse(json.data);
@@ -1729,23 +1666,7 @@ class StaffBalanceAdjustmentService {
       { method: "DELETE" },
     );
     if (!response.ok) {
-      const error = await readStaffAPIError(response, "Löschen fehlgeschlagen");
-      if (error.code === "workforce.dependent_balance_reset") {
-        throw new Error(
-          "Die Buchung liegt vor einem vorhandenen Reset und kann deshalb nicht gelöscht werden.",
-        );
-      }
-      if (error.code === "workforce.balance_adjustment_exceeds_balance") {
-        throw new Error(
-          "Die Buchung kann nicht gelöscht werden, weil spätere Abzüge vom dadurch entstehenden Guthaben abhängen.",
-        );
-      }
-      if (error.code === "workforce.adjustment_in_closed_month") {
-        throw new Error(
-          "Der gewählte Monat ist abgeschlossen. Öffne den Monatsabschluss wieder, bevor du die Buchung löschst.",
-        );
-      }
-      throw new Error(error.message);
+      throw await readStaffAPIError(response, "Löschen fehlgeschlagen");
     }
   }
 
@@ -1773,28 +1694,7 @@ class StaffBalanceAdjustmentService {
       },
     );
     if (!response.ok) {
-      const error = await readStaffAPIError(response, "Reset fehlgeschlagen");
-      if (error.code === "workforce.balance_already_reset") {
-        throw new Error(
-          "Das Stundenkonto wurde für dieses Datum bereits zurückgesetzt.",
-        );
-      }
-      if (error.code === "workforce.dependent_balance_reset") {
-        throw new Error(
-          "Der Reset liegt vor einem späteren Reset und würde dessen Saldo verfälschen.",
-        );
-      }
-      if (error.code === "workforce.balance_adjustment_exceeds_balance") {
-        throw new Error(
-          "Der Reset kann nicht durchgeführt werden, weil spätere Buchungen oder Freizeitausgleichstage vom aktuellen Guthaben abhängen.",
-        );
-      }
-      if (error.code === "workforce.adjustment_in_closed_month") {
-        throw new Error(
-          "Der gewählte Monat ist abgeschlossen. Wähle ein Datum im offenen Monat oder öffne den Monatsabschluss wieder.",
-        );
-      }
-      throw new Error(error.message);
+      throw await readStaffAPIError(response, "Reset fehlgeschlagen");
     }
     const json = (await response.json()) as { data: BackendBalanceAdjustment };
     return mapBalanceAdjustmentResponse(json.data);
@@ -1824,26 +1724,7 @@ class StaffBalanceAdjustmentService {
       },
     );
     if (!response.ok) {
-      const error = await readStaffAPIError(
-        response,
-        "Eröffnungssaldo fehlgeschlagen",
-      );
-      if (error.code === "workforce.opening_balance_already_exists") {
-        throw new Error(
-          "Für diese Person existiert bereits ein Eröffnungssaldo. Lösche zuerst die bestehende Buchung.",
-        );
-      }
-      if (error.code === "workforce.dependent_balance_reset") {
-        throw new Error(
-          "Es existieren bereits spätere Buchungen (Reset), die vom Stichtag abhängen.",
-        );
-      }
-      if (error.code === "workforce.adjustment_in_closed_month") {
-        throw new Error(
-          "Der gewählte Monat ist abgeschlossen. Wähle ein Datum im offenen Monat oder öffne den Monatsabschluss wieder.",
-        );
-      }
-      throw new Error(error.message);
+      throw await readStaffAPIError(response, "Eröffnungssaldo fehlgeschlagen");
     }
     const json = (await response.json()) as { data: BackendBalanceAdjustment };
     return mapBalanceAdjustmentResponse(json.data);
@@ -1864,7 +1745,8 @@ class StaffMonthCloseService {
       `/api/staff/time-tracking/month-close?${params}`,
     );
     if (!response.ok) {
-      throw new Error(
+      throw await apiErrorFromResponse(
+        response,
         `Failed to fetch month close status: ${response.statusText}`,
       );
     }
@@ -1893,21 +1775,7 @@ class StaffMonthCloseService {
       },
     );
     if (!response.ok) {
-      const error = await readStaffAPIError(
-        response,
-        "Monatsabschluss fehlgeschlagen",
-      );
-      if (error.code === "workforce.month_not_closable") {
-        throw new Error(
-          "Dieser Monat kann noch nicht abgeschlossen werden: Er ist noch nicht vorbei. Der Abschluss friert den Stand zum Monatsende ein; für einen laufenden Monat gibt es diesen Stand noch nicht.",
-        );
-      }
-      if (error.code === "workforce.later_month_closed") {
-        throw new Error(
-          "Ein späterer Monat ist bereits abgeschlossen. Monate werden in Reihenfolge abgeschlossen; öffne zuerst den späteren Abschluss.",
-        );
-      }
-      throw new Error(error.message);
+      throw await readStaffAPIError(response, "Monatsabschluss fehlgeschlagen");
     }
     const json = (await response.json()) as { data: BackendMonthCloseResult };
     return mapMonthCloseResultResponse(json.data);
@@ -1931,19 +1799,7 @@ class StaffMonthCloseService {
       },
     );
     if (!response.ok) {
-      const error = await readStaffAPIError(
-        response,
-        "Wiedereröffnung fehlgeschlagen",
-      );
-      if (error.code === "workforce.month_not_closed") {
-        throw new Error("Dieser Monat ist nicht abgeschlossen.");
-      }
-      if (error.code === "workforce.later_month_closed") {
-        throw new Error(
-          "Für diese Person ist ein späterer Monat noch abgeschlossen. Abschlüsse werden vom neuesten zum ältesten geöffnet; öffne zuerst den späteren Monat.",
-        );
-      }
-      throw new Error(error.message);
+      throw await readStaffAPIError(response, "Wiedereröffnung fehlgeschlagen");
     }
   }
 }
@@ -1955,7 +1811,10 @@ class StaffPayrollNumberService {
   async get(staffId: string): Promise<string | null> {
     const response = await sessionFetch(`/api/staff/${staffId}/payroll-number`);
     if (!response.ok) {
-      throw new Error(`Failed to fetch payroll number: ${response.statusText}`);
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to fetch payroll number: ${response.statusText}`,
+      );
     }
     const json = (await response.json()) as {
       data: { personnel_number: string | null };
@@ -1977,19 +1836,10 @@ class StaffPayrollNumberService {
       },
     );
     if (!response.ok) {
-      const error = await readStaffAPIError(
+      throw await readStaffAPIError(
         response,
         "Personalnummer konnte nicht gespeichert werden",
       );
-      if (error.code === "workforce.personnel_number_taken") {
-        error.message =
-          "Diese Personalnummer ist in dieser Schule bereits vergeben.";
-      }
-      if (error.code === "workforce.personnel_number_invalid") {
-        error.message =
-          "Ungültige Personalnummer: nur Ziffern, höchstens 9 Stellen.";
-      }
-      throw error;
     }
     const json = (await response.json()) as {
       data: { personnel_number: string | null };
@@ -2126,12 +1976,7 @@ async function throwStammdatenError(
   response: Response,
   fallback: string,
 ): Promise<never> {
-  const error = await readStaffAPIError(response, fallback);
-  if (error.code === "workforce.stammdaten_invalid") {
-    error.message =
-      "Ungültige Eingabe. Bitte prüfen Sie die Werte und versuchen Sie es erneut.";
-  }
-  throw error;
+  throw await readStaffAPIError(response, fallback);
 }
 
 // Stammdaten (#1423): section-scoped master data of one staff member. The
@@ -2142,7 +1987,10 @@ class StaffStammdatenService {
   async get(staffId: string): Promise<StaffStammdaten> {
     const response = await sessionFetch(`/api/staff/${staffId}/stammdaten`);
     if (!response.ok) {
-      throw new Error(`Failed to fetch stammdaten: ${response.statusText}`);
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to fetch stammdaten: ${response.statusText}`,
+      );
     }
     const json = (await response.json()) as { data: BackendStammdaten };
     return mapStammdatenResponse(json.data);
@@ -2235,7 +2083,10 @@ class StaffStammdatenService {
       `/api/staff/${staffId}/stammdaten/bank-steuer`,
     );
     if (!response.ok) {
-      throw new Error(`Failed to fetch financial data: ${response.statusText}`);
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to fetch financial data: ${response.statusText}`,
+      );
     }
     const json = (await response.json()) as {
       data: {
