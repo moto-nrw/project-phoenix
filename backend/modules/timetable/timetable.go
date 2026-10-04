@@ -1395,7 +1395,7 @@ func normalizeActivityInstance(input ActivityInstanceInput) (ActivityInstanceInp
 	}
 	if input.Title == "" || len(input.Title) > ActivityInstanceTitleMaxLength ||
 		!validDate(input.Date) || !validClock(input.StartTime) || !validClock(input.EndTime) ||
-		input.RoomID <= 0 || !validActivityInstanceStatus(input.Status) ||
+		input.RoomID < 0 || !validActivityInstanceStatus(input.Status) ||
 		(input.RequiredStaff != nil && *input.RequiredStaff < 0) || !normalizeListKind(&input.ListKind) {
 		return input, false
 	}
@@ -1496,13 +1496,13 @@ func normalizeGroup(input *GroupInput) error {
 	if input.Type == "" {
 		input.Type = GroupTypeActivity
 	}
-	if !validGroupType(input.Type) || !normalizeListKind(&input.ListKind) {
+	if !IsValidGroupType(input.Type) || !normalizeListKind(&input.ListKind) {
 		return ErrInvalidGroup
 	}
 	if input.TargetGroupType == "" {
 		input.TargetGroupType = TargetGroupTypeNone
 	}
-	if !validGroupTarget(input) || !normalizeOfferingSource(input) {
+	if !validGroupTarget(input) || !normalizeOfferingSource(input) || !validDutyGroup(input) {
 		return ErrInvalidGroup
 	}
 	return nil
@@ -1526,10 +1526,6 @@ func normalizeTemplateUpdate(input *TemplateUpdate) bool {
 	input.SourceCareOfferingIDs, input.SourceGradeLevels = group.SourceCareOfferingIDs, group.SourceGradeLevels
 	input.SourceSchoolClasses = group.SourceSchoolClasses
 	return true
-}
-
-func validGroupType(value string) bool {
-	return value == GroupTypeActivity || value == GroupTypeCare || value == GroupTypeExternal
 }
 
 func normalizeListKind(value **string) bool {

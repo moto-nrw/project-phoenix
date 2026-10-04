@@ -389,7 +389,7 @@ func (d *betreuungsplanData) instanceLines(instance *Instance) []listexport.Line
 	if names := d.staffLine(instance.ID, instance.RoomID); names != "" {
 		lines = append(lines, normal(names))
 	}
-	if line := d.childCountLine(instance.ID); line != "" {
+	if line := d.childCountLine(instance.ID); line != "" && !instance.IsDuty {
 		lines = append(lines, muted(line))
 	}
 	lines = d.appendNote(lines, "Hinweis", instance.UnderstaffedNote)

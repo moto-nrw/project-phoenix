@@ -20,6 +20,10 @@ const (
 	GroupTypeActivity = "activity"
 	GroupTypeCare     = "care"
 	GroupTypeExternal = "external"
+	// GroupTypeDuty is a staff task without children (UI „Dienst“, #3822):
+	// Busaufsicht, Essensausgabe, Abschließen. It has no roster, no session
+	// and no kiosk entry, and its room is optional.
+	GroupTypeDuty = "duty"
 )
 
 // Target-group ("Zielgruppe") type constants for Betreuungsplan templates.

@@ -107,9 +107,6 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	if req.Notes != nil && len(*req.Notes) > 2000 {
 		return errors.New("notes cannot exceed 2000 characters")
 	}
-	if req.RoomID <= 0 {
-		return errors.New("room_id is required")
-	}
 	if req.CategoryID <= 0 {
 		return errors.New("category_id is required")
 	}
@@ -133,7 +130,12 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 		return err
 	}
 	req.ListKind = listKind
-	return nil
+	return timetableModule.ValidateTemplateShape(timetableModule.TemplateShape{
+		Type: req.Type, RoomID: req.RoomID, TargetGroupType: req.TargetGroupType,
+		HasTargets: len(req.Targets) > 0, HasStudents: hasAssignedStudents(req.StudentIDs, req.WeekdayAssignments),
+		HasOfferingSource: len(req.SourceCareOfferingIDs.Value) > 0, MaxParticipants: derefInt(req.MaxParticipants.Value),
+		ListKind: req.ListKind, EducationGroupID: req.EducationGroupID,
+	})
 }
 
 // normalizeTargetAndSourceFields canonicalizes the Zielgruppe and the
@@ -208,7 +210,7 @@ func parseUpdateTemplateRequest(w http.ResponseWriter, r *http.Request) (*parsed
 	}
 	if !isValidActivityType(req.Type) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(
-			fmt.Errorf("invalid type %q (must be care, activity, or external)", req.Type)))
+			fmt.Errorf("invalid type %q (must be care, activity, external, or duty)", req.Type)))
 		return nil, false
 	}
 	timing, ok := parseTemplateTiming(w, r, req.StartTime, req.EndTime, req.WeekPattern, req.MaxParticipants.Value)

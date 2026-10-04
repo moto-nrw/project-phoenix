@@ -27,7 +27,7 @@ type activityInstanceRow struct {
 	Description            *string   `bun:"description"`
 	StartTime              string    `bun:"start_time,notnull"`
 	EndTime                string    `bun:"end_time,notnull"`
-	RoomID                 int64     `bun:"room_id,notnull"`
+	RoomID                 int64     `bun:"room_id,nullzero"`
 	RequiredStaff          *int      `bun:"required_staff"`
 	Status                 string    `bun:"status,notnull"`
 	ListKind               *string   `bun:"list_kind"`

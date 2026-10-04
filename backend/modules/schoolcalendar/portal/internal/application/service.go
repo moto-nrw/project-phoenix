@@ -1324,7 +1324,7 @@ func (s *service) staffTimetableEventsWithCancelled(ctx context.Context, staffID
 		event := Event{
 			ID:          fmt.Sprintf("timetable:%d", instance.ID),
 			Source:      EventSourceTimetable,
-			TimetableID: &id,
+			TimetableID: &id, ActivityType: instance.ActivityType,
 			Title:       instance.Title,
 			Description: instance.Description,
 			StartDate:   instance.Date.String(),

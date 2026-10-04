@@ -42,7 +42,7 @@ func (s *InstanceLifecycleService) setUnderstaffedAck(ctx context.Context, insta
 		if err != nil {
 			return nil, &ScheduleError{Op: "set understaffed ack: load staff", Err: err}
 		}
-		if !timetable.IsUnderstaffed(staffingRowsOf(rows)) {
+		if !timetable.IsUnderstaffedWithMinimum(staffingRowsOf(rows), dutyMinimumStaff(instance)) {
 			return nil, timetable.ErrUnderstaffedAckStillStaffed
 		}
 	}
@@ -103,7 +103,7 @@ func (s *InstanceLifecycleService) clearStaleAckIfStaffed(ctx context.Context, i
 	if err != nil {
 		return &ScheduleError{Op: "clear stale ack: load staff", Err: err}
 	}
-	if timetable.IsUnderstaffed(staffingRowsOf(rows)) {
+	if timetable.IsUnderstaffedWithMinimum(staffingRowsOf(rows), dutyMinimumStaff(instance)) {
 		return nil // still short-staffed → keep the acknowledgement
 	}
 	previousNote := instance.UnderstaffedNote

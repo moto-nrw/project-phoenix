@@ -652,6 +652,7 @@ func materializedInstance(tmpl *activities.Group, date timezone.Date, period *sc
 		ListKind:         tmpl.ListKind,
 		Status:           schedule.InstanceStatusPlanned,
 		IsSpontaneous:    false,
+		TemplateType:     tmpl.Type,
 	}
 }
 

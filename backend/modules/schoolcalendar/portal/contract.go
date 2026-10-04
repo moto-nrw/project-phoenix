@@ -135,11 +135,14 @@ type StaffCalDAVItem struct {
 }
 
 type Event struct {
-	ID               string    `json:"id"`
-	Source           string    `json:"source"`
-	AppointmentID    *string   `json:"appointment_id,omitempty"`
-	OccurrenceDate   *string   `json:"occurrence_date,omitempty"`
-	TimetableID      *string   `json:"timetable_id,omitempty"`
+	ID             string  `json:"id"`
+	Source         string  `json:"source"`
+	AppointmentID  *string `json:"appointment_id,omitempty"`
+	OccurrenceDate *string `json:"occurrence_date,omitempty"`
+	TimetableID    *string `json:"timetable_id,omitempty"`
+	// ActivityType is the block type of a timetable event; "duty" lets the
+	// calendar label a duty apart from Betreuung (#3822).
+	ActivityType     string    `json:"activity_type,omitempty"`
 	StudentID        *string   `json:"student_id,omitempty"`
 	StudentName      *string   `json:"student_name,omitempty"`
 	TenantID         *string   `json:"tenant_id,omitempty"`
