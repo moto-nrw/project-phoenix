@@ -130,8 +130,11 @@ type StaffShiftSeries struct {
 	// permanent edit retained; it is separate from Detached, which one-off
 	// deviations set as well.
 	RetainedOccurrenceShiftID *int64 `json:"-"`
-	CreatedBy                 int64  `json:"created_by"`
-	UpdatedBy                 *int64 `json:"updated_by,omitempty"`
+	// IncludeSchoolBreaks also plans the series in the Ferien and on closing
+	// days; statutory holidays stay skipped either way (#3820).
+	IncludeSchoolBreaks bool   `json:"include_school_breaks"`
+	CreatedBy           int64  `json:"created_by"`
+	UpdatedBy           *int64 `json:"updated_by,omitempty"`
 }
 
 // Validate ensures series data is consistent. Period-dependent rules

@@ -492,8 +492,8 @@ func seriesToCapability(series *planning.StaffShiftSeries) workforce.StaffShiftS
 		StartTime: shiftWallClock(series.StartTime), EndTime: shiftWallClock(series.EndTime), BreakMinutes: series.BreakMinutes,
 		ShiftTypeID: series.ShiftTypeID, Notes: series.Notes, CalendarPeriodID: series.CalendarPeriodID,
 		WeekPattern: series.WeekPattern, ValidFrom: series.ValidFrom.String(), SeriesRootID: series.SeriesRootID,
-		RetainedOccurrenceShiftID: series.RetainedOccurrenceShiftID, CreatedBy: series.CreatedBy, UpdatedBy: series.UpdatedBy,
-		CreatedAt: series.CreatedAt, UpdatedAt: series.UpdatedAt,
+		RetainedOccurrenceShiftID: series.RetainedOccurrenceShiftID, IncludeSchoolBreaks: series.IncludeSchoolBreaks,
+		CreatedBy: series.CreatedBy, UpdatedBy: series.UpdatedBy, CreatedAt: series.CreatedAt, UpdatedAt: series.UpdatedAt,
 	}
 	if series.ValidUntil != nil {
 		value.ValidUntil = series.ValidUntil.String()
@@ -533,6 +533,7 @@ func applySeriesToRow(series *planning.StaffShiftSeries, value workforce.StaffSh
 	}
 	series.SeriesRootID = value.SeriesRootID
 	series.RetainedOccurrenceShiftID = value.RetainedOccurrenceShiftID
+	series.IncludeSchoolBreaks = value.IncludeSchoolBreaks
 	series.CreatedBy = value.CreatedBy
 	series.UpdatedBy = value.UpdatedBy
 }

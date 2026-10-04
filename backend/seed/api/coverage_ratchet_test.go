@@ -106,7 +106,6 @@ var seedCoverageExemptions = map[string]string{
 	"schedule.dateframes":                       "empty in prod too",
 	"schedule.grade_transition_roster_removals": "empty in prod too",
 	"schedule.recurrence_rules":                 "empty in prod too",
-	"schedule.staff_shift_series":               "empty in prod too",
 	"schedule.staff_shift_series_exceptions":    "empty in prod too",
 	"schedule.timetable_conflict_acks":          "empty in prod too",
 
