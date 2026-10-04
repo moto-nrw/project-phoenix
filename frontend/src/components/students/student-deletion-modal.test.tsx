@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ModalProvider } from "~/components/dashboard/modal-context";
+import { ApiError } from "~/lib/api-error";
 import type { StudentDeletionImpact } from "~/lib/student-api";
 import { StudentDeletionModal } from "./student-deletion-modal";
 
@@ -169,9 +170,12 @@ describe("StudentDeletionModal", () => {
 
     fireEvent.click(await advanceToFinalConfirmation());
 
+    // Catalog text for students.deletion_preview_changed, not the server's
+    // sentence (ADR 0006).
+    expect(await screen.findByText(/wurde inzwischen geändert/)).toBeVisible();
     expect(
-      await screen.findByText("Die Daten haben sich geändert."),
-    ).toBeVisible();
+      screen.queryByText("Die Daten haben sich geändert."),
+    ).not.toBeInTheDocument();
     expect(mockFetchImpact).toHaveBeenCalledTimes(2);
     // The acknowledgement and confirmation step reset on the refreshed
     // preview, so deletion cannot be re-confirmed without looking again.
@@ -181,13 +185,50 @@ describe("StudentDeletionModal", () => {
 
   it("does not expose the destructive controls when the preview fails", async () => {
     mockFetchImpact.mockRejectedValueOnce(
-      new Error("Vorschau nicht verfügbar"),
+      new ApiError("Vorschau nicht verfügbar", 503, {
+        code: "general.unavailable",
+        instance: "req-impact",
+      }),
     );
     renderModal();
 
-    expect(await screen.findByText("Vorschau nicht verfügbar")).toBeVisible();
+    expect(
+      await screen.findByText(
+        "Die Vorschau der Löschung ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+      ),
+    ).toBeVisible();
     expect(screen.getByRole("button", { name: "Ja, löschen" })).toBeDisabled();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(await screen.findByRole("checkbox")).toBeInTheDocument();
+    expect(mockFetchImpact).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows a failed deletion with request ID but without a retry button", async () => {
+    mockDeleteStudent.mockRejectedValueOnce(
+      new ApiError("boom", 500, {
+        code: "general.server",
+        instance: "req-delete",
+      }),
+    );
+    renderModal();
+
+    fireEvent.click(await advanceToFinalConfirmation());
+
+    expect(
+      await screen.findByText(
+        "Die Löschung konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-delete");
+    expect(
+      screen.queryByRole("button", { name: "Wiederholen" }),
+    ).not.toBeInTheDocument();
+    expect(mockDeleteStudent).toHaveBeenCalledOnce();
   });
 
   it("does not offer a second deletion when refreshing after success fails", async () => {

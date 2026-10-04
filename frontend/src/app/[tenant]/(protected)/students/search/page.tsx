@@ -21,6 +21,9 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
+import { errorAlertActions } from "~/components/ui/form-error-alert";
+import { useApiLoadError } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import { SectionCard } from "~/components/ui/section-card";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type {
@@ -576,6 +579,8 @@ function readStoredFilters(storageKey: string | null) {
       normalizeStoredFilters(parsed as PersistedSearchFilters),
     );
   } catch {
+    // Bewusst still: ein kaputter oder gesperrter Speicher startet die Suche
+    // ohne gemerkte Filter, die Adresse trägt sie weiter.
     safelyRemoveStoredFilters(storageKey);
     return null;
   }
@@ -1386,7 +1391,9 @@ function SearchPageContent() {
       try {
         return await groupService.getGroups();
       } catch {
-        // User might not have groups:read permission - continue with empty list
+        // Bewusst still: ohne groups:read fehlt die Liste regelmäßig. Der
+        // Filter bietet dann keine Gruppen an, die Kinderliste selbst lädt
+        // und filtert unverändert weiter.
         logger.warn("could not load groups for filter");
         return [];
       }
@@ -1401,6 +1408,8 @@ function SearchPageContent() {
       try {
         return await roomService.getRooms({ page: 1, pageSize: 1000 });
       } catch {
+        // Bewusst still wie bei den Gruppen: ohne Raumliste bietet der
+        // Filter keine Räume an, die Kinderliste lädt unverändert weiter.
         logger.warn("could not load rooms for filter");
         return [];
       }
@@ -1873,32 +1882,27 @@ function SearchPageContent() {
     if (next !== trackingFilter) updateTrackingFilter(next);
   }, [trackingData, trackingFilter, updateTrackingFilter]);
 
-  // Error type for proper heading display (Fix P3: substring matching on transformed string)
-  type ErrorType = "permission" | "session" | "generic" | null;
-
-  // Parse error messages for user-friendly display, returning both type and message
-  const [errorType, errorMessage]: [ErrorType, string | null] = useMemo(() => {
-    if (!studentsError) return [null, null];
-
-    const rawMessage =
-      studentsError instanceof Error
-        ? studentsError.message
-        : String(studentsError);
-
-    if (rawMessage.includes("403")) {
-      return [
-        "permission",
-        "Sie haben keine Berechtigung, Kinderdaten anzuzeigen. Bitte wenden Sie sich an einen Administrator.",
-      ];
+  // Ein Ladefehler kommt über den gemeinsamen Fehlerweg (#2513): Text aus dem
+  // Katalog nach Code und Klasse, Vorgangskennung bei Serverfehlern, eine
+  // abgelaufene Sitzung führt zur Anmeldung. Fehlende Rechte erkennt die
+  // Seite am Status, nie am Meldungstext.
+  const load = useApiLoadError();
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
+  const reloadStudentsRef = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    if (studentsError) {
+      void showLoadError(studentsError, {
+        object: "die Liste der Kinder",
+        retry: () => reloadStudentsRef.current(),
+      });
+    } else {
+      clearLoadError();
     }
-    if (rawMessage.includes("401")) {
-      return [
-        "session",
-        "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
-      ];
-    }
-    return ["generic", "Fehler beim Laden der Kinderdaten."];
-  }, [studentsError]);
+  }, [studentsError, showLoadError, clearLoadError]);
+  const isPermissionError =
+    studentsError instanceof ApiError && studentsError.status === 403;
+  const hasLoadError = studentsError !== undefined && studentsError !== null;
 
   // Fix P1: Detect when auth prevents fetching (user can't fetch but no error from SWR)
   const canFetch = status === "authenticated" && !!session?.user?.token;
@@ -1921,7 +1925,7 @@ function SearchPageContent() {
   const showGridSkeleton =
     isInitializing ||
     isAuthError ||
-    (!errorMessage && ((isSearching && !hasFetchedOnce) || isDateTransition));
+    (!hasLoadError && ((isSearching && !hasFetchedOnce) || isDateTransition));
 
   // The stall is tied to the request it was measured for, so a new key or a
   // requested reload starts over without resetting state from an effect.
@@ -1948,6 +1952,7 @@ function SearchPageContent() {
     if (isAuthError) void updateSession();
     requestReload();
   }, [isAuthError, requestReload, updateSession]);
+  reloadStudentsRef.current = reloadStudents;
   const reloadAction = (
     <Button type="button" variant="outline" size="md" onClick={reloadStudents}>
       Erneut laden
@@ -3070,12 +3075,15 @@ function SearchPageContent() {
         // Ein Ladefehler ist der Fehlerzustand des Gerüsts. Fehlende Rechte
         // stehen als eingebetteter Standardzustand im Inhalt.
         error={(() => {
-          if (errorMessage && errorType !== "permission") {
-            // A reload cannot fix an expired session; every other load error
-            // may be a dropped connection, so offer the retry next to it.
-            return errorType === "generic"
-              ? { message: errorMessage, action: reloadAction }
-              : errorMessage;
+          if (hasLoadError && !isPermissionError) {
+            // Until the catalog text is there, the skeleton stays hidden and
+            // nothing is shown; a server or unavailable error carries its own
+            // retry, every other one gets the reload next to it.
+            if (!load.error) return null;
+            return {
+              message: load.error.message,
+              action: errorAlertActions(load.error) ?? reloadAction,
+            };
           }
           if (loadingStalled) {
             return {
@@ -3087,7 +3095,7 @@ function SearchPageContent() {
           return null;
         })()}
         empty={
-          !errorMessage &&
+          !hasLoadError &&
           hasFetchedOnce &&
           !isInitializing &&
           !isAuthError &&
@@ -3163,10 +3171,10 @@ function SearchPageContent() {
           </>
         }
       >
-        {errorMessage && errorType === "permission" ? (
-          <ForbiddenPage embedded message={errorMessage} />
+        {isPermissionError && load.error ? (
+          <ForbiddenPage embedded message={load.error.message} />
         ) : null}
-        <div hidden={errorMessage !== null && errorType === "permission"}>
+        <div hidden={isPermissionError}>
           {/* Planning-date context banner (#1939). The day chooser itself lives in
           the filter panel, in the "Anwesenheit" section right above the
           Kommt/Kommt-nicht filter it scopes. This banner only appears for a

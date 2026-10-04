@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import StudentDetailPage from "./page";
+import { ApiError } from "~/lib/api-error";
 import { SWRConfig } from "swr";
 import { useSession } from "next-auth/react";
 
@@ -467,7 +468,7 @@ interface MockStudent {
 interface MockStudentDataResult {
   student: MockStudent | null;
   loading: boolean;
-  error: string | null;
+  error: unknown;
   hasFullAccess: boolean;
   hasWriteAccess: boolean;
   hasAbsenceWriteAccess: boolean;
@@ -530,7 +531,11 @@ vi.mock("~/lib/student-partial-absences-api", () => ({
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
 const mockToastWarning = vi.fn();
-vi.mock("~/contexts/ToastContext", () => ({
+const mockShowActionError = vi.fn();
+// Form and load errors use the real hooks (no provider needed); toasts and
+// the toast error path are spies.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: vi.fn(() => ({
     success: mockToastSuccess,
     error: mockToastError,
@@ -538,6 +543,7 @@ vi.mock("~/contexts/ToastContext", () => ({
     warning: mockToastWarning,
     remove: vi.fn(),
   })),
+  useApiErrorDisplay: vi.fn(() => ({ show: mockShowActionError })),
 }));
 
 // Test data
@@ -647,11 +653,14 @@ describe("StudentDetailPage", () => {
   });
 
   describe("Error State", () => {
-    it("shows error message when fetching fails", () => {
+    it("shows the catalog text with retry when fetching fails", async () => {
       mockUseStudentData.mockReturnValue({
         student: null,
         loading: false,
-        error: "Kind nicht gefunden",
+        error: new ApiError("boom", 500, {
+          code: "general.server",
+          instance: "req-student",
+        }),
         hasFullAccess: false,
         hasWriteAccess: false,
         hasAbsenceWriteAccess: false,
@@ -665,8 +674,32 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
-      expect(screen.getByTestId("alert-error")).toBeInTheDocument();
-      expect(screen.getByText("Kind nicht gefunden")).toBeInTheDocument();
+      expect(await screen.findByTestId("alert-error")).toHaveTextContent(
+        "Die Kindakte konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+      );
+    });
+
+    it("says the child was not found for a 404", () => {
+      mockUseStudentData.mockReturnValue({
+        student: null,
+        loading: false,
+        error: new ApiError("not found", 404),
+        hasFullAccess: false,
+        hasWriteAccess: false,
+        hasAbsenceWriteAccess: false,
+        hasSickExcusedWriteAccess: false,
+        supervisors: [],
+        myGroups: [],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+
+      render(<StudentDetailPage />);
+
+      expect(screen.getByTestId("alert-error")).toHaveTextContent(
+        "Kind nicht gefunden",
+      );
     });
 
     it("shows error when student is null", () => {
@@ -1106,7 +1139,10 @@ describe("StudentDetailPage", () => {
     });
 
     it("shows error toast when checkout fails", async () => {
-      mockSchoolCheckinStudent.mockRejectedValue(new Error("Checkout failed"));
+      const failure = new ApiError("Checkout failed", 500, {
+        code: "general.server",
+      });
+      mockSchoolCheckinStudent.mockRejectedValue(failure);
 
       render(<StudentDetailPage />);
 
@@ -1123,7 +1159,10 @@ describe("StudentDetailPage", () => {
       });
 
       await waitFor(() => {
-        expect(mockToastError).toHaveBeenCalled();
+        expect(mockShowActionError).toHaveBeenCalledWith(failure, {
+          object: "das Abmelden",
+          retry: expect.any(Function),
+        });
       });
     });
   });
@@ -1187,7 +1226,10 @@ describe("StudentDetailPage", () => {
     });
 
     it("shows error toast when checkin fails", async () => {
-      mockSchoolCheckinStudent.mockRejectedValue(new Error("Checkin failed"));
+      const failure = new ApiError("Checkin failed", 500, {
+        code: "general.server",
+      });
+      mockSchoolCheckinStudent.mockRejectedValue(failure);
 
       render(<StudentDetailPage />);
 
@@ -1204,7 +1246,10 @@ describe("StudentDetailPage", () => {
       });
 
       await waitFor(() => {
-        expect(mockToastError).toHaveBeenCalled();
+        expect(mockShowActionError).toHaveBeenCalledWith(failure, {
+          object: "das Anmelden",
+          retry: expect.any(Function),
+        });
       });
     });
   });
@@ -1843,7 +1888,8 @@ describe("StudentDetailPage", () => {
     });
 
     it("shows error toast if the switch request fails", async () => {
-      mockUpdateStudent.mockRejectedValue(new Error("boom"));
+      const failure = new ApiError("boom", 500, { code: "general.server" });
+      mockUpdateStudent.mockRejectedValue(failure);
       mockUseStudentData.mockReturnValue({
         student: { ...mockStudent, excused: true },
         loading: false,
@@ -1869,7 +1915,10 @@ describe("StudentDetailPage", () => {
         fireEvent.click(screen.getByTestId("modal-confirm"));
       });
       await waitFor(() => {
-        expect(mockToastError).toHaveBeenCalled();
+        expect(mockShowActionError).toHaveBeenCalledWith(failure, {
+          object: "die Änderung des Status",
+          retry: expect.any(Function),
+        });
       });
     });
 

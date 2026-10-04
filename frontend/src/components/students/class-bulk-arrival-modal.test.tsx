@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ApiError } from "~/lib/api-error";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import type { Student } from "~/lib/student-helpers";
@@ -32,7 +33,8 @@ vi.mock("~/lib/student-arrival-api", async () => {
   };
 });
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: mockToastSuccess,
     error: mockToastError,
@@ -398,8 +400,10 @@ describe("FilteredBulkArrivalModal", () => {
     );
   });
 
-  it("shows error toast when bulk upsert fails", async () => {
-    mockBulkUpsert.mockRejectedValueOnce(new Error("Save failed"));
+  it("shows a failed save in the form with the catalog text", async () => {
+    mockBulkUpsert.mockRejectedValueOnce(
+      new ApiError("Save failed", 403, { code: "general.permission" }),
+    );
 
     render(
       <FilteredBulkArrivalModal
@@ -418,7 +422,11 @@ describe("FilteredBulkArrivalModal", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Save failed");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Für die Klassenzeit fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+    );
+    expect(alert).not.toHaveTextContent("Save failed");
     expect(mockToastError).not.toHaveBeenCalled();
   });
 
@@ -552,7 +560,9 @@ describe("FilteredBulkArrivalModal", () => {
 
   it("shows a retry action when class times cannot be loaded", async () => {
     mockFetchClassArrivalTimes
-      .mockRejectedValueOnce(new Error("offline"))
+      .mockRejectedValueOnce(
+        new ApiError("offline", 503, { code: "general.unavailable" }),
+      )
       .mockResolvedValueOnce({
         school_class: "3a",
         times: { mon: "11:45" },
@@ -570,12 +580,12 @@ describe("FilteredBulkArrivalModal", () => {
 
     expect(
       await screen.findByText(
-        "Die Klassenzeiten konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+        "Die Klassenzeit ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Montag")).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     await waitFor(() =>
       expect(screen.getByLabelText("Montag")).toHaveValue("11:45"),
     );

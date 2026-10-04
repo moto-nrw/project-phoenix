@@ -8,16 +8,24 @@
 // Datenquelle (`api`) und Rückmeldung (`notify`) mit, damit kein Portal die
 // Routen des anderen kennt.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -58,10 +66,13 @@ export interface ClassArrivalExceptionApi {
   ) => Promise<string | null>;
 }
 
-/** Wohin Erfolg und Fehler gehen (Toast in der OGS, Hinweis im Dialog). */
+/**
+ * Nur die Erfolgsmeldung geht an den Aufrufer. Fehler zeigt der Baustein
+ * selbst über den gemeinsamen Fehlerweg (#2513): Speicher- und Prüffehler im
+ * Formular, Ladefehler vor Ort, Entfernen-Fehler im Rückfrage-Dialog.
+ */
 interface ClassArrivalExceptionNotifier {
   readonly success: (message: string) => void;
-  readonly error: (message: string) => void;
 }
 
 interface ClassTargetTemplate {
@@ -228,8 +239,8 @@ export function ClassArrivalExceptionPanel(
 function ToastNotifiedClassArrivalExceptionPanel(
   props: ClassArrivalExceptionPanelProps,
 ) {
-  const { success, error } = useToast();
-  const notify = useMemo(() => ({ success, error }), [success, error]);
+  const { success } = useToast();
+  const notify = useMemo(() => ({ success }), [success]);
   return (
     <ClassArrivalExceptionPanelBody
       {...props}
@@ -267,18 +278,24 @@ function ClassArrivalExceptionPanelBody({
   // Fehler bleibt im Dialog stehen statt als Toast zu verschwinden.
   const [removeTarget, setRemoveTarget] =
     useState<ClassArrivalException | null>(null);
-  const [removeError, setRemoveError] = useState("");
+  const removeErrors = useApiFormError();
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  // „Wiederholen“ speichert die aktuelle Eingabe, nicht die vom Fehler.
+  const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
+  const load = useApiLoadError();
+  const { show: showLoadError, clear: clearLoadError } = load;
 
   const openRemoveConfirmation = (exception: ClassArrivalException) => {
     onConfirmationVisibilityChange?.(true);
-    setRemoveError("");
+    removeErrors.clear();
     setRemoveTarget(exception);
   };
 
   const closeRemoveConfirmation = () => {
     onConfirmationVisibilityChange?.(false);
     setRemoveTarget(null);
-    setRemoveError("");
+    removeErrors.clear();
   };
 
   const reload = useCallback(async () => {
@@ -291,6 +308,7 @@ function ClassArrivalExceptionPanelBody({
     let cancelled = false;
     setLoading(true);
     setLoadError(false);
+    clearLoadError();
     api
       .list(schoolClass)
       .then((list) => {
@@ -304,6 +322,10 @@ function ClassArrivalExceptionPanelBody({
           error: err instanceof Error ? err.message : String(err),
         });
         setLoadError(true);
+        void showLoadError(err, {
+          object: "die Liste der Abweichungen",
+          retry: () => setLoadAttempt((attempt) => attempt + 1),
+        });
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -311,7 +333,7 @@ function ClassArrivalExceptionPanelBody({
     return () => {
       cancelled = true;
     };
-  }, [api, schoolClass, loadAttempt]);
+  }, [api, schoolClass, loadAttempt, clearLoadError, showLoadError]);
 
   const today = startOfToday();
   const maxDate = new Date(today);
@@ -322,8 +344,9 @@ function ClassArrivalExceptionPanelBody({
 
   const applyCancelledPreset = async () => {
     setReason(CLASS_ARRIVAL_CANCELLED_REASON);
+    formErrors.clear();
     if (!isoDate) {
-      notify.error("Bitte zuerst ein Datum wählen.");
+      formErrors.invalid("Bitte wählen Sie zuerst ein Datum.");
       return;
     }
     setPresetPending(true);
@@ -332,16 +355,20 @@ function ClassArrivalExceptionPanelBody({
       if (start) {
         setTime(start);
       } else {
-        notify.error(
-          "Für diesen Tag ist kein Betreuungsblock geplant. Bitte die Uhrzeit selbst eintragen.",
+        formErrors.invalid(
+          "Für diesen Tag ist kein Betreuungsblock geplant. Bitte tragen Sie die Uhrzeit selbst ein.",
+          { arrival_time: "Bitte tragen Sie die Uhrzeit ein." },
         );
       }
     } catch (err) {
       logger.warn("class_arrival_exception_preset_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      notify.error(
-        "Der Blockbeginn konnte nicht geladen werden. Bitte die Uhrzeit selbst eintragen.",
+      // Der Vorschlag ist nur eine Abkürzung. Scheitert er, hilft der
+      // Hinweis aufs Eintippen mehr als die Fehlerklasse des Abrufs.
+      formErrors.invalid(
+        "Der Blockbeginn konnte nicht geladen werden. Bitte tragen Sie die Uhrzeit selbst ein.",
+        { arrival_time: "Bitte tragen Sie die Uhrzeit ein." },
       );
     } finally {
       setPresetPending(false);
@@ -350,6 +377,7 @@ function ClassArrivalExceptionPanelBody({
 
   const handleSave = async () => {
     if (!isoDate || !canSave) return;
+    formErrors.clear();
     setSaving(true);
     try {
       await api.upsert(schoolClass, isoDate, {
@@ -357,7 +385,7 @@ function ClassArrivalExceptionPanelBody({
         reason: reason.trim() === "" ? null : reason.trim(),
       });
       notify.success(
-        `${classLabel} kommt am ${formatDate(isoDate)} um ${time} Uhr`,
+        `${classLabel} kommt am ${formatDate(isoDate)} um ${time} Uhr.`,
       );
       setDate(null);
       setTime("");
@@ -365,31 +393,36 @@ function ClassArrivalExceptionPanelBody({
       await reload();
       onChanged?.();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("class_arrival_exception_save_failed", { error: message });
-      notify.error(
-        "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
-      );
+      logger.error("class_arrival_exception_save_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await formErrors.show(err, {
+        object: "die Abweichung",
+        retry: () => void latestSaveRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+  latestSaveRef.current = handleSave;
 
   const handleRemove = async (exception: ClassArrivalException) => {
     setRemoving(exception.date);
-    setRemoveError("");
+    removeErrors.clear();
     try {
       await api.remove(schoolClass, exception.date);
       closeRemoveConfirmation();
-      notify.success(`Abweichung am ${formatDate(exception.date)} entfernt`);
+      notify.success(
+        `Die Abweichung am ${formatDate(exception.date)} ist entfernt.`,
+      );
       await reload();
       onChanged?.();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("class_arrival_exception_delete_failed", { error: message });
-      setRemoveError(
-        "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
-      );
+      logger.error("class_arrival_exception_delete_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // Der Dialog bleibt offen; ein zweiter Klick ist der neue Versuch.
+      await removeErrors.show(err, { object: "die Abweichung" });
     } finally {
       setRemoving(null);
     }
@@ -411,25 +444,14 @@ function ClassArrivalExceptionPanelBody({
       {loading ? (
         <Alert type="info" message="Abweichungen werden geladen." />
       ) : null}
-      {loadError ? (
-        <Alert
-          type="error"
-          message="Die Abweichungen konnten nicht geladen werden. Bitte versuchen Sie es noch einmal."
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setLoadAttempt((attempt) => attempt + 1)}
-            >
-              Erneut laden
-            </Button>
-          }
-        />
-      ) : null}
+      {loadError ? <LoadErrorAlert error={load.error} /> : null}
 
       {!loading && !loadError && canEdit ? (
-        <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <div
+          ref={formRef}
+          className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4"
+        >
+          <FormErrorAlert message={formErrors.error} />
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label
@@ -452,14 +474,18 @@ function ClassArrivalExceptionPanelBody({
             </div>
             <Input
               id="class-arrival-exception-time"
+              name="arrival_time"
               label="Kommt um"
               type="time"
+              error={formErrors.fieldError("arrival_time")}
               value={time}
               onChange={(event) => setTime(event.target.value.slice(0, 5))}
             />
           </div>
           <Input
             id="class-arrival-exception-reason"
+            name="reason"
+            error={formErrors.fieldError("reason")}
             label="Grund (optional)"
             type="text"
             maxLength={255}
@@ -572,7 +598,7 @@ function ClassArrivalExceptionPanelBody({
         confirmLabel="Endgültig entfernen"
         loadingLabel="Wird entfernt…"
         loading={removing !== null}
-        error={removeError}
+        error={removeErrors.error?.message ?? ""}
         onConfirm={() => {
           if (removeTarget) void handleRemove(removeTarget);
         }}

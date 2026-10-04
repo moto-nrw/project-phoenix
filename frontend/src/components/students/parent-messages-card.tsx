@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import useSWR from "swr";
 import { Button } from "~/components/ui/button";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -46,7 +48,11 @@ export function ParentMessagesCard({
 
   // SWR + SSE so the card's unread pill and last-activity stay live (matching
   // the inbox page) instead of going stale until the page is remounted.
-  const { data: threads = [], mutate } = useSWR(
+  const {
+    data: threads = [],
+    error: loadFailure,
+    mutate,
+  } = useSWR(
     [`${tenantSlug ?? ""}:student-threads`, studentId],
     () => fetchStudentThreads(studentId),
     {
@@ -69,6 +75,19 @@ export function ParentMessagesCard({
   // cursor), so fire even in a background tab — marksRead: false skips the
   // hidden-tab deferral that exists only for read-advancing chat views.
   const refreshMessages = useCallback(() => void mutate(), [mutate]);
+  const load = useApiLoadError();
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
+  useEffect(() => {
+    if (loadFailure) {
+      void showLoadError(loadFailure, {
+        object: "die Liste der Nachrichten",
+        retry: () => void mutate(),
+      });
+    } else {
+      clearLoadError();
+    }
+  }, [loadFailure, mutate, showLoadError, clearLoadError]);
   useMessagesActivity({
     onMatch: refreshMessages,
     studentId,
@@ -97,7 +116,9 @@ export function ParentMessagesCard({
         }
       />
 
-      {threads.length === 0 ? (
+      {loadFailure ? (
+        <LoadErrorAlert error={load.error} />
+      ) : threads.length === 0 ? (
         <p className="py-6 text-center text-sm text-gray-500">
           {messagingEnabled
             ? "Noch keine Unterhaltungen. Schreiben Sie den Eltern die erste Nachricht."

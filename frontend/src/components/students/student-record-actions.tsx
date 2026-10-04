@@ -1,11 +1,11 @@
 "use client";
 
 import { LogOut, Trash2, Undo2, XCircle } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import {
   cancelCareExit,
   canResumeCare,
@@ -51,7 +51,10 @@ export function StudentRecordActions({
   onChanged,
   onDeleted,
 }: StudentRecordActionsProps) {
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
+  const { show: showError } = useApiErrorDisplay();
+  // „Wiederholen“ im Fehler-Toast ruft die aktuelle Fassung auf.
+  const latestCancelRef = useRef<() => Promise<void>>(async () => undefined);
   const [careExitOpen, setCareExitOpen] = useState(false);
   const [cancelExitOpen, setCancelExitOpen] = useState(false);
   const [cancellingExit, setCancellingExit] = useState(false);
@@ -72,24 +75,27 @@ export function StudentRecordActions({
       // zweiten Halbsatz bliebe offen, ob die Termine neu eingetragen werden
       // müssen (#2487).
       toastSuccess(
-        `Das geplante Betreuungsende von ${displayName} wurde storniert. Termine und Angebote gelten wieder.`,
+        `Das Betreuungsende von ${displayName} ist storniert. Termine und Angebote gelten wieder.`,
       );
       setCancelExitOpen(false);
       await onChanged();
     } catch (cancelError) {
-      const message =
-        cancelError instanceof Error
-          ? cancelError.message
-          : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
       logger.error("care_exit_cancel_failed", {
         student_id: studentId,
-        error: message,
+        error:
+          cancelError instanceof Error
+            ? cancelError.message
+            : String(cancelError),
       });
-      toastError(message);
+      await showError(cancelError, {
+        object: "die Stornierung",
+        retry: () => void latestCancelRef.current(),
+      });
     } finally {
       setCancellingExit(false);
     }
-  }, [displayName, onChanged, studentId, toastError, toastSuccess]);
+  }, [displayName, onChanged, showError, studentId, toastSuccess]);
+  latestCancelRef.current = cancelPlannedExit;
 
   const items: OverflowMenuItem[] = [];
   if (student.care_ended) {
@@ -185,7 +191,7 @@ export function StudentRecordActions({
           onClose={() => setDeleteOpen(false)}
           onDeleted={async () => {
             setDeleteOpen(false);
-            toastSuccess(`${displayName} wurde gelöscht.`);
+            toastSuccess(`${displayName} ist gelöscht.`);
             await onDeleted();
           }}
         />

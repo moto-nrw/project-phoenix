@@ -586,32 +586,32 @@ func (rs *Resource) listEndedCare(w http.ResponseWriter, r *http.Request) {
 	}, "Beendete Betreuungen")
 }
 
-// careExitErrorRenderer classifies the care-lifecycle sentinels. Everything
-// here carries a German message meant for the person who pressed the button,
-// so the renderers pass the error through rather than replacing its text.
+// careExitErrorRenderer classifies the care-lifecycle sentinels. Each one
+// answers with its own code, so the frontend words it from the catalog
+// (ADR 0006); the German sentence stays as diagnosis for older readers.
 var careExitErrorRenderer = common.RulesRenderer([]common.ErrorRule{
-	{Target: careplan.ErrCareExitNoStudents, Render: common.ErrorInvalidRequest},
-	{Target: careplan.ErrCareExitTooManyStudents, Render: common.ErrorInvalidRequest},
-	{Target: careplan.ErrCareExitDayInPast, Render: common.ErrorInvalidRequest},
-	{Target: careplan.ErrCareExitPreviewChanged, Render: common.ErrorConflict},
-	{Target: careplan.ErrCareExitBlocked, Render: common.ErrorConflict},
-	{Target: careplan.ErrCareExitNotPlanned, Render: common.ErrorConflict},
-	{Target: careplan.ErrCareExitAlreadyEffective, Render: common.ErrorConflict},
-	{Target: careplan.ErrCareResumeNotEnded, Render: common.ErrorConflict},
-	{Target: careplan.ErrCareResumeMissing, Render: common.ErrorConflict},
-	{Target: careplan.ErrCareResumeStartInPast, Render: common.ErrorInvalidRequest},
-	{Target: careplan.ErrCareResumeNotChecked, Render: common.ErrorInvalidRequest},
-	{Target: careplan.ErrCareWithdrawalNotFound, Render: common.ErrorNotFound},
-	{Target: careplan.ErrCareWithdrawalAfterGap, Render: common.ErrorInvalidRequest},
-	{Target: careplan.ErrCareWithdrawalAlreadyResolved, Render: common.ErrorConflict},
+	{Target: careplan.ErrCareExitNoStudents, Render: invalidWithCode(common.CodeStudentsCareExitNoStudents)},
+	{Target: careplan.ErrCareExitTooManyStudents, Render: invalidWithCode(common.CodeStudentsCareExitTooManyStudents)},
+	{Target: careplan.ErrCareExitDayInPast, Render: invalidWithCode(common.CodeStudentsCareExitDayInPast)},
+	{Target: careplan.ErrCareExitPreviewChanged, Render: conflictWithCode(common.CodeStudentsCareExitPreviewChanged)},
+	{Target: careplan.ErrCareExitBlocked, Render: conflictWithCode(common.CodeStudentsCareExitBlocked)},
+	{Target: careplan.ErrCareExitNotPlanned, Render: conflictWithCode(common.CodeStudentsCareExitNotPlanned)},
+	{Target: careplan.ErrCareExitAlreadyEffective, Render: conflictWithCode(common.CodeStudentsCareExitAlreadyEffective)},
+	{Target: careplan.ErrCareResumeNotEnded, Render: conflictWithCode(common.CodeStudentsCareResumeNotEnded)},
+	{Target: careplan.ErrCareResumeMissing, Render: conflictWithCode(common.CodeStudentsCareResumeMissing)},
+	{Target: careplan.ErrCareResumeStartInPast, Render: invalidWithCode(common.CodeStudentsCareResumeStartInPast)},
+	{Target: careplan.ErrCareResumeNotChecked, Render: invalidWithCode(common.CodeStudentsCareResumeNotChecked)},
+	{Target: careplan.ErrCareWithdrawalNotFound, Render: notFoundWithCode(common.CodeStudentsCareWithdrawalNotFound)},
+	{Target: careplan.ErrCareWithdrawalAfterGap, Render: invalidWithCode(common.CodeStudentsCareWithdrawalAfterGap)},
+	{Target: careplan.ErrCareWithdrawalAlreadyResolved, Render: conflictWithCode(common.CodeStudentsCareWithdrawalAlreadyResolved)},
 	{Match: func(err error) bool {
 		var dateErr *careplan.CareWithdrawalDateError
 		return errors.As(err, &dateErr)
-	}, Render: common.ErrorInvalidRequest},
-	{Target: careplan.ErrCareExitInvalidReason, Render: common.ErrorInvalidRequest},
-	{Target: careplan.ErrCareExitNoteRequired, Render: common.ErrorInvalidRequest},
-	{Target: careplan.ErrCareExitNoteNotAllowed, Render: common.ErrorInvalidRequest},
-	{Target: careplan.ErrCareExitNoteTooLong, Render: common.ErrorInvalidRequest},
+	}, Render: invalidWithCode(common.CodeStudentsCareWithdrawalDateInvalid)},
+	{Target: careplan.ErrCareExitInvalidReason, Render: invalidWithCode(common.CodeStudentsCareExitInvalidReason)},
+	{Target: careplan.ErrCareExitNoteRequired, Render: invalidWithCode(common.CodeStudentsCareExitNoteRequired)},
+	{Target: careplan.ErrCareExitNoteNotAllowed, Render: invalidWithCode(common.CodeStudentsCareExitNoteNotAllowed)},
+	{Target: careplan.ErrCareExitNoteTooLong, Render: invalidWithCode(common.CodeStudentsCareExitNoteTooLong)},
 	// Resuming care counts against the Kinderkontingent (#3567).
 	{Match: common.IsBusinessRejection, Render: common.ErrorBusinessRejection},
 }, func(cause error) render.Renderer {
@@ -632,4 +632,12 @@ func withdrawalDeletionErrorRenderer(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, common.CodeStudentsCareWithdrawalAlreadyResolved)
 	}
 	return studentDeletionErrorRenderer(err)
+}
+
+func invalidWithCode(code string) func(error) render.Renderer {
+	return func(err error) render.Renderer { return common.ErrorInvalidRequestWithCode(err, code) }
+}
+
+func notFoundWithCode(code string) func(error) render.Renderer {
+	return func(err error) render.Renderer { return common.ErrorNotFoundWithCode(err, code) }
 }

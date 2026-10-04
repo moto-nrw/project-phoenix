@@ -67,6 +67,7 @@ vi.mock("vaul", async () => {
   };
 });
 
+import { ApiError } from "~/lib/api-error";
 import { StudentExportModal } from "./student-export-modal";
 
 const { mockExportStudents, mockToastError, mockToastSuccess } = vi.hoisted(
@@ -87,12 +88,18 @@ vi.mock("~/lib/student-export-api", async () => {
   };
 });
 
-vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => ({
-    success: mockToastSuccess,
-    error: mockToastError,
-  }),
-}));
+vi.mock("~/contexts/ToastContext", async () => {
+  const actual = await vi.importActual<
+    typeof import("~/contexts/ToastContext")
+  >("~/contexts/ToastContext");
+  return {
+    ...actual,
+    useToast: () => ({
+      success: mockToastSuccess,
+      error: mockToastError,
+    }),
+  };
+});
 
 function renderModal(
   props: Partial<React.ComponentProps<typeof StudentExportModal>> = {},
@@ -203,11 +210,13 @@ describe("StudentExportModal", () => {
         ],
       });
     });
-    expect(mockToastSuccess).toHaveBeenCalledWith("Export wurde erstellt.");
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "Die Datei ist heruntergeladen.",
+    );
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("shows a validation toast when all columns are disabled", async () => {
+  it("reports a missing column in the dialog, not in a toast", async () => {
     await openModal();
 
     for (const checkbox of screen.getAllByRole("checkbox")) {
@@ -217,9 +226,10 @@ describe("StudentExportModal", () => {
     }
     fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
 
-    expect(mockToastError).toHaveBeenCalledWith(
-      "Bitte wähle mindestens eine Spalte aus.",
-    );
+    expect(
+      screen.getByText("Bitte wählen Sie mindestens eine Spalte aus."),
+    ).toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
     expect(mockExportStudents).not.toHaveBeenCalled();
   });
 
@@ -301,17 +311,28 @@ describe("StudentExportModal", () => {
     ).toBeChecked();
   });
 
-  it("keeps the dialog open and reports export failures", async () => {
-    mockExportStudents.mockRejectedValueOnce(new Error("PDF kaputt"));
+  it("keeps the dialog open and reports export failures in it", async () => {
+    mockExportStudents.mockRejectedValueOnce(
+      new ApiError("PDF kaputt", 500, {
+        code: "general.server",
+        instance: "req-export",
+      }),
+    );
     const { onClose } = await openModal();
 
     fireEvent.click(screen.getByRole("button", { name: "DOCX" }));
     fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
 
-    await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith("PDF kaputt");
-    });
+    expect(
+      await screen.findByText(
+        "Die Exportdatei konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/PDF kaputt/)).not.toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mockExportStudents).toHaveBeenCalledTimes(2));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 

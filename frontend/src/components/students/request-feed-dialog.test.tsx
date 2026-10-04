@@ -2,20 +2,16 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RequestFeedDialog } from "./request-feed-dialog";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import {
   createRequestFeed,
   getRequestFeedStatus,
   rotateRequestFeed,
 } from "~/lib/request-feed-api";
 
-const { toastSuccess, toastError, copy } = vi.hoisted(() => ({
-  toastSuccess: vi.fn(),
-  toastError: vi.fn(),
+const { copy } = vi.hoisted(() => ({
   copy: vi.fn(),
-}));
-
-vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => ({ success: toastSuccess, error: toastError }),
 }));
 
 vi.mock("~/lib/use-clipboard-copy", () => ({
@@ -52,6 +48,16 @@ const status = vi.mocked(getRequestFeedStatus);
 const create = vi.mocked(createRequestFeed);
 const rotate = vi.mocked(rotateRequestFeed);
 
+function renderDialog() {
+  return render(
+    <ToastProvider>
+      <RequestFeedDialog isOpen onClose={vi.fn()} />
+    </ToastProvider>,
+  );
+}
+
+const toastAlert = () => screen.findByRole("alert", { name: /^Fehler:/ });
+
 describe("RequestFeedDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -64,7 +70,7 @@ describe("RequestFeedDialog", () => {
       url: "https://schule.test/api/request-feed/secret",
     });
 
-    render(<RequestFeedDialog isOpen onClose={vi.fn()} />);
+    renderDialog();
 
     await waitFor(() =>
       expect(
@@ -93,10 +99,10 @@ describe("RequestFeedDialog", () => {
       url: "https://schule.test/api/request-feed/new",
     });
 
-    render(<RequestFeedDialog isOpen onClose={vi.fn()} />);
+    renderDialog();
 
     expect(
-      await screen.findByText("Der RSS-Link ist bereits eingerichtet."),
+      await screen.findByText("Es gibt schon einen RSS-Link."),
     ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Neuen Link erstellen" }),
@@ -112,6 +118,73 @@ describe("RequestFeedDialog", () => {
     await waitFor(() => expect(rotate).toHaveBeenCalledOnce());
     expect(await screen.findByLabelText("Ihr RSS-Link")).toHaveValue(
       "https://schule.test/api/request-feed/new",
+    );
+  });
+
+  it("zeigt einen Ladefehler im Dialog und lädt per Wiederholen neu", async () => {
+    status
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, {
+          code: "general.unavailable",
+          instance: "req-feed",
+        }),
+      )
+      .mockResolvedValueOnce({ active: true });
+
+    renderDialog();
+
+    expect(
+      await screen.findByText(
+        "Das Abo ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "RSS-Link erstellen" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(
+      await screen.findByText("Es gibt schon einen RSS-Link."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/nicht erreichbar/)).toBeNull();
+  });
+
+  it("meldet ein gescheitertes Erstellen als Toast mit dem Katalogtext", async () => {
+    status.mockResolvedValue({ active: false });
+    create.mockRejectedValueOnce(
+      new ApiError("forbidden", 403, { code: "general.permission" }),
+    );
+
+    renderDialog();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "RSS-Link erstellen" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "RSS-Link erstellen" }));
+
+    expect(await toastAlert()).toHaveTextContent(
+      "Für das Abo fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+    );
+  });
+
+  it("nennt den Weg von Hand, wenn das Kopieren scheitert", async () => {
+    status.mockResolvedValue({ active: false });
+    create.mockResolvedValue({ url: "https://schule.test/feed" });
+    copy.mockResolvedValue(false);
+
+    renderDialog();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "RSS-Link erstellen" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "RSS-Link erstellen" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Kopieren" }));
+
+    expect(await toastAlert()).toHaveTextContent(
+      /markieren Sie den Link und kopieren Sie ihn selbst/,
     );
   });
 });

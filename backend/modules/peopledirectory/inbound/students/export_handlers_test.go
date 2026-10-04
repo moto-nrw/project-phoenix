@@ -1,8 +1,11 @@
 package students
 
 import (
+	"net/http"
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/api/common"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
@@ -87,7 +90,19 @@ func TestExportSelectionCapError(t *testing.T) {
 
 	assert.Nil(t, exportSelectionCapError(0))
 	assert.Nil(t, exportSelectionCapError(studentExportPageSize))
-	require.NotNil(t, exportSelectionCapError(studentExportPageSize+1))
+	rendered := exportSelectionCapError(studentExportPageSize + 1)
+	require.NotNil(t, rendered)
+
+	// The frontend words the refusal from the code and these two numbers
+	// (ADR 0006), never from the diagnostic sentence.
+	resp, ok := rendered.(*common.ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
+	assert.Equal(t, common.CodeStudentsExportSelectionTooLarge, resp.Code)
+	assert.Equal(t, map[string]any{
+		"total": studentExportPageSize + 1,
+		"limit": studentExportPageSize,
+	}, resp.Details)
 }
 
 func TestApplyExportFiltersAdministrativeFilters(t *testing.T) {

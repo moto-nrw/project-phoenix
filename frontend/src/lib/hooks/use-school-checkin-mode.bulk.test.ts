@@ -1,5 +1,6 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
 
 const { mockSchoolCheckinStudentsBatch, mockGlobalMutate, mockToastError } =
   vi.hoisted(() => ({
@@ -17,6 +18,18 @@ vi.mock("swr", () => ({
   mutate: mockGlobalMutate,
 }));
 
+// The shared display path, reduced to what reaches the toast: the catalog
+// text for the error and the named object.
+const showApiError = vi.hoisted(
+  () =>
+    async (error: unknown, options: { object: string; retry?: () => void }) => {
+      const { presentError } = await import("~/lib/error-presentation");
+      mockToastError(presentError(error, options.object).message, {
+        retry: options.retry,
+      });
+    },
+);
+
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({
     success: vi.fn(),
@@ -25,6 +38,7 @@ vi.mock("~/contexts/ToastContext", () => ({
     warning: vi.fn(),
     remove: vi.fn(),
   }),
+  useApiErrorDisplay: () => ({ show: showApiError }),
 }));
 
 import { useSchoolCheckinMode } from "./use-school-checkin-mode";
@@ -407,9 +421,9 @@ describe("useSchoolCheckinMode selection sub-mode", () => {
     expect(matcher(["not", "a", "string"])).toBe(false);
   });
 
-  it("toasts the generic retry message when the whole request fails without a 403", async () => {
+  it("toasts the server text when the whole request fails without a 403", async () => {
     mockSchoolCheckinStudentsBatch.mockRejectedValue(
-      new Error("API error (500): boom"),
+      new ApiError("API error (500): boom", 500, { code: "general.server" }),
     );
 
     const { result } = renderHook(() => useSchoolCheckinMode());
@@ -421,15 +435,20 @@ describe("useSchoolCheckinMode selection sub-mode", () => {
       await result.current.runBulk("in");
     });
 
-    expect(mockToastError).toHaveBeenCalledWith(
-      "Anmelden fehlgeschlagen. Bitte erneut versuchen.",
+    await waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Die Anmeldung konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+        { retry: undefined },
+      ),
     );
     expect(result.current.selectedIds.has("1")).toBe(true);
   });
 
   it("returns null and keeps the selection when the whole request fails", async () => {
     mockSchoolCheckinStudentsBatch.mockRejectedValue(
-      new Error("API error (403): Forbidden"),
+      new ApiError("API error (403): Forbidden", 403, {
+        code: "general.permission",
+      }),
     );
 
     const { result } = renderHook(() => useSchoolCheckinMode());
@@ -444,8 +463,11 @@ describe("useSchoolCheckinMode selection sub-mode", () => {
 
     expect(outcome).toBeNull();
     expect(result.current.selectedIds.has("1")).toBe(true);
-    expect(mockToastError).toHaveBeenCalledWith(
-      "Keine Berechtigung, Kinder abzumelden.",
+    await waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Für die Abmeldung fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+        { retry: undefined },
+      ),
     );
     expect(result.current.isBulkRunning).toBe(false);
   });

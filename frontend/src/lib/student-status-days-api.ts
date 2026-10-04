@@ -1,3 +1,8 @@
+import {
+  ApiError,
+  apiErrorFromBody,
+  apiErrorFromResponse,
+} from "~/lib/api-error";
 import type { ErrorCode } from "~/lib/error-codes.generated";
 
 export type StudentStatusKind = "sick" | "excused" | "class_trip";
@@ -27,6 +32,7 @@ interface ApiResponse<T> {
   error?: string;
   /** Stable backend conflict code (e.g. students.partial_absence_conflict). */
   code?: string;
+  instance?: string;
 }
 
 /** Matches backend `students.partial_absence_conflict` on status-day writes. */
@@ -55,13 +61,17 @@ function mapStatusDay(row: BackendStudentStatusDay): StudentStatusDay {
   };
 }
 
-export class StudentStatusDayConflictError extends Error {
+export class StudentStatusDayConflictError extends ApiError {
   readonly conflicts: StudentStatusDay[];
   /** Full conflict count; may exceed `conflicts.length` when the API capped samples. */
   readonly totalCount: number;
 
-  constructor(conflicts: StudentStatusDay[], totalCount?: number) {
-    super("Vorhandene Status-Tage wurden nicht überschrieben");
+  constructor(
+    conflicts: StudentStatusDay[],
+    totalCount?: number,
+    payload?: { code?: string; instance?: string },
+  ) {
+    super("Vorhandene Status-Tage wurden nicht überschrieben", 409, payload);
     this.name = "StudentStatusDayConflictError";
     this.conflicts = conflicts;
     this.totalCount = totalCount ?? conflicts.length;
@@ -69,10 +79,16 @@ export class StudentStatusDayConflictError extends Error {
 }
 
 /** Full-day status write refused because a partial-day excusal already exists. */
-export class StudentStatusDayPartialAbsenceConflictError extends Error {
-  constructor() {
+export class StudentStatusDayPartialAbsenceConflictError extends ApiError {
+  constructor(instance?: string) {
+    // Message stays readable for callers that still show it directly.
     super(
       "Für diesen Tag liegt bereits eine Abmeldung ab einer Uhrzeit vor. Bitte zuerst die Teilabwesenheit entfernen.",
+      409,
+      {
+        code: PARTIAL_ABSENCE_CONFLICT_CODE,
+        instance,
+      },
     );
     this.name = "StudentStatusDayPartialAbsenceConflictError";
   }
@@ -82,7 +98,7 @@ function parseConflictError(
   result: ApiResponse<BackendStudentStatusDay[]>,
 ): Error {
   if (result.code === PARTIAL_ABSENCE_CONFLICT_CODE) {
-    return new StudentStatusDayPartialAbsenceConflictError();
+    return new StudentStatusDayPartialAbsenceConflictError(result.instance);
   }
   const conflicts = (result.conflicts ?? result.data ?? []).map(mapStatusDay);
   const totalCount =
@@ -90,7 +106,10 @@ function parseConflictError(
     Number.isFinite(result.conflict_count)
       ? result.conflict_count
       : conflicts.length;
-  return new StudentStatusDayConflictError(conflicts, totalCount);
+  return new StudentStatusDayConflictError(conflicts, totalCount, {
+    code: result.code,
+    instance: result.instance,
+  });
 }
 
 async function parseApiResult<T>(
@@ -99,7 +118,7 @@ async function parseApiResult<T>(
 ): Promise<T> {
   const result = (await response.json()) as ApiResponse<T>;
   if (result.status === "error" || !result.data) {
-    throw new Error(result.error ?? fallback);
+    throw apiErrorFromBody(fallback, response.status, result);
   }
   return result.data;
 }
@@ -113,7 +132,10 @@ export async function fetchStudentStatusDays(
     `/api/students/${studentId}/status-days?from=${from}&to=${to}`,
   );
   if (!response.ok) {
-    throw new Error("Geplante Einträge konnten nicht geladen werden");
+    throw await apiErrorFromResponse(
+      response,
+      "Geplante Einträge konnten nicht geladen werden",
+    );
   }
   const data = await parseApiResult<BackendStudentStatusDay[]>(
     response,
@@ -152,10 +174,11 @@ export interface StatusDayOverview {
 }
 
 /** Thrown when the account has no staff link (backend 403). */
-export class StatusDayOverviewForbiddenError extends Error {
+export class StatusDayOverviewForbiddenError extends ApiError {
   constructor() {
     super(
       "Ihr Konto ist keinem Personaleintrag zugeordnet. Bitte wenden Sie sich an Ihre Administration.",
+      403,
     );
     this.name = "StatusDayOverviewForbiddenError";
   }
@@ -180,7 +203,10 @@ export async function fetchStatusDayOverview(
     throw new StatusDayOverviewForbiddenError();
   }
   if (!response.ok) {
-    throw new Error("Abwesenheiten konnten nicht geladen werden");
+    throw await apiErrorFromResponse(
+      response,
+      "Abwesenheiten konnten nicht geladen werden",
+    );
   }
   return parseApiResult<StatusDayOverview>(
     response,
@@ -210,7 +236,10 @@ export async function createStudentStatusDays(
     throw parseConflictError(result);
   }
   if (!response.ok) {
-    throw new Error("Geplante Einträge konnten nicht gespeichert werden");
+    throw await apiErrorFromResponse(
+      response,
+      "Geplante Einträge konnten nicht gespeichert werden",
+    );
   }
   const data = await parseApiResult<BackendStudentStatusDay[]>(
     response,
@@ -242,7 +271,10 @@ export async function bulkCreateStudentStatusDays(
     throw parseConflictError(result);
   }
   if (!response.ok) {
-    throw new Error("Klassenfahrt konnte nicht gespeichert werden");
+    throw await apiErrorFromResponse(
+      response,
+      "Klassenfahrt konnte nicht gespeichert werden",
+    );
   }
   return parseApiResult<{ student_count: number; date_count: number }>(
     response,
@@ -259,6 +291,9 @@ export async function deleteStudentStatusDay(
     { method: "DELETE" },
   );
   if (!response.ok) {
-    throw new Error("Geplanter Eintrag konnte nicht gelöscht werden");
+    throw await apiErrorFromResponse(
+      response,
+      "Geplanter Eintrag konnte nicht gelöscht werden",
+    );
   }
 }

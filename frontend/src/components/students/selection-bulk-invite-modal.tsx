@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
-import { useFormError } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { Skeleton } from "~/components/ui/skeleton";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import {
   bulkInviteGuardians,
   type BulkInviteProblem,
@@ -16,9 +20,6 @@ import {
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "SelectionBulkInviteModal" });
-
-const FAILED_MESSAGE =
-  "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
 
 const PROBLEM_LABEL: Record<BulkInviteProblem["reason"], string> = {
   missing_email: "E-Mail-Adresse fehlt",
@@ -58,12 +59,19 @@ export function SelectionBulkInviteModal({
   const [sent, setSent] = useState<BulkInviteResult | null>(null);
   const [resendOpen, setResendOpen] = useState(false);
   const [sending, setSending] = useState(false);
-  const [error, setError] = useFormError();
+  const [previewAttempt, setPreviewAttempt] = useState(0);
+  const errors = useApiFormError();
+  const load = useApiLoadError();
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
+  // „Wiederholen“ sendet mit der aktuellen Auswahl.
+  const latestSendRef = useRef<() => Promise<void>>(async () => undefined);
   const selectionKey = studentIds.join(",");
 
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
+    clearLoadError();
     bulkInviteGuardians(selectionKey.split(","), { dryRun: true, resendOpen })
       .then((result) => {
         if (!cancelled) setPreview(result);
@@ -73,24 +81,34 @@ export function SelectionBulkInviteModal({
         logger.error("bulk_invite_preview_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        setError(FAILED_MESSAGE);
+        void showLoadError(err, {
+          object: "die Vorschau",
+          retry: () => setPreviewAttempt((attempt) => attempt + 1),
+        });
       });
     return () => {
       cancelled = true;
     };
-  }, [isOpen, selectionKey, resendOpen, setError]);
+  }, [
+    isOpen,
+    selectionKey,
+    resendOpen,
+    previewAttempt,
+    showLoadError,
+    clearLoadError,
+  ]);
 
   const toMail = preview ? preview.invited + preview.resent : 0;
 
   const handleResendOpenChange = (value: boolean) => {
     setPreview(null);
-    setError(null);
+    errors.clear();
     setResendOpen(value);
   };
 
   const handleSend = async () => {
     setSending(true);
-    setError(null);
+    errors.clear();
     try {
       const result = await bulkInviteGuardians(studentIds, {
         dryRun: false,
@@ -104,11 +122,15 @@ export function SelectionBulkInviteModal({
       logger.error("bulk_invite_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(FAILED_MESSAGE);
+      await errors.show(err, {
+        object: "die Einladung",
+        retry: () => void latestSendRef.current(),
+      });
     } finally {
       setSending(false);
     }
   };
+  latestSendRef.current = handleSend;
 
   return (
     <FormModal
@@ -118,7 +140,7 @@ export function SelectionBulkInviteModal({
       size="md"
       mobilePosition="bottom"
       closeDisabled={sending}
-      error={error}
+      error={errors.error}
       footer={
         <div className="flex justify-end gap-2 p-4">
           {sent ? (
@@ -165,7 +187,9 @@ export function SelectionBulkInviteModal({
             onResendOpenChange={handleResendOpenChange}
             disabled={sending}
           />
-        ) : error ? null : (
+        ) : load.error ? (
+          <LoadErrorAlert error={load.error} />
+        ) : (
           <div className="space-y-2" aria-busy="true">
             <Skeleton className="h-5 w-3/4" />
             <Skeleton className="h-5 w-1/2" />

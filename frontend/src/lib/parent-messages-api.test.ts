@@ -206,16 +206,22 @@ describe("fetchStudentThreads", () => {
     expect(Array.isArray(out)).toBe(true);
   });
 
-  it("throws with backend error on non-OK", async () => {
-    mockFetch(async () => jsonOk({ error: "verboten" }, 403));
-    await expect(fetchStudentThreads("99")).rejects.toThrow(/verboten/);
+  it("throws a coded error on non-OK", async () => {
+    mockFetch(async () =>
+      jsonOk({ error: "verboten", code: "general.permission" }, 403),
+    );
+    await expect(fetchStudentThreads("99")).rejects.toMatchObject({
+      status: 403,
+      code: "general.permission",
+    });
   });
 
-  it("throws with German fallback when body is not JSON", async () => {
+  it("classifies a body that is not JSON by its status", async () => {
     mockFetch(async () => new Response("", { status: 503 }));
-    await expect(fetchStudentThreads("99")).rejects.toThrow(
-      /Nachrichten konnten nicht geladen werden/,
-    );
+    await expect(fetchStudentThreads("99")).rejects.toMatchObject({
+      message: "Nachrichten konnten nicht geladen werden",
+      code: "general.unavailable",
+    });
   });
 });
 

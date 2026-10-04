@@ -1,3 +1,4 @@
+import { ApiError, apiErrorFromText } from "./api-error";
 import { getCachedSession } from "./session-cache";
 
 /**
@@ -145,15 +146,24 @@ async function authHeaders(): Promise<HeadersInit> {
   return headers;
 }
 
+/**
+ * The failed response as an ApiError: code, field errors and request ID come
+ * from the envelope, so the screen shows the catalog text (#2513). The
+ * message stays developer diagnosis.
+ */
+async function requestFailed(response: Response): Promise<ApiError> {
+  const text = await response.text().catch(() => "");
+  return apiErrorFromText(
+    text
+      ? `Request failed (${response.status}): ${text}`
+      : `Request failed (${response.status})`,
+    response.status,
+    text,
+  );
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new Error(
-      text
-        ? `Request failed (${response.status}): ${text}`
-        : `Request failed (${response.status})`,
-    );
-  }
+  if (!response.ok) throw await requestFailed(response);
   if (response.status === 204) {
     return undefined as T;
   }
@@ -235,7 +245,9 @@ export async function bulkUpsertArrivalSchedules(
   } else if (filter.type === "group") {
     const groupId = Number.parseInt(filter.groupId, 10);
     if (!Number.isSafeInteger(groupId) || groupId <= 0) {
-      throw new Error("Ungültige Gruppen-ID");
+      throw new ApiError("Ungültige Gruppen-ID", 400, {
+        code: "general.input",
+      });
     }
     body.group_id = groupId;
   } else {
@@ -247,7 +259,9 @@ export async function bulkUpsertArrivalSchedules(
       studentIds.length > 500 ||
       studentIds.some((id) => !Number.isSafeInteger(id) || id <= 0)
     ) {
-      throw new Error("Ungültige Kinderauswahl");
+      throw new ApiError("Ungültige Kinderauswahl", 400, {
+        code: "general.input",
+      });
     }
     body.student_ids = studentIds;
   }
@@ -313,12 +327,7 @@ export async function deleteArrivalException(
     },
   );
   if (!response.ok && response.status !== 204) {
-    const text = await response.text().catch(() => "");
-    throw new Error(
-      text
-        ? `Request failed (${response.status}): ${text}`
-        : `Request failed (${response.status})`,
-    );
+    throw await requestFailed(response);
   }
 }
 
@@ -370,12 +379,7 @@ export async function deleteArrivalNote(
     },
   );
   if (!response.ok && response.status !== 204) {
-    const text = await response.text().catch(() => "");
-    throw new Error(
-      text
-        ? `Request failed (${response.status}): ${text}`
-        : `Request failed (${response.status})`,
-    );
+    throw await requestFailed(response);
   }
 }
 

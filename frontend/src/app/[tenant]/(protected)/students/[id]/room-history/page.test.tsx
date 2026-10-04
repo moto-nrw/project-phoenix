@@ -17,6 +17,13 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+// Load errors use the real hook; the export's toast path is a spy.
+const mockShowExportError = vi.fn();
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useApiErrorDisplay: () => ({ show: mockShowExportError }),
+}));
+
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
     data: {
@@ -270,22 +277,28 @@ describe("StudentRoomHistoryPage", () => {
 
   // ─── Error states ───────────────────────────────────────────────────────────
 
-  it("shows feature disabled banner", async () => {
-    setupFetch({
-      ok: false,
-      status: 403,
-      json: async () => ({ error: "feature_disabled" }),
-    });
+  it("shows the switched-off state from the child's record, not from the 403 text", async () => {
+    setupFetch(
+      {
+        ok: false,
+        status: 403,
+        json: async () => ({ error: "feature_disabled" }),
+      },
+      mockStudentResponse({ attendance_log_enabled: false }),
+    );
     render(<StudentRoomHistoryPage />);
 
     await waitFor(() => {
       expect(
-        screen.getByText(/Diese Funktion ist für Ihre Schule deaktiviert/),
+        screen.getByText(
+          /Das Anwesenheitsprotokoll ist für Ihre Schule ausgeschaltet/,
+        ),
       ).toBeInTheDocument();
     });
+    expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
   });
 
-  it("shows not_group_supervisor error", async () => {
+  it("names the permission class for any other 403", async () => {
     setupFetch({
       ok: false,
       status: 403,
@@ -294,7 +307,9 @@ describe("StudentRoomHistoryPage", () => {
     render(<StudentRoomHistoryPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("alert-error")).toBeInTheDocument();
+      expect(screen.getByTestId("alert-error")).toHaveTextContent(
+        "Für das Anwesenheitsprotokoll fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+      );
     });
   });
 
@@ -321,7 +336,9 @@ describe("StudentRoomHistoryPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Fehler beim Laden des Anwesenheitsprotokolls."),
+        screen.getByText(
+          "Das Anwesenheitsprotokoll konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+        ),
       ).toBeInTheDocument();
     });
   });
@@ -356,7 +373,9 @@ describe("StudentRoomHistoryPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Fehler beim Laden des Anwesenheitsprotokolls."),
+        screen.getByText(
+          "Das Anwesenheitsprotokoll konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+        ),
       ).toBeInTheDocument();
     });
   });
@@ -445,6 +464,31 @@ describe("StudentRoomHistoryPage", () => {
   });
 
   // ─── Table content (uses getAllByText since desktop+mobile both render) ─────
+
+  it("hands a failed export to the toast error path with a retry", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/attendance-history/export")) {
+        return Promise.resolve({ ok: false, status: 500 });
+      }
+      if (url.includes("/attendance-history")) {
+        return Promise.resolve(mockAttendanceHistoryResponse([fullDay]));
+      }
+      return Promise.resolve(mockStudentResponse());
+    });
+    render(<StudentRoomHistoryPage />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Weitere Aktionen" }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "PDF" }));
+
+    await waitFor(() =>
+      expect(mockShowExportError).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 500, code: "general.server" }),
+        { object: "die Exportdatei", retry: expect.any(Function) },
+      ),
+    );
+  });
 
   it("renders attendance duration", async () => {
     setupFetch(mockAttendanceHistoryResponse([fullDay]));

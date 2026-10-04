@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { ApiError } from "./api-error";
 import {
   WEEKDAYS,
   fetchArrivalSettings,
@@ -157,6 +158,30 @@ describe("student-arrival-api", () => {
       await expect(fetchArrivalData("42")).rejects.toThrow(
         "Request failed (500): server exploded",
       );
+    });
+
+    it("keeps code, status and request ID of the envelope as an ApiError", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        mockFetchResponse(null, {
+          ok: false,
+          status: 409,
+          text: JSON.stringify({
+            status: "error",
+            error: "class not found",
+            code: "classday.arrival_exception_class_not_found",
+            instance: "req-arrival",
+          }),
+        }),
+      );
+
+      const error = await fetchArrivalData("42").catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error).toMatchObject({
+        status: 409,
+        code: "classday.arrival_exception_class_not_found",
+        requestId: "req-arrival",
+      });
     });
 
     it("throws generic error when response has no text body", async () => {

@@ -10,11 +10,13 @@
  * mit der Tastatur klar ist, dass genau eine Antwort möglich ist.
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
@@ -36,7 +38,6 @@ import {
   ABSENCE_STATUS_OPTIONS,
   conflictOfferingID,
   OFFERING_NO_DAY_HINT,
-  STALE_REQUEST_NOTICE,
   type StaffValueInput,
 } from "./request-copy";
 
@@ -209,7 +210,10 @@ export function ConflictDecisionGroup({
   const [reason, setReason] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  const errors = useApiFormError(sectionRef);
+  // „Wiederholen“ speichert die aktuelle Auswahl, nicht die vom Fehler.
+  const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
 
   // Die Art, unter der aufgelöst wird, hängt am Schlüssel: eine Abholzeit
   // reist als care_schedule durch die Liste, wird aber als pickup_change
@@ -248,7 +252,7 @@ export function ConflictDecisionGroup({
   const save = async () => {
     if (!kind || choice === null) return;
     setBusy(true);
-    setError(null);
+    errors.clear();
     try {
       await resolveRequestConflict({
         kind,
@@ -275,23 +279,25 @@ export function ConflictDecisionGroup({
         error: err instanceof Error ? err.message : String(err),
       });
       setConfirming(false);
-      if (err instanceof ChangeRequestStaleError) {
-        setError(STALE_REQUEST_NOTICE);
-        onStale();
-      } else {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Das Ergebnis konnte nicht gespeichert werden.",
-        );
-      }
+      // Veraltet: der Katalog nennt den Grund, die Liste lädt die neue
+      // Fassung. Ein Wiederholen mit dem alten Stand wäre sinnlos.
+      const stale = err instanceof ChangeRequestStaleError;
+      await errors.show(err, {
+        object: "die Entscheidung",
+        retry: stale ? undefined : () => void latestSaveRef.current(),
+      });
+      if (stale) onStale();
       setBusy(false);
     }
   };
+  latestSaveRef.current = save;
 
   const name = `conflict-${group.key}`;
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+    <section
+      ref={sectionRef}
+      className="moto-content-surface rounded-2xl border p-4 shadow-sm"
+    >
       <fieldset className="space-y-3">
         <legend className="text-sm font-semibold text-gray-900">
           {group.expectedCount} Wünsche für {group.label}
@@ -371,12 +377,14 @@ export function ConflictDecisionGroup({
           <span>Begründung</span>
           <Textarea
             id={`${name}-reason`}
+            name="reason"
             rows={2}
             value={reason}
+            error={errors.fieldError("reason")}
             onChange={(event) => setReason(event.target.value)}
           />
         </label>
-        {error && <Alert type="warning" message={error} />}
+        <FormErrorAlert message={errors.error} />
         <Button
           type="button"
           variant="primary"

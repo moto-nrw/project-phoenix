@@ -2,6 +2,7 @@
 
 import { getCachedSession } from "~/lib/session-cache";
 import { createLogger } from "~/lib/logger";
+import { apiErrorFromText, type ApiError } from "~/lib/api-error";
 
 const logger = createLogger({ component: "ServiceFactory" });
 import type { EntityConfig, CrudService, PaginatedResponse } from "./types";
@@ -218,11 +219,13 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
       // client-side validation error (4xx, message is user-facing) from a
       // network/server error (5xx, message is technical noise). Additive: the
       // message and `instanceof Error` are unchanged for existing consumers.
-      const apiError = new Error(userMessage) as Error & {
-        status?: number;
-        body?: string;
-      };
-      apiError.status = response.status;
+      // An ApiError also keeps code, field errors and request ID for the
+      // shared error path (#2513).
+      const apiError: ApiError & { body?: string } = apiErrorFromText(
+        userMessage,
+        response.status,
+        errorText,
+      );
       // Carry the RAW response body too. extractErrorMessage reduces the
       // response to one human sentence, which silently drops every structured
       // sibling field the proxy forwards — notably the companion-plan 409's

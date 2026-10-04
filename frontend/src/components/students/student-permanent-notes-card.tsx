@@ -1,10 +1,13 @@
 "use client";
 
-import { Alert } from "~/components/ui/alert";
+import { useEffect } from "react";
+
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import {
   NOTE_KIND_PERMANENT,
   NOTE_ORIGIN_MASTER_DATA,
@@ -57,10 +60,23 @@ export function StudentPermanentNotesCard({
 }: {
   readonly studentId: string;
 }) {
-  const { data, isLoading, error } = useSWRAuth<StudentNote[]>(
+  const { data, isLoading, error, mutate } = useSWRAuth<StudentNote[]>(
     `student-permanent-notes-${studentId}`,
     () => studentNotesService.list(studentId, NOTE_KIND_PERMANENT),
   );
+  const load = useApiLoadError();
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
+  useEffect(() => {
+    if (error) {
+      void showLoadError(error, {
+        object: "die Liste der Hinweise",
+        retry: () => void mutate(),
+      });
+    } else {
+      clearLoadError();
+    }
+  }, [error, mutate, showLoadError, clearLoadError]);
 
   return (
     <SectionCard
@@ -74,12 +90,7 @@ export function StudentPermanentNotesCard({
         </div>
       ) : null}
 
-      {error ? (
-        <Alert
-          type="error"
-          message="Die Hinweise konnten nicht geladen werden. Bitte laden Sie die Seite neu."
-        />
-      ) : null}
+      {error ? <LoadErrorAlert error={load.error} /> : null}
 
       {!isLoading && !error ? (
         (data ?? []).length === 0 ? (

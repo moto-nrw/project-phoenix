@@ -35,6 +35,7 @@ import {
   handleDomainApiError,
 } from "./api-helpers";
 import api from "./api";
+import { ApiError } from "./api-error";
 import {
   fetchStudents,
   fetchStudent,
@@ -850,6 +851,16 @@ describe("student-api", () => {
         "STUDENT",
       );
     });
+    it("passes a structured ApiError through unchanged", async () => {
+      const failure = new ApiError("boom", 503, {
+        code: "general.unavailable",
+        instance: "req-1",
+      });
+      mockedAuthFetch.mockRejectedValueOnce(failure);
+
+      await expect(fetchStudent("123")).rejects.toBe(failure);
+      expect(mockedHandleDomainApiError).not.toHaveBeenCalled();
+    });
   });
 
   // ─── uploadStudentPhoto ────────────────────────────────────────────────
@@ -983,6 +994,23 @@ describe("student-api", () => {
       await expect(uploadStudentPhoto("42", file)).rejects.toThrow(
         "photos feature disabled",
       );
+    });
+
+    it("keeps code and request ID of a failed upload", async () => {
+      fetchMock.mockResolvedValueOnce(
+        Response.json(
+          { status: "error", code: "general.permission", instance: "req-p" },
+          { status: 403 },
+        ),
+      );
+
+      const file = new Blob(["binary"], { type: "image/jpeg" });
+      const error = await uploadStudentPhoto("42", file).catch(
+        (caught: unknown) => caught,
+      );
+      expect(error).toBeInstanceOf(ApiError);
+      expect((error as ApiError).code).toBe("general.permission");
+      expect((error as ApiError).requestId).toBe("req-p");
     });
 
     it("falls back to generic message when error body is empty", async () => {

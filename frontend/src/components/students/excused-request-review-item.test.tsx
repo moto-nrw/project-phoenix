@@ -1,25 +1,25 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as renderComponent,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Fehler laufen als Toast; die Karte selbst zeigt keinen Fehlerkasten mehr.
-const mockToast = {
-  success: vi.fn(),
-  error: vi.fn(),
-  warning: vi.fn(),
-  info: vi.fn(),
-};
-vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => mockToast,
-}));
+import { ToastProvider } from "~/contexts/ToastContext";
+import { catalogText } from "~/test/error-catalog-text";
 
-// Fehlermeldungen laufen als Toast: geprüft wird der Toast-Aufruf, nicht die DOM.
-async function expectErrorToast(pattern: RegExp) {
-  await waitFor(() =>
-    expect(mockToast.error).toHaveBeenCalledWith(
-      expect.stringMatching(pattern),
-      expect.anything(),
-    ),
-  );
+// Fehler laufen als Toast über den gemeinsamen Fehlerweg; die Karte selbst
+// zeigt keinen Fehlerkasten.
+function render(ui: ReactElement) {
+  return renderComponent(ui, { wrapper: ToastProvider });
+}
+
+async function expectErrorToast(expected: RegExp | string) {
+  expect(
+    await screen.findByRole("alert", { name: /^Fehler:/ }),
+  ).toHaveTextContent(expected);
 }
 
 import { ExcusedRequestReviewItem } from "./excused-request-review-item";
@@ -170,7 +170,7 @@ describe("ExcusedRequestReviewItem", () => {
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
     await expectErrorToast(
-      /Für einen dieser Tage wurde inzwischen ein neuerer Status gesetzt/,
+      catalogText("students.excused_request_status_conflict", "die Anfrage"),
     );
     expect(onDecided).not.toHaveBeenCalled();
     expect(screen.getByText("Lara Beispiel")).toBeInTheDocument();

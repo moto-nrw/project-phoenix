@@ -185,6 +185,8 @@ vi.mock("~/components/students/student-card", () => ({
   ArrivalTimeRow: () => <div />,
 }));
 
+import { ApiError } from "~/lib/api-error";
+import { releaseFakeTimers } from "~/test/clock";
 import StudentSearchPage from "./page";
 
 const STORAGE_KEY = "student-search:last-filters:tenant-2:3";
@@ -409,7 +411,9 @@ describe("StudentSearchPage: student list that does not finish loading (#3374)",
     expect(screen.getByTestId("student-card-7")).toBeTruthy();
   });
 
-  it("offers the reload next to a load error", () => {
+  it("offers the reload next to a load error", async () => {
+    // The catalog text loads on demand; findBy needs real timers to wait.
+    releaseFakeTimers();
     studentsResponse = {
       data: undefined,
       isLoading: false,
@@ -417,8 +421,26 @@ describe("StudentSearchPage: student list that does not finish loading (#3374)",
     };
     renderOnSearchPage("");
 
-    expect(screen.getByText("Fehler beim Laden der Kinderdaten.")).toBeTruthy();
+    expect(
+      await screen.findByText(
+        "Die Liste der Kinder konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+      ),
+    ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
+
+    expect(mockMutateStudents).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries a server error from the error state", async () => {
+    releaseFakeTimers();
+    studentsResponse = {
+      data: undefined,
+      isLoading: false,
+      error: new ApiError("boom", 503, { code: "general.unavailable" }),
+    };
+    renderOnSearchPage("");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Wiederholen" }));
 
     expect(mockMutateStudents).toHaveBeenCalledTimes(1);
   });

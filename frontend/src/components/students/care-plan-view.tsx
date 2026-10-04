@@ -12,10 +12,10 @@
  * editor; this view cross-links to it via onEditSchedule.
  */
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   DetailSectionSkeleton,
   SkeletonRegion,
@@ -35,6 +35,7 @@ import {
   type CarePlanDay,
 } from "~/lib/student-care-plan-api";
 import type { StudentStatusDay } from "~/lib/student-status-days-api";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr/hooks";
 
 import { CarePlanDayTimeline } from "./care-plan-day";
@@ -150,6 +151,7 @@ export function CarePlanView({
     data: dayData,
     error: dayError,
     isLoading: dayLoading,
+    mutate: reloadDay,
   } = useSWRAuth<CarePlanDay>(dayKey, () =>
     fetchStudentCarePlanDay(studentId, selectedDate),
   );
@@ -166,6 +168,7 @@ export function CarePlanView({
     data: weekData,
     error: weekError,
     isLoading: weekLoading,
+    mutate: reloadWeek,
   } = useSWRAuth(weekKey, () =>
     fetchStudentCarePlanWeek(studentId, weekFrom, weekTo),
   );
@@ -202,8 +205,22 @@ export function CarePlanView({
     weekTo,
   ]);
 
-  const error = viewMode === "day" ? dayError : weekError;
+  const error: unknown = viewMode === "day" ? dayError : weekError;
   const loading = viewMode === "day" ? dayLoading : weekLoading;
+  const load = useApiLoadError();
+  const { show: showLoadError, clear: clearLoadError } = load;
+  const reloadRef = useRef<() => Promise<unknown>>(reloadDay);
+  reloadRef.current = viewMode === "day" ? reloadDay : reloadWeek;
+  useEffect(() => {
+    if (!error) {
+      clearLoadError();
+      return;
+    }
+    void showLoadError(error, {
+      object: "die Ansicht des Betreuungsplans",
+      retry: () => void reloadRef.current(),
+    });
+  }, [error, showLoadError, clearLoadError]);
 
   return (
     <section className="moto-content-surface overflow-hidden rounded-xl border border-gray-200 shadow-sm backdrop-blur-md sm:rounded-2xl">
@@ -298,14 +315,13 @@ export function CarePlanView({
         {/* Body */}
         <div className="p-3 sm:p-4">
           {error ? (
-            <Alert
-              type="error"
-              message={
-                error instanceof Error
-                  ? error.message
-                  : "Betreuungsplan konnte nicht geladen werden"
-              }
-            />
+            load.error ? (
+              <LoadErrorAlert error={load.error} />
+            ) : (
+              <SkeletonRegion label="Betreuungsplan wird geladen">
+                <DetailSectionSkeleton fields={4} />
+              </SkeletonRegion>
+            )
           ) : loading ? (
             <SkeletonRegion label="Betreuungsplan wird geladen">
               <DetailSectionSkeleton fields={4} />

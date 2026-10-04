@@ -2,7 +2,7 @@
 
 import { useCallback, useReducer, useRef, useState } from "react";
 import { mutate as globalMutate } from "swr";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import {
   isNotCheckedInLocation,
   isSchoolyardLocation,
@@ -82,15 +82,9 @@ export function checkoutConfirmationRoom(
   return room && room.length > 0 ? room : null;
 }
 
-/**
- * Detects the 403 the school-checkin endpoint returns when the caller may not
- * use web check-in at all (missing users:checkin permission or web attendance
- * disabled). authFetch folds the status into the message
- * ("API error (403): Forbidden"), which is the same shape
- * `getApiErrorMessage` matches on.
- */
-function isForbiddenError(error: unknown): boolean {
-  return error instanceof Error && error.message.includes("403");
+/** Names the action in the shared error text: „Für die Anmeldung fehlt …“. */
+function checkinObject(action: SchoolCheckinAction): string {
+  return action === "in" ? "die Anmeldung" : "die Abmeldung";
 }
 
 interface CheckinModeSession {
@@ -252,6 +246,17 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
   // Scope clear requested mid-flight; applied when the run settles.
   const pendingClearRef = useRef(false);
   const toast = useToast();
+  // A permission refusal fails on every retry, so the catalog text of that
+  // class names the reason instead of offering a retry (#2220, #2513).
+  const errors = useApiErrorDisplay();
+  const showError = errors.show;
+  const latestToggleRef = useRef<
+    (
+      studentId: string,
+      currentState: StudentCheckinState,
+      checkoutNote?: string,
+    ) => Promise<void>
+  >(async () => undefined);
 
   const clearSelection = useCallback(() => {
     if (isBulkRunningRef.current) {
@@ -364,22 +369,11 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
           action,
           error: message,
         });
-        if (isForbiddenError(error)) {
-          // Naming the reason matters here: a permission 403 fails on every
-          // retry, and a bare "bitte erneut versuchen" would invite endless
-          // retries (#2220).
-          toast.error(
-            action === "in"
-              ? "Keine Berechtigung, Kinder anzumelden."
-              : "Keine Berechtigung, Kinder abzumelden.",
-          );
-        } else {
-          toast.error(
-            action === "in"
-              ? "Anmelden fehlgeschlagen. Bitte erneut versuchen."
-              : "Abmelden fehlgeschlagen. Bitte erneut versuchen.",
-          );
-        }
+        void showError(error, {
+          object: checkinObject(action),
+          retry: () =>
+            void latestToggleRef.current(studentId, currentState, checkoutNote),
+        });
       } finally {
         setPendingIds((prev) => {
           const next = new Set(prev);
@@ -388,8 +382,9 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
         });
       }
     },
-    [pendingIds, toast],
+    [pendingIds, showError],
   );
+  latestToggleRef.current = toggle;
 
   const runBulk = useCallback(
     async (
@@ -465,19 +460,9 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
           student_count: ids.length,
           error: message,
         });
-        if (isForbiddenError(error)) {
-          toast.error(
-            action === "in"
-              ? "Keine Berechtigung, Kinder anzumelden."
-              : "Keine Berechtigung, Kinder abzumelden.",
-          );
-        } else {
-          toast.error(
-            action === "in"
-              ? "Anmelden fehlgeschlagen. Bitte erneut versuchen."
-              : "Abmelden fehlgeschlagen. Bitte erneut versuchen.",
-          );
-        }
+        // No retry button: the caller shows the outcome of a run, which a
+        // toast retry would bypass. The selection stays marked for a new tap.
+        void showError(error, { object: checkinObject(action) });
         return null;
       } finally {
         setPendingIds((prev) => {
@@ -501,7 +486,7 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
         }
       }
     },
-    [selectedIds, toast],
+    [selectedIds, toast, showError],
   );
 
   return {

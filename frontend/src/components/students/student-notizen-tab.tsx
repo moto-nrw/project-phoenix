@@ -1,21 +1,25 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NotebookPen } from "lucide-react";
 
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Loading } from "~/components/ui/loading";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -179,7 +183,9 @@ function NoteForm({
   saving,
   visibilityOptions,
   idPrefix,
+  fieldError,
 }: {
+  readonly fieldError: (name: string) => string | undefined;
   readonly draft: StudentNoteDraft;
   readonly onChange: (draft: StudentNoteDraft) => void;
   readonly onCancel: () => void;
@@ -193,13 +199,16 @@ function NoteForm({
     <div className="space-y-4">
       <Textarea
         id={`${idPrefix}-body`}
+        name="body"
         label="Notiz"
         rows={4}
         value={draft.body}
         maxLength={MAX_BODY_LENGTH + 100}
         placeholder="Was ist passiert? Kurz und sachlich."
         onChange={(event) => onChange({ ...draft, body: event.target.value })}
-        error={tooLong ? "Die Notiz ist zu lang. Bitte kürzen." : undefined}
+        error={
+          tooLong ? "Die Notiz ist zu lang. Bitte kürzen." : fieldError("body")
+        }
       />
       <div className="grid gap-4 sm:grid-cols-2">
         {draft.kind === NOTE_KIND_PERMANENT ? null : (
@@ -299,8 +308,25 @@ export function StudentNotizenTab({
   const [deleteTarget, setDeleteTarget] = useState<StudentNote | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [actionError, setActionError] = useState("");
-  const [deleteError, setDeleteError] = useState("");
+  const formAreaRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formAreaRef);
+  const deleteErrors = useApiFormError();
+  const load = useApiLoadError();
+  // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
+  const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
+
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
+  useEffect(() => {
+    if (error) {
+      void showLoadError(error, {
+        object: "die Liste der Notizen",
+        retry: () => void mutate(),
+      });
+    } else {
+      clearLoadError();
+    }
+  }, [error, mutate, showLoadError, clearLoadError]);
 
   const notes = useMemo(() => data ?? [], [data]);
   // Dauerhafte Hinweise stehen außerhalb der Chronik: sie beschreiben keinen
@@ -334,14 +360,14 @@ export function StudentNotizenTab({
 
   const startCompose = () => {
     setEditing(null);
-    setActionError("");
+    formErrors.clear();
     setDraft(emptyDraft());
     setComposing(true);
   };
 
   const startEdit = (note: StudentNote) => {
     setComposing(false);
-    setActionError("");
+    formErrors.clear();
     setEditing(note);
     setEditDraft({
       kind: note.kind,
@@ -354,7 +380,7 @@ export function StudentNotizenTab({
 
   const saveNew = async () => {
     setSaving(true);
-    setActionError("");
+    formErrors.clear();
     try {
       await studentNotesService.create(studentId, {
         ...draft,
@@ -370,12 +396,13 @@ export function StudentNotizenTab({
       setDraft(emptyDraft());
       await revalidateNotes(draft.kind === NOTE_KIND_PERMANENT);
     } catch (caught) {
-      const message =
-        caught instanceof Error
-          ? caught.message
-          : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
-      setActionError(message);
-      logger.error("student_note_create_failed", { error: message });
+      logger.error("student_note_create_failed", {
+        error: caught instanceof Error ? caught.message : String(caught),
+      });
+      await formErrors.show(caught, {
+        object: "die Notiz",
+        retry: () => void latestSaveRef.current(),
+      });
     } finally {
       setSaving(false);
     }
@@ -386,7 +413,7 @@ export function StudentNotizenTab({
       return;
     }
     setSaving(true);
-    setActionError("");
+    formErrors.clear();
     try {
       await studentNotesService.update(studentId, editing.id, {
         ...editDraft,
@@ -398,34 +425,39 @@ export function StudentNotizenTab({
           editDraft.kind === NOTE_KIND_PERMANENT,
       );
     } catch (caught) {
-      const message =
-        caught instanceof Error
-          ? caught.message
-          : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
-      setActionError(message);
-      logger.error("student_note_update_failed", { error: message });
+      logger.error("student_note_update_failed", {
+        error: caught instanceof Error ? caught.message : String(caught),
+      });
+      await formErrors.show(caught, {
+        object: "die Notiz",
+        retry: () => void latestSaveRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+
+  // Bearbeiten und Neu schließen sich aus; der Ref zeigt auf den offenen.
+  latestSaveRef.current = editing ? saveEdit : saveNew;
 
   const confirmDelete = async () => {
     if (!deleteTarget) {
       return;
     }
     setDeleting(true);
-    setDeleteError("");
+    deleteErrors.clear();
     try {
       await studentNotesService.remove(studentId, deleteTarget.id);
       setDeleteTarget(null);
       await revalidateNotes(deleteTarget.kind === NOTE_KIND_PERMANENT);
     } catch (caught) {
-      const message =
-        caught instanceof Error
-          ? caught.message
-          : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
-      setDeleteError(message);
-      logger.error("student_note_delete_failed", { error: message });
+      logger.error("student_note_delete_failed", {
+        error: caught instanceof Error ? caught.message : String(caught),
+      });
+      await deleteErrors.show(caught, {
+        object: "die Notiz",
+        retry: () => void confirmDelete(),
+      });
     } finally {
       setDeleting(false);
     }
@@ -441,9 +473,13 @@ export function StudentNotizenTab({
           idPrefix={`note-${note.id}`}
           draft={editDraft}
           onChange={setEditDraft}
-          onCancel={() => setEditing(null)}
+          onCancel={() => {
+            formErrors.clear();
+            setEditing(null);
+          }}
           onSave={() => void saveEdit()}
           saving={saving}
+          fieldError={formErrors.fieldError}
           visibilityOptions={visibilityOptionsFor(note, educationGroupId)}
         />
       ) : (
@@ -472,7 +508,7 @@ export function StudentNotizenTab({
                         label: "Löschen",
                         destructive: true,
                         onClick: () => {
-                          setDeleteError("");
+                          deleteErrors.clear();
                           setDeleteTarget(note);
                         },
                       },
@@ -491,12 +527,7 @@ export function StudentNotizenTab({
   }
 
   if (error) {
-    return (
-      <Alert
-        type="error"
-        message="Die Notizen konnten nicht geladen werden. Bitte laden Sie die Seite neu."
-      />
-    );
+    return <LoadErrorAlert error={load.error} />;
   }
 
   return (
@@ -512,10 +543,8 @@ export function StudentNotizenTab({
         )
       }
     >
-      <div className="space-y-6">
-        {actionError !== "" ? (
-          <Alert type="error" message={actionError} />
-        ) : null}
+      <div ref={formAreaRef} className="space-y-6">
+        <FormErrorAlert message={formErrors.error} />
 
         {composing ? (
           <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
@@ -523,9 +552,13 @@ export function StudentNotizenTab({
               idPrefix="new-note"
               draft={draft}
               onChange={setDraft}
-              onCancel={() => setComposing(false)}
+              onCancel={() => {
+                formErrors.clear();
+                setComposing(false);
+              }}
               onSave={() => void saveNew()}
               saving={saving}
+              fieldError={formErrors.fieldError}
               visibilityOptions={visibilityOptionsFor(null, educationGroupId)}
             />
           </div>
@@ -570,7 +603,7 @@ export function StudentNotizenTab({
         onConfirm={confirmDelete}
         onClose={() => setDeleteTarget(null)}
         loading={deleting}
-        error={deleteError}
+        error={deleteErrors.error}
       />
     </SectionCard>
   );

@@ -1,4 +1,5 @@
 import { announceEnrollmentReadChange } from "~/lib/enrollment-unread-api";
+import { apiErrorFromResponse, type ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { readEnrollmentError } from "~/lib/enrollment-error-messages";
 import type {
@@ -569,6 +570,24 @@ export async function createManualApprovedEnrollment(
   return readJSON<SubmitEnrollmentResult>(response);
 }
 
+/**
+ * The Kinder area shows errors through the shared display path (#2513): it
+ * needs the code, field errors and request ID, not a finished sentence.
+ */
+async function readStudentRequestsError(
+  response: Response,
+  fallback: string,
+): Promise<ApiError> {
+  const error = await apiErrorFromResponse(response, fallback);
+  const context = { status: response.status, code: error.code };
+  if (response.status >= 500) {
+    logger.error("enrollment_admin_request_failed", context);
+  } else {
+    logger.warn("enrollment_admin_request_failed", context);
+  }
+  return error;
+}
+
 export async function listStudentEnrollmentRequests(
   studentId: string,
 ): Promise<AdminRequestSummary[]> {
@@ -577,7 +596,10 @@ export async function listStudentEnrollmentRequests(
     { cache: "no-store" },
   );
   if (!response.ok) {
-    throw await readError(response, "Anmeldungen konnten nicht geladen werden");
+    throw await readStudentRequestsError(
+      response,
+      "Anmeldungen konnten nicht geladen werden",
+    );
   }
   const list = await readJSON<AdminRequestSummary[]>(response);
   return Array.isArray(list) ? list : [];
@@ -597,7 +619,10 @@ export async function exportStudentEnrollmentRequests(
   );
 
   if (!response.ok) {
-    throw await readError(response, "Export konnte nicht erstellt werden");
+    throw await readStudentRequestsError(
+      response,
+      "Export konnte nicht erstellt werden",
+    );
   }
 
   const blob = await response.blob();

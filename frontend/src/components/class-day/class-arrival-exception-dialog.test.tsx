@@ -141,7 +141,7 @@ describe("ClassArrivalExceptionDialog", () => {
       });
     });
     expect(
-      await screen.findByText("Klasse 4a kommt am 02.03.2099 um 12:45 Uhr"),
+      await screen.findByText("Klasse 4a kommt am 02.03.2099 um 12:45 Uhr."),
     ).toBeInTheDocument();
     expect(onChanged).toHaveBeenCalled();
   });
@@ -213,7 +213,7 @@ describe("ClassArrivalExceptionDialog", () => {
       expect(mockRemove).toHaveBeenCalledWith("4a", "2099-03-02");
     });
     expect(
-      await screen.findByText("Abweichung am 02.03.2099 entfernt"),
+      await screen.findByText("Die Abweichung am 02.03.2099 ist entfernt."),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("dialog", {

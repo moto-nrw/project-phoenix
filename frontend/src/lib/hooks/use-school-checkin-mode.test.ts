@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
 
 const { mockSchoolCheckinStudent, mockGlobalMutate, mockToastError } =
   vi.hoisted(() => ({
@@ -16,6 +17,18 @@ vi.mock("swr", () => ({
   mutate: mockGlobalMutate,
 }));
 
+// The shared display path, reduced to what reaches the toast: the catalog
+// text for the error and the named object.
+const showApiError = vi.hoisted(
+  () =>
+    async (error: unknown, options: { object: string; retry?: () => void }) => {
+      const { presentError } = await import("~/lib/error-presentation");
+      mockToastError(presentError(error, options.object).message, {
+        retry: options.retry,
+      });
+    },
+);
+
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({
     success: vi.fn(),
@@ -24,6 +37,7 @@ vi.mock("~/contexts/ToastContext", () => ({
     warning: vi.fn(),
     remove: vi.fn(),
   }),
+  useApiErrorDisplay: () => ({ show: showApiError }),
 }));
 
 import {
@@ -265,15 +279,20 @@ describe("useSchoolCheckinMode", () => {
   });
 
   it("shows a German toast on API failure and clears pendingIds", async () => {
-    mockSchoolCheckinStudent.mockRejectedValueOnce(new Error("boom"));
+    mockSchoolCheckinStudent.mockRejectedValueOnce(
+      new ApiError("boom", 500, { code: "general.server" }),
+    );
 
     const { result } = renderHook(() => useSchoolCheckinMode());
     await act(async () => {
       await result.current.toggle("5", "abwesend");
     });
 
-    expect(mockToastError).toHaveBeenCalledWith(
-      expect.stringContaining("Anmelden fehlgeschlagen"),
+    await waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Die Anmeldung konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+        { retry: expect.any(Function) },
+      ),
     );
     expect(result.current.pendingIds.has("5")).toBe(false);
   });
@@ -283,7 +302,9 @@ describe("useSchoolCheckinMode", () => {
     // fails on every retry — "bitte erneut versuchen" would be misleading
     // advice there (#2220).
     mockSchoolCheckinStudent.mockRejectedValueOnce(
-      new Error("API error (403): Forbidden"),
+      new ApiError("API error (403): Forbidden", 403, {
+        code: "general.permission",
+      }),
     );
 
     const { result } = renderHook(() => useSchoolCheckinMode());
@@ -291,17 +312,23 @@ describe("useSchoolCheckinMode", () => {
       await result.current.toggle("7", "anwesend");
     });
 
-    expect(mockToastError).toHaveBeenCalledWith(
-      expect.stringContaining("Keine Berechtigung"),
+    await waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Für die Abmeldung fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+        expect.anything(),
+      ),
     );
     expect(mockToastError).not.toHaveBeenCalledWith(
-      expect.stringContaining("erneut versuchen"),
+      expect.stringContaining("erneut"),
+      expect.anything(),
     );
   });
 
   it("keeps the retry wording for non-permission failures", async () => {
     mockSchoolCheckinStudent.mockRejectedValueOnce(
-      new Error("API error (500): Internal Server Error"),
+      new ApiError("API error (500): Internal Server Error", 500, {
+        code: "general.server",
+      }),
     );
 
     const { result } = renderHook(() => useSchoolCheckinMode());
@@ -309,21 +336,29 @@ describe("useSchoolCheckinMode", () => {
       await result.current.toggle("8", "anwesend");
     });
 
-    expect(mockToastError).toHaveBeenCalledWith(
-      expect.stringContaining("Abmelden fehlgeschlagen"),
+    await waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Die Abmeldung konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+        { retry: expect.any(Function) },
+      ),
     );
   });
 
   it("toast copy matches the attempted direction (out on present)", async () => {
-    mockSchoolCheckinStudent.mockRejectedValueOnce(new Error("boom"));
+    mockSchoolCheckinStudent.mockRejectedValueOnce(
+      new ApiError("boom", 503, { code: "general.unavailable" }),
+    );
 
     const { result } = renderHook(() => useSchoolCheckinMode());
     await act(async () => {
       await result.current.toggle("5", "anwesend");
     });
 
-    expect(mockToastError).toHaveBeenCalledWith(
-      expect.stringContaining("Abmelden fehlgeschlagen"),
+    await waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Die Abmeldung ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+        { retry: expect.any(Function) },
+      ),
     );
   });
 

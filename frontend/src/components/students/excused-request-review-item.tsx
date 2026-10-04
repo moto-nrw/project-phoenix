@@ -1,7 +1,6 @@
 "use client";
 
-import { wireErrorCode } from "~/lib/api-error";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   RequestReviewCard,
@@ -9,7 +8,7 @@ import {
 } from "~/components/students/request-review-card";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import {
   ExcusedRequestApiError,
   type StaffExcusedRequest,
@@ -17,23 +16,6 @@ import {
 } from "~/lib/excused-request-review-api";
 
 const logger = createLogger({ component: "ExcusedRequestReviewItem" });
-
-// Expected 409s: the parent withdrew the request / another staffer already
-// decided it (reload), or the submitting guardian lost access to the child
-// before approval (reject instead). Name the concrete recovery action rather
-// than hiding it behind a generic failure.
-function decideErrorMessage(code: string | undefined): string {
-  switch (wireErrorCode(code)) {
-    case "students.guardian_access_revoked":
-      return "Die anfragende Bezugsperson hat keinen Zugriff mehr auf dieses Kind. Die Abmeldung kann nicht freigegeben werden. Bitte die Anfrage stattdessen ablehnen.";
-    case "students.change_request_not_pending":
-      return "Diese Anfrage wurde bereits entschieden oder von den Eltern zurückgezogen. Bitte die Seite neu laden.";
-    case "students.excused_request_status_conflict":
-      return "Für einen dieser Tage wurde inzwischen ein neuerer Status gesetzt (z. B. krank oder Ausflug). Die Freigabe würde ihn überschreiben. Bitte die Anfrage ablehnen oder den neueren Status zuerst entfernen.";
-    default:
-      return "Die Entscheidung konnte nicht gespeichert werden.";
-  }
-}
 
 // True when `next` (YYYY-MM-DD) is exactly the calendar day after `prev`.
 function isNextDay(prev: string, next: string): boolean {
@@ -107,10 +89,14 @@ export function ExcusedRequestReviewItem({
   decisionDisabledReason?: string;
   approveReasonRequired?: boolean;
 }>) {
-  const toast = useToast();
+  const { show: showError } = useApiErrorDisplay();
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState(false);
   const [busy, setBusy] = useState(false);
+  // „Wiederholen“ entscheidet mit der aktuellen Begründung.
+  const decideRef = useRef<(approve: boolean) => Promise<void>>(
+    async () => undefined,
+  );
 
   const decide = async (approve: boolean) => {
     const trimmed = reason.trim();
@@ -142,10 +128,14 @@ export function ExcusedRequestReviewItem({
         request_id: row.id,
         ...(code ? { code } : {}),
       });
-      toast.error(decideErrorMessage(code), { duration: 8000 });
+      await showError(err, {
+        object: "die Anfrage",
+        retry: () => void decideRef.current(approve),
+      });
       setBusy(false);
     }
   };
+  decideRef.current = decide;
 
   return (
     <RequestReviewCard

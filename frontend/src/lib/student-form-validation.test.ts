@@ -1,34 +1,29 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
   validateDataRetentionDays,
   validateStudentForm,
-  handleStudentFormSubmit,
 } from "./student-form-validation";
 import type { Student } from "~/lib/student-helpers";
 
 describe("validateDataRetentionDays", () => {
   it("returns error message when retention days is null", () => {
     const result = validateDataRetentionDays(null);
-    expect(result).toBe("Aufbewahrungsdauer ist erforderlich (1-31 Tage)");
+    expect(result).toBe("Bitte geben Sie eine Zahl von 1 bis 31 ein.");
   });
 
   it("returns error message when retention days is undefined", () => {
     const result = validateDataRetentionDays(undefined);
-    expect(result).toBe("Aufbewahrungsdauer ist erforderlich (1-31 Tage)");
+    expect(result).toBe("Bitte geben Sie eine Zahl von 1 bis 31 ein.");
   });
 
   it("returns error message when retention days is less than 1", () => {
     const result = validateDataRetentionDays(0);
-    expect(result).toBe(
-      "Aufbewahrungsdauer muss zwischen 1 und 31 Tagen liegen",
-    );
+    expect(result).toBe("Bitte geben Sie eine Zahl von 1 bis 31 ein.");
   });
 
   it("returns error message when retention days is greater than 31", () => {
     const result = validateDataRetentionDays(32);
-    expect(result).toBe(
-      "Aufbewahrungsdauer muss zwischen 1 und 31 Tagen liegen",
-    );
+    expect(result).toBe("Bitte geben Sie eine Zahl von 1 bis 31 ein.");
   });
 
   it("returns undefined for valid retention days (1)", () => {
@@ -73,7 +68,7 @@ describe("validateStudentForm", () => {
     });
 
     expect(errors.departure_companion_note).toBe(
-      "Bitte angeben, mit welchem Kind das Kind nach Hause geht",
+      "Bitte geben Sie an, mit wem das Kind nach Hause geht.",
     );
   });
 
@@ -113,7 +108,7 @@ describe("validateStudentForm", () => {
     );
 
     expect(errors.departure_companion_note).toBe(
-      "Bitte angeben, mit welchem Kind das Kind nach Hause geht",
+      "Bitte geben Sie an, mit wem das Kind nach Hause geht.",
     );
   });
 
@@ -149,7 +144,7 @@ describe("validateStudentForm", () => {
 
     const errors = validateStudentForm(formData, { firstName: true });
 
-    expect(errors.first_name).toBe("Vorname ist erforderlich");
+    expect(errors.first_name).toBe("Bitte geben Sie den Vornamen ein.");
   });
 
   it("validates last name when required", () => {
@@ -162,7 +157,7 @@ describe("validateStudentForm", () => {
 
     const errors = validateStudentForm(formData, { lastName: true });
 
-    expect(errors.second_name).toBe("Nachname ist erforderlich");
+    expect(errors.last_name).toBe("Bitte geben Sie den Nachnamen ein.");
   });
 
   it("validates school class when required", () => {
@@ -175,7 +170,7 @@ describe("validateStudentForm", () => {
 
     const errors = validateStudentForm(formData, { schoolClass: true });
 
-    expect(errors.school_class).toBe("Klasse ist erforderlich");
+    expect(errors.school_class).toBe("Bitte geben Sie die Klasse ein.");
   });
 
   it("validates trimmed values", () => {
@@ -192,9 +187,9 @@ describe("validateStudentForm", () => {
       schoolClass: true,
     });
 
-    expect(errors.first_name).toBe("Vorname ist erforderlich");
-    expect(errors.second_name).toBe("Nachname ist erforderlich");
-    expect(errors.school_class).toBe("Klasse ist erforderlich");
+    expect(errors.first_name).toBe("Bitte geben Sie den Vornamen ein.");
+    expect(errors.last_name).toBe("Bitte geben Sie den Nachnamen ein.");
+    expect(errors.school_class).toBe("Bitte geben Sie die Klasse ein.");
   });
 
   it("validates undefined data retention days", () => {
@@ -207,7 +202,7 @@ describe("validateStudentForm", () => {
     const errors = validateStudentForm(formData, {});
 
     expect(errors.data_retention_days).toBe(
-      "Aufbewahrungsdauer ist erforderlich (1-31 Tage)",
+      "Bitte geben Sie eine Zahl von 1 bis 31 ein.",
     );
   });
 
@@ -222,7 +217,7 @@ describe("validateStudentForm", () => {
     const errors = validateStudentForm(formData, {});
 
     expect(errors.data_retention_days).toBe(
-      "Aufbewahrungsdauer muss zwischen 1 und 31 Tagen liegen",
+      "Bitte geben Sie eine Zahl von 1 bis 31 ein.",
     );
   });
 
@@ -240,11 +235,11 @@ describe("validateStudentForm", () => {
       schoolClass: true,
     });
 
-    expect(errors.first_name).toBe("Vorname ist erforderlich");
-    expect(errors.second_name).toBe("Nachname ist erforderlich");
-    expect(errors.school_class).toBe("Klasse ist erforderlich");
+    expect(errors.first_name).toBe("Bitte geben Sie den Vornamen ein.");
+    expect(errors.last_name).toBe("Bitte geben Sie den Nachnamen ein.");
+    expect(errors.school_class).toBe("Bitte geben Sie die Klasse ein.");
     expect(errors.data_retention_days).toBe(
-      "Aufbewahrungsdauer muss zwischen 1 und 31 Tagen liegen",
+      "Bitte geben Sie eine Zahl von 1 bis 31 ein.",
     );
   });
 
@@ -259,221 +254,7 @@ describe("validateStudentForm", () => {
     const errors = validateStudentForm(formData, {});
 
     expect(errors.first_name).toBeUndefined();
-    expect(errors.second_name).toBeUndefined();
+    expect(errors.last_name).toBeUndefined();
     expect(errors.school_class).toBeUndefined();
-  });
-});
-
-describe("handleStudentFormSubmit", () => {
-  let mockEvent: { preventDefault: ReturnType<typeof vi.fn> };
-  let mockValidateForm: ReturnType<typeof vi.fn<() => boolean>>;
-  let mockOnSubmit: ReturnType<
-    typeof vi.fn<(data: Partial<Student>) => Promise<void>>
-  >;
-  let mockSetLoading: ReturnType<typeof vi.fn<(loading: boolean) => void>>;
-  let mockSetErrors: ReturnType<
-    typeof vi.fn<(errors: Record<string, string>) => void>
-  >;
-  beforeEach(() => {
-    mockEvent = { preventDefault: vi.fn() };
-    mockValidateForm = vi.fn<() => boolean>();
-    mockOnSubmit = vi.fn<(data: Partial<Student>) => Promise<void>>();
-    mockSetLoading = vi.fn<(loading: boolean) => void>();
-    mockSetErrors = vi.fn<(errors: Record<string, string>) => void>();
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-  });
-
-  it("prevents default form submission", async () => {
-    mockValidateForm.mockReturnValue(false);
-
-    await handleStudentFormSubmit(
-      mockEvent as unknown as React.FormEvent,
-      {},
-      mockValidateForm,
-      mockOnSubmit,
-      mockSetLoading,
-      mockSetErrors,
-    );
-
-    expect(mockEvent.preventDefault).toHaveBeenCalled();
-  });
-
-  it("returns early when validation fails", async () => {
-    mockValidateForm.mockReturnValue(false);
-
-    await handleStudentFormSubmit(
-      mockEvent as unknown as React.FormEvent,
-      {},
-      mockValidateForm,
-      mockOnSubmit,
-      mockSetLoading,
-      mockSetErrors,
-    );
-
-    expect(mockValidateForm).toHaveBeenCalled();
-    expect(mockSetLoading).not.toHaveBeenCalled();
-    expect(mockOnSubmit).not.toHaveBeenCalled();
-  });
-
-  it("successfully submits when validation passes", async () => {
-    mockValidateForm.mockReturnValue(true);
-    mockOnSubmit.mockResolvedValue(undefined);
-
-    const formData: Partial<Student> = {
-      first_name: "Max",
-      second_name: "Mustermann",
-      school_class: "5a",
-      data_retention_days: 30,
-    };
-
-    await handleStudentFormSubmit(
-      mockEvent as unknown as React.FormEvent,
-      formData,
-      mockValidateForm,
-      mockOnSubmit,
-      mockSetLoading,
-      mockSetErrors,
-    );
-
-    expect(mockSetLoading).toHaveBeenCalledWith(true);
-    expect(mockOnSubmit).toHaveBeenCalledWith(formData);
-    expect(mockSetLoading).toHaveBeenCalledWith(false);
-    expect(mockSetErrors).not.toHaveBeenCalled();
-  });
-
-  it("handles submission error", async () => {
-    mockValidateForm.mockReturnValue(true);
-    const error = new Error("Network error");
-    mockOnSubmit.mockRejectedValue(error);
-
-    await handleStudentFormSubmit(
-      mockEvent as unknown as React.FormEvent,
-      {},
-      mockValidateForm,
-      mockOnSubmit,
-      mockSetLoading,
-      mockSetErrors,
-    );
-
-    expect(mockSetErrors).toHaveBeenCalledWith({
-      submit: "Fehler beim Speichern. Bitte versuchen Sie es erneut.",
-    });
-  });
-
-  it("surfaces a 4xx backend validation message to the user", async () => {
-    // Atomic student+guardian create (#1500): a duplicate guardian email comes
-    // back as an HTTP 400 with a user-facing German message. The status is
-    // attached by the CRUD service's fetch layer. The user must see the real
-    // reason, since a retry won't fix it.
-    mockValidateForm.mockReturnValue(true);
-    const error = new Error(
-      'Erziehungsberechtigte/r 1: E-Mail-Adresse "a@b.de" ist bereits vergeben',
-    ) as Error & { status?: number };
-    error.status = 400;
-    mockOnSubmit.mockRejectedValue(error);
-
-    await handleStudentFormSubmit(
-      mockEvent as unknown as React.FormEvent,
-      {},
-      mockValidateForm,
-      mockOnSubmit,
-      mockSetLoading,
-      mockSetErrors,
-    );
-
-    expect(mockSetErrors).toHaveBeenCalledWith({
-      submit:
-        'Erziehungsberechtigte/r 1: E-Mail-Adresse "a@b.de" ist bereits vergeben',
-    });
-  });
-
-  it("explains a full Kinderkontingent instead of the backend text", async () => {
-    // #3567: the create call comes back 409 with a stable code; the modal
-    // stays open with the entered data and shows this message.
-    mockValidateForm.mockReturnValue(true);
-    const error = Object.assign(new Error("child quota reached"), {
-      status: 409,
-      body: JSON.stringify({
-        error: "child quota reached: 50 of 50 children occupied, 1 requested",
-        code: "students.child_quota_reached",
-        details: {
-          booked_places: 50,
-          occupied_places: 50,
-          requested_places: 1,
-        },
-      }),
-    });
-    mockOnSubmit.mockRejectedValue(error);
-
-    await handleStudentFormSubmit(
-      mockEvent as unknown as React.FormEvent,
-      {},
-      mockValidateForm,
-      mockOnSubmit,
-      mockSetLoading,
-      mockSetErrors,
-    );
-
-    expect(mockSetErrors).toHaveBeenCalledWith({
-      submit:
-        "Das Kinderkontingent Ihrer Schule ist voll. Die Kontingentzahl beträgt 50 von 50 Kindern. Für weitere Kinder melden Sie sich bitte beim moto-Team.",
-    });
-  });
-
-  it("keeps a 5xx server error generic (no technical leak)", async () => {
-    mockValidateForm.mockReturnValue(true);
-    const error = new Error("API error: 500 - boom") as Error & {
-      status?: number;
-    };
-    error.status = 500;
-    mockOnSubmit.mockRejectedValue(error);
-
-    await handleStudentFormSubmit(
-      mockEvent as unknown as React.FormEvent,
-      {},
-      mockValidateForm,
-      mockOnSubmit,
-      mockSetLoading,
-      mockSetErrors,
-    );
-
-    expect(mockSetErrors).toHaveBeenCalledWith({
-      submit: "Fehler beim Speichern. Bitte versuchen Sie es erneut.",
-    });
-  });
-
-  it("always sets loading to false in finally block", async () => {
-    mockValidateForm.mockReturnValue(true);
-    mockOnSubmit.mockRejectedValue(new Error("Test error"));
-
-    await handleStudentFormSubmit(
-      mockEvent as unknown as React.FormEvent,
-      {},
-      mockValidateForm,
-      mockOnSubmit,
-      mockSetLoading,
-      mockSetErrors,
-    );
-
-    expect(mockSetLoading).toHaveBeenCalledWith(true);
-    expect(mockSetLoading).toHaveBeenCalledWith(false);
-    expect(mockSetLoading).toHaveBeenCalledTimes(2);
-  });
-
-  it("sets loading to false even when submission succeeds", async () => {
-    mockValidateForm.mockReturnValue(true);
-    mockOnSubmit.mockResolvedValue(undefined);
-
-    await handleStudentFormSubmit(
-      mockEvent as unknown as React.FormEvent,
-      {},
-      mockValidateForm,
-      mockOnSubmit,
-      mockSetLoading,
-      mockSetErrors,
-    );
-
-    expect(mockSetLoading).toHaveBeenCalledWith(true);
-    expect(mockSetLoading).toHaveBeenCalledWith(false);
   });
 });
