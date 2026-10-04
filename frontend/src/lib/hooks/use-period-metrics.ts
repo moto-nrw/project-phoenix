@@ -44,6 +44,8 @@ export interface PeriodMetrics {
   readonly accountBalanceMinutes: number | null;
   /** A Sonderarbeitszeit sets the Soll of a day in the current week. */
   readonly hasTargetOverride?: boolean;
+  /** A source failed to load; the null figures will not arrive. */
+  readonly failed?: boolean;
 }
 
 /**
@@ -106,7 +108,7 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
   // Tagesprojektion (#2443). Hier zählt nur ihr Soll — aber ein SWR-Key trägt
   // EINEN Datentyp, und wer sonst das Rennen verliert, liest die Form des
   // anderen (siehe Kommentar unten zu Sessions/Abwesenheiten).
-  const { data: weekProjection } = useSWRAuth<
+  const { data: weekProjection, error: weekProjectionError } = useSWRAuth<
     ReadonlyMap<string, DayProjection>
   >(
     staffId
@@ -146,7 +148,9 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
     latest: readonly StaffHistorySession[] | undefined,
   ) => (latest?.some((s) => !s.check_out_time) ? OPEN_MONTH_REFRESH_MS : 0);
 
-  const { data: adminSessions } = useSWRAuth<readonly StaffHistorySession[]>(
+  const { data: adminSessions, error: adminSessionsError } = useSWRAuth<
+    readonly StaffHistorySession[]
+  >(
     staffId
       ? `staff-history-${staffId}-${weekHistoryFromKey}-${weekToKey}`
       : null,
@@ -158,7 +162,7 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
       ),
     { refreshInterval },
   );
-  const { data: ownHistory } = useSWRAuth<{
+  const { data: ownHistory, error: ownHistoryError } = useSWRAuth<{
     sessions: WorkSessionHistory[];
     weeklySummaries: WeeklySummary[];
   }>(
@@ -172,7 +176,9 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
     },
   );
 
-  const { data: adminAbsences } = useSWRAuth<readonly StaffAbsenceRow[]>(
+  const { data: adminAbsences, error: adminAbsencesError } = useSWRAuth<
+    readonly StaffAbsenceRow[]
+  >(
     staffId ? `staff-absences-${staffId}-${weekFromKey}-${weekToKey}` : null,
     () =>
       staffAbsenceService.getAbsences(
@@ -181,7 +187,9 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
         weekToKey,
       ),
   );
-  const { data: ownAbsences } = useSWRAuth<StaffAbsence[]>(
+  const { data: ownAbsences, error: ownAbsencesError } = useSWRAuth<
+    StaffAbsence[]
+  >(
     staffId ? null : `time-tracking-table-absences-${weekFromKey}-${weekToKey}`,
     () => timeTrackingService.getAbsences(weekFromKey, weekToKey),
   );
@@ -201,7 +209,8 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
   const { data: config } = useSWRAuth("time-tracking-config", () =>
     timeTrackingService.getConfig(),
   );
-  const { balanceMinutes: accountBalanceMinutes } = useAccountBalance(staffId);
+  const { balanceMinutes: accountBalanceMinutes, error: balanceError } =
+    useAccountBalance(staffId);
 
   const week = useMemo<PeriodTotals | null>(() => {
     // No Soll, no week card: showing Ist against a 0h Soll would read as a
@@ -251,11 +260,23 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
     [weekProjection],
   );
 
+  // The figures stay null when a source failed; the caller must not wait for
+  // them forever (#2514).
+  const failed = Boolean(
+    weekProjectionError ??
+    adminSessionsError ??
+    ownHistoryError ??
+    adminAbsencesError ??
+    ownAbsencesError ??
+    balanceError,
+  );
+
   return {
     week,
     month,
     accountStart,
     accountBalanceMinutes,
     hasTargetOverride,
+    failed,
   };
 }

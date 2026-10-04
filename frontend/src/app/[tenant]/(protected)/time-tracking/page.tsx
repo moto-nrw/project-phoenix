@@ -3909,13 +3909,16 @@ function TimeTrackingContent() {
   // Statuszeile aus denselben server-gerechneten Zahlen wie die
   // Stempeluhr-Kacheln (usePeriodMetrics); solange sie fehlen, hält das
   // Gerüst ein Skelett an der Stelle.
+  // Ist eine Quelle gescheitert, bleibt die Zeile leer statt eines
+  // ewigen Skeletts; der Ladefehler steht an seiner Stelle auf der Seite.
   const metricsPending =
     ownMetrics.week === null || ownMetrics.accountBalanceMinutes === null;
+  const metricsLoading = metricsPending && !ownMetrics.failed;
 
   return (
     <TenantPage
       title="Zeiterfassung"
-      statsLoading={metricsPending}
+      statsLoading={metricsLoading}
       // Laden kommt aus dem Gerüst (Bauart 3, Regel 5) — kein eigenes
       // Seiten-Skelett neben den Zuständen der TenantPage.
       loading={authStatus === "loading"}
@@ -4128,13 +4131,11 @@ function TimeTrackingContent() {
           Urlaubs-Workflow (kommt in eigenem Chat). */}
       {currentLoad.error ||
       breaksLoad.error ||
-      historyLoad.error ||
       absencesLoad.error ||
       profileLoad.error ? (
         <div className="space-y-3">
           <LoadErrorAlert error={currentLoad.error} />
           <LoadErrorAlert error={breaksLoad.error} />
-          <LoadErrorAlert error={historyLoad.error} />
           <LoadErrorAlert error={absencesLoad.error} />
           <LoadErrorAlert error={profileLoad.error} />
         </div>
@@ -4155,7 +4156,11 @@ function TimeTrackingContent() {
           plannedShifts={todayShifts}
           cancelledShifts={todayCancelledShifts}
         />
-        <WeekChart history={history} weekOffset={weekOffset} />
+        <WeekChart
+          history={history}
+          weekOffset={weekOffset}
+          error={historyLoad.error}
+        />
       </div>
 
       {/* Heute geplante Betreuungsplan-Einsätze (Ort/Aufgabe + Vertretungen,

@@ -10,6 +10,8 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "~/components/ui/chart";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
@@ -216,9 +218,13 @@ function WeekChartHeader({
 const WeekChart = memo(function WeekChart({
   history,
   weekOffset,
+  error,
 }: {
   readonly history: WorkSessionHistory[];
   readonly weekOffset: number;
+  /** A failed history load replaces the chart: empty bars would read as a
+   *  week without work (#2514). */
+  readonly error?: FormErrorInput;
 }) {
   const isMobile = useMobileViewport();
   const chartData = useWeekChartData({ history, weekOffset });
@@ -230,12 +236,16 @@ const WeekChart = memo(function WeekChart({
     >
       <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
         <WeekChartHeader chartData={chartData} />
-        <ChartContainer
-          config={weekChartConfig}
-          className="!aspect-auto min-h-0 flex-1"
-        >
-          <WeekChartPlot chartData={chartData} isMobile={isMobile} />
-        </ChartContainer>
+        {error ? (
+          <LoadErrorAlert error={error} />
+        ) : (
+          <ChartContainer
+            config={weekChartConfig}
+            className="!aspect-auto min-h-0 flex-1"
+          >
+            <WeekChartPlot chartData={chartData} isMobile={isMobile} />
+          </ChartContainer>
+        )}
       </div>
     </SectionCard>
   );

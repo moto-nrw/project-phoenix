@@ -610,6 +610,15 @@ function StaffPageContent() {
   const staffSummary = (() => {
     // Die Zeile beschreibt, was gerade zu sehen ist: in den Personalunterlagen
     // also die Zahl der Personen mit Unterlagen, nicht die Personalliste.
+    // Ohne geladene Daten gibt es nichts zu zählen: „0 Personen“ läse sich
+    // wie eine leere Schule, der Ladefehler steht darunter (#2514).
+    if (
+      (view === "status" && staffError) ||
+      (view === "documents" && documentDirectoryError) ||
+      (view === "accounts" && accountsError)
+    ) {
+      return undefined;
+    }
     if (view === "documents") {
       const count = documentDirectory?.length ?? 0;
       return `${count} ${count === 1 ? "Person" : "Personen"} mit Unterlagen`;

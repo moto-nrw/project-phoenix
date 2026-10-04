@@ -236,6 +236,9 @@ describe("StaffPage", () => {
     ).toHaveTextContent("req-staff");
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(mutate).toHaveBeenCalled();
+    // Without loaded staff there is nothing to count: "0 Personen" would
+    // read as a school without staff (#2514).
+    expect(screen.queryByText(/0 Personen/)).not.toBeInTheDocument();
   });
 
   it("shows empty state when no staff match filters", async () => {
