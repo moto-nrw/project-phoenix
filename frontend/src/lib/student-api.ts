@@ -3,6 +3,7 @@ import {
   apiErrorFromResponse,
   apiErrorFromText,
   enrichApiError,
+  unavailableApiError,
 } from "./api-error";
 // lib/student-api.ts
 import { getCachedSession, sessionFetch } from "./session-cache";
@@ -761,11 +762,16 @@ export async function uploadStudentPhoto(
 
   // Use raw fetch — authFetch wraps JSON bodies, but this endpoint expects
   // multipart/form-data. We forward the cookie-derived JWT manually.
-  const response = await fetch(url, {
-    method: "POST",
-    body: formData,
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      body: formData,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    throw unavailableApiError();
+  }
 
   if (!response.ok) {
     const text = await response.text();

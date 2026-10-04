@@ -785,6 +785,31 @@ describe("fetchWithRetry", () => {
     expect(getNewToken).not.toHaveBeenCalled();
   });
 
+  it("normalizes a transport failure while retrying after authentication", async () => {
+    mockFetchRetry
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: () => Promise.resolve("Unauthorized"),
+      } as Response)
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    const error = await fetchWithRetry(
+      "http://api.test/endpoint",
+      "old-token",
+      {
+        onAuthFailure: vi.fn().mockResolvedValue(true),
+        getNewToken: vi.fn().mockResolvedValue("new-token"),
+      },
+    ).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 503,
+      code: "general.unavailable",
+    });
+  });
+
   it("returns null for 403 Forbidden (access denied)", async () => {
     mockFetchRetry.mockResolvedValueOnce({
       ok: false,

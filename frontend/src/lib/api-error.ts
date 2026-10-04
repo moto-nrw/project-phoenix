@@ -52,6 +52,13 @@ export function errorClassCode(status: number): ErrorCode {
   return status >= 500 ? "general.server" : "general.input";
 }
 
+/** A request failed before the API could return an HTTP response. */
+export function unavailableApiError(): ApiError {
+  return new ApiError("Network request failed", 503, {
+    code: "general.unavailable",
+  });
+}
+
 export function apiErrorFromBody(
   message: string,
   status: number,
