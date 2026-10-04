@@ -32,8 +32,8 @@ async function transportFetch(
 ): Promise<Response> {
   try {
     return await fetch(url, init);
-  } catch {
-    throw unavailableApiError();
+  } catch (error) {
+    throw unavailableApiError(error);
   }
 }
 

@@ -769,8 +769,8 @@ export async function uploadStudentPhoto(
       body: formData,
       headers: { Authorization: `Bearer ${token}` },
     });
-  } catch {
-    throw unavailableApiError();
+  } catch (error) {
+    throw unavailableApiError(error);
   }
 
   if (!response.ok) {

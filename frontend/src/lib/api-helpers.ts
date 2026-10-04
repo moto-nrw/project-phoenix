@@ -196,11 +196,11 @@ export async function authFetch<T>(
       cache: "no-store", // Prevent caching of dynamic API responses
       ...(body !== undefined && { body: JSON.stringify(body) }),
     });
-  } catch {
+  } catch (error) {
     // A rejected fetch has no HTTP response or backend error envelope. Keep
     // this transport failure structured so the shared error path can offer a
     // retry instead of treating it as a frontend crash.
-    throw unavailableApiError();
+    throw unavailableApiError(error);
   }
 
   if (!response.ok) {
@@ -269,8 +269,8 @@ export async function fetchWithRetry<T>(
         headers,
         ...(body !== undefined && { body: JSON.stringify(body) }),
       });
-    } catch {
-      throw unavailableApiError();
+    } catch (error) {
+      throw unavailableApiError(error);
     }
   };
 

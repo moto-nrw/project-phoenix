@@ -53,10 +53,16 @@ export function errorClassCode(status: number): ErrorCode {
 }
 
 /** A request failed before the API could return an HTTP response. */
-export function unavailableApiError(): ApiError {
-  return new ApiError("Network request failed", 503, {
+export function unavailableApiError(cause?: unknown): ApiError {
+  const message =
+    cause instanceof Error && cause.message
+      ? cause.message
+      : "Network request failed";
+  const error = new ApiError(message, 503, {
     code: "general.unavailable",
   });
+  if (cause instanceof Error && cause.name) error.name = cause.name;
+  return error;
 }
 
 export function apiErrorFromBody(
