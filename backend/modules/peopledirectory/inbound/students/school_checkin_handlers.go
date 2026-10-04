@@ -92,19 +92,7 @@ func (rs *Resource) schoolCheckinHandler(w http.ResponseWriter, r *http.Request)
 
 	resp, changeErr := rs.applySchoolCheckinAction(r.Context(), student, staffID, req, current)
 	if changeErr != nil {
-		// A graduated (alumnus) student — reached via CheckInStudent's
-		// ensureStudentCheckinAllowed guard on a stale request or graduation
-		// race — is treated like an unknown/absent student (404), matching the
-		// IoT and timetable mappers rather than surfacing a 500 (#405).
-		if errors.Is(changeErr, studentpresence.ErrStudentGraduated) || errors.Is(changeErr, studentpresence.ErrStudentCareEnded) {
-			common.RenderError(w, r, common.ErrorNotFound(changeErr))
-			return
-		}
-		if errors.Is(changeErr, studentpresence.ErrCheckoutNoteTooLong) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(changeErr))
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServer(changeErr))
+		common.RenderError(w, r, schoolCheckinActionErrorRenderer(changeErr))
 		return
 	}
 
@@ -118,6 +106,21 @@ func (rs *Resource) schoolCheckinHandler(w http.ResponseWriter, r *http.Request)
 	)
 
 	common.Respond(w, r, http.StatusOK, resp, "School checkin toggled successfully")
+}
+
+// schoolCheckinActionErrorRenderer preserves the 404 treatment of stale
+// graduates while keeping that state distinct from care having ended.
+func schoolCheckinActionErrorRenderer(err error) render.Renderer {
+	switch {
+	case errors.Is(err, studentpresence.ErrStudentGraduated):
+		return common.ErrorNotFoundWithCode(err, common.CodeGeneralBusinessRejection)
+	case errors.Is(err, studentpresence.ErrStudentCareEnded):
+		return common.ErrorNotFoundWithCode(err, common.CodeStudentsCheckinCareEnded)
+	case errors.Is(err, studentpresence.ErrCheckoutNoteTooLong):
+		return common.ErrorInvalidRequestWithCode(err, common.CodeStudentsCheckoutNoteTooLong)
+	default:
+		return common.ErrorInternalServer(err)
+	}
 }
 
 // validateSchoolCheckinRequest checks the action and that a note only comes

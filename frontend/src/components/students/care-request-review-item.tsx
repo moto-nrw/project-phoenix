@@ -1,7 +1,6 @@
 "use client";
 
-import { wireErrorCode } from "~/lib/api-error";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import {
   RequestReviewCard,
@@ -9,7 +8,7 @@ import {
 } from "~/components/students/request-review-card";
 import { usePickupExtensionPrompt } from "~/components/timetable/pickup-extension-access";
 import { createLogger } from "~/lib/logger";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import {
   CareRequestApiError,
   type StaffCareRequest,
@@ -22,32 +21,6 @@ import {
 } from "~/lib/pickup-extension-api";
 
 const logger = createLogger({ component: "CareRequestReviewItem" });
-
-// A care request can only be APPROVED while the submitting guardian still has
-// access to the child and the request still matches the plan. The backend
-// refuses the other cases with a specific 409 code. Map those codes to the
-// concrete recovery action (reject the request) instead of hiding them behind a
-// generic failure, so the reviewer knows what to do with the still-pending row.
-function decideErrorMessage(code: string | undefined): string {
-  switch (wireErrorCode(code)) {
-    case "students.guardian_access_revoked":
-      return "Die anfragende Bezugsperson hat keinen Zugriff mehr auf dieses Kind. Die Anfrage kann nicht freigegeben werden. Bitte die Anfrage stattdessen ablehnen.";
-    case "students.change_request_not_pending":
-      return "Diese Anfrage wurde bereits entschieden oder von den Eltern zurückgezogen. Bitte die Seite neu laden.";
-    case "students.pickup_change_conflict":
-      return "Für diesen Tag wurde inzwischen bereits eine Änderung durch die OGS eingetragen. Bitte prüfen und die Anfrage gegebenenfalls ablehnen.";
-    case "students.pickup_change_completed":
-      return "Das Kind wurde bereits ausgecheckt. Die Abholzeit kann nicht mehr geändert werden.";
-    case "students.pickup_change_expired":
-      return "Der angefragte Tag liegt bereits in der Vergangenheit. Die Abholzeit kann nicht mehr übernommen werden. Bitte die Anfrage ablehnen.";
-    case "students.pickup_change_impact_changed":
-      return "Der Betreuungsplan hat sich geändert. Bitte laden Sie die Seite neu und prüfen Sie die Termine noch einmal.";
-    case "students.care_day_managed_by_booking":
-      return "Dieser Betreuungstag gehört zu einem gebuchten Angebot. Ändern Sie zuerst die Buchung des Kindes. Lehnen Sie diese Anfrage danach ab.";
-    default:
-      return "Die Entscheidung konnte nicht gespeichert werden.";
-  }
-}
 
 /**
  * Zusammenfassung für die zugeklappte Zeile, aus den Diff-Labels
@@ -178,17 +151,23 @@ function useCareRequestDecision(
   expectedVersion?: string,
 ) {
   const toast = useToast();
+  const { show: showApiError } = useApiErrorDisplay();
   const extensions = usePickupExtensionPrompt();
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState(false);
   const [busy, setBusy] = useState(false);
+  // „Wiederholen“ entscheidet mit der aktuellen Begründung.
+  const decideRef = useRef<(approve: boolean) => Promise<void>>(
+    async () => undefined,
+  );
   // Fehler laufen als Toast, nicht als Kasten in der Karte: sie sind die
   // Ausnahme, und der Platz gehört dem, worüber entschieden wird.
-  const showError = (message: string) =>
-    toast.error(message, { duration: 8000 });
+  const showLocalError = (message: string) => toast.error(message);
   const decide = async (approve: boolean) => {
     const trimmed = reason.trim();
-    if (!decisionInputReady(row, approve, trimmed, showError, setReasonError))
+    if (
+      !decisionInputReady(row, approve, trimmed, showLocalError, setReasonError)
+    )
       return;
     setBusy(true);
     try {
@@ -201,7 +180,12 @@ function useCareRequestDecision(
         ...(expectedVersion ? ([expectedVersion] as const) : ([] as const)),
       );
     } catch (err) {
-      handleDecisionError(err, row.id, showError, setBusy);
+      logDecisionError(err, row.id);
+      await showApiError(err, {
+        object: "die Anfrage",
+        retry: () => void decideRef.current(approve),
+      });
+      setBusy(false);
       return;
     }
     const open = approve
@@ -211,6 +195,9 @@ function useCareRequestDecision(
     // Die Auswahl liegt auf Seitenebene und überlebt das Entfernen der Zeile.
     if (open.length > 0) extensions.prompt(open);
   };
+  useLayoutEffect(() => {
+    decideRef.current = decide;
+  });
   return {
     reason,
     setReason: (value: string) => {
@@ -249,21 +236,13 @@ function decisionInputReady(
   return true;
 }
 
-function handleDecisionError(
-  err: unknown,
-  requestID: string,
-  setError: (message: string) => void,
-  setBusy: (busy: boolean) => void,
-) {
-  const message = err instanceof Error ? err.message : String(err);
+function logDecisionError(err: unknown, requestID: string) {
   const code = err instanceof CareRequestApiError ? err.code : undefined;
   logger.warn("care_request_review_decide_failed", {
-    error: message,
+    error: err instanceof Error ? err.message : String(err),
     request_id: requestID,
     ...(code ? { code } : {}),
   });
-  setError(decideErrorMessage(code));
-  setBusy(false);
 }
 
 function CareRequestDetails({ row }: Readonly<{ row: StaffCareRequest }>) {

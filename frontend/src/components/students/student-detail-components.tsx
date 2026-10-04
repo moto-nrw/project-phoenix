@@ -30,6 +30,8 @@ import { AllowedDepartureModesDisplay } from "~/components/students/allowed-depa
 import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { InfoCard } from "~/components/ui/info-card";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   companionDisplayName,
@@ -767,6 +769,10 @@ export function PersonalInfoReadOnly({
   // without a name. Hence a distinct unavailable state next to the list.
   const [companions, setCompanions] = useState<StudentCompanion[]>([]);
   const [companionsUnavailable, setCompanionsUnavailable] = useState(false);
+  // Der Ladefehler steht im Feld „Geht mit“, mit Wiederholen (#2513).
+  const companionsLoad = useApiLoadError();
+  const showCompanionsLoadError = companionsLoad.show;
+  const clearCompanionsLoadError = companionsLoad.clear;
   // Saving the Stammdaten does not remount this card and does not bring the
   // links along in the student payload, so the fetch below must be re-run on
   // every companion write — including a symmetric one made from the linked
@@ -811,6 +817,7 @@ export function PersonalInfoReadOnly({
         if (cancelled) return;
         setCompanions(loaded);
         setCompanionsUnavailable(false);
+        clearCompanionsLoadError();
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -820,11 +827,20 @@ export function PersonalInfoReadOnly({
           student_id: student.id,
           error: error instanceof Error ? error.message : String(error),
         });
+        void showCompanionsLoadError(error, {
+          object: "die Laufgemeinschaft",
+          retry: () => setCompanionsRevalidation((count) => count + 1),
+        });
       });
     return () => {
       cancelled = true;
     };
-  }, [student.id, companionsRevalidation]);
+  }, [
+    student.id,
+    companionsRevalidation,
+    showCompanionsLoadError,
+    clearCompanionsLoadError,
+  ]);
 
   const birthdayDisplay = student.birthday
     ? new Date(student.birthday).toLocaleDateString("de-DE", {
@@ -916,9 +932,7 @@ export function PersonalInfoReadOnly({
         </DataField>
         {companionsUnavailable && (
           <DataField label="Geht mit" fullWidth>
-            <span className="text-sm text-gray-500">
-              Laufgemeinschaft konnte nicht geladen werden
-            </span>
+            <LoadErrorAlert error={companionsLoad.error} />
           </DataField>
         )}
         {!companionsUnavailable && companions.length > 0 && (

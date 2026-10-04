@@ -331,9 +331,9 @@ const ROW_ACTION_BASELINE = new Map(
     "src/components/staff/stammdaten-section-forms.tsx": [
       "Qualifikation entfernen@422",
     ],
-    "src/components/students/companion-picker.tsx": ["entfernen@274"],
+    "src/components/students/companion-picker.tsx": ["entfernen@296"],
     "src/components/students/student-create-modal.tsx": [
-      "Erziehungsberechtigte/n entfernen@708",
+      "Erziehungsberechtigte/n entfernen@718",
     ],
     "src/components/timetable/substitution-slide-over.tsx": [
       "Rückgängig Entfernen@765",
@@ -1222,7 +1222,7 @@ const OWN_OBJECT_ENTRY_EXCEPTIONS = new Map(
   Object.entries({
     // Teilentschuldigungen genau dieses Kindes an genau diesen Tagen.
     "src/components/students/planned-status-days-modal.tsx": [
-      "Bearbeiten@1140",
+      "Bearbeiten@1171",
     ],
   }),
 );

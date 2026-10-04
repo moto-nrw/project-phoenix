@@ -7,12 +7,16 @@
  * lookup that was already in flight when clearSessionCache() ran must not
  * write its stale result back into the cache afterwards.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { mockSessionData } from "~/test/mocks/next-auth";
 
 const mockGetSession = vi.fn();
+const mockHandleAuthFailure = vi.fn();
 vi.mock("next-auth/react", () => ({
   getSession: (...args: unknown[]) => mockGetSession(...args) as unknown,
+}));
+vi.mock("./auth-failure", () => ({
+  handleAuthFailure: mockHandleAuthFailure,
 }));
 
 type SessionCacheModule = typeof import("./session-cache");
@@ -208,5 +212,61 @@ describe("primeSessionCache", () => {
 
     expect(result?.user?.token).toBe("fresh");
     expect(mockGetSession).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("sessionFetch", () => {
+  let originalFetch: typeof fetch;
+  const mockFetch = vi.fn();
+
+  beforeEach(() => {
+    mockGetSession.mockReset();
+    mockHandleAuthFailure.mockReset();
+    originalFetch = globalThis.fetch;
+    globalThis.fetch = mockFetch as typeof fetch;
+    mockFetch.mockReset();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("normalizes an initial transport failure as unavailable", async () => {
+    const { sessionFetch } = await freshModule();
+    const { ApiError } = await import("./api-error");
+    mockGetSession.mockResolvedValue(session("token-a"));
+    mockFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    const error = await sessionFetch("/api/test").catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 503,
+      code: "general.unavailable",
+    });
+  });
+
+  it("normalizes a transport failure after refreshing the session", async () => {
+    const { sessionFetch } = await freshModule();
+    const { ApiError } = await import("./api-error");
+    mockGetSession
+      .mockResolvedValueOnce(session("token-old"))
+      .mockResolvedValueOnce(session("token-new"));
+    mockHandleAuthFailure.mockResolvedValueOnce(true);
+    mockFetch
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    const error = await sessionFetch("/api/test").catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 503,
+      code: "general.unavailable",
+    });
   });
 });

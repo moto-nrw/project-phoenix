@@ -10,6 +10,7 @@ import {
   MalformedCrudListResponseError,
 } from "./service-factory";
 import type { EntityConfig } from "./types";
+import { ApiError } from "~/lib/api-error";
 
 // Mock next-auth
 const mockGetSession = vi.fn();
@@ -690,6 +691,35 @@ describe("createCrudService", () => {
       // ...and it is precisely why the body is needed: the structured part of
       // the answer never survives into the message.
       expect(caught.message).not.toContain("conflicts");
+    });
+
+    it("throws an ApiError with code and request ID for the shared error path", async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: false,
+        status: 409,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              error: "quota",
+              code: "students.child_quota_reached",
+              details: { booked_places: 10, occupied_places: 10 },
+              instance: "req-crud",
+            }),
+          ),
+      });
+
+      const service = createCrudService(mockConfig);
+      const caught = await service
+        .create({ name: "Test" })
+        .catch((error: unknown) => error);
+
+      expect(caught).toBeInstanceOf(ApiError);
+      expect(caught).toMatchObject({
+        status: 409,
+        code: "students.child_quota_reached",
+        details: { booked_places: 10, occupied_places: 10 },
+        requestId: "req-crud",
+      });
     });
 
     it("keeps the raw body when the message is dug out of the route-handler wrapping", async () => {

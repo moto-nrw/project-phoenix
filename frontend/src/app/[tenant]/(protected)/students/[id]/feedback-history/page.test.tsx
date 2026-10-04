@@ -1,6 +1,9 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import StudentFeedbackHistoryPage from "./page";
+import { ApiError } from "~/lib/api-error";
+import { fetchStudent } from "~/lib/student-api";
+import { fetchStudentFeedback } from "~/lib/feedback-api";
 
 const mockPush = vi.fn();
 
@@ -309,5 +312,40 @@ describe("StudentFeedbackHistoryPage", () => {
       },
       { timeout: 2000 },
     );
+  });
+
+  it("shows a failed load in place with the catalog text", async () => {
+    vi.mocked(fetchStudentFeedback).mockRejectedValueOnce(
+      new ApiError("boom", 503, { code: "general.unavailable" }),
+    );
+
+    render(<StudentFeedbackHistoryPage />);
+
+    expect(await screen.findByTestId("alert-error")).toHaveTextContent(
+      "Die Feedbackhistorie ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+    );
+  });
+
+  it("shows the switched-off state from the child's record", async () => {
+    vi.mocked(fetchStudent).mockResolvedValueOnce({
+      id: "1",
+      name: "Emma Müller",
+      first_name: "Emma",
+      second_name: "Müller",
+      school_class: "3b",
+      feedback_enabled: false,
+    } as unknown as Awaited<ReturnType<typeof fetchStudent>>);
+    vi.mocked(fetchStudentFeedback).mockRejectedValueOnce(
+      new ApiError("feature_disabled", 403),
+    );
+
+    render(<StudentFeedbackHistoryPage />);
+
+    expect(
+      await screen.findByText(
+        /Die Feedbackhistorie ist für Ihre Schule ausgeschaltet/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
   });
 });

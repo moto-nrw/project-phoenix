@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { ApiError } from "./api-error";
 import {
   WEEKDAYS,
   fetchArrivalSettings,
@@ -159,6 +160,30 @@ describe("student-arrival-api", () => {
       );
     });
 
+    it("keeps code, status and request ID of the envelope as an ApiError", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        mockFetchResponse(null, {
+          ok: false,
+          status: 409,
+          text: JSON.stringify({
+            status: "error",
+            error: "class not found",
+            code: "classday.arrival_exception_class_not_found",
+            instance: "req-arrival",
+          }),
+        }),
+      );
+
+      const error = await fetchArrivalData("42").catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error).toMatchObject({
+        status: 409,
+        code: "classday.arrival_exception_class_not_found",
+        requestId: "req-arrival",
+      });
+    });
+
     it("throws generic error when response has no text body", async () => {
       fetchSpy.mockResolvedValueOnce({
         ok: false,
@@ -169,6 +194,21 @@ describe("student-arrival-api", () => {
       await expect(fetchArrivalData("42")).rejects.toThrow(
         "Request failed (404)",
       );
+    });
+
+    it("classifies a network failure as unavailable", async () => {
+      fetchSpy.mockRejectedValueOnce(new TypeError("Network unavailable"));
+
+      const error = await fetchArrivalData("42").catch(
+        (failure: unknown) => failure,
+      );
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error).toMatchObject({
+        status: 503,
+        code: "general.unavailable",
+        message: "Network unavailable",
+      });
     });
   });
 

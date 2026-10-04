@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useFormError } from "~/components/ui/form-error";
 import { Clock, Loader2 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
@@ -16,7 +15,7 @@ import {
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import {
   type ArrivalDayData,
   formatShortDate,
@@ -126,7 +125,9 @@ export function CarePlanEditorModal({
   const [isResettingPickup, setIsResettingPickup] = useState(false);
   const [pickupReason, setPickupReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useFormError();
+  const formRef = useRef<HTMLFormElement>(null);
+  const errors = useApiFormError(formRef);
+  const clearErrors = errors.clear;
   const [showParentConfirm, setShowParentConfirm] = useState(false);
   const [noteDeletionTarget, setNoteDeletionTarget] =
     useState<NoteDeletionTarget | null>(null);
@@ -149,7 +150,7 @@ export function CarePlanEditorModal({
     if (initializedExceptionKey.current === exceptionKey) return;
     initializedExceptionKey.current = exceptionKey;
 
-    setError(null);
+    clearErrors();
     setShowParentConfirm(false);
     setNoteDeletionTarget(null);
     setIsDeletingNote(false);
@@ -164,7 +165,7 @@ export function CarePlanEditorModal({
     setPickupMode(pickupInit.mode);
     setPickupTime(pickupInit.time);
     setPickupReason(pickupInit.reason);
-  }, [isOpen, isException, arrivalDay, pickupDay, setError]);
+  }, [isOpen, isException, arrivalDay, pickupDay, clearErrors]);
 
   if (!isOpen || !arrivalDay || !pickupDay) return null;
 
@@ -193,18 +194,18 @@ export function CarePlanEditorModal({
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    setError(null);
+    errors.clear();
 
     if (arrivalMode === "time" && !TIME_PATTERN.test(arrivalTime)) {
-      setError("Bitte eine gültige Ankunftszeit eingeben.");
+      errors.invalid("Bitte geben Sie eine gültige Ankunftszeit ein.");
       return;
     }
     if (pickupMode === "time" && !TIME_PATTERN.test(pickupTime)) {
-      setError("Bitte eine gültige Abholzeit eingeben.");
+      errors.invalid("Bitte geben Sie eine gültige Abholzeit ein.");
       return;
     }
     if (!arrivalChanged && !pickupChanged) {
-      setError("Bitte zuerst eine Zeit ändern.");
+      errors.invalid("Bitte ändern Sie zuerst eine Zeit.");
       return;
     }
     if (overwritesParent) {
@@ -222,11 +223,7 @@ export function CarePlanEditorModal({
   };
 
   const handleNoteError = (err: unknown) => {
-    const message =
-      err instanceof Error
-        ? err.message
-        : "Hinweis konnte nicht gespeichert werden";
-    setError(message);
+    void errors.show(err, { object: "die Notiz" });
   };
 
   const closeNoteDeleteConfirmation = () => {
@@ -249,21 +246,22 @@ export function CarePlanEditorModal({
 
   const handleResetPickupToOffering = async (weekday: number, date: string) => {
     if (!onResetPickupToOffering) return;
-    setError(null);
+    errors.clear();
     setIsResettingPickup(true);
     try {
       await onResetPickupToOffering(weekday, date);
-    } catch {
-      const message =
-        "Die Abholung konnte nicht zurückgesetzt werden. Bitte versuchen Sie es noch einmal.";
-      setError(message);
+    } catch (err) {
+      await errors.show(err, {
+        object: "die Abholung",
+        retry: () => void handleResetPickupToOffering(weekday, date),
+      });
     } finally {
       setIsResettingPickup(false);
     }
   };
 
   const performSave = async () => {
-    setError(null);
+    errors.clear();
     setIsSubmitting(true);
     try {
       await onSubmitException({
@@ -275,21 +273,16 @@ export function CarePlanEditorModal({
           ? toLegSubmit(pickupMode, pickupTime, pickupReason)
           : null,
       });
-      toast.success("Ausnahme wurde gespeichert");
+      toast.success("Die Ausnahme ist gespeichert.");
       setShowParentConfirm(false);
       onClose();
     } catch (err) {
-      const raw =
-        err instanceof Error
-          ? err.message
-          : "Änderung konnte nicht gespeichert werden";
-      // The backend refuses to let an account without a staff profile overwrite
-      // a parent-set time. Surface that as a readable reason, not a raw 403.
-      const message = raw.includes("students.staff_profile_required")
-        ? "Diese Zeit wurde von den Eltern gesetzt und kann nur von Mitarbeitenden mit Personalprofil geändert werden."
-        : raw;
-      setError(message);
       cancelConfirm();
+      // Ohne „Wiederholen“: „Speichern“ wiederholt mit dem aktuellen
+      // Entwurf. Eine Ref dafür bräuchte einen Hook nach dem return null.
+      await errors.show(err, {
+        object: "die Ausnahme",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -338,13 +331,14 @@ export function CarePlanEditorModal({
           </SlideOverHeader>
           {/* Speicher- und Hinweisfehler stehen im Fehler-Slot oben im Rumpf
               (Bauart 2 Regel 5), nicht als Toast. */}
-          <SlideOverBody error={error}>
+          <SlideOverBody error={errors.error}>
             {/* noValidate: a half-cleared <input type="time"> (e.g. backspacing the
             hour of "15:00") reports validity.badInput, which makes the browser
             refuse the submit — the Save button then does nothing beyond a native
             bubble on an off-screen field. Such a field reads back as "", which
             is the removal the warning below already announces. */}
             <form
+              ref={formRef}
               id="care-plan-editor-form"
               noValidate
               onSubmit={handleSubmit}

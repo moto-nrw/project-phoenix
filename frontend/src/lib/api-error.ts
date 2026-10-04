@@ -52,6 +52,19 @@ export function errorClassCode(status: number): ErrorCode {
   return status >= 500 ? "general.server" : "general.input";
 }
 
+/** A request failed before the API could return an HTTP response. */
+export function unavailableApiError(cause?: unknown): ApiError {
+  const message =
+    cause instanceof Error && cause.message
+      ? cause.message
+      : "Network request failed";
+  const error = new ApiError(message, 503, {
+    code: "general.unavailable",
+  });
+  if (cause instanceof Error && cause.name) error.name = cause.name;
+  return error;
+}
+
 export function apiErrorFromBody(
   message: string,
   status: number,
@@ -99,6 +112,24 @@ export function apiErrorFromText(
     body = undefined;
   }
   return apiErrorFromBody(message, status, body);
+}
+
+/**
+ * For clients that hold the failed `Response`: keeps their message and takes
+ * code, field errors and request ID from the envelope. A body that cannot be
+ * read still yields the status class.
+ */
+export async function apiErrorFromResponse(
+  response: Response,
+  message: string,
+): Promise<ApiError> {
+  let text = "";
+  try {
+    text = await response.text();
+  } catch {
+    // Body already consumed or the stream broke: the status still classifies.
+  }
+  return apiErrorFromText(message, response.status, text);
 }
 
 /** Add wire fields without replacing the domain error's message or type. */

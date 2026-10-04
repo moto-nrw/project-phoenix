@@ -19,7 +19,7 @@ import {
   type StudentExportPreset,
 } from "~/lib/student-export-api";
 import { parseMultiValueParam } from "~/lib/multi-value-param";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   SlideOver,
@@ -31,6 +31,7 @@ import {
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { Checkbox } from "~/components/ui/checkbox";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 
@@ -105,7 +106,13 @@ export function StudentExportModal({
     useState(false);
   const [exporting, setExporting] = useState(false);
   const toast = useToast();
+  const errors = useApiFormError();
+  const clearErrors = errors.clear;
   const isHealthList = preset === "health_list";
+
+  useEffect(() => {
+    if (!isOpen) clearErrors();
+  }, [isOpen, clearErrors]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -210,9 +217,10 @@ export function StudentExportModal({
 
   const handleExport = async () => {
     if (columns.length === 0) {
-      toast.error("Bitte wähle mindestens eine Spalte aus.");
+      errors.invalid("Bitte wählen Sie mindestens eine Spalte aus.");
       return;
     }
+    errors.clear();
     setExporting(true);
     try {
       await exportStudents({
@@ -233,13 +241,17 @@ export function StudentExportModal({
         },
         columns,
       });
-      toast.success("Export wurde erstellt.");
+      toast.success("Die Datei ist heruntergeladen.");
       onClose();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Export fehlgeschlagen";
-      logger.error("student_export_failed", { error: message });
-      toast.error(message);
+      logger.error("student_export_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Ohne „Wiederholen“: „Exportieren“ wiederholt mit der aktuellen
+      // Auswahl. Eine Ref dafür bräuchte einen Hook nach dem return null.
+      await errors.show(error, {
+        object: "die Exportdatei",
+      });
     } finally {
       setExporting(false);
     }
@@ -292,6 +304,7 @@ export function StudentExportModal({
           />
         </SlideOverHeader>
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+          <FormErrorAlert message={errors.error} />
           <section>
             <label
               htmlFor="student-export-title-input"

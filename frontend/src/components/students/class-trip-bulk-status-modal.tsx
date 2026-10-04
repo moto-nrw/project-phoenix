@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useFormError } from "~/components/ui/form-error";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { format } from "date-fns/format";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import type { Student } from "~/lib/api";
 import { formatDate as formatCalendarDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -17,7 +16,6 @@ import {
   type StudentStatusDay,
   type StudentStatusKind,
   StudentStatusDayConflictError,
-  StudentStatusDayPartialAbsenceConflictError,
 } from "~/lib/student-status-days-api";
 
 const logger = createLogger({ component: "ClassTripBulkStatusModal" });
@@ -50,7 +48,10 @@ export function ClassTripBulkStatusModal({
   const [conflictTotal, setConflictTotal] = useState(0);
   // Validation and save errors of the form (Bauart 2 Regel 5): shown in the
   // FormModal error slot, not as a toast.
-  const [formError, setFormError] = useFormError();
+  const formErrors = useApiFormError();
+  const clearFormErrors = formErrors.clear;
+  // „Wiederholen“ speichert die aktuelle Eingabe, nicht die vom Fehler.
+  const latestSubmitRef = useRef<() => Promise<void>>(async () => undefined);
 
   useEffect(() => {
     if (!isOpen) {
@@ -63,13 +64,13 @@ export function ClassTripBulkStatusModal({
     setReason("");
     setConflicts([]);
     setConflictTotal(0);
-    setFormError(null);
-  }, [isOpen, setFormError]);
+    clearFormErrors();
+  }, [isOpen, clearFormErrors]);
 
   const handleSubmit = async () => {
-    setFormError(null);
+    formErrors.clear();
     if (!from || !to || to < from) {
-      setFormError("Bitte einen gültigen Zeitraum wählen");
+      formErrors.invalid("Bitte wählen Sie einen gültigen Zeitraum.");
       return;
     }
 
@@ -84,38 +85,40 @@ export function ClassTripBulkStatusModal({
         to,
         reason.trim() || undefined,
       );
-      toastSuccess(`Klassenfahrt für ${students.length} Schüler gespeichert`);
+      toastSuccess(
+        `Die Klassenfahrt für ${students.length} Schüler ist gespeichert.`,
+      );
       onSuccess?.();
       onClose();
     } catch (err) {
-      if (err instanceof StudentStatusDayPartialAbsenceConflictError) {
-        setFormError(err.message);
-        return;
-      }
       if (err instanceof StudentStatusDayConflictError) {
+        // Die Liste der betroffenen Tage kommt strukturiert mit und steht
+        // unter dem Formular; der Satz oben kommt aus dem Katalog.
         setConflicts(err.conflicts);
         setConflictTotal(err.totalCount);
-        setFormError(
-          "Bestehende Status-Tage verhindern die Speicherung. Es wurde nichts überschrieben.",
-        );
-        return;
+      } else {
+        logger.error("failed to bulk create class trip", {
+          targetLabel,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
-      const message = err instanceof Error ? err.message : String(err);
-      logger.error("failed to bulk create class trip", {
-        targetLabel,
-        error: message,
+      await formErrors.show(err, {
+        object: "die Klassenfahrt",
+        retry: () => void latestSubmitRef.current(),
       });
-      setFormError(`Fehler beim Speichern: ${message}`);
     } finally {
       setSaving(false);
     }
   };
+  useLayoutEffect(() => {
+    latestSubmitRef.current = handleSubmit;
+  });
 
   return (
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      error={formError}
+      error={formErrors.error}
       title={`Klassenfahrt planen: ${targetLabel}`}
       size="md"
       mobilePosition="bottom"

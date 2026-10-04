@@ -1,4 +1,10 @@
-import { ApiError, enrichApiError } from "./api-error";
+import {
+  ApiError,
+  apiErrorFromResponse,
+  apiErrorFromText,
+  enrichApiError,
+  unavailableApiError,
+} from "./api-error";
 // lib/student-api.ts
 import { getCachedSession, sessionFetch } from "./session-cache";
 import { createLogger } from "~/lib/logger";
@@ -97,6 +103,9 @@ export interface StudentEnrollmentExtraFieldGroup {
 
 // Error handler using shared utility
 function handleStudentApiError(error: unknown, context: string): never {
+  // A structured failure keeps code, fields and request ID for the shared
+  // error path (#2513); only untyped errors get the legacy wrapping.
+  if (error instanceof ApiError) throw error;
   handleDomainApiError(error, context, "STUDENT");
 }
 
@@ -747,16 +756,22 @@ export async function uploadStudentPhoto(
   const session = await getCachedSession();
   const token = session?.user?.token;
   if (!token) {
-    throw new Error("Authentifizierung erforderlich");
+    // 401 sends the person to the login screen on the shared error path.
+    throw new ApiError("Authentifizierung erforderlich", 401);
   }
 
   // Use raw fetch — authFetch wraps JSON bodies, but this endpoint expects
   // multipart/form-data. We forward the cookie-derived JWT manually.
-  const response = await fetch(url, {
-    method: "POST",
-    body: formData,
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      body: formData,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch (error) {
+    throw unavailableApiError(error);
+  }
 
   if (!response.ok) {
     const text = await response.text();
@@ -765,7 +780,11 @@ export async function uploadStudentPhoto(
       status: response.status,
       error: text,
     });
-    throw new Error(text || `Upload fehlgeschlagen (HTTP ${response.status})`);
+    throw apiErrorFromText(
+      text || `Upload fehlgeschlagen (HTTP ${response.status})`,
+      response.status,
+      text,
+    );
   }
 
   const body = (await response.json()) as
@@ -826,7 +845,8 @@ export async function fetchStudentPrivacyConsent(
 
       if (!response.ok) {
         if (response.status === 404) return null;
-        throw new Error(
+        throw await apiErrorFromResponse(
+          response,
           `API error (${response.status}): ${response.statusText}`,
         );
       }

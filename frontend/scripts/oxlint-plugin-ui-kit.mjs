@@ -482,7 +482,7 @@ src/components/planning/closing-day-marker.tsx|text-[10px]@53
 src/components/staff/absence-request-row.tsx|text-[11px]@107
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@480 text-[11px]@576 text-[11px]@585 text-[11px]@592 text-[10px]@726
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
-src/components/students/care-schedule-manager.tsx|text-[10px]@1201 text-[11px]@1362 text-[11px]@1451 text-[11px]@1461 text-[11px]@1491
+src/components/students/care-schedule-manager.tsx|text-[10px]@1223 text-[11px]@1384 text-[11px]@1473 text-[11px]@1483 text-[11px]@1513
 src/components/students/planned-status-days-modal.tsx|text-[10px]@927 text-[11px]@927
 src/components/students/school-checkin-fab.tsx|text-[10px]@198
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150

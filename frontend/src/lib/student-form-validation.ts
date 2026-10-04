@@ -5,45 +5,6 @@
 
 import type { DepartureDayKey, Student } from "~/lib/student-helpers";
 import { accompaniedWeekdayKeys } from "~/lib/student-helpers";
-import { createLogger } from "~/lib/logger";
-import { childQuotaMessage } from "~/lib/child-quota-error";
-
-const logger = createLogger({ component: "StudentFormValidation" });
-
-const GENERIC_SUBMIT_ERROR =
-  "Fehler beim Speichern. Bitte versuchen Sie es erneut.";
-
-/**
- * Picks the message to show in the form's submit-error box.
- *
- * Backend validation failures (HTTP 4xx) carry a user-facing German message —
- * e.g. a guardian's email already exists or an invalid relationship type from
- * the atomic student+guardian create flow (#1500). Those must reach the user,
- * because a retry won't fix them. Network/server errors (5xx) and untyped
- * errors stay generic: surfacing "Network error" or "API error: 500" is noise.
- *
- * The HTTP status is attached by the CRUD service's fetch layer
- * (`createCrudService`); an error without a numeric `status` is treated as
- * technical and gets the generic message.
- */
-function toSubmitErrorMessage(error: unknown): string {
-  const quotaMessage = childQuotaMessage(error);
-  if (quotaMessage) return quotaMessage;
-  if (error instanceof Error) {
-    const status = (error as { status?: number }).status;
-    const message = error.message.trim();
-    if (
-      typeof status === "number" &&
-      status >= 400 &&
-      status < 500 &&
-      message !== "" &&
-      !message.startsWith("API error")
-    ) {
-      return message;
-    }
-  }
-  return GENERIC_SUBMIT_ERROR;
-}
 
 /**
  * Validates data retention days field
@@ -54,10 +15,10 @@ export function validateDataRetentionDays(
   retentionDays: number | null | undefined,
 ): string | undefined {
   if (retentionDays === null || retentionDays === undefined) {
-    return "Aufbewahrungsdauer ist erforderlich (1-31 Tage)";
+    return "Bitte geben Sie eine Zahl von 1 bis 31 ein.";
   }
   if (retentionDays < 1 || retentionDays > 31) {
-    return "Aufbewahrungsdauer muss zwischen 1 und 31 Tagen liegen";
+    return "Bitte geben Sie eine Zahl von 1 bis 31 ein.";
   }
   return undefined;
 }
@@ -66,7 +27,9 @@ export function validateDataRetentionDays(
  * Validates required student fields
  * @param formData - The form data to validate
  * @param requiredFields - Which fields are required
- * @returns Record of field errors
+ * @returns Hint per invalid field, keyed by the API field name, so the
+ *   shared error path marks and focuses the same control a backend field
+ *   error would (#2513).
  */
 export function validateStudentForm(
   formData: Partial<Student>,
@@ -92,13 +55,13 @@ export function validateStudentForm(
   const errors: Record<string, string> = {};
 
   if (requiredFields.firstName && !formData.first_name?.trim()) {
-    errors.first_name = "Vorname ist erforderlich";
+    errors.first_name = "Bitte geben Sie den Vornamen ein.";
   }
   if (requiredFields.lastName && !formData.second_name?.trim()) {
-    errors.second_name = "Nachname ist erforderlich";
+    errors.last_name = "Bitte geben Sie den Nachnamen ein.";
   }
   if (requiredFields.schoolClass && !formData.school_class?.trim()) {
-    errors.school_class = "Klasse ist erforderlich";
+    errors.school_class = "Bitte geben Sie die Klasse ein.";
   }
 
   const retentionError = validateDataRetentionDays(
@@ -124,48 +87,9 @@ export function validateStudentForm(
     const covered = new Set(options.companionLinkDays ?? []);
     if (accompaniedDays.some((day) => !covered.has(day))) {
       errors.departure_companion_note =
-        "Bitte angeben, mit welchem Kind das Kind nach Hause geht";
+        "Bitte geben Sie an, mit wem das Kind nach Hause geht.";
     }
   }
 
   return errors;
-}
-
-/**
- * Handles form submission with loading state and error handling
- * @param e - Form event
- * @param formData - The form data to submit
- * @param validateForm - Validation function
- * @param onSubmit - Submit handler
- * @param setLoading - Loading state setter
- * @param setErrors - Error state setter
- * @param onError - Optional; fired after errors are set (client validation
- *   failure or server rejection) so callers can scroll to the first error.
- */
-export async function handleStudentFormSubmit(
-  e: React.FormEvent,
-  formData: Partial<Student>,
-  validateForm: () => boolean,
-  onSubmit: (data: Partial<Student>) => Promise<void>,
-  setLoading: (loading: boolean) => void,
-  setErrors: (errors: Record<string, string>) => void,
-  onError?: () => void,
-): Promise<void> {
-  e.preventDefault();
-
-  if (!validateForm()) {
-    onError?.();
-    return;
-  }
-
-  try {
-    setLoading(true);
-    await onSubmit(formData);
-  } catch (error) {
-    logger.error("error saving student", { error: String(error) });
-    setErrors({ submit: toSubmitErrorMessage(error) });
-    onError?.();
-  } finally {
-    setLoading(false);
-  }
 }

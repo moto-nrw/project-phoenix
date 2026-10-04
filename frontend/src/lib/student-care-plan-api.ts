@@ -9,6 +9,8 @@
  * care-plan-helpers.ts and the view, not by this client.
  */
 
+import { apiErrorFromBody, apiErrorFromResponse } from "./api-error";
+
 /** Arrival/pickup slot source — mirrors SlotSource* in the backend. */
 type CarePlanSlotSource = "schedule" | "exception" | "none";
 
@@ -183,7 +185,7 @@ async function parseApiResult<T>(
 ): Promise<T> {
   const result = (await response.json()) as ApiResponse<T>;
   if (result.status === "error" || !result.data) {
-    throw new Error(result.error ?? fallback);
+    throw apiErrorFromBody(result.error ?? fallback, response.status, result);
   }
   return result.data;
 }
@@ -200,7 +202,7 @@ export async function fetchStudentCarePlanDay(
   const response = await fetch(
     `/api/timetable/student/${studentId}/day?date=${date}`,
   );
-  if (!response.ok) throw new Error(LOAD_ERROR);
+  if (!response.ok) throw await apiErrorFromResponse(response, LOAD_ERROR);
   const data = await parseApiResult<BackendDay>(response, LOAD_ERROR);
   return mapDay(data);
 }
@@ -214,7 +216,7 @@ export async function fetchStudentCarePlanWeek(
   const response = await fetch(
     `/api/timetable/student/${studentId}/week?from=${from}&to=${to}`,
   );
-  if (!response.ok) throw new Error(LOAD_ERROR);
+  if (!response.ok) throw await apiErrorFromResponse(response, LOAD_ERROR);
   const data = await parseApiResult<BackendWeek>(response, LOAD_ERROR);
   return mapWeek(data);
 }

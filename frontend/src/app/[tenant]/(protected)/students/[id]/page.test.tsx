@@ -9,6 +9,8 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import StudentDetailPage from "./page";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { SWRConfig } from "swr";
 import { useSession } from "next-auth/react";
 
@@ -81,8 +83,19 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 
 // Mock Alert component
 vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ message, type }: { message: string; type: string }) => (
-    <div data-testid={`alert-${type}`}>{message}</div>
+  Alert: ({
+    message,
+    type,
+    action,
+  }: {
+    message: string;
+    type: string;
+    action?: React.ReactNode;
+  }) => (
+    <div data-testid={`alert-${type}`}>
+      {message}
+      {action}
+    </div>
   ),
 }));
 
@@ -467,7 +480,7 @@ interface MockStudent {
 interface MockStudentDataResult {
   student: MockStudent | null;
   loading: boolean;
-  error: string | null;
+  error: unknown;
   hasFullAccess: boolean;
   hasWriteAccess: boolean;
   hasAbsenceWriteAccess: boolean;
@@ -530,7 +543,11 @@ vi.mock("~/lib/student-partial-absences-api", () => ({
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
 const mockToastWarning = vi.fn();
-vi.mock("~/contexts/ToastContext", () => ({
+const mockShowActionError = vi.fn();
+// Form and load errors use the real hooks (no provider needed); toasts and
+// the toast error path are spies.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: vi.fn(() => ({
     success: mockToastSuccess,
     error: mockToastError,
@@ -538,6 +555,7 @@ vi.mock("~/contexts/ToastContext", () => ({
     warning: mockToastWarning,
     remove: vi.fn(),
   })),
+  useApiErrorDisplay: vi.fn(() => ({ show: mockShowActionError })),
 }));
 
 // Test data
@@ -647,11 +665,14 @@ describe("StudentDetailPage", () => {
   });
 
   describe("Error State", () => {
-    it("shows error message when fetching fails", () => {
+    it("shows the catalog text with retry when fetching fails", async () => {
       mockUseStudentData.mockReturnValue({
         student: null,
         loading: false,
-        error: "Kind nicht gefunden",
+        error: new ApiError("boom", 500, {
+          code: "general.server",
+          instance: "req-student",
+        }),
         hasFullAccess: false,
         hasWriteAccess: false,
         hasAbsenceWriteAccess: false,
@@ -665,8 +686,32 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
-      expect(screen.getByTestId("alert-error")).toBeInTheDocument();
-      expect(screen.getByText("Kind nicht gefunden")).toBeInTheDocument();
+      expect(await screen.findByTestId("alert-error")).toHaveTextContent(
+        "Die Kindakte konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+      );
+    });
+
+    it("says the child was not found for a 404", () => {
+      mockUseStudentData.mockReturnValue({
+        student: null,
+        loading: false,
+        error: new ApiError("not found", 404),
+        hasFullAccess: false,
+        hasWriteAccess: false,
+        hasAbsenceWriteAccess: false,
+        hasSickExcusedWriteAccess: false,
+        supervisors: [],
+        myGroups: [],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+
+      render(<StudentDetailPage />);
+
+      expect(screen.getByTestId("alert-error")).toHaveTextContent(
+        "Kind nicht gefunden",
+      );
     });
 
     it("shows error when student is null", () => {
@@ -1105,8 +1150,11 @@ describe("StudentDetailPage", () => {
       });
     });
 
-    it("shows error toast when checkout fails", async () => {
-      mockSchoolCheckinStudent.mockRejectedValue(new Error("Checkout failed"));
+    it("shows the error in the dialog when checkout fails", async () => {
+      const failure = new ApiError("Checkout failed", 500, {
+        code: "general.server",
+      });
+      mockSchoolCheckinStudent.mockRejectedValue(failure);
 
       render(<StudentDetailPage />);
 
@@ -1122,9 +1170,16 @@ describe("StudentDetailPage", () => {
         fireEvent.click(confirmButton);
       });
 
-      await waitFor(() => {
-        expect(mockToastError).toHaveBeenCalled();
-      });
+      // Der Dialog bleibt offen; ein Toast läge hinter seinem Hintergrund.
+      const dialog = screen.getByTestId("modal-kind-abmelden");
+      expect(
+        await within(dialog).findByText(
+          catalogText("general.server", "die Anwesenheit"),
+        ),
+      ).toBeInTheDocument();
+      // Der Bestätigen-Knopf wiederholt mit dem aktuellen Stand.
+      expect(within(dialog).getByTestId("modal-confirm")).toBeEnabled();
+      expect(mockToastError).not.toHaveBeenCalled();
     });
   });
 
@@ -1186,8 +1241,11 @@ describe("StudentDetailPage", () => {
       });
     });
 
-    it("shows error toast when checkin fails", async () => {
-      mockSchoolCheckinStudent.mockRejectedValue(new Error("Checkin failed"));
+    it("shows the error in the dialog when checkin fails", async () => {
+      const failure = new ApiError("Checkin failed", 500, {
+        code: "general.server",
+      });
+      mockSchoolCheckinStudent.mockRejectedValue(failure);
 
       render(<StudentDetailPage />);
 
@@ -1203,9 +1261,16 @@ describe("StudentDetailPage", () => {
         fireEvent.click(confirmButton);
       });
 
-      await waitFor(() => {
-        expect(mockToastError).toHaveBeenCalled();
-      });
+      // Der Dialog bleibt offen; ein Toast läge hinter seinem Hintergrund.
+      const dialog = screen.getByTestId("modal-kind-anmelden");
+      expect(
+        await within(dialog).findByText(
+          catalogText("general.server", "die Anwesenheit"),
+        ),
+      ).toBeInTheDocument();
+      // Der Bestätigen-Knopf wiederholt mit dem aktuellen Stand.
+      expect(within(dialog).getByTestId("modal-confirm")).toBeEnabled();
+      expect(mockToastError).not.toHaveBeenCalled();
     });
   });
 
@@ -1438,6 +1503,46 @@ describe("StudentDetailPage", () => {
           screen.getByTestId("modal-krankmeldung-aufheben"),
         ).toBeInTheDocument();
       });
+    });
+
+    it("shows a failed sick toggle in the dialog, not as a toast", async () => {
+      mockUseStudentData.mockReturnValue({
+        student: { ...mockStudent, sick: true },
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
+        supervisors: [],
+        myGroups: ["1"],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+      mockUpdateStudent.mockRejectedValue(
+        new ApiError("boom", 500, {
+          code: "general.server",
+          instance: "req-sick",
+        }),
+      );
+
+      render(<StudentDetailPage />);
+      fireEvent.click(screen.getByTestId("sick-toggle-button"));
+      const dialog = await screen.findByTestId("modal-krankmeldung-aufheben");
+      await act(async () => {
+        fireEvent.click(within(dialog).getByTestId("modal-confirm"));
+      });
+
+      expect(
+        await within(dialog).findByText(
+          catalogText("general.server", "die Krankmeldung"),
+        ),
+      ).toBeInTheDocument();
+      // Der Bestätigen-Knopf wiederholt mit dem aktuellen Stand.
+      expect(within(dialog).getByTestId("modal-confirm")).toBeEnabled();
+      expect(mockShowActionError).not.toHaveBeenCalled();
+      expect(mockToastError).not.toHaveBeenCalled();
     });
 
     it("closes sick date picker modal when cancel is clicked", async () => {
@@ -1842,8 +1947,9 @@ describe("StudentDetailPage", () => {
       });
     });
 
-    it("shows error toast if the switch request fails", async () => {
-      mockUpdateStudent.mockRejectedValue(new Error("boom"));
+    it("shows the error in the dialog if the switch request fails", async () => {
+      const failure = new ApiError("boom", 500, { code: "general.server" });
+      mockUpdateStudent.mockRejectedValue(failure);
       mockUseStudentData.mockReturnValue({
         student: { ...mockStudent, excused: true },
         loading: false,
@@ -1868,9 +1974,16 @@ describe("StudentDetailPage", () => {
       await act(async () => {
         fireEvent.click(screen.getByTestId("modal-confirm"));
       });
-      await waitFor(() => {
-        expect(mockToastError).toHaveBeenCalled();
-      });
+      // Der Dialog bleibt offen; ein Toast läge hinter seinem Hintergrund.
+      const dialog = screen.getByTestId("modal-als-krank-melden?");
+      expect(
+        await within(dialog).findByText(
+          catalogText("general.server", "die Änderung des Status"),
+        ),
+      ).toBeInTheDocument();
+      // Der Bestätigen-Knopf wiederholt mit dem aktuellen Stand.
+      expect(within(dialog).getByTestId("modal-confirm")).toBeEnabled();
+      expect(mockToastError).not.toHaveBeenCalled();
     });
 
     it("closes the switch dialog on cancel without calling the API", async () => {

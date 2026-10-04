@@ -10,7 +10,7 @@ import React, {
   useState,
   type RefObject,
 } from "react";
-import { useFormError } from "~/components/ui/form-error";
+import { useFormError, type FormErrorDetail } from "~/components/ui/form-error";
 import { Toast } from "~/components/ui/toast";
 import { clientEnv } from "~/env.client";
 import { normalizeLocale, type AppLocale } from "~/i18n/locales";
@@ -454,8 +454,17 @@ interface DisplayedError {
 function useApiErrorCore(
   formRef: RefObject<HTMLElement | null> | undefined,
   deliver: (shown: DisplayedError, locale: AppLocale) => void,
+  markFields = true,
 ) {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  // A catalog import can finish after the caller has cleared the error, shown
+  // another one, or unmounted. Only the latest request may update its state.
+  const showVersion = useRef(0);
+  const invalidatePendingShow = useCallback(() => {
+    showVersion.current += 1;
+  }, []);
+
+  useEffect(() => invalidatePendingShow, [invalidatePendingShow]);
 
   useEffect(() => {
     const firstField = Object.keys(fieldErrors)[0];
@@ -476,6 +485,8 @@ function useApiErrorCore(
 
   const show = useCallback(
     async (error: unknown, options: ApiErrorDisplayOptions) => {
+      const version = showVersion.current + 1;
+      showVersion.current = version;
       const locale = normalizeLocale(document.documentElement.lang);
       // The provider is mounted on every route. Load the catalog only when a
       // screen actually uses the opt-in error path.
@@ -483,6 +494,7 @@ function useApiErrorCore(
       try {
         presenter = await import("~/lib/error-presentation");
       } catch {
+        if (showVersion.current !== version) return;
         if (error instanceof ApiError && error.status === 401) {
           window.location.assign(
             loginUrl(window.location.host, window.location.pathname),
@@ -500,6 +512,7 @@ function useApiErrorCore(
         );
         return;
       }
+      if (showVersion.current !== version) return;
       const { presentError, errorDisplayLabels } = presenter;
       const presentation = presentError(error, options.object, locale);
       if (presentation.requiresLogin) {
@@ -510,9 +523,11 @@ function useApiErrorCore(
       }
       const labels = errorDisplayLabels(locale);
       setFieldErrors(
-        Object.fromEntries(
-          presentation.fields.map((field) => [field, labels.fieldCheck]),
-        ),
+        markFields
+          ? Object.fromEntries(
+              presentation.fields.map((field) => [field, labels.fieldCheck]),
+            )
+          : {},
       );
       deliver(
         {
@@ -528,7 +543,7 @@ function useApiErrorCore(
       );
       return presentation;
     },
-    [deliver],
+    [deliver, markFields],
   );
 
   const clearFieldErrors = useCallback(() => setFieldErrors({}), []);
@@ -537,6 +552,8 @@ function useApiErrorCore(
     show,
     fieldError: (name: string) => fieldErrors[name],
     clearFieldErrors,
+    setFieldErrors,
+    invalidatePendingShow,
   };
 }
 
@@ -555,6 +572,26 @@ export function useApiErrorDisplay(formRef?: RefObject<HTMLElement | null>) {
   return useApiErrorCore(formRef, deliver);
 }
 
+function toFormErrorDetail(
+  shown: DisplayedError,
+  locale: AppLocale,
+): FormErrorDetail {
+  const labels = toastLabelsByLocale[locale];
+  return {
+    message: shown.message,
+    retry: shown.retry,
+    requestId: shown.requestId
+      ? {
+          value: shown.requestId,
+          label: shown.requestIdLabel ?? shown.requestId,
+          copyLabel: labels.copyRequestId,
+          copiedLabel: labels.copySucceeded,
+          copyFailedLabel: labels.copyFailed,
+        }
+      : undefined,
+  };
+}
+
 /**
  * Opt-in display path for a form (#2511, Bauart 2 Regel 5): the message goes
  * to the form's `FormErrorAlert`, never to a toast; field errors stay at the
@@ -563,36 +600,66 @@ export function useApiErrorDisplay(formRef?: RefObject<HTMLElement | null>) {
 export function useApiFormError(formRef?: RefObject<HTMLElement | null>) {
   const [error, setError] = useFormError();
   const deliver = useCallback(
-    (shown: DisplayedError, locale: AppLocale) => {
-      const labels = toastLabelsByLocale[locale];
-      setError({
-        message: shown.message,
-        retry: shown.retry,
-        requestId: shown.requestId
-          ? {
-              value: shown.requestId,
-              label: shown.requestIdLabel ?? shown.requestId,
-              copyLabel: labels.copyRequestId,
-              copiedLabel: labels.copySucceeded,
-              copyFailedLabel: labels.copyFailed,
-            }
-          : undefined,
-      });
-    },
+    (shown: DisplayedError, locale: AppLocale) =>
+      setError(toFormErrorDetail(shown, locale)),
     [setError],
   );
-  const { show, fieldError, clearFieldErrors } = useApiErrorCore(
-    formRef,
-    deliver,
-  );
+  const {
+    show,
+    fieldError,
+    clearFieldErrors,
+    setFieldErrors,
+    invalidatePendingShow,
+  } = useApiErrorCore(formRef, deliver);
   const clear = useCallback(() => {
+    invalidatePendingShow();
     setError(null);
     clearFieldErrors();
-  }, [clearFieldErrors, setError]);
+  }, [clearFieldErrors, invalidatePendingShow, setError]);
+  /**
+   * A check the form runs before sending (#2513): same alert, the named
+   * fields marked with their own hint, the first of them focused. `fields`
+   * maps the control's `name` to its hint.
+   */
+  const invalid = useCallback(
+    (message: string, fields: Readonly<Record<string, string>> = {}) => {
+      invalidatePendingShow();
+      setError(message);
+      setFieldErrors({ ...fields });
+    },
+    [invalidatePendingShow, setError, setFieldErrors],
+  );
   return {
     error,
     show,
+    invalid,
     fieldError,
     clear,
   };
+}
+
+/**
+ * Opt-in display path for a failed load (#2513): the message stays where the
+ * data is missing, with retry and request ID, never in a toast (no toast
+ * without a user action) and never as an empty state. Render `error` in
+ * `LoadErrorAlert` or pass it to `TenantPage error`. Fields of the
+ * surrounding page are neither marked nor focused.
+ */
+export function useApiLoadError() {
+  const [error, setError] = useFormError();
+  const deliver = useCallback(
+    (shown: DisplayedError, locale: AppLocale) =>
+      setError(toFormErrorDetail(shown, locale)),
+    [setError],
+  );
+  const { show, invalidatePendingShow } = useApiErrorCore(
+    undefined,
+    deliver,
+    false,
+  );
+  const clear = useCallback(() => {
+    invalidatePendingShow();
+    setError(null);
+  }, [invalidatePendingShow, setError]);
+  return { error, show, clear };
 }

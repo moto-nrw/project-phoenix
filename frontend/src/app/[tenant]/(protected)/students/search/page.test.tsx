@@ -10,6 +10,7 @@ import {
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { roomService } from "~/lib/api";
+import { ApiError } from "~/lib/api-error";
 import StudentSearchPage from "./page";
 
 const STUDENT_SEARCH_FILTER_STORAGE_KEY =
@@ -1453,35 +1454,43 @@ describe("StudentSearchPage", () => {
       mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
-        error: new Error("403 Forbidden"),
+        error: new ApiError("403 Forbidden", 403, {
+          code: "general.permission",
+        }),
       } as ReturnType<typeof swrModule.useSWRAuth>);
 
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        // Check that at least one element contains the error message
-        const errorElements = screen.getAllByText(/keine Berechtigung/i);
+        const errorElements = screen.getAllByText(
+          /Für die Liste der Kinder fehlt Ihnen die Berechtigung/,
+        );
         expect(errorElements.length).toBeGreaterThan(0);
       });
     });
 
-    it("renders 401 session expired error message", async () => {
+    it("sends an expired session to the login", async () => {
+      const assign = vi
+        .spyOn(window.location, "assign")
+        .mockImplementation(() => undefined);
       const swrModule = await import("~/lib/swr");
       mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
-        error: new Error("401 Unauthorized"),
+        error: new ApiError("401 Unauthorized", 401),
       } as ReturnType<typeof swrModule.useSWRAuth>);
 
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        const errorElements = screen.getAllByText(/Sitzung ist abgelaufen/i);
-        expect(errorElements.length).toBeGreaterThan(0);
+        expect(assign).toHaveBeenCalledWith(
+          expect.stringContaining("error=SessionExpired"),
+        );
       });
+      assign.mockRestore();
     });
 
-    it("renders generic error for other API errors", async () => {
+    it("renders the catalog text for a failed request without a code", async () => {
       const swrModule = await import("~/lib/swr");
       mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
@@ -1493,7 +1502,7 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         const errorElements = screen.getAllByText(
-          /Fehler beim Laden der Kinderdaten/i,
+          /Die Liste der Kinder konnte nicht bearbeitet werden/,
         );
         expect(errorElements.length).toBeGreaterThan(0);
       });
@@ -1798,22 +1807,21 @@ describe("StudentSearchPage", () => {
   });
 
   describe("Error Display Rendering", () => {
-    // Fix P3 regression test: Error heading now uses errorType instead of substring matching
+    // The permission state is read from the status, never from the message.
     it("renders 'Keine Berechtigung' heading for 403 errors (P3 fix)", async () => {
       const swrModule = await import("~/lib/swr");
       mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
-        error: new Error("403 Forbidden"),
+        error: new ApiError("Forbidden", 403, { code: "general.permission" }),
       } as ReturnType<typeof swrModule.useSWRAuth>);
 
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        // The transformed error message for 403
         expect(
           screen.getAllByText(
-            /Sie haben keine Berechtigung, Kinderdaten anzuzeigen/,
+            "Für die Liste der Kinder fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
           ).length,
         ).toBeGreaterThan(0);
         // Der eingebettete Sperrzustand verwendet die einheitliche Forbidden-Überschrift
@@ -1824,46 +1832,25 @@ describe("StudentSearchPage", () => {
       });
     });
 
-    it("renders 'Fehler' heading for 401 session errors", async () => {
+    // Retry and request ID come along as the alert's action; this file mocks
+    // Alert without actions, page.nav-reset.test.tsx clicks the retry.
+    it("renders a server error in the page's error state", async () => {
       const swrModule = await import("~/lib/swr");
       mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
-        error: new Error("401 Unauthorized"),
+        error: new ApiError("500 Internal Server Error", 500, {
+          code: "general.server",
+          instance: "req-search",
+        }),
       } as ReturnType<typeof swrModule.useSWRAuth>);
 
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        // The transformed error message for 401
-        expect(
-          screen.getAllByText(/Sitzung ist abgelaufen/).length,
-        ).toBeGreaterThan(0);
-        // Der Ladefehler steht jetzt im Fehlerzustand des Seitengerüsts.
+        // Der Ladefehler steht im Fehlerzustand des Seitengerüsts.
         expect(screen.getByTestId("alert-error")).toHaveTextContent(
-          /Sitzung ist abgelaufen/,
-        );
-      });
-    });
-
-    it("renders generic error heading for non-403/401 errors", async () => {
-      const swrModule = await import("~/lib/swr");
-      mockUseSWRAuthWithStudents(swrModule, {
-        data: undefined,
-        isLoading: false,
-        error: new Error("500 Internal Server Error"),
-      } as ReturnType<typeof swrModule.useSWRAuth>);
-
-      render(<StudentSearchPage />);
-
-      await waitFor(() => {
-        // The generic error message
-        expect(
-          screen.getAllByText(/Fehler beim Laden der Kinderdaten/).length,
-        ).toBeGreaterThan(0);
-        // Der Ladefehler steht jetzt im Fehlerzustand des Seitengerüsts.
-        expect(screen.getByTestId("alert-error")).toHaveTextContent(
-          /Fehler beim Laden der Kinderdaten/,
+          "Die Liste der Kinder konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
         );
       });
     });

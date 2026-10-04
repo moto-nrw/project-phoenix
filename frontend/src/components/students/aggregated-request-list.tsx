@@ -17,10 +17,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useViewportAtLeast } from "~/lib/hooks/use-viewport-at-least";
 import { useReturnFocus } from "~/lib/hooks/use-return-focus";
@@ -30,7 +30,6 @@ import { staffReasonRequired } from "~/lib/tenant-api";
 import type { CareWithdrawalCompletion } from "~/lib/care-exit-api";
 import {
   bulkApproveParentRequests,
-  ChangeRequestStaleError,
   type AggregatedOpenRequest,
   type BulkApproveRequestRef,
   type ParentRequestKind,
@@ -57,7 +56,6 @@ import {
   NoCaseSelectedState,
   RequestEmptyState,
 } from "~/components/students/requests/request-empty-states";
-import { STALE_REQUEST_NOTICE } from "~/components/students/requests/request-copy";
 import {
   useMergedRequestFeed,
   useRequestSources,
@@ -106,9 +104,22 @@ export function AggregatedRequestList({
   >(undefined);
   const sources = useRequestSources(view, filters, setReviewAccess);
   const feed = useMergedRequestFeed(sources, view);
-  const { items, setItems, hasMore, loading, loadingMore, error, setError } =
-    feed;
-  const withdrawalsFeed = useWithdrawalFeed(view, filters, setError);
+  const {
+    items,
+    setItems,
+    hasMore,
+    loading,
+    loadingMore,
+    error,
+    clearError,
+    reportError,
+  } = feed;
+  const withdrawalsFeed = useWithdrawalFeed(
+    view,
+    filters,
+    reportError,
+    clearError,
+  );
   const {
     items: withdrawals,
     setItems: setWithdrawals,
@@ -119,7 +130,7 @@ export function AggregatedRequestList({
     loadMore: loadMoreWithdrawals,
   } = withdrawalsFeed;
   const { success: showSuccess } = useToast();
-  const [staleNotice, setStaleNotice] = useState<string | null>(null);
+  const { show: showActionError } = useApiErrorDisplay();
   const [selectedCaseKey, setSelectedCaseKey] = useState<string | null>(null);
   const [selectedForBulk, setSelectedForBulk] = useState<Set<string>>(
     () => new Set(),
@@ -181,8 +192,8 @@ export function AggregatedRequestList({
 
   // Eine Anfrage wurde zwischenzeitlich geändert: die Zeile bleibt stehen und
   // wird neu geladen, statt eine Entscheidung vorzutäuschen, die nicht galt.
+  // Den Grund hat die Stelle gemeldet, an der entschieden wurde.
   const handleStale = useCallback(() => {
-    setStaleNotice(STALE_REQUEST_NOTICE);
     void feed.reload();
   }, [feed]);
 
@@ -212,7 +223,6 @@ export function AggregatedRequestList({
     (childCase: OpenCase) => {
       returnFocus.remember(caseRowID(childCase.key));
       setSelectedCaseKey(childCase.key);
-      setStaleNotice(null);
     },
     [returnFocus],
   );
@@ -234,7 +244,6 @@ export function AggregatedRequestList({
   const confirmBulkApproval = useCallback(async () => {
     const refs = selectedBulkItems.flatMap(bulkRef);
     setBulkSaving(true);
-    setError(null);
     try {
       const count = await bulkApproveParentRequests(refs, bulkReason.trim());
       const selectedKeys = new Set(selectedForBulk);
@@ -244,7 +253,11 @@ export function AggregatedRequestList({
       setSelectedForBulk(new Set());
       setBulkReason("");
       setBulkConfirmOpen(false);
-      showSuccess(`${count} Anfragen wurden freigegeben.`);
+      showSuccess(
+        count === 1
+          ? "1 Anfrage wurde freigegeben."
+          : `${count} Anfragen wurden freigegeben.`,
+      );
       suppressSelfReloadRef.current = true;
       window.dispatchEvent(new Event("change-requests-refresh"));
       suppressSelfReloadRef.current = false;
@@ -253,25 +266,19 @@ export function AggregatedRequestList({
         error: err instanceof Error ? err.message : String(err),
       });
       setBulkConfirmOpen(false);
-      if (err instanceof ChangeRequestStaleError) {
-        setStaleNotice(err.message);
-      } else {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Die Anfragen konnten nicht gemeinsam freigegeben werden.",
-        );
-      }
+      // Kein Wiederholen: die Liste lädt gleich neu, die Auswahl gilt dann
+      // womöglich nicht mehr. Eine veraltete Anfrage meldet ihr Code.
+      await showActionError(err, { object: "die Freigabe" });
       await feed.reload();
     } finally {
       setBulkSaving(false);
     }
   }, [
+    showActionError,
     bulkReason,
     feed,
     selectedBulkItems,
     selectedForBulk,
-    setError,
     setItems,
     showSuccess,
   ]);
@@ -359,8 +366,7 @@ export function AggregatedRequestList({
 
   return (
     <div className="space-y-3">
-      {error && <Alert type="error" message={error} />}
-      {staleNotice && <Alert type="warning" message={staleNotice} />}
+      <LoadErrorAlert error={error} />
       {items.length === 0 && visibleWithdrawals.length === 0 && !error ? (
         <RequestEmptyState
           view={view}

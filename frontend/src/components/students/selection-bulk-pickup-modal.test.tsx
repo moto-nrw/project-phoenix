@@ -1,13 +1,15 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
 import { SelectionBulkPickupModal } from "./selection-bulk-pickup-modal";
 
 const { bulkUpsert } = vi.hoisted(() => ({ bulkUpsert: vi.fn() }));
 vi.mock("~/lib/pickup-schedule-api", () => ({
   bulkUpsertPickupSchedules: bulkUpsert,
 }));
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
 }));
 
@@ -85,5 +87,39 @@ describe("SelectionBulkPickupModal", () => {
       ),
     );
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("shows a failed save in the dialog with the catalog text and retries", async () => {
+    bulkUpsert
+      .mockRejectedValueOnce(
+        new ApiError("boom", 500, { code: "general.server" }),
+      )
+      .mockResolvedValueOnce({ students_affected: 2 });
+    const onClose = vi.fn();
+    render(
+      <SelectionBulkPickupModal
+        isOpen
+        onClose={onClose}
+        studentIds={["4", "9"]}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Dienstag"), {
+      target: { value: "16:10" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Für 2 setzen" }));
+
+    expect(
+      await screen.findByText(
+        "Die Gehzeit konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("boom")).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(bulkUpsert).toHaveBeenCalledTimes(2);
   });
 });

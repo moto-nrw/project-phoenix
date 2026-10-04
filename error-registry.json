@@ -1293,16 +1293,118 @@
       "legacy": "care_exception_raced"
     },
     {
+      "code": "students.care_exit_already_effective",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.care_exit_already_effective"
+    },
+    {
+      "code": "students.care_exit_blocked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.care_exit_blocked"
+    },
+    {
+      "code": "students.care_exit_day_in_past",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_exit_day_in_past"
+    },
+    {
+      "code": "students.care_exit_invalid_reason",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_exit_invalid_reason"
+    },
+    {
+      "code": "students.care_exit_no_students",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_exit_no_students"
+    },
+    {
+      "code": "students.care_exit_not_planned",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.care_exit_not_planned"
+    },
+    {
+      "code": "students.care_exit_note_not_allowed",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_exit_note_not_allowed"
+    },
+    {
+      "code": "students.care_exit_note_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_exit_note_required"
+    },
+    {
+      "code": "students.care_exit_note_too_long",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_exit_note_too_long"
+    },
+    {
+      "code": "students.care_exit_preview_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.care_exit_preview_changed"
+    },
+    {
+      "code": "students.care_exit_too_many_students",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_exit_too_many_students"
+    },
+    {
       "code": "students.care_offerings_disabled",
       "class": "permission",
       "parameters": [],
       "legacy": "care_offerings_disabled"
     },
     {
+      "code": "students.care_resume_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.care_resume_missing"
+    },
+    {
+      "code": "students.care_resume_not_checked",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_resume_not_checked"
+    },
+    {
+      "code": "students.care_resume_not_ended",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.care_resume_not_ended"
+    },
+    {
+      "code": "students.care_resume_start_in_past",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_resume_start_in_past"
+    },
+    {
+      "code": "students.care_withdrawal_after_gap",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_withdrawal_after_gap"
+    },
+    {
       "code": "students.care_withdrawal_already_resolved",
       "class": "business_rejection",
       "parameters": [],
       "legacy": "students.care_withdrawal_already_resolved"
+    },
+    {
+      "code": "students.care_withdrawal_date_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_withdrawal_date_invalid"
     },
     {
       "code": "students.care_withdrawal_not_found",
@@ -1321,6 +1423,18 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "change_request_stale"
+    },
+    {
+      "code": "students.checkin_care_ended",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.checkin_care_ended"
+    },
+    {
+      "code": "students.checkout_note_too_long",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.checkout_note_too_long"
     },
     {
       "code": "students.child_quota_reached",
@@ -1423,6 +1537,15 @@
       "legacy": "excused_request_status_conflict"
     },
     {
+      "code": "students.export_selection_too_large",
+      "class": "input",
+      "parameters": [
+        "total",
+        "limit"
+      ],
+      "legacy": "students.export_selection_too_large"
+    },
+    {
       "code": "students.guardian_access_revoked",
       "class": "business_rejection",
       "parameters": [],
@@ -1457,6 +1580,24 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "partial_absence_requires_dedicated_action"
+    },
+    {
+      "code": "students.photo_consent_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.photo_consent_required"
+    },
+    {
+      "code": "students.photo_consent_withdrawn",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.photo_consent_withdrawn"
+    },
+    {
+      "code": "students.photos_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "students.photos_disabled"
     },
     {
       "code": "students.pickup_change_completed",
@@ -1535,6 +1676,12 @@
       "class": "input",
       "parameters": [],
       "legacy": "staff_value_unsupported"
+    },
+    {
+      "code": "students.status_day_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.status_day_conflict"
     },
     {
       "code": "substitutions.already_assigned",

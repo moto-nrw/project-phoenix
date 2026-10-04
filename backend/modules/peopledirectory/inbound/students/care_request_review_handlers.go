@@ -96,6 +96,14 @@ func conflictWithCode(code string) func(error) render.Renderer {
 	return func(err error) render.Renderer { return common.ErrorConflictWithCode(err, code) }
 }
 
+func invalidWithCode(code string) func(error) render.Renderer {
+	return func(err error) render.Renderer { return common.ErrorInvalidRequestWithCode(err, code) }
+}
+
+func notFoundWithCode(code string) func(error) render.Renderer {
+	return func(err error) render.Renderer { return common.ErrorNotFoundWithCode(err, code) }
+}
+
 func careRequestDecisionFallback(err error) render.Renderer {
 	if renderer := companionPlanErrorRenderer(err); renderer != nil {
 		return renderer

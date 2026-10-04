@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { ApiError } from "./api-error";
 import {
   ALL_COMPANION_WEEKDAYS,
   COMPANION_WEEKDAYS,
@@ -179,6 +180,31 @@ describe("student-companion-api", () => {
       await expect(fetchStudentCompanions("42")).rejects.toThrow(
         "Ein Kind kann nicht mit sich selbst laufen.",
       );
+    });
+
+    it("throws an ApiError with code and request ID for the shared error path", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        mockFetchResponse(null, {
+          ok: false,
+          status: 503,
+          text: JSON.stringify({
+            status: "error",
+            error: "unavailable",
+            code: "general.unavailable",
+            instance: "req-companions",
+          }),
+        }),
+      );
+
+      const error = await fetchStudentCompanions("42").catch(
+        (err: unknown) => err,
+      );
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error).toMatchObject({
+        status: 503,
+        code: "general.unavailable",
+        requestId: "req-companions",
+      });
     });
 
     it("falls back to the status field when error is missing", async () => {

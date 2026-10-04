@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
 
 import { ModalProvider } from "~/components/dashboard/modal-context";
+import { ApiError } from "~/lib/api-error";
 import { CareResumeModal } from "./care-resume-modal";
 
 const { mockResume } = vi.hoisted(() => ({ mockResume: vi.fn() }));
@@ -37,8 +38,7 @@ describe("CareResumeModal", () => {
 
   it("explains a full Kinderkontingent and keeps the dialog as entered", async () => {
     mockResume.mockRejectedValue(
-      Object.assign(new Error("child quota reached"), {
-        status: 409,
+      new ApiError("child quota reached", 409, {
         code: "students.child_quota_reached",
         details: {
           booked_places: 50,
@@ -57,7 +57,7 @@ describe("CareResumeModal", () => {
     await waitFor(() =>
       expect(
         screen.getByText(
-          "Das Kinderkontingent Ihrer Schule ist voll. Die Kontingentzahl beträgt 50 von 50 Kindern. Für weitere Kinder melden Sie sich bitte beim moto-Team.",
+          "Das Kinderkontingent Ihrer Schule ist voll (50 von 50 Kindern). Bitte melden Sie sich beim moto-Team.",
         ),
       ).toBeInTheDocument(),
     );
@@ -65,5 +65,36 @@ describe("CareResumeModal", () => {
     expect(screen.getByLabelText(/Ich habe Gruppe, Angebote/)).toBeChecked();
     expect(onResumed).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("shows a server error with request ID and resends on Wiederholen", async () => {
+    mockResume
+      .mockRejectedValueOnce(
+        new ApiError("boom", 500, {
+          code: "general.server",
+          instance: "req-resume",
+        }),
+      )
+      .mockResolvedValueOnce(undefined);
+    const { onResumed } = renderModal();
+
+    fireEvent.click(screen.getByLabelText(/Ich habe Gruppe, Angebote/));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Betreuung wieder aufnehmen" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Wiederaufnahme konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-resume");
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => expect(onResumed).toHaveBeenCalledOnce());
+    expect(mockResume).toHaveBeenCalledTimes(2);
   });
 });

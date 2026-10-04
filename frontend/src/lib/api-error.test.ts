@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ApiError,
   apiErrorFromBody,
+  apiErrorFromResponse,
   apiErrorFromText,
   errorClassCode,
 } from "./api-error";
@@ -62,5 +63,40 @@ describe("apiErrorFromText", () => {
 
     expect(error.code).toBe("general.unavailable");
     expect(error.errors).toBeUndefined();
+  });
+});
+
+describe("apiErrorFromResponse", () => {
+  it("reads code, fields and request ID from the response body", async () => {
+    const error = await apiErrorFromResponse(
+      new Response(
+        JSON.stringify({
+          status: "error",
+          error: "note too long",
+          code: "general.input",
+          errors: [{ field: "content", reason: "too long" }],
+          instance: "req-9",
+        }),
+        { status: 400 },
+      ),
+      "Notiz konnte nicht gespeichert werden.",
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.message).toBe("Notiz konnte nicht gespeichert werden.");
+    expect(error.status).toBe(400);
+    expect(error.code).toBe("general.input");
+    expect(error.errors).toEqual([{ field: "content", reason: "too long" }]);
+    expect(error.requestId).toBe("req-9");
+  });
+
+  it("falls back to the status class when the body cannot be read", async () => {
+    const response = new Response("gateway down", { status: 502 });
+    await response.text();
+
+    const error = await apiErrorFromResponse(response, "Laden fehlgeschlagen");
+
+    expect(error.status).toBe(502);
+    expect(error.code).toBe("general.unavailable");
   });
 });

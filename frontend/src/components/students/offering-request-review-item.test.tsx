@@ -1,33 +1,43 @@
 import {
   act,
   fireEvent,
-  render,
+  render as renderComponent,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Fehler laufen als Toast; die Karte selbst zeigt keinen Fehlerkasten mehr.
-const mockToast = {
-  success: vi.fn(),
-  error: vi.fn(),
-  warning: vi.fn(),
-  info: vi.fn(),
-};
-vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => mockToast,
-}));
+import type { ReactElement } from "react";
 
-// Fehlermeldungen laufen als Toast: geprüft wird der Toast-Aufruf, nicht die DOM.
-async function expectErrorToast(pattern: RegExp) {
-  await waitFor(() =>
-    expect(mockToast.error).toHaveBeenCalledWith(
-      expect.stringMatching(pattern),
-      expect.anything(),
-    ),
-  );
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+// Fehler laufen als Toast über den gemeinsamen Fehlerweg; die Karte selbst
+// zeigt keinen Fehlerkasten.
+function render(ui: ReactElement) {
+  return renderComponent(ui, { wrapper: ToastProvider });
+}
+
+async function expectErrorToast(expected: RegExp | string) {
+  expect(
+    await screen.findByRole("alert", { name: /^Fehler:/ }),
+  ).toHaveTextContent(expected);
   await act(async () => undefined);
 }
+
+// Eine gescheiterte Freigabe steht im offenen Bestätigungsdialog: ein Toast
+// läge hinter seinem Hintergrund.
+async function expectDialogError(expected: RegExp | string) {
+  const dialog = await screen.findByRole("dialog");
+  expect(await within(dialog).findByText(expected)).toBeVisible();
+  expect(screen.queryByRole("alert", { name: /^Fehler:/ })).toBeNull();
+  await act(async () => undefined);
+}
+
+const networkError = () =>
+  new ApiError("network", 503, { code: "general.unavailable" });
 
 import { OfferingRequestReviewItem } from "./offering-request-review-item";
 import {
@@ -204,7 +214,9 @@ describe("OfferingRequestReviewItem", () => {
 
     await confirmApproval();
 
-    await expectErrorToast(/kein Platz mehr frei/);
+    await expectDialogError(
+      catalogText("students.offering_change_capacity_full", "die Anfrage"),
+    );
     // The card survives a failed approval: the switch was not applied.
     expect(screen.getByText(/Lara Beispiel/)).toBeInTheDocument();
     expect(onDecided).not.toHaveBeenCalled();
@@ -221,7 +233,9 @@ describe("OfferingRequestReviewItem", () => {
 
     await confirmApproval();
 
-    await expectErrorToast(/bereits entschieden oder von den Eltern/);
+    await expectDialogError(
+      catalogText("students.change_request_not_pending", "die Anfrage"),
+    );
   });
 
   it("explains a missing enrollment", async () => {
@@ -235,18 +249,44 @@ describe("OfferingRequestReviewItem", () => {
 
     await confirmApproval();
 
-    await expectErrorToast(/keine gültige Anmeldung mehr vor/);
+    await expectDialogError(
+      catalogText("students.offering_changes_no_enrollment", "die Anfrage"),
+    );
   });
 
-  it("falls back to a generic message for unknown decide errors", async () => {
-    mockDecide.mockRejectedValue(new Error("boom"));
+  it("falls back to the class text for a server error and offers a retry", async () => {
+    mockDecide
+      .mockRejectedValueOnce(
+        new ApiError("boom", 500, { code: "general.server" }),
+      )
+      .mockResolvedValueOnce(undefined);
+    const onDecided = renderItem();
+
+    await confirmApproval();
+
+    await expectDialogError(
+      "Die Anfrage konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Wiederholen/ }));
+    await waitFor(() => expect(onDecided).toHaveBeenCalled());
+  });
+
+  it("asks for the full-withdrawal confirmation instead of showing an error", async () => {
+    mockDecide.mockRejectedValueOnce(
+      new ApiError("confirm", 409, {
+        code: "enrollment.complete_withdrawal_confirmation_required",
+      }),
+    );
     renderItem();
 
     await confirmApproval();
 
-    await expectErrorToast(
-      /Die Entscheidung konnte nicht gespeichert werden\./,
-    );
+    expect(
+      await screen.findByRole("heading", {
+        name: "Alle Betreuungstage entfernen?",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert", { name: /^Fehler:/ })).toBeNull();
   });
 
   it("shows the parent note when one was added", () => {
@@ -555,7 +595,7 @@ describe("OfferingRequestReviewItem", () => {
   });
 
   it("reports a preview failure and keeps the card usable", async () => {
-    mockPreview.mockRejectedValue(new Error("network"));
+    mockPreview.mockRejectedValue(networkError());
     renderItem(request({ diff: mixedRuleDiff }));
 
     fireEvent.click(
@@ -565,7 +605,7 @@ describe("OfferingRequestReviewItem", () => {
     );
 
     await expectErrorToast(
-      /Die Vorschau konnte nicht aktualisiert werden\. Bitte versuchen Sie es noch einmal\./,
+      "Die Anfrage ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
     );
     // The opt-out did not take effect: the hint is still shown.
     expect(
@@ -738,12 +778,12 @@ describe("OfferingRequestReviewItem", () => {
     });
 
     it("does not approve when the consequence preview fails", async () => {
-      mockPreview.mockRejectedValue(new Error("network"));
+      mockPreview.mockRejectedValue(networkError());
       renderItem();
 
       fireEvent.click(screen.getByRole("button", { name: /^Freigeben$/ }));
 
-      await expectErrorToast(/Folgen der Freigabe konnten nicht geprüft/);
+      await expectErrorToast(/Die Anfrage ist gerade nicht erreichbar/);
       expect(mockDecide).not.toHaveBeenCalled();
       expect(
         screen.queryByRole("button", { name: "Änderung freigeben" }),
@@ -871,7 +911,7 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
   });
 
   it("keeps the approval usable when the preview fails transiently", async () => {
-    mockPreview.mockRejectedValue(new Error("network"));
+    mockPreview.mockRejectedValue(networkError());
     renderItem();
     unlockDate();
 
@@ -879,7 +919,7 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
       target: { value: "2027-03-01" },
     });
 
-    await expectErrorToast(/Vorschau konnte nicht aktualisiert werden/);
+    await expectErrorToast(/Die Anfrage ist gerade nicht erreichbar/);
     // Ein Netzfehler ist gleich wieder weg: die Karte darf nicht verriegeln.
     expect(screen.getByRole("button", { name: /Freigeben/ })).toBeEnabled();
   });
@@ -891,7 +931,7 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
           selections: [{ offering_id: "1", new: "Mo" }],
         }),
       )
-      .mockRejectedValueOnce(new Error("network"));
+      .mockRejectedValueOnce(networkError());
     renderItem(
       request({
         diff: [
@@ -917,7 +957,7 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
       target: { value: "2027-03-01" },
     });
 
-    await expectErrorToast(/Vorschau konnte nicht aktualisiert werden/);
+    await expectErrorToast(/Die Anfrage ist gerade nicht erreichbar/);
     expect(screen.queryByText("Mo")).not.toBeInTheDocument();
     expect(screen.getByText("Mo, Di")).toBeInTheDocument();
   });
@@ -971,7 +1011,9 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
       target: { value: "2020-01-06" },
     });
 
-    await expectErrorToast(/Zu diesem Datum kann die Änderung nicht gelten/);
+    await expectErrorToast(
+      catalogText("students.offering_change_date_out_of_range", "die Anfrage"),
+    );
     expect(screen.getByRole("button", { name: /Freigeben/ })).toBeDisabled();
     // Ein ausgegrauter Knopf ohne Grund ist eine Sackgasse: der Grund bleibt an
     // der Karte stehen, auch wenn der Toast längst weg ist.

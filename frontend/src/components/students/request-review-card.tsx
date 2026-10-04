@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -255,6 +255,7 @@ export function RequestReviewCard({
   // Nur für die Pflicht-Begründung beim Freigeben: der Fehler entsteht hier,
   // beim Klick, und nicht in der aufrufenden Karte.
   const [approveReasonMissing, setApproveReasonMissing] = useState(false);
+  const reasonId = useId();
 
   // Die aktuelle Zeit erst im Browser lesen: ein während SSR erzeugtes
   // "heute" kann beim Hydrieren nach Mitternacht schon nicht mehr stimmen.
@@ -402,9 +403,17 @@ export function RequestReviewCard({
           ) : (
             <div className="mt-4 space-y-2">
               <Input
+                id={reasonId}
                 aria-label="Begründung"
                 controlSize="compact"
                 value={reason ?? ""}
+                // Der Hinweis hängt am Feld (aria-invalid, aria-describedby).
+                error={
+                  reasonError ??
+                  (approveReasonMissing
+                    ? "Bitte tragen Sie eine Begründung ein."
+                    : undefined)
+                }
                 placeholder={
                   approveReasonRequired
                     ? "Begründung (Pflicht)"
@@ -416,11 +425,6 @@ export function RequestReviewCard({
                   onReasonChange?.(e.target.value);
                 }}
               />
-              {(reasonError ?? approveReasonMissing) && (
-                <p className="text-moto-red-strong text-xs">
-                  {reasonError ?? "Bitte tragen Sie eine Begründung ein."}
-                </p>
-              )}
               <div className="flex flex-wrap justify-end gap-2">
                 <Button
                   type="button"
