@@ -17,6 +17,8 @@ import {
 } from "react";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
+import type { FormErrorDetail } from "~/components/ui/form-error";
+import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { MobileBackButton } from "~/components/ui/mobile-back-button";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -176,6 +178,9 @@ export interface TenantPageProps {
   readonly error?:
     | string
     | { message: string; action?: ReactNode; keepContent?: boolean }
+    /** Ein Ladefehler aus `useApiLoadError` (#2513): Wiederholen und
+     *  Vorgangskennung kommen als Aktion mit. */
+    | FormErrorDetail
     | null;
   /**
    * Ladezustand: ersetzt den Inhalt durch Skelette. `true` rendert das
@@ -855,7 +860,11 @@ function TenantPageBody({
   children?: ReactNode;
 }>) {
   const errorParts =
-    typeof error === "string" ? { message: error } : (error ?? undefined);
+    typeof error === "string"
+      ? { message: error }
+      : error && !("action" in error || "keepContent" in error)
+        ? { message: error.message, action: errorAlertActions(error) }
+        : (error ?? undefined);
   if (errorParts && !errorParts.keepContent) {
     return (
       <Alert

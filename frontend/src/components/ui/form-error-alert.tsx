@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 import { Alert } from "./alert";
 import { Button } from "./button";
@@ -8,6 +8,7 @@ import {
   formErrorAttempt,
   formErrorDetail,
   formErrorMessage,
+  type FormErrorDetail,
   type FormErrorInput,
 } from "./form-error";
 import { RequestIdButton } from "./request-id-button";
@@ -45,38 +46,7 @@ export function FormErrorAlert({ message, className }: FormErrorAlertProps) {
 
   if (!text) return null;
 
-  // A server or unavailable error from the shared API error path carries a
-  // retry and the request ID to copy (#2511).
-  const detail = formErrorDetail(message);
-  const requestId = detail?.requestId;
-  const retry = detail?.retry;
-  const action =
-    requestId || retry ? (
-      // -ml-2.5 takes back the ghost button's own padding, so the first
-      // action starts exactly under the message text.
-      <span className="-ml-2.5 flex flex-wrap items-center gap-x-1">
-        {retry ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            onClick={retry.onClick}
-            className="shrink-0 self-center text-current underline underline-offset-2 hover:bg-black/5 hover:text-current"
-          >
-            {retry.label}
-          </Button>
-        ) : null}
-        {requestId ? (
-          <RequestIdButton
-            requestId={requestId.value}
-            label={requestId.label}
-            copyLabel={requestId.copyLabel}
-            copiedLabel={requestId.copiedLabel}
-            copyFailedLabel={requestId.copyFailedLabel}
-          />
-        ) : null}
-      </span>
-    ) : undefined;
+  const action = errorAlertActions(formErrorDetail(message));
 
   return (
     <div ref={ref} className={className}>
@@ -87,5 +57,68 @@ export function FormErrorAlert({ message, className }: FormErrorAlertProps) {
         actionLayout="stacked"
       />
     </div>
+  );
+}
+
+/**
+ * Retry and the request ID to copy, which a server or unavailable error from
+ * the shared API error path carries (#2511). Nothing for other errors.
+ */
+export function errorAlertActions(
+  detail: FormErrorDetail | null,
+): ReactNode | undefined {
+  const requestId = detail?.requestId;
+  const retry = detail?.retry;
+  if (!requestId && !retry) return undefined;
+  return (
+    // -ml-2.5 takes back the ghost button's own padding, so the first
+    // action starts exactly under the message text.
+    <span className="-ml-2.5 flex flex-wrap items-center gap-x-1">
+      {retry ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="compact"
+          onClick={retry.onClick}
+          className="shrink-0 self-center text-current underline underline-offset-2 hover:bg-black/5 hover:text-current"
+        >
+          {retry.label}
+        </Button>
+      ) : null}
+      {requestId ? (
+        <RequestIdButton
+          requestId={requestId.value}
+          label={requestId.label}
+          copyLabel={requestId.copyLabel}
+          copiedLabel={requestId.copiedLabel}
+          copyFailedLabel={requestId.copyFailedLabel}
+        />
+      ) : null}
+    </span>
+  );
+}
+
+/**
+ * A failed load shown where the data is missing (#2513), from
+ * `useApiLoadError`. Unlike `FormErrorAlert` it does not scroll: nobody
+ * pressed a button, so the page must not jump.
+ */
+export function LoadErrorAlert({
+  error,
+  className,
+}: {
+  readonly error: FormErrorInput;
+  readonly className?: string;
+}) {
+  const text = formErrorMessage(error);
+  if (!text) return null;
+  return (
+    <Alert
+      type="error"
+      message={text}
+      action={errorAlertActions(formErrorDetail(error))}
+      actionLayout="stacked"
+      className={className}
+    />
   );
 }

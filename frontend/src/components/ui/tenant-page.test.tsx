@@ -122,6 +122,38 @@ describe("TenantPage", () => {
     expect(screen.queryByText("Inhalt")).not.toBeInTheDocument();
   });
 
+  it("zeigt einen Ladefehler vom Fehlerweg mit Wiederholen und Vorgangskennung", () => {
+    const retry = vi.fn();
+    render(
+      <TenantPage
+        title="Kind"
+        error={{
+          message: "Das Kind ist gerade nicht erreichbar.",
+          retry: { label: "Wiederholen", onClick: retry },
+          requestId: {
+            value: "req-1",
+            label: "Vorgangskennung: req-1",
+            copyLabel: "Vorgangskennung kopieren",
+            copiedLabel: "Kopiert.",
+            copyFailedLabel: "Kopieren nicht möglich.",
+          },
+        }}
+      >
+        <p>Inhalt</p>
+      </TenantPage>,
+    );
+
+    expect(
+      screen.getByText("Das Kind ist gerade nicht erreichbar."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("Vorgangskennung: req-1");
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(retry).toHaveBeenCalledOnce();
+    expect(screen.queryByText("Inhalt")).not.toBeInTheDocument();
+  });
+
   it("ersetzt den Inhalt durch den Leerzustand", () => {
     render(
       <TenantPage title="Kinder" empty={{ title: "Noch kein Kind angelegt" }}>

@@ -101,6 +101,24 @@ export function apiErrorFromText(
   return apiErrorFromBody(message, status, body);
 }
 
+/**
+ * For clients that hold the failed `Response`: keeps their message and takes
+ * code, field errors and request ID from the envelope. A body that cannot be
+ * read still yields the status class.
+ */
+export async function apiErrorFromResponse(
+  response: Response,
+  message: string,
+): Promise<ApiError> {
+  let text = "";
+  try {
+    text = await response.text();
+  } catch {
+    // Body already consumed or the stream broke: the status still classifies.
+  }
+  return apiErrorFromText(message, response.status, text);
+}
+
 /** Add wire fields without replacing the domain error's message or type. */
 export function enrichApiError<T extends ApiError>(
   error: T,
