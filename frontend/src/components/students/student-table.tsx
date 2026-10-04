@@ -6,7 +6,7 @@
 // Kinderkarte shows, one column each. Each page builds its columns from the
 // helpers below, so a fact reads the same in every table.
 
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps, MouseEvent, ReactNode } from "react";
 
 import { Avatar } from "~/components/ui/avatar";
 import {
@@ -78,7 +78,9 @@ function NameCell({
       <Link
         href={href}
         className="min-w-0 font-medium break-words text-gray-900 hover:underline focus-visible:underline focus-visible:outline-none"
-        onClick={(event) => event.stopPropagation()}
+        onClick={(event: MouseEvent<HTMLAnchorElement>) =>
+          event.stopPropagation()
+        }
       >
         {name}
       </Link>
