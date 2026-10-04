@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Download, FileSpreadsheet, FileText, Info } from "lucide-react";
 import {
@@ -108,8 +108,6 @@ export function StudentExportModal({
   const toast = useToast();
   const errors = useApiFormError();
   const clearErrors = errors.clear;
-  // „Wiederholen“ exportiert mit der aktuellen Auswahl, nicht der vom Fehler.
-  const latestExportRef = useRef<() => Promise<void>>(async () => undefined);
   const isHealthList = preset === "health_list";
 
   useEffect(() => {
@@ -249,15 +247,15 @@ export function StudentExportModal({
       logger.error("student_export_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
+      // Ohne „Wiederholen“: „Exportieren“ wiederholt mit der aktuellen
+      // Auswahl. Eine Ref dafür bräuchte einen Hook nach dem return null.
       await errors.show(error, {
         object: "die Exportdatei",
-        retry: () => void latestExportRef.current(),
       });
     } finally {
       setExporting(false);
     }
   };
-  latestExportRef.current = handleExport;
 
   const footer = (
     <>

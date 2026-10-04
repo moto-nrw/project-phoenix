@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -92,7 +92,9 @@ export function CareResumeModal({
       setSaving(false);
     }
   };
-  latestResumeRef.current = handleResume;
+  useLayoutEffect(() => {
+    latestResumeRef.current = handleResume;
+  });
 
   return (
     <Modal

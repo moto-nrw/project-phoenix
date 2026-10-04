@@ -12,7 +12,14 @@
  * editor; this view cross-links to it via onEditSchedule.
  */
 
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -210,7 +217,9 @@ export function CarePlanView({
   const load = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = load;
   const reloadRef = useRef<() => Promise<unknown>>(reloadDay);
-  reloadRef.current = viewMode === "day" ? reloadDay : reloadWeek;
+  useLayoutEffect(() => {
+    reloadRef.current = viewMode === "day" ? reloadDay : reloadWeek;
+  });
   useEffect(() => {
     if (!error) {
       clearLoadError();

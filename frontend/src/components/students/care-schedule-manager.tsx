@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { mutate } from "swr";
 import {
   ChevronLeft,
@@ -504,7 +511,9 @@ export function CareScheduleManager({
     showLoadError,
   ]);
   const loadCareDataRef = useRef(loadCareData);
-  loadCareDataRef.current = loadCareData;
+  useLayoutEffect(() => {
+    loadCareDataRef.current = loadCareData;
+  });
 
   const refreshCareData = useCallback(async () => {
     await fetchCareDataInto(claimCareDataRequest());

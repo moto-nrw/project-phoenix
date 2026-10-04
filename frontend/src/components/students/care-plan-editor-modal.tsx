@@ -128,8 +128,6 @@ export function CarePlanEditorModal({
   const formRef = useRef<HTMLFormElement>(null);
   const errors = useApiFormError(formRef);
   const clearErrors = errors.clear;
-  // „Wiederholen“ speichert den aktuellen Entwurf, nicht den vom Fehler.
-  const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
   const [showParentConfirm, setShowParentConfirm] = useState(false);
   const [noteDeletionTarget, setNoteDeletionTarget] =
     useState<NoteDeletionTarget | null>(null);
@@ -280,15 +278,15 @@ export function CarePlanEditorModal({
       onClose();
     } catch (err) {
       cancelConfirm();
+      // Ohne „Wiederholen“: „Speichern“ wiederholt mit dem aktuellen
+      // Entwurf. Eine Ref dafür bräuchte einen Hook nach dem return null.
       await errors.show(err, {
         object: "die Ausnahme",
-        retry: () => void latestSaveRef.current(),
       });
     } finally {
       setIsSubmitting(false);
     }
   };
-  latestSaveRef.current = performSave;
 
   const footer = (
     <>

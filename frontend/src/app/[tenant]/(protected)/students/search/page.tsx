@@ -1,12 +1,13 @@
 "use client";
 
 import {
-  useState,
-  useEffect,
-  useRef,
   Suspense,
-  useMemo,
   useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 import { CalendarRange, Download, Search } from "lucide-react";
 // SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
@@ -1952,7 +1953,9 @@ function SearchPageContent() {
     if (isAuthError) void updateSession();
     requestReload();
   }, [isAuthError, requestReload, updateSession]);
-  reloadStudentsRef.current = reloadStudents;
+  useLayoutEffect(() => {
+    reloadStudentsRef.current = reloadStudents;
+  });
   const reloadAction = (
     <Button type="button" variant="outline" size="md" onClick={reloadStudents}>
       Erneut laden

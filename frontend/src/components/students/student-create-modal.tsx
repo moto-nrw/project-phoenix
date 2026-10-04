@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { Plus, Search, Trash2 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -470,7 +470,9 @@ export function StudentCreateModal({
     mode === "list-entry" && onCreateListEntry
       ? submitListEntry
       : submitStudent;
-  latestSubmitRef.current = submit;
+  useLayoutEffect(() => {
+    latestSubmitRef.current = submit;
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

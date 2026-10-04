@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import {
   RequestReviewCard,
@@ -135,7 +135,9 @@ export function ExcusedRequestReviewItem({
       setBusy(false);
     }
   };
-  decideRef.current = decide;
+  useLayoutEffect(() => {
+    decideRef.current = decide;
+  });
 
   return (
     <RequestReviewCard

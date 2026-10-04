@@ -7,7 +7,7 @@
  * Kindes und darf nicht aus Versehen passieren.
  */
 
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -104,7 +104,9 @@ export function DecisionCorrectionDialog({
       setSaving(false);
     }
   };
-  latestSaveRef.current = save;
+  useLayoutEffect(() => {
+    latestSaveRef.current = save;
+  });
 
   return (
     <ConfirmationModal

@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, useEffect } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -610,7 +617,9 @@ export function PersonalInfoEditPanel({
     }
   };
 
-  latestSaveRef.current = handleSave;
+  useLayoutEffect(() => {
+    latestSaveRef.current = handleSave;
+  });
 
   const showPhotoError = (photoError: unknown) =>
     errors.show(photoError, {
@@ -618,22 +627,26 @@ export function PersonalInfoEditPanel({
       retry: () => void latestPhotoRetryRef.current(),
     });
 
-  latestPhotoRetryRef.current = async () => {
-    errors.clear();
-    setIsSaving(true);
-    try {
-      await persistPendingPhoto();
-      onCancel();
-    } catch (photoError) {
-      logger.error("error saving student photo", {
-        error:
-          photoError instanceof Error ? photoError.message : String(photoError),
-      });
-      await showPhotoError(photoError);
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  useLayoutEffect(() => {
+    latestPhotoRetryRef.current = async () => {
+      errors.clear();
+      setIsSaving(true);
+      try {
+        await persistPendingPhoto();
+        onCancel();
+      } catch (photoError) {
+        logger.error("error saving student photo", {
+          error:
+            photoError instanceof Error
+              ? photoError.message
+              : String(photoError),
+        });
+        await showPhotoError(photoError);
+      } finally {
+        setIsSaving(false);
+      }
+    };
+  });
 
   const handleCancel = () => {
     setEditedStudent(student);

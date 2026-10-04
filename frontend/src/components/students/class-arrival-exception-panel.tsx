@@ -8,7 +8,14 @@
 // Datenquelle (`api`) und Rückmeldung (`notify`) mit, damit kein Portal die
 // Routen des anderen kennt.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -404,7 +411,9 @@ function ClassArrivalExceptionPanelBody({
       setSaving(false);
     }
   };
-  latestSaveRef.current = handleSave;
+  useLayoutEffect(() => {
+    latestSaveRef.current = handleSave;
+  });
 
   const handleRemove = async (exception: ClassArrivalException) => {
     setRemoving(exception.date);

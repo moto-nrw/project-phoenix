@@ -1177,9 +1177,8 @@ describe("StudentDetailPage", () => {
           catalogText("general.server", "die Anwesenheit"),
         ),
       ).toBeInTheDocument();
-      expect(
-        within(dialog).getByRole("button", { name: "Wiederholen" }),
-      ).toBeInTheDocument();
+      // Der Bestätigen-Knopf wiederholt mit dem aktuellen Stand.
+      expect(within(dialog).getByTestId("modal-confirm")).toBeEnabled();
       expect(mockToastError).not.toHaveBeenCalled();
     });
   });
@@ -1269,9 +1268,8 @@ describe("StudentDetailPage", () => {
           catalogText("general.server", "die Anwesenheit"),
         ),
       ).toBeInTheDocument();
-      expect(
-        within(dialog).getByRole("button", { name: "Wiederholen" }),
-      ).toBeInTheDocument();
+      // Der Bestätigen-Knopf wiederholt mit dem aktuellen Stand.
+      expect(within(dialog).getByTestId("modal-confirm")).toBeEnabled();
       expect(mockToastError).not.toHaveBeenCalled();
     });
   });
@@ -1541,9 +1539,8 @@ describe("StudentDetailPage", () => {
           catalogText("general.server", "die Krankmeldung"),
         ),
       ).toBeInTheDocument();
-      expect(
-        within(dialog).getByRole("button", { name: "Wiederholen" }),
-      ).toBeInTheDocument();
+      // Der Bestätigen-Knopf wiederholt mit dem aktuellen Stand.
+      expect(within(dialog).getByTestId("modal-confirm")).toBeEnabled();
       expect(mockShowActionError).not.toHaveBeenCalled();
       expect(mockToastError).not.toHaveBeenCalled();
     });
@@ -1984,9 +1981,8 @@ describe("StudentDetailPage", () => {
           catalogText("general.server", "die Änderung des Status"),
         ),
       ).toBeInTheDocument();
-      expect(
-        within(dialog).getByRole("button", { name: "Wiederholen" }),
-      ).toBeInTheDocument();
+      // Der Bestätigen-Knopf wiederholt mit dem aktuellen Stand.
+      expect(within(dialog).getByTestId("modal-confirm")).toBeEnabled();
       expect(mockToastError).not.toHaveBeenCalled();
     });
 

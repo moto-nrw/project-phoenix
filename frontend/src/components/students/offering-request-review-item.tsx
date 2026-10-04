@@ -2,7 +2,7 @@
 
 import type { ErrorCode } from "~/lib/error-codes.generated";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Alert } from "~/components/ui/alert";
@@ -225,7 +225,9 @@ export function OfferingRequestReviewItem({
       });
     }
   };
-  decideRef.current = decide;
+  useLayoutEffect(() => {
+    decideRef.current = decide;
+  });
 
   const prepareApproval = async () => {
     setBusy(true);
@@ -256,7 +258,9 @@ export function OfferingRequestReviewItem({
       setBusy(false);
     }
   };
-  prepareApprovalRef.current = prepareApproval;
+  useLayoutEffect(() => {
+    prepareApprovalRef.current = prepareApproval;
+  });
 
   // Vorschau für die aktuelle Abwahl UND das aktuelle Datum: beides verändert,
   // was die Freigabe tatsächlich bucht (#2370, #2484). Meldet, ob die Vorschau

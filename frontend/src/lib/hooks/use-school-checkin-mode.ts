@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useReducer, useRef, useState } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { mutate as globalMutate } from "swr";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import {
@@ -386,7 +392,9 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
     },
     [pendingIds, showError],
   );
-  latestToggleRef.current = toggle;
+  useLayoutEffect(() => {
+    latestToggleRef.current = toggle;
+  });
 
   const runBulk = useCallback(
     async (

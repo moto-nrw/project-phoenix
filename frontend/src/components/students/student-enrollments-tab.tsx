@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type { ReactNode } from "react";
 import { Download, FileText, FileSpreadsheet, FileType2 } from "lucide-react";
 import {
@@ -106,7 +112,9 @@ export function StudentEnrollmentsTab({
     },
     [studentId, showExportError, toastSuccess],
   );
-  handleExportRef.current = handleExport;
+  useLayoutEffect(() => {
+    handleExportRef.current = handleExport;
+  });
 
   return (
     <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-sm sm:p-6">

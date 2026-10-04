@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { format } from "date-fns/format";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -110,7 +110,9 @@ export function ClassTripBulkStatusModal({
       setSaving(false);
     }
   };
-  latestSubmitRef.current = handleSubmit;
+  useLayoutEffect(() => {
+    latestSubmitRef.current = handleSubmit;
+  });
 
   return (
     <FormModal

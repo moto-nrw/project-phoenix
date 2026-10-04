@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { addDays } from "date-fns/addDays";
 import { differenceInCalendarDays } from "date-fns/differenceInCalendarDays";
 import { format } from "date-fns/format";
@@ -719,7 +726,9 @@ export function PlannedStatusDaysModal({
     }
     resetForm(false);
   };
-  latestSubmitRef.current = handleSubmit;
+  useLayoutEffect(() => {
+    latestSubmitRef.current = handleSubmit;
+  });
 
   const footer = (
     <>

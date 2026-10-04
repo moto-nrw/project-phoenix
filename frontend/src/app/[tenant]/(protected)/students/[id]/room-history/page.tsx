@@ -4,6 +4,7 @@ import React, {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -758,7 +759,9 @@ function StudentRoomHistoryPageContent() {
     },
     [showExportError, studentId],
   );
-  latestDownloadRef.current = downloadExport;
+  useLayoutEffect(() => {
+    latestDownloadRef.current = downloadExport;
+  });
 
   useEffect(() => {
     let cancelled = false;

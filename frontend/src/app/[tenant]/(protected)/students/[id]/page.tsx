@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  Suspense,
-  useState,
-  useEffect,
-  useMemo,
-  useCallback,
-  useRef,
-} from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
   useParams,
   usePathname,
@@ -412,14 +405,11 @@ function StudentDetailPageContent() {
     ? "Zurück zu den Kinderdaten"
     : "Zurück zur Kinderübersicht";
   const toast = useToast();
-  // „Wiederholen“ im Fehlerkasten ruft die aktuelle Fassung der Aktion auf,
-  // nicht die vom Zeitpunkt des Fehlers.
-  const latestActionsRef = useRef<Record<string, () => Promise<void>>>({});
-  const retryAction = (name: string) => () =>
-    void latestActionsRef.current[name]?.();
   // Die Bestätigungsdialoge bleiben bei einem Fehler offen. Ein Toast läge
   // hinter ihrem Hintergrund, also steht der Fehler im Dialog selbst. Es ist
-  // immer nur einer offen, deshalb teilen sie sich einen Fehlerzustand.
+  // immer nur einer offen, deshalb teilen sie sich einen Fehlerzustand. Ohne
+  // eigenes „Wiederholen“: der Bestätigen-Knopf des Dialogs wiederholt mit
+  // dem aktuellen Stand, etwa einer inzwischen geänderten Notiz.
   const dialogErrors = useApiFormError();
   const { data: session, status: sessionStatus } = useSession();
 
@@ -988,7 +978,6 @@ function StudentDetailPageContent() {
       });
       await dialogErrors.show(err, {
         object: "die Anwesenheit",
-        retry: retryAction("checkout"),
       });
     } finally {
       setCheckingOut(false);
@@ -1012,7 +1001,6 @@ function StudentDetailPageContent() {
       });
       await dialogErrors.show(err, {
         object: "die Anwesenheit",
-        retry: retryAction("checkin"),
       });
     } finally {
       setCheckingIn(false);
@@ -1050,7 +1038,6 @@ function StudentDetailPageContent() {
       });
       await dialogErrors.show(err, {
         object: "die Krankmeldung",
-        retry: retryAction("sick"),
       });
     } finally {
       setSickLoading(false);
@@ -1082,7 +1069,6 @@ function StudentDetailPageContent() {
       });
       await dialogErrors.show(err, {
         object: "die Entschuldigung",
-        retry: retryAction("excused"),
       });
     } finally {
       setExcusedLoading(false);
@@ -1144,7 +1130,6 @@ function StudentDetailPageContent() {
       });
       await dialogErrors.show(err, {
         object: "die Änderung des Status",
-        retry: retryAction("switch"),
       });
     } finally {
       setSwitchLoading(false);
@@ -1277,14 +1262,6 @@ function StudentDetailPageContent() {
     } finally {
       setPlannedStatusLoading(false);
     }
-  };
-
-  latestActionsRef.current = {
-    checkout: handleConfirmCheckout,
-    checkin: handleConfirmCheckin,
-    sick: handleConfirmSickToggle,
-    excused: handleConfirmExcusedToggle,
-    switch: handleConfirmSwitch,
   };
 
   // =============================================================================

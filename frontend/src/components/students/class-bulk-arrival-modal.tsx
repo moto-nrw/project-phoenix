@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -287,7 +287,9 @@ export function FilteredBulkArrivalModal({
       setSaving(false);
     }
   };
-  latestSubmitRef.current = handleSubmit;
+  useLayoutEffect(() => {
+    latestSubmitRef.current = handleSubmit;
+  });
 
   useEffect(() => {
     if (!isOpen) {

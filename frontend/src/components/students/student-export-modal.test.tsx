@@ -331,7 +331,8 @@ describe("StudentExportModal", () => {
     expect(screen.queryByText(/PDF kaputt/)).not.toBeInTheDocument();
     expect(mockToastError).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    // „Exportieren“ wiederholt mit der aktuellen Auswahl.
+    fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
     await waitFor(() => expect(mockExportStudents).toHaveBeenCalledTimes(2));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });

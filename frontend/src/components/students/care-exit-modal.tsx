@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { LogOut } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -176,7 +183,9 @@ export function CareExitModal({
     const result = await loadPreview();
     if (result) setStep(2);
   };
-  latestContinueRef.current = handleContinue;
+  useLayoutEffect(() => {
+    latestContinueRef.current = handleContinue;
+  });
 
   const handleConfirm = async () => {
     if (!preview || !reason || preview.blocked) return;
@@ -229,7 +238,9 @@ export function CareExitModal({
       setSaving(false);
     }
   };
-  latestConfirmRef.current = handleConfirm;
+  useLayoutEffect(() => {
+    latestConfirmRef.current = handleConfirm;
+  });
 
   const footer =
     step === 1 ? (

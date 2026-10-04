@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { NotebookPen } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -438,7 +438,9 @@ export function StudentNotizenTab({
   };
 
   // Bearbeiten und Neu schließen sich aus; der Ref zeigt auf den offenen.
-  latestSaveRef.current = editing ? saveEdit : saveNew;
+  useLayoutEffect(() => {
+    latestSaveRef.current = editing ? saveEdit : saveNew;
+  });
 
   const confirmDelete = async () => {
     if (!deleteTarget) {

@@ -12,7 +12,14 @@
  * der Seite dutzende Abrufe ausgelöst.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { useApiLoadError } from "~/contexts/ToastContext";
 
@@ -253,7 +260,9 @@ export function useMergedRequestFeed(
     },
     [clearError, lifecycle, reportError, retry],
   );
-  retryRef.current = () => void reload({ report: true });
+  useLayoutEffect(() => {
+    retryRef.current = () => void reload({ report: true });
+  });
   const loadMore = useCallback(async () => {
     if (
       !hasMore ||
@@ -292,7 +301,9 @@ export function useMergedRequestFeed(
     }
   }, [clearError, hasMore, lifecycle, reportError, sources]);
   const loadMoreRef = useRef(loadMore);
-  loadMoreRef.current = loadMore;
+  useLayoutEffect(() => {
+    loadMoreRef.current = loadMore;
+  });
   useEffect(() => {
     if (
       view === "open" &&
@@ -378,7 +389,9 @@ export function useWithdrawalFeed(
     }
   }, [filters, reportError, view]);
   const loadRef = useRef(load);
-  loadRef.current = load;
+  useLayoutEffect(() => {
+    loadRef.current = load;
+  });
   useEffect(() => {
     let cancelled = false;
     setLoading(filters.includeCareWithdrawals === true);
@@ -413,7 +426,9 @@ export function useWithdrawalFeed(
     }
   }, [clearError, filters, hasMore, loadingMore, reportError, view]);
   const loadMoreRef = useRef(loadMore);
-  loadMoreRef.current = loadMore;
+  useLayoutEffect(() => {
+    loadMoreRef.current = loadMore;
+  });
   useEffect(() => {
     if (
       view === "open" &&

@@ -7,7 +7,13 @@
 // Grund, sie sagt, dass die Änderung protokolliert wird, und sie zeigt die
 // bisherigen Korrekturen desselben Eintrags direkt darunter.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormModal } from "~/components/ui/form-modal";
@@ -207,7 +213,9 @@ export function AttendanceCorrectionModal({
       setSaving(false);
     }
   };
-  latestSubmitRef.current = handleSubmit;
+  useLayoutEffect(() => {
+    latestSubmitRef.current = handleSubmit;
+  });
   const reasonError = errors.fieldError("reason");
 
   return (

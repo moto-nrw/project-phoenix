@@ -1,7 +1,7 @@
 "use client";
 
 import { LogOut, Trash2, Undo2, XCircle } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
@@ -108,7 +108,9 @@ export function StudentRecordActions({
     studentId,
     toastSuccess,
   ]);
-  latestCancelRef.current = cancelPlannedExit;
+  useLayoutEffect(() => {
+    latestCancelRef.current = cancelPlannedExit;
+  });
 
   const items: OverflowMenuItem[] = [];
   if (student.care_ended) {

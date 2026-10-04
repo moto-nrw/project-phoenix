@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -130,7 +130,9 @@ export function SelectionBulkInviteModal({
       setSending(false);
     }
   };
-  latestSendRef.current = handleSend;
+  useLayoutEffect(() => {
+    latestSendRef.current = handleSend;
+  });
 
   return (
     <FormModal

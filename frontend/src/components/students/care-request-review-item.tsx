@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import {
   RequestReviewCard,
@@ -195,7 +195,9 @@ function useCareRequestDecision(
     // Die Auswahl liegt auf Seitenebene und überlebt das Entfernen der Zeile.
     if (open.length > 0) extensions.prompt(open);
   };
-  decideRef.current = decide;
+  useLayoutEffect(() => {
+    decideRef.current = decide;
+  });
   return {
     reason,
     setReason: (value: string) => {

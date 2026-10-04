@@ -1,7 +1,7 @@
 "use client";
 
 import { wireErrorCode } from "~/lib/api-error";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -102,7 +102,9 @@ export function SelectionBulkPickupModal({
       setSaving(false);
     }
   };
-  latestSubmitRef.current = handleSubmit;
+  useLayoutEffect(() => {
+    latestSubmitRef.current = handleSubmit;
+  });
 
   return (
     <FormModal

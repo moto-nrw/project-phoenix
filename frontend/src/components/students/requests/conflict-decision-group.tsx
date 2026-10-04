@@ -10,7 +10,7 @@
  * mit der Tastatur klar ist, dass genau eine Antwort möglich ist.
  */
 
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -290,7 +290,9 @@ export function ConflictDecisionGroup({
       setBusy(false);
     }
   };
-  latestSaveRef.current = save;
+  useLayoutEffect(() => {
+    latestSaveRef.current = save;
+  });
 
   const name = `conflict-${group.key}`;
   return (
