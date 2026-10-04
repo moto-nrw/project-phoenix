@@ -293,6 +293,29 @@ describe("timetable operation mappers", () => {
     });
   });
 
+  it("marks a duty from activity_type (#3822)", () => {
+    const base = {
+      id: 125,
+      title: "Busaufsicht",
+      date: "2026-05-11",
+      start_time: "16:00",
+      end_time: "16:30",
+      room_id: 0,
+      status: "planned" as const,
+      is_overdue: false,
+      minutes_until_start: 30,
+      expected_students_count: 0,
+      present_students_count: 0,
+      assigned_staff_ids: [],
+    };
+    expect(mapPlannedInstance({ ...base, activity_type: "duty" }).isDuty).toBe(
+      true,
+    );
+    expect(
+      mapPlannedInstance({ ...base, activity_type: "care" }).isDuty,
+    ).toBeUndefined();
+  });
+
   it("maps planned instance defaults when backend omits nullable flags and preview", () => {
     const result = mapPlannedInstance({
       id: 124,

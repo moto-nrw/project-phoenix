@@ -92,8 +92,10 @@ const sourceTone = {
     bar: LOCATION_COLORS.OTHER_ROOM,
     bg: MOTO_COLOR_PALETTE.blue.soft,
   },
+  // „Schicht" statt „Dienst": „Dienst" ist ein Termin aus dem
+  // Betreuungsplan ohne Kinder (#3822), z. B. die Busaufsicht.
   shift: {
-    label: "Dienst",
+    label: "Schicht",
     bar: LOCATION_COLORS.SCHOOLYARD,
     bg: MOTO_COLOR_PALETTE.orange.soft,
   },
@@ -101,6 +103,20 @@ const sourceTone = {
   CalendarEvent["source"],
   { label: string; bar: string; bg: string }
 >;
+
+// Ein Dienst aus dem Betreuungsplan (#3822) trägt seine eigene Farbe und
+// Bezeichnung, damit er nicht als „Betreuung" erscheint.
+const dutyTone = {
+  label: "Dienst",
+  bar: LOCATION_COLORS.HOME,
+  bg: MOTO_COLOR_PALETTE.neutral.soft,
+};
+
+function toneOf(event: CalendarEvent) {
+  return event.source === "timetable" && event.activity_type === "duty"
+    ? dutyTone
+    : sourceTone[event.source];
+}
 
 /**
  * Der Kalender codiert die Herkunft eines Termins farbig. Bauart 3 Regel 3:
@@ -116,6 +132,11 @@ const calendarLegendEntries: readonly PlanLegendEntry[] = [
     key: "source-timetable",
     label: sourceTone.timetable.label,
     color: sourceTone.timetable.bar,
+  },
+  {
+    key: "source-duty",
+    label: dutyTone.label,
+    color: dutyTone.bar,
   },
   {
     key: "source-shift",
@@ -879,7 +900,7 @@ function TimeGridDayBody({
           Fläche, jeder sichtbare Band-Pixel öffnet den Dienst — so bleiben
           beide auch bei Überlappung bedienbar. */}
       {shiftBands.map((event) => {
-        const tone = sourceTone[event.source];
+        const tone = toneOf(event);
         const startMinutes = clockToMinutes(event.start_time);
         const endMinutes = Math.max(
           clockToMinutes(event.end_time),
@@ -927,7 +948,7 @@ function TimeGridEventBlock({
   actions: CalendarEventActions;
 }>) {
   const { event, startMinutes, endMinutes, column, columnCount } = placement;
-  const tone = sourceTone[event.source];
+  const tone = toneOf(event);
   const cancelled = event.cancelled === true;
   // endMinutes ist bereits das effektive Render-Ende aus layoutTimedEvents —
   // die Mindesthöhe steckt in der Platzierung, damit nichts überdeckt wird.
@@ -982,7 +1003,7 @@ function AgendaRow({
   event,
   actions,
 }: Readonly<{ event: CalendarEvent; actions: CalendarEventActions }>) {
-  const tone = sourceTone[event.source];
+  const tone = toneOf(event);
   const cancelled = event.cancelled === true;
   // Präsentation hängt an event.all_day, nicht an der Datumsspanne: ein
   // mehrtägiger Termin MIT Uhrzeiten zeigt seine Zeiten, nur echte
@@ -1065,7 +1086,7 @@ function EventPill({
   event,
   actions,
 }: Readonly<{ event: CalendarEvent; actions: CalendarEventActions }>) {
-  const tone = sourceTone[event.source];
+  const tone = toneOf(event);
   const cancelled = event.cancelled === true;
   const timeLabel = event.all_day
     ? null
@@ -1124,7 +1145,7 @@ function CalendarEventDetail({
     busyAppointmentId,
     icsHrefBase,
   } = actions;
-  const tone = sourceTone[event.source];
+  const tone = toneOf(event);
   const recipientId = event.recipient_id;
   const cancelled = event.cancelled === true;
   const responding =

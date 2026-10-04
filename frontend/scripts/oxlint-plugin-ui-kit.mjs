@@ -466,7 +466,7 @@ src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@213
 src/components/active-supervisions/planned-now-section.tsx|text-[11px]@431
 src/components/activities/activity-management-modal.tsx|text-[10px]@330 text-[10px]@359 text-[10px]@396
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
-src/components/calendar/personal-calendar.tsx|text-[11px]@786 text-[11px]@814 text-[11px]@901 text-[11px]@962 text-[11px]@966 text-[11px]@972 text-[11px]@1018 text-[11px]@1024 text-[10px]@1044 text-[11px]@1097 text-[11px]@1177 text-[11px]@1183 text-[11px]@1188
+src/components/calendar/personal-calendar.tsx|text-[11px]@807 text-[11px]@835 text-[11px]@922 text-[11px]@983 text-[11px]@987 text-[11px]@993 text-[11px]@1039 text-[11px]@1045 text-[10px]@1065 text-[11px]@1118 text-[11px]@1198 text-[11px]@1204 text-[11px]@1209
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@40 text-[10px]@94
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@920 text-[11px]@939
 src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1349
@@ -490,16 +490,16 @@ src/components/time-tracking/leave-requests-card.tsx|text-[10px]@488
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@377
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@437 text-[11px]@479
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@295 text-[11px]@301
-src/components/timetable/event-form/step-termin.tsx|text-[10px]@157 text-[11px]@227 text-[11px]@260 text-[11px]@321 text-[11px]@327 text-[11px]@375
+src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@340 text-[11px]@346 text-[11px]@394
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
-src/components/timetable/instance-block.tsx|text-[10px]@289 text-[10px]@325 text-[10px]@332 text-[10px]@342
-src/components/timetable/instance-detail-modal.tsx|text-[10px]@289 text-[9px]@405 text-[9px]@989 text-[11px]@1286 text-[11px]@1312 text-[11px]@1488 text-[10px]@1597 text-[11px]@1620
+src/components/timetable/instance-block.tsx|text-[10px]@289 text-[10px]@328 text-[10px]@335 text-[10px]@345
+src/components/timetable/instance-detail-modal.tsx|text-[10px]@290 text-[9px]@406 text-[9px]@993 text-[11px]@1290 text-[11px]@1316 text-[11px]@1492 text-[10px]@1601 text-[11px]@1624
 src/components/timetable/month-planner-grid.tsx|text-[11px]@65 text-[11px]@141 text-[11px]@150 text-[11px]@171 text-[9px]@203 text-[10px]@237
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@200 text-[10px]@216 text-[11px]@225 text-[10px]@267 text-[10px]@291 text-[10px]@364 text-[10px]@378 text-[10px]@390 text-[11px]@398 text-[11px]@405
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@379 text-[11px]@444
 src/components/timetable/substitution-person-card.tsx|text-[11px]@53 text-[11px]@331 text-[11px]@338 text-[11px]@345 text-[11px]@353 text-[11px]@365
-src/components/timetable/substitution-slide-over.tsx|text-[10px]@546 text-[9px]@551 text-[11px]@704 text-[11px]@708 text-[10px]@748 text-[10px]@752 text-[10px]@756 text-[10px]@760 text-[11px]@1196
-src/components/timetable/template-card.tsx|text-[11px]@118 text-[11px]@130 text-[10px]@173
+src/components/timetable/substitution-slide-over.tsx|text-[10px]@547 text-[9px]@552 text-[11px]@704 text-[11px]@708 text-[10px]@748 text-[10px]@752 text-[10px]@756 text-[10px]@760 text-[11px]@1196
+src/components/timetable/template-card.tsx|text-[11px]@119 text-[11px]@131 text-[10px]@174
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
 src/components/timetable/vertretung-week-list.tsx|text-[10px]@157
 src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@259 text-[9px]@275 text-[10px]@331 text-[11px]@331 text-[11px]@336 text-[10px]@359 text-[10px]@394 text-[11px]@394

@@ -1290,8 +1290,12 @@ export function useEventForm({
     } else if (form.startTime !== "" && form.endTime <= form.startTime) {
       errors.endTime = "Endzeit muss nach der Startzeit liegen.";
     }
-    const roomId = Number.parseInt(form.roomId, 10);
-    if (!Number.isFinite(roomId) || roomId <= 0) {
+    // Ein Dienst (#3822) darf ohne Raum stattfinden, z. B. die Busaufsicht;
+    // 0 heißt dann "kein Raum".
+    const parsedRoomId = Number.parseInt(form.roomId, 10);
+    const hasRoom = Number.isFinite(parsedRoomId) && parsedRoomId > 0;
+    const roomId = hasRoom ? parsedRoomId : 0;
+    if (!hasRoom && form.type !== "duty") {
       errors.roomId = "Bitte einen Raum auswählen.";
     }
     let categoryId: number | undefined;
@@ -1374,7 +1378,7 @@ export function useEventForm({
         errors.weekPattern =
           'Der gewählte Planungszeitraum hat keinen verankerten Zwei-Wochen-Zyklus. Eine 14-tägige Wiederholung ist hier nicht möglich; bitte "Jede Woche" wählen.';
       }
-      if (form.targetGroupType === "jahrgang") {
+      if (form.type !== "duty" && form.targetGroupType === "jahrgang") {
         const invalidGrade = form.targetGradeLevels.some((value) => {
           const gradeLevel = Number(value);
           return (
@@ -1392,12 +1396,14 @@ export function useEventForm({
         }
       }
       if (
+        form.type !== "duty" &&
         form.targetGroupType === "klasse" &&
         form.targetSchoolClasses.length === 0
       ) {
         errors.targetSchoolClass = "Bitte eine Klasse auswählen.";
       }
       if (
+        form.type !== "duty" &&
         form.targetGroupType === "gruppe" &&
         form.educationGroupIds.length === 0
       ) {
@@ -1485,14 +1491,43 @@ export function useEventForm({
       end_time: form.endTime,
       room_id: roomId,
       notes: form.notes.trim() || undefined,
-      list_kind: form.listKind || undefined,
+      // Ein Dienst hat keine Kinder und gehört in keine Tagesliste (#3822).
+      list_kind: form.type === "duty" ? undefined : form.listKind || undefined,
       activity_group_id: activityGroupId ? Number(activityGroupId) : undefined,
       staff_ids: staffIDsForSave.map(Number),
-      student_ids: studentIDsForSave.map(Number),
+      student_ids: form.type === "duty" ? [] : studentIDsForSave.map(Number),
       required_staff: parseRequiredStaffOverride(form.requiredStaff),
     }) satisfies CreateInstanceBody;
 
   const seriesBody = (
+    roomId: number,
+    categoryId: number,
+  ): CreateTemplateBody => {
+    const body = seriesBodyFields(roomId, categoryId);
+    if (form.type !== "duty") return body;
+    // Ein Dienst (#3822) hat keine Zielgruppe, keine Kinder, keine
+    // Teilnehmergrenze und keine Listenart; das Backend lehnt sie ab.
+    return {
+      ...body,
+      list_kind: undefined,
+      education_group_id: undefined,
+      target_group_type: "none",
+      target_grade_level: undefined,
+      target_school_class: undefined,
+      source_care_offering_ids: null,
+      source_grade_levels: null,
+      source_school_classes: null,
+      targets: [],
+      max_participants: null,
+      student_ids: [],
+      weekday_assignments: body.weekday_assignments?.map((assignment) => ({
+        ...assignment,
+        student_ids: [],
+      })),
+    };
+  };
+
+  const seriesBodyFields = (
     roomId: number,
     categoryId: number,
   ): CreateTemplateBody => ({

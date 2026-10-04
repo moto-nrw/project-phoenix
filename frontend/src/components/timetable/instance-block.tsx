@@ -306,7 +306,10 @@ export function InstanceBlock({
           {!isCompact && (
             <span className="truncate">
               {instance.staffCount} P
-              {showTimetableCounts && ` · ${totalStudents} K`}
+              {/* Ein Dienst (#3822) hat keine Kinder. */}
+              {instance.activityType === "duty"
+                ? " · Dienst"
+                : showTimetableCounts && ` · ${totalStudents} K`}
               {showTimetableCounts && occupancy
                 ? ` · ${formatPresentAgainstLimit(occupancy.count, occupancy.limit)}`
                 : ""}

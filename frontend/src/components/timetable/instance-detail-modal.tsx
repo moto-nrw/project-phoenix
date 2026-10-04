@@ -76,6 +76,7 @@ import type {
 } from "~/lib/timetable-types";
 import { RosterMaintenanceBadge } from "./roster-maintenance-badge";
 import {
+  instanceRoomLabel,
   getActivityTypeBadge,
   getGermanWeekdayAdverb,
   getGermanWeekdayLong,
@@ -521,6 +522,9 @@ function InstanceStudentsSection({
   studentNames: Map<string, string>;
   students: InstanceStudentSummary[];
 }>) {
+  // Ein Dienst (#3822) hat keine Kinder; eine leere Kinderliste würde nur
+  // nach einem Fehler aussehen.
+  if (instance.activityType === "duty") return null;
   if (students.length === 0) {
     const reason = instance.emptyRosterReason;
     let message = "Keine Kinder geplant.";
@@ -1036,7 +1040,7 @@ export function InstanceDetailModal({
                 icon={<MotoConceptIcon concept="rooms" size={18} />}
                 label="Raum"
               >
-                {instance.roomName || `Raum #${instance.roomId}`}
+                {instanceRoomLabel(instance)}
               </Row>
               <Row icon={<Palette className="h-4 w-4" />} label="Planungsspur">
                 {instance.planningTrackName ?? "Keine Planungsspur"}
@@ -1053,7 +1057,7 @@ export function InstanceDetailModal({
                         : ""
                     }`}
               </Row>
-              {showTimetableCounts ? (
+              {showTimetableCounts && instance.activityType !== "duty" ? (
                 <Row
                   icon={<MotoConceptIcon concept="children" size={18} />}
                   label="Kinder"

@@ -107,6 +107,7 @@ export const VERTRETUNG_GAPS_KEY_PREFIX = "vertretung-gaps-";
  * - care     → blue  (#5080D8) — Mensa, Lernzeit, Freispiel
  * - activity → green (#83CD2D) — AGs (Yoga, Bouldern, …)
  * - external → orange (#F78C10) — DAZ, Musikschule, externe Förderung
+ * - duty     → neutral — Dienst ohne Kinder (#3822)
  */
 export function getActivityColor(type: ActivityType): string {
   switch (type) {
@@ -116,6 +117,8 @@ export function getActivityColor(type: ActivityType): string {
       return LOCATION_COLORS.GROUP_ROOM; // #83CD2D
     case "external":
       return LOCATION_COLORS.SCHOOLYARD; // #F78C10
+    case "duty":
+      return LOCATION_COLORS.HOME; // neutral
   }
 }
 
@@ -131,6 +134,8 @@ export function getActivityTypeBadge(
       return { label: "AG", bg: LOCATION_COLORS.GROUP_ROOM };
     case "external":
       return { label: "EXTERN", bg: LOCATION_COLORS.SCHOOLYARD };
+    case "duty":
+      return { label: "DIENST", bg: LOCATION_COLORS.HOME };
     case "care":
       return null;
   }
@@ -1562,3 +1567,17 @@ export const DENSITY_TO_HOUR_HEIGHT_PX: Record<WeekDensity, number> = {
   normal: 90,
   comfortable: 120,
 };
+
+/**
+ * Raumangabe eines Blocks. Ein Dienst (#3822) kann ohne Raum stattfinden;
+ * roomId "0" heißt dann "kein Raum".
+ */
+export function instanceRoomLabel(instance: {
+  roomId: string;
+  roomName?: string | null;
+}): string {
+  if (instance.roomName) return instance.roomName;
+  return instance.roomId === "0" || instance.roomId === ""
+    ? "Kein Raum"
+    : `Raum #${instance.roomId}`;
+}

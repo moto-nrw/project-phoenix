@@ -144,7 +144,9 @@ export function DayFlowBlock() {
                         {" · "}
                         {[
                           block.roomName,
-                          `${block.presentStudentsCount}/${block.expectedStudentsCount} Kinder`,
+                          block.isDuty === true
+                            ? "Dienst"
+                            : `${block.presentStudentsCount}/${block.expectedStudentsCount} Kinder`,
                         ]
                           .filter(Boolean)
                           .join(" · ")}
@@ -189,6 +191,10 @@ export function BlockState({
   }
   if (block.status === "completed") {
     return <StatusBadge tone="gray" label="Beendet" />;
+  }
+  // Ein Dienst (#3822) wird nie gestartet; "Nicht gestartet" wäre falsch.
+  if (block.isDuty === true && (block.isOverdue || block.startTime <= now)) {
+    return null;
   }
   if (block.isOverdue || (now !== "" && block.startTime <= now)) {
     return <StatusBadge tone="orange" label="Nicht gestartet" />;
