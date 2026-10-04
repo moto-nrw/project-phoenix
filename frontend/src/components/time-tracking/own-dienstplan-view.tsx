@@ -29,7 +29,6 @@ import {
 import { indexShiftTypes } from "~/lib/shift-type-helpers";
 import { useSWRAuth } from "~/lib/swr";
 import { useTimetableEnabled } from "~/lib/tenant-context";
-import { useTenantAwarePath } from "~/lib/tenant-path";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import { formatWeekLabel } from "~/lib/timetable-helpers";
 
@@ -52,7 +51,6 @@ const EMPTY_SHIFTS: readonly StaffShift[] = [];
 export function OwnDienstplanView() {
   const timetableEnabled = useTimetableEnabled();
   const today = useBerlinToday();
-  const tenantPath = useTenantAwarePath();
   const { params, updateParams } = useUrlParams(ALLOWED_URL_PARAMS);
 
   const rawDay = params.d;
@@ -164,9 +162,6 @@ export function OwnDienstplanView() {
     <TenantPage
       title="Mein Dienstplan"
       testId="own-dienstplan-page"
-      back
-      backHref={tenantPath("/time-tracking")}
-      backLabel="Zurück zur Zeiterfassung"
       stats={loading ? undefined : <TenantPageStats items={statsItems} />}
       statsLoading={loading}
       loading={loading ? <DienstplanGridSkeleton /> : false}

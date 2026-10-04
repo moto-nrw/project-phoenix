@@ -1538,7 +1538,7 @@ describe("TimeTrackingPage", () => {
       render(<TimeTrackingPage />);
       expect(
         screen.getByRole("link", { name: /Mein Dienstplan/ }),
-      ).toHaveAttribute("href", "/time-tracking/dienstplan");
+      ).toHaveAttribute("href", "/mein-dienstplan");
     });
 
     it("hides the Dienstplan link when the school plans no shifts in moto", () => {

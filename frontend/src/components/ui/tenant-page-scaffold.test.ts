@@ -128,12 +128,12 @@ const BAUART: Readonly<Record<string, Bauart>> = {
   "enrollment-form/page.tsx": "werkzeug",
   "lists/page.tsx": "werkzeug",
   "meal-plan/page.tsx": "werkzeug",
+  "mein-dienstplan/page.tsx": "werkzeug",
   "payroll/page.tsx": "werkzeug",
   "statistics/page.tsx": "werkzeug",
   "substitutions/page.tsx": "werkzeug",
   "tagesplan/page.tsx": "werkzeug",
   "time-tracking/page.tsx": "werkzeug",
-  "time-tracking/dienstplan/page.tsx": "werkzeug",
   "vertretung/page.tsx": "werkzeug",
 
   // Bauart 4 — Einstellungen: Konfiguration einer Schule.

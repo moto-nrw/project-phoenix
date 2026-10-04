@@ -429,6 +429,13 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     alwaysShow: true,
   },
   {
+    // Eigener Dienstplan (#3821); Schulschalter in isHrefEnabled.
+    ...STAFF_FLAT_PAGES.ownShiftPlan,
+    iconKey: "dienstplan",
+    concept: "staffPlan",
+    requiresPermission: "time_tracking:own",
+  },
+  {
     ...STAFF_FLAT_PAGES.calendar,
     iconKey: "calendar",
     concept: "calendar",
@@ -882,6 +889,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     ) {
       return false;
     }
+    if (href === "/mein-dienstplan" && !tagesplanEnabled) return false;
     if (!showActivityNav && NFC_ONLY_HREFS.has(href)) return false;
     // Binärer Anwesenheitsmodus (#2915): auch im Mehr-Menü kein Link auf eine
     // Seite, die der BinaryModeGuard sperrt.

@@ -1,7 +1,7 @@
 "use client";
 
-// Eigener Dienstplan der Mitarbeitenden (#3821), lesend. Unterseite der
-// Zeiterfassung, weil Schichten und Soll dort schon zu Hause sind.
+// Eigener Dienstplan der Mitarbeitenden (#3821), lesend. Eigener Eintrag in
+// der Seitenleiste (Team); die Zeiterfassung verlinkt zusätzlich hierher.
 
 import { Suspense } from "react";
 

@@ -224,7 +224,7 @@ const EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/staff": HELP_TOPICS.findStaff,
   "/tagesinformationen": HELP_TOPICS.leadStaffNotices,
   "/time-tracking": HELP_TOPICS.trackWorkTime,
-  "/time-tracking/dienstplan": HELP_TOPICS.ownShiftPlan,
+  "/mein-dienstplan": HELP_TOPICS.ownShiftPlan,
   "/settings": HELP_TOPICS.settings,
 
   // Leitungsseiten. Sie zeigen heute auf Entwürfe: die Kontexthilfe rendert

@@ -1855,7 +1855,7 @@ function correctWorkTimeTopic(): HelpTopic {
   };
 }
 
-// Eigener Dienstplan (#3821): Unterseite der Zeiterfassung, nur lesend.
+// Eigener Dienstplan (#3821): eigene Seite unter `Team`, nur lesend.
 function ownShiftPlanTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.ownShiftPlan,
@@ -1867,17 +1867,18 @@ function ownShiftPlanTopic(): HelpTopic {
     audience: ["caregiver", "lead"],
     icon: "CalendarCheck",
     steps: [
-      "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Zeiterfassung`.",
-      "Wählen Sie oben `Mein Dienstplan`.",
+      "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Mein Dienstplan`.",
       "Wechseln Sie mit den Pfeilen zur gewünschten Woche. `Diese Woche` bringt Sie zurück.",
     ],
     result:
       "Sie sehen jede Schicht im Wochenraster. Darunter stehen die Stunden je Tag und je Schichtart.",
     notes: [
       "Oben stehen die geplanten Stunden, Ihr `Soll` und die `Differenz`.",
+      "In der `Zeiterfassung` führt oben der Knopf `Mein Dienstplan` ebenfalls hierher.",
       "Das Soll ist dasselbe wie in der Zeiterfassung. Feiertage und Schließtage sind schon eingerechnet.",
     ],
     differences: [
+      "Auf dem Handy finden Sie `Mein Dienstplan` unten unter `Mehr`.",
       "Sie können den Plan hier nur ansehen. Änderungen trägt die Leitung im Dienstplan ein.",
       "Samstag und Sonntag erscheinen nur, wenn Sie dort eine Schicht haben.",
     ],

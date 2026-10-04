@@ -3708,7 +3708,7 @@ function TimeTrackingContent() {
           <>
             {timetableEnabled && (
               <ButtonLink
-                href={tenantPath("/time-tracking/dienstplan")}
+                href={tenantPath("/mein-dienstplan")}
                 variant="outline"
                 size="md"
               >

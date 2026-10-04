@@ -156,6 +156,7 @@ import {
   usePresenceMode,
   useStaffMessagingEnabled,
   useTenantRoutingModeSafe,
+  useTimetableEnabled,
 } from "~/lib/tenant-context";
 import useSWR from "swr";
 
@@ -2246,6 +2247,49 @@ describe("Sidebar", () => {
       }
       expect(screen.getByText("Tagesplan")).toBeInTheDocument();
       expect(screen.getByText("Mein Kalender")).toBeInTheDocument();
+    });
+
+    // Eigener Dienstplan (#3821): Eintrag unter Team für alle, die ihre
+    // eigene Zeit erfassen, solange die Schule den Betreuungsplan nutzt.
+    it("zeigt Mitarbeitenden mit eigener Zeiterfassung „Mein Dienstplan“", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          CAREGIVER_PERMISSIONS.has(permission) ||
+          permission === "time_tracking:own",
+      );
+
+      render(<Sidebar />);
+
+      expect(
+        screen.getByRole("link", { name: /Mein Dienstplan/ }),
+      ).toHaveAttribute("href", "/mein-dienstplan");
+    });
+
+    it("blendet „Mein Dienstplan“ ohne time_tracking:own aus", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          CAREGIVER_PERMISSIONS.has(permission),
+      );
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Mein Dienstplan")).not.toBeInTheDocument();
+    });
+
+    it("blendet „Mein Dienstplan“ aus, wenn die Schule keinen Betreuungsplan nutzt", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          CAREGIVER_PERMISSIONS.has(permission) ||
+          permission === "time_tracking:own",
+      );
+      vi.mocked(useTimetableEnabled).mockReturnValue(false);
+      try {
+        render(<Sidebar />);
+
+        expect(screen.queryByText("Mein Dienstplan")).not.toBeInTheDocument();
+      } finally {
+        vi.mocked(useTimetableEnabled).mockReturnValue(true);
+      }
     });
 
     it("verbirgt Elternzugänge ohne das Recht, die Warteschlange zu entscheiden", () => {
