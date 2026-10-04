@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -24,10 +23,31 @@ type unificationDayCalendar struct {
 	planning.SeriesCalendarReads
 }
 
+// The School Calendar models belong to a different owner. These narrow row
+// shapes are test setup only and keep the Workforce behavior test on its
+// allowed dependency boundary.
+type breakClosingDayRow struct {
+	TenantID  int64         `bun:"tenant_id,notnull"`
+	StartDate timezone.Date `bun:"start_date,notnull,type:date"`
+	EndDate   timezone.Date `bun:"end_date,notnull,type:date"`
+	Reason    string        `bun:"reason,notnull"`
+}
+
+type breakHolidayPeriodRow struct {
+	ID              int64         `bun:"id,pk,autoincrement"`
+	TenantID        int64         `bun:"tenant_id,notnull"`
+	Name            string        `bun:"name,notnull"`
+	PeriodType      string        `bun:"period_type,notnull"`
+	StartDate       timezone.Date `bun:"start_date,notnull,type:date"`
+	EndDate         timezone.Date `bun:"end_date,notnull,type:date"`
+	WeekCycleLength int           `bun:"week_cycle_length,notnull"`
+	IsActive        bool          `bun:"is_active,notnull"`
+}
+
 func setupBreakSeriesTest(t *testing.T) *seriesTestEnv {
 	t.Helper()
-	// The package support returns its shared pool; this file also inserts its
-	// calendar rows directly, so it must initialize that pool itself.
+	// This file inserts only its calendar arrangement. The package support
+	// returns its shared pool, which setupSeriesTest then uses for the rest.
 	testpkg.SetupTestDB(t)
 	return setupSeriesTest(t)
 }
@@ -68,37 +88,36 @@ func (e *seriesTestEnv) createBreakSeries(t *testing.T, series *planning.StaffSh
 func (e *seriesTestEnv) createClosingDay(t *testing.T, start, end timezone.Date, reason string) {
 	t.Helper()
 
-	row := &schedule.ClosingDay{
-		StartDate: schedule.Date(start),
-		EndDate:   schedule.Date(end),
-		Reason:    reason,
-	}
-	row.TenantID = e.scope.TenantID
 	_, err := e.db.NewInsert().
-		Model(row).
+		Model(&breakClosingDayRow{
+			TenantID:  e.scope.TenantID,
+			StartDate: start,
+			EndDate:   end,
+			Reason:    reason,
+		}).
 		ModelTableExpr(`schedule.closing_days`).
 		Exec(e.scope.Context())
 	require.NoError(t, err)
 }
 
-func (e *seriesTestEnv) createHolidayPeriod(t *testing.T, name string, start, end timezone.Date) *schedule.CalendarPeriod {
+func (e *seriesTestEnv) createHolidayPeriod(t *testing.T, name string, start, end timezone.Date) *breakHolidayPeriodRow {
 	t.Helper()
 
-	row := &schedule.CalendarPeriod{
+	period := &breakHolidayPeriodRow{
+		TenantID:        e.scope.TenantID,
 		Name:            name,
-		PeriodType:      schedule.PeriodTypeHoliday,
-		StartDate:       schedule.Date(start),
-		EndDate:         schedule.Date(end),
+		PeriodType:      "holiday",
+		StartDate:       start,
+		EndDate:         end,
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
-	row.TenantID = e.scope.TenantID
 	_, err := e.db.NewInsert().
-		Model(row).
+		Model(period).
 		ModelTableExpr(`schedule.calendar_periods`).
 		Exec(e.scope.Context())
 	require.NoError(t, err)
-	return row
+	return period
 }
 
 // The window 2026-09-28 … 2026-10-11 holds a closing day (Thu 1 Oct), the
