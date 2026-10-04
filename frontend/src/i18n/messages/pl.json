@@ -2150,7 +2150,7 @@
         "preview_stale": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "identity": {
-        "account_already_has_tenant_access": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "account_already_has_tenant_access": "Ta osoba ma już dostęp do tej szkoły. Znajdziesz ją na liście personelu.",
         "account_inactive": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "demo_access_expired": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "demo_access_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
@@ -2159,6 +2159,7 @@
         "demo_capacity_reached": "{object} jest teraz niedostępne. Spróbuj ponownie.",
         "demo_school_preparing": "{object} jest teraz niedostępne. Spróbuj ponownie.",
         "demo_session": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "email_already_exists": "Dla tego adresu e-mail istnieje już konto. Użyj innego adresu.",
         "invitation_account_login_required": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "invitation_account_mismatch": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "preview_target_not_previewable": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",

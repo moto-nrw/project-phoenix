@@ -10,6 +10,7 @@ import React, {
   useState,
   type RefObject,
 } from "react";
+import { useFormError } from "~/components/ui/form-error";
 import { Toast } from "~/components/ui/toast";
 import { clientEnv } from "~/env.client";
 import { normalizeLocale, type AppLocale } from "~/i18n/locales";
@@ -437,11 +438,23 @@ export function loginUrl(host: string, path: string): string {
   return "/?error=SessionExpired";
 }
 
-/** Opt-in display path for screens migrated in #2520. */
-export function useApiErrorDisplay(
-  formRef?: RefObject<HTMLFormElement | null>,
+/** What one failed action shows, in a toast or in the form's alert. */
+interface DisplayedError {
+  message: string;
+  retry?: { label: string; onClick: () => void };
+  requestId?: string;
+  requestIdLabel?: string;
+}
+
+/**
+ * The part both display paths share: load the catalog on demand, send a 401
+ * to the login screen, mark the failed fields and focus the first of them.
+ * `deliver` decides where the message goes.
+ */
+function useApiErrorCore(
+  formRef: RefObject<HTMLElement | null> | undefined,
+  deliver: (shown: DisplayedError, locale: AppLocale) => void,
 ) {
-  const toast = useToast();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -451,7 +464,14 @@ export function useApiErrorDisplay(
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
     >("input[name], textarea[name], select[name]");
     const control = [...controls].find((item) => item.name === firstField);
-    control?.focus();
+    // A CustomSelect carries its value in a hidden input next to its trigger.
+    const target =
+      control instanceof HTMLInputElement && control.type === "hidden"
+        ? control.nextElementSibling?.querySelector<HTMLElement>(
+            '[role="combobox"]',
+          )
+        : control;
+    target?.focus();
   }, [fieldErrors, formRef]);
 
   const show = useCallback(
@@ -474,7 +494,10 @@ export function useApiErrorDisplay(
           "{object}",
           options.object,
         );
-        toast.error(message.charAt(0).toUpperCase() + message.slice(1));
+        deliver(
+          { message: message.charAt(0).toUpperCase() + message.slice(1) },
+          locale,
+        );
         return;
       }
       const { presentError, errorDisplayLabels } = presenter;
@@ -491,25 +514,85 @@ export function useApiErrorDisplay(
           presentation.fields.map((field) => [field, labels.fieldCheck]),
         ),
       );
-      toast.error(presentation.message, {
-        action:
-          presentation.retryable && options.retry
-            ? {
-                label: labels.retry,
-                onClick: options.retry,
-              }
-            : undefined,
-        requestId: presentation.requestId,
-        requestIdLabel: labels.requestId,
-      });
+      deliver(
+        {
+          message: presentation.message,
+          retry:
+            presentation.retryable && options.retry
+              ? { label: labels.retry, onClick: options.retry }
+              : undefined,
+          requestId: presentation.requestId,
+          requestIdLabel: labels.requestId,
+        },
+        locale,
+      );
       return presentation;
     },
-    [toast],
+    [deliver],
   );
+
+  const clearFieldErrors = useCallback(() => setFieldErrors({}), []);
 
   return {
     show,
     fieldError: (name: string) => fieldErrors[name],
-    clearFieldErrors: () => setFieldErrors({}),
+    clearFieldErrors,
+  };
+}
+
+/** Opt-in display path for actions without a form (#2510). */
+export function useApiErrorDisplay(formRef?: RefObject<HTMLElement | null>) {
+  const toast = useToast();
+  const deliver = useCallback(
+    (shown: DisplayedError) =>
+      toast.error(shown.message, {
+        action: shown.retry,
+        requestId: shown.requestId,
+        requestIdLabel: shown.requestIdLabel,
+      }),
+    [toast],
+  );
+  return useApiErrorCore(formRef, deliver);
+}
+
+/**
+ * Opt-in display path for a form (#2511, Bauart 2 Regel 5): the message goes
+ * to the form's `FormErrorAlert`, never to a toast; field errors stay at the
+ * field. Render `error` in the alert and `fieldError(name)` at each field.
+ */
+export function useApiFormError(formRef?: RefObject<HTMLElement | null>) {
+  const [error, setError] = useFormError();
+  const deliver = useCallback(
+    (shown: DisplayedError, locale: AppLocale) => {
+      const labels = toastLabelsByLocale[locale];
+      setError({
+        message: shown.message,
+        retry: shown.retry,
+        requestId: shown.requestId
+          ? {
+              value: shown.requestId,
+              label: shown.requestIdLabel ?? shown.requestId,
+              copyLabel: labels.copyRequestId,
+              copiedLabel: labels.copySucceeded,
+              copyFailedLabel: labels.copyFailed,
+            }
+          : undefined,
+      });
+    },
+    [setError],
+  );
+  const { show, fieldError, clearFieldErrors } = useApiErrorCore(
+    formRef,
+    deliver,
+  );
+  const clear = useCallback(() => {
+    setError(null);
+    clearFieldErrors();
+  }, [clearFieldErrors, setError]);
+  return {
+    error,
+    show,
+    fieldError,
+    clear,
   };
 }

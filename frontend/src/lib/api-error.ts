@@ -82,6 +82,25 @@ export function apiErrorFromBody(
   });
 }
 
+/**
+ * For clients that already read the body as text: keeps their message and
+ * takes code, field errors and request ID from the envelope when the text is
+ * JSON.
+ */
+export function apiErrorFromText(
+  message: string,
+  status: number,
+  text: string,
+): ApiError {
+  let body: unknown;
+  try {
+    body = text ? JSON.parse(text) : undefined;
+  } catch {
+    body = undefined;
+  }
+  return apiErrorFromBody(message, status, body);
+}
+
 /** Add wire fields without replacing the domain error's message or type. */
 export function enrichApiError<T extends ApiError>(
   error: T,

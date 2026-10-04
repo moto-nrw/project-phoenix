@@ -2,8 +2,7 @@
 
 import { sessionFetch } from "./session-cache";
 import { createLogger } from "~/lib/logger";
-import { wireErrorCode } from "~/lib/api-error";
-import type { ErrorCode } from "~/lib/error-codes.generated";
+import { type ApiError, apiErrorFromText } from "~/lib/api-error";
 
 const logger = createLogger({ component: "StaffAPI" });
 
@@ -1607,14 +1606,9 @@ async function throwSessionWriteError(
   throw new Error(error.message);
 }
 
-interface StaffAPIError {
-  readonly code?: ErrorCode;
-  readonly message: string;
-}
-
 // Kontingente dürfen nicht ins Minus (#3256). Der Server nennt die Grenze nur
 // technisch; der Dialog zeigt die Zahlen selbst, hier steht der Satz dazu.
-function absenceCreateErrorMessage(error: StaffAPIError): string {
+function absenceCreateErrorMessage(error: ApiError): string {
   switch (error.code) {
     case "workforce.vacation_quota_exceeded":
       return "Dafür reicht der Resturlaub nicht. Erhöhen Sie zuerst den Urlaubsanspruch.";
@@ -1635,30 +1629,29 @@ function absenceCreateErrorMessage(error: StaffAPIError): string {
   return error.message;
 }
 
+// The ApiError keeps code, field errors and request ID for the shared error
+// display (#2511); callers that still show `message` read it unchanged.
 async function readStaffAPIError(
   response: Response,
   fallback: string,
-): Promise<StaffAPIError> {
+): Promise<ApiError> {
   const text = await response.text().catch(() => "");
-  if (!text) return { message: fallback };
+  if (!text) return apiErrorFromText(fallback, response.status, text);
 
   try {
     const payload = JSON.parse(text) as {
-      code?: unknown;
       error?: unknown;
       message?: unknown;
     };
-    return {
-      code: wireErrorCode(payload.code),
-      message:
-        typeof payload.error === "string"
-          ? payload.error
-          : typeof payload.message === "string"
-            ? payload.message
-            : fallback,
-    };
+    const message =
+      typeof payload.error === "string"
+        ? payload.error
+        : typeof payload.message === "string"
+          ? payload.message
+          : fallback;
+    return apiErrorFromText(message, response.status, text);
   } catch {
-    return { message: text };
+    return apiErrorFromText(text, response.status, text);
   }
 }
 
@@ -1989,16 +1982,14 @@ class StaffPayrollNumberService {
         "Personalnummer konnte nicht gespeichert werden",
       );
       if (error.code === "workforce.personnel_number_taken") {
-        throw new Error(
-          "Diese Personalnummer ist in dieser Schule bereits vergeben.",
-        );
+        error.message =
+          "Diese Personalnummer ist in dieser Schule bereits vergeben.";
       }
       if (error.code === "workforce.personnel_number_invalid") {
-        throw new Error(
-          "Ungültige Personalnummer: nur Ziffern, höchstens 9 Stellen.",
-        );
+        error.message =
+          "Ungültige Personalnummer: nur Ziffern, höchstens 9 Stellen.";
       }
-      throw new Error(error.message);
+      throw error;
     }
     const json = (await response.json()) as {
       data: { personnel_number: string | null };
@@ -2137,11 +2128,10 @@ async function throwStammdatenError(
 ): Promise<never> {
   const error = await readStaffAPIError(response, fallback);
   if (error.code === "workforce.stammdaten_invalid") {
-    throw new Error(
-      "Ungültige Eingabe. Bitte prüfe die Werte und versuche es erneut.",
-    );
+    error.message =
+      "Ungültige Eingabe. Bitte prüfen Sie die Werte und versuchen Sie es erneut.";
   }
-  throw new Error(error.message);
+  throw error;
 }
 
 // Stammdaten (#1423): section-scoped master data of one staff member. The
@@ -2268,8 +2258,10 @@ class StaffStammdatenService {
       { method: "POST", headers: { "Content-Type": "application/json" } },
     );
     if (!response.ok) {
-      throw new Error(
+      throw apiErrorFromText(
         `Failed to reveal financial data: ${response.statusText}`,
+        response.status,
+        await response.text().catch(() => ""),
       );
     }
     const json = (await response.json()) as {

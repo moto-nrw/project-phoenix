@@ -154,6 +154,7 @@ const (
 	CodeIdentityDemoCapacityReached                      = "identity.demo_capacity_reached"
 	CodeIdentityDemoSchoolPreparing                      = "identity.demo_school_preparing"
 	CodeIdentityDemoSession                              = "identity.demo_session"
+	CodeIdentityEmailAlreadyExists                       = "identity.email_already_exists"
 	CodeIdentityInvitationAccountLoginRequired           = "identity.invitation_account_login_required"
 	CodeIdentityInvitationAccountMismatch                = "identity.invitation_account_mismatch"
 	CodeIdentityPreviewTargetNotPreviewable              = "identity.preview_target_not_previewable"
@@ -466,6 +467,7 @@ var errorClassByCode = map[string]string{
 	"identity.demo_capacity_reached":                       "unavailable",
 	"identity.demo_school_preparing":                       "unavailable",
 	"identity.demo_session":                                "permission",
+	"identity.email_already_exists":                        "business_rejection",
 	"identity.invitation_account_login_required":           "permission",
 	"identity.invitation_account_mismatch":                 "permission",
 	"identity.preview_target_not_previewable":              "permission",

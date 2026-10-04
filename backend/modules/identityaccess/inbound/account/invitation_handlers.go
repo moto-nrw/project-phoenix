@@ -160,11 +160,11 @@ func (rs *Resource) runCreateInvitation(ctx context.Context, invitationReq ident
 // delegating to the shared invitation error renderer. Returns true if handled.
 func renderCreateInvitationError(w http.ResponseWriter, r *http.Request, err error) bool {
 	if errors.Is(err, identityaccess.ErrEmailAlreadyExists) {
-		common.RenderError(w, r, common.ErrorConflict(identityaccess.ErrEmailAlreadyExists))
+		common.RenderError(w, r, common.ErrorConflictOnField(identityaccess.ErrEmailAlreadyExists, common.CodeIdentityEmailAlreadyExists, "email"))
 		return true
 	}
 	if errors.Is(err, identityaccess.ErrAccountAlreadyHasTenantAccess) {
-		common.RenderError(w, r, common.ErrorConflictWithCode(identityaccess.ErrAccountAlreadyHasTenantAccess, common.CodeIdentityAccountAlreadyHasTenantAccess))
+		common.RenderError(w, r, common.ErrorConflictOnField(identityaccess.ErrAccountAlreadyHasTenantAccess, common.CodeIdentityAccountAlreadyHasTenantAccess, "email"))
 		return true
 	}
 	switch {
