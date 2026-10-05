@@ -229,14 +229,14 @@ func (a instanceAdapter) InstancesInRange(ctx context.Context, from, to planexpo
 			continue
 		}
 		out = append(out, &planexport.Instance{
-			ID:               instance.ID,
-			Date:             planexport.Date(instance.Date),
-			StartTime:        instance.StartTime,
-			EndTime:          instance.EndTime,
-			Title:            instance.Title,
-			ActivityGroupID:  instance.ActivityGroupID,
-			RoomID:           instance.RoomID,
-			Cancelled:        instance.Status == scheduleModel.InstanceStatusCancelled,
+			ID:              instance.ID,
+			Date:            planexport.Date(instance.Date),
+			StartTime:       instance.StartTime,
+			EndTime:         instance.EndTime,
+			Title:           instance.Title,
+			ActivityGroupID: instance.ActivityGroupID,
+			RoomID:          instance.RoomID,
+			Cancelled:       instance.Status == scheduleModel.InstanceStatusCancelled, IsDuty: instance.TemplateType == activitiesModel.GroupTypeDuty,
 			CancelReason:     instance.CancelReason,
 			Notes:            instance.Notes,
 			UnderstaffedNote: instance.UnderstaffedNote,

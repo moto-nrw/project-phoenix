@@ -91,8 +91,12 @@ type Instance struct {
 	Title     string
 	// ActivityGroupID identifies the Angebot, nil for a spontaneous block.
 	ActivityGroupID *int64
-	RoomID          int64
-	Cancelled       bool
+	// RoomID is 0 for a duty without a room (#3822).
+	RoomID    int64
+	Cancelled bool
+	// IsDuty marks a duty (#3822): staff only, so the sheet prints no head
+	// count for it.
+	IsDuty bool
 	// CancelReason, Notes and UnderstaffedNote are printed on the internal
 	// sheet only.
 	CancelReason     *string

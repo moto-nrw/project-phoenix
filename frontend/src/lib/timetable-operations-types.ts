@@ -47,6 +47,11 @@ export interface PlannedTimetableInstance {
   groupName?: string | null;
   /** Assigned (non-absent) staff display names. scope=day only. */
   staffNames?: PlannedInstanceStaffName[];
+  /**
+   * Dienst ohne Kinder (#3822): kein Start, keine Kinderzahl, Raum optional
+   * (roomId "0" = kein Raum).
+   */
+  isDuty?: boolean;
 }
 
 interface PlannedInstanceStaffName {
@@ -174,6 +179,7 @@ interface BackendPlannedTimetableInstance {
   end_time: string;
   room_id: number;
   room_name?: string | null;
+  activity_type?: string;
   status: PlannedTimetableInstance["status"];
   is_overdue: boolean;
   minutes_until_start: number;
@@ -285,6 +291,7 @@ export function mapPlannedInstance(
     roomId: raw.room_id.toString(),
     roomName: raw.room_name ?? null,
     status: raw.status,
+    ...(raw.activity_type === "duty" ? { isDuty: true } : {}),
     isOverdue: raw.is_overdue,
     minutesUntilStart: raw.minutes_until_start,
     expectedStudentsCount: raw.expected_students_count,

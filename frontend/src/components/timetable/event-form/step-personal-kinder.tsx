@@ -168,6 +168,8 @@ export function StepPersonalKinder({
   setWeekdayRoster,
   applyActiveWeekdayRosterToAll,
 }: Readonly<StepPersonalKinderProps>) {
+  // Ein Dienst (#3822) hat nur Personal: keine Zielgruppe, keine Kinder.
+  const isDuty = form.type === "duty";
   const hasOfferingSource =
     isSeriesFlow &&
     form.targetGroupType === "angebot" &&
@@ -309,7 +311,7 @@ export function StepPersonalKinder({
 
   return (
     <>
-      {expanded && isSeriesFlow && (
+      {expanded && isSeriesFlow && !isDuty && (
         <div className="flex flex-col gap-1">
           <span className="text-xs font-semibold text-gray-700">
             Zielgruppe
@@ -688,7 +690,7 @@ export function StepPersonalKinder({
           setPerWeekdayRoster={setPerWeekdayRoster}
           setWeekdayRoster={setWeekdayRoster}
           applyActiveWeekdayToAll={applyActiveWeekdayRosterToAll}
-          childrenFromSource={hasOfferingSource}
+          childrenFromSource={hasOfferingSource || isDuty}
           staff={staff}
           students={students}
           studentBulkOptions={studentBulkOptions}
@@ -707,6 +709,7 @@ export function StepPersonalKinder({
           />
           {(loadingStaff || staffLoadError) && staffRosterField}
           {!hasOfferingSource &&
+            !isDuty &&
             (loadingStudents || studentLoadError) &&
             studentRosterField}
         </div>
@@ -728,17 +731,19 @@ export function StepPersonalKinder({
             requiredStaffTouched.current = true;
             update("requiredStaff", event.target.value);
           }}
-          placeholder="automatisch aus Betreuungsschlüssel"
+          placeholder={
+            isDuty ? "z. B. 2" : "automatisch aus Betreuungsschlüssel"
+          }
           controlSize="compact"
         />
         <p className="mt-1 text-xs text-gray-500">
-          Leer = automatisch: Es gilt der Wert der Terminreihe, sonst die
-          Berechnung aus dem Betreuungsschlüssel (Kinderzahl). Eine Zahl legt
-          den Bedarf fest und überschreibt beides.
+          {isDuty
+            ? "So viele Personen braucht der Dienst. Sind weniger da, zeigt der Vertretungsplan eine Lücke."
+            : "Leer = automatisch: Es gilt der Wert der Terminreihe, sonst die Berechnung aus dem Betreuungsschlüssel (Kinderzahl). Eine Zahl legt den Bedarf fest und überschreibt beides."}
         </p>
       </Field>
 
-      {isSeriesFlow && (
+      {isSeriesFlow && !isDuty && (
         <Field
           label="Maximale Teilnehmerzahl"
           htmlFor="event_max_participants"
@@ -768,7 +773,7 @@ export function StepPersonalKinder({
         </Field>
       )}
 
-      {hasOfferingSource ? (
+      {isDuty ? null : hasOfferingSource ? (
         <div className="flex flex-col gap-1">
           <span className="text-xs font-semibold text-gray-700">Kinder</span>
           <p className="text-xs text-gray-500">

@@ -42,6 +42,7 @@ const TYPE_LABELS: Record<TimetableTemplate["type"], string> = {
   care: "Betreuung",
   activity: "AG",
   external: "Extern",
+  duty: "Dienst",
 };
 
 function weekdayShort(iso: number): string {
@@ -119,7 +120,7 @@ export function TemplateCard({
               {TYPE_LABELS[template.type]}
               {template.categoryName ? ` · ${template.categoryName}` : ""}
             </p>
-            {template.rosterMaintenance ? (
+            {template.rosterMaintenance && template.type !== "duty" ? (
               <RosterMaintenanceBadge
                 state={template.rosterMaintenance}
                 className="mt-1 mr-1.5"
@@ -215,8 +216,14 @@ export function TemplateCard({
           <div className="flex items-center gap-2">
             <Users className="h-3.5 w-3.5 text-gray-400" aria-hidden />
             <span>
-              {template.enrollmentCount}{" "}
-              {template.enrollmentCount === 1 ? "Kind" : "Kinder"}
+              {template.type === "duty" ? (
+                "Dienst ohne Kinder"
+              ) : (
+                <>
+                  {template.enrollmentCount}{" "}
+                  {template.enrollmentCount === 1 ? "Kind" : "Kinder"}
+                </>
+              )}
               {" · "}
               {template.supervisorCount} Personal
             </span>
@@ -238,7 +245,7 @@ export function TemplateCard({
           )}
         </dl>
 
-        {!template.roomId && (
+        {!template.roomId && template.type !== "duty" && (
           <p className="flex items-center gap-1.5 text-xs text-gray-600">
             <span
               className="bg-moto-amber h-1.5 w-1.5 shrink-0 rounded-full"

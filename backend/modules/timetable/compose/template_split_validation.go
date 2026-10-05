@@ -136,13 +136,20 @@ func validateSplitTemplateFields(in TemplateSplitInput, rules SchoolClassRules) 
 	if in.Name == "" {
 		return fmt.Errorf("%w: name is required", timetable.ErrSplitInvalidInput)
 	}
-	switch in.Type {
-	case activitiesModel.GroupTypeCare, activitiesModel.GroupTypeActivity, activitiesModel.GroupTypeExternal:
-	default:
-		return fmt.Errorf("%w: invalid type %q (must be care, activity, or external)", timetable.ErrSplitInvalidInput, in.Type)
+	if !timetable.IsValidGroupType(in.Type) {
+		return fmt.Errorf("%w: invalid type %q (must be care, activity, external, or duty)", timetable.ErrSplitInvalidInput, in.Type)
 	}
-	if in.RoomID <= 0 {
-		return fmt.Errorf("%w: room_id is required", timetable.ErrSplitInvalidInput)
+	maxParticipants := 0
+	if in.MaxParticipants != nil {
+		maxParticipants = *in.MaxParticipants
+	}
+	if err := timetable.ValidateTemplateShape(timetable.TemplateShape{
+		Type: in.Type, RoomID: in.RoomID, TargetGroupType: in.TargetGroupType,
+		HasTargets: len(in.Targets) > 0, HasStudents: rosterNamesStudents(in.StudentIDs, in.WeekdayAssignments),
+		HasOfferingSource: len(in.SourceCareOfferingIDs) > 0, MaxParticipants: maxParticipants,
+		ListKind: in.ListKind, EducationGroupID: in.EducationGroupID,
+	}); err != nil {
+		return fmt.Errorf("%w: %s", timetable.ErrSplitInvalidInput, err.Error())
 	}
 	if in.CategoryID <= 0 {
 		return fmt.Errorf("%w: category_id is required", timetable.ErrSplitInvalidInput)

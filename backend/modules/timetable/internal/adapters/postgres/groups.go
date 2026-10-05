@@ -314,7 +314,7 @@ func (s *Store) UpdateGroupOfferingSource(ctx context.Context, id int64, fields 
 
 func templateUpdateQuery(db bun.IDB, tenantID, id int64, fields domain.TemplateFields, offeringIDs, grades, classes any) *bun.UpdateQuery {
 	query := db.NewUpdate().Table("activities.groups").Set("name = ?", fields.Name).Set("type = ?", fields.Type).
-		Set("category_id = ?", fields.CategoryID).Set("planned_room_id = ?", fields.RoomID).
+		Set("category_id = ?", fields.CategoryID).Set("planned_room_id = NULLIF(?, 0)", fields.RoomID).
 		Set("education_group_id = ?", fields.EducationGroupID).Set("required_staff = ?", fields.RequiredStaff).
 		Set("calendar_period_id = ?", fields.CalendarPeriodID).Set("target_group_type = ?", fields.TargetGroupType).
 		Set("target_grade_level = ?", fields.TargetGradeLevel).Set("target_school_class = ?", fields.TargetSchoolClass).

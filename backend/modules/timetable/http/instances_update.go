@@ -43,7 +43,9 @@ func (req *updateInstanceRequest) Bind(_ *http.Request) error {
 	if req.StartTime == "" || req.EndTime == "" {
 		return errors.New("start_time and end_time are required")
 	}
-	if req.RoomID <= 0 {
+	// 0 = no room: only an occurrence of a duty may omit it (#3822); the
+	// service checks the linked template. Without a template it is required.
+	if req.RoomID < 0 || (req.RoomID == 0 && req.ActivityGroupID == nil) {
 		return errors.New("room_id is required")
 	}
 	return nil

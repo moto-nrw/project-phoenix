@@ -228,8 +228,10 @@ type AutoStartResult struct {
 	SkippedConflict     int
 	SkippedMoved        int
 	SkippedNonPlanned   int
-	Failed              int
-	DurationMS          int64
+	// SkippedDuty counts duties (#3822): they are never started.
+	SkippedDuty int
+	Failed      int
+	DurationMS  int64
 }
 
 // AutoEndResult summarizes one auto-end tick of one tenant.

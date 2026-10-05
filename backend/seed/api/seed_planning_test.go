@@ -44,7 +44,7 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 		10: 38, 11: 39, 12: 40, 13: 41, 14: 42, 15: 43,
 	}
 	fs.groupIDs = map[string]int64{"sternengruppe": 23}
-	fs.roomIDs = map[string]int64{"OGS-Raum 1": 24}
+	fs.roomIDs = map[string]int64{"OGS-Raum 1": 24, "Mensa": 44}
 	fs.categoryIDs = map[string]int64{"Gruppenraum": 25}
 	fs.staffIDs = map[string]int64{"Anna Müller": 26, "Thomas Schmidt": 27, "Sabine Weber": 28, "Michael Fischer": 29}
 
@@ -88,8 +88,10 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 		"/api/timetable/templates",
 		"/api/students/35/pickup-exceptions",
 		"/api/students/37/pickup-schedules",
+		"/api/timetable/templates",
+		"/api/timetable/templates",
 	}, paths)
-	require.Len(t, templates, 6)
+	require.Len(t, templates, 8)
 	assert.Equal(t, "care", templates[0]["type"])
 	assert.Equal(t, "gruppe", templates[0]["target_group_type"])
 	assert.EqualValues(t, 23, templates[0]["education_group_id"])
@@ -111,6 +113,15 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 	assert.Equal(t, []any{float64(38), float64(39), float64(40), float64(41), float64(42), float64(43)}, templates[4]["student_ids"])
 	assert.Equal(t, "Teamsitzung", templates[5]["name"])
 	assert.Nil(t, templates[5]["student_ids"])
+	// #3822: duties without children; the Busaufsicht has no room.
+	assert.Equal(t, "Essensausgabe", templates[6]["name"])
+	assert.Equal(t, "duty", templates[6]["type"])
+	assert.EqualValues(t, 44, templates[6]["room_id"])
+	assert.EqualValues(t, 2, templates[6]["required_staff"])
+	assert.Equal(t, "Busaufsicht", templates[7]["name"])
+	assert.Equal(t, "duty", templates[7]["type"])
+	assert.Nil(t, templates[7]["room_id"])
+	assert.Nil(t, templates[7]["student_ids"])
 }
 
 func TestHolidayCareLastDayStaysInTheSchoolYear(t *testing.T) {

@@ -163,7 +163,7 @@ func successorGroup(old *activitiesModel.Group, in TemplateSplitInput) *activiti
 		IsOpen:                old.IsOpen,
 		CategoryID:            in.CategoryID,
 		PlanningTrackID:       providedOrInherited(in.PlanningTrackIDProvided, in.PlanningTrackID, old.PlanningTrackID),
-		PlannedRoomID:         &roomID,
+		PlannedRoomID:         plannedRoomID(roomID),
 		CreatedBy:             old.CreatedBy,
 		Type:                  in.Type,
 		EducationGroupID:      in.EducationGroupID,

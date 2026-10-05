@@ -173,31 +173,39 @@ function TagesplanRow({
   onOpenSession: (activeGroupId: string) => void;
   onStart: (instance: PlannedTimetableInstance) => void;
 }>) {
-  const room = instance.roomName ?? `Raum ${instance.roomId}`;
+  // Ein Dienst (#3822) hat keine Kinder und wird nie gestartet; er kann
+  // auch ohne Raum stattfinden.
+  const isDuty = instance.isDuty === true;
+  const room =
+    instance.roomName ??
+    (isDuty && instance.roomId === "0" ? null : `Raum ${instance.roomId}`);
   const running = instance.status === "active";
   const cancelled = instance.status === "cancelled";
   const openable = running && instance.activeGroupId != null;
   const startable =
+    !isDuty &&
     isToday &&
     instance.status === "planned" &&
     canStartPlannedInstance(instance, new Date());
-  const missed =
+  const ended =
     instance.status === "planned" &&
     (dayIsPast || (isToday && instance.endTime <= nowHHMM));
+  const missed = ended && !isDuty;
   // Vorbei ist vorbei: gedimmte Zeilen lassen das Laufende und Kommende von
   // selbst hervortreten — statt eines Etiketts an jeder Zeile.
   const over =
     instance.status === "completed" ||
-    missed ||
+    ended ||
     (cancelled && (dayIsPast || (isToday && instance.endTime <= nowHHMM)));
   const staff = staffLine(instance);
 
   const metaParts = [
     instance.status === "completed" ? "Beendet" : null,
     missed ? "Nicht gestartet" : null,
+    isDuty ? "Dienst" : null,
     room,
     instance.groupName,
-    cancelled ? null : childrenShort(instance),
+    cancelled || isDuty ? null : childrenShort(instance),
   ].filter(Boolean);
 
   const body = (

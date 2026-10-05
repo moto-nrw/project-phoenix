@@ -1249,6 +1249,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
     differences: [
       "`Läuft` heißt: der Block ist gerade aktiv. `Beendet` und `Nicht gestartet` können Sie nur ansehen.",
       "`Fällt aus` zeigt zusätzlich den Grund.",
+      "Ein `Dienst` ist eine Aufgabe ohne Kinder, etwa die Busaufsicht. Er hat keinen Knopf `Starten`.",
       "Welche Blöcke Sie sehen, legt Ihre OGS fest. Manche sehen den ganzen Tag der Schule, andere nur die eigene Einteilung.",
       "Ob Sie nur eigene oder alle Blöcke starten dürfen, legt Ihre OGS fest. Wer einen fremden Block startet, wird nicht zur Aufsicht.",
       ...(presenceMode === "unknown"
@@ -4844,6 +4845,7 @@ function leadCarePlanTopic(): HelpTopic {
     result: "Ihr Team sieht den Plan im `Tagesplan` und unter `Mein Kalender`.",
     notes: [
       "Ein Regeltermin wiederholt sich. Die Ansicht `Serien` zeigt alle Regeltermine.",
+      "Aufgaben ohne Kinder, etwa Busaufsicht oder Essensausgabe, legen Sie mit dem `Typ` `Dienst` an. Ein Dienst hat keine Kinderliste und wird nicht gestartet. Der Raum ist freiwillig.",
       "Über das Menü mit den drei Punkten geht `Drucken oder exportieren`.",
     ],
     differences: [
@@ -4918,7 +4920,8 @@ function dutyRosterTopic(): HelpTopic {
       "Wählen Sie in der Zeile einer Person den passenden Tag.",
       "Tragen Sie die Schicht ein und speichern Sie sie.",
     ],
-    result: "Die Person sieht ihre Schichten unter `Mein Kalender`.",
+    result:
+      "Die Person sieht ihre Schichten unter `Mein Kalender`. Dort tragen sie die Farbe `Schicht`.",
     notes: [
       "Jede Schicht kann eine Schichtart tragen. Die Farbe kommt von der Schichtart.",
       "Über `Schichtarten verwalten` pflegen Sie die Arten.",
@@ -4966,6 +4969,7 @@ function substitutionPlanTopic(): HelpTopic {
     result: "Die vertretende Person sieht den Einsatz unter `Mein Kalender`.",
     notes: [
       "Mit `Sammel-Vertretung` tragen Sie mehrere Einsätze auf einmal ein.",
+      "Auch ein `Dienst` ohne Kinder lässt sich vertreten. Sind weniger Personen da als unter `Benötigtes Personal` eingetragen, zeigt der Plan eine Lücke.",
     ],
     differences: [
       "Die Seite heißt oben `Vertretung`. In der Seitenleiste steht `Vertretungsplan`.",
