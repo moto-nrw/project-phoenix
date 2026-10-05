@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import type { FormErrorInput } from "~/components/ui/form-error";
-import { ApiError } from "~/lib/api-error";
+import { ApiError, unavailableApiError } from "~/lib/api-error";
 import type { ClosingDay } from "~/lib/closing-day-helpers";
 import { catalogText } from "~/test/error-catalog-text";
 
@@ -157,7 +157,7 @@ describe("ClosingDayModal", () => {
     );
   });
 
-  it("offers nothing when no appointment is left or counting fails", async () => {
+  it("offers nothing when no appointment is left or cancelling is not allowed", async () => {
     const onOfferCancel = vi.fn();
     const { rerender } = render(
       <ClosingDayModal
@@ -179,7 +179,9 @@ describe("ClosingDayModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await waitFor(() => expect(mockBulkCancel).toHaveBeenCalledOnce());
 
-    mockBulkCancel.mockRejectedValueOnce(new Error("Forbidden"));
+    mockBulkCancel.mockRejectedValueOnce(
+      new ApiError("Forbidden", 403, { code: "general.permission" }),
+    );
     rerender(
       <ClosingDayModal
         isOpen
@@ -194,6 +196,31 @@ describe("ClosingDayModal", () => {
 
     expect(onOfferCancel).not.toHaveBeenCalled();
     expect(mockUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it("still offers the cancel dialog when counting fails for another reason", async () => {
+    const onOfferCancel = vi.fn();
+    render(
+      <ClosingDayModal
+        isOpen
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        initial={existingClosingDay}
+        onOfferCancel={onOfferCancel}
+      />,
+    );
+    mockBulkCancel.mockRejectedValueOnce(
+      unavailableApiError(new TypeError("Failed to fetch")),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(onOfferCancel).toHaveBeenCalledWith({
+        startDate: existingClosingDay.startDate,
+        endDate: existingClosingDay.endDate,
+      }),
+    );
   });
 
   it("updates the selected closing day", async () => {

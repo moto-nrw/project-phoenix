@@ -13,6 +13,7 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import { closingDayService } from "~/lib/closing-day-api";
 import { type ClosingDay } from "~/lib/closing-day-helpers";
 import { createLogger } from "~/lib/logger";
@@ -204,6 +205,14 @@ async function offerCancel(
     logger.warn("closing_day_cancel_preview_failed", {
       error: err instanceof Error ? err.message : String(err),
     });
+    // Bewusst still ohne Recht zum Absagen: der Dialog könnte nichts tun.
+    if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+      return;
+    }
+    // Sonst ist offen, ob noch Termine im Zeitraum liegen. Der Dialog
+    // „Termine absagen“ zählt selbst neu und zeigt einen Fehler dort mit
+    // Wiederholen; still zu bleiben ließe geplante Termine stehen.
+    onOfferCancel({ startDate: from, endDate: to });
   }
 }
 
