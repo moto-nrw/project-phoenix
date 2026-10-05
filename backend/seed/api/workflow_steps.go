@@ -251,6 +251,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedParentEngagementStep{},
 		seedGradeTransitionStep{},
 		seedParentLetterStep{},
+		seedParentPollStep{},
 		seedParentDeclarationStep{},
 		seedInactiveAccountStep{},
 		// Zuletzt: Erst jetzt hat die Demo-Schule alle Daten, die der

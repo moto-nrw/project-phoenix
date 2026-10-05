@@ -208,6 +208,7 @@
     "newsPollAnswerSummary": "Përgjigjja: {answer}",
     "newsPollChildAnswer": "{name}: {answer}",
     "newsPollAnsweredCount": "{answered} nga {total} u përgjigjën",
+    "newsPollSelectedCount": "{count} nga {total} të zgjedhura",
     "newsPollSave": "Ruaj përgjigjen",
     "newsPollSaving": "Po ruhet …",
     "newsPollUnsaved": "Ende e paruajtur",

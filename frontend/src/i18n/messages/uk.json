@@ -208,6 +208,7 @@
     "newsPollAnswerSummary": "Відповідь: {answer}",
     "newsPollChildAnswer": "{name}, відповідь: {answer}",
     "newsPollAnsweredCount": "{answered} з {total} відповіли",
+    "newsPollSelectedCount": "Вибрано: {count} з {total}",
     "newsPollSave": "Зберегти відповідь",
     "newsPollSaving": "Зберігається …",
     "newsPollUnsaved": "Ще не збережено",

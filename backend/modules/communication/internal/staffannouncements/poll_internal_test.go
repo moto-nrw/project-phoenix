@@ -2,6 +2,8 @@ package announcement
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -115,17 +117,44 @@ func TestNormalizePollOptions_RejectsTooFewOptions(t *testing.T) {
 func TestNormalizePollOptions_RejectsTooManyOptions(t *testing.T) {
 	t.Parallel()
 
-	labels := make([]string, 0, maxPollOptions+1)
-	for i := 0; i <= maxPollOptions; i++ {
-		labels = append(labels, string(rune('A'+i)))
+	in := Input{
+		ResponseType: usersModels.ParentAnnouncementResponseMultiChoice,
+		Options:      distinctPollLabels(maxPollOptions + 1),
+	}
+	_, err := normalizePollOptions(&in)
+	if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "at most") {
+		t.Fatalf("expected more than %d options to be rejected, got %v", maxPollOptions, err)
+	}
+}
+
+// A Terminabstimmung for an Elternsprechtag needs 40 to 50 slots (#3861).
+func TestNormalizePollOptions_AcceptsMaxOptions(t *testing.T) {
+	t.Parallel()
+
+	if maxPollOptions < 50 {
+		t.Fatalf("maxPollOptions = %d, a Terminabstimmung needs at least 50", maxPollOptions)
 	}
 	in := Input{
 		ResponseType: usersModels.ParentAnnouncementResponseMultiChoice,
-		Options:      labels,
+		Options:      distinctPollLabels(maxPollOptions),
 	}
-	if _, err := normalizePollOptions(&in); !errors.Is(err, ErrValidation) {
-		t.Fatalf("expected more than %d options to be rejected, got %v", maxPollOptions, err)
+	out, err := normalizePollOptions(&in)
+	if err != nil {
+		t.Fatalf("expected %d options to be accepted, got %v", maxPollOptions, err)
 	}
+	if len(out) != maxPollOptions || out[maxPollOptions-1].Position != maxPollOptions-1 {
+		t.Fatalf("expected %d positioned options, got %d", maxPollOptions, len(out))
+	}
+}
+
+// distinctPollLabels returns n labels that stay distinct case-insensitively,
+// so a count check is never masked by the duplicate check.
+func distinctPollLabels(n int) []string {
+	labels := make([]string, 0, n)
+	for i := range n {
+		labels = append(labels, fmt.Sprintf("Termin %d", i+1))
+	}
+	return labels
 }
 
 func TestNormalizePollOptions_RejectsPastDeadline(t *testing.T) {
