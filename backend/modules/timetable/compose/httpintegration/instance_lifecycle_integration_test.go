@@ -1751,6 +1751,10 @@ func (s guardedLifecycleSettings) EnforcePlannedEnd(context.Context) (bool, erro
 	return s.enforcePlannedEnd, nil
 }
 
+func (s guardedLifecycleSettings) CompleteLeadMinutes(context.Context) (int, error) {
+	return 0, nil
+}
+
 // #2299 guard pass-through: a block created in the planning module WITHOUT an
 // offering link is subject to the lead-time guard, while an ad-hoc block
 // (explicit IsSpontaneous=true) stays exempt at the same clock.

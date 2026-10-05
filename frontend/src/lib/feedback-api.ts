@@ -1,3 +1,4 @@
+import { apiErrorFromResponse } from "./api-error";
 import { sessionFetch } from "./session-cache";
 import { createLogger } from "~/lib/logger";
 
@@ -47,11 +48,12 @@ export async function fetchStudentFeedback(
 
     if (!response.ok) {
       if (response.status === 404) return [];
-      if (response.status === 403) {
-        throw new Error("feature_disabled");
-      }
-      throw new Error(
-        `Failed to fetch feedback: ${response.status} ${response.statusText}`,
+      // The message is diagnosis only; callers read status and code.
+      throw await apiErrorFromResponse(
+        response,
+        response.status === 403
+          ? "feature_disabled"
+          : `Failed to fetch feedback: ${response.status} ${response.statusText}`,
       );
     }
 

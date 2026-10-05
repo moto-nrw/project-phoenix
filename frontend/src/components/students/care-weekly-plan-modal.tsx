@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import { useFormError } from "~/components/ui/form-error";
 import { FormModal } from "~/components/ui/form-modal";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import type {
   CareDaysSource,
   CareTimePresets,
@@ -71,15 +70,16 @@ function CareWeeklyPlanModalForm({
     initialPickupSchedules,
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useFormError();
+  const formRef = useRef<HTMLFormElement>(null);
+  const errors = useApiFormError(formRef);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError(null);
+    errors.clear();
 
     const invalid = validateWeeklyRows(draft.rows);
     if (invalid) {
-      setError(invalid);
+      errors.invalid(invalid);
       return;
     }
 
@@ -96,11 +96,7 @@ function CareWeeklyPlanModalForm({
       toast.success(successMessage);
       onClose();
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Wochenplan konnte nicht übernommen werden",
-      );
+      await errors.show(err, { object: "die Übernahme des Wochenplans" });
     } finally {
       setIsSubmitting(false);
     }
@@ -141,9 +137,10 @@ function CareWeeklyPlanModalForm({
       size="xl"
       mobilePosition="bottom"
       isBackdropDismissDisabled
-      error={error}
+      error={errors.error}
     >
       <form
+        ref={formRef}
         id="care-weekly-plan-form"
         noValidate
         onSubmit={handleSubmit}

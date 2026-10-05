@@ -16,7 +16,7 @@ func (rs *Resource) getDashboardAnalytics(w http.ResponseWriter, r *http.Request
 	// Get dashboard analytics
 	analytics, err := rs.Operations.DashboardAnalytics(r.Context())
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 

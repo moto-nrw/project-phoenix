@@ -366,7 +366,7 @@ interface ApiResponse<T> {
 
 /**
  * Throws an ApiError carrying the backend's stable `code` (for example
- * "declaration_has_submissions"), so a dialog can map it to a German sentence
+ * "communication.declaration_has_submissions"), so a dialog can map it to a German sentence
  * instead of showing the raw backend text.
  */
 async function throwApiError(

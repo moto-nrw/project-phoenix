@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -101,7 +102,7 @@ func TestRenderPublicEnrollmentError_EnrollmentDisabled404WithCode(t *testing.T)
 	r := httptest.NewRequest(http.MethodGet, "/x", nil)
 	renderPublicEnrollmentError(w, r, capability.ErrEnrollmentDisabled)
 	assert.Equal(t, http.StatusNotFound, w.Code)
-	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentDisabled)
+	assert.Contains(t, w.Body.String(), common.CodeEnrollmentDisabled)
 }
 
 func TestRenderPublicEnrollmentError_WindowClosed404WithCode(t *testing.T) {
@@ -114,7 +115,7 @@ func TestRenderPublicEnrollmentError_WindowClosed404WithCode(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/x", nil)
 	renderPublicEnrollmentError(w, r, capability.ErrEnrollmentWindowClosed)
 	assert.Equal(t, http.StatusNotFound, w.Code)
-	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentWindowClosed)
+	assert.Contains(t, w.Body.String(), common.CodeEnrollmentWindowClosed)
 }
 
 func TestRenderPublicEnrollmentError_OtherErrorPlain404(t *testing.T) {
@@ -127,7 +128,7 @@ func TestRenderPublicEnrollmentError_OtherErrorPlain404(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/x", nil)
 	renderPublicEnrollmentError(w, r, errors.New("phase not found"))
 	assert.Equal(t, http.StatusNotFound, w.Code)
-	assert.NotContains(t, w.Body.String(), ErrCodeEnrollmentDisabled)
+	assert.NotContains(t, w.Body.String(), common.CodeEnrollmentDisabled)
 }
 
 // --- toPhaseResponse -----------------------------------------------------

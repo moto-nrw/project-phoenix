@@ -8,7 +8,12 @@
 
 export type InstanceStatus = "planned" | "active" | "completed" | "cancelled";
 
-export type ActivityType = "care" | "activity" | "external";
+/**
+ * Blocktyp eines Regeltermins. "duty" ist ein Dienst ohne Kinder (#3822):
+ * Essensausgabe, Busaufsicht, Abschließen. Kein Start, keine Kinderliste,
+ * Raum optional.
+ */
+export type ActivityType = "care" | "activity" | "external" | "duty";
 
 export type TimetableListKind =
   "edge_hours" | "learning_time" | "activity" | "mensa";
@@ -162,6 +167,11 @@ export interface EnrichedInstance {
   activityType: ActivityType;
   roomId: string;
   roomName: string;
+  /**
+   * Zielgruppe des Regeltermins hinter dem Block (#3817), wie im Tagesplan;
+   * fehlt bei Blöcken ohne Gruppe.
+   */
+  groupName?: string;
   staff: InstanceStaffSummary[];
   studentIds: string[];
   students: InstanceStudentSummary[];
@@ -270,6 +280,7 @@ export interface BackendEnrichedInstance {
   activity_type: ActivityType;
   room_id: number;
   room_name: string;
+  group_name?: string;
   staff: BackendInstanceStaffSummary[];
   student_ids?: number[];
   students?: BackendInstanceStudentSummary[];
@@ -1441,6 +1452,8 @@ export interface ConflictCheckParams {
   staffIds?: string[];
   studentIds?: string[];
   excludeInstanceId?: string;
+  /** Regeltermin being edited: its own occurrences never conflict. */
+  excludeActivityGroupId?: string;
 }
 
 /**

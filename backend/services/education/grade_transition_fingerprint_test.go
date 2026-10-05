@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	"github.com/stretchr/testify/assert"
@@ -69,7 +68,7 @@ func TestGradeTransitionWorkflow_Fingerprint_PromotionToGraduateNamedClassIsNotG
 	var status string
 	require.NoError(t, db.NewSelect().TableExpr("users.student_school_memberships").Column("status").
 		Where("student_profile_id = ?", student.ID).Where("deleted_at IS NULL").Scan(ctx, &status))
-	assert.Equal(t, string(users.StudentStatusActive), status)
+	assert.Equal(t, string(testpkg.StudentStatusActive), status)
 
 	// The freshly reviewed graduation fingerprint is accepted.
 	_, err = wf.Apply(ctx, id, graduatePreview.Fingerprint)

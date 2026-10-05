@@ -7,6 +7,16 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/education"
 )
 
+// Registered error codes (error-registry.json) of a rejected substitution.
+// This package may not import api/common, so it names them once here.
+const (
+	codeSubstitutionConflict      = "substitutions.conflict"
+	codeSubstitutionInvalidPeriod = "substitutions.invalid_period"
+	codeSubstitutionInvalidTarget = "substitutions.invalid_target"
+	codeSubstitutionNotFound      = "substitutions.not_found"
+	codeSubstitutionNotRunning    = "substitutions.not_running"
+)
+
 // The mapping between the substitution module's storage-neutral vocabulary and
 // the Timetable owner's deviation inputs and results. It used to live as a
 // bridge in the composition root; it belongs to the workflow that owns the
@@ -138,29 +148,29 @@ func mapScheduleSubstitutionError(err error) error {
 	switch {
 	case errors.Is(err, errSubstitutionInvalidPeriod):
 		return &education.OperationError{
-			Target: education.ErrInvalidPeriod, Code: "invalid_period", Message: "Der Zeitraum ist ungültig.",
+			Target: education.ErrInvalidPeriod, Code: codeSubstitutionInvalidPeriod, Message: "Der Zeitraum ist ungültig.",
 		}
 	case errors.Is(err, errSubstitutionNotFound):
 		return &education.OperationError{
-			Target: education.ErrNotFound, Code: "not_found", Message: "Die Terminvertretung wurde nicht gefunden.",
+			Target: education.ErrNotFound, Code: codeSubstitutionNotFound, Message: "Die Terminvertretung wurde nicht gefunden.",
 		}
 	case errors.Is(err, errSubstitutionNotRunning):
 		return &education.OperationError{
-			Target: education.ErrNotRunning, Code: "not_running", Message: "Die Terminvertretung ist nicht mehr aktiv.",
+			Target: education.ErrNotRunning, Code: codeSubstitutionNotRunning, Message: "Die Terminvertretung ist nicht mehr aktiv.",
 		}
 	}
 	var deviation *timetable.DeviationError
 	if !errors.As(err, &deviation) || deviation.Status == 500 {
 		return err
 	}
-	target, code, message := education.ErrInvalidTarget, "invalid_target", "Die Angaben für die Vertretung sind ungültig."
+	target, code, message := education.ErrInvalidTarget, codeSubstitutionInvalidTarget, "Die Angaben für die Vertretung sind ungültig."
 	switch deviation.Status {
 	case 404:
-		target, code, message = education.ErrNotFound, "not_found", "Der Termin oder die Person wurde nicht gefunden."
+		target, code, message = education.ErrNotFound, codeSubstitutionNotFound, "Der Termin oder die Person wurde nicht gefunden."
 	case 409:
 		target, code, message = education.ErrConflict, deviation.Code, deviation.ClientMsg
 		if code == "" {
-			code = "conflict"
+			code = codeSubstitutionConflict
 		}
 	}
 	return &education.OperationError{

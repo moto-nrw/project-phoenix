@@ -1,8 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import type { StaffTargetOverride } from "~/lib/staff-target-overrides-api";
 import { setTestClock } from "~/test/clock";
+import { catalogText } from "~/test/error-catalog-text";
 import { SonderarbeitszeitenSection } from "./sonderarbeitszeiten-section";
 
 const mocks = vi.hoisted(() => ({
@@ -12,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   mutateList: vi.fn(),
   mutate: vi.fn(),
   toastSuccess: vi.fn(),
+  loadError: undefined as unknown,
   endDefaultMonth: undefined as string | undefined,
 }));
 
@@ -21,8 +24,8 @@ vi.mock("swr", () => ({
 
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: () => ({
-    data: mocks.rows,
-    error: undefined,
+    data: mocks.loadError ? undefined : mocks.rows,
+    error: mocks.loadError,
     isLoading: false,
     mutate: mocks.mutateList,
   }),
@@ -36,7 +39,8 @@ vi.mock("~/lib/staff-target-overrides-api", () => ({
   },
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: mocks.toastSuccess, error: vi.fn() }),
 }));
 
@@ -96,6 +100,26 @@ describe("SonderarbeitszeitenSection", () => {
     mocks.mutateList.mockReset();
     mocks.mutate.mockReset();
     mocks.toastSuccess.mockReset();
+    mocks.loadError = undefined;
+  });
+
+  it("shows a failed load in place, not as an empty list", async () => {
+    mocks.loadError = new ApiError("boom", 500, {
+      code: "general.server",
+      instance: "req-overrides",
+    });
+    render(<SonderarbeitszeitenSection staffId="42" canEdit />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Liste der Sonderarbeitszeiten"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Keine Sonderarbeitszeiten eingetragen."),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mocks.mutateList).toHaveBeenCalled();
   });
 
   it("lists the range with its daily hours as decimal hours", () => {
@@ -153,7 +177,7 @@ describe("SonderarbeitszeitenSection", () => {
     );
     expect(mocks.mutateList).toHaveBeenCalled();
     expect(mocks.toastSuccess).toHaveBeenCalledWith(
-      "Sonderarbeitszeit angelegt.",
+      "Die Sonderarbeitszeit ist gespeichert.",
     );
     const invalidate = mocks.mutate.mock.calls[0]?.[0] as (
       key: unknown,
@@ -186,18 +210,23 @@ describe("SonderarbeitszeitenSection", () => {
     );
   });
 
-  it("shows the server's reason when a range overlaps another one", async () => {
+  it("explains a refused overlapping range in the dialog", async () => {
     mocks.create.mockRejectedValue(
-      new Error(
-        "Für diesen Zeitraum gibt es schon eine Sonderarbeitszeit (19.10.2026 bis 23.10.2026). Löschen Sie diese zuerst oder wählen Sie andere Tage.",
-      ),
+      new ApiError("target override overlaps", 409, {
+        code: "general.business_rejection",
+      }),
     );
     openCreate();
     fillRange("8,5");
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(
-      await screen.findByText(/gibt es schon eine Sonderarbeitszeit/),
+      await screen.findByText(
+        catalogText("general.business_rejection", "die Sonderarbeitszeit"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Sonderarbeitszeit anlegen" }),
     ).toBeInTheDocument();
     expect(mocks.mutate).not.toHaveBeenCalled();
   });
@@ -217,10 +246,32 @@ describe("SonderarbeitszeitenSection", () => {
     await waitFor(() => expect(mocks.remove).toHaveBeenCalledWith("42", "7"));
     await waitFor(() =>
       expect(mocks.toastSuccess).toHaveBeenCalledWith(
-        "Sonderarbeitszeit gelöscht.",
+        "Die Sonderarbeitszeit ist gelöscht.",
       ),
     );
     expect(mocks.mutateList).toHaveBeenCalled();
+  });
+
+  it("keeps a refused delete in the dialog", async () => {
+    mocks.remove.mockRejectedValue(
+      new ApiError("forbidden", 403, { code: "general.permission" }),
+    );
+    render(<SonderarbeitszeitenSection staffId="42" canEdit />);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Aktionen für die Sonderarbeitszeit ab 19.10.2026",
+      }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ja, löschen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.permission", "die Sonderarbeitszeit"),
+      ),
+    ).toBeInTheDocument();
+    expect(mocks.toastSuccess).not.toHaveBeenCalled();
   });
 
   it("lists hours per weekday with equal days joined (#3745)", () => {
@@ -404,7 +455,7 @@ describe("SonderarbeitszeitenSection", () => {
       "ring-moto-red",
     );
     expect(
-      screen.getByText("Bitte die markierten Felder prüfen."),
+      screen.getByText("Bitte prüfen Sie die markierten Felder."),
     ).toBeInTheDocument();
     expect(mocks.create).not.toHaveBeenCalled();
   });

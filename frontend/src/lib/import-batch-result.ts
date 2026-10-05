@@ -1,4 +1,6 @@
-const importBatchFailedCode = "import_batch_failed";
+import type { ErrorCode } from "~/lib/error-codes.generated";
+
+const importBatchFailedCode: ErrorCode = "import.import_batch_failed";
 const abortingWriteCodes = new Set(["creation_failed", "update_failed"]);
 
 interface ImportBatchRowError {
@@ -31,7 +33,7 @@ function rowHasAbortingWrite(entry: ImportBatchRowError): boolean {
 }
 
 /**
- * Reads the committed import outcome from an `import_batch_failed` envelope.
+ * Reads the committed import outcome from an `import.import_batch_failed` envelope.
  * Returns null for any other error so callers keep their generic failure path.
  * A nil Go slice encodes as `Errors: null`; that is an empty list, not a
  * malformed payload.
@@ -62,7 +64,7 @@ export function readImportBatchFailure<T>(
 /**
  * Reads the refusal that stopped a batch, such as a full Kinderkontingent
  * (#3571): `{ code, details }` in `details.rejection` of an
- * `import_batch_failed` envelope. Null when a batch failed for another reason.
+ * `import.import_batch_failed` envelope. Null when a batch failed for another reason.
  */
 export function readImportBatchRejection(payload: unknown): unknown {
   if (!isRecord(payload) || payload.code !== importBatchFailedCode) {

@@ -107,9 +107,6 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	if req.Notes != nil && len(*req.Notes) > 2000 {
 		return errors.New("notes cannot exceed 2000 characters")
 	}
-	if req.RoomID <= 0 {
-		return errors.New("room_id is required")
-	}
 	if req.CategoryID <= 0 {
 		return errors.New("category_id is required")
 	}
@@ -133,7 +130,12 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 		return err
 	}
 	req.ListKind = listKind
-	return nil
+	return timetableModule.ValidateTemplateShape(timetableModule.TemplateShape{
+		Type: req.Type, RoomID: req.RoomID, TargetGroupType: req.TargetGroupType,
+		HasTargets: len(req.Targets) > 0, HasStudents: hasAssignedStudents(req.StudentIDs, req.WeekdayAssignments),
+		HasOfferingSource: len(req.SourceCareOfferingIDs.Value) > 0, MaxParticipants: derefInt(req.MaxParticipants.Value),
+		ListKind: req.ListKind, EducationGroupID: req.EducationGroupID,
+	})
 }
 
 // normalizeTargetAndSourceFields canonicalizes the Zielgruppe and the
@@ -208,7 +210,7 @@ func parseUpdateTemplateRequest(w http.ResponseWriter, r *http.Request) (*parsed
 	}
 	if !isValidActivityType(req.Type) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(
-			fmt.Errorf("invalid type %q (must be care, activity, or external)", req.Type)))
+			fmt.Errorf("invalid type %q (must be care, activity, external, or duty)", req.Type)))
 		return nil, false
 	}
 	timing, ok := parseTemplateTiming(w, r, req.StartTime, req.EndTime, req.WeekPattern, req.MaxParticipants.Value)
@@ -283,12 +285,8 @@ func (rs *Resource) getTemplate(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, templates[0], "Template retrieved")
 }
 
-// templateNotFoundCode is the stable error code carried by every template 404
-// so clients can map the message without matching the English text (#2187).
-const templateNotFoundCode = "template_not_found"
-
 func renderTemplateNotFound(w http.ResponseWriter, r *http.Request) {
-	common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("template not found"), templateNotFoundCode))
+	common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("template not found"), common.CodeTimetableTemplateNotFound))
 }
 
 // resolveTemplateForRead retries an empty period-scoped template read against
@@ -617,14 +615,6 @@ func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error
 	}
 }
 
-// Stable codes for the pull-forward series-start rejections (#2226) so the
-// planner can map them without matching the German text.
-const (
-	ErrCodeTemplateStartNotEarlier       = "timetable.template_start_not_earlier"
-	ErrCodeTemplateStartInPast           = "timetable.template_start_in_past"
-	ErrCodeTemplateStartPredecessorClash = "timetable.template_start_predecessor_overlap"
-)
-
 // renderTemplateStartPullError maps the pull-forward series-start rejections
 // (#2226) to German 400s. Like the care-offering conflict above, the message
 // itself is user-facing German — the planner shows it verbatim.
@@ -634,19 +624,19 @@ func renderTemplateStartPullError(w http.ResponseWriter, r *http.Request, err er
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
 			//nolint:staticcheck // ST1005: user-facing German message
 			errors.New("Der Serienbeginn kann nur auf ein früheres Datum vorgezogen werden."),
-			ErrCodeTemplateStartNotEarlier,
+			common.CodeTimetableTemplateStartNotEarlier,
 		))
 	case errors.Is(err, timetableModule.ErrTemplateStartInPast):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
 			//nolint:staticcheck // ST1005: user-facing German message
 			errors.New("Der neue Serienbeginn darf nicht in der Vergangenheit liegen."),
-			ErrCodeTemplateStartInPast,
+			common.CodeTimetableTemplateStartInPast,
 		))
 	case errors.Is(err, timetableModule.ErrTemplateStartPredecessorOverlap):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
 			//nolint:staticcheck // ST1005: user-facing German message
 			errors.New("Der neue Serienbeginn überschneidet sich mit dem vorherigen Serienteil. Bitte wählen Sie ein Datum ab dessen Ende."),
-			ErrCodeTemplateStartPredecessorClash,
+			common.CodeTimetableTemplateStartPredecessorOverlap,
 		))
 	default:
 		return false

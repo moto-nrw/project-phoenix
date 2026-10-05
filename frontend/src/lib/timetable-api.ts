@@ -438,6 +438,9 @@ class TimetableService {
     if (params.excludeInstanceId) {
       query.set("exclude_instance_id", params.excludeInstanceId);
     }
+    if (params.excludeActivityGroupId) {
+      query.set("exclude_activity_group_id", params.excludeActivityGroupId);
+    }
 
     const response = await fetch(`/api/timetable/conflict-check?${query}`, {
       method: "GET",

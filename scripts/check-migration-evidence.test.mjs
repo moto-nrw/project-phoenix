@@ -31,12 +31,11 @@ test('unavailable history cannot fall back to comparing HEAD with itself', async
   await assert.rejects(() => checkMigrationEvidence('push', { before: base, ref: 'refs/heads/development' }, repository, () => { throw new Error('missing Git object'); }), /missing Git object/);
 });
 
-test('release PR reuses only successful development evidence for the exact tree', async () => {
+test('release PR validates the full inventory for the exact development tree', async () => {
   const calls = [];
   const event = { pull_request: { base: { sha: base, ref: 'main' }, head: { sha: head, ref: 'development', repo: { full_name: repository } } } };
   await checkMigrationEvidence('pull_request', event, repository, (command, args) => {
     calls.push([command, args]);
-    if (command === 'gh') return JSON.stringify({ workflow_runs: [{ event:'push',head_branch:'development',head_sha:head,head_repository:{full_name:repository},path:'.github/workflows/main.yml',status:'completed',conclusion:'success' }] });
     if (command === 'git' && args[0] === 'rev-parse') return 'same-tree';
     return '';
   });
@@ -44,7 +43,7 @@ test('release PR reuses only successful development evidence for the exact tree'
   assert.ok(calls.some(([command,args]) => command === 'git' && args[0] === 'diff' && args.includes(head)));
 });
 
-test('first release push reuses an exact tested development parent, not pre-gate history', async () => {
+test('first release push reuses an exact development parent, not pre-gate history', async () => {
   const merge = 'c'.repeat(40);
   const calls = [];
   await checkMigrationEvidence('push', { before: base, after: merge, ref: 'refs/heads/main' }, repository, (command, args) => {
@@ -52,14 +51,13 @@ test('first release push reuses an exact tested development parent, not pre-gate
     if (command === 'git' && args[0] === 'cat-file' && args[2].includes(':scripts/')) throw new Error('file absent before rollout');
     if (command === 'git' && args[0] === 'rev-list') return `${merge} ${base} ${head}`;
     if (command === 'git' && args[0] === 'rev-parse') return 'same-tree';
-    if (command === 'gh') return JSON.stringify({ workflow_runs: [{ event:'push',head_branch:'development',head_sha:head,head_repository:{full_name:repository},path:'.github/workflows/main.yml',status:'completed',conclusion:'success' }] });
     return '';
   });
   assert.deepEqual(calls.at(-1), ['bash', ['scripts/backend-architecture.sh', 'validate-ticket', '--all']]);
   assert.ok(calls.some(([cmd,args]) => cmd === 'git' && args[0] === 'merge-base' && args.includes(head)));
 });
 
-for (const failure of ['CI', 'tree', 'ancestry', 'working tree']) {
+for (const failure of ['tree', 'ancestry', 'working tree']) {
   test(`first release push rejects failed ${failure} proof`, async () => {
     const merge = 'c'.repeat(40);
     await assert.rejects(() => checkMigrationEvidence('push', { before:base,after:merge,ref:'refs/heads/main' }, repository, (command,args) => {
@@ -67,7 +65,6 @@ for (const failure of ['CI', 'tree', 'ancestry', 'working tree']) {
       if (command === 'git' && args[0] === 'rev-parse') return failure === 'tree' && args[1] === 'HEAD^{tree}' ? 'different' : 'tree';
       if (command === 'git' && args[0] === 'merge-base' && failure === 'ancestry') throw new Error('not ancestor');
       if (command === 'git' && args[0] === 'diff' && failure === 'working tree') throw new Error('dirty tree');
-      if (command === 'gh') return JSON.stringify({ workflow_runs:[{event:'push',head_branch:'development',head_sha:head,head_repository:{full_name:repository},path:'.github/workflows/main.yml',status:'completed',conclusion:failure === 'CI' ? 'failure':'success'}] });
       if (command === 'bash') assert.fail('must not accept release');
       return '';
     }));

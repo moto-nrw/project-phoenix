@@ -381,7 +381,7 @@ func TestAssertErrorResponse(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	rr.WriteHeader(http.StatusBadRequest)
-	_, _ = rr.WriteString(`{"status":"error","message":"bad request"}`)
+	_, _ = rr.WriteString(`{"status":"error","error":"bad request"}`)
 
 	testutil.AssertErrorResponse(t, rr, http.StatusBadRequest)
 }
@@ -391,7 +391,7 @@ func TestAssertUnauthorized(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	rr.WriteHeader(http.StatusUnauthorized)
-	_, _ = rr.WriteString(`{"status":"Unauthorized"}`)
+	_, _ = rr.WriteString(`{"status":"error","error":"refused"}`)
 
 	testutil.AssertUnauthorized(t, rr)
 }
@@ -401,7 +401,7 @@ func TestAssertForbidden(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	rr.WriteHeader(http.StatusForbidden)
-	_, _ = rr.WriteString(`{"status":"Forbidden"}`)
+	_, _ = rr.WriteString(`{"status":"error","error":"refused"}`)
 
 	testutil.AssertForbidden(t, rr)
 }
@@ -411,7 +411,7 @@ func TestAssertNotFound(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	rr.WriteHeader(http.StatusNotFound)
-	_, _ = rr.WriteString(`{"status":"Not Found"}`)
+	_, _ = rr.WriteString(`{"status":"error","error":"refused"}`)
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -421,7 +421,7 @@ func TestAssertBadRequest(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	rr.WriteHeader(http.StatusBadRequest)
-	_, _ = rr.WriteString(`{"status":"Invalid Request"}`)
+	_, _ = rr.WriteString(`{"status":"error","error":"refused"}`)
 
 	testutil.AssertBadRequest(t, rr)
 }

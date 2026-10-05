@@ -303,7 +303,8 @@ export function OfferingChangeRequestModal({
         return;
       }
       setError(
-        err instanceof ParentApiError && err.code === "change_request_stale"
+        err instanceof ParentApiError &&
+          err.code === "students.change_request_stale"
           ? t("careOfferingsModal.staleError")
           : err instanceof Error
             ? err.message

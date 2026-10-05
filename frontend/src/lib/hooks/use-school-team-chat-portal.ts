@@ -14,7 +14,7 @@ export { SCHOOL_MESSAGES_ROUTE };
  * The school-portal binding of the shared Team-Chat surfaces (#2208). No
  * tenant context here: the school session is bound to one school, and the
  * feature flag is not cached client-side — the backend's stable
- * `staff_messaging_disabled` code decides the off-state.
+ * `communication.staff_messaging_disabled` code decides the off-state.
  */
 export function useSchoolTeamChatPortal(): TeamChatPortal {
   const router = useRouter();

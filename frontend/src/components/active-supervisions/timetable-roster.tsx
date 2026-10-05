@@ -21,7 +21,10 @@ import {
   upcomingArrivalTime,
 } from "~/lib/timetable-roster-helpers";
 import { saveStudentPartialAbsence } from "~/lib/student-partial-absences-api";
-import { canCompleteInstance } from "~/lib/timetable-lifecycle";
+import {
+  canCompleteInstance,
+  completeAvailableClock,
+} from "~/lib/timetable-lifecycle";
 import { TIMETABLE_VIEW_ONLY_NOTICE } from "~/lib/timetable-operation-access";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type {
@@ -659,7 +662,7 @@ function TimetableRosterHeader({
             >
               {completeEnabled
                 ? "Beenden"
-                : `Beenden ab ${roster.instance.endTime}`}
+                : `Beenden ab ${completeAvailableClock(roster.instance.completeAvailableAt, roster.instance.endTime)}`}
             </Button>
           ) : null}
         </div>

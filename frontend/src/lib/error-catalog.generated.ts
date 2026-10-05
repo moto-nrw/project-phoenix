@@ -22,10 +22,12 @@ export const ERROR_CATALOG = {
       fieldCheck: "Bitte prüfen Sie dieses Feld.",
     },
     codes: {
+      "attendance.web_disabled":
+        "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "care.announcement_stale":
-        "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
+        "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
       "care.care_exception_conflict":
-        "Der Stand von {object} hat sich geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+        "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",
       "care.care_exception_past_date":
         "Das Datum für {object} liegt in der Vergangenheit. Bitte wählen Sie ein anderes Datum.",
       "care.care_exception_reason_required":
@@ -44,7 +46,7 @@ export const ERROR_CATALOG = {
         "Das Passwort stimmt nicht. Bitte versuchen Sie es noch einmal.",
       "care.declaration_password_required": "Bitte geben Sie Ihr Passwort ein.",
       "care.declaration_version_changed":
-        "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
+        "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
       "care.excused_request_not_pending":
         "{object} ist nicht mehr offen. Bitte laden Sie die Seite neu.",
       "care.excused_request_overlap":
@@ -122,7 +124,7 @@ export const ERROR_CATALOG = {
       "enrollment.care_offerings_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "enrollment.change_request_conflict":
-        "Der Stand von {object} hat sich geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+        "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",
       "enrollment.class_not_eligible":
         "{object} erfüllt die Voraussetzungen nicht. Bitte fragen Sie Ihre Ansprechperson.",
       "enrollment.complete_withdrawal_confirmation_required":
@@ -138,7 +140,7 @@ export const ERROR_CATALOG = {
       "enrollment.late_invite_invalid":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "enrollment.phase_care_offering_conflict":
-        "Der Stand von {object} hat sich geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+        "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",
       "enrollment.phase_name_exists":
         "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
       "enrollment.phase_not_eligible":
@@ -162,7 +164,23 @@ export const ERROR_CATALOG = {
       "files.folder_name_taken":
         "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
       "grade_transition.preview_stale":
-        "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
+        "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
+      "identity.account_already_has_tenant_access":
+        "Diese Person hat schon Zugang zu dieser Schule. Sie finden sie in der Personalliste.",
+      "identity.demo_access_expired":
+        "Der Demo-Zugang ist abgelaufen. Bitte fordern Sie einen neuen Zugang an.",
+      "identity.demo_access_invalid":
+        "Der Demo-Link ist ungültig. Bitte fordern Sie einen neuen Link an.",
+      "identity.demo_access_rate_limited":
+        "Das waren zu viele Versuche. Bitte warten Sie kurz und versuchen Sie es dann erneut.",
+      "identity.demo_access_unknown":
+        "Diesen Demo-Link gibt es nicht. Bitte fordern Sie einen neuen Link an.",
+      "identity.demo_capacity_reached":
+        "Gerade sind alle Demo-Plätze belegt. Bitte versuchen Sie es später erneut.",
+      "identity.demo_school_preparing":
+        "Die Demo-Schule wird gerade vorbereitet. Bitte versuchen Sie es gleich noch einmal.",
+      "identity.email_already_exists":
+        "Für diese E-Mail-Adresse gibt es schon ein Konto. Bitte verwenden Sie eine andere Adresse.",
       "identity.invitation_account_login_required":
         "Für {object} müssen Sie angemeldet sein. Bitte melden Sie sich an.",
       "identity.preview_token_invalid":
@@ -200,7 +218,7 @@ export const ERROR_CATALOG = {
       "pickup.offerings_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "pickup.preview_stale":
-        "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
+        "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
       "pickup.resolution_required":
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
       "presence.activity_participant_limit_reached":
@@ -211,88 +229,302 @@ export const ERROR_CATALOG = {
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "rollover.review_invalid":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+      "rooms.color_already_in_use":
+        "Diese Farbe hat schon ein anderer Raum. Bitte wählen Sie eine andere Farbe.",
+      "school.setup_completed":
+        "Die Einrichtung der Schule ist schon abgeschlossen. Bitte laden Sie die Seite neu.",
+      "school.setup_incomplete":
+        "Die Einrichtung ist noch nicht fertig. Bitte schließen Sie zuerst die offenen Schritte ab.",
       "students.absence_read_required":
-        "Für {object} fehlt die Bestätigung. Bitte bestätigen Sie den Hinweis.",
+        "Für {object} brauchen Sie zusätzlich das Recht „Kinder sehen“. Bitte fragen Sie die Schulleitung.",
+      "students.bulk_approval_ineligible":
+        "Mindestens eine Anfrage muss einzeln geprüft werden. Es wurde nichts freigegeben.",
+      "students.care_day_managed_by_booking":
+        "Dieser Tag gehört zu einem gebuchten Angebot. Bitte ändern Sie zuerst die Buchung.",
       "students.care_exception_raced":
-        "Der Stand von {object} hat sich geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+        "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+      "students.care_exit_already_effective":
+        "Die Betreuung ist schon beendet. Bitte nutzen Sie „Betreuung wieder aufnehmen“.",
+      "students.care_exit_blocked":
+        "Die Betreuung wurde nicht beendet. Bitte prüfen Sie die Hinweise bei den Kindern.",
+      "students.care_exit_day_in_past":
+        "Der letzte Betreuungstag darf nicht in der Vergangenheit liegen.",
+      "students.care_exit_invalid_reason": "Bitte wählen Sie einen Grund aus.",
+      "students.care_exit_no_students":
+        "Bitte wählen Sie mindestens ein Kind aus.",
+      "students.care_exit_not_planned":
+        "Für dieses Kind ist kein Ende der Betreuung geplant. Bitte laden Sie die Seite neu.",
+      "students.care_exit_note_not_allowed":
+        "Eine eigene Begründung ist nur bei „Anderer Grund“ möglich.",
+      "students.care_exit_note_required": "Bitte geben Sie den Grund ein.",
+      "students.care_exit_note_too_long":
+        "Die Begründung ist zu lang. Bitte kürzen Sie sie.",
+      "students.care_exit_preview_changed":
+        "Seit der Vorschau hat sich etwas geändert. Bitte prüfen Sie die Vorschau erneut.",
+      "students.care_exit_too_many_students":
+        "Bitte wählen Sie höchstens 500 Kinder auf einmal aus.",
       "students.care_offerings_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "students.care_resume_missing":
+        "Für dieses Kind ist keine beendete Betreuung hinterlegt.",
+      "students.care_resume_not_checked":
+        "Bitte bestätigen Sie zuerst die Prüfung. Sonst bleiben Gruppe, Angebote, Wochenplan und Zeiten ungeprüft.",
+      "students.care_resume_not_ended":
+        "Die Betreuung dieses Kindes läuft noch. Sie müssen sie nicht wieder aufnehmen.",
+      "students.care_resume_start_in_past":
+        "Der neue Beginn darf nicht in der Vergangenheit liegen.",
+      "students.care_withdrawal_after_gap":
+        "Der letzte Betreuungstag muss vor dem ersten Tag ohne Buchung liegen.",
+      "students.care_withdrawal_date_invalid":
+        "Dieser letzte Betreuungstag ist für das Kind nicht möglich. Bitte wählen Sie ein späteres Datum.",
       "students.care_withdrawal_not_found":
         "{object} wurde nicht gefunden. Bitte laden Sie die Seite neu.",
       "students.change_request_not_pending":
         "{object} ist nicht mehr offen. Bitte laden Sie die Seite neu.",
       "students.change_request_stale":
-        "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
+        "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
+      "students.checkin_care_ended":
+        "Die Betreuung dieses Kindes ist beendet. Bitte laden Sie die Seite neu.",
+      "students.checkout_note_too_long":
+        "Die Notiz ist zu lang. Bitte kürzen Sie sie.",
+      "students.child_quota_reached":
+        "Das Kinderkontingent Ihrer Schule ist voll ({occupied_places} von {booked_places} Kindern). Bitte melden Sie sich beim moto-Team.",
+      "students.companion_lock_busy":
+        "Gerade ändert jemand anderes die Laufgemeinschaft. Bitte versuchen Sie es gleich noch einmal.",
+      "students.companion_would_lose_departure":
+        "Ein verknüpftes Kind hätte dann keinen Heimweg mehr. Bitte passen Sie zuerst dessen Heimweg an.",
       "students.companions_changed":
-        "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
+        "Die Laufgemeinschaft wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
+      "students.conflict_kind_unsupported":
+        "Diese Anfragen lassen sich nicht gemeinsam entscheiden. Bitte entscheiden Sie sie einzeln.",
+      "students.correction_unsupported":
+        "Diese Entscheidung lässt sich nicht zurücknehmen. Bitte ändern Sie den Eintrag direkt beim Kind.",
       "students.deletion_acknowledgement_required":
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
+      "students.deletion_companion_lock_busy":
+        "Gerade ändert jemand anderes die Laufgemeinschaft. Bitte versuchen Sie es gleich noch einmal.",
       "students.deletion_constraints_changed":
-        "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
+        "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
       "students.deletion_invalid_reason":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "students.deletion_preview_changed":
-        "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
+        "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
       "students.excused_request_status_conflict":
-        "Der Stand von {object} hat sich geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+        "Für einen der Tage gibt es schon einen neueren Eintrag. Bitte prüfen Sie die Tage.",
+      "students.export_selection_too_large":
+        "Die Auswahl umfasst {total} Kinder. Eine Liste darf höchstens {limit} Kinder haben. Bitte grenzen Sie die Auswahl ein, zum Beispiel nach Gruppe oder Klasse.",
+      "students.guardian_access_revoked":
+        "Die anfragende Person hat keinen Zugriff mehr auf das Kind. Bitte lehnen Sie {object} ab.",
       "students.offering_change_capacity_full":
-        "Für {object} ist kein Platz mehr frei. Bitte wählen Sie etwas anderes.",
+        "In einem der Angebote ist kein Platz mehr frei. Bitte prüfen Sie die Belegung.",
+      "students.offering_change_date_out_of_range":
+        "Zu diesem Datum kann die Änderung nicht gelten. Bitte wählen Sie ein anderes Datum.",
+      "students.offering_changes_no_enrollment":
+        "Für das Kind gibt es keine gültige Anmeldung mehr. Bitte lehnen Sie {object} ab.",
       "students.partial_absence_conflict":
-        "Der Stand von {object} hat sich geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+        "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+      "students.photo_consent_required":
+        "Für ein Foto fehlt die Einwilligung der Eltern. Bitte bestätigen Sie zuerst die Einwilligung.",
+      "students.photo_consent_withdrawn":
+        "Die Eltern haben die Einwilligung für Fotos zurückgezogen. Bitte prüfen Sie die Einwilligung erneut.",
+      "students.photos_disabled":
+        "Kinderfotos sind an dieser Schule ausgeschaltet. Bitte fragen Sie die Schulleitung.",
+      "students.pickup_change_completed":
+        "Das Kind ist schon abgemeldet. Die Abholzeit lässt sich nicht mehr ändern.",
       "students.pickup_change_conflict":
-        "Der Stand von {object} hat sich geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+        "Für diesen Tag hat die OGS schon etwas eingetragen. Bitte prüfen Sie den Tag.",
       "students.pickup_change_expired":
-        "{object} ist abgelaufen. Bitte beginnen Sie erneut.",
+        "Der Tag liegt in der Vergangenheit. Bitte lehnen Sie {object} ab.",
       "students.pickup_change_impact_changed":
-        "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
+        "Der Betreuungsplan hat sich geändert. Bitte laden Sie die Seite neu.",
       "students.reason_required":
-        "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
+        "Für {object} fehlt eine Begründung. Bitte tragen Sie eine ein.",
+      "students.request_not_decided":
+        "{object} ist noch nicht entschieden. Bitte entscheiden Sie zuerst.",
+      "students.request_not_past":
+        "Die Anfrage betrifft noch kommende Tage. Bitte entscheiden Sie sie.",
+      "students.request_past":
+        "Die Anfrage betrifft nur vergangene Tage. Sie können sie nur ablehnen oder als erledigt markieren.",
       "students.sick_excused_conflict":
-        "Der Stand von {object} hat sich geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+        "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",
       "students.staff_profile_required":
-        "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
+        "Diese Zeit haben die Eltern gesetzt. Ändern kann sie nur jemand mit Personalprofil.",
       "students.staff_value_invalid":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+      "students.staff_value_unsupported":
+        "Ein eigener Wert ist hier nicht möglich. Bitte wählen Sie einen Wunsch oder „Keine Änderung“.",
+      "students.status_day_conflict":
+        "An einigen Tagen gibt es schon einen Eintrag. Diese Tage wurden nicht geändert.",
       "substitutions.invalid_period":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "substitutions.invalid_target":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "timetable.calendar_period_care_offering_conflict":
-        "Der Stand von {object} hat sich geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+        "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",
       "timetable.calendar_period_overlap_conflict":
         "{object} überschneidet sich mit anderen Zeiträumen. Bitte prüfen Sie die Termine.",
+      "timetable.complete_too_early":
+        "Der Termin kann erst nach seinem Ende abgeschlossen werden.",
       "timetable.completion_confirmation_stale":
-        "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
+        "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
+      "timetable.duplicate_instance":
+        "Diesen Termin gibt es schon. Bitte laden Sie die Seite neu.",
+      "timetable.guardian_notice_disabled":
+        "Hinweise an Eltern sind hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "timetable.instance_moved":
+        "Der Termin wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
       "timetable.only_supervisor_replacement_required":
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
       "timetable.pickup_extension_not_found":
         "{object} wurde nicht gefunden. Bitte laden Sie die Seite neu.",
+      "timetable.staff_absent_on_date":
+        "Die Person ist an diesem Tag abwesend. Bitte wählen Sie eine andere Person.",
+      "timetable.staff_absent_on_target":
+        "Die Person ist an diesem Tag abwesend. Bitte wählen Sie eine andere Person.",
+      "timetable.staff_already_on_target":
+        "Die Person ist für diesen Termin schon eingeteilt.",
+      "timetable.start_too_early":
+        "Der Termin kann noch nicht gestartet werden. Bitte versuchen Sie es kurz vor Beginn erneut.",
+      "timetable.start_window_expired":
+        "Der Termin kann nicht mehr gestartet werden. Die Startzeit ist vorbei.",
       "timetable.template_care_offering_conflict":
-        "Der Stand von {object} hat sich geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+        "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",
       "timetable.template_roster_rebase_conflict":
-        "Der Stand von {object} hat sich geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+        "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",
       "timetable.template_start_in_past":
         "Das Datum für {object} liegt in der Vergangenheit. Bitte wählen Sie ein anderes Datum.",
       "timetable.template_start_predecessor_overlap":
         "Die Zeiten für {object} überschneiden sich. Bitte prüfen Sie die Angaben.",
+      "timetable.understaffed_still_staffed":
+        "Für den Termin ist noch Personal eingeteilt. Bitte nehmen Sie das Personal zuerst heraus.",
+      "workforce.absence_allowance_exceeded":
+        "Für diese Art sind nicht mehr genug Tage übrig. Der Anspruch muss zuerst erhöht werden.",
+      "workforce.absence_already_decided":
+        "Über {object} wurde schon entschieden. Bitte laden Sie die Seite neu.",
+      "workforce.absence_no_working_days":
+        "In diesem Zeitraum gibt es keinen Arbeitstag. Bitte wählen Sie andere Tage.",
+      "workforce.absence_not_found": "Abwesenheit nicht gefunden.",
+      "workforce.absence_not_cancelable":
+        "{object} kann nicht mehr zurückgezogen werden. Bitte laden Sie die Seite neu.",
+      "workforce.absence_not_owned":
+        "Sie können nur eigene Abwesenheiten ändern.",
+      "workforce.absence_overlap":
+        "An diesen Tagen ist schon eine Abwesenheit eingetragen. Bitte wählen Sie andere Tage.",
+      "workforce.absence_type_inactive":
+        "Diese Abwesenheitsart ist ausgeschaltet. Bitte wählen Sie eine andere.",
+      "workforce.adjustment_in_closed_month":
+        "Dieser Monat ist schon abgeschlossen. Bitte wählen Sie ein Datum im offenen Monat. Oder öffnen Sie den Monat wieder.",
+      "workforce.already_checked_in":
+        "Sie sind schon eingestempelt. Bitte laden Sie die Seite neu.",
+      "workforce.already_checked_out": "Sie haben heute bereits gearbeitet.",
+      "workforce.balance_adjustment_exceeds_balance":
+        "Dafür reicht das Guthaben im Stundenkonto nicht. Spätere Buchungen hängen davon ab.",
+      "workforce.balance_already_reset":
+        "Das Stundenkonto wurde für dieses Datum schon zurückgesetzt.",
+      "workforce.break_already_active":
+        "Ihre Pause läuft schon. Bitte laden Sie die Seite neu.",
+      "workforce.decision_note_required":
+        "Bitte schreiben Sie eine kurze Begründung.",
+      "workforce.dependent_balance_reset":
+        "Ein späteres Zurücksetzen des Stundenkontos hängt davon ab. Bitte prüfen Sie zuerst dieses Zurücksetzen.",
       "workforce.later_month_closed":
-        "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
+        "Ein späterer Monat ist schon abgeschlossen. Bitte öffnen Sie zuerst den späteren Monat.",
+      "workforce.manager_controlled_absence":
+        "Diese Abwesenheit trägt nur die Leitung ein. Bitte fragen Sie die Leitung.",
+      "workforce.month_closed":
+        "Der {month} ist abgeschlossen. Öffnen Sie den Monat zuerst wieder. Das geht im Reiter Zeiterfassung.",
+      "workforce.month_not_closable":
+        "Dieser Monat ist noch nicht vorbei. Sie können ihn erst danach abschließen.",
       "workforce.month_not_closed":
-        "Der Monat für {object} ist noch offen. Bitte schließen Sie ihn zuerst ab.",
+        "Dieser Monat ist nicht abgeschlossen. Bitte laden Sie die Seite neu.",
+      "workforce.no_active_break":
+        "Gerade läuft keine Pause. Bitte laden Sie die Seite neu.",
+      "workforce.no_active_session":
+        "Gerade läuft keine Arbeitszeit. Bitte laden Sie die Seite neu.",
+      "workforce.no_session_for_today": "Kein Eintrag für heute vorhanden.",
       "workforce.opening_balance_already_exists":
-        "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
+        "Für diese Person gibt es schon einen Eröffnungssaldo. Bitte löschen Sie zuerst den alten.",
+      "workforce.payroll_config_incomplete":
+        "Für die Datei fehlen noch Angaben auf der Seite Abrechnung. Bitte ergänzen Sie diese zuerst.",
       "workforce.personnel_number_invalid":
-        "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+        "Die Personalnummer darf nur Ziffern haben, höchstens 9. Bitte prüfen Sie die Eingabe.",
       "workforce.personnel_number_taken":
-        "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
+        "Diese Personalnummer ist schon vergeben. Bitte wählen Sie eine andere.",
+      "workforce.rebooking_before_vacation_opening":
+        "Der Eintrag vom {day} liegt vor der Urlaubs-Übernahme. Dort lässt sich kein Urlaub eintragen.",
+      "workforce.rebooking_half_day_edge":
+        "Der Urlaub ab {day} hat einen halben Tag am Rand. Bitte löschen Sie ihn und tragen Sie die Tage neu ein.",
+      "workforce.rebooking_into_sick_report":
+        "In eine Krankmeldung lässt sich nicht umbuchen. Bitte löschen Sie den Eintrag und tragen Sie die Krankmeldung neu ein.",
+      "workforce.rebooking_no_working_day":
+        "Der Eintrag vom {day} hat keinen Arbeitstag. Urlaub braucht mindestens einen.",
+      "workforce.rebooking_not_over":
+        "Der Eintrag ist noch nicht vorbei. Sie können ihn danach ändern.",
+      "workforce.rebooking_nothing_selected":
+        "Bitte wählen Sie mindestens einen Eintrag aus.",
+      "workforce.rebooking_outside_balance":
+        "Der Eintrag vom {day} liegt außerhalb des Stundenkontos. Dort ist kein Freizeitausgleich möglich.",
+      "workforce.rebooking_overlap":
+        "Der Eintrag überschneidet sich mit einer anderen Abwesenheit. Bitte löschen Sie einen Eintrag und tragen Sie ihn neu ein.",
+      "workforce.rebooking_reason_required":
+        "Bitte geben Sie einen Grund für die Umbuchung an.",
+      "workforce.rebooking_request":
+        "Der Eintrag vom {day} ist ein Antrag. Anträge lassen sich nicht umbuchen.",
+      "workforce.rebooking_same_type":
+        "Der Eintrag vom {day} hat diese Art schon.",
+      "workforce.rebooking_sick_report":
+        "Die Krankmeldung vom {day} lässt sich nicht umbuchen. Bitte löschen Sie sie und tragen Sie die richtige Art neu ein.",
+      "workforce.rebooking_too_many":
+        "Bitte buchen Sie höchstens {limit} Einträge auf einmal um.",
+      "workforce.replacement_outside_origin":
+        "Eine Vertretung muss am Tag und in der Zeit der ausgefallenen Schicht liegen.",
+      "workforce.session_note_required":
+        "Bitte geben Sie einen Grund für die Änderung an.",
+      "workforce.session_not_found": "Eintrag nicht gefunden.",
+      "workforce.session_not_owned":
+        "Sie können nur eigene Einträge bearbeiten.",
+      "workforce.session_times_invalid":
+        "Das Ende muss nach dem Beginn liegen. Bitte prüfen Sie Beginn, Ende und Pause.",
+      "workforce.shift_changed":
+        "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
+      "workforce.shift_duplicate":
+        "Zu dieser Zeit beginnt schon eine Schicht dieser Person. Bitte wählen Sie eine andere Zeit.",
+      "workforce.shift_has_replacements":
+        "Für diese Schicht gibt es Vertretungen. Bitte passen Sie zuerst die Vertretungen an.",
+      "workforce.shift_overlap":
+        "Die Schicht überschneidet sich mit einer anderen Schicht dieser Person. Bitte prüfen Sie die Zeiten.",
+      "workforce.shift_series_no_occurrences":
+        "Für {object} gibt es keine Termine mehr. Bitte prüfen Sie Wochentage und „Gültig bis“.",
+      "workforce.shift_series_outside_period":
+        "Die Serie liegt außerhalb des Kalenderzeitraums. Bitte prüfen Sie „Gültig ab“ und „Gültig bis“.",
+      "workforce.shift_series_week_cycle_missing":
+        "Dieser Kalenderzeitraum hat keine Woche A und B. Bitte wählen Sie „Jede Woche“.",
+      "workforce.shift_type_inactive":
+        "Diese Schichtart ist ausgeschaltet. Bitte wählen Sie eine andere.",
       "workforce.stammdaten_invalid":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+      "workforce.target_override_hours_invalid":
+        "Die Stunden pro Tag müssen zwischen 0 und {max_hours} liegen.",
+      "workforce.target_override_overlap":
+        "Vom {start_date} bis {end_date} gibt es schon eine Sonderarbeitszeit. Bitte löschen Sie diese zuerst oder wählen Sie andere Tage.",
+      "workforce.target_override_range_invalid":
+        "Das Ende liegt vor dem Anfang. Bitte prüfen Sie den Zeitraum.",
+      "workforce.target_override_too_long":
+        "Der Zeitraum ist zu lang. Erlaubt sind höchstens {max_days} Tage.",
+      "workforce.vacation_opening_absences_before_cutoff":
+        "Vor dem Stichtag ist schon Urlaub eingetragen. Diese Tage würden doppelt zählen. Bitte wählen Sie einen früheren Stichtag.",
       "workforce.vacation_opening_already_exists":
-        "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
+        "Für dieses Jahr gibt es schon eine Urlaubs-Übernahme. Bitte löschen Sie zuerst die alte.",
+      "workforce.vacation_quota_below_used":
+        "Der Anspruch ist kleiner als die genommenen und beantragten Tage. Bitte tragen Sie einen höheren Wert ein.",
+      "workforce.vacation_quota_exceeded":
+        "Dafür reicht der Resturlaub nicht. Der Urlaubsanspruch muss zuerst erhöht werden.",
       "workforce.vacation_quota_reason_required":
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
+      "workforce.vacation_request_in_past":
+        "Urlaub können Sie nur ab heute beantragen. Bitte wählen Sie ein anderes Datum.",
       "workforce.work_session_overlap":
-        "Die Zeiten für {object} überschneiden sich. Bitte prüfen Sie die Angaben.",
+        "Die Zeit überschneidet sich mit einem anderen Eintrag an diesem Tag. Bitte prüfen Sie Beginn und Ende.",
     },
   },
   en: {
@@ -315,6 +547,16 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "The password is not correct. Please try again.",
       "care.declaration_password_required": "Please enter your password.",
+      "identity.account_already_has_tenant_access":
+        "This person already has access to this school. You can find them in the staff list.",
+      "identity.email_already_exists":
+        "There is already an account for this email address. Please use a different address.",
+      "students.export_selection_too_large":
+        "The selection has {total} children. A list can have at most {limit} children. Please narrow the selection, for example by group or class.",
+      "students.staff_profile_required":
+        "The parents set this time. Only someone with a staff profile can change it.",
+      "students.status_day_conflict":
+        "Some days already have an entry. These days were not changed.",
     },
   },
   ru: {
@@ -337,6 +579,16 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Пароль неверный. Пожалуйста, попробуйте ещё раз.",
       "care.declaration_password_required": "Пожалуйста, введите пароль.",
+      "identity.account_already_has_tenant_access":
+        "У этого человека уже есть доступ к этой школе. Он есть в списке сотрудников.",
+      "identity.email_already_exists":
+        "Для этого адреса электронной почты уже есть учётная запись. Укажите другой адрес.",
+      "students.export_selection_too_large":
+        "Выбрано детей: {total}. В списке может быть не больше {limit} детей. Сузьте выбор, например по группе или классу.",
+      "students.staff_profile_required":
+        "Это время установили родители. Изменить его может только сотрудник с профилем персонала.",
+      "students.status_day_conflict":
+        "На некоторые дни уже есть запись. Эти дни не изменены.",
     },
   },
   sq: {
@@ -359,6 +611,16 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Fjalëkalimi nuk është i saktë. Ju lutemi provoni përsëri.",
       "care.declaration_password_required": "Ju lutemi shkruani fjalëkalimin.",
+      "identity.account_already_has_tenant_access":
+        "Ky person ka tashmë qasje në këtë shkollë. E gjeni në listën e personelit.",
+      "identity.email_already_exists":
+        "Për këtë adresë email ka tashmë një llogari. Ju lutemi përdorni një adresë tjetër.",
+      "students.export_selection_too_large":
+        "Përzgjedhja ka {total} fëmijë. Një listë mund të ketë më së shumti {limit} fëmijë. Ju lutemi ngushtoni përzgjedhjen, p.sh. sipas grupit ose klasës.",
+      "students.staff_profile_required":
+        "Këtë orë e kanë vendosur prindërit. Vetëm dikush me profil stafi mund ta ndryshojë.",
+      "students.status_day_conflict":
+        "Disa ditë kanë tashmë një regjistrim. Këto ditë nuk u ndryshuan.",
     },
   },
   pl: {
@@ -381,6 +643,16 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Hasło jest nieprawidłowe. Spróbuj ponownie.",
       "care.declaration_password_required": "Wpisz swoje hasło.",
+      "identity.account_already_has_tenant_access":
+        "Ta osoba ma już dostęp do tej szkoły. Znajdziesz ją na liście personelu.",
+      "identity.email_already_exists":
+        "Dla tego adresu e-mail istnieje już konto. Użyj innego adresu.",
+      "students.export_selection_too_large":
+        "Wybrano {total} dzieci. Lista może mieć najwyżej {limit} dzieci. Zawęź wybór, na przykład według grupy lub klasy.",
+      "students.staff_profile_required":
+        "Ten czas ustawili rodzice. Zmienić go może tylko osoba z profilem pracownika.",
+      "students.status_day_conflict":
+        "Niektóre dni mają już wpis. Tych dni nie zmieniono.",
     },
   },
   tr: {
@@ -403,6 +675,16 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Şifre doğru değil. Lütfen tekrar deneyin.",
       "care.declaration_password_required": "Lütfen şifrenizi girin.",
+      "identity.account_already_has_tenant_access":
+        "Bu kişinin bu okula zaten erişimi var. Kişiyi personel listesinde bulabilirsiniz.",
+      "identity.email_already_exists":
+        "Bu e-posta adresi için zaten bir hesap var. Lütfen başka bir adres kullanın.",
+      "students.export_selection_too_large":
+        "Seçimde {total} çocuk var. Bir liste en fazla {limit} çocuk içerebilir. Lütfen seçimi daraltın, örneğin gruba veya sınıfa göre.",
+      "students.staff_profile_required":
+        "Bu saati veliler belirledi. Yalnızca personel profili olan biri değiştirebilir.",
+      "students.status_day_conflict":
+        "Bazı günlerde zaten bir kayıt var. Bu günler değiştirilmedi.",
     },
   },
   uk: {
@@ -425,6 +707,16 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Пароль неправильний. Будь ласка, спробуйте ще раз.",
       "care.declaration_password_required": "Будь ласка, введіть пароль.",
+      "identity.account_already_has_tenant_access":
+        "Ця особа вже має доступ до цієї школи. Її можна знайти в списку персоналу.",
+      "identity.email_already_exists":
+        "Для цієї адреси електронної пошти вже є обліковий запис. Укажіть іншу адресу.",
+      "students.export_selection_too_large":
+        "Вибрано дітей: {total}. У списку може бути не більше {limit} дітей. Звузьте вибір, наприклад за групою або класом.",
+      "students.staff_profile_required":
+        "Цей час встановили батьки. Змінити його може лише працівник із профілем персоналу.",
+      "students.status_day_conflict":
+        "На деякі дні вже є запис. Ці дні не змінено.",
     },
   },
 } as const;

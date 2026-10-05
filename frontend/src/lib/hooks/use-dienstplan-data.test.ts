@@ -132,6 +132,7 @@ describe("useDienstplanData", () => {
         plannedMinutes: 240,
         targetMinutes: 300,
         deltaMinutes: -60,
+        plannedByShiftType: [],
       },
     ],
   };
@@ -265,6 +266,8 @@ describe("useDienstplanData", () => {
 
     // Legacy path used, overview not used.
     expect(mocks.getAllStaff).toHaveBeenCalledTimes(1);
+    // A failed staff load must reject, not look like an empty plan.
+    expect(mocks.getAllStaff).toHaveBeenCalledWith(undefined, { strict: true });
     expect(mocks.getShifts).toHaveBeenCalledWith(weekFrom, weekTo);
     expect(mocks.getOverview).not.toHaveBeenCalled();
 
@@ -339,6 +342,8 @@ describe("useDienstplanData", () => {
       "time-tracking-own-absences-",
       "staff-shifts-visible-",
       "time-tracking-own-shifts-today-",
+      // Eigener Dienstplan der Mitarbeitenden (#3821).
+      "time-tracking-own-shifts-week-",
     ]);
   });
 });

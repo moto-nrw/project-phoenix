@@ -2,8 +2,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HistoryRequestList } from "./history-request-list";
+import { ApiError } from "~/lib/api-error";
 import { correctRequestDecision } from "~/lib/change-request-list-api";
 import type { AnyItem } from "./case-model";
+import { catalogText } from "~/test/error-catalog-text";
 
 vi.mock("~/lib/change-request-list-api", async () => {
   const actual = await vi.importActual<
@@ -139,10 +141,12 @@ describe("Entscheidung korrigieren", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("zeigt die Begründung des Backends wörtlich, wenn eine Korrektur nicht geht", async () => {
+  it("zeigt den Katalogtext zum Code, wenn eine Korrektur nicht geht, nie den Backend-Satz", async () => {
     mockCorrect.mockRejectedValue(
-      new Error(
+      new ApiError(
         "Diese Entscheidung lässt sich nicht zurücknehmen, weil der frühere Wochenplan nicht gespeichert ist.",
+        409,
+        { code: "students.correction_unsupported" },
       ),
     );
     renderList(decidedItem({ can_correct: true }));
@@ -160,9 +164,12 @@ describe("Entscheidung korrigieren", () => {
 
     expect(
       await screen.findByText(
-        "Diese Entscheidung lässt sich nicht zurücknehmen, weil der frühere Wochenplan nicht gespeichert ist.",
+        catalogText("students.correction_unsupported", "die Korrektur"),
       ),
     ).toBeVisible();
+    expect(
+      screen.queryByText(/früherer Wochenplan|frühere Wochenplan/),
+    ).not.toBeInTheDocument();
   });
 
   it("verlangt einen Grund und schickt die Fassung mit", async () => {
@@ -186,6 +193,9 @@ describe("Entscheidung korrigieren", () => {
     expect(
       screen.getByText("Bitte tragen Sie ein, warum Sie korrigieren."),
     ).toBeVisible();
+    const reasonField = screen.getByLabelText(/Warum korrigieren Sie\?/);
+    expect(reasonField).toHaveAttribute("aria-invalid", "true");
+    await waitFor(() => expect(reasonField).toHaveFocus());
     expect(mockCorrect).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText(/Warum korrigieren Sie\?/), {

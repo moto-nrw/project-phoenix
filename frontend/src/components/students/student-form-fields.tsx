@@ -61,7 +61,7 @@ const DEFAULT_REQUIRED_FIELDS = {
 export function PersonalInfoSection({
   formData,
   onChange,
-  errors,
+  fieldError,
   groups = EMPTY_GROUPS,
   requiredFields = DEFAULT_REQUIRED_FIELDS,
 }: Readonly<{
@@ -70,7 +70,8 @@ export function PersonalInfoSection({
     field: keyof Student,
     value: string | boolean | number | BusDays | null,
   ) => void;
-  errors: Record<string, string>;
+  /** Hint per API field name, from the form's shared error path (#2513). */
+  fieldError: (name: string) => string | undefined;
   groups?: SelectOption[];
   requiredFields?: {
     firstName?: boolean;
@@ -94,7 +95,8 @@ export function PersonalInfoSection({
           label="Vorname"
           value={formData.first_name ?? ""}
           onChange={(v) => onChange("first_name", v)}
-          error={errors.first_name}
+          name="first_name"
+          error={fieldError("first_name")}
           required={requiredFields.firstName}
           placeholder="Max"
           parentVisibleHint={PARENT_VISIBLE_HINTS.name}
@@ -103,7 +105,8 @@ export function PersonalInfoSection({
           label="Nachname"
           value={formData.second_name ?? ""}
           onChange={(v) => onChange("second_name", v)}
-          error={errors.second_name}
+          name="last_name"
+          error={fieldError("last_name")}
           required={requiredFields.lastName}
           placeholder="Mustermann"
           parentVisibleHint={PARENT_VISIBLE_HINTS.name}
@@ -112,7 +115,8 @@ export function PersonalInfoSection({
           label="Klasse"
           value={formData.school_class ?? ""}
           onChange={(v) => onChange("school_class", v)}
-          error={errors.school_class}
+          name="school_class"
+          error={fieldError("school_class")}
           required={requiredFields.schoolClass}
           placeholder="5A"
           parentVisibleHint={PARENT_VISIBLE_HINTS.schoolClass}
@@ -159,6 +163,7 @@ function TextInput({
   label,
   value,
   onChange,
+  name,
   error,
   required = false,
   placeholder = "",
@@ -167,6 +172,8 @@ function TextInput({
   label: string;
   value: string;
   onChange: (value: string) => void;
+  /** API field name, so a field error from the shared error path finds it. */
+  name?: string;
   error?: string;
   required?: boolean;
   placeholder?: string;
@@ -190,10 +197,12 @@ function TextInput({
       </div>
       <input
         id={inputId}
+        name={name}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${inputId}-error` : undefined}
         className={`block w-full rounded-lg border px-3 py-2 text-sm transition-colors ${
           error
             ? "border-moto-red/30 bg-moto-red-soft"
@@ -202,7 +211,11 @@ function TextInput({
         placeholder={placeholder}
         maxLength={255}
       />
-      {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
+      {error && (
+        <p id={`${inputId}-error`} className="text-moto-red mt-1 text-xs">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -387,15 +400,17 @@ export function AdditionalInfoSection({
 export function PrivacyConsentSection({
   formData,
   onChange,
-  errors,
+  fieldError,
 }: Readonly<{
   formData: Partial<Student>;
   onChange: (
     field: keyof Student,
     value: string | boolean | number | BusDays | null,
   ) => void;
-  errors: Record<string, string>;
+  /** Hint per API field name, from the form's shared error path (#2513). */
+  fieldError: (name: string) => string | undefined;
 }>) {
+  const retentionError = fieldError("data_retention_days");
   return (
     <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
@@ -429,10 +444,14 @@ export function PrivacyConsentSection({
           </label>
           <input
             id="data-retention-days"
+            name="data_retention_days"
             type="number"
             min="1"
             max="31"
-            aria-invalid={errors.data_retention_days ? true : undefined}
+            aria-invalid={retentionError ? true : undefined}
+            aria-describedby={
+              retentionError ? "data-retention-days-error" : undefined
+            }
             value={formData.data_retention_days ?? ""}
             onChange={(e) => {
               const inputValue = e.target.value;
@@ -444,15 +463,18 @@ export function PrivacyConsentSection({
               }
             }}
             className={`block w-full rounded-lg border px-3 py-2 text-sm transition-colors ${
-              errors.data_retention_days
+              retentionError
                 ? "border-moto-red/30 bg-moto-red-soft"
                 : "focus:border-moto-blue focus:ring-moto-blue border-gray-200 bg-white focus:ring-1"
             }`}
             placeholder="30"
           />
-          {errors.data_retention_days && (
-            <p className="text-moto-red mt-1 text-xs">
-              {errors.data_retention_days}
+          {retentionError && (
+            <p
+              id="data-retention-days-error"
+              className="text-moto-red mt-1 text-xs"
+            >
+              {retentionError}
             </p>
           )}
           <p className="mt-1 text-xs text-gray-500">
@@ -882,12 +904,16 @@ export function DepartureSection({
           </label>
           <input
             id={companionNoteId}
+            name="departure_companion_note"
             type="text"
             value={companionNote ?? ""}
             onChange={(e) => onCompanionNoteChange(e.target.value)}
             placeholder="z. B. Geschwisterkind, Freund, Name"
             maxLength={255}
             aria-invalid={companionNoteError ? true : undefined}
+            aria-describedby={
+              companionNoteError ? `${companionNoteId}-error` : undefined
+            }
             className={`moto-content-surface block w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-1 ${
               companionNoteError
                 ? "border-moto-red focus:border-moto-red focus:ring-moto-red"
@@ -895,7 +921,12 @@ export function DepartureSection({
             }`}
           />
           {companionNoteError ? (
-            <p className="text-moto-red mt-1 text-xs">{companionNoteError}</p>
+            <p
+              id={`${companionNoteId}-error`}
+              className="text-moto-red mt-1 text-xs"
+            >
+              {companionNoteError}
+            </p>
           ) : (
             <p className="mt-1 text-xs text-gray-500">
               {onCompanionsChange

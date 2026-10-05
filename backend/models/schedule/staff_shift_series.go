@@ -34,6 +34,9 @@ type StaffShiftSeries struct {
 	ValidFrom    Date   `bun:"valid_from,notnull,type:date" json:"valid_from"`
 	ValidUntil   *Date  `bun:"valid_until,type:date" json:"valid_until,omitempty"`
 	SeriesRootID *int64 `bun:"series_root_id" json:"series_root_id,omitempty"`
+	// IncludeSchoolBreaks also plans the series in the Ferien and on closing
+	// days (#3820). Statutory holidays stay skipped either way.
+	IncludeSchoolBreaks bool `bun:"include_school_breaks,notnull,default:false" json:"include_school_breaks"`
 	// RetainedOccurrenceShiftID records the concrete current-day row that a
 	// same-day permanent edit retained. It is deliberately separate from
 	// Detached: detached rows can also be ordinary one-off deviations, which

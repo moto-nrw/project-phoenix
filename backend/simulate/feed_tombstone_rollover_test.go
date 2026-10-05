@@ -155,7 +155,7 @@ func TestRunFullDayRollsTheSchoolYearForTombstone(t *testing.T) {
 					require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 					if body["student_rfid"] == "DEMO-UNREGISTERED-TAG" {
 						w.WriteHeader(simulationHTTPStatusNotFound)
-						_ = json.NewEncoder(w).Encode(map[string]string{"error": "unknown tag", "code": "rfid_tag_not_found"})
+						_ = json.NewEncoder(w).Encode(map[string]string{"error": "unknown tag", "code": "iot.rfid_tag_not_found"})
 						return
 					}
 					_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": 1}})

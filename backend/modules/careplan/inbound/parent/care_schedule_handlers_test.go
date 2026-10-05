@@ -53,7 +53,7 @@ func TestRenderParentWriteErrorMapsDisabledCareFieldToForbiddenCode(t *testing.T
 	renderParentWriteError(recorder, request, parentService.ErrCareRequestFieldDisabled)
 
 	assert.Equal(t, http.StatusForbidden, recorder.Code)
-	assert.Contains(t, recorder.Body.String(), `"code":"care_request_field_disabled"`)
+	assert.Contains(t, recorder.Body.String(), `"code":"care.care_request_field_disabled"`)
 }
 
 func TestRenderParentWriteErrorMapsBookingLedCareToForbiddenCode(t *testing.T) {
@@ -66,7 +66,7 @@ func TestRenderParentWriteErrorMapsBookingLedCareToForbiddenCode(t *testing.T) {
 	renderParentWriteError(recorder, request, parentService.ErrCareRequestBookingsAuthoritative)
 
 	assert.Equal(t, http.StatusForbidden, recorder.Code)
-	assert.Contains(t, recorder.Body.String(), `"code":"care_request_bookings_authoritative"`)
+	assert.Contains(t, recorder.Body.String(), `"code":"care.care_request_bookings_authoritative"`)
 }
 
 func TestRenderParentWriteErrorMapsAlreadyLeftToConflictCode(t *testing.T) {
@@ -78,7 +78,7 @@ func TestRenderParentWriteErrorMapsAlreadyLeftToConflictCode(t *testing.T) {
 	renderParentWriteError(recorder, request, parentService.ErrCareExceptionAlreadyLeft)
 
 	assert.Equal(t, http.StatusConflict, recorder.Code)
-	assert.Contains(t, recorder.Body.String(), `"code":"care_exception_already_left"`)
+	assert.Contains(t, recorder.Body.String(), `"code":"care.care_exception_already_left"`)
 }
 
 func TestRenderParentWriteErrorMapsPickupChangeCutoffToConflictCode(t *testing.T) {
@@ -90,5 +90,5 @@ func TestRenderParentWriteErrorMapsPickupChangeCutoffToConflictCode(t *testing.T
 	renderParentWriteError(recorder, request, parentService.ErrPickupChangeCutoffPassed)
 
 	assert.Equal(t, http.StatusConflict, recorder.Code)
-	assert.Contains(t, recorder.Body.String(), `"code":"pickup_change_cutoff_passed"`)
+	assert.Contains(t, recorder.Body.String(), `"code":"care.pickup_change_cutoff_passed"`)
 }

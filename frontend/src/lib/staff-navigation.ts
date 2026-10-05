@@ -136,6 +136,7 @@ export const STAFF_NAV_GROUPS: readonly StaffNavGroup[] = [
     icon: UsersFourIcon,
     entries: [
       page(STAFF_FLAT_PAGES.timeTracking.href),
+      page(STAFF_FLAT_PAGES.ownShiftPlan.href),
       page(STAFF_FLAT_PAGES.calendar.href),
       page(STAFF_FLAT_PAGES.staff.href),
       ...COMMUNICATION_SUB_PAGES.map((entry) => page(entry.href)),

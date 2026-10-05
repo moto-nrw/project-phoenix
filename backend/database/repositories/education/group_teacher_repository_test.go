@@ -3,8 +3,7 @@ package education_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,14 +22,14 @@ func TestGroupTeacherRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupTeacher
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates group-teacher assignment", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GTCreate")
 		teacher := testpkg.CreateTestTeacher(t, db, "GTCreate", "Teacher")
 
-		gt := &education.GroupTeacher{
+		gt := &testpkg.EducationGroupTeacher{
 			GroupID:   group.ID,
 			TeacherID: teacher.ID,
 		}
@@ -47,8 +46,8 @@ func TestGroupTeacherRepository_DeleteByTeacherID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	dependencies := repositories.NewUnobservedTimetableDependencies(db)
-	repo := repositories.NewFactory(db, dependencies).GroupTeacher
+	factory, dependencies := testutil.NewSchoolStructureRepositorySuiteGraph(db)
+	repo := factory.GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	groupA := testpkg.CreateTestEducationGroup(t, db, "GTDelByTeacherA")
@@ -78,7 +77,7 @@ func TestGroupTeacherRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupTeacher
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing assignment", func(t *testing.T) {
@@ -104,7 +103,7 @@ func TestGroupTeacherRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupTeacher
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates group-teacher assignment", func(t *testing.T) {
@@ -129,7 +128,7 @@ func TestGroupTeacherRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupTeacher
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing assignment", func(t *testing.T) {
@@ -154,7 +153,7 @@ func TestGroupTeacherRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupTeacher
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all assignments", func(t *testing.T) {
@@ -173,7 +172,7 @@ func TestGroupTeacherRepository_FindByGroup(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupTeacher
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds assignments by group ID", func(t *testing.T) {
@@ -209,7 +208,7 @@ func TestGroupTeacherRepository_FindByTeacher(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupTeacher
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds assignments by teacher ID", func(t *testing.T) {
@@ -249,7 +248,7 @@ func TestGroupTeacherRepository_Create_Validation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupTeacher
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil assignment", func(t *testing.T) {
@@ -261,7 +260,7 @@ func TestGroupTeacherRepository_Create_Validation(t *testing.T) {
 	t.Run("returns error for zero group_id", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "ValidTeacher", "Test")
 
-		gt := &education.GroupTeacher{
+		gt := &testpkg.EducationGroupTeacher{
 			GroupID:   0, // Invalid
 			TeacherID: teacher.ID,
 		}
@@ -273,7 +272,7 @@ func TestGroupTeacherRepository_Create_Validation(t *testing.T) {
 	t.Run("returns error for zero teacher_id", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "ValidGroup")
 
-		gt := &education.GroupTeacher{
+		gt := &testpkg.EducationGroupTeacher{
 			GroupID:   group.ID,
 			TeacherID: 0, // Invalid
 		}
@@ -288,7 +287,7 @@ func TestGroupTeacherRepository_Update_Validation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupTeacher
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil assignment", func(t *testing.T) {
@@ -303,7 +302,7 @@ func TestGroupTeacherRepository_List_WithFilters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupTeacher
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("filters by group_id", func(t *testing.T) {

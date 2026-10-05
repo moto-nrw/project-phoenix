@@ -21,7 +21,9 @@ describe("timetableSeriesErrorMessage (#2187)", () => {
   it("maps the template_not_found code to a reload hint", () => {
     expect(
       timetableSeriesErrorMessage(
-        apiError("template not found", { code: "template_not_found" }),
+        apiError("template not found", {
+          code: "timetable.template_not_found",
+        }),
         FALLBACK,
       ),
     ).toBe(TEMPLATE_GONE);

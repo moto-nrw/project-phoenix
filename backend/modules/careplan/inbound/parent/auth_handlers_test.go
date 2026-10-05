@@ -156,7 +156,7 @@ func TestParentLogin_InvalidCredentials_Returns401WithCode(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	body := decodeError(t, rr)
-	assert.Equal(t, "invalid_credentials", body.Code,
+	assert.Equal(t, "care.invalid_credentials", body.Code,
 		"frontend disambiguates by this code; do not change without updating parent-config.ts")
 }
 
@@ -179,7 +179,7 @@ func TestParentLogin_AccountNotFound_MaskedAsInvalidCredentials(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	body := decodeError(t, rr)
-	assert.Equal(t, "invalid_credentials", body.Code)
+	assert.Equal(t, "care.invalid_credentials", body.Code)
 }
 
 func TestParentLogin_AccountInactive_Returns401WithDistinctCode(t *testing.T) {
@@ -187,7 +187,7 @@ func TestParentLogin_AccountInactive_Returns401WithDistinctCode(t *testing.T) {
 
 	// This is the case the frontend turns into
 	// "Ihr Konto ist deaktiviert. Bitte kontaktieren Sie die Schule."
-	// If the code is anything other than "account_inactive", the parent
+	// If the code is anything other than "identity.session_account_inactive", the parent
 	// gets the generic "check your credentials" message and is confused
 	// about why login fails — that was the bug this entire fix addressed.
 	svc := &stubParentAuthService{
@@ -202,7 +202,7 @@ func TestParentLogin_AccountInactive_Returns401WithDistinctCode(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	body := decodeError(t, rr)
-	assert.Equal(t, "account_inactive", body.Code)
+	assert.Equal(t, "identity.session_account_inactive", body.Code)
 }
 
 func TestParentLogin_NotAGuardian_Returns403WithCode(t *testing.T) {
@@ -226,7 +226,7 @@ func TestParentLogin_NotAGuardian_Returns403WithCode(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 	body := decodeError(t, rr)
-	assert.Equal(t, "not_a_guardian", body.Code)
+	assert.Equal(t, "care.not_a_guardian", body.Code)
 }
 
 func TestParentLogin_Success_Returns200WithTokens(t *testing.T) {

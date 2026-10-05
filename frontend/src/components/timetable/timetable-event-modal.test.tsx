@@ -1579,6 +1579,53 @@ describe("TimetableEventModal", () => {
     expect(mockCreateTemplate).not.toHaveBeenCalled();
   });
 
+  it("saves a duty without room and without children (#3822)", async () => {
+    renderModal({ showPeriodField: true });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Busaufsicht" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    fireEvent.click(screen.getByRole("button", { name: "Jede Woche" }));
+    await goToStep(1);
+    fireEvent.click(screen.getByRole("button", { name: /Dienst/ }));
+    await chooseFromSelect(screen.getByLabelText("Raum"), "Kein Raum");
+    await chooseFromSelect(screen.getByLabelText("Kategorie*"), "AG");
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    await chooseFromSelect(
+      screen.getByLabelText("Planungszeitraum*"),
+      "Schuljahr 2026/2027",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    expect(screen.queryByText("Zielgruppe")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Maximale Teilnehmerzahl"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ada Staff/ }));
+    fireEvent.change(screen.getByLabelText("Benötigtes Personal"), {
+      target: { value: "1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Busaufsicht",
+          type: "duty",
+          room_id: 0,
+          target_group_type: "none",
+          targets: [],
+          student_ids: [],
+          max_participants: null,
+          required_staff: 1,
+          staff_ids: [11],
+        }),
+      ),
+    );
+  });
+
   it("creates a recurring series and materializes the full period in 56-day chunks", async () => {
     const { onSaved } = renderModal({ showPeriodField: true });
 
@@ -5662,7 +5709,7 @@ describe("TimetableEventModal", () => {
       mockGetTemplate.mockRejectedValue(
         Object.assign(new Error("template not found"), {
           httpStatus: 404,
-          code: "template_not_found",
+          code: "timetable.template_not_found",
         }),
       );
       const { onClose } = renderModal({ initialInstance: chainInstance });

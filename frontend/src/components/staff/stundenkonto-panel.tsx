@@ -7,21 +7,21 @@
 // Monatskarten-Kette ein. Dazu der einmalige Eröffnungssaldo (#2132), der den
 // Übernahme-Stand aus dem Altsystem setzt.
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Banknote, Clock4, Flag, RotateCcw, Trash2 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
-import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
+import { createLogger } from "~/lib/logger";
 import { staffBalanceAdjustmentService } from "~/lib/staff-api";
 import {
   balanceAdjustmentTypeLabel,
@@ -38,6 +38,12 @@ function parseDecimalInput(value: string): number | null {
 }
 
 import { formatSignedDuration } from "./staff-time-views";
+
+const logger = createLogger({ component: "StundenkontoPanel" });
+
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 interface StundenkontoPanelProps {
   readonly staffId: string;
@@ -66,7 +72,7 @@ export function StundenkontoPanel({
     null,
   );
   const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
+  const deleteErrors = useApiFormError();
   const toast = useToast();
   // Reset und Eröffnungssaldo brauchen beide einen abgeschlossenen Kontotag:
   // der Stichtag muss vor heute liegen.
@@ -76,7 +82,7 @@ export function StundenkontoPanel({
   );
   const openingDisabledHint = () => {
     if (hasOpening) {
-      return "Es existiert bereits ein Eröffnungssaldo. Lösche zuerst die bestehende Buchung.";
+      return "Es gibt schon einen Eröffnungssaldo. Löschen Sie zuerst die bestehende Buchung.";
     }
     if (!canResetClosedPeriod) {
       return "Ein Eröffnungssaldo ist erst nach dem ersten abgeschlossenen Kontotag möglich.";
@@ -87,16 +93,20 @@ export function StundenkontoPanel({
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    setDeleteError("");
+    deleteErrors.clear();
     try {
       await staffBalanceAdjustmentService.delete(staffId, deleteTarget.id);
-      toast.success("Buchung gelöscht.");
+      toast.success("Die Buchung ist gelöscht.");
       setDeleteTarget(null);
       await onChanged();
     } catch (err) {
-      setDeleteError(
-        err instanceof Error ? err.message : "Löschen fehlgeschlagen.",
-      );
+      logger.error("balance_adjustment_delete_failed", {
+        error: errorText(err),
+      });
+      await deleteErrors.show(err, {
+        object: "die Buchung",
+        retry: () => void handleDelete(),
+      });
     } finally {
       setDeleting(false);
     }
@@ -268,11 +278,11 @@ export function StundenkontoPanel({
         onClose={() => {
           if (!deleting) {
             setDeleteTarget(null);
-            setDeleteError("");
+            deleteErrors.clear();
           }
         }}
         loading={deleting}
-        error={deleteError}
+        error={deleteErrors.error}
       />
     </SectionCard>
   );
@@ -283,14 +293,16 @@ const modalCopy = {
     title: "Plus-Stunden auszahlen",
     amountLabel: "Auszahlung (Stunden)",
     hint: "Die ausgezahlten Stunden werden vom Stundenkonto abgezogen und in der Historie als Auszahlung ausgewiesen.",
-    success: "Auszahlung gebucht.",
+    success: "Die Auszahlung ist gebucht.",
+    object: "die Auszahlung",
     submit: "Auszahlen",
   },
   comp_time: {
     title: "Freizeitausgleich gewähren",
     amountLabel: "Freizeitausgleich (Stunden)",
     hint: "Pauschale Gutschrift-Verrechnung: die Stunden werden direkt vom Stundenkonto abgezogen. Für einen ganzen freien Tag stattdessen eine Abwesenheit vom Typ Freizeitausgleich anlegen — dann sinkt das Konto automatisch um das Tagessoll.",
-    success: "Freizeitausgleich gebucht.",
+    success: "Der Freizeitausgleich ist gebucht.",
+    object: "die Buchung",
     submit: "Gewähren",
   },
 } as const;
@@ -319,18 +331,20 @@ function AdjustmentModal({
   const maxEffectiveDateKey = toISODate(horizon);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useFormError();
+  const formErrors = useApiFormError();
   const toast = useToast();
 
   const handleSubmit = async () => {
-    setError(null);
+    formErrors.clear();
     const h = Number.parseFloat(hours.replace(",", "."));
     if (Number.isNaN(h) || h <= 0 || h > 1000) {
-      setError("Stundenangabe ungültig.");
+      formErrors.invalid("Bitte prüfen Sie die Stunden.", {
+        minutes_delta: "Bitte geben Sie eine Zahl zwischen 0 und 1000 ein.",
+      });
       return;
     }
     if (!effectiveDate) {
-      setError("Datum fehlt.");
+      formErrors.invalid(MISSING_DATE, { effective_date: MISSING_DATE });
       return;
     }
     setSubmitting(true);
@@ -344,11 +358,23 @@ function AdjustmentModal({
       toast.success(copy.success);
       await onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Buchung fehlgeschlagen.");
+      logger.error("balance_adjustment_create_failed", {
+        type,
+        error: errorText(err),
+      });
+      await formErrors.show(err, {
+        object: copy.object,
+        retry: () => void latestSubmit.current(),
+      });
     } finally {
       setSubmitting(false);
     }
   };
+  // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
+  const latestSubmit = useRef(handleSubmit);
+  useLayoutEffect(() => {
+    latestSubmit.current = handleSubmit;
+  });
 
   const canSubmit = !submitting && hours.trim() !== "" && note.trim() !== "";
 
@@ -368,7 +394,7 @@ function AdjustmentModal({
       }
     >
       <div className="space-y-4">
-        <FormErrorAlert message={error} />
+        <FormErrorAlert message={formErrors.error} />
         <p className="text-sm text-gray-500">{copy.hint}</p>
         <div>
           <label
@@ -379,6 +405,8 @@ function AdjustmentModal({
           </label>
           <Input
             id="adjustment-hours"
+            name="minutes_delta"
+            error={formErrors.fieldError("minutes_delta")}
             type="number"
             min="0.25"
             max="1000"
@@ -398,6 +426,7 @@ function AdjustmentModal({
           </label>
           <ISODatePicker
             id="adjustment-date"
+            error={formErrors.fieldError("effective_date")}
             min={accountStartKey}
             max={maxEffectiveDateKey}
             value={effectiveDate}
@@ -406,7 +435,11 @@ function AdjustmentModal({
             hideClearButton
           />
         </div>
-        <NoteField note={note} onChange={setNote} />
+        <NoteField
+          note={note}
+          onChange={setNote}
+          error={formErrors.fieldError("note")}
+        />
       </div>
     </Modal>
   );
@@ -434,7 +467,7 @@ function ResetModal({
   const [carryoverHours, setCarryoverHours] = useState("0");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useFormError();
+  const formErrors = useApiFormError();
   const toast = useToast();
 
   const carryover = Number.parseFloat(carryoverHours.replace(",", "."));
@@ -442,13 +475,15 @@ function ResetModal({
     !Number.isNaN(carryover) && carryover >= 0 && carryover <= 10_000;
 
   const handleSubmit = async () => {
-    setError(null);
+    formErrors.clear();
     if (!carryoverValid) {
-      setError("Übertrag ungültig.");
+      formErrors.invalid("Bitte prüfen Sie den Übertrag.", {
+        carryover_minutes: "Bitte geben Sie 0 oder mehr Stunden ein.",
+      });
       return;
     }
     if (!effectiveDate) {
-      setError("Datum fehlt.");
+      formErrors.invalid(MISSING_DATE, { effective_date: MISSING_DATE });
       return;
     }
     setSubmitting(true);
@@ -458,14 +493,23 @@ function ResetModal({
         carryoverMinutes: Math.round(carryover * 60),
         note: note.trim(),
       });
-      toast.success("Stundenkonto zurückgesetzt.");
+      toast.success("Das Stundenkonto ist zurückgesetzt.");
       await onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Reset fehlgeschlagen.");
+      logger.error("balance_reset_failed", { error: errorText(err) });
+      await formErrors.show(err, {
+        object: "das Zurücksetzen des Stundenkontos",
+        retry: () => void latestSubmit.current(),
+      });
     } finally {
       setSubmitting(false);
     }
   };
+  // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
+  const latestSubmit = useRef(handleSubmit);
+  useLayoutEffect(() => {
+    latestSubmit.current = handleSubmit;
+  });
 
   const canSubmit = !submitting && carryoverValid && note.trim() !== "";
 
@@ -485,7 +529,7 @@ function ResetModal({
       }
     >
       <div className="space-y-4">
-        <FormErrorAlert message={error} />
+        <FormErrorAlert message={formErrors.error} />
         <p className="text-sm text-gray-500">
           Setzt das Stundenkonto zum gewählten Stichtag auf den angegebenen
           Übertrag zurück (Schuljahresende: 31.07.). Der Server berechnet den
@@ -518,6 +562,7 @@ function ResetModal({
           </label>
           <ISODatePicker
             id="reset-date"
+            error={formErrors.fieldError("effective_date")}
             min={accountStartKey}
             max={lastClosedDateKey}
             value={effectiveDate}
@@ -538,6 +583,8 @@ function ResetModal({
           </label>
           <Input
             id="reset-carryover"
+            name="carryover_minutes"
+            error={formErrors.fieldError("carryover_minutes")}
             type="number"
             min="0"
             step="0.25"
@@ -546,7 +593,11 @@ function ResetModal({
             onChange={(e) => setCarryoverHours(e.target.value)}
           />
         </div>
-        <NoteField note={note} onChange={setNote} />
+        <NoteField
+          note={note}
+          onChange={setNote}
+          error={formErrors.fieldError("note")}
+        />
       </div>
     </Modal>
   );
@@ -576,7 +627,7 @@ function OpeningModal({
   const [openingHours, setOpeningHours] = useState("0");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useFormError();
+  const formErrors = useApiFormError();
   const toast = useToast();
 
   const opening = parseDecimalInput(openingHours);
@@ -584,13 +635,15 @@ function OpeningModal({
     opening !== null && opening >= -10_000 && opening <= 10_000;
 
   const handleSubmit = async () => {
-    setError(null);
+    formErrors.clear();
     if (opening === null || opening < -10_000 || opening > 10_000) {
-      setError("Eröffnungssaldo ungültig.");
+      formErrors.invalid("Bitte prüfen Sie den Saldo.", {
+        balance_minutes: "Bitte geben Sie eine Zahl ein, zum Beispiel 12,5.",
+      });
       return;
     }
     if (!effectiveDate) {
-      setError("Datum fehlt.");
+      formErrors.invalid(MISSING_DATE, { effective_date: MISSING_DATE });
       return;
     }
     setSubmitting(true);
@@ -600,14 +653,23 @@ function OpeningModal({
         balanceMinutes: Math.round(opening * 60),
         note: note.trim(),
       });
-      toast.success("Eröffnungssaldo gebucht.");
+      toast.success("Der Eröffnungssaldo ist gebucht.");
       await onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Buchung fehlgeschlagen.");
+      logger.error("opening_balance_create_failed", { error: errorText(err) });
+      await formErrors.show(err, {
+        object: "die Buchung des Eröffnungssaldos",
+        retry: () => void latestSubmit.current(),
+      });
     } finally {
       setSubmitting(false);
     }
   };
+  // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
+  const latestSubmit = useRef(handleSubmit);
+  useLayoutEffect(() => {
+    latestSubmit.current = handleSubmit;
+  });
 
   const canSubmit = !submitting && openingValid && note.trim() !== "";
 
@@ -627,7 +689,7 @@ function OpeningModal({
       }
     >
       <div className="space-y-4">
-        <FormErrorAlert message={error} />
+        <FormErrorAlert message={formErrors.error} />
         <p className="text-sm text-gray-500">
           Der Eröffnungssaldo setzt den Übernahme-Stand aus dem Altsystem. Das
           Stundenkonto steht zum Stichtag danach exakt auf dem eingetragenen
@@ -662,6 +724,7 @@ function OpeningModal({
           </label>
           <ISODatePicker
             id="opening-date"
+            error={formErrors.fieldError("effective_date")}
             min={accountStartKey}
             max={lastClosedDateKey}
             value={effectiveDate}
@@ -682,6 +745,8 @@ function OpeningModal({
           </label>
           <Input
             id="opening-balance"
+            name="balance_minutes"
+            error={formErrors.fieldError("balance_minutes")}
             type="text"
             inputMode="decimal"
             controlSize="compact"
@@ -693,6 +758,7 @@ function OpeningModal({
         <NoteField
           note={note}
           onChange={setNote}
+          error={formErrors.fieldError("note")}
           placeholder="z. B. Übernahme aus Altsystem, Stand 31.07."
         />
       </div>
@@ -737,13 +803,17 @@ function AdjustmentModalFooter({
   );
 }
 
+const MISSING_DATE = "Bitte wählen Sie ein Datum.";
+
 function NoteField({
   note,
   onChange,
+  error,
   placeholder = "z. B. Auszahlung mit Juligehalt",
 }: {
   readonly note: string;
   readonly onChange: (value: string) => void;
+  readonly error?: string;
   /** Beispieltext passend zur Buchungsart; Standard ist die Auszahlung. */
   readonly placeholder?: string;
 }) {
@@ -757,6 +827,8 @@ function NoteField({
       </label>
       <Textarea
         id="adjustment-note"
+        name="note"
+        error={error}
         value={note}
         onChange={(e) => onChange(e.target.value)}
         rows={2}

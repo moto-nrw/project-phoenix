@@ -53,6 +53,10 @@ const (
 	// TemplateByArea is the Dienstplan as the schools keep it in Excel: one
 	// row per Einsatzbereich (Schichtart or Angebot), names in the cells.
 	TemplateByArea Template = "areas"
+	// TemplateByHours is the Dienstplan as an hours sheet (#3819): one row
+	// per staff member, one column per Schichtart, then total, target and
+	// difference. It prints figures only, so the variant changes nothing.
+	TemplateByHours Template = "hours"
 	// TemplateByOffering is the Betreuungsplan: one row per Betreuungsblock.
 	TemplateByOffering Template = "offerings"
 )
@@ -95,11 +99,12 @@ type Params struct {
 	Format   listexport.Format
 }
 
-// TemplatesForDienstplan and TemplatesForBetreuungsplan are the templates
+// TemplatesForDienstplan, TemplatesForHours and TemplatesForBetreuungsplan are the templates
 // each plan accepts — the single place the pairing is decided, shared by
 // validation and by the handlers' error messages.
 var (
 	TemplatesForDienstplan     = []Template{TemplateByPerson, TemplateByArea}
+	TemplatesForHours          = []Template{TemplateByHours}
 	TemplatesForBetreuungsplan = []Template{TemplateByOffering}
 )
 

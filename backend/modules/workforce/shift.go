@@ -33,6 +33,17 @@ var (
 	ErrPlanExportForbidden      = errors.New("internal plan exports require schedules:manage")
 )
 
+// Reasons for a rejected shift or series. A failure carries one of them next
+// to ErrInvalidStaffShift / ErrInvalidShiftSeries, so the HTTP edge names the
+// refusal with its own error code instead of reading the message (#2514).
+var (
+	ErrReplacementOutsideOrigin    = errors.New("replacement outside the shift it covers")
+	ErrShiftHasReplacements        = errors.New("shift has replacements")
+	ErrShiftSeriesNoOccurrences    = errors.New("shift series has no occurrences left")
+	ErrShiftSeriesOutsidePeriod    = errors.New("shift series outside its calendar period")
+	ErrShiftSeriesWeekCycleMissing = errors.New("calendar period has no week cycle")
+)
+
 // InvalidStaffShiftError carries the caller-facing validation reason; it
 // unwraps to ErrInvalidStaffShift so callers classify with errors.Is.
 type InvalidStaffShiftError struct{ Reason string }
@@ -149,10 +160,13 @@ type StaffShiftSeries struct {
 	ValidUntil                string
 	SeriesRootID              *int64
 	RetainedOccurrenceShiftID *int64
-	CreatedBy                 int64
-	UpdatedBy                 *int64
-	CreatedAt                 time.Time
-	UpdatedAt                 time.Time
+	// IncludeSchoolBreaks also plans the series in the Ferien and on closing
+	// days; statutory holidays stay skipped either way (#3820).
+	IncludeSchoolBreaks bool
+	CreatedBy           int64
+	UpdatedBy           *int64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 // StaffShiftSeriesException is one deliberately removed occurrence of a
@@ -361,7 +375,10 @@ type StaffShiftSeriesInput struct {
 	WeekPattern      int
 	ValidFrom        string
 	ValidUntil       string
-	ActorStaffID     int64
+	// IncludeSchoolBreaks also plans the series in the Ferien and on closing
+	// days (#3820).
+	IncludeSchoolBreaks bool
+	ActorStaffID        int64
 }
 
 type CreateStaffShiftSeries struct {
@@ -385,7 +402,9 @@ type SplitStaffShiftSeries struct {
 	ValidUntil        string
 	ValidUntilSet     bool
 	WeekPattern       *int
-	ActorStaffID      int64
+	// IncludeSchoolBreaks nil keeps the predecessor's opt-in (#3820).
+	IncludeSchoolBreaks *bool
+	ActorStaffID        int64
 }
 
 // StaffShiftSeriesResult reports what a series write materialized; the
@@ -397,6 +416,9 @@ type StaffShiftSeriesResult struct {
 	Created      int
 	Deleted      int64
 	SkippedDates []string
+	// SkippedNonWorkingDays counts the occurrences left out on statutory
+	// holidays, Ferien days and closing days (#3820).
+	SkippedNonWorkingDays int
 }
 
 type OverviewStaff struct {
@@ -438,6 +460,16 @@ type WeeklySummary struct {
 	PlannedMinutes int
 	TargetMinutes  *int
 	DeltaMinutes   *int
+	// ByShiftType splits PlannedMinutes by Schichtart (#3819); the entries add
+	// up to PlannedMinutes.
+	ByShiftType []ShiftTypeMinutes
+}
+
+// ShiftTypeMinutes is the planned net minutes of one Schichtart in a week;
+// ShiftTypeID is nil for shifts without a Schichtart.
+type ShiftTypeMinutes struct {
+	ShiftTypeID *int64
+	Minutes     int
 }
 
 // StaffScheduleOverview is the read-only week grid: staff, planned shifts,

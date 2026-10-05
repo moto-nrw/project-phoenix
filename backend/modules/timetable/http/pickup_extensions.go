@@ -23,11 +23,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-const (
-	pickupExtensionNotFoundCode  = "pickup_extension_not_found"
-	pickupExtensionBlockGoneCode = "pickup_extension_block_gone"
-)
-
 type pickupExtensionBlockResponse struct {
 	ID        int64  `json:"id"`
 	Title     string `json:"title"`
@@ -141,7 +136,7 @@ func (rs *Resource) resolvePickupExtension(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if _, visible := names[studentID]; !visible {
-		common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("pickup extension not found"), pickupExtensionNotFoundCode))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("pickup extension not found"), common.CodeTimetablePickupExtensionNotFound))
 		return
 	}
 	if rs.RecurrenceLock == nil {
@@ -171,9 +166,9 @@ func renderPickupExtensionError(w http.ResponseWriter, r *http.Request, err erro
 	case errors.Is(err, timetable.ErrInvalidPickupExtension):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, timetable.ErrPickupExtensionNotFound):
-		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, pickupExtensionNotFoundCode))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeTimetablePickupExtensionNotFound))
 	case errors.Is(err, timetable.ErrPickupExtensionBlockGone):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, pickupExtensionBlockGoneCode))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeTimetablePickupExtensionBlockGone))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve pickup extension failed", err))
 	}

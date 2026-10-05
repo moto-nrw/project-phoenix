@@ -22,6 +22,8 @@ import { ChoiceTile } from "~/components/ui/choice-tile";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { Radio } from "~/components/ui/radio";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { SectionCard } from "~/components/ui/section-card";
+import { LONG_POLL_OPTIONS } from "~/lib/announcement-poll-options";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { AttachmentList } from "~/components/ui/attachment-list";
@@ -438,6 +440,7 @@ function usePollAnswers(
   return {
     children,
     options: item.options ?? [],
+    versionSignature: pollVersionSignature,
     closed,
     multi,
     saving,
@@ -450,79 +453,226 @@ function usePollAnswers(
   };
 }
 
-/** One card per child: name, saved state, and the answer options. */
-function PollAnswerRows({
-  poll,
-}: Readonly<{ poll: ReturnType<typeof usePollAnswers> }>) {
-  const t = useTranslations("parentDashboard");
-  const { children, options, closed, multi, saving } = poll;
+type PollAnswers = ReturnType<typeof usePollAnswers>;
+type PollOption = PollAnswers["options"][number];
+
+function initiallyOpenPollChild(
+  children: readonly ParentAnnouncementPollChild[],
+): ReadonlySet<string> {
+  const first =
+    children.find((child) => child.selected_options.length === 0) ??
+    children[0];
+  return new Set(first ? [first.student_id] : []);
+}
+
+/**
+ * One card per child: name, saved state, and the answer options.
+ *
+ * A long poll (a Terminabstimmung with 40 slots, #3861) gets compact rows, and
+ * with several children one card per child that folds away: otherwise the
+ * second child's answers start some 2,000 px further down the phone screen.
+ * The first child still waiting for an answer starts open.
+ */
+function PollAnswerRows({ poll }: Readonly<{ poll: PollAnswers }>) {
+  const { children, options } = poll;
+  const long = options.length > LONG_POLL_OPTIONS;
+  const collapsible = long && children.length > 1;
+  const childListSignature = children
+    .map((child) => child.student_id)
+    .join("|");
+  const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(() =>
+    initiallyOpenPollChild(children),
+  );
+  useEffect(() => {
+    setOpenChildren(initiallyOpenPollChild(children));
+    // A corrected poll can replace the item in this still-mounted modal. Do
+    // not reset on ordinary response updates: they must preserve manual folds.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [poll.versionSignature, childListSignature]);
   if (children.length === 0 || options.length === 0) return null;
 
   return (
     <div className="space-y-4">
-      {children.map((child) => {
-        const selected = poll.selectionFor(child);
-        const answered = child.selected_options.length > 0;
-        const dirty = poll.isDirty(child);
-        const status = dirty
-          ? { label: t("newsPollUnsaved"), tone: "orange" as const }
-          : answered
-            ? { label: t("newsPollAnswered"), tone: "green" as const }
-            : { label: t("newsPollOpen"), tone: "gray" as const };
-        return (
-          <fieldset
+      {children.map((child) =>
+        collapsible ? (
+          <PollChildCollapsible
             key={child.student_id}
-            disabled={closed || saving}
-            className="moto-content-surface rounded-2xl border p-4 shadow-sm disabled:opacity-60"
-          >
-            <legend className="mb-3 w-full">
-              <span className="flex items-center justify-between gap-3">
-                <span className="min-w-0 truncate text-base font-semibold text-gray-900">
-                  {child.first_name} {child.last_name}
-                </span>
-                <StatusBadge label={status.label} tone={status.tone} />
-              </span>
-            </legend>
-            <div className="space-y-2">
-              {options.map((option) => {
-                const active = selected.includes(option.id);
-                return (
-                  <ChoiceTile
-                    key={option.id}
-                    selected={active}
-                    className="min-h-12 px-4 py-3 text-base has-[:disabled]:cursor-not-allowed"
-                  >
-                    {multi ? (
-                      <Checkbox
-                        checked={active}
-                        onChange={() => poll.toggle(child, option.id)}
-                      />
-                    ) : (
-                      <Radio
-                        name={`poll-${itemSafeId(child.student_id)}`}
-                        checked={active}
-                        onChange={() => poll.toggle(child, option.id)}
-                      />
-                    )}
-                    <span>{option.label}</span>
-                  </ChoiceTile>
-                );
-              })}
-            </div>
-            {!multi && selected.length > 0 && !closed && (
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => poll.toggle(child, selected[0]!)}
-                className="mt-2 min-h-11 rounded-lg px-2 text-sm font-semibold text-gray-600 underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-              >
-                {t("newsPollClear")}
-              </button>
-            )}
-          </fieldset>
-        );
-      })}
+            poll={poll}
+            child={child}
+            open={openChildren.has(child.student_id)}
+            onOpenChange={(open) =>
+              setOpenChildren((prev) => {
+                const next = new Set(prev);
+                if (open) next.add(child.student_id);
+                else next.delete(child.student_id);
+                return next;
+              })
+            }
+          />
+        ) : (
+          <PollChildCard
+            key={child.student_id}
+            poll={poll}
+            child={child}
+            long={long}
+          />
+        ),
+      )}
     </div>
+  );
+}
+
+function usePollChildStatus(
+  poll: PollAnswers,
+  child: ParentAnnouncementPollChild,
+) {
+  const t = useTranslations("parentDashboard");
+  const dirty = poll.isDirty(child);
+  const answered = child.selected_options.length > 0;
+  if (dirty) return { label: t("newsPollUnsaved"), tone: "orange" as const };
+  if (answered) return { label: t("newsPollAnswered"), tone: "green" as const };
+  return { label: t("newsPollOpen"), tone: "gray" as const };
+}
+
+/** The short poll card, unchanged since #1371, plus compact rows when long. */
+function PollChildCard({
+  poll,
+  child,
+  long,
+}: Readonly<{
+  poll: PollAnswers;
+  child: ParentAnnouncementPollChild;
+  long: boolean;
+}>) {
+  const status = usePollChildStatus(poll, child);
+  return (
+    <fieldset
+      disabled={poll.closed || poll.saving}
+      className="moto-content-surface rounded-2xl border p-4 shadow-sm disabled:opacity-60"
+    >
+      <legend className="mb-3 w-full">
+        <span className="flex items-center justify-between gap-3">
+          <span className="min-w-0 truncate text-base font-semibold text-gray-900">
+            {child.first_name} {child.last_name}
+          </span>
+          <StatusBadge label={status.label} tone={status.tone} />
+        </span>
+      </legend>
+      {long && (
+        <p className="-mt-1 mb-3 text-sm text-gray-600">
+          <PollSelectionSummary poll={poll} child={child} />
+        </p>
+      )}
+      <PollOptionList poll={poll} child={child} compact={long} />
+    </fieldset>
+  );
+}
+
+/** A child's card in a long poll for several children: folds to its head. */
+function PollChildCollapsible({
+  poll,
+  child,
+  open,
+  onOpenChange,
+}: Readonly<{
+  poll: PollAnswers;
+  child: ParentAnnouncementPollChild;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}>) {
+  const status = usePollChildStatus(poll, child);
+  const name = `${child.first_name} ${child.last_name}`;
+  return (
+    <SectionCard
+      title={name}
+      titleBadge={<StatusBadge label={status.label} tone={status.tone} />}
+      description={<PollSelectionSummary poll={poll} child={child} />}
+      headingLevel={3}
+      collapsible
+      collapsed={!open}
+      onCollapsedChange={(collapsed) => onOpenChange(!collapsed)}
+      bodyClassName="mt-3"
+    >
+      {/* The fieldset sits inside the card, so a closed poll still lets the
+          family fold the card open and read what was chosen. */}
+      <fieldset
+        disabled={poll.closed || poll.saving}
+        className="disabled:opacity-60"
+      >
+        <legend className="sr-only">{name}</legend>
+        <PollOptionList poll={poll} child={child} compact />
+      </fieldset>
+    </SectionCard>
+  );
+}
+
+/** "3 von 40 gewählt": what is ticked, readable without scrolling the list. */
+function PollSelectionSummary({
+  poll,
+  child,
+}: Readonly<{ poll: PollAnswers; child: ParentAnnouncementPollChild }>) {
+  const t = useTranslations("parentDashboard");
+  return t("newsPollSelectedCount", {
+    count: poll.selectionFor(child).length,
+    total: poll.options.length,
+  });
+}
+
+function PollOptionList({
+  poll,
+  child,
+  compact,
+}: Readonly<{
+  poll: PollAnswers;
+  child: ParentAnnouncementPollChild;
+  compact: boolean;
+}>) {
+  const t = useTranslations("parentDashboard");
+  const { options, closed, multi, saving } = poll;
+  const selected = poll.selectionFor(child);
+  return (
+    <>
+      <div className={compact ? "space-y-1.5" : "space-y-2"}>
+        {options.map((option: PollOption) => {
+          const active = selected.includes(option.id);
+          return (
+            <ChoiceTile
+              key={option.id}
+              selected={active}
+              className={
+                compact
+                  ? "min-h-11 px-3 py-2 text-sm has-[:disabled]:cursor-not-allowed"
+                  : "min-h-12 px-4 py-3 text-base has-[:disabled]:cursor-not-allowed"
+              }
+            >
+              {multi ? (
+                <Checkbox
+                  checked={active}
+                  onChange={() => poll.toggle(child, option.id)}
+                />
+              ) : (
+                <Radio
+                  name={`poll-${itemSafeId(child.student_id)}`}
+                  checked={active}
+                  onChange={() => poll.toggle(child, option.id)}
+                />
+              )}
+              <span>{option.label}</span>
+            </ChoiceTile>
+          );
+        })}
+      </div>
+      {!multi && selected.length > 0 && !closed && (
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => poll.toggle(child, selected[0]!)}
+          className="mt-2 min-h-11 rounded-lg px-2 text-sm font-semibold text-gray-600 underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        >
+          {t("newsPollClear")}
+        </button>
+      )}
+    </>
   );
 }
 

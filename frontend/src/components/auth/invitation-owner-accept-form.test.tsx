@@ -83,9 +83,15 @@ describe("existing-account invitation acceptance", () => {
   });
 
   it.each([
-    ["INVITATION_ACCOUNT_LOGIN_REQUIRED", /Bitte melden Sie sich zuerst/],
-    ["INVITATION_ACCOUNT_MISMATCH", /Sie sind mit einem anderen Konto/],
-    ["ACCOUNT_INACTIVE", /Ihr Konto ist gesperrt/],
+    [
+      "identity.invitation_account_login_required",
+      /Bitte melden Sie sich zuerst/,
+    ],
+    [
+      "identity.invitation_account_mismatch",
+      /Sie sind mit einem anderen Konto/,
+    ],
+    ["identity.account_inactive", /Ihr Konto ist gesperrt/],
   ])("explains rejected acceptance: %s", async (code, message) => {
     vi.mocked(acceptInvitation).mockRejectedValue(
       Object.assign(new Error("backend detail"), { code }),

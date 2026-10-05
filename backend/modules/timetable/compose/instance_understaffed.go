@@ -42,7 +42,7 @@ func (s *InstanceLifecycleService) setUnderstaffedAck(ctx context.Context, insta
 		if err != nil {
 			return nil, &ScheduleError{Op: "set understaffed ack: load staff", Err: err}
 		}
-		if !timetable.IsUnderstaffed(staffingRowsOf(rows)) {
+		if !timetable.IsUnderstaffedWithMinimum(staffingRowsOf(rows), dutyMinimumStaff(instance)) {
 			return nil, timetable.ErrUnderstaffedAckStillStaffed
 		}
 	}
@@ -103,7 +103,7 @@ func (s *InstanceLifecycleService) clearStaleAckIfStaffed(ctx context.Context, i
 	if err != nil {
 		return &ScheduleError{Op: "clear stale ack: load staff", Err: err}
 	}
-	if timetable.IsUnderstaffed(staffingRowsOf(rows)) {
+	if timetable.IsUnderstaffedWithMinimum(staffingRowsOf(rows), dutyMinimumStaff(instance)) {
 		return nil // still short-staffed → keep the acknowledgement
 	}
 	previousNote := instance.UnderstaffedNote
@@ -152,7 +152,7 @@ func (s *InstanceLifecycleService) AcknowledgeUnderstaffed(ctx context.Context, 
 		return nil, err
 	}
 	if locked.Date != instance.Date {
-		return nil, timetable.DeviationConflict("instance_moved", msgInstanceMoved)
+		return nil, timetable.DeviationConflict(timetable.CodeInstanceMoved, msgInstanceMoved)
 	}
 	return s.SetUnderstaffedAck(ctx, instanceID, ack, note, actorAccountID)
 }

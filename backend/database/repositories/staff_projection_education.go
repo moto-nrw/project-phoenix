@@ -155,15 +155,21 @@ func substitutionStaffResolver(membership staffLookup) func(context.Context, []*
 				continue
 			}
 			if member, found := members[row.SubstituteStaffID]; found {
-				row.SubstituteStaff = toLegacyStaff(member)
+				row.SubstituteStaff = substitutionStaff(member)
 			}
 			if row.RegularStaffID == nil {
 				continue
 			}
 			if member, found := members[*row.RegularStaffID]; found {
-				row.RegularStaff = toLegacyStaff(member)
+				row.RegularStaff = substitutionStaff(member)
 			}
 		}
 		return nil
 	}
+}
+
+// substitutionStaff is the staff reference a substitution row carries; the
+// name follows from the People Directory where a reader needs it.
+func substitutionStaff(value schoolmembership.Staff) *educationModels.SubstitutionStaff {
+	return &educationModels.SubstitutionStaff{ID: value.ID, PersonID: value.PersonID}
 }

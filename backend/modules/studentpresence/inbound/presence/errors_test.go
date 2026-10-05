@@ -82,7 +82,7 @@ func TestErrorRenderer_ConflictError(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, testutil.StatusConflict, resp.HTTPStatusCode)
-	assert.Equal(t, "Room Conflict", resp.Status)
+	assert.Equal(t, "error", resp.Status)
 }
 
 func TestErrorRenderer_RoomCapacityConflict(t *testing.T) {
@@ -97,7 +97,7 @@ func TestErrorRenderer_RoomCapacityConflict(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, testutil.StatusConflict, resp.HTTPStatusCode)
-	assert.Equal(t, "Room Capacity Exceeded", resp.Status)
+	assert.Equal(t, "error", resp.Status)
 }
 
 // TestErrorRenderer_StudentAlreadyActiveConflict guards the Issue #844
@@ -113,7 +113,7 @@ func TestErrorRenderer_StudentAlreadyActiveConflict(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, testutil.StatusConflict, resp.HTTPStatusCode)
-	assert.Equal(t, "Student Already Has Active Visit", resp.Status)
+	assert.Equal(t, "error", resp.Status)
 }
 
 func TestErrorRenderer_StudentsNotPresentConflict(t *testing.T) {
@@ -123,7 +123,7 @@ func TestErrorRenderer_StudentsNotPresentConflict(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, testutil.StatusConflict, resp.HTTPStatusCode)
-	assert.Equal(t, "Students Not Present", resp.Status)
+	assert.Equal(t, "error", resp.Status)
 }
 
 func TestErrorRenderer_StudentMoveForbidden(t *testing.T) {
@@ -133,7 +133,7 @@ func TestErrorRenderer_StudentMoveForbidden(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, testutil.StatusForbidden, resp.HTTPStatusCode)
-	assert.Equal(t, "Forbidden", resp.Status)
+	assert.Equal(t, "error", resp.Status)
 }
 
 func TestErrorRenderer_UnknownError(t *testing.T) {
@@ -144,5 +144,5 @@ func TestErrorRenderer_UnknownError(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, testutil.StatusInternalServerError, resp.HTTPStatusCode)
-	assert.Equal(t, "Internal Server Error", resp.Status)
+	assert.Equal(t, "error", resp.Status)
 }

@@ -207,7 +207,7 @@ func TestDemoAccessRequestRejectsInvalidFields(t *testing.T) {
 	} {
 		rr := env.post(t, "/demo/access-requests", body)
 		assert.Equal(t, http.StatusUnprocessableEntity, rr.Code, name)
-		assert.Contains(t, rr.Body.String(), "demo_access_invalid", name)
+		assert.Contains(t, rr.Body.String(), "identity.demo_access_invalid", name)
 	}
 }
 
@@ -263,7 +263,7 @@ func TestDemoAccessRedeemsRepeatedlyIntoALockedTenantSession(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+tokens.AccessToken)
 	rr := testutil.ExecuteRequest(env.router, req)
 	assert.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
-	assert.Contains(t, rr.Body.String(), "demo_session")
+	assert.Contains(t, rr.Body.String(), "identity.demo_session")
 }
 
 // Every visitor signs in as the same administrator, so the session cap of a
@@ -297,7 +297,7 @@ func TestDemoAccessRejectsUnknownAndExpiredTokens(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, env.status("no-such-token").Code)
 	rr := env.post(t, "/demo/access/sessions", map[string]string{"token": "no-such-token"})
 	assert.Equal(t, http.StatusNotFound, rr.Code)
-	assert.Contains(t, rr.Body.String(), "demo_access_unknown")
+	assert.Contains(t, rr.Body.String(), "identity.demo_access_unknown")
 
 	token := env.requestToken(t)
 	_, err := env.db.NewRaw(`UPDATE auth.demo_accesses SET expires_at = NOW() - INTERVAL '1 minute' WHERE token_hash = ?`, fingerprint(token)).Exec(context.Background())
@@ -305,7 +305,7 @@ func TestDemoAccessRejectsUnknownAndExpiredTokens(t *testing.T) {
 	assert.Equal(t, http.StatusGone, env.status(token).Code)
 	rr = env.post(t, "/demo/access/sessions", map[string]string{"token": token})
 	assert.Equal(t, http.StatusGone, rr.Code)
-	assert.Contains(t, rr.Body.String(), "demo_access_expired")
+	assert.Contains(t, rr.Body.String(), "identity.demo_access_expired")
 }
 
 // The demo routes are a public, unauthenticated surface: outside the demo

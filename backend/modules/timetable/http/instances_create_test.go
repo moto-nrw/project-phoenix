@@ -24,6 +24,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -56,6 +57,9 @@ func buildCreateSetup(t *testing.T) *createSetup {
 	res := NewResource(Dependencies{
 		TimetableData:   testTimetableData(db).TimetableData(),
 		InstanceService: mock,
+		SettingsService: &configtest.Mock{
+			ResolveBoolFn: func(context.Context, string) (bool, error) { return true, nil },
+		},
 	})
 
 	return &createSetup{res: res, mock: mock, db: db, ctx: ctx, roomID: room.ID, cleanupFn: cleanup}
@@ -319,7 +323,7 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 
 	second := doCreate(t, router, body)
 	assert.Equal(t, http.StatusConflict, second.Code, "body=%s", second.Body.String())
-	assert.Contains(t, second.Body.String(), "duplicate_instance")
+	assert.Contains(t, second.Body.String(), "timetable.duplicate_instance")
 }
 
 func setupDuplicateInstanceRoute(

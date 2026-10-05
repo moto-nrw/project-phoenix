@@ -141,7 +141,7 @@ func (rs *Resource) Router() chi.Router {
 
 // CheckInRequest represents a check-in request. Reason is the optional F9
 // deviation reason; it is only required when the backend answered a previous
-// attempt with the "deviation_reason_required" conflict.
+// attempt with the "iot.deviation_reason_required" conflict.
 type CheckInRequest struct {
 	Status string `json:"status"` // "present" or "home_office"
 	Reason string `json:"reason"`

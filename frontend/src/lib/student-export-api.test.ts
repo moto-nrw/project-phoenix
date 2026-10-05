@@ -224,28 +224,36 @@ describe("exportStudents", () => {
     expect(download).toBe("kindersuche-export.pdf");
   });
 
-  it("throws the backend error body when the export fails", async () => {
+  // ADR 0006: the backend sentence is diagnosis only; the code identifies
+  // the error for the display path.
+  it("throws a coded error when the export is refused", async () => {
     globalThis.fetch = vi.fn(async () => {
       return new Response("keine Berechtigung", { status: 403 });
     });
 
-    await expect(exportStudents(request)).rejects.toThrow("keine Berechtigung");
+    await expect(exportStudents(request)).rejects.toMatchObject({
+      status: 403,
+      code: "general.permission",
+    });
   });
 
-  it("unwraps the JSON error envelope from the export proxy", async () => {
+  it("reads code and request ID from the JSON error envelope", async () => {
     globalThis.fetch = vi.fn(
       async () =>
         new Response(
           JSON.stringify({
-            error:
-              "die Auswahl umfasst 6000 Kinder, ein Export ist auf höchstens 5000 Kinder begrenzt",
+            error: "die Auswahl umfasst 6000 Kinder",
+            code: "general.input",
+            instance: "req-export",
           }),
           { status: 400, headers: { "Content-Type": "application/json" } },
         ),
     );
 
-    await expect(exportStudents(request)).rejects.toThrow(
-      "die Auswahl umfasst 6000 Kinder",
-    );
+    await expect(exportStudents(request)).rejects.toMatchObject({
+      message: "Export fehlgeschlagen",
+      code: "general.input",
+      requestId: "req-export",
+    });
   });
 });

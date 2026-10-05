@@ -13,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -163,6 +164,7 @@ func TestShiftService_CreateReplacementRejectsWindowOutsideOrigin(t *testing.T) 
 	_, err := svc.CreateShift(context.Background(), replacement)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrShiftInvalid)
+	assert.ErrorIs(t, err, workforce.ErrReplacementOutsideOrigin)
 	assert.Contains(t, err.Error(), "within the shift it covers")
 }
 
@@ -290,6 +292,7 @@ func TestShiftService_UpdateOriginRejectsResizeStrandingCover(t *testing.T) {
 	_, err := svc.UpdateShift(context.Background(), edit)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrShiftInvalid)
+	assert.ErrorIs(t, err, workforce.ErrShiftHasReplacements)
 	assert.Contains(t, err.Error(), "no longer fits")
 }
 

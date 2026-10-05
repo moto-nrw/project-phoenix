@@ -15,10 +15,23 @@ var (
 )
 
 // TargetOverrideError carries the caller-facing reason of an invalid or
-// rejected Sonderarbeitszeit and unwraps to its kind.
+// rejected Sonderarbeitszeit and unwraps to its kind. Code and Values name
+// the refusal on the wire when it has its own registered code (#2514).
 type TargetOverrideError struct {
 	Kind   error
 	Reason string
+	Code   string
+	Values TargetOverrideValues
+}
+
+// TargetOverrideValues are the values a coded refusal names; only the ones
+// its code uses are set.
+type TargetOverrideValues struct {
+	MaxDays   int
+	MaxHours  int
+	StartDate string
+	EndDate   string
+	Month     string
 }
 
 func (e *TargetOverrideError) Error() string { return e.Reason }

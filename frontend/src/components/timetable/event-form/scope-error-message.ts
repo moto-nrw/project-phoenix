@@ -1,3 +1,5 @@
+import { wireErrorCode } from "~/lib/api-error";
+
 /**
  * German user text for failures of a series-scoped Regeltermin save.
  *
@@ -21,8 +23,8 @@ export function timetableSeriesErrorMessage(
   }
 
   // Duck-typed: TimetableApiError is not exported, and tests mock the module.
-  const code = readStringProp(err, "code");
-  if (code === "template_not_found") return TEMPLATE_GONE_MESSAGE;
+  const code = wireErrorCode(readStringProp(err, "code"));
+  if (code === "timetable.template_not_found") return TEMPLATE_GONE_MESSAGE;
 
   const httpStatus = readNumberProp(err, "httpStatus");
   if (httpStatus !== undefined) {

@@ -118,7 +118,7 @@ func (d *DemoTicker) childrenTick(ctx context.Context, state *SeedState, rooms [
 	device := state.Devices[sortedDeviceKeys(state.Devices)[0]]
 	if err := runLiveTick(d.options.Client, d.live, state, device, &d.counts); err != nil {
 		var coded interface{ HTTPErrorCode() string }
-		if errors.As(err, &coded) && coded.HTTPErrorCode() == "ROOM_CAPACITY_EXCEEDED" {
+		if errors.As(err, &coded) && coded.HTTPErrorCode() == codeRoomCapacityExceeded {
 			return nil // A visitor or another simulated child already fills the room.
 		}
 		return fmt.Errorf("demo live action failed: %w", err)

@@ -421,6 +421,7 @@ const (
 	KeyTimetableAutoEndGraceMinutes       = "timetable.auto_end_grace_minutes"
 	KeyTimetableStartLeadMinutes          = "timetable.start_lead_minutes"
 	KeyTimetableEnforcePlannedEnd         = "timetable.enforce_planned_end"
+	KeyTimetableCompleteLeadMinutes       = "timetable.complete_lead_minutes"
 	KeyTimetableOverdueThresholdMinutes   = "timetable.overdue_threshold_minutes"
 	KeyTimetableShowExpectedChildrenCount = "timetable.show_expected_children_count"
 	// KeyTimetableChildrenPerStaffRatio is the Betreuungsschlüssel: the max

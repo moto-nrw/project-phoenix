@@ -41,7 +41,12 @@ export interface ExtendedStudent extends Student {
 interface StudentDataState {
   student: ExtendedStudent | null;
   loading: boolean;
-  error: string | null;
+  /**
+   * The failed load as thrown by the client (an `ApiError` with code and
+   * request ID), or null. The page shows it over the shared error path
+   * (#2513); no sentence is built here.
+   */
+  error: unknown;
   /**
    * READ access to this child's data — the backend's `has_full_access`, which
    * resolves to `authorize.CanReadStudent`: true for admins and every verified
@@ -286,7 +291,7 @@ export function useStudentData(studentId: string): UseStudentDataResult {
   }, [mutate]);
 
   // Convert SWR state to component state
-  const error = fetchError ? "Fehler beim Laden der Kinderdaten." : null;
+  const error: unknown = fetchError ?? null;
 
   // Include session loading state to prevent transient error display.
   // When session is loading, SWR key is null, so isLoading is false even though

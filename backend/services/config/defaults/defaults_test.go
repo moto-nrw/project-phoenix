@@ -76,6 +76,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"timetable.auto_start_planned",
 		"timetable.auto_end_enabled",
 		"timetable.auto_end_grace_minutes",
+		"timetable.complete_lead_minutes",
 		"timetable.overdue_threshold_minutes",
 		"timetable.show_expected_children_count",
 		"gdpr.timetable_retention_days",
@@ -496,6 +497,17 @@ func TestNotificationsOnDutyOnlyDefaultOff(t *testing.T) {
 	assert.Equal(t, false, def.Default)
 }
 
+// TestNotificationsDispatchDefaultsOn pins the default the Worker's reminder
+// tick reads for a school without its own value: notifications are on.
+func TestNotificationsDispatchDefaultsOn(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyNotificationsDispatchEnabled)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, true, def.Default)
+}
+
 // TestFilesMaxStorageOperatorOnly pins #3734: the moto team sets the storage
 // limit; the setting is hidden from the school's settings page.
 func TestFilesMaxStorageOperatorOnly(t *testing.T) {
@@ -793,6 +805,7 @@ func TestTimetableSettings_Types(t *testing.T) {
 		{"timetable.auto_start_planned", config.FieldBoolean},
 		{"timetable.auto_end_enabled", config.FieldBoolean},
 		{"timetable.auto_end_grace_minutes", config.FieldNumber},
+		{"timetable.complete_lead_minutes", config.FieldNumber},
 		{"timetable.overdue_threshold_minutes", config.FieldNumber},
 		{"timetable.show_expected_children_count", config.FieldBoolean},
 		{"gdpr.timetable_retention_days", config.FieldNumber},
@@ -803,6 +816,36 @@ func TestTimetableSettings_Types(t *testing.T) {
 		require.NotNilf(t, def, "setting %q should exist", tc.key)
 		assert.Equalf(t, tc.expected, def.Type, "setting %q should be type %s", tc.key, tc.expected)
 	}
+}
+
+// A school may let its team complete planned blocks a few minutes before
+// their planned end (#3809). No lead by default keeps existing schools as
+// they are; the setting only matters while the planned end is enforced.
+func TestTimetableCompleteLeadMinutesSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyTimetableCompleteLeadMinutes)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldNumber, def.Type)
+	assert.Equal(t, 0, def.Default, "no lead unless a school sets one")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "stundenplan", def.Category)
+	assert.Equal(t, "config:read", def.ReadPermission)
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	require.NotNil(t, def.Validation)
+	require.NotNil(t, def.Validation.Min)
+	assert.Equal(t, float64(0), *def.Validation.Min)
+	require.NotNil(t, def.Validation.Max)
+	assert.Equal(t, float64(60), *def.Validation.Max)
+	require.NotNil(t, def.DependsOn)
+	assert.Equal(t, config.KeyTimetableEnforcePlannedEnd, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
+
+	parent := config.GetDefinition(config.KeyTimetableEnforcePlannedEnd)
+	require.NotNil(t, parent)
+	assert.Equal(t, parent.SortOrder+1, def.SortOrder, "sits directly below the setting it depends on")
 }
 
 func TestTimetableSettings_Defaults(t *testing.T) {

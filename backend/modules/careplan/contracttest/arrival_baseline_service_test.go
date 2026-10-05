@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -40,12 +39,9 @@ func approvedOfferingProjection(t *testing.T) careplan.ApprovedBookingReader {
 	return projection
 }
 
-func setClassArrivalTimes(t *testing.T, repos *repositories.Factory, class string, times map[string]string) {
+func setClassArrivalTimes(t *testing.T, class string, times map[string]string) {
 	t.Helper()
-	row := &educationModel.ClassArrivalTime{SchoolClass: class, ArrivalTimes: times}
-	row.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, row.Validate())
-	require.NoError(t, repos.ClassArrivalTime.Upsert(testpkg.Ctx(t), row))
+	testpkg.UpsertTestClassArrivalTime(t, testpkg.SetupTestDB(t), class, times)
 }
 
 // mondayOnOrAfter keeps the assertions off weekends without pinning a date.
@@ -67,7 +63,7 @@ func TestArrivalBaselineTakesTimeFromTheClass(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Klara", "Klasse", "3b")
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Person")
-	setClassArrivalTimes(t, repos, "3b", map[string]string{"mon": "11:45", "wed": "12:45"})
+	setClassArrivalTimes(t, "3b", map[string]string{"mon": "11:45", "wed": "12:45"})
 
 	monday := mondayOnOrAfter(timezone.TodayDate())
 	tuesday := monday.AddDays(1)
@@ -145,7 +141,7 @@ func TestArrivalBaselineClassTimeAloneIsNoCareDay(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Nur", "Montags", "3b")
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Montag")
-	setClassArrivalTimes(t, repos, "3b", map[string]string{
+	setClassArrivalTimes(t, "3b", map[string]string{
 		"mon": "11:45", "tue": "11:45", "wed": "11:45", "thu": "11:45", "fri": "11:45",
 	})
 	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "")
@@ -194,7 +190,7 @@ func TestArrivalBaselineManualRowOverridesClassTime(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Otto", "Override", "3b")
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Person")
-	setClassArrivalTimes(t, repos, "3b", map[string]string{"mon": "11:45", "tue": "11:45"})
+	setClassArrivalTimes(t, "3b", map[string]string{"mon": "11:45", "tue": "11:45"})
 	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "12:15")
 	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayTuesday, staff.ID, "")
 

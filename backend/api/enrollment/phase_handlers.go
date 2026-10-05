@@ -472,11 +472,6 @@ func updateWithRefetch[M, E any](rs *Resource, w http.ResponseWriter, r *http.Re
 	common.Respond(w, r, http.StatusOK, toResponse(refreshed), successMsg)
 }
 
-const (
-	ErrCodePhaseNameExists           = "enrollment.phase_name_exists"
-	ErrCodePhaseCareOfferingConflict = "enrollment.phase_care_offering_conflict"
-)
-
 // phaseWriteErrorRenderer maps phase create/update failures onto their HTTP
 // status: duplicate name -> 409, missing phase -> 404, validation -> 400,
 // everything else -> 500. The 409 cases carry a stable code and render only
@@ -485,9 +480,9 @@ const (
 func phaseWriteErrorRenderer(err error) render.Renderer {
 	switch {
 	case errors.Is(err, enrollmentOwner.ErrPhaseDuplicateName):
-		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseDuplicateName, ErrCodePhaseNameExists)
+		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseDuplicateName, common.CodeEnrollmentPhaseNameExists)
 	case errors.Is(err, enrollmentOwner.ErrPhaseCareOfferingConflict):
-		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseCareOfferingConflict, ErrCodePhaseCareOfferingConflict)
+		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseCareOfferingConflict, common.CodeEnrollmentPhaseCareOfferingConflict)
 	case errors.Is(err, enrollmentOwner.ErrPhaseNotFound):
 		return common.ErrorNotFound(err)
 	case errors.Is(err, enrollmentOwner.ErrInvalidPhase):

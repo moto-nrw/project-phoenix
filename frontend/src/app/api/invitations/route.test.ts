@@ -322,33 +322,45 @@ describe("POST /api/invitations", () => {
     expect(response.status).toBe(200);
   });
 
-  it("rejects an unsafe numeric role ID instead of forwarding its rounded value", async () => {
+  it("never forwards the rounded value of an unsafe numeric role ID", async () => {
     const request = createMockRequest("/api/invitations", {
       method: "POST",
       body: { email: "newteacher@example.com", roleId: 9007199254740992 },
     });
-    const response = await POST(request, createMockContext());
+    await POST(request, createMockContext());
 
-    expect(mockApiPost).not.toHaveBeenCalled();
-    expect(response.status).toBe(500);
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/auth/invitations",
+      "test-token",
+      {
+        email: "newteacher@example.com",
+        first_name: undefined,
+        last_name: undefined,
+        position: undefined,
+      },
+    );
   });
 
-  it("returns error when role_id is missing", async () => {
+  it("leaves a missing role to the backend, which names the field (#2511)", async () => {
     const requestBody = {
       email: "newteacher@example.com",
     };
+    mockApiPost.mockRejectedValueOnce(
+      new Error("API error (400): role_id: cannot be blank."),
+    );
 
     const request = createMockRequest("/api/invitations", {
       method: "POST",
       body: requestBody,
     });
-
-    // createPostHandler catches errors and returns error response
     const response = await POST(request, createMockContext());
 
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Invalid invitation payload: role id missing");
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/auth/invitations",
+      "test-token",
+      expect.not.objectContaining({ role_id: expect.anything() }),
+    );
+    expect(response.status).toBe(400);
   });
 
   it("handles backend error", async () => {

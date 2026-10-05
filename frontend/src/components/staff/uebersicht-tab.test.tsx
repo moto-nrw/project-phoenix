@@ -1,11 +1,18 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import type { StaffAbsenceRow, StaffHistorySession } from "~/lib/staff-api";
+import { catalogText } from "~/test/error-catalog-text";
 
 // One file for every UebersichtTab test: each render case installs its own
 // SWR responder, so the tab's module graph loads once instead of per scenario.
-type SwrResult = { data: unknown; isLoading: boolean; error: unknown };
+type SwrResult = {
+  data: unknown;
+  isLoading: boolean;
+  error: unknown;
+  mutate?: () => Promise<unknown>;
+};
 const swr = vi.hoisted(() => ({
   keys: [] as string[],
   respond: (_key: string | null): SwrResult | undefined => undefined,
@@ -40,7 +47,8 @@ vi.mock("~/lib/staff-api", () => ({
   },
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn() }),
 }));
 
@@ -65,12 +73,29 @@ beforeEach(() => {
   swr.respond = () => undefined;
 });
 
+const retryMutate = vi.fn(() => Promise.resolve(undefined));
+
 function failKey(fragment: string) {
   swr.respond = (key) =>
     typeof key === "string" && key.includes(fragment)
-      ? { data: undefined, isLoading: false, error: new Error("boom") }
-      : undefined;
+      ? {
+          data: undefined,
+          isLoading: false,
+          error: new ApiError("down", 503, {
+            code: "general.unavailable",
+            instance: "req-overview",
+          }),
+          mutate: retryMutate,
+        }
+      : {
+          data: undefined,
+          isLoading: false,
+          error: undefined,
+          mutate: retryMutate,
+        };
 }
+
+const LOAD_ERROR = catalogText("general.unavailable", "die Auswertung");
 
 // Die Charts dieses Tabs bepreisen Vergangenheit. Sie dürfen ihr Soll NICHT
 // aus dem AKTUELLEN Dienstplan ableiten: nach einer Vertragsänderung
@@ -167,11 +192,16 @@ describe("UebersichtTab Soll-Quelle", () => {
 describe("UebersichtTab Targets-Fehler", () => {
   beforeEach(() => failKey("staff-schedule-targets-"));
 
-  it("zeigt einen Fehler statt einer 0-Soll-Auswertung", () => {
+  it("zeigt einen Fehler statt einer 0-Soll-Auswertung", async () => {
+    retryMutate.mockClear();
     render(<UebersichtTab staffId="1" />);
 
-    expect(screen.getByRole("alert")).toBeInTheDocument();
-    expect(screen.getByText(/Sollzeiten konnten nicht geladen/i)).toBeVisible();
+    expect(await screen.findByText(LOAD_ERROR)).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-overview");
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(retryMutate).toHaveBeenCalled();
     // Keine Chart-Überschrift => es wird kein irreführender Chart gerendert.
     expect(screen.queryByText(/Tagesvergleich Ist \/ Soll/i)).toBeNull();
   });
@@ -184,16 +214,28 @@ describe("UebersichtTab Targets-Fehler", () => {
 describe("UebersichtTab Buchungs-Fehler", () => {
   beforeEach(() => failKey("staff-balance-adjustments-"));
 
-  it("zeigt einen Fehler statt eines leeren Buchungsprotokolls", () => {
+  it("zeigt einen Fehler statt eines leeren Buchungsprotokolls", async () => {
     render(<UebersichtTab staffId="1" />);
 
-    expect(screen.getByRole("alert")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Stundenkonto-Buchungen konnten nicht geladen/i),
-    ).toBeVisible();
+    expect(await screen.findByText(LOAD_ERROR)).toBeVisible();
     // Kein Panel => kein irreführendes leeres Protokoll.
     expect(screen.queryByText(/Noch keine Buchungen/i)).toBeNull();
   });
+});
+
+// Fehlen Arbeitszeiten oder Abwesenheiten, wären Verteilung und Kurven
+// unvollständig; auch dann steht der Fehler statt der Auswertung (#2514).
+describe("UebersichtTab Verlaufs-Fehler", () => {
+  it.each(["staff-history-account-", "staff-absences-account-"])(
+    "zeigt einen Fehler statt einer Auswertung ohne %s",
+    async (fragment) => {
+      failKey(fragment);
+      render(<UebersichtTab staffId="1" />);
+
+      expect(await screen.findByText(LOAD_ERROR)).toBeVisible();
+      expect(screen.queryByText(/Tagesvergleich Ist \/ Soll/i)).toBeNull();
+    },
+  );
 });
 
 describe("UebersichtTab Freizeitausgleich-Verteilung", () => {

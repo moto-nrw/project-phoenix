@@ -39,7 +39,7 @@ func TestInvitationHTTPRequiresVerifiedOwner(t *testing.T) {
 	req := testutil.NewJSONRequest(t, http.MethodPost, path, body)
 	rr := testutil.ExecuteRequest(router, req)
 	require.Equal(t, http.StatusUnauthorized, rr.Code, rr.Body.String())
-	require.Contains(t, rr.Body.String(), "INVITATION_ACCOUNT_LOGIN_REQUIRED")
+	require.Contains(t, rr.Body.String(), "identity.invitation_account_login_required")
 	for _, scope := range []string{"", "org", "parent", "school", "platform"} {
 		claims := testutil.Claims{ID: int(other.ID), Sub: owner.Email, Roles: []string{}, Scope: scope, TenantID: testpkg.Tenant(t)}
 		req = testutil.NewJSONRequest(t, http.MethodPost, path, body)
@@ -49,7 +49,7 @@ func TestInvitationHTTPRequiresVerifiedOwner(t *testing.T) {
 			require.Equal(t, http.StatusUnauthorized, rr.Code, rr.Body.String())
 		} else {
 			require.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
-			require.Contains(t, rr.Body.String(), "INVITATION_ACCOUNT_MISMATCH")
+			require.Contains(t, rr.Body.String(), "identity.invitation_account_mismatch")
 		}
 	}
 	stored, err := testpkg.ReadAccountState(context.Background(), db, owner.ID)

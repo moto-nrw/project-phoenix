@@ -50,7 +50,6 @@ type JsonBody = Record<string, unknown> | unknown[] | string | number | boolean;
 
 interface BackendErrorPayload {
   error?: string;
-  message?: string;
   code?: string;
   details?: Record<string, unknown>;
   conflicts?: unknown[];
@@ -535,8 +534,8 @@ function buildApiErrorResponse(errorMessage: string): ApiErrorResponse {
   const response: ApiErrorResponse = { error: errorMessage };
   const parsed = parseBackendErrorPayload(errorMessage);
 
-  if (parsed?.error ?? parsed?.message) {
-    response.error = (parsed.error ?? parsed.message) as string;
+  if (parsed?.error) {
+    response.error = parsed.error;
   }
   if (parsed?.code) {
     response.code = parsed.code;

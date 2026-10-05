@@ -11,7 +11,11 @@ import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 describe("Für-Eltern-sichtbar Kennzeichnung", () => {
   function renderPersonalInfo() {
     render(
-      <PersonalInfoSection formData={{}} onChange={vi.fn()} errors={{}} />,
+      <PersonalInfoSection
+        formData={{}}
+        onChange={vi.fn()}
+        fieldError={() => undefined}
+      />,
     );
   }
 

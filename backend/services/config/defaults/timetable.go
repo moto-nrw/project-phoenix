@@ -154,7 +154,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableEnforcePlannedEnd,
 		Label:           "Beenden erst ab geplanter Endzeit",
-		Description:     "Eine geplante Aktivität lässt sich erst ab ihrer eingetragenen Endzeit beenden. Spontane Aktivitäten sind ausgenommen.",
+		Description:     "Eine geplante Aktivität lässt sich erst ab ihrer eingetragenen Endzeit beenden. Darunter können Sie einige Minuten früher erlauben. Spontane Aktivitäten sind ausgenommen.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -163,6 +163,21 @@ func init() {
 		Category:        "stundenplan",
 		SortOrder:       37,
 		DependsOn:       timetableEnabledDependency,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyTimetableCompleteLeadMinutes,
+		Label:           "Beenden vor Planende erlaubt (Minuten)",
+		Description:     "So viele Minuten vor der geplanten Endzeit kann Ihr Team eine Aktivität beenden.",
+		Type:            config.FieldNumber,
+		Default:         0,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "stundenplan",
+		SortOrder:       38,
+		Validation:      config.Range(0, 60),
+		DependsOn:       config.DependsOnEq(config.KeyTimetableEnforcePlannedEnd, true),
 	})
 
 	config.Register(config.Definition{
@@ -175,7 +190,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "stundenplan",
-		SortOrder:       38,
+		SortOrder:       39,
 		Validation:      config.Range(1, 30),
 		DependsOn:       timetableEnabledDependency,
 	})
@@ -190,7 +205,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "stundenplan",
-		SortOrder:       39,
+		SortOrder:       40,
 		DependsOn:       timetableEnabledDependency,
 	})
 
@@ -204,7 +219,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "stundenplan",
-		SortOrder:       40,
+		SortOrder:       41,
 		Validation:      config.Range(1, 30),
 		DependsOn:       timetableEnabledDependency,
 	})

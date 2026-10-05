@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import type { ErrorCode } from "~/lib/error-codes.generated";
+import { ApiError, wireErrorCode } from "~/lib/api-error";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Alert } from "~/components/ui/alert";
@@ -11,12 +13,12 @@ import {
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { formatDate, isoWeekNumber } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Checkbox } from "~/components/ui/checkbox";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
-  OfferingRequestApiError,
   type OfferingRequestDiffLine,
   type OfferingRequestPreview,
   type OfferingRequestPreviewSelection,
@@ -31,48 +33,25 @@ const logger = createLogger({ component: "OfferingRequestReviewItem" });
 // von selbst: erneut klicken hilft nicht, es braucht ein anderes Datum, eine
 // andere Auswahl oder eine Ablehnung. Alles andere (Netz, Serverfehler) ist ein
 // vorübergehender Fehler und bleibt wiederholbar.
-const CONFLICT_CODES = new Set([
-  "offering_change_capacity_full",
-  "change_request_not_pending",
-  "offering_changes_no_enrollment",
-  "offering_change_date_out_of_range",
+const CONFLICT_CODES: ReadonlySet<string> = new Set<ErrorCode>([
+  "students.offering_change_capacity_full",
+  "students.change_request_not_pending",
+  "students.offering_changes_no_enrollment",
+  "students.offering_change_date_out_of_range",
 ]);
-
-// An approval genuinely applies the switch, so it can fail for reasons the
-// office has to act on rather than retry. Name each one and say what to do; the
-// row deliberately stays pending in all of these cases. `fallback` names what
-// failed for everything else — die Vorschau speichert nichts, die Freigabe
-// schon.
-function decideErrorMessage(
-  code: string | undefined,
-  fallback = "Die Entscheidung konnte nicht gespeichert werden.",
-): string {
-  switch (code) {
-    case "offering_change_capacity_full":
-      return "Für ein gewünschtes Angebot ist kein Platz mehr frei. Die Anfrage bleibt offen: Bitte mit der Familie eine Alternative klären oder die Anfrage mit Begründung ablehnen.";
-    case "change_request_not_pending":
-      return "Diese Anfrage wurde bereits entschieden oder von den Eltern zurückgezogen. Bitte die Seite neu laden.";
-    case "offering_changes_no_enrollment":
-      return "Für dieses Kind liegt keine gültige Anmeldung mehr vor, auf die die Änderung angewendet werden könnte. Bitte die Anfrage ablehnen.";
-    case "offering_change_date_out_of_range":
-      return "Zu diesem Datum kann die Änderung nicht gelten. Bitte ein Datum innerhalb der Betreuungszeit wählen, frühestens heute.";
-    default:
-      return fallback;
-  }
-}
 
 // Kurzform des Grundes. Sie bleibt an der Karte stehen, solange „Freigeben"
 // gesperrt ist — ein ausgegrauter Knopf ohne Grund ist eine Sackgasse. Der
 // vollständige Text mit dem nächsten Schritt läuft als Toast.
 function blockedReason(code: string | undefined): string {
-  switch (code) {
-    case "offering_change_capacity_full":
+  switch (wireErrorCode(code)) {
+    case "students.offering_change_capacity_full":
       return "Zu diesem Datum ist ein Angebot voll.";
-    case "offering_change_date_out_of_range":
+    case "students.offering_change_date_out_of_range":
       return "Zu diesem Datum kann die Änderung nicht gelten.";
-    case "offering_changes_no_enrollment":
+    case "students.offering_changes_no_enrollment":
       return "Für dieses Kind liegt keine gültige Anmeldung mehr vor.";
-    case "change_request_not_pending":
+    case "students.change_request_not_pending":
       return "Diese Anfrage wurde bereits entschieden.";
     default:
       return "Mit diesem Datum ist keine Freigabe möglich.";
@@ -152,7 +131,16 @@ export function OfferingRequestReviewItem({
   approveReasonRequired?: boolean;
 }>) {
   const t = useTranslations("parentMasterData");
-  const toast = useToast();
+  const { show: showError } = useApiErrorDisplay();
+  // Scheitert die Freigabe im offenen Bestätigungsdialog, steht der Fehler
+  // dort: ein Toast läge hinter dem Hintergrund des Dialogs.
+  const confirmErrors = useApiFormError();
+  // „Wiederholen“ ruft immer die aktuelle Fassung auf, mit der aktuellen
+  // Begründung, Abwahl und dem aktuellen Datum.
+  const decideRef = useRef<
+    (approve: boolean, confirmWithdrawal?: boolean) => Promise<void>
+  >(async () => undefined);
+  const prepareApprovalRef = useRef<() => Promise<void>>(async () => undefined);
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -182,6 +170,7 @@ export function OfferingRequestReviewItem({
       return;
     }
     setBusy(true);
+    confirmErrors.clear();
     const excludedIds = approve ? excluded : [];
     try {
       const args = [
@@ -215,20 +204,30 @@ export function OfferingRequestReviewItem({
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      const code =
-        err instanceof OfferingRequestApiError ? err.code : undefined;
+      const code = err instanceof ApiError ? err.code : undefined;
       logger.warn("offering_request_review_decide_failed", {
         error: message,
         request_id: row.id,
         ...(code ? { code } : {}),
       });
-      if (code === "enrollment.complete_withdrawal_confirmation_required") {
-        setConfirmationRequired(true);
-      }
       setBusy(false);
-      toast.error(decideErrorMessage(code), { duration: 8000 });
+      if (code === "enrollment.complete_withdrawal_confirmation_required") {
+        // Kein Fehler für die Person: der Dialog fragt jetzt nach der
+        // Bestätigung der Komplett-Abmeldung und nennt die Folgen.
+        setConfirmationRequired(true);
+        return;
+      }
+      const showDecideError =
+        approve && approvalPreview !== null ? confirmErrors.show : showError;
+      await showDecideError(err, {
+        object: "die Anfrage",
+        retry: () => void decideRef.current(approve, confirmWithdrawal),
+      });
     }
   };
+  useLayoutEffect(() => {
+    decideRef.current = decide;
+  });
 
   const prepareApproval = async () => {
     setBusy(true);
@@ -244,25 +243,24 @@ export function OfferingRequestReviewItem({
       setApprovalPreview(nextPreview);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      const code =
-        err instanceof OfferingRequestApiError ? err.code : undefined;
+      const code = err instanceof ApiError ? err.code : undefined;
       logger.warn("offering_request_review_approval_preview_failed", {
         error: message,
         request_id: row.id,
         ...(code ? { code } : {}),
       });
       setBlocked(CONFLICT_CODES.has(code ?? "") ? blockedReason(code) : null);
-      toast.error(
-        decideErrorMessage(
-          code,
-          "Die Folgen der Freigabe konnten nicht geprüft werden. Bitte versuchen Sie es noch einmal.",
-        ),
-        { duration: 8000 },
-      );
+      await showError(err, {
+        object: "die Anfrage",
+        retry: () => void prepareApprovalRef.current(),
+      });
     } finally {
       setBusy(false);
     }
   };
+  useLayoutEffect(() => {
+    prepareApprovalRef.current = prepareApproval;
+  });
 
   // Vorschau für die aktuelle Abwahl UND das aktuelle Datum: beides verändert,
   // was die Freigabe tatsächlich bucht (#2370, #2484). Meldet, ob die Vorschau
@@ -282,8 +280,7 @@ export function OfferingRequestReviewItem({
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      const code =
-        err instanceof OfferingRequestApiError ? err.code : undefined;
+      const code = err instanceof ApiError ? err.code : undefined;
       logger.warn("offering_request_review_preview_failed", {
         error: message,
         request_id: row.id,
@@ -294,13 +291,10 @@ export function OfferingRequestReviewItem({
       // wieder weg — die Karte muss dann bedienbar bleiben.
       setPreview(undefined);
       setBlocked(CONFLICT_CODES.has(code ?? "") ? blockedReason(code) : null);
-      toast.error(
-        decideErrorMessage(
-          code,
-          "Die Vorschau konnte nicht aktualisiert werden. Bitte versuchen Sie es noch einmal.",
-        ),
-        { duration: 8000 },
-      );
+      // Ohne Wiederholen: die Abwahl oder das Datum wird erst übernommen, wenn
+      // die Vorschau aufgeht. Ein neuer Klick auf dieselbe Auswahl ist der
+      // Wiederholungsweg.
+      await showError(err, { object: "die Anfrage" });
       return false;
     } finally {
       setBusy(false);
@@ -408,7 +402,7 @@ export function OfferingRequestReviewItem({
       {fullWithdrawal && (
         <div className="mt-3">
           <Alert
-            type="error"
+            type="warning"
             message={`Damit wird ${row.student_name} von allen Angeboten abgemeldet. Danach ist kein Angebot mehr gebucht.`}
           />
         </div>
@@ -574,7 +568,10 @@ export function OfferingRequestReviewItem({
       </div>
       <ConfirmationModal
         isOpen={approvalPreview !== null}
-        onClose={() => setApprovalPreview(null)}
+        onClose={() => {
+          setApprovalPreview(null);
+          confirmErrors.clear();
+        }}
         onConfirm={() => void decide(true, withdrawalConfirmation)}
         title={
           withdrawalConfirmation
@@ -589,6 +586,7 @@ export function OfferingRequestReviewItem({
         loadingText="Wird freigegeben..."
         mobileSheet
       >
+        <FormErrorAlert message={confirmErrors.error} className="mb-4" />
         {approvalPreview && (
           <div className="space-y-4">
             {withdrawalConfirmation && (

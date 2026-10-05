@@ -2,7 +2,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import type { StaffSchedule } from "~/lib/staff-api";
+import { catalogText } from "~/test/error-catalog-text";
 import { ArbeitszeitmodellTab } from "./arbeitszeitmodell-tab";
 
 const mocks = vi.hoisted(() => ({
@@ -48,7 +50,8 @@ vi.mock("~/lib/staff-api", () => ({
   staffMonthSummaryService: { getDailyProjection: vi.fn() },
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: vi.fn(),
     error: mocks.toastError,
@@ -132,7 +135,7 @@ describe("Arbeitszeitmodell decimal-hours editor", () => {
 
     expect(mocks.updateSchedule).not.toHaveBeenCalled();
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Bitte eine Vorlage auswählen.",
+      "Bitte wählen Sie eine Vorlage.",
     );
     expect(mocks.toastError).not.toHaveBeenCalled();
   });
@@ -148,6 +151,24 @@ describe("Arbeitszeitmodell decimal-hours editor", () => {
     ).toBeInTheDocument();
     expect(mocks.mutateSchedule).toHaveBeenCalledTimes(1);
     expect(mocks.mutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the editor open and offers a retry when saving fails", async () => {
+    mocks.updateSchedule.mockRejectedValueOnce(
+      new ApiError("boom", 500, { code: "general.server", instance: "req-az" }),
+    );
+    openEditor();
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "das Arbeitszeitmodell"),
+      ),
+    ).toBeInTheDocument();
+    expect(mocks.toastError).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mocks.updateSchedule).toHaveBeenCalledTimes(2));
   });
 
   it("loads existing minutes as decimal hours and updates totals while typing", () => {
@@ -218,9 +239,7 @@ describe("Arbeitszeitmodell decimal-hours editor", () => {
     // The form error stands in the alert at the top of the panel body, not in
     // a toast (BAUARTEN-SPEC Bauart 2 Regel 5); the field keeps its own alert.
     const alerts = screen.getAllByRole("alert").map((a) => a.textContent);
-    expect(alerts).toContain(
-      "Bitte die ungültigen Dezimalstunden korrigieren.",
-    );
+    expect(alerts).toContain("Bitte korrigieren Sie die markierten Stunden.");
     expect(mocks.toastError).not.toHaveBeenCalled();
   });
 

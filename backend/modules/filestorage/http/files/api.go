@@ -97,9 +97,9 @@ func renderError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, filestorage.ErrInvalid), errors.Is(err, filestorage.ErrTenantRequired):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, filestorage.ErrFolderNameTaken):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "folder_name_taken"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeFilesFolderNameTaken))
 	case errors.Is(err, filestorage.ErrQuotaExceeded):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "quota_exceeded"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeFilesQuotaExceeded))
 	case errors.Is(err, filestorage.ErrNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, filestorage.ErrObjectNotFound):

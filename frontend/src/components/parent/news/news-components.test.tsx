@@ -670,6 +670,197 @@ describe("announcement detail presentation", () => {
   });
 });
 
+// Terminabstimmung for an Elternsprechtag (#3861): 40 slots, two children. The
+// second child's card folds away, so the phone does not scroll past 80 rows.
+describe("long poll for several children (#3861)", () => {
+  const slots = Array.from({ length: 40 }, (_, i) => ({
+    id: String(i + 1),
+    label: `Di 14.10. ${String(14 + Math.floor(i / 4)).padStart(2, "0")}:${String((i % 4) * 15).padStart(2, "0")} Uhr`,
+  }));
+  const twoChildren = (felix: string[], mila: string[]) => [
+    {
+      student_id: "10",
+      first_name: "Felix",
+      last_name: "Schneider",
+      selected_options: felix,
+    },
+    {
+      student_id: "11",
+      first_name: "Mila",
+      last_name: "Schneider",
+      selected_options: mila,
+    },
+  ];
+
+  it("opens the first child still waiting and folds the others", async () => {
+    const respond = vi
+      .spyOn(parentApi, "respondToAnnouncement")
+      .mockResolvedValue(undefined);
+    render(
+      <NewsDetailModal
+        item={poll({
+          response_type: "multi_choice",
+          options: slots,
+          children: twoChildren(["1"], []),
+        })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    // Mila has no answer yet, so her card is open; Felix's shows his count.
+    expect(screen.getAllByRole("checkbox")).toHaveLength(40);
+    expect(screen.getByText("1 von 40 gewählt")).toBeInTheDocument();
+    expect(screen.getByText("0 von 40 gewählt")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Mila Schneider einklappen" }),
+    ).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Felix Schneider ausklappen" }),
+    );
+    expect(screen.getAllByRole("checkbox")).toHaveLength(80);
+
+    const felixSecondSlot = screen.getAllByRole("checkbox", {
+      name: slots[1]!.label,
+    })[0]!;
+    fireEvent.click(felixSecondSlot);
+    expect(screen.getByText("2 von 40 gewählt")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Antwort speichern" }));
+
+    await waitFor(() => {
+      expect(respond).toHaveBeenCalledWith(
+        "42",
+        "10",
+        ["1", "2"],
+        "2026-07-01T08:00:00Z",
+      );
+    });
+  });
+
+  it("opens the first unanswered child after a corrected poll is refetched", () => {
+    const { rerender } = render(
+      <NewsDetailModal
+        item={poll({
+          response_type: "multi_choice",
+          options: slots,
+          children: twoChildren(["1"], ["2"]),
+        })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Felix Schneider einklappen" }),
+    );
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+
+    rerender(
+      <NewsDetailModal
+        item={poll({
+          response_type: "multi_choice",
+          published_at: "2026-07-02T08:00:00Z",
+          options: slots,
+          children: twoChildren(["1"], []),
+        })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Mila Schneider einklappen" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByRole("checkbox")).toHaveLength(40);
+  });
+
+  it("opens the first unanswered child after the child list changes", () => {
+    const { rerender } = render(
+      <NewsDetailModal
+        item={poll({
+          response_type: "multi_choice",
+          options: slots,
+          children: twoChildren(["1"], ["2"]),
+        })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Felix Schneider einklappen" }),
+    );
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+
+    rerender(
+      <NewsDetailModal
+        item={poll({
+          response_type: "multi_choice",
+          options: slots,
+          children: [
+            ...twoChildren(["1"], ["2"]),
+            {
+              student_id: "12",
+              first_name: "Noah",
+              last_name: "Schneider",
+              selected_options: [],
+            },
+          ],
+        })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Noah Schneider einklappen" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByRole("checkbox")).toHaveLength(40);
+  });
+
+  it("lets a closed poll still be unfolded to read the answers", () => {
+    render(
+      <NewsDetailModal
+        item={poll({
+          response_type: "multi_choice",
+          response_deadline: "2020-01-01T00:00:00Z",
+          options: slots,
+          children: twoChildren(["3"], ["4"]),
+        })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    const toggle = screen.getByRole("button", {
+      name: "Mila Schneider ausklappen",
+    });
+    expect(toggle).toBeEnabled();
+    fireEvent.click(toggle);
+    const milaSlot = screen.getAllByRole("checkbox", {
+      name: slots[3]!.label,
+    })[1]!;
+    expect(milaSlot).toBeChecked();
+    expect(milaSlot).toBeDisabled();
+  });
+
+  it("keeps a short poll fully open for several children", () => {
+    render(
+      <NewsDetailModal
+        item={poll({ children: twoChildren([], []) })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /ausklappen|einklappen/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/von 2 gewählt/)).not.toBeInTheDocument();
+  });
+});
+
 describe("isOpenPoll", () => {
   it("is true only while an answer is still owed and possible", () => {
     expect(isOpenPoll(poll())).toBe(true);

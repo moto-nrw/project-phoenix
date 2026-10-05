@@ -76,15 +76,15 @@ export function InvitationOwnerAcceptForm({
       setAccepted(true);
     } catch (err) {
       const code = (err as ApiError).code;
-      if (code === "INVITATION_ACCOUNT_LOGIN_REQUIRED") {
+      if (code === "identity.invitation_account_login_required") {
         setError(
           "Bitte melden Sie sich zuerst mit der eingeladenen E-Mail-Adresse an.",
         );
-      } else if (code === "INVITATION_ACCOUNT_MISMATCH") {
+      } else if (code === "identity.invitation_account_mismatch") {
         setError(
           "Sie sind mit einem anderen Konto angemeldet. Bitte wechseln Sie das Konto.",
         );
-      } else if (code === "ACCOUNT_INACTIVE") {
+      } else if (code === "identity.account_inactive") {
         setError("Ihr Konto ist gesperrt. Bitte wenden Sie sich an moto.");
       } else if (
         (err as ApiError).status === 410 ||

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // The everyday life of the marketing school at the reference clock (#3762):
@@ -95,6 +96,10 @@ func seedMarketingDailyLife(ctx context.Context, rt *Runtime, data manualProfile
 // with the present children of its group, starts it, and checks the
 // children in, so the rooms are occupied and the day plan shows "Läuft".
 func seedMarketingSessions(rt *Runtime, data manualProfileData, staff []AccountCredentials, rooms map[string]int64) error {
+	sessionDate, ok := marketingSessionDate(todaySeedDate())
+	if !ok {
+		return nil
+	}
 	// Planned blocks need the school's calendar periods; the bootstrap
 	// creates the current school year the way the planning page does.
 	if _, err := rt.Client.Post("/api/timetable/periods/bootstrap", nil); err != nil {
@@ -129,7 +134,7 @@ func seedMarketingSessions(rt *Runtime, data manualProfileData, staff []AccountC
 		}
 		children := marketingSessionChildren(data, session.group)
 		raw, err := rt.Client.Post("/api/timetable/instances", map[string]any{
-			"date": todaySeedDate().String(), "start_time": marketingClock(-45), "end_time": marketingClock(75),
+			"date": sessionDate.String(), "start_time": marketingClock(-45), "end_time": marketingClock(75),
 			"title": session.title, "room_id": rooms[session.room], "activity_group_id": activityID,
 			"staff_ids": []int64{leader.StaffID}, "student_ids": children,
 		})
@@ -151,6 +156,18 @@ func seedMarketingSessions(rt *Runtime, data manualProfileData, staff []AccountC
 		}
 	}
 	return nil
+}
+
+// marketingSessionDate keeps the live marketing sessions on a school day.
+// The timetable deliberately refuses weekend entries, and a live session
+// cannot be moved to another day without becoming either premature or stale.
+func marketingSessionDate(date seedDate) (seedDate, bool) {
+	switch date.Weekday() {
+	case time.Saturday, time.Sunday:
+		return seedDate{}, false
+	default:
+		return date, true
+	}
 }
 
 // marketingActivityCategories maps the school's activity category names to
@@ -306,6 +323,9 @@ func seedMarketingParentMessages(ctx context.Context, rt *Runtime, data manualPr
 // every present child sits in an occupied room, and both supervisions run
 // with children on the day plan.
 func verifyMarketingDailyLife(rt *Runtime) error {
+	if _, ok := marketingSessionDate(todaySeedDate()); !ok {
+		return nil
+	}
 	raw, err := rt.Client.Get("/api/students?page=1&page_size=100")
 	if err != nil {
 		return fmt.Errorf("read marketing children: %w", err)

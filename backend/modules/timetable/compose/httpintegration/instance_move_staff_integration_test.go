@@ -267,7 +267,7 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 		})
 		de := requireDeviationErr(t, err)
 		assert.Equal(t, http.StatusConflict, de.Status)
-		assert.Equal(t, "staff_already_on_target", de.Code)
+		assert.Equal(t, "timetable.staff_already_on_target", de.Code)
 	})
 
 	t.Run("absent on target", func(t *testing.T) {
@@ -284,7 +284,7 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 		})
 		de := requireDeviationErr(t, err)
 		assert.Equal(t, http.StatusConflict, de.Status)
-		assert.Equal(t, "staff_absent_on_target", de.Code)
+		assert.Equal(t, "timetable.staff_absent_on_target", de.Code)
 	})
 
 	t.Run("absent on source", func(t *testing.T) {
@@ -312,7 +312,7 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 		})
 		de := requireDeviationErr(t, err)
 		assert.Equal(t, http.StatusConflict, de.Status)
-		assert.Equal(t, "staff_absent_on_date", de.Code)
+		assert.Equal(t, "timetable.staff_absent_on_date", de.Code)
 		assert.Empty(t, loadInstanceStaffRows(t, s.db, s.ctx, s.target.ID))
 	})
 
@@ -329,7 +329,7 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 		})
 		de := requireDeviationErr(t, err)
 		assert.Equal(t, http.StatusConflict, de.Status)
-		assert.Equal(t, "staff_absent_on_date", de.Code)
+		assert.Equal(t, "timetable.staff_absent_on_date", de.Code)
 		assert.Empty(t, loadInstanceStaffRows(t, s.db, s.ctx, s.target.ID))
 	})
 

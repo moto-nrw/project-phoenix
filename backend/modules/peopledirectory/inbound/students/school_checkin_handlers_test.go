@@ -4,10 +4,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestSchoolCheckinActionErrorRenderer_DistinguishesGraduationFromCareEnd(t *testing.T) {
+	t.Parallel()
+
+	graduated, ok := schoolCheckinActionErrorRenderer(studentpresence.ErrStudentGraduated).(*common.ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, common.CodeGeneralBusinessRejection, graduated.Code)
+	assert.Equal(t, 404, graduated.HTTPStatusCode)
+
+	careEnded, ok := schoolCheckinActionErrorRenderer(studentpresence.ErrStudentCareEnded).(*common.ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, common.CodeStudentsCheckinCareEnded, careEnded.Code)
+	assert.Equal(t, 404, careEnded.HTTPStatusCode)
+}
 
 func TestLabelForAttendanceStatus(t *testing.T) {
 	t.Parallel()

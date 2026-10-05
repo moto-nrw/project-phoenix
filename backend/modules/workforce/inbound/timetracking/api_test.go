@@ -565,7 +565,7 @@ func TestCheckIn_PlannedStartNotReached(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "error", resp.Status)
-	assert.Equal(t, "planned_start_not_reached", resp.Code)
+	assert.Equal(t, "iot.planned_start_not_reached", resp.Code)
 	require.NotNil(t, resp.Details)
 	assert.Equal(t, "09:00", resp.Details["planned_start_time"])
 	assert.Equal(t, "08:45", resp.Details["current_time"])
@@ -1784,7 +1784,7 @@ func TestClassifyAbsenceError(t *testing.T) {
 		err := render.Render(w, r, renderer)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusForbidden, w.Code)
-		assert.JSONEq(t, `{"status":"error","error":"absence type is manager-controlled","code":"manager_controlled_absence","type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen","title":"Forbidden","detail":"absence type is manager-controlled","instance":""}`, w.Body.String())
+		assert.JSONEq(t, `{"status":"error","error":"absence type is manager-controlled","code":"workforce.manager_controlled_absence","type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen","title":"Forbidden","detail":"absence type is manager-controlled","instance":""}`, w.Body.String())
 	})
 
 	t.Run("allowance booking overlap returns conflict", func(t *testing.T) {
@@ -1798,9 +1798,102 @@ func TestClassifyAbsenceError(t *testing.T) {
 		renderErr := render.Render(w, r, renderer)
 		require.NoError(t, renderErr)
 		require.Equal(t, http.StatusConflict, w.Code)
-		assert.JSONEq(t, `{"status":"error","error":"Diese Buchung überschneidet sich. Bitte löschen Sie die alte Buchung. Tragen Sie alle Tage zusammen ein.","code":"general.business_rejection","type":"https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich","title":"Conflict","detail":"Diese Buchung überschneidet sich. Bitte löschen Sie die alte Buchung. Tragen Sie alle Tage zusammen ein.","instance":""}`, w.Body.String())
+		assert.JSONEq(t, `{"status":"error","error":"Diese Buchung überschneidet sich. Bitte löschen Sie die alte Buchung. Tragen Sie alle Tage zusammen ein.","code":"workforce.absence_overlap","type":"https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich","title":"Conflict","detail":"Diese Buchung überschneidet sich. Bitte löschen Sie die alte Buchung. Tragen Sie alle Tage zusammen ein.","instance":""}`, w.Body.String())
 	})
 
+}
+
+// TestClassifierCodes pins the stable code of every web time-tracking error
+// the frontend explains in its own words (#2514): the client reads the code,
+// never the legacy sentence, which also feeds the IoT stamp mapping.
+func TestClassifierCodes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		renderer   func(error) render.Renderer
+		err        error
+		wantStatus int
+		wantCode   string
+	}{
+		{"already checked in", classifyServiceError, errors.New("already checked in"), http.StatusConflict, "workforce.already_checked_in"},
+		{"already checked out", classifyServiceError, errors.New("already checked out today"), http.StatusConflict, "workforce.already_checked_out"},
+		{"check-in race", classifyServiceError, &workforce.TimeTrackingError{Kind: workforce.ErrCheckInRaced, Cause: errors.New("work session for the day is already open")}, http.StatusConflict, "workforce.already_checked_in"},
+		{"break already active", classifyServiceError, errors.New("break already active"), http.StatusConflict, "workforce.break_already_active"},
+		{"no active session", classifyServiceError, errors.New("no active session found"), http.StatusNotFound, "workforce.no_active_session"},
+		{"no active break", classifyServiceError, errors.New("no active break found"), http.StatusNotFound, "workforce.no_active_break"},
+		{"no session today", classifyServiceError, errors.New("no session found for today"), http.StatusNotFound, "workforce.no_session_for_today"},
+		{"session not found", classifyServiceError, errors.New("session not found"), http.StatusNotFound, "workforce.session_not_found"},
+		{"session not owned", classifyServiceError, errors.New("can only update own sessions"), http.StatusForbidden, "workforce.session_not_owned"},
+		{"check-in after check-out", classifyServiceError, errors.New("invalid session data: check-in time must be before check-out time"), http.StatusBadRequest, "workforce.session_times_invalid"},
+		{"negative break", classifyServiceError, errors.New("invalid session data: break minutes cannot be negative"), http.StatusBadRequest, "workforce.session_times_invalid"},
+		{"admin time range", classifyServiceError, errors.New("check_out_time must be after check_in_time"), http.StatusBadRequest, "workforce.session_times_invalid"},
+		{"note on status change", classifyServiceError, errors.New("notes required when changing status"), http.StatusBadRequest, "workforce.session_note_required"},
+		{"missing staff stays a server fault", classifyServiceError, errors.New("invalid session data: staff ID is required"), http.StatusInternalServerError, "general.server"},
+		{"absence overlap", classifyAbsenceError, errors.New("dates overlap with an existing absence"), http.StatusConflict, "workforce.absence_overlap"},
+		{"no working days", classifyAbsenceError, errors.New("vacation range contains no working days"), http.StatusBadRequest, "workforce.absence_no_working_days"},
+		{"vacation in the past", classifyAbsenceError, errors.New("vacation request must start today or in the future"), http.StatusBadRequest, "workforce.vacation_request_in_past"},
+		{"cancel a past absence", classifyAbsenceError, errors.New("past absences cannot be canceled"), http.StatusConflict, "workforce.absence_not_cancelable"},
+		{"cancel a decided absence", classifyAbsenceError, errors.New("only pending or approved absences can be canceled"), http.StatusConflict, "workforce.absence_not_cancelable"},
+		{"answer after the decision", classifyAbsenceError, errors.New("only absences with a question can be resubmitted"), http.StatusBadRequest, "workforce.absence_already_decided"},
+		{"absence not found", classifyAbsenceError, errors.New("absence not found"), http.StatusNotFound, "workforce.absence_not_found"},
+		{"cancel someone else's absence", classifyAbsenceError, errors.New("can only cancel own absences"), http.StatusForbidden, "workforce.absence_not_owned"},
+		{"sick cascade shift overlap", classifyAbsenceError, &workforce.TimeTrackingError{Kind: workforce.ErrStaffShiftOverlap, Cause: errors.New("shift overlaps an existing shift on this day")}, http.StatusConflict, "workforce.shift_overlap"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodGet, "/", nil)
+			require.NoError(t, render.Render(w, r, tt.renderer(tt.err)))
+			assert.Equal(t, tt.wantStatus, w.Code)
+			var body struct {
+				Code string `json:"code"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+			assert.Equal(t, tt.wantCode, body.Code)
+		})
+	}
+}
+
+// TestAbsenceDecisionCodes pins the codes of a refused approval, denial or
+// question (#2514); a denial used to answer every failure with 500.
+func TestAbsenceDecisionCodes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		renderer   func(error) render.Renderer
+		err        error
+		wantStatus int
+		wantCode   string
+	}{
+		{"approve decided", renderApproveAbsenceError, errors.New("only requested absences can be approved"), http.StatusConflict, "workforce.absence_already_decided"},
+		{"deny without reason", renderDenyAbsenceError, errors.New("decline reason is required"), http.StatusBadRequest, "workforce.decision_note_required"},
+		{"deny decided", renderDenyAbsenceError, errors.New("only requested absences can be declined"), http.StatusConflict, "workforce.absence_already_decided"},
+		{"deny missing", renderDenyAbsenceError, errors.New("absence not found"), http.StatusNotFound, "general.input"},
+		{"deny unknown", renderDenyAbsenceError, errors.New("db down"), http.StatusInternalServerError, "general.server"},
+		{"question without note", renderQuestionAbsenceError, errors.New("question note is required"), http.StatusBadRequest, "workforce.decision_note_required"},
+		{"question decided", renderQuestionAbsenceError, errors.New("only requested absences can be questioned"), http.StatusBadRequest, "workforce.absence_already_decided"},
+		{"admin overlap", renderAdminAbsenceError, errors.New("dates overlap with an existing absence"), http.StatusConflict, "workforce.absence_overlap"},
+		{"admin no working days", renderAdminAbsenceError, errors.New("vacation range contains no working days"), http.StatusBadRequest, "workforce.absence_no_working_days"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodGet, "/", nil)
+			require.NoError(t, render.Render(w, r, tt.renderer(tt.err)))
+			assert.Equal(t, tt.wantStatus, w.Code)
+			var body struct {
+				Code string `json:"code"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+			assert.Equal(t, tt.wantCode, body.Code)
+		})
+	}
 }
 
 // --- parseDateRange tests ---
@@ -1903,7 +1996,7 @@ func TestCheckIn_DeviationReasonRequired(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "error", resp.Status)
-	assert.Equal(t, "deviation_reason_required", resp.Code)
+	assert.Equal(t, "iot.deviation_reason_required", resp.Code)
 	require.NotNil(t, resp.Details)
 	assert.Equal(t, "check_in", resp.Details["action"])
 	assert.Equal(t, "08:00", resp.Details["planned_time"])
@@ -1941,7 +2034,7 @@ func TestCheckOut_DeviationReasonRequired(t *testing.T) {
 		Details map[string]any `json:"details"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	assert.Equal(t, "deviation_reason_required", resp.Code)
+	assert.Equal(t, "iot.deviation_reason_required", resp.Code)
 	require.NotNil(t, resp.Details)
 	assert.Equal(t, "check_out", resp.Details["action"])
 	assert.Equal(t, "16:00", resp.Details["planned_time"])

@@ -127,5 +127,5 @@ func TestCreateInstance_IdempotencyKeyRejectsDifferentCreateOperation(t *testing
 	body["title"] = fmt.Sprintf("Changed manual instance %d", suffix)
 	second := postIdempotentCreate(t, setup, body, key)
 	assert.Equal(t, http.StatusConflict, second.Code, "body=%s", second.Body.String())
-	assert.Contains(t, second.Body.String(), "idempotency_key_reused")
+	assert.Contains(t, second.Body.String(), "timetable.idempotency_key_reused")
 }

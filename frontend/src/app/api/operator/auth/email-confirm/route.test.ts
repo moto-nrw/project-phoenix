@@ -56,8 +56,8 @@ describe("POST /api/operator/auth/email-confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Ungültige Anfrage");
+    const json = (await response.json()) as { status?: string; error?: string };
+    expect(json).toEqual({ status: "error", error: "Ungültige Anfrage" });
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
@@ -122,7 +122,7 @@ describe("POST /api/operator/auth/email-confirm", () => {
   it("proxies backend error JSON with original status code", async () => {
     mockFetch.mockResolvedValue(
       Response.json(
-        { message: "Ungültiger oder abgelaufener Token" },
+        { status: "error", error: "Ungültiger oder abgelaufener Token" },
         { status: 400 },
       ),
     );
@@ -131,8 +131,8 @@ describe("POST /api/operator/auth/email-confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Ungültiger oder abgelaufener Token");
+    const json = (await response.json()) as { error?: string };
+    expect(json.error).toBe("Ungültiger oder abgelaufener Token");
   });
 
   it("returns 500 on fetch error", async () => {
@@ -142,8 +142,11 @@ describe("POST /api/operator/auth/email-confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Ein interner Fehler ist aufgetreten");
+    const json = (await response.json()) as { status?: string; error?: string };
+    expect(json).toEqual({
+      status: "error",
+      error: "Ein interner Fehler ist aufgetreten",
+    });
   });
 
   it("returns statusText when text body is empty for non-JSON response", async () => {

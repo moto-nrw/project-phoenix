@@ -42,10 +42,11 @@ afterEach(() => {
 });
 
 describe("plan export metadata", () => {
-  it("offers both row axes for the staff plan and one for the care plan", () => {
+  it("offers both row axes and the hours sheet for the staff plan and one for the care plan", () => {
     expect(PLAN_EXPORT_TEMPLATES.dienstplan.map((item) => item.id)).toEqual([
       "persons",
       "areas",
+      "hours",
     ]);
     expect(PLAN_EXPORT_TEMPLATES.betreuungsplan.map((item) => item.id)).toEqual(
       ["offerings"],

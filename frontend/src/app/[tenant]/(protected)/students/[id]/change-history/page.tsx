@@ -6,6 +6,8 @@ import { BackButton } from "~/components/ui/back-button";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { useApiLoadError } from "~/contexts/ToastContext";
+import { apiErrorFromResponse } from "~/lib/api-error";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
@@ -34,15 +36,6 @@ interface ChangeEntry {
   edited_by: string;
   changed_at: string;
 }
-
-type ErrorCode = "forbidden" | "not_found" | "generic";
-
-const ERROR_MESSAGES: Record<ErrorCode, string> = {
-  forbidden:
-    "Sie können den Änderungsverlauf nur für Kinder Ihrer betreuten Gruppen einsehen.",
-  not_found: "Kind nicht gefunden.",
-  generic: "Fehler beim Laden des Änderungsverlaufs.",
-};
 
 // German labels for the tracked fields. The backend stores the raw field token
 // and already-formatted German values; only the field name is mapped here.
@@ -97,7 +90,13 @@ function StudentChangeHistoryPageContent() {
   const [student, setStudent] = useState<Student | null>(null);
   const [entries, setEntries] = useState<ChangeEntry[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [errorCode, setErrorCode] = useState<ErrorCode | null>(null);
+  // A 404 is its own state, not an error to retry.
+  const [notFound, setNotFound] = useState(false);
+  const historyLoad = useApiLoadError();
+  const showHistoryError = historyLoad.show;
+  const clearHistoryError = historyLoad.clear;
+  // Bumped by „Wiederholen“ to load the page again.
+  const [attempt, setAttempt] = useState(0);
 
   useStudentHistoryBreadcrumb({ studentName: student?.name, referrer });
   useScrollToTop(studentId);
@@ -105,10 +104,13 @@ function StudentChangeHistoryPageContent() {
   const fetchStudent = useCallback(async (): Promise<Student | null> => {
     try {
       const res = await fetch(`/api/students/${studentId}`);
+      // The name only decorates the header; without it the page still shows
+      // the history under its generic title.
       if (!res.ok) return null;
       const body = (await res.json()) as { data?: Student };
       return body.data ?? null;
     } catch (err) {
+      // Same as above: the header falls back to the generic title.
       logger.error("student_fetch_failed", {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
@@ -120,30 +122,31 @@ function StudentChangeHistoryPageContent() {
   const fetchHistory = useCallback(async (): Promise<void> => {
     try {
       const res = await fetch(`/api/students/${studentId}/change-history`);
-      if (res.status === 403) {
-        setErrorCode("forbidden");
-        setEntries(null);
-        return;
-      }
       if (res.status === 404) {
-        setErrorCode("not_found");
+        setNotFound(true);
+        setEntries(null);
+        clearHistoryError();
         return;
       }
       if (!res.ok) {
-        setErrorCode("generic");
-        return;
+        throw await apiErrorFromResponse(res, "change history failed");
       }
       const body = (await res.json()) as { data: ChangeEntry[] };
       setEntries(body.data ?? []);
-      setErrorCode(null);
+      setNotFound(false);
+      clearHistoryError();
     } catch (err) {
       logger.error("change_history_fetch_failed", {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
       });
-      setErrorCode("generic");
+      setEntries(null);
+      await showHistoryError(err, {
+        object: "die Liste der Änderungen",
+        retry: () => setAttempt((current) => current + 1),
+      });
     }
-  }, [studentId]);
+  }, [clearHistoryError, showHistoryError, studentId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -159,7 +162,7 @@ function StudentChangeHistoryPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [fetchStudent, fetchHistory]);
+  }, [fetchStudent, fetchHistory, attempt]);
 
   const displayName = student
     ? (student.name ?? `${student.first_name} ${student.second_name}`)
@@ -178,10 +181,10 @@ function StudentChangeHistoryPageContent() {
     : "";
   // Im Fehlerfall führt der Rückweg auf die Liste, sonst auf die Kindakte in
   // den Reiter, aus dem diese Unterseite geöffnet wurde.
-  const backReferrer =
-    errorCode !== null
-      ? referrer
-      : `/students/${studentId}?from=${referrer}&tab=historie`;
+  const failed = notFound || historyLoad.error !== null;
+  const backReferrer = failed
+    ? referrer
+    : `/students/${studentId}?from=${referrer}&tab=historie`;
 
   return (
     <>
@@ -198,9 +201,9 @@ function StudentChangeHistoryPageContent() {
         }
         statsLoading={loading}
         loading={loading}
-        error={errorCode !== null ? ERROR_MESSAGES[errorCode] : null}
+        error={notFound ? "Kind nicht gefunden." : historyLoad.error}
         empty={
-          !loading && errorCode === null && entryCount === 0
+          !loading && !failed && entryCount === 0
             ? {
                 title: "Noch keine Änderungen erfasst.",
                 description:

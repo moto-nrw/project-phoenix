@@ -11,6 +11,7 @@ interface CreateSeriesBody {
   week_pattern: number;
   valid_from: string;
   valid_until: string | null;
+  include_school_breaks?: boolean;
 }
 
 /**

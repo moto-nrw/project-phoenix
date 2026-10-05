@@ -73,6 +73,30 @@ func TestValidateStaffTargetOverrideFields(t *testing.T) {
 	}
 }
 
+// The refusals the form cannot rule out name a registered code and the limit
+// (#2514); the other input errors keep the class code.
+func TestValidateStaffTargetOverrideFieldsNamesTheCode(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		fields StaffTargetOverrideFields
+		code   string
+		values TargetOverrideValues
+	}{
+		"inverted range": {StaffTargetOverrideFields{StartDate: "2026-10-23", EndDate: "2026-10-19", DailyMinutes: 60}, TargetOverrideRangeInvalidCode, TargetOverrideValues{}},
+		"too long":       {StaffTargetOverrideFields{StartDate: "2026-01-01", EndDate: "2027-01-02", DailyMinutes: 60}, TargetOverrideTooLongCode, TargetOverrideValues{MaxDays: MaxTargetOverrideDays}},
+		"over 12h":       {StaffTargetOverrideFields{StartDate: "2026-10-19", EndDate: "2026-10-23", DailyMinutes: MaxDailyMinutes + 1}, TargetOverrideHoursInvalidCode, TargetOverrideValues{MaxHours: 12}},
+		"weekday < 0":    {StaffTargetOverrideFields{StartDate: "2026-10-19", EndDate: "2026-10-23", WeekdayMinutes: []int{60, -1, 60, 60, 60}}, TargetOverrideHoursInvalidCode, TargetOverrideValues{MaxHours: 12}},
+		"four weekdays":  {StaffTargetOverrideFields{StartDate: "2026-10-19", EndDate: "2026-10-23", WeekdayMinutes: []int{60, 60, 60, 60}}, "", TargetOverrideValues{}},
+	}
+	for name, tc := range cases {
+		var typed *TargetOverrideError
+		require.True(t, errors.As(ValidateStaffTargetOverrideFields(tc.fields), &typed), name)
+		assert.Equal(t, tc.code, typed.Code, name)
+		assert.Equal(t, tc.values, typed.Values, name)
+	}
+}
+
 func TestRejectTargetOverrideOverlap(t *testing.T) {
 	t.Parallel()
 
@@ -84,6 +108,8 @@ func TestRejectTargetOverrideOverlap(t *testing.T) {
 	var typed *TargetOverrideError
 	require.True(t, errors.As(err, &typed))
 	assert.Contains(t, typed.Reason, "19.10.2026 bis 23.10.2026")
+	assert.Equal(t, TargetOverrideOverlapCode, typed.Code)
+	assert.Equal(t, TargetOverrideValues{StartDate: "19.10.2026", EndDate: "23.10.2026"}, typed.Values)
 
 	assert.NoError(t, RejectTargetOverrideOverlap(existing, StaffTargetOverrideFields{StartDate: "2026-10-24", EndDate: "2026-10-30"}))
 }
@@ -100,6 +126,10 @@ func TestRejectClosedTargetOverrideMonths(t *testing.T) {
 	err := RejectClosedTargetOverrideMonths(closed, StaffTargetOverrideFields{StartDate: "2026-09-28", EndDate: "2026-10-02"})
 	require.ErrorIs(t, err, ErrStaffTargetOverrideRejected)
 	assert.Contains(t, err.Error(), "September 2026 ist abgeschlossen")
+	var typed *TargetOverrideError
+	require.True(t, errors.As(err, &typed))
+	assert.Equal(t, TargetOverrideMonthClosedCode, typed.Code)
+	assert.Equal(t, TargetOverrideValues{Month: "September 2026"}, typed.Values)
 
 	assert.NoError(t, RejectClosedTargetOverrideMonths(closed, StaffTargetOverrideFields{StartDate: "2026-10-19", EndDate: "2026-10-23"}),
 		"a reopened month accepts changes again")

@@ -31,8 +31,8 @@ type DecideMasterDataChangeRequestBody struct {
 var masterDataDecisionErrorRenderer = common.RulesRenderer(parentRequestRules(
 	common.ErrorRule{Target: masterdatarequests.ErrReviewNotFound, Render: common.ErrorNotFound},
 	common.ErrorRule{Target: masterdatarequests.ErrReviewForbidden, Render: common.ErrorForbidden},
-	common.ErrorRule{Target: masterdatarequests.ErrReviewNotPending, Render: conflictWithCode("change_request_not_pending")},
-	common.ErrorRule{Target: masterdatarequests.ErrReviewStaleValue, Render: conflictWithCode(codeChangeRequestStale)},
+	common.ErrorRule{Target: masterdatarequests.ErrReviewNotPending, Render: conflictWithCode(common.CodeStudentsChangeRequestNotPending)},
+	common.ErrorRule{Target: masterdatarequests.ErrReviewStaleValue, Render: conflictWithCode(common.CodeStudentsChangeRequestStale)},
 	common.ErrorRule{Target: masterdatarequests.ErrReviewInvalidTarget, Render: common.ErrorInvalidRequest},
 	common.ErrorRule{Target: masterdatarequests.ErrReviewInvalidValue, Render: common.ErrorInvalidRequest},
 ), masterDataDecisionFallback)

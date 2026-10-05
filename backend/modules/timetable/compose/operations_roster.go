@@ -52,7 +52,7 @@ func (s *operations) rosterWithActionAccess(ctx context.Context, accountID int64
 	if roster.CanStart, err = actionAllowed(s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ScopedBlockStart)); err != nil {
 		return nil, err
 	}
-	roster.CanStart = roster.CanStart && roster.Instance.Status == scheduleModels.InstanceStatusPlanned
+	roster.CanStart = roster.CanStart && roster.Instance.Status == scheduleModels.InstanceStatusPlanned && !roster.Instance.IsDuty
 	if roster.CanEnd, err = actionAllowed(s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ScopedBlockComplete)); err != nil {
 		return nil, err
 	}
@@ -279,7 +279,11 @@ func (s *operations) rosterEnvelope(ctx context.Context, inst *scheduleModels.Ac
 	if err != nil {
 		return nil, fmt.Errorf("%w: resolve planned end policy: %v", timetable.ErrLifecycleSettings, err)
 	}
-	availability := timetable.EvaluateLifecycleAvailability(lifecycleWindow(inst), s.now(), 15, enforcePlannedEnd)
+	completeLead, err := s.deps.Settings.CompleteLeadMinutes(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: resolve complete lead: %v", timetable.ErrLifecycleSettings, err)
+	}
+	availability := timetable.EvaluateLifecycleAvailability(lifecycleWindow(inst), s.now(), 15, completeLead, enforcePlannedEnd)
 	return &timetable.OperationRoster{
 		Instance: timetable.OperationRosterInstance{
 			ID:                  inst.ID,
@@ -292,6 +296,7 @@ func (s *operations) rosterEnvelope(ctx context.Context, inst *scheduleModels.Ac
 			Date:                inst.Date.String(),
 			StartTime:           inst.StartTime.Format("15:04"),
 			EndTime:             inst.EndTime.Format("15:04"),
+			IsDuty:              inst.TemplateType == timetable.GroupTypeDuty,
 			CanComplete:         availability.CanComplete,
 			CompleteAvailableAt: availability.CompleteAvailableAt.Format(time.RFC3339),
 		},

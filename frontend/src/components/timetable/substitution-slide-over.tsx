@@ -23,6 +23,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { berlinTodayISO, formatDate, parseISODate } from "~/lib/date-helpers";
 import {
+  instanceRoomLabel,
   deviationEventLabel,
   getActivityTypeBadge,
   getGermanWeekdayAdverb,
@@ -557,8 +558,7 @@ export function SubstitutionSlideOver({
                   </div>
                   <SlideOverDescription>
                     {formatDate(instance.date)} • {instance.startTime} –{" "}
-                    {instance.endTime} •{" "}
-                    {instance.roomName || `Raum #${instance.roomId}`}
+                    {instance.endTime} • {instanceRoomLabel(instance)}
                   </SlideOverDescription>
                 </div>
                 <SlideOverCloseButton />

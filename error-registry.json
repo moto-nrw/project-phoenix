@@ -1,6 +1,12 @@
 {
   "codes": [
     {
+      "code": "attendance.web_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "attendance.web_disabled"
+    },
+    {
       "code": "care.announcement_ack_not_required",
       "class": "input",
       "parameters": [],
@@ -867,10 +873,52 @@
       "legacy": "ACCOUNT_INACTIVE"
     },
     {
+      "code": "identity.demo_access_expired",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "demo_access_expired"
+    },
+    {
+      "code": "identity.demo_access_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "demo_access_invalid"
+    },
+    {
+      "code": "identity.demo_access_rate_limited",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "demo_access_rate_limited"
+    },
+    {
+      "code": "identity.demo_access_unknown",
+      "class": "input",
+      "parameters": [],
+      "legacy": "demo_access_unknown"
+    },
+    {
+      "code": "identity.demo_capacity_reached",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "demo_capacity_reached"
+    },
+    {
+      "code": "identity.demo_school_preparing",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "demo_school_preparing"
+    },
+    {
       "code": "identity.demo_session",
       "class": "permission",
       "parameters": [],
       "legacy": "demo_session"
+    },
+    {
+      "code": "identity.email_already_exists",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.email_already_exists"
     },
     {
       "code": "identity.invitation_account_login_required",
@@ -1191,6 +1239,12 @@
       "legacy": "rollover.source_not_found"
     },
     {
+      "code": "rooms.color_already_in_use",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "color_already_in_use"
+    },
+    {
       "code": "rooms.not_released",
       "class": "business_rejection",
       "parameters": [],
@@ -1201,6 +1255,18 @@
       "class": "permission",
       "parameters": [],
       "legacy": "no_school_portal_role"
+    },
+    {
+      "code": "school.setup_completed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "school_setup_completed"
+    },
+    {
+      "code": "school.setup_incomplete",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "school_setup_incomplete"
     },
     {
       "code": "students.absence_read_required",
@@ -1227,16 +1293,118 @@
       "legacy": "care_exception_raced"
     },
     {
+      "code": "students.care_exit_already_effective",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.care_exit_already_effective"
+    },
+    {
+      "code": "students.care_exit_blocked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.care_exit_blocked"
+    },
+    {
+      "code": "students.care_exit_day_in_past",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_exit_day_in_past"
+    },
+    {
+      "code": "students.care_exit_invalid_reason",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_exit_invalid_reason"
+    },
+    {
+      "code": "students.care_exit_no_students",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_exit_no_students"
+    },
+    {
+      "code": "students.care_exit_not_planned",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.care_exit_not_planned"
+    },
+    {
+      "code": "students.care_exit_note_not_allowed",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_exit_note_not_allowed"
+    },
+    {
+      "code": "students.care_exit_note_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_exit_note_required"
+    },
+    {
+      "code": "students.care_exit_note_too_long",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_exit_note_too_long"
+    },
+    {
+      "code": "students.care_exit_preview_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.care_exit_preview_changed"
+    },
+    {
+      "code": "students.care_exit_too_many_students",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_exit_too_many_students"
+    },
+    {
       "code": "students.care_offerings_disabled",
       "class": "permission",
       "parameters": [],
       "legacy": "care_offerings_disabled"
     },
     {
+      "code": "students.care_resume_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.care_resume_missing"
+    },
+    {
+      "code": "students.care_resume_not_checked",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_resume_not_checked"
+    },
+    {
+      "code": "students.care_resume_not_ended",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.care_resume_not_ended"
+    },
+    {
+      "code": "students.care_resume_start_in_past",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_resume_start_in_past"
+    },
+    {
+      "code": "students.care_withdrawal_after_gap",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_withdrawal_after_gap"
+    },
+    {
       "code": "students.care_withdrawal_already_resolved",
       "class": "business_rejection",
       "parameters": [],
       "legacy": "students.care_withdrawal_already_resolved"
+    },
+    {
+      "code": "students.care_withdrawal_date_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.care_withdrawal_date_invalid"
     },
     {
       "code": "students.care_withdrawal_not_found",
@@ -1255,6 +1423,28 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "change_request_stale"
+    },
+    {
+      "code": "students.checkin_care_ended",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.checkin_care_ended"
+    },
+    {
+      "code": "students.checkout_note_too_long",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.checkout_note_too_long"
+    },
+    {
+      "code": "students.child_quota_reached",
+      "class": "business_rejection",
+      "parameters": [
+        "booked_places",
+        "occupied_places",
+        "requested_places"
+      ],
+      "legacy": "students.child_quota_reached"
     },
     {
       "code": "students.companion_lock_busy",
@@ -1347,6 +1537,15 @@
       "legacy": "excused_request_status_conflict"
     },
     {
+      "code": "students.export_selection_too_large",
+      "class": "input",
+      "parameters": [
+        "total",
+        "limit"
+      ],
+      "legacy": "students.export_selection_too_large"
+    },
+    {
       "code": "students.guardian_access_revoked",
       "class": "business_rejection",
       "parameters": [],
@@ -1381,6 +1580,24 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "partial_absence_requires_dedicated_action"
+    },
+    {
+      "code": "students.photo_consent_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.photo_consent_required"
+    },
+    {
+      "code": "students.photo_consent_withdrawn",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.photo_consent_withdrawn"
+    },
+    {
+      "code": "students.photos_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "students.photos_disabled"
     },
     {
       "code": "students.pickup_change_completed",
@@ -1461,6 +1678,12 @@
       "legacy": "staff_value_unsupported"
     },
     {
+      "code": "students.status_day_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.status_day_conflict"
+    },
+    {
       "code": "substitutions.already_assigned",
       "class": "business_rejection",
       "parameters": [],
@@ -1515,6 +1738,12 @@
       "legacy": "self_assignment"
     },
     {
+      "code": "timetable.ambiguous_template_instance_delete",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "ambiguous_template_instance_delete"
+    },
+    {
       "code": "timetable.calendar_period_care_offering_conflict",
       "class": "business_rejection",
       "parameters": [],
@@ -1530,16 +1759,58 @@
       "legacy": "calendar_period_overlap_conflict"
     },
     {
+      "code": "timetable.complete_too_early",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "complete_too_early"
+    },
+    {
       "code": "timetable.completion_confirmation_stale",
       "class": "business_rejection",
       "parameters": [],
       "legacy": "completion_confirmation_stale"
     },
     {
+      "code": "timetable.duplicate_instance",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "duplicate_instance"
+    },
+    {
+      "code": "timetable.guardian_notice_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "guardian_notice_disabled"
+    },
+    {
+      "code": "timetable.idempotency_key_reused",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "idempotency_key_reused"
+    },
+    {
+      "code": "timetable.instance_moved",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "instance_moved"
+    },
+    {
       "code": "timetable.instance_not_convertible",
       "class": "business_rejection",
       "parameters": [],
       "legacy": "instance_not_convertible"
+    },
+    {
+      "code": "timetable.instance_not_editable",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "instance_not_editable"
+    },
+    {
+      "code": "timetable.invalid_transition",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "invalid_transition"
     },
     {
       "code": "timetable.only_supervisor_replacement_required",
@@ -1558,6 +1829,54 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "pickup_extension_not_found"
+    },
+    {
+      "code": "timetable.presence_would_overstaff",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "presence_would_overstaff"
+    },
+    {
+      "code": "timetable.sick_absence_scope_locked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "sick_absence_scope_locked"
+    },
+    {
+      "code": "timetable.staff_absent_on_date",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "staff_absent_on_date"
+    },
+    {
+      "code": "timetable.staff_absent_on_target",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "staff_absent_on_target"
+    },
+    {
+      "code": "timetable.staff_already_on_target",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "staff_already_on_target"
+    },
+    {
+      "code": "timetable.start_too_early",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "start_too_early"
+    },
+    {
+      "code": "timetable.start_window_expired",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "start_window_expired"
+    },
+    {
+      "code": "timetable.substitute_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "substitute_conflict"
     },
     {
       "code": "timetable.template_care_offering_conflict",
@@ -1596,10 +1915,52 @@
       "legacy": "timetable.template_start_predecessor_overlap"
     },
     {
+      "code": "timetable.understaffed_still_staffed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "understaffed_still_staffed"
+    },
+    {
       "code": "workforce.absence_allowance_exceeded",
       "class": "business_rejection",
       "parameters": [],
       "legacy": "absence_allowance_exceeded"
+    },
+    {
+      "code": "workforce.absence_already_decided",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.absence_already_decided"
+    },
+    {
+      "code": "workforce.absence_no_working_days",
+      "class": "input",
+      "parameters": [],
+      "legacy": "workforce.absence_no_working_days"
+    },
+    {
+      "code": "workforce.absence_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.absence_not_found"
+    },
+    {
+      "code": "workforce.absence_not_cancelable",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.absence_not_cancelable"
+    },
+    {
+      "code": "workforce.absence_not_owned",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "workforce.absence_not_owned"
+    },
+    {
+      "code": "workforce.absence_overlap",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.absence_overlap"
     },
     {
       "code": "workforce.absence_rebooking_blocked",
@@ -1620,6 +1981,18 @@
       "legacy": "adjustment_in_closed_month"
     },
     {
+      "code": "workforce.already_checked_in",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.already_checked_in"
+    },
+    {
+      "code": "workforce.already_checked_out",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.already_checked_out"
+    },
+    {
       "code": "workforce.balance_adjustment_exceeds_balance",
       "class": "business_rejection",
       "parameters": [],
@@ -1630,6 +2003,18 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "balance_already_reset"
+    },
+    {
+      "code": "workforce.break_already_active",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.break_already_active"
+    },
+    {
+      "code": "workforce.decision_note_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "workforce.decision_note_required"
     },
     {
       "code": "workforce.dependent_balance_reset",
@@ -1650,6 +2035,14 @@
       "legacy": "manager_controlled_absence"
     },
     {
+      "code": "workforce.month_closed",
+      "class": "business_rejection",
+      "parameters": [
+        "month"
+      ],
+      "legacy": "workforce.month_closed"
+    },
+    {
       "code": "workforce.month_not_closable",
       "class": "input",
       "parameters": [],
@@ -1660,6 +2053,24 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "month_not_closed"
+    },
+    {
+      "code": "workforce.no_active_break",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.no_active_break"
+    },
+    {
+      "code": "workforce.no_active_session",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.no_active_session"
+    },
+    {
+      "code": "workforce.no_session_for_today",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.no_session_for_today"
     },
     {
       "code": "workforce.opening_balance_already_exists",
@@ -1686,10 +2097,213 @@
       "legacy": "personnel_number_taken"
     },
     {
+      "code": "workforce.rebooking_before_vacation_opening",
+      "class": "business_rejection",
+      "parameters": [
+        "day"
+      ],
+      "legacy": "workforce.rebooking_before_vacation_opening"
+    },
+    {
+      "code": "workforce.rebooking_half_day_edge",
+      "class": "business_rejection",
+      "parameters": [
+        "day"
+      ],
+      "legacy": "workforce.rebooking_half_day_edge"
+    },
+    {
+      "code": "workforce.rebooking_into_sick_report",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.rebooking_into_sick_report"
+    },
+    {
+      "code": "workforce.rebooking_no_working_day",
+      "class": "business_rejection",
+      "parameters": [
+        "day"
+      ],
+      "legacy": "workforce.rebooking_no_working_day"
+    },
+    {
+      "code": "workforce.rebooking_not_over",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.rebooking_not_over"
+    },
+    {
+      "code": "workforce.rebooking_nothing_selected",
+      "class": "input",
+      "parameters": [],
+      "legacy": "workforce.rebooking_nothing_selected"
+    },
+    {
+      "code": "workforce.rebooking_outside_balance",
+      "class": "business_rejection",
+      "parameters": [
+        "day"
+      ],
+      "legacy": "workforce.rebooking_outside_balance"
+    },
+    {
+      "code": "workforce.rebooking_overlap",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.rebooking_overlap"
+    },
+    {
+      "code": "workforce.rebooking_reason_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "workforce.rebooking_reason_required"
+    },
+    {
+      "code": "workforce.rebooking_request",
+      "class": "business_rejection",
+      "parameters": [
+        "day"
+      ],
+      "legacy": "workforce.rebooking_request"
+    },
+    {
+      "code": "workforce.rebooking_same_type",
+      "class": "business_rejection",
+      "parameters": [
+        "day"
+      ],
+      "legacy": "workforce.rebooking_same_type"
+    },
+    {
+      "code": "workforce.rebooking_sick_report",
+      "class": "business_rejection",
+      "parameters": [
+        "day"
+      ],
+      "legacy": "workforce.rebooking_sick_report"
+    },
+    {
+      "code": "workforce.rebooking_too_many",
+      "class": "input",
+      "parameters": [
+        "limit"
+      ],
+      "legacy": "workforce.rebooking_too_many"
+    },
+    {
+      "code": "workforce.replacement_outside_origin",
+      "class": "input",
+      "parameters": [],
+      "legacy": "workforce.replacement_outside_origin"
+    },
+    {
+      "code": "workforce.session_note_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "workforce.session_note_required"
+    },
+    {
+      "code": "workforce.session_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.session_not_found"
+    },
+    {
+      "code": "workforce.session_not_owned",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "workforce.session_not_owned"
+    },
+    {
+      "code": "workforce.session_times_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "workforce.session_times_invalid"
+    },
+    {
+      "code": "workforce.shift_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.shift_changed"
+    },
+    {
+      "code": "workforce.shift_duplicate",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.shift_duplicate"
+    },
+    {
+      "code": "workforce.shift_has_replacements",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.shift_has_replacements"
+    },
+    {
+      "code": "workforce.shift_overlap",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.shift_overlap"
+    },
+    {
+      "code": "workforce.shift_series_no_occurrences",
+      "class": "input",
+      "parameters": [],
+      "legacy": "workforce.shift_series_no_occurrences"
+    },
+    {
+      "code": "workforce.shift_series_outside_period",
+      "class": "input",
+      "parameters": [],
+      "legacy": "workforce.shift_series_outside_period"
+    },
+    {
+      "code": "workforce.shift_series_week_cycle_missing",
+      "class": "input",
+      "parameters": [],
+      "legacy": "workforce.shift_series_week_cycle_missing"
+    },
+    {
+      "code": "workforce.shift_type_inactive",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.shift_type_inactive"
+    },
+    {
       "code": "workforce.stammdaten_invalid",
       "class": "input",
       "parameters": [],
       "legacy": "stammdaten_invalid"
+    },
+    {
+      "code": "workforce.target_override_hours_invalid",
+      "class": "input",
+      "parameters": [
+        "max_hours"
+      ],
+      "legacy": "workforce.target_override_hours_invalid"
+    },
+    {
+      "code": "workforce.target_override_overlap",
+      "class": "business_rejection",
+      "parameters": [
+        "start_date",
+        "end_date"
+      ],
+      "legacy": "workforce.target_override_overlap"
+    },
+    {
+      "code": "workforce.target_override_range_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "workforce.target_override_range_invalid"
+    },
+    {
+      "code": "workforce.target_override_too_long",
+      "class": "input",
+      "parameters": [
+        "max_days"
+      ],
+      "legacy": "workforce.target_override_too_long"
     },
     {
       "code": "workforce.vacation_opening_absences_before_cutoff",
@@ -1720,6 +2334,12 @@
       "class": "input",
       "parameters": [],
       "legacy": "vacation_quota_reason_required"
+    },
+    {
+      "code": "workforce.vacation_request_in_past",
+      "class": "input",
+      "parameters": [],
+      "legacy": "workforce.vacation_request_in_past"
     },
     {
       "code": "workforce.work_session_overlap",

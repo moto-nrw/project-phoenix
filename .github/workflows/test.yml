@@ -12,8 +12,9 @@ on:
       run-seed-smoke:
         type: boolean
         required: true
-      # True for pull requests and merge groups: test only what changed against
-      # base_ref. False for protected-branch pushes, which run both full suites.
+      # True for pull requests: test only what changed against base_ref. False
+      # for protected-branch pushes, release pull requests and the nightly run,
+      # which run both full suites.
       changed-scope:
         type: boolean
         default: false

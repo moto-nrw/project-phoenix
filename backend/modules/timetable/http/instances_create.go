@@ -109,7 +109,9 @@ func (req *createInstanceRequest) Bind(_ *http.Request) error {
 	if req.EndTime == "" {
 		return errors.New("end_time is required (HH:MM)")
 	}
-	if req.RoomID <= 0 {
+	// 0 = no room: only an occurrence of a duty may omit it (#3822); the
+	// service checks the linked template. Without a template it is required.
+	if req.RoomID < 0 || (req.RoomID == 0 && req.ActivityGroupID == nil) {
 		return errors.New("room_id is required")
 	}
 	return nil
@@ -279,10 +281,10 @@ var createInstanceErrorRules = []common.ErrorRule{
 		},
 		Render: common.ErrorInvalidRequest,
 	},
-	{Target: timetable.ErrIdempotencyKeyReuse, Render: conflictCode("idempotency_key_reused")},
+	{Target: timetable.ErrIdempotencyKeyReuse, Render: conflictCode(common.CodeTimetableIdempotencyKeyReused)},
 	{
 		Target: timetable.ErrDuplicateTemplateInstance,
-		Render: staticConflict("instance already exists for this template/date/start_time", "duplicate_instance"),
+		Render: staticConflict("instance already exists for this template/date/start_time", common.CodeTimetableDuplicateInstance),
 	},
 }
 

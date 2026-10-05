@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "./api-error";
 import { decideMasterDataChangeRequest } from "./master-data-review-api";
 
 const originalFetch = globalThis.fetch;
@@ -89,21 +90,37 @@ describe("master-data review API", () => {
     expect(seenBody).toBe(JSON.stringify({ approve: false, reason: "" }));
   });
 
-  it("throws backend-provided messages on failed requests", async () => {
+  it("throws an ApiError with the wire code on failed requests", async () => {
     mockFetch(async () =>
-      jsonResponse({ error: "already decided" }, { status: 409 }),
+      jsonResponse(
+        {
+          error: "already decided",
+          code: "students.change_request_not_pending",
+          instance: "req-1",
+        },
+        { status: 409 },
+      ),
     );
 
-    await expect(decideMasterDataChangeRequest("100", true)).rejects.toThrow(
-      /already decided/,
+    const error = await decideMasterDataChangeRequest("100", true).catch(
+      (err) => err,
     );
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 409,
+      code: "students.change_request_not_pending",
+      requestId: "req-1",
+    });
   });
 
-  it("falls back to a generic error when the body is not JSON", async () => {
+  it("classifies a non-JSON failure by status", async () => {
     mockFetch(async () => new Response("nope", { status: 500 }));
 
-    await expect(decideMasterDataChangeRequest("100", true)).rejects.toThrow(
-      /Entscheidung konnte nicht gespeichert werden/,
-    );
+    await expect(
+      decideMasterDataChangeRequest("100", true),
+    ).rejects.toMatchObject({
+      status: 500,
+      code: "general.server",
+    });
   });
 });

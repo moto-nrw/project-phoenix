@@ -3,8 +3,6 @@ package education
 import (
 	"fmt"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Transition status constants
@@ -48,8 +46,8 @@ func TenantTransitionsLockKey(tenantID int64) string {
 // The owner capability lives in modules/schoolstructure (#2711); this struct
 // remains for direct row fixtures.
 type GradeTransition struct {
-	base.Model `bun:"schema:education,table:grade_transitions"`
-	base.TenantModel
+	Model
+	TenantModel
 
 	AcademicYear string     `bun:"academic_year,notnull" json:"academic_year"`
 	Status       string     `bun:"status,notnull,default:'draft'" json:"status"`

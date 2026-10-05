@@ -207,7 +207,20 @@ func newWorker(api *API, logger *slog.Logger) (*scheduler.Scheduler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("compose worker lease: %w", err)
 	}
+	runtime, err := schedulerTenantRuntime(api.tenantRuntime)
+	if err != nil {
+		return nil, fmt.Errorf("compose worker tenant runtime: %w", err)
+	}
+	if err := verifySchedulerSettingKeys(); err != nil {
+		return nil, err
+	}
+	settings, err := schedulerSettings(api)
+	if err != nil {
+		return nil, err
+	}
 	deps := workerRuntimeDependencies(api, logger, billing)
+	deps.TenantRuntime = runtime
+	deps.Settings = settings
 	deps.Lease = lease
 	addWorkerServiceDependencies(&deps, api)
 	addWorkerRepositoryDependencies(&deps, api)
@@ -218,13 +231,10 @@ func workerRuntimeDependencies(api *API, logger *slog.Logger, billing organizati
 	return scheduler.WorkerDependencies{
 		Logger:                 logger.With("service", "scheduler"),
 		Getenv:                 os.Getenv,
-		DB:                     api.db,
 		SchoolRepo:             schedulerTenantDirectory{schools: api.Services.Schools, billing: billing},
-		TenantRuntime:          &api.tenantRuntime,
 		TenantRuntimeObserver:  observability.RecordTenantRuntimeEvent,
 		UnitOfWorkObserver:     observability.RecordUnitOfWorkEvent,
 		Tracer:                 workerTracer(api),
-		Settings:               api.Services.Settings,
 		StaffDocumentCleaner:   api.StaffAdmin,
 		StudentDocumentCleaner: api.Students,
 		FileStoreCleaner:       fileStoreCleaner(api),
@@ -258,14 +268,14 @@ func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, api *API) 
 	deps.TimetableCleanup = services.TimetableCleanup
 	deps.CalendarFeedCleanup = services.CalendarFeedCleanup
 	deps.TimeTrackingCleanup = schedulerTimeTrackingCleanupPort(services.TimeTrackingCleanup)
-	deps.StudentChangeLogCleanup = services.StudentChangeLogCleanup
+	deps.StudentChangeLogCleanup = schedulerStudentChangeLogCleanup(api)
 	deps.PWAUsageCleanup = services.PWAUsage
 	deps.StaffMessageCleanup = staffMessageCleanup(services.StaffMessaging)
 	deps.EnrollmentRejectedCleanup = services.EnrollmentRejectedCleanup
 	deps.AutoStart = services.AutoStart
 	deps.AutoEnd = services.AutoEnd
 	deps.TimetableBridge = services.TimetableBridge
-	deps.StudentLifecycleAudit = services.StudentAudit
+	deps.StudentLifecycleAudit = schedulerStudentAudit(api)
 	deps.CareExitEffector = services.CareLifecycle
 	deps.OutboxWorker = services.EmailOutboxWorker
 	deps.AppointmentReminders = services.Reminders
@@ -293,13 +303,13 @@ func staffMessageCleanup(service communication.StaffMessagingRuntime) scheduler.
 }
 
 func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, api *API) {
-	deps.BookingConsistency = api.repos.BookingConsistency
-	deps.InstanceRepo = api.repos.ActivityInstance
-	deps.InstanceRoomRepo = api.repos.Room
+	deps.BookingConsistency = schedulerBookingConsistency(api)
+	deps.InstanceRepo = schedulerDayInstances(api)
+	deps.InstanceRoomRepo = schedulerExistingRooms(api)
 	deps.InstanceStudentRepo = api.repos.InstanceStudent
 	deps.StudentStatusDayRepo = api.repos.StudentStatusDay
 	deps.OverdueBroadcaster = api.Services.RealtimeHub
-	deps.StudentLifecycleRepo = api.repos.Student
+	deps.StudentLifecycleRepo = schedulerStudentLifecycle(api)
 	deps.ReminderNotifications = scheduler.ReminderNotificationDeps{
 		Computer:     api.Services.Reminders,
 		Notifier:     api.Services.Notifications,

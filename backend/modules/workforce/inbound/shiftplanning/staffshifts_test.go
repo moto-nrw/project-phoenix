@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -307,6 +308,53 @@ func TestStaffShiftsRouteFailureEnvelope(t *testing.T) {
 	}
 }
 
+// Each refusal the Dienstplan explains on its own answers its registered code
+// (#2514); the frontend reads the code, never the message. A reason travels
+// next to its kind, the way the planning service attaches it.
+func TestStaffShiftsRouteFailureCodes(t *testing.T) {
+	t.Parallel()
+	var failure error
+	fake := &fakePlanning{
+		cancelFn: func(context.Context, workforce.CancelStaffShift) (workforce.StaffShiftCancellation, error) {
+			return workforce.StaffShiftCancellation{}, failure
+		},
+	}
+	route := setupStaffShiftsRoute(t, fake)
+	invalidShift := func(reason error) error {
+		return fmt.Errorf("%w: %w", &workforce.InvalidStaffShiftError{Reason: "invalid shift"}, reason)
+	}
+	invalidSeries := func(reason error) error {
+		return fmt.Errorf("%w: %w", &workforce.InvalidShiftSeriesError{Reason: "invalid shift series"}, reason)
+	}
+
+	for _, test := range []struct {
+		err    error
+		status int
+		code   string
+	}{
+		{err: workforce.ErrStaffShiftOverlap, status: http.StatusConflict, code: "workforce.shift_overlap"},
+		{err: workforce.ErrStaffShiftConflict, status: http.StatusConflict, code: "workforce.shift_changed"},
+		{err: &workforce.ConflictError{Kind: workforce.ErrStaffShiftDuplicate}, status: http.StatusConflict, code: "workforce.shift_duplicate"},
+		{err: workforce.ErrShiftTypeInactive, status: http.StatusBadRequest, code: "workforce.shift_type_inactive"},
+		{err: invalidShift(workforce.ErrReplacementOutsideOrigin), status: http.StatusBadRequest, code: "workforce.replacement_outside_origin"},
+		{err: invalidShift(workforce.ErrShiftHasReplacements), status: http.StatusBadRequest, code: "workforce.shift_has_replacements"},
+		{err: invalidSeries(workforce.ErrShiftSeriesNoOccurrences), status: http.StatusBadRequest, code: "workforce.shift_series_no_occurrences"},
+		{err: invalidSeries(workforce.ErrShiftSeriesOutsidePeriod), status: http.StatusBadRequest, code: "workforce.shift_series_outside_period"},
+		{err: invalidSeries(workforce.ErrShiftSeriesWeekCycleMissing), status: http.StatusBadRequest, code: "workforce.shift_series_week_cycle_missing"},
+		{err: &workforce.InvalidStaffShiftError{Reason: "origin shift not found"}, status: http.StatusBadRequest, code: "general.input"},
+	} {
+		failure = test.err
+		response := route.do(t, http.MethodPut, "/5/cancellation", `{"cancelled": true}`)
+		body := responseBody(t, response)
+		assert.Equal(t, test.status, response.StatusCode, test.code+": "+body)
+		var envelope struct {
+			Code string `json:"code"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(body), &envelope), body)
+		assert.Equal(t, test.code, envelope.Code, body)
+	}
+}
+
 func TestStaffShiftsRouteSeriesHandlers(t *testing.T) {
 	t.Parallel()
 	var created workforce.CreateStaffShiftSeries
@@ -396,6 +444,7 @@ func TestStaffShiftsRouteOverviewPermissionsAndWireContract(t *testing.T) {
 	t.Parallel()
 	reason := "krank"
 	target := 1500
+	shiftTypeID := int64(41)
 	fake := &fakePlanning{overviewFn: func(_ context.Context, from, to string) (workforce.StaffScheduleOverview, error) {
 		return workforce.StaffScheduleOverview{
 			From: from, To: to, DienstplanInUse: true, UsedWeeks: []string{"2070-11-03"},
@@ -406,7 +455,8 @@ func TestStaffShiftsRouteOverviewPermissionsAndWireContract(t *testing.T) {
 				RoomID: 2, RoomName: "Raum 1", Status: "planned", IsAbsent: true, AbsenceReason: &reason, CoverageStatus: "uncovered",
 				UncoveredIntervals: []workforce.CoverageInterval{{StartTime: "09:00:00", EndTime: "10:30:00"}},
 			}},
-			WeeklySummaries: []workforce.WeeklySummary{{StaffID: 3, WeekStart: "2070-11-03", PlannedMinutes: 240, TargetMinutes: &target}},
+			WeeklySummaries: []workforce.WeeklySummary{{StaffID: 3, WeekStart: "2070-11-03", PlannedMinutes: 240, TargetMinutes: &target,
+				ByShiftType: []workforce.ShiftTypeMinutes{{ShiftTypeID: &shiftTypeID, Minutes: 180}, {Minutes: 60}}}},
 		}, nil
 	}}
 	route := setupStaffShiftsRoute(t, fake)
@@ -435,7 +485,7 @@ func TestStaffShiftsRouteOverviewPermissionsAndWireContract(t *testing.T) {
 	assert.JSONEq(t, `[{"id":3,"first_name":"Lea","last_name":"Leitung"}]`, string(envelope.Data["staff"]))
 	assert.JSONEq(t, `[{"id":"9","staff_id":3,"date":"2070-11-03","start_time":"08:00","end_time":"12:00","break_minutes":0,"shift_type_name":"Betreuung","shift_type_color":"#83CD2D","detached":false,"cancelled":false}]`, string(envelope.Data["shifts"]))
 	assert.JSONEq(t, `[{"instance_id":4,"staff_id":3,"date":"2070-11-03","start_time":"09:00","end_time":"10:30","activity_title":"Lesen","room_id":2,"room_name":"Raum 1","status":"planned","is_absent":true,"is_substitute":false,"absence_reason":"krank","coverage_status":"uncovered","coverage_reason":null,"uncovered_intervals":[{"start_time":"09:00","end_time":"10:30"}]}]`, string(envelope.Data["assignments"]))
-	assert.JSONEq(t, `[{"staff_id":3,"week_start":"2070-11-03","planned_minutes":240,"target_minutes":1500,"delta_minutes":null}]`, string(envelope.Data["weekly_summaries"]))
+	assert.JSONEq(t, `[{"staff_id":3,"week_start":"2070-11-03","planned_minutes":240,"target_minutes":1500,"delta_minutes":null,"planned_by_shift_type":[{"shift_type_id":"41","planned_minutes":180},{"shift_type_id":null,"planned_minutes":60}]}]`, string(envelope.Data["weekly_summaries"]))
 
 	// Empty projections stay arrays, a bad range is a bad request, and an
 	// unexpected failure hides its cause behind the stable message.

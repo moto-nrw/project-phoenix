@@ -13,7 +13,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ message: "Ungültige Anfrage" }, { status: 400 });
+    return NextResponse.json(
+      { status: "error", error: "Ungültige Anfrage" },
+      { status: 400 },
+    );
   }
 
   const token =
@@ -24,7 +27,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ? body.token.trim()
       : "";
   if (!token || token.length > MAX_TOKEN_LENGTH) {
-    return NextResponse.json({ message: "Ungültige Anfrage" }, { status: 400 });
+    return NextResponse.json(
+      { status: "error", error: "Ungültige Anfrage" },
+      { status: 400 },
+    );
   }
 
   const flowID = createOperatorInvitationFlowID();

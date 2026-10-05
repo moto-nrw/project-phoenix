@@ -12,8 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,24 +23,24 @@ import (
 // a slice the test inspects to verify transitions ran in order.
 type fakeStudentLifecycleRepo struct {
 	mu              sync.Mutex
-	pendingDue      []*userModels.Student
-	activeDue       []*userModels.Student
+	pendingDue      []int64
+	activeDue       []int64
 	pendingErr      error
 	activeErr       error
 	updateErr       error
 	updateErrForID  int64 // if > 0, only fail TransitionStatus when called with this ID
 	updates         []update
-	currentStatuses map[int64]userModels.StudentStatus
+	currentStatuses map[int64]string
 	pendingCalls    int
 	activeCalls     int
 }
 
 type update struct {
 	studentID int64
-	to        userModels.StudentStatus
+	to        string
 }
 
-func (f *fakeStudentLifecycleRepo) FindPendingDueForActivation(_ context.Context, _ timezone.Date) ([]*userModels.Student, error) {
+func (f *fakeStudentLifecycleRepo) FindPendingDueForActivation(_ context.Context, _ calendar.Date) ([]int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.pendingCalls++
@@ -51,7 +50,7 @@ func (f *fakeStudentLifecycleRepo) FindPendingDueForActivation(_ context.Context
 	return f.pendingDue, nil
 }
 
-func (f *fakeStudentLifecycleRepo) FindActiveDueForDeactivation(_ context.Context, _ timezone.Date) ([]*userModels.Student, error) {
+func (f *fakeStudentLifecycleRepo) FindActiveDueForDeactivation(_ context.Context, _ calendar.Date) ([]int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.activeCalls++
@@ -68,8 +67,8 @@ func (f *fakeStudentLifecycleRepo) FindActiveDueForDeactivation(_ context.Contex
 func (f *fakeStudentLifecycleRepo) TransitionStatus(
 	_ context.Context,
 	studentID int64,
-	expected userModels.StudentStatus,
-	next userModels.StudentStatus,
+	expected string,
+	next string,
 ) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -133,12 +132,7 @@ func TestScheduleActivateStudentsTask_RegistersTask(t *testing.T) {
 func TestRunActivateStudentsForTenant_PendingToActive(t *testing.T) {
 	t.Parallel()
 
-	pending := []*userModels.Student{
-		{Status: userModels.StudentStatusPending},
-		{Status: userModels.StudentStatusPending},
-	}
-	pending[0].ID = 101
-	pending[1].ID = 102
+	pending := []int64{101, 102}
 
 	repo := &fakeStudentLifecycleRepo{pendingDue: pending}
 	s := unitScheduler(&Scheduler{
@@ -151,15 +145,14 @@ func TestRunActivateStudentsForTenant_PendingToActive(t *testing.T) {
 	defer repo.mu.Unlock()
 	require.Len(t, repo.updates, 2, "both pending students should be activated")
 	for _, u := range repo.updates {
-		assert.Equal(t, userModels.StudentStatusActive, u.to)
+		assert.Equal(t, studentStatusActive, u.to)
 	}
 }
 
 func TestRunActivateStudentsForTenant_ActiveToInactive(t *testing.T) {
 	t.Parallel()
 
-	due := []*userModels.Student{{Status: userModels.StudentStatusActive}}
-	due[0].ID = 201
+	due := []int64{201}
 
 	repo := &fakeStudentLifecycleRepo{activeDue: due}
 	s := unitScheduler(&Scheduler{
@@ -172,16 +165,14 @@ func TestRunActivateStudentsForTenant_ActiveToInactive(t *testing.T) {
 	defer repo.mu.Unlock()
 	require.Len(t, repo.updates, 1)
 	assert.Equal(t, int64(201), repo.updates[0].studentID)
-	assert.Equal(t, userModels.StudentStatusInactive, repo.updates[0].to)
+	assert.Equal(t, studentStatusInactive, repo.updates[0].to)
 }
 
 func TestRunActivateStudentsForTenant_BothDirections(t *testing.T) {
 	t.Parallel()
 
-	pending := []*userModels.Student{{Status: userModels.StudentStatusPending}}
-	pending[0].ID = 301
-	due := []*userModels.Student{{Status: userModels.StudentStatusActive}}
-	due[0].ID = 302
+	pending := []int64{301}
+	due := []int64{302}
 
 	repo := &fakeStudentLifecycleRepo{
 		pendingDue: pending,
@@ -198,9 +189,9 @@ func TestRunActivateStudentsForTenant_BothDirections(t *testing.T) {
 	require.Len(t, repo.updates, 2)
 	// Order: pending→active runs first, then active→inactive.
 	assert.Equal(t, int64(301), repo.updates[0].studentID)
-	assert.Equal(t, userModels.StudentStatusActive, repo.updates[0].to)
+	assert.Equal(t, studentStatusActive, repo.updates[0].to)
 	assert.Equal(t, int64(302), repo.updates[1].studentID)
-	assert.Equal(t, userModels.StudentStatusInactive, repo.updates[1].to)
+	assert.Equal(t, studentStatusInactive, repo.updates[1].to)
 }
 
 func TestRunActivateStudentsForTenant_Idempotent(t *testing.T) {
@@ -208,8 +199,7 @@ func TestRunActivateStudentsForTenant_Idempotent(t *testing.T) {
 
 	// After the first run flips the student to active, a second run sees no due
 	// pending rows. Simulate by clearing pendingDue between calls.
-	pending := []*userModels.Student{{Status: userModels.StudentStatusPending}}
-	pending[0].ID = 401
+	pending := []int64{401}
 	repo := &fakeStudentLifecycleRepo{pendingDue: pending}
 	s := unitScheduler(&Scheduler{
 		logger:               slog.Default(),
@@ -234,8 +224,7 @@ func TestRunActivateStudentsForTenant_Idempotent(t *testing.T) {
 func TestRunActivateStudentsForTenant_FindPendingError_StillProcessesActive(t *testing.T) {
 	t.Parallel()
 
-	due := []*userModels.Student{{Status: userModels.StudentStatusActive}}
-	due[0].ID = 501
+	due := []int64{501}
 
 	repo := &fakeStudentLifecycleRepo{
 		pendingErr: errors.New("pending query failed"),
@@ -250,7 +239,7 @@ func TestRunActivateStudentsForTenant_FindPendingError_StillProcessesActive(t *t
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
 	require.Len(t, repo.updates, 1, "active deactivation should still run when pending lookup fails")
-	assert.Equal(t, userModels.StudentStatusInactive, repo.updates[0].to)
+	assert.Equal(t, studentStatusInactive, repo.updates[0].to)
 }
 
 func TestRunActivateStudentsForTenant_FindActiveError_NoUpdates(t *testing.T) {
@@ -273,12 +262,8 @@ func TestRunActivateStudentsForTenant_FindActiveError_NoUpdates(t *testing.T) {
 func TestRunActivateStudentsForTenant_UpdateError_SkipsRowContinuesBatch(t *testing.T) {
 	t.Parallel()
 
-	pending := []*userModels.Student{
-		{Status: userModels.StudentStatusPending},
-		{Status: userModels.StudentStatusPending},
-	}
-	pending[0].ID = 601 // this one will fail
-	pending[1].ID = 602 // this one should still get processed
+	// 601 fails its transition; 602 must still be processed.
+	pending := []int64{601, 602}
 
 	repo := &fakeStudentLifecycleRepo{
 		pendingDue:     pending,

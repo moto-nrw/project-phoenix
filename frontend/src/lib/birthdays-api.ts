@@ -1,3 +1,4 @@
+import { apiErrorFromResponse, unavailableApiError } from "./api-error";
 import { fetchWithAuth } from "./fetch-with-auth";
 
 /**
@@ -138,14 +139,19 @@ export interface StaffBirthdayExportRequest {
 export async function exportStaffBirthdays(
   request: StaffBirthdayExportRequest,
 ): Promise<void> {
-  const response = await fetch("/api/birthdays/staff-export", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  });
+  let response: Response;
+  try {
+    response = await fetch("/api/birthdays/staff-export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+  } catch (error) {
+    throw unavailableApiError(error);
+  }
 
   if (!response.ok) {
-    throw new Error(await readExportError(response));
+    throw await apiErrorFromResponse(response, "Staff birthday export failed");
   }
 
   const blob = await response.blob();
@@ -159,23 +165,6 @@ export async function exportStaffBirthdays(
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-}
-
-// The export proxy returns errors as {"error":"..."}; a plain response may send
-// a bare text body. Prefer the JSON message so the toast never shows an empty
-// string or a raw envelope.
-async function readExportError(response: Response): Promise<string> {
-  const text = await response.text();
-  if (!text) return "Export fehlgeschlagen";
-  try {
-    const parsed = JSON.parse(text) as { error?: unknown };
-    if (typeof parsed.error === "string" && parsed.error.trim()) {
-      return parsed.error;
-    }
-  } catch {
-    // Not JSON — forward the raw text.
-  }
-  return text;
 }
 
 function filenameFromDisposition(response: Response): string | null {

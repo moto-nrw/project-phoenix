@@ -1,6 +1,7 @@
 // This file contains the Teacher API service and related types
 
 import { sessionFetch } from "./session-cache";
+import { apiErrorFromResponse, apiErrorFromText } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import type { Activity } from "./activity-helpers";
 
@@ -228,7 +229,11 @@ class TeacherService {
         credentials: "include",
       });
       if (!response.ok) {
-        throw new Error(`Failed to fetch teacher: ${response.statusText}`);
+        throw apiErrorFromText(
+          `Failed to fetch teacher: ${response.statusText}`,
+          response.status,
+          await response.text().catch(() => ""),
+        );
       }
 
       const data = (await response.json()) as Teacher | { data: Teacher };
@@ -514,7 +519,11 @@ class TeacherService {
     });
 
     if (!personResponse.ok) {
-      throw new Error("Failed to fetch person data");
+      throw apiErrorFromText(
+        "Failed to fetch person data",
+        personResponse.status,
+        await personResponse.text().catch(() => ""),
+      );
     }
 
     const personInfo = (await personResponse.json()) as {
@@ -533,7 +542,11 @@ class TeacherService {
 
     if (!updateResponse.ok) {
       const errorText = await updateResponse.text();
-      throw new Error(`Failed to update person: ${errorText}`);
+      throw apiErrorFromText(
+        `Failed to update person: ${errorText}`,
+        updateResponse.status,
+        errorText,
+      );
     }
   }
 
@@ -636,8 +649,10 @@ class TeacherService {
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
       const suffix = errorText ? ` - ${errorText}` : "";
-      throw new Error(
+      throw apiErrorFromText(
         `Failed to update teacher: ${response.statusText}${suffix}`,
+        response.status,
+        errorText,
       );
     }
 
@@ -653,7 +668,10 @@ class TeacherService {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to delete teacher: ${response.statusText}`);
+        throw await apiErrorFromResponse(
+          response,
+          `Failed to delete teacher: ${response.statusText}`,
+        );
       }
     } catch (error) {
       logger.error("error deleting teacher", {

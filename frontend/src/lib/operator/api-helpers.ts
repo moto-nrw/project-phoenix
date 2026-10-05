@@ -59,13 +59,12 @@ export async function operatorFetch<T>(
     try {
       const errorData = (await response.json()) as {
         error?: string;
-        message?: string;
         code?: string;
         details?: Record<string, unknown>;
         errors?: { field: string; reason: string }[];
         instance?: string;
       };
-      errorMessage = errorData.message ?? errorData.error ?? errorMessage;
+      errorMessage = errorData.error ?? errorMessage;
       payload = errorData;
     } catch {
       // use statusText

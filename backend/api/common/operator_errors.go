@@ -9,85 +9,63 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
-// Operator error bodies. The operator surface keeps its own wire format
-// (`message` instead of `error`, and a literal "error" status for most
-// outcomes), pinned by operator_wire_format_test.go. The operator router in
-// api/operator and the operator handlers its owner modules serve share these
-// constructors, so the surface keeps one wire format wherever a handler lives
-// (#3232, #3231).
+// Operator error bodies. The operator router in api/operator and the operator
+// handlers its owner modules serve share these constructors (#3232, #3231).
+// They answer in the shared error envelope like every other surface (#2507);
+// they exist for the operator surface's fixed texts and message strings.
 
-// OperatorErrResponse is the operator surface's error body.
-type OperatorErrResponse struct {
-	HTTPStatusCode int    `json:"-"`
-	StatusText     string `json:"status"`
-	ErrorText      string `json:"message,omitempty"`
-	Type           string `json:"type"`
-	Title          string `json:"title"`
-	Detail         string `json:"detail"`
-	Instance       string `json:"instance"`
-	Code           string `json:"code"`
-}
-
-// Render implements render.Renderer.
-func (e *OperatorErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
-	e.Code = ErrorClassCode(e.HTTPStatusCode)
-	e.Type = problemType(e.Code, e.HTTPStatusCode)
-	e.Title = problemTitle(e.HTTPStatusCode)
-	e.Detail = e.ErrorText
-	e.Instance = requestID(r)
-	render.Status(r, e.HTTPStatusCode)
-	return nil
-}
-
-func operatorError(status int, statusText, message string) render.Renderer {
-	return &OperatorErrResponse{HTTPStatusCode: status, StatusText: statusText, ErrorText: message}
+// operatorError carries no Err: the message is client text, not a cause, so a
+// 5xx neither logs it as one nor hands it to Sentry. ServerErrorReporting
+// reports the status as before.
+func operatorError(status int, message string) render.Renderer {
+	return &ErrResponse{HTTPStatusCode: status, Status: "error", ErrorText: message}
 }
 
 // OperatorInvalidRequest renders a 400 with the error's text.
 func OperatorInvalidRequest(err error) render.Renderer {
-	return operatorError(http.StatusBadRequest, "error", err.Error())
+	return newErrResponse(http.StatusBadRequest, err)
 }
 
 // OperatorInvalidCredentials renders the 401 of a failed operator login.
 func OperatorInvalidCredentials() render.Renderer {
-	return operatorError(http.StatusUnauthorized, "error", "Invalid email or password")
+	return operatorError(http.StatusUnauthorized, "Invalid email or password")
 }
 
 // OperatorUnauthorized renders the 401 of an invalid or expired token.
 func OperatorUnauthorized() render.Renderer {
-	return operatorError(http.StatusUnauthorized, "error", "Unauthorized")
+	return operatorError(http.StatusUnauthorized, "Unauthorized")
 }
 
 // OperatorNotFound renders a 404.
 func OperatorNotFound(message string) render.Renderer {
-	return operatorError(http.StatusNotFound, "error", message)
+	return operatorError(http.StatusNotFound, message)
 }
 
 // OperatorConflict renders a 409.
 func OperatorConflict(message string) render.Renderer {
-	return operatorError(http.StatusConflict, "error", message)
+	return operatorError(http.StatusConflict, message)
 }
 
 // OperatorForbidden renders a 403.
 func OperatorForbidden(message string) render.Renderer {
-	return operatorError(http.StatusForbidden, "error", message)
+	return operatorError(http.StatusForbidden, message)
 }
 
 // OperatorTooManyRequests renders a 429.
 func OperatorTooManyRequests(message string) render.Renderer {
-	return operatorError(http.StatusTooManyRequests, "Too Many Requests", message)
+	return operatorError(http.StatusTooManyRequests, message)
 }
 
 // OperatorInternal renders a 500.
 func OperatorInternal(message string) render.Renderer {
-	return operatorError(http.StatusInternalServerError, "error", message)
+	return operatorError(http.StatusInternalServerError, message)
 }
 
 // OperatorServiceUnavailable renders a 503. Used when a transient dependency
 // makes a security decision impossible and the safe behaviour is to refuse
 // this caller without globally locking everyone out.
 func OperatorServiceUnavailable(message string) render.Renderer {
-	return operatorError(http.StatusServiceUnavailable, "Service Unavailable", message)
+	return operatorError(http.StatusServiceUnavailable, message)
 }
 
 // OperatorAuditedIDAction parses one int64 id parameter and invokes an

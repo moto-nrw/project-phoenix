@@ -218,7 +218,7 @@ export function TransitionEditor({
       logger.error("draft_save_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
-      // A not_draft conflict means another admin applied this draft since the
+      // A grade_transition.not_draft conflict means another admin applied this draft since the
       // editor loaded: retrying can never succeed, so say what happened
       // instead of suggesting a retry (#405 review).
       setSaveError(

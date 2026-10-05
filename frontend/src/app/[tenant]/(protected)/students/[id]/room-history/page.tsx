@@ -4,7 +4,9 @@ import React, {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import dynamic from "next/dynamic";
@@ -12,12 +14,13 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ChevronRight, Download } from "lucide-react";
 import { BackButton } from "~/components/ui/back-button";
-import { Alert } from "~/components/ui/alert";
 import { Skeleton } from "~/components/ui/skeleton";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SectionCard } from "~/components/ui/section-card";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
+import { apiErrorFromResponse } from "~/lib/api-error";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
@@ -55,22 +58,15 @@ interface Student {
   school_class: string;
   group_id?: string;
   group_name?: string;
+  /** Per-school switch `gdpr.attendance_log_enabled`; off answers 403. */
+  attendance_log_enabled?: boolean;
 }
-
-type ErrorCode =
-  "feature_disabled" | "not_group_supervisor" | "not_found" | "generic";
 
 const ROOM_HISTORY_DESCRIPTION =
   "Wo dieses Kind an einem Tag war und wer es ein- und ausgecheckt hat.";
 
-const ERROR_MESSAGES: Record<ErrorCode, string> = {
-  feature_disabled:
-    "Diese Funktion ist für Ihre Schule deaktiviert. Bitte wenden Sie sich an Ihre Administration.",
-  not_group_supervisor:
-    "Ihr Konto ist keinem Personaleintrag zugeordnet. Bitte wenden Sie sich an Ihre Administration.",
-  not_found: "Kind nicht gefunden.",
-  generic: "Fehler beim Laden des Anwesenheitsprotokolls.",
-};
+const FEATURE_DISABLED_DESCRIPTION =
+  "Das Anwesenheitsprotokoll ist für Ihre Schule ausgeschaltet. Bitte fragen Sie Ihre Administration.";
 
 const LazyHistoryCharts = dynamic(() => import("./history-charts"), {
   ssr: false,
@@ -657,9 +653,19 @@ function StudentRoomHistoryPageContent() {
   const [student, setStudent] = useState<Student | null>(null);
   const [history, setHistory] = useState<AttendanceHistory | null>(null);
   const [loading, setLoading] = useState(true);
-  const [errorCode, setErrorCode] = useState<ErrorCode | null>(null);
+  // A 404 is its own state, not an error to retry.
+  const [notFound, setNotFound] = useState(false);
+  const historyLoad = useApiLoadError();
+  const showHistoryError = historyLoad.show;
+  const clearHistoryError = historyLoad.clear;
+  // Bumped by „Wiederholen“ to load the page again.
+  const [attempt, setAttempt] = useState(0);
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
-  const [exportError, setExportError] = useState<string | null>(null);
+  const { show: showExportError } = useApiErrorDisplay();
+  // „Wiederholen“ im Fehler-Toast ruft die aktuelle Fassung des Exports auf.
+  const latestDownloadRef = useRef<(format: ExportFormat) => Promise<void>>(
+    async () => undefined,
+  );
 
   useStudentHistoryBreadcrumb({ studentName: student?.name, referrer });
 
@@ -669,10 +675,13 @@ function StudentRoomHistoryPageContent() {
   const fetchStudent = useCallback(async (): Promise<Student | null> => {
     try {
       const res = await fetch(`/api/students/${studentId}`);
+      // The name only decorates the header; without it the page still shows
+      // the protocol under its generic title.
       if (!res.ok) return null;
       const body = (await res.json()) as { data?: Student };
       return body.data ?? null;
     } catch (err) {
+      // Same as above: the header falls back to the generic title.
       logger.error("student_fetch_failed", {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
@@ -684,51 +693,43 @@ function StudentRoomHistoryPageContent() {
   const fetchHistory = useCallback(async (): Promise<void> => {
     try {
       const res = await fetch(`/api/students/${studentId}/attendance-history`);
-      if (res.status === 403) {
-        const body = (await res.json()) as { error?: string };
-        setErrorCode(
-          body.error === "not_group_supervisor"
-            ? "not_group_supervisor"
-            : "feature_disabled",
-        );
-        setHistory(null);
-        return;
-      }
       if (res.status === 404) {
-        setErrorCode("not_found");
+        setNotFound(true);
+        setHistory(null);
+        clearHistoryError();
         return;
       }
       if (!res.ok) {
-        setErrorCode("generic");
-        return;
+        throw await apiErrorFromResponse(res, "attendance history failed");
       }
       const body = (await res.json()) as {
         data: BackendAttendanceHistoryResponse;
       };
       setHistory(mapAttendanceHistoryResponse(body.data));
-      setErrorCode(null);
+      setNotFound(false);
+      clearHistoryError();
     } catch (err) {
       logger.error("attendance_history_fetch_failed", {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
       });
-      setErrorCode("generic");
+      setHistory(null);
+      await showHistoryError(err, {
+        object: "das Anwesenheitsprotokoll",
+        retry: () => setAttempt((current) => current + 1),
+      });
     }
-  }, [studentId]);
+  }, [clearHistoryError, showHistoryError, studentId]);
 
   const downloadExport = useCallback(
     async (format: ExportFormat): Promise<void> => {
       setExporting(format);
-      setExportError(null);
       try {
         const res = await fetch(
           `/api/students/${studentId}/attendance-history/export?format=${format}`,
         );
         if (!res.ok) {
-          setExportError(
-            "Export fehlgeschlagen. Bitte versuchen Sie es später erneut.",
-          );
-          return;
+          throw await apiErrorFromResponse(res, "attendance export failed");
         }
         const blob = await res.blob();
         const disposition = res.headers.get("Content-Disposition") ?? "";
@@ -748,15 +749,19 @@ function StudentRoomHistoryPageContent() {
           student_id: studentId,
           error: err instanceof Error ? err.message : String(err),
         });
-        setExportError(
-          "Export fehlgeschlagen. Bitte versuchen Sie es später erneut.",
-        );
+        await showExportError(err, {
+          object: "die Exportdatei",
+          retry: () => void latestDownloadRef.current(format),
+        });
       } finally {
         setExporting(null);
       }
     },
-    [studentId],
+    [showExportError, studentId],
   );
+  useLayoutEffect(() => {
+    latestDownloadRef.current = downloadExport;
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -772,7 +777,7 @@ function StudentRoomHistoryPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [fetchStudent, fetchHistory]);
+  }, [fetchStudent, fetchHistory, attempt]);
 
   const displayName = student
     ? (student.name ?? `${student.first_name} ${student.second_name}`)
@@ -789,16 +794,18 @@ function StudentRoomHistoryPageContent() {
         .filter(Boolean)
         .join(" · ")
     : "";
-  // „feature_disabled" ist kein Fehlerzustand der Seite, sondern ein Hinweis
-  // über dem Inhalt; alle anderen Codes ersetzen den Inhalt.
-  const errorMessage =
-    errorCode !== null && errorCode !== "feature_disabled"
-      ? ERROR_MESSAGES[errorCode]
-      : null;
+  // Eine ausgeschaltete Funktion ist ein Zustand, kein Fehler. Erkannt wird
+  // sie am Schalter im Datensatz des Kindes, nicht am Text der 403-Antwort.
+  const featureDisabled = student?.attendance_log_enabled === false;
+  const pageError = notFound
+    ? "Kind nicht gefunden."
+    : featureDisabled
+      ? null
+      : historyLoad.error;
   // Im Fehlerfall führt der Rückweg auf die Liste, sonst auf die Kindakte in
   // den Reiter, aus dem diese Unterseite geöffnet wurde.
   const backReferrer =
-    errorMessage !== null
+    pageError !== null
       ? referrer
       : `/students/${studentId}?from=${referrer}&tab=historie`;
 
@@ -819,7 +826,7 @@ function StudentRoomHistoryPageContent() {
         }
         statsLoading={loading}
         loading={loading}
-        error={errorMessage}
+        error={pageError}
         // Herunterladen steht im Kebab der Kopfkarte, wie auf jeder anderen
         // Werkzeugfläche -- keine eigene Knopfreihe je Format.
         actions={
@@ -844,10 +851,10 @@ function StudentRoomHistoryPageContent() {
         // Eine ausgeschaltete Funktion ist ein Zustand, kein Fehler; ebenso ein
         // Zeitraum ohne Eintrag. Beide nennen den nächsten Schritt.
         empty={
-          errorCode === "feature_disabled"
+          featureDisabled
             ? {
                 title: "Anwesenheitsprotokoll ist ausgeschaltet",
-                description: ERROR_MESSAGES.feature_disabled,
+                description: FEATURE_DISABLED_DESCRIPTION,
               }
             : history && history.days.length === 0
               ? {
@@ -860,8 +867,6 @@ function StudentRoomHistoryPageContent() {
       >
         {history && history.days.length > 0 && (
           <>
-            {exportError && <Alert type="error" message={exportError} />}
-
             <HistoryCharts days={history.days} />
 
             <HistoryTable

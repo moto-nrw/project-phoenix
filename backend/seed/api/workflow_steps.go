@@ -217,6 +217,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedPlanningDemoStep{},
 		seedStudentStatusVariantsStep{},
 		seedOperationsDemoStep{},
+		seedShiftSeriesStep{},
 		seedHomeLayoutStep{},
 		seedStaffMasterDataStep{},
 		seedImportAuditStep{},
@@ -250,11 +251,13 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedParentEngagementStep{},
 		seedGradeTransitionStep{},
 		seedParentLetterStep{},
+		seedParentPollStep{},
 		seedParentDeclarationStep{},
 		seedInactiveAccountStep{},
 		// Zuletzt: Erst jetzt hat die Demo-Schule alle Daten, die der
 		// Einrichtungs-Assistent als erledigt erkennt (#2832).
 		seedSchoolSetupStep{},
+		seedStaffOnboardingStep{},
 		verifyProfileStep{definition: seeder.definition},
 	)
 	if seeder.options.OnlyProfile == "" {

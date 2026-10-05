@@ -8,11 +8,12 @@ import {
   buildDefaultPresets,
   DateRangePicker,
 } from "~/components/ui/date-range-picker";
-import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import type { ChartConfig } from "~/components/ui/chart";
 import { UebersichtTabSkeleton } from "~/components/staff/uebersicht-tab-skeleton";
+import { useSwrLoadError } from "~/components/staff/use-swr-load-error";
 import {
   staffAbsenceService,
   staffBalanceAdjustmentService,
@@ -107,9 +108,12 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
   }, [accountAnchor]);
   const yearEndKey = toDateKey(today);
   const adjustmentHistoryEndKey = "9999-12-31";
-  const { data: accountSessions, isLoading: sessionsLoading } = useSWRAuth<
-    StaffHistorySession[]
-  >(
+  const {
+    data: accountSessions,
+    isLoading: sessionsLoading,
+    error: sessionsError,
+    mutate: mutateSessions,
+  } = useSWRAuth<StaffHistorySession[]>(
     `staff-history-account-${staffId}-${accountHistoryStartKey}-${yearEndKey}`,
     () =>
       staffHistoryService.getHistory(
@@ -118,10 +122,14 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
         yearEndKey,
       ),
   );
-  const { data: accountAbsences, isLoading: absencesLoading } = useSWRAuth<
-    StaffAbsenceRow[]
-  >(`staff-absences-account-${staffId}-${accountStartKey}-${yearEndKey}`, () =>
-    staffAbsenceService.getAbsences(staffId, accountStartKey, yearEndKey),
+  const {
+    data: accountAbsences,
+    isLoading: absencesLoading,
+    error: absencesError,
+    mutate: mutateAbsences,
+  } = useSWRAuth<StaffAbsenceRow[]>(
+    `staff-absences-account-${staffId}-${accountStartKey}-${yearEndKey}`,
+    () => staffAbsenceService.getAbsences(staffId, accountStartKey, yearEndKey),
   );
   // Stundenkonto-Buchungen (#1420) — Teil der Saldo-Wahrheit: sie fliessen in
   // den kumulativen Saldo-Verlauf ein, sonst widerspricht die Kurve der
@@ -130,6 +138,7 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
     data: accountAdjustments,
     isLoading: adjustmentsLoading,
     error: adjustmentsError,
+    mutate: mutateAdjustments,
   } = useSWRAuth<BalanceAdjustment[]>(
     `staff-balance-adjustments-${staffId}-${accountStartKey}-${adjustmentHistoryEndKey}`,
     () =>
@@ -156,6 +165,7 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
     data: accountTargets,
     isLoading: targetsLoading,
     error: targetsError,
+    mutate: mutateTargets,
   } = useSWRAuth<TargetsByDay>(
     `staff-schedule-targets-account-${staffId}-${accountStartKey}-${yearEndKey}`,
     () =>
@@ -164,6 +174,22 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
         accountStartKey,
         yearEndKey,
       ),
+  );
+
+  // Fehlt eine der vier Quellen, wäre jede Kurve falsch: Arbeitszeiten oder
+  // Abwesenheiten fehlen in der Verteilung, ohne Sollzeiten wird jeder Tag mit
+  // 0 Soll bewertet, ohne Buchungen widerspricht die Saldo-Kurve der Kachel.
+  // Der Fehler steht deshalb statt der Auswertung, mit Wiederholen (#1842,
+  // #2514).
+  const loadFailure =
+    targetsError ?? adjustmentsError ?? sessionsError ?? absencesError;
+  const loadError = useSwrLoadError(loadFailure, "die Auswertung", () =>
+    Promise.all([
+      mutateSessions(),
+      mutateAbsences(),
+      mutateAdjustments(),
+      mutateTargets(),
+    ]),
   );
 
   // Date-valid Stundenkonto from the server-computed month model (#1842).
@@ -266,34 +292,8 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
     return <UebersichtTabSkeleton />;
   }
 
-  // A failed targets fetch must NOT fall through to EMPTY_TARGETS: that would
-  // price every contractual day at 0 Soll and render a Saldo line that reads as
-  // a huge surplus. The Soll is the axis the whole view hangs on, so surface the
-  // error instead of drawing a confidently-wrong chart (#1842).
-  if (targetsError) {
-    return (
-      <div className="space-y-5">
-        <Alert
-          type="error"
-          message="Die Sollzeiten konnten nicht geladen werden. Die Auswertung wird nicht angezeigt, um keine falschen Soll- und Saldo-Werte darzustellen. Bitte lade die Seite neu."
-        />
-      </div>
-    );
-  }
-
-  // Gleiche Logik für die Stundenkonto-Buchungen: ein Fetch-Fehler darf nicht
-  // als leeres Buchungsprotokoll ("Noch keine Buchungen") durchgehen — dann
-  // fehlen Auszahlungen und Resets sowohl im Protokoll als auch in der
-  // Saldo-Kurve, die der "Stundenkonto"-Kachel direkt widersprechen würde.
-  if (adjustmentsError) {
-    return (
-      <div className="space-y-5">
-        <Alert
-          type="error"
-          message="Die Stundenkonto-Buchungen konnten nicht geladen werden. Die Auswertung wird nicht angezeigt, um keine falschen Saldo-Werte darzustellen. Bitte lade die Seite neu."
-        />
-      </div>
-    );
+  if (loadFailure) {
+    return <LoadErrorAlert error={loadError} />;
   }
 
   const yearStartLabel = accountAnchor.toLocaleDateString("de-DE", {

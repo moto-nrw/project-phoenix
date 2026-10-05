@@ -9,7 +9,14 @@
 // Krank melden bleibt ein eigener Dialog, weil er Dienst- und Betreuungsplan
 // ändert.
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   CompTimePreviewPanel,
@@ -22,12 +29,18 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
-import { useFormError } from "~/components/ui/form-error";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { Radio } from "~/components/ui/radio";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { formatDayCount } from "~/lib/absence-helpers";
 import {
   absenceRequestFor,
@@ -190,12 +203,14 @@ function useAllowancePreview(args: {
   const [preview, setPreview] = useState<AbsenceTypeAllowancePreview | null>(
     null,
   );
-  const [failed, setFailed] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [attempt, setAttempt] = useState(0);
+  const reload = useCallback(() => setAttempt((value) => value + 1), []);
   const valid = Boolean(typeId && dateStart && dateEnd && dateEnd >= dateStart);
 
   useEffect(() => {
     setPreview(null);
-    setFailed(false);
+    setError(null);
     if (!valid || !typeId) return;
     let stale = false;
     absenceTypeService
@@ -210,14 +225,20 @@ function useAllowancePreview(args: {
           absence_type_id: typeId,
           error: err instanceof Error ? err.message : String(err),
         });
-        setFailed(true);
+        setError(err);
       });
     return () => {
       stale = true;
     };
-  }, [valid, typeId, staffId, dateStart, dateEnd, halfDay]);
+  }, [valid, typeId, staffId, dateStart, dateEnd, halfDay, attempt]);
 
-  return { preview, loading: valid && preview === null && !failed, failed };
+  return {
+    preview,
+    loading: valid && preview === null && !error,
+    failed: Boolean(error),
+    error,
+    reload,
+  };
 }
 
 async function loadYear(
@@ -257,7 +278,9 @@ export function useYearAccounts(
   const [accounts, setAccounts] = useState<ReadonlyMap<number, YearAccount>>(
     new Map(),
   );
-  const [failed, setFailed] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [attempt, setAttempt] = useState(0);
+  const reload = useCallback(() => setAttempt((value) => value + 1), []);
   const quotaTypes = useMemo(
     () => types.filter((type) => type.isActive && type.allowanceEnabled),
     [types],
@@ -268,7 +291,7 @@ export function useYearAccounts(
   useEffect(() => {
     if (!missingKey) return;
     let stale = false;
-    setFailed(false);
+    setError(null);
     Promise.all(
       missingKey.split(",").map(async (year) => {
         const value = Number(year);
@@ -285,14 +308,47 @@ export function useYearAccounts(
           staff_id: staffId,
           error: err instanceof Error ? err.message : String(err),
         });
-        setFailed(true);
+        setError(err);
       });
     return () => {
       stale = true;
     };
-  }, [missingKey, quotaTypes, staffId]);
+  }, [missingKey, quotaTypes, staffId, attempt]);
 
-  return { accounts, loading: missing.length > 0 && !failed, failed };
+  return {
+    accounts,
+    loading: missing.length > 0 && !error,
+    failed: Boolean(error),
+    error,
+    reload,
+  };
+}
+
+/**
+ * Kontingente, die nicht geladen werden konnten (#2514): am Ort der fehlenden
+ * Zahlen, mit Wiederholen. Eintragen bleibt bis dahin gesperrt.
+ */
+export function AccountsLoadError({
+  error,
+  onRetry,
+}: {
+  readonly error: unknown;
+  readonly onRetry: () => void;
+}) {
+  const load = useApiLoadError();
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
+  useEffect(() => {
+    if (error) {
+      void showLoadError(error, {
+        object: "die Übersicht der Kontingente",
+        retry: onRetry,
+      });
+    } else {
+      clearLoadError();
+    }
+  }, [error, onRetry, showLoadError, clearLoadError]);
+  return <LoadErrorAlert error={load.error} />;
 }
 
 export interface Projection {
@@ -502,17 +558,31 @@ export function AbsenceBookingModal({
   const [note, setNote] = useState("");
   const [overdraftConfirmed, setOverdraftConfirmed] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useFormError();
+  const formErrors = useApiFormError();
+  const clearFormErrors = formErrors.clear;
+  // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
+  const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
 
   const effectiveEnd = halfDay ? dateStart : dateEnd;
   const years = useMemo(
     () => yearsBetween(dateStart, effectiveEnd),
     [dateStart, effectiveEnd],
   );
-  const { accounts, loading, failed } = useYearAccounts(staff.id, types, years);
+  const {
+    accounts,
+    loading,
+    failed,
+    error: accountsError,
+    reload: reloadAccounts,
+  } = useYearAccounts(staff.id, types, years);
   const selected = options.find((option) => option.value === value);
   const isCompTime = selected?.kind === "comp_time";
-  const { preview, loading: previewLoading } = useCompTimePreview({
+  const {
+    preview,
+    loading: previewLoading,
+    error: previewError,
+    reload: reloadPreview,
+  } = useCompTimePreview({
     enabled: isCompTime,
     staffId: staff.id,
     dateStart,
@@ -523,8 +593,8 @@ export function AbsenceBookingModal({
   // Eine geänderte Eingabe verwirft Bestätigung und alte Fehlermeldung.
   useEffect(() => {
     setOverdraftConfirmed(false);
-    setSaveError(null);
-  }, [value, dateStart, effectiveEnd, halfDay, setSaveError]);
+    clearFormErrors();
+  }, [value, dateStart, effectiveEnd, halfDay, clearFormErrors]);
 
   const customTypeId =
     selected?.kind === "quota" && value.startsWith("custom:")
@@ -534,6 +604,8 @@ export function AbsenceBookingModal({
     preview: allowancePreview,
     loading: allowanceLoading,
     failed: allowanceFailed,
+    error: allowanceError,
+    reload: reloadAllowance,
   } = useAllowancePreview({
     typeId: customTypeId,
     staffId: staff.id,
@@ -607,7 +679,7 @@ export function AbsenceBookingModal({
   const save = async () => {
     if (disabled || !selected) return;
     setSaving(true);
-    setSaveError(null);
+    formErrors.clear();
     try {
       const request = absenceRequestFor(value);
       await staffAbsenceService.createAbsence(staff.id, {
@@ -620,7 +692,7 @@ export function AbsenceBookingModal({
         half_day: halfDay || undefined,
         note: note.trim() || undefined,
       });
-      toast.success(`${selected.label} eingetragen.`);
+      toast.success(`${selected.label} ist eingetragen.`);
       await onSaved();
     } catch (error) {
       logger.error("absence_booking_failed", {
@@ -628,15 +700,18 @@ export function AbsenceBookingModal({
         absence_type: value,
         error: error instanceof Error ? error.message : String(error),
       });
-      setSaveError(
-        error instanceof Error && error.message
-          ? error.message
-          : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
-      );
+      await formErrors.show(error, {
+        object: "die Abwesenheit",
+        retry: () => void latestSaveRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestSaveRef.current = save;
+  });
 
   return (
     <Modal
@@ -669,7 +744,7 @@ export function AbsenceBookingModal({
       }
     >
       <div className="space-y-4">
-        <FormErrorAlert message={saveError} />
+        <FormErrorAlert message={formErrors.error} />
         <p className="text-sm text-gray-600">
           Wird sofort eingetragen. Es entsteht kein Antrag.
         </p>
@@ -711,11 +786,10 @@ export function AbsenceBookingModal({
           firstDay={dateStart}
           onChange={setValue}
         />
-        {failed || allowanceFailed ? (
-          <Alert
-            type="error"
-            message="Die Kontingente konnten nicht geladen werden. Bitte schließen und noch einmal öffnen."
-          />
+        {accountsError ? (
+          <AccountsLoadError error={accountsError} onRetry={reloadAccounts} />
+        ) : allowanceError ? (
+          <AccountsLoadError error={allowanceError} onRetry={reloadAllowance} />
         ) : null}
         {selected ? (
           <p className="text-sm text-gray-600">{effectLine(selected.kind)}</p>
@@ -749,7 +823,12 @@ export function AbsenceBookingModal({
           />
         ) : null}
         {isCompTime ? (
-          <CompTimePreviewPanel preview={preview} loading={previewLoading} />
+          <CompTimePreviewPanel
+            preview={preview}
+            loading={previewLoading}
+            error={previewError}
+            onRetry={reloadPreview}
+          />
         ) : null}
         {isOverdraft ? (
           <div className="space-y-3">

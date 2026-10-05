@@ -1,3 +1,4 @@
+import { apiErrorFromResponse } from "./api-error";
 import { sessionFetch } from "./session-cache";
 
 // Sonderarbeitszeit (#3259): for every Monday to Friday in [startDate,
@@ -44,28 +45,7 @@ function mapStaffTargetOverride(
   };
 }
 
-// The backend answers an overlap, a closed month (409) and an invalid range
-// (400) with a complete German sentence the user can act on. Technical
-// messages (no closing period) fall back to the generic text.
-async function errorMessage(
-  response: Response,
-  fallback: string,
-): Promise<string> {
-  if (response.status !== 409 && response.status !== 400) return fallback;
-  const text = await response.text().catch(() => "");
-  try {
-    const payload = JSON.parse(text) as { error?: unknown };
-    if (typeof payload.error === "string" && payload.error.endsWith(".")) {
-      return payload.error;
-    }
-  } catch {
-    // Not JSON: keep the fallback.
-  }
-  return fallback;
-}
-
-const FAILED =
-  "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
+const FAILED = "Failed to change target override";
 
 function toBody(input: StaffTargetOverrideInput): string {
   return JSON.stringify({
@@ -83,7 +63,8 @@ class StaffTargetOverrideService {
       `/api/staff/${staffId}/target-overrides`,
     );
     if (!response.ok) {
-      throw new Error(
+      throw await apiErrorFromResponse(
+        response,
         `Failed to fetch target overrides: ${response.statusText}`,
       );
     }
@@ -105,7 +86,7 @@ class StaffTargetOverrideService {
         body: toBody(input),
       },
     );
-    if (!response.ok) throw new Error(await errorMessage(response, FAILED));
+    if (!response.ok) throw await apiErrorFromResponse(response, FAILED);
     const json = (await response.json()) as {
       data: BackendStaffTargetOverride;
     };
@@ -117,7 +98,7 @@ class StaffTargetOverrideService {
       `/api/staff/${staffId}/target-overrides/${overrideId}`,
       { method: "DELETE" },
     );
-    if (!response.ok) throw new Error(await errorMessage(response, FAILED));
+    if (!response.ok) throw await apiErrorFromResponse(response, FAILED);
   }
 }
 

@@ -62,7 +62,10 @@ import {
 import { berlinTodayISO, formatDate, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useMinuteClock } from "~/lib/pickup-helpers";
-import { canCompleteInstance } from "~/lib/timetable-lifecycle";
+import {
+  canCompleteInstance,
+  completeAvailableClock,
+} from "~/lib/timetable-lifecycle";
 import { useSWRAuth } from "~/lib/swr";
 import { timetableService } from "~/lib/timetable-api";
 import type { InstanceParticipantNames } from "~/lib/timetable-api";
@@ -73,6 +76,7 @@ import type {
 } from "~/lib/timetable-types";
 import { RosterMaintenanceBadge } from "./roster-maintenance-badge";
 import {
+  instanceRoomLabel,
   getActivityTypeBadge,
   getGermanWeekdayAdverb,
   getGermanWeekdayLong,
@@ -518,6 +522,9 @@ function InstanceStudentsSection({
   studentNames: Map<string, string>;
   students: InstanceStudentSummary[];
 }>) {
+  // Ein Dienst (#3822) hat keine Kinder; eine leere Kinderliste würde nur
+  // nach einem Fehler aussehen.
+  if (instance.activityType === "duty") return null;
   if (students.length === 0) {
     const reason = instance.emptyRosterReason;
     let message = "Keine Kinder geplant.";
@@ -864,7 +871,9 @@ export function InstanceDetailModal({
           >
             <span className="inline-flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4" />
-              {completeEnabled ? "Beenden" : `Beenden ab ${instance.endTime}`}
+              {completeEnabled
+                ? "Beenden"
+                : `Beenden ab ${completeAvailableClock(instance.completeAvailableAt, instance.endTime)}`}
             </span>
           </Button>
         )}
@@ -996,11 +1005,14 @@ export function InstanceDetailModal({
               {instance.activityGroupId && (
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   <OriginChip label={regelterminOriginLabel(instance)} />
-                  <SeriesRosterMaintenance
-                    templateId={instance.activityGroupId}
-                    periodId={seriesPeriodId}
-                    known={seriesRosterMaintenance}
-                  />
+                  {/* Ein Dienst (#3822) hat keine Kinder, also keine Teilnehmerpflege. */}
+                  {instance.activityType !== "duty" && (
+                    <SeriesRosterMaintenance
+                      templateId={instance.activityGroupId}
+                      periodId={seriesPeriodId}
+                      known={seriesRosterMaintenance}
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -1031,7 +1043,7 @@ export function InstanceDetailModal({
                 icon={<MotoConceptIcon concept="rooms" size={18} />}
                 label="Raum"
               >
-                {instance.roomName || `Raum #${instance.roomId}`}
+                {instanceRoomLabel(instance)}
               </Row>
               <Row icon={<Palette className="h-4 w-4" />} label="Planungsspur">
                 {instance.planningTrackName ?? "Keine Planungsspur"}
@@ -1048,7 +1060,7 @@ export function InstanceDetailModal({
                         : ""
                     }`}
               </Row>
-              {showTimetableCounts ? (
+              {showTimetableCounts && instance.activityType !== "duty" ? (
                 <Row
                   icon={<MotoConceptIcon concept="children" size={18} />}
                   label="Kinder"
@@ -1519,7 +1531,7 @@ function StatsRow({ instance }: StatsRowProps) {
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-1.5">
-        {showTimetableCounts && (
+        {showTimetableCounts && instance.activityType !== "duty" && (
           <TimetableRatioPill
             icon={<MotoConceptIcon concept="present" size={16} />}
             label="Anwesend"

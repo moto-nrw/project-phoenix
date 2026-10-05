@@ -1,8 +1,6 @@
 package repositories
 
 import (
-	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
@@ -13,7 +11,7 @@ import (
 type UserContextTestRepositories struct {
 	Timetable     TimetableTestRepositories
 	Profile       identityaccess.AccountProfiles
-	Substitutions educationModels.GroupSubstitutionRepository
+	Substitutions GroupSubstitutionRepository
 	StaffGroups   schoolstructure.StaffGroupQuery
 }
 
@@ -38,7 +36,7 @@ func NewUserContextTestRepositories(db *bun.DB) (UserContextTestRepositories, er
 	if err != nil {
 		return UserContextTestRepositories{}, err
 	}
-	groups := educationRepo.NewGroupRepository(db)
+	groups := NewEducationGroupRepository(db)
 	substitutions := workforceLegacy.NewGroupSubstitutionRepository(workTime, groups.FindByIDs,
 		substitutionStaffResolver(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}))
 	return UserContextTestRepositories{

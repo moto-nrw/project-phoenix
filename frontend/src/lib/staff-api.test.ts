@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { BackendStaffResponse, StaffFilters } from "./staff-api";
+import { ApiError } from "./api-error";
 import { suppressConsole } from "~/test/helpers/console";
 import { mockSessionData } from "~/test/mocks/next-auth";
 
@@ -30,7 +31,6 @@ vi.mock("./session-cache", () => {
 // Import after mocks are set up
 import { getCachedSession } from "./session-cache";
 import {
-  AbsenceRebookingBlockedError,
   staffAbsenceService,
   staffBalanceAdjustmentService,
   staffHistoryService,
@@ -1940,16 +1940,11 @@ describe("staff-api", () => {
       });
     });
 
+    // The catalog explains each code (#2514); the client keeps it intact.
     it.each([
-      [
-        "vacation_opening_already_exists",
-        "Für dieses Jahr existiert bereits eine Urlaubs-Übernahme. Lösche zuerst die bestehende Übernahme.",
-      ],
-      [
-        "vacation_opening_absences_before_cutoff",
-        "Es existieren bereits Urlaubs-Abwesenheiten vor dem Stichtag. Die Übernahme würde diese Tage doppelt zählen.",
-      ],
-    ])("explains the takeover rejection %s", async (code, message) => {
+      "workforce.vacation_opening_already_exists",
+      "workforce.vacation_opening_absences_before_cutoff",
+    ])("keeps the takeover rejection %s", async (code) => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({
         ok: false,
@@ -1958,13 +1953,13 @@ describe("staff-api", () => {
           Promise.resolve(JSON.stringify({ error: "rejected", code })),
       } as Response);
 
-      await expect(
-        staffAbsenceService.setVacationOpening("4", {
-          effectiveDate: "2026-02-28",
-          remainingDays: 26.5,
-          note: "Übernahme aus Urlaubsliste",
-        }),
-      ).rejects.toThrow(message);
+      const failure = staffAbsenceService.setVacationOpening("4", {
+        effectiveDate: "2026-02-28",
+        remainingDays: 26.5,
+        note: "Übernahme aus Urlaubsliste",
+      });
+      await expect(failure).rejects.toBeInstanceOf(ApiError);
+      await expect(failure).rejects.toMatchObject({ code, status: 409 });
     });
 
     it("reports a failed takeover deletion", async () => {
@@ -2005,12 +2000,13 @@ describe("staff-api", () => {
         } as Response)
         .mockResolvedValueOnce({
           ok: false,
+          status: 409,
           statusText: "Conflict",
           text: () =>
             Promise.resolve(
               JSON.stringify({
                 error: "vacation quota exceeded: 2026: remaining -2",
-                code: "vacation_quota_below_used",
+                code: "workforce.vacation_quota_below_used",
               }),
             ),
         } as Response);
@@ -2023,13 +2019,14 @@ describe("staff-api", () => {
 
       await expect(
         staffAbsenceService.setVacationQuota("1", payload),
-      ).rejects.toThrow("Der Urlaubsanspruch konnte nicht gespeichert werden.");
-      // #3256: a claim below the used days is explained, not echoed.
+      ).rejects.toBeInstanceOf(ApiError);
+      // #3256: a claim below the used days keeps its code for the catalog.
       await expect(
         staffAbsenceService.setVacationQuota("1", payload),
-      ).rejects.toThrow(
-        "Der Anspruch ist kleiner als die schon genommenen und beantragten Tage.",
-      );
+      ).rejects.toMatchObject({
+        code: "workforce.vacation_quota_below_used",
+        status: 409,
+      });
     });
 
     it("approves and denies absences with decision notes", async () => {
@@ -2079,22 +2076,26 @@ describe("staff-api", () => {
       );
     });
 
-    it("explains an approval beyond the Resturlaub (#3256)", async () => {
+    it("keeps the code of an approval beyond the Resturlaub (#3256)", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({
         ok: false,
+        status: 409,
         text: () =>
           Promise.resolve(
             JSON.stringify({
               error: "vacation quota exceeded: 2026: remaining 1, needed 3",
-              code: "vacation_quota_exceeded",
+              code: "workforce.vacation_quota_exceeded",
             }),
           ),
       } as Response);
 
-      await expect(staffAbsenceService.approve(7)).rejects.toThrow(
-        "Dafür reicht der Resturlaub nicht. Erhöhen Sie zuerst den Urlaubsanspruch oder lehnen Sie den Antrag ab.",
-      );
+      const failure = staffAbsenceService.approve(7);
+      await expect(failure).rejects.toBeInstanceOf(ApiError);
+      await expect(failure).rejects.toMatchObject({
+        code: "workforce.vacation_quota_exceeded",
+        status: 409,
+      });
     });
 
     it("loads pending absences and normalizes null data", async () => {
@@ -2230,40 +2231,39 @@ describe("staff-api", () => {
       ).rejects.toThrow("overlapping absence");
     });
 
+    // The catalog explains each refusal (#2514); the client keeps the code.
     it.each([
-      [
-        { code: "vacation_quota_exceeded", error: "vacation quota exceeded" },
-        "Dafür reicht der Resturlaub nicht. Erhöhen Sie zuerst den Urlaubsanspruch.",
-      ],
-      [
-        {
-          code: "absence_allowance_exceeded",
-          error: "staff absence type allowance exceeded",
-        },
-        "Für diese Art sind nicht mehr genug Tage übrig. Erhöhen Sie zuerst den Anspruch.",
-      ],
-      [
-        { error: "dates overlap with an existing absence" },
-        "An diesen Tagen ist schon eine Abwesenheit eingetragen.",
-      ],
-    ])(
-      "explains a refused booking in German (#3256): %o",
-      async (payload, message) => {
-        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-        mockFetch.mockResolvedValueOnce({
-          ok: false,
-          text: () => Promise.resolve(JSON.stringify(payload)),
-        } as Response);
-
-        await expect(
-          staffAbsenceService.createAbsence("1", {
-            absence_type: "vacation",
-            date_start: "2026-07-14",
-            date_end: "2026-07-14",
-          }),
-        ).rejects.toThrow(message);
+      {
+        code: "workforce.vacation_quota_exceeded",
+        error: "vacation quota exceeded",
       },
-    );
+      {
+        code: "workforce.absence_allowance_exceeded",
+        error: "staff absence type allowance exceeded",
+      },
+      {
+        code: "workforce.absence_overlap",
+        error: "dates overlap with an existing absence",
+      },
+    ])("keeps the code of a refused booking (#3256): %o", async (payload) => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: () => Promise.resolve(JSON.stringify(payload)),
+      } as Response);
+
+      const failure = staffAbsenceService.createAbsence("1", {
+        absence_type: "vacation",
+        date_start: "2026-07-14",
+        date_end: "2026-07-14",
+      });
+      await expect(failure).rejects.toBeInstanceOf(ApiError);
+      await expect(failure).rejects.toMatchObject({
+        code: payload.code,
+        status: 409,
+      });
+    });
 
     it("rebooks absences and maps the effects (#3258)", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
@@ -2320,10 +2320,11 @@ describe("staff-api", () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({
         ok: false,
+        status: 409,
         text: () =>
           Promise.resolve(
             JSON.stringify({
-              code: "absence_rebooking_blocked",
+              code: "workforce.absence_rebooking_blocked",
               error: "Der August 2026 ist abgeschlossen.",
             }),
           ),
@@ -2337,30 +2338,28 @@ describe("staff-api", () => {
       };
 
       const blocked = staffAbsenceService.rebookAbsences("4", args);
-      await expect(blocked).rejects.toBeInstanceOf(
-        AbsenceRebookingBlockedError,
-      );
-      await expect(blocked).rejects.toThrow(
-        "Der August 2026 ist abgeschlossen.",
-      );
+      await expect(blocked).rejects.toBeInstanceOf(ApiError);
+      await expect(blocked).rejects.toMatchObject({
+        code: "workforce.absence_rebooking_blocked",
+        status: 409,
+      });
 
       mockFetch.mockResolvedValueOnce({
         ok: false,
+        status: 409,
         text: () =>
           Promise.resolve(
             JSON.stringify({
-              code: "absence_allowance_exceeded",
+              code: "workforce.absence_allowance_exceeded",
               error: "staff absence type allowance exceeded",
             }),
           ),
       } as Response);
       const exceeded = staffAbsenceService.rebookAbsences("4", args);
-      await expect(exceeded).rejects.not.toBeInstanceOf(
-        AbsenceRebookingBlockedError,
-      );
-      await expect(exceeded).rejects.toThrow(
-        "Für diese Art sind nicht mehr genug Tage übrig.",
-      );
+      await expect(exceeded).rejects.toBeInstanceOf(ApiError);
+      await expect(exceeded).rejects.toMatchObject({
+        code: "workforce.absence_allowance_exceeded",
+      });
     });
 
     it("loads the comp_time Saldo-Vorschau (#2873)", async () => {
@@ -2528,37 +2527,67 @@ describe("staff-api", () => {
       ).rejects.toThrow("Failed to create session: Bad Request");
     });
 
+    // The display path offers the request ID for a server failure (#2514).
+    it("keeps the request ID of a failed session write", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              error: "database unavailable",
+              code: "general.server",
+              instance: "req-session-write",
+            }),
+          ),
+      } as Response);
+
+      const failure = staffSessionService.createSession("1", payload);
+      await expect(failure).rejects.toBeInstanceOf(ApiError);
+      await expect(failure).rejects.toMatchObject({
+        code: "general.server",
+        status: 500,
+        requestId: "req-session-write",
+      });
+    });
+
     // #2402: the overlap 409 carries a stable code; its message holds the
-    // dynamic conflicting interval and is not presentable to a user.
-    it("maps the work_session_overlap code to a German message", async () => {
+    // dynamic conflicting interval and stays diagnostics only (#2514).
+    it("keeps the work_session_overlap code for the catalog", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       const overlapBody = JSON.stringify({
         status: "error",
         error: "work session overlaps an existing block (08:00-12:00)",
-        code: "work_session_overlap",
+        code: "workforce.work_session_overlap",
       });
       mockFetch
         .mockResolvedValueOnce({
           ok: false,
+          status: 409,
           statusText: "Conflict",
           text: () => Promise.resolve(overlapBody),
         } as Response)
         .mockResolvedValueOnce({
           ok: false,
+          status: 409,
           statusText: "Conflict",
           text: () => Promise.resolve(overlapBody),
         } as Response);
 
-      await expect(
-        staffSessionService.updateSession("1", "4", payload),
-      ).rejects.toThrow(
-        "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.",
-      );
+      const update = staffSessionService.updateSession("1", "4", payload);
+      await expect(update).rejects.toBeInstanceOf(ApiError);
+      await expect(update).rejects.toMatchObject({
+        code: "workforce.work_session_overlap",
+        status: 409,
+      });
       await expect(
         staffSessionService.createSession("1", payload),
-      ).rejects.toThrow(
-        "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.",
-      );
+      ).rejects.toMatchObject({
+        code: "workforce.work_session_overlap",
+        status: 409,
+      });
     });
   });
 
@@ -2692,7 +2721,7 @@ describe("staff-api", () => {
       );
     });
 
-    it("explains when an adjustment exceeds the accrued balance", async () => {
+    it("keeps the code when an adjustment exceeds the accrued balance", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({
         ok: false,
@@ -2701,7 +2730,7 @@ describe("staff-api", () => {
           Promise.resolve(
             JSON.stringify({
               error: "balance adjustment exceeds accrued balance",
-              code: "balance_adjustment_exceeds_balance",
+              code: "workforce.balance_adjustment_exceeds_balance",
             }),
           ),
       } as Response);
@@ -2713,12 +2742,13 @@ describe("staff-api", () => {
           effectiveDate: "2026-07-31",
           note: "Juligehalt",
         }),
-      ).rejects.toThrow(
-        "Die Buchung übersteigt die zum gewählten Datum verfügbaren Plus-Stunden.",
-      );
+      ).rejects.toMatchObject({
+        code: "workforce.balance_adjustment_exceeds_balance",
+        status: 409,
+      });
     });
 
-    it("explains when a reset would invalidate later balance reductions", async () => {
+    it("keeps the code when a reset would invalidate later balance reductions", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({
         ok: false,
@@ -2727,7 +2757,7 @@ describe("staff-api", () => {
           Promise.resolve(
             JSON.stringify({
               error: "balance adjustment exceeds accrued balance",
-              code: "balance_adjustment_exceeds_balance",
+              code: "workforce.balance_adjustment_exceeds_balance",
             }),
           ),
       } as Response);
@@ -2738,12 +2768,13 @@ describe("staff-api", () => {
           carryoverMinutes: 0,
           note: "Schuljahreswechsel",
         }),
-      ).rejects.toThrow(
-        "Der Reset kann nicht durchgeführt werden, weil spätere Buchungen oder Freizeitausgleichstage vom aktuellen Guthaben abhängen.",
-      );
+      ).rejects.toMatchObject({
+        code: "workforce.balance_adjustment_exceeds_balance",
+        status: 409,
+      });
     });
 
-    it("explains when deleting a positive reset would overdraw later entries", async () => {
+    it("keeps the code when deleting a positive reset would overdraw later entries", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({
         ok: false,
@@ -2752,16 +2783,17 @@ describe("staff-api", () => {
           Promise.resolve(
             JSON.stringify({
               error: "balance adjustment exceeds accrued balance",
-              code: "balance_adjustment_exceeds_balance",
+              code: "workforce.balance_adjustment_exceeds_balance",
             }),
           ),
       } as Response);
 
       await expect(
         staffBalanceAdjustmentService.delete("4", "17"),
-      ).rejects.toThrow(
-        "Die Buchung kann nicht gelöscht werden, weil spätere Abzüge vom dadurch entstehenden Guthaben abhängen.",
-      );
+      ).rejects.toMatchObject({
+        code: "workforce.balance_adjustment_exceeds_balance",
+        status: 409,
+      });
     });
 
     it("surfaces list, create, delete, reset, and coded reset conflicts", async () => {
@@ -2786,7 +2818,7 @@ describe("staff-api", () => {
             Promise.resolve(
               JSON.stringify({
                 error: "duplicate",
-                code: "balance_already_reset",
+                code: "workforce.balance_already_reset",
               }),
             ),
         } as Response)
@@ -2797,7 +2829,7 @@ describe("staff-api", () => {
             Promise.resolve(
               JSON.stringify({
                 error: "dependent",
-                code: "dependent_balance_reset",
+                code: "workforce.dependent_balance_reset",
               }),
             ),
         } as Response)
@@ -2827,18 +2859,20 @@ describe("staff-api", () => {
           carryoverMinutes: 0,
           note: "x",
         }),
-      ).rejects.toThrow(
-        "Das Stundenkonto wurde für dieses Datum bereits zurückgesetzt.",
-      );
+      ).rejects.toMatchObject({
+        code: "workforce.balance_already_reset",
+        status: 409,
+      });
       await expect(
         staffBalanceAdjustmentService.reset("4", {
           effectiveDate: "2026-07-31",
           carryoverMinutes: 0,
           note: "x",
         }),
-      ).rejects.toThrow(
-        "Der Reset liegt vor einem späteren Reset und würde dessen Saldo verfälschen.",
-      );
+      ).rejects.toMatchObject({
+        code: "workforce.dependent_balance_reset",
+        status: 409,
+      });
       await expect(
         staffBalanceAdjustmentService.reset("4", {
           effectiveDate: "2026-07-31",
@@ -2849,7 +2883,7 @@ describe("staff-api", () => {
     });
 
     // Eröffnungssaldo (#2132). The backend's stable error codes carry no German
-    // text; the copy the admin reads lives here, so it is pinned here too.
+    // text; the catalog explains them (#2514), so the client pins the code.
     it("maps the opening balance response", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({
@@ -2883,19 +2917,10 @@ describe("staff-api", () => {
     });
 
     it.each([
-      [
-        "opening_balance_already_exists",
-        "Für diese Person existiert bereits ein Eröffnungssaldo. Lösche zuerst die bestehende Buchung.",
-      ],
-      [
-        "dependent_balance_reset",
-        "Es existieren bereits spätere Buchungen (Reset), die vom Stichtag abhängen.",
-      ],
-      [
-        "adjustment_in_closed_month",
-        "Der gewählte Monat ist abgeschlossen. Wähle ein Datum im offenen Monat oder öffne den Monatsabschluss wieder.",
-      ],
-    ])("explains the opening rejection %s", async (code, message) => {
+      "workforce.opening_balance_already_exists",
+      "workforce.dependent_balance_reset",
+      "workforce.adjustment_in_closed_month",
+    ])("keeps the opening rejection %s", async (code) => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({
         ok: false,
@@ -2904,13 +2929,13 @@ describe("staff-api", () => {
           Promise.resolve(JSON.stringify({ error: "rejected", code })),
       } as Response);
 
-      await expect(
-        staffBalanceAdjustmentService.createOpening("4", {
-          effectiveDate: "2026-07-31",
-          balanceMinutes: 600,
-          note: "Übernahme",
-        }),
-      ).rejects.toThrow(message);
+      const failure = staffBalanceAdjustmentService.createOpening("4", {
+        effectiveDate: "2026-07-31",
+        balanceMinutes: 600,
+        note: "Übernahme",
+      });
+      await expect(failure).rejects.toBeInstanceOf(ApiError);
+      await expect(failure).rejects.toMatchObject({ code, status: 409 });
     });
 
     it("passes an unmapped opening rejection through verbatim", async () => {
@@ -3215,7 +3240,7 @@ describe("staff-api", () => {
       });
     });
 
-    it("translates the stammdaten_invalid code into a German hint", async () => {
+    it("keeps the stammdaten_invalid code for the catalog (#2514)", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValue({
         ok: false,
@@ -3223,7 +3248,7 @@ describe("staff-api", () => {
         text: () =>
           Promise.resolve(
             JSON.stringify({
-              code: "stammdaten_invalid",
+              code: "workforce.stammdaten_invalid",
               error: "invalid IBAN checksum",
             }),
           ),
@@ -3240,9 +3265,7 @@ describe("staff-api", () => {
           },
           "",
         ),
-      ).rejects.toThrow(
-        "Ungültige Eingabe. Bitte prüfe die Werte und versuche es erneut.",
-      );
+      ).rejects.toMatchObject({ code: "workforce.stammdaten_invalid" });
     });
 
     it("surfaces other backend errors verbatim", async () => {
@@ -3363,12 +3386,17 @@ describe("staff-api", () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValue({
         ok: false,
+        status: 403,
         statusText: "Forbidden",
+        text: () => Promise.resolve(""),
       } as Response);
 
       await expect(staffStammdatenService.revealFinancial("7")).rejects.toThrow(
         "Failed to reveal financial data: Forbidden",
       );
+      await expect(
+        staffStammdatenService.revealFinancial("7"),
+      ).rejects.toMatchObject({ status: 403, code: "general.permission" });
     });
 
     it("writes the bank & tax section in the backend wire shape", async () => {

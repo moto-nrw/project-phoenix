@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { wireErrorCode } from "~/lib/api-error";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   bulkUpsertPickupSchedules,
@@ -29,7 +30,10 @@ export function SelectionBulkPickupModal({
   studentIds,
   onSuccess,
 }: SelectionBulkPickupModalProps) {
-  const { success, error } = useToast();
+  const { success } = useToast();
+  const errors = useApiFormError();
+  // „Wiederholen“ speichert die aktuellen Zeiten, nicht die vom Fehler.
+  const latestSubmitRef = useRef<() => Promise<void>>(async () => undefined);
   const [times, setTimes] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
   const [needsExceptionConfirmation, setNeedsExceptionConfirmation] =
@@ -46,6 +50,7 @@ export function SelectionBulkPickupModal({
   );
 
   const handleClose = () => {
+    errors.clear();
     setNeedsExceptionConfirmation(false);
     setExceptionConfirmed(false);
     onClose();
@@ -58,8 +63,9 @@ export function SelectionBulkPickupModal({
   }, [needsExceptionConfirmation]);
 
   const handleSubmit = async () => {
+    errors.clear();
     if (schedules.length === 0) {
-      error("Mindestens eine Gehzeit angeben");
+      errors.invalid("Bitte tragen Sie mindestens eine Gehzeit ein.");
       return;
     }
     setSaving(true);
@@ -70,7 +76,7 @@ export function SelectionBulkPickupModal({
         needsExceptionConfirmation && exceptionConfirmed,
       );
       success(
-        `Gehzeiten für ${studentIds.length === 1 ? "1 Kind" : `${studentIds.length} Kinder`} gesetzt`,
+        `Die Gehzeiten für ${studentIds.length === 1 ? "1 Kind" : `${studentIds.length} Kinder`} sind gespeichert.`,
       );
       onSuccess?.();
       handleClose();
@@ -78,27 +84,34 @@ export function SelectionBulkPickupModal({
       if (
         err instanceof Error &&
         "code" in err &&
-        err.code === "pickup.bulk_exception_confirmation_required"
+        wireErrorCode(err.code) ===
+          "pickup.bulk_exception_confirmation_required"
       ) {
         setNeedsExceptionConfirmation(true);
         setExceptionConfirmed(false);
         return;
       }
-      const message = err instanceof Error ? err.message : String(err);
       logger.error("failed to bulk upsert pickup schedules", {
-        error: message,
+        error: err instanceof Error ? err.message : String(err),
       });
-      error(message);
+      await errors.show(err, {
+        object: "die Gehzeit",
+        retry: () => void latestSubmitRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+  useLayoutEffect(() => {
+    latestSubmitRef.current = handleSubmit;
+  });
 
   return (
     <FormModal
       isOpen={isOpen}
       onClose={handleClose}
       title="Gehzeiten für Auswahl"
+      error={errors.error}
       size="md"
       mobilePosition="bottom"
       footer={

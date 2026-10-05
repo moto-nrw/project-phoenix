@@ -146,6 +146,33 @@ describe("PlanExportModal", () => {
     );
   });
 
+  // The hours sheet (#3819) prints figures only: the Aushang/Intern choice
+  // changes nothing there, so it disappears and the request stays on Aushang.
+  it("offers the hours sheet without the variant choice", async () => {
+    renderModal({ canExportInternal: true });
+
+    fireEvent.click(screen.getByRole("radio", { name: /Interne Fassung/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Stundenübersicht/ }));
+
+    expect(screen.queryByText("Fassung")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Die Stunden zählen die ganze Woche, auch Samstag und Sonntag\./,
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "XLSX" }));
+
+    await waitFor(() => expect(mockExportPlan).toHaveBeenCalled());
+    expect(mockExportPlan).toHaveBeenCalledWith(
+      "dienstplan",
+      expect.objectContaining({ template: "hours", variant: "aushang" }),
+      "xlsx",
+      "download",
+      null,
+    );
+  });
+
   // One row axis means no picker: a single-option choice is noise.
   it("hides the template picker for the care plan", () => {
     renderModal({ plan: "betreuungsplan" });

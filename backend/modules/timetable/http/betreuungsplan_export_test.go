@@ -28,6 +28,10 @@ func (f *fakePlanExport) ExportDienstplan(context.Context, planexport.Params) (p
 	return planexport.File{}, errors.New("not the care plan")
 }
 
+func (f *fakePlanExport) ExportDienstplanHours(context.Context, planexport.Params, planexport.WeeklyHoursReader) (planexport.File, error) {
+	return planexport.File{}, errors.New("not the care plan")
+}
+
 func (f *fakePlanExport) ExportBetreuungsplan(_ context.Context, params planexport.Params) (planexport.File, error) {
 	f.params = params
 	return f.file, f.err

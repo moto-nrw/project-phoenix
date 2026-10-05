@@ -187,7 +187,7 @@ func stageSubstitutionRemoval(row *scheduleModel.InstanceStaff, scope *[]int64, 
 		return nil, err
 	}
 	if row.SickAbsenceID != nil {
-		return nil, timetable.DeviationConflict("sick_absence_scope_locked", msgSickScopeLocked)
+		return nil, timetable.DeviationConflict(timetable.CodeSickAbsenceScopeLocked, msgSickScopeLocked)
 	}
 	seenRows[row.ID] = true
 	return &deviationSubstitutionRemovalOp{row: row, instance: instance}, nil
@@ -236,7 +236,7 @@ func validateScopeInstance(date timezone.Date, instance *scheduleModel.ActivityI
 		return timetable.DeviationBadRequest("alle ausgewählten Termine müssen am bearbeiteten Tag liegen")
 	}
 	if !isPlannableInstance(instance) {
-		return timetable.DeviationConflict("instance_not_editable", msgInstanceNotEditable)
+		return timetable.DeviationConflict(timetable.CodeInstanceNotEditable, msgInstanceNotEditable)
 	}
 	return nil
 }
@@ -355,7 +355,7 @@ func planPresence(row *scheduleModel.InstanceStaff, scope *[]int64, readSet *dev
 		return nil, nil // only a persisted absence can be cleared
 	}
 	if row.SickAbsenceID != nil {
-		return nil, timetable.DeviationConflict("sick_absence_scope_locked", msgSickScopeLocked)
+		return nil, timetable.DeviationConflict(timetable.CodeSickAbsenceScopeLocked, msgSickScopeLocked)
 	}
 	seenRows[row.ID] = true
 	return &deviationPresenceOp{row: row, instance: instance}, nil
@@ -438,7 +438,7 @@ func planSubstitutionTarget(
 	projectedRows, origProjected := projectAbsent(allRows, absenceOnlyByInstance[instance.ID], orig)
 	action, _, ok := classifySubstitute(projectedRows, origProjected, sub.SubstituteStaffID)
 	if !ok {
-		return nil, timetable.DeviationConflict("substitute_conflict",
+		return nil, timetable.DeviationConflict(timetable.CodeSubstituteConflict,
 			"dieser Termin hat bereits eine andere Ersatzperson. Entfernen Sie diese zuerst")
 	}
 	action = staging.stage(instance.ID, sub.SubstituteStaffID, action)

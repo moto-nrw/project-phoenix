@@ -111,6 +111,11 @@ func eligiblePlannedNow(instances []*scheduleModels.ActivityInstance, now time.T
 	}
 	eligible := make([]*scheduleModels.ActivityInstance, 0, len(instances))
 	for _, inst := range instances {
+		// A duty (#3822) is never started: it belongs in the whole-day plan,
+		// not among the blocks about to start or the ones never started.
+		if inst.TemplateType == timetable.GroupTypeDuty && opts.Scope != timetable.PlannedNowScopeDay {
+			continue
+		}
 		switch opts.Scope {
 		case timetable.PlannedNowScopeDay:
 			// Every state stays in: a cancelled block ("fällt aus") and a
@@ -166,8 +171,9 @@ func (s *operations) plannedNowCandidates(
 			staffRows:   staffByInstance[inst.ID],
 			studentRows: studentsByInstance[inst.ID],
 			roomName:    roomNames[inst.RoomID],
-			canStart: access.hasStaff && (access.adminActions || staffAssigned(staffByInstance[inst.ID], access.staffID) ||
-				access.startsAny && s.scopeAdmits(ScopedBlockStart, inst)),
+			canStart: inst.TemplateType != timetable.GroupTypeDuty && access.hasStaff &&
+				(access.adminActions || staffAssigned(staffByInstance[inst.ID], access.staffID) ||
+					access.startsAny && s.scopeAdmits(ScopedBlockStart, inst)),
 		})
 	}
 	return candidates, nil
@@ -203,7 +209,7 @@ func (s *operations) plannedNowEntry(
 	past := opts.Scope == timetable.PlannedNowScopePast
 	wholeDay := opts.Scope == timetable.PlannedNowScopeDay
 	if candidate.canStart && !past && (!wholeDay || candidate.instance.Status == scheduleModels.InstanceStatusPlanned) {
-		availability := timetable.EvaluateLifecycleAvailability(lifecycleWindow(candidate.instance), now, startLead, true)
+		availability := timetable.EvaluateLifecycleAvailability(lifecycleWindow(candidate.instance), now, startLead, 0, true)
 		mapped.CanStart = availability.CanStart
 		mapped.StartAvailableAt = availability.StartAvailableAt.Format(time.RFC3339)
 		if !candidate.instance.IsSpontaneous {
@@ -235,6 +241,7 @@ func (s *operations) mapPlannedInstance(candidate plannedNowCandidate, now time.
 		EndTime:               inst.EndTime.Format("15:04"),
 		RoomID:                inst.RoomID,
 		RoomName:              candidate.roomName,
+		ActivityType:          inst.TemplateType,
 		Status:                inst.Status,
 		IsOverdue:             start.Before(now),
 		MinutesUntilStart:     int(start.Sub(now).Minutes()),

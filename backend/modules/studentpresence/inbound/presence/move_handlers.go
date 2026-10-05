@@ -23,11 +23,11 @@ type moveStudentsToOpenRoomRequest struct {
 func (rs *Resource) moveStudentsToOpenRoom(w http.ResponseWriter, r *http.Request) {
 	var req moveStudentsToOpenRoomRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid request body")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
 	if len(req.StudentIDs) == 0 || req.TargetRoomID <= 0 {
-		common.RenderError(w, r, ErrorInvalidRequest(openroommove.ErrInvalidMove))
+		common.RenderError(w, r, common.ErrorInvalidRequest(openroommove.ErrInvalidMove))
 		return
 	}
 
@@ -73,11 +73,11 @@ func (rs *Resource) moveStudentsToOpenRoom(w http.ResponseWriter, r *http.Reques
 func openRoomMoveErrorRenderer(err error) render.Renderer {
 	switch {
 	case errors.Is(err, openroommove.ErrInvalidMove):
-		return ErrorInvalidRequest(err)
+		return common.ErrorInvalidRequest(err)
 	case errors.Is(err, openroommove.ErrRoomNotFound):
 		return common.ErrorNotFound(err)
 	case errors.Is(err, openroommove.ErrRoomNotReleased):
-		return common.ErrorConflictWithCode(err, "room_not_released")
+		return common.ErrorConflictWithCode(err, common.CodeRoomsNotReleased)
 	}
 	return ErrorRenderer(err)
 }
@@ -101,11 +101,11 @@ type moveStudentsToTransitRequest struct {
 func (rs *Resource) moveStudentsToActiveGroup(w http.ResponseWriter, r *http.Request) {
 	var req moveStudentsToActiveGroupRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid request body")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
 	if len(req.StudentIDs) == 0 || req.TargetActiveGroupID <= 0 {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("student_ids and target_active_group_id are required")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("student_ids and target_active_group_id are required")))
 		return
 	}
 
@@ -127,11 +127,11 @@ func (rs *Resource) moveStudentsToActiveGroup(w http.ResponseWriter, r *http.Req
 func (rs *Resource) moveStudentsToTransit(w http.ResponseWriter, r *http.Request) {
 	var req moveStudentsToTransitRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid request body")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
 	if len(req.StudentIDs) == 0 {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("student_ids are required")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("student_ids are required")))
 		return
 	}
 

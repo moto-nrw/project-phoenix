@@ -58,7 +58,7 @@ func TestClassArrivalExceptionReplacesTheClassTimeOnThatDateOnly(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Ausfall", "Kind", "4a")
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Person")
-	setClassArrivalTimes(t, repos, "4a", map[string]string{"mon": "13:30", "tue": "13:30"})
+	setClassArrivalTimes(t, "4a", map[string]string{"mon": "13:30", "tue": "13:30"})
 	// Care days come from the stored rows with the booking mode off.
 	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "")
 	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayTuesday, staff.ID, "")
@@ -100,7 +100,7 @@ func TestClassArrivalExceptionOutranksAPerChildWeeklyDeviation(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Sechs", "Stunden", "4b")
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Person")
-	setClassArrivalTimes(t, repos, "4b", map[string]string{"mon": "12:45"})
+	setClassArrivalTimes(t, "4b", map[string]string{"mon": "12:45"})
 	// This child normally has six lessons and arrives later than the class.
 	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "13:30")
 
@@ -126,7 +126,7 @@ func TestClassArrivalExceptionStaysOutOfWeeklySchedules(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Wochenplan", "Kind", "4b")
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Person")
-	setClassArrivalTimes(t, repos, "4b", map[string]string{"mon": "13:30"})
+	setClassArrivalTimes(t, "4b", map[string]string{"mon": "13:30"})
 	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "")
 	monday := mondayOnOrAfter(timezone.TodayDate())
 	setClassArrivalException(t, repos, "4b", monday, "11:45", "Unterricht fällt aus")
@@ -160,7 +160,7 @@ func TestClassArrivalExceptionDoesNotAddACareDay(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Kein", "Montag", "4c")
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Person")
-	setClassArrivalTimes(t, repos, "4c", map[string]string{"mon": "12:45", "tue": "12:45"})
+	setClassArrivalTimes(t, "4c", map[string]string{"mon": "12:45", "tue": "12:45"})
 	// Only Tuesday is a care day.
 	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayTuesday, staff.ID, "")
 
@@ -183,7 +183,7 @@ func TestPerChildDayExceptionWinsOverTheClassException(t *testing.T) {
 	first := testpkg.CreateTestStudent(t, db, "Arzt", "Termin", "3a")
 	second := testpkg.CreateTestStudent(t, db, "Ohne", "Termin", "3a")
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Person")
-	setClassArrivalTimes(t, repos, "3a", map[string]string{"mon": "13:30"})
+	setClassArrivalTimes(t, "3a", map[string]string{"mon": "13:30"})
 	testpkg.CreateTestArrivalSchedule(t, db, first.ID, scheduleModel.WeekdayMonday, staff.ID, "")
 	testpkg.CreateTestArrivalSchedule(t, db, second.ID, scheduleModel.WeekdayMonday, staff.ID, "")
 

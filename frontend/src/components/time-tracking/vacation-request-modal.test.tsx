@@ -11,6 +11,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
 
 import { ABSENCES_REFRESH_EVENT } from "~/lib/absence-helpers";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import type { StaffAbsence } from "~/lib/time-tracking-helpers";
 
 import { VacationRequestModal } from "./vacation-request-modal";
@@ -65,7 +67,8 @@ vi.mock("~/components/ui/modal", () => ({
     ) : null,
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     error: mocks.toastError,
     success: mocks.toastSuccess,
@@ -212,12 +215,97 @@ describe("VacationRequestModal questioned absences", () => {
 
     expect(
       screen.getByText(
-        "Das sind 2 Tage mehr, als du noch hast. Sprich bitte mit der OGS-Leitung.",
+        "Das sind 2 Tage mehr, als Sie noch haben. Bitte sprechen Sie mit der OGS-Leitung.",
       ),
     ).toBeInTheDocument();
     const send = screen.getByRole("button", { name: "Antrag senden" });
     expect(send).toBeDisabled();
     fireEvent.click(send);
     expect(mocks.requestVacation).not.toHaveBeenCalled();
+  });
+
+  it("shows a refused request in the panel and resends the current draft", async () => {
+    mocks.requestVacation.mockRejectedValueOnce(
+      new ApiError("vacation quota exceeded", 409, {
+        code: "workforce.vacation_quota_exceeded",
+      }),
+    );
+
+    render(
+      <VacationRequestModal
+        isOpen
+        onClose={vi.fn()}
+        onSubmitted={vi.fn()}
+        remainingDays={20}
+        existingVacations={[]}
+      />,
+    );
+
+    act(() => {
+      mocks.calendarProps?.onChange({
+        from: new Date(2027, 6, 5),
+        to: new Date(2027, 6, 6),
+      });
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Antrag senden" }));
+
+    // The catalog text for the code, never the backend sentence.
+    expect(
+      await screen.findByText(
+        catalogText("workforce.vacation_quota_exceeded", "die Urlaubsanfrage"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/vacation quota exceeded/),
+    ).not.toBeInTheDocument();
+    expect(mocks.toastError).not.toHaveBeenCalled();
+    expect(mocks.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("offers a retry for a server error, which sends the request again", async () => {
+    mocks.requestVacation
+      .mockRejectedValueOnce(
+        new ApiError("boom", 500, {
+          code: "general.server",
+          instance: "req-vacation",
+        }),
+      )
+      .mockResolvedValueOnce({});
+    const onClose = vi.fn();
+
+    render(
+      <VacationRequestModal
+        isOpen
+        onClose={onClose}
+        onSubmitted={vi.fn()}
+        remainingDays={20}
+        existingVacations={[]}
+      />,
+    );
+
+    act(() => {
+      mocks.calendarProps?.onChange({
+        from: new Date(2027, 6, 5),
+        to: new Date(2027, 6, 6),
+      });
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Antrag senden" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Urlaubsanfrage"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Vorgangskennung kopieren/ }),
+    ).toHaveTextContent("req-vacation");
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => {
+      expect(mocks.requestVacation).toHaveBeenCalledTimes(2);
+      expect(onClose).toHaveBeenCalled();
+    });
+    expect(mocks.toastSuccess).toHaveBeenCalledWith(
+      "Der Urlaubsantrag ist gesendet.",
+    );
   });
 });

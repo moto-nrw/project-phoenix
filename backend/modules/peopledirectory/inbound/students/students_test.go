@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1046,7 +1048,7 @@ func TestUpdateStudent_SickExcusedMutualExclusion(t *testing.T) {
 
 		assert.Equal(t, http.StatusConflict, rr.Code,
 			"setting both sick and excused to true must return 409")
-		assert.Contains(t, rr.Body.String(), students.ErrCodeSickExcusedConflict,
+		assert.Contains(t, rr.Body.String(), common.CodeStudentsSickExcusedConflict,
 			"response should carry the SICK_EXCUSED_CONFLICT code for the frontend")
 	})
 
@@ -1065,7 +1067,7 @@ func TestUpdateStudent_SickExcusedMutualExclusion(t *testing.T) {
 		sickRR := authExec(t, tc, sickReq, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusConflict, sickRR.Code)
-		assert.Contains(t, sickRR.Body.String(), students.ErrCodeSickExcusedConflict)
+		assert.Contains(t, sickRR.Body.String(), common.CodeStudentsSickExcusedConflict)
 	})
 
 	t.Run("switch_from_sick_to_excused_in_one_request_succeeds", func(t *testing.T) {

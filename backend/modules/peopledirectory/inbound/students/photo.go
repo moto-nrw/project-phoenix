@@ -141,16 +141,16 @@ func mapPhotoUploadError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, peopleModule.ErrPhotoFeatureDisabled),
 		errors.Is(err, peopleModule.ErrPhotoFeatureDisabledMid):
 		render.Status(r, http.StatusForbidden)
-		renderError(w, r, common.ErrorForbidden(errors.New(msgPhotosFeatureDisabled))) //nolint:staticcheck // ST1005: user-facing German message
+		renderError(w, r, common.ErrorForbiddenWithCode(errors.New(msgPhotosFeatureDisabled), common.CodeStudentsPhotosDisabled)) //nolint:staticcheck // ST1005: user-facing German message
 	case errors.Is(err, peopleModule.ErrStudentNotFound):
 		renderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, peopleModule.ErrPhotoStudentForbidden):
 		renderError(w, r, common.ErrorForbidden(errors.New("insufficient permissions to update this student's photo")))
 	case errors.Is(err, peopleModule.ErrPhotoConsentRequired):
-		renderError(w, r, common.ErrorInvalidRequest(errors.New(msgConsentRequiredFirst))) //nolint:staticcheck // ST1005: user-facing German message
+		renderError(w, r, common.ErrorInvalidRequestWithCode(errors.New(msgConsentRequiredFirst), common.CodeStudentsPhotoConsentRequired)) //nolint:staticcheck // ST1005: user-facing German message
 	case errors.Is(err, peopleModule.ErrPhotoConsentWithdrawn):
 		// 409 — consent flipped between request and commit; frontend re-prompts.
-		renderError(w, r, common.ErrorConflictMessage(msgConsentWithdrawnRetry))
+		renderError(w, r, common.ErrorConflictWithCode(errors.New(msgConsentWithdrawnRetry), common.CodeStudentsPhotoConsentWithdrawn)) //nolint:staticcheck // ST1005: user-facing German message
 	case errors.Is(err, errPhotoNoTenant):
 		renderError(w, r, common.ErrorInvalidRequest(err))
 	default:
@@ -162,7 +162,7 @@ func mapPhotoDeleteError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, peopleModule.ErrPhotoFeatureDisabled):
 		render.Status(r, http.StatusForbidden)
-		renderError(w, r, common.ErrorForbidden(errors.New(msgPhotosFeatureDisabled))) //nolint:staticcheck // ST1005: user-facing German message
+		renderError(w, r, common.ErrorForbiddenWithCode(errors.New(msgPhotosFeatureDisabled), common.CodeStudentsPhotosDisabled)) //nolint:staticcheck // ST1005: user-facing German message
 	case errors.Is(err, peopleModule.ErrStudentNotFound):
 		renderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 	case errors.Is(err, peopleModule.ErrPhotoStudentForbidden):

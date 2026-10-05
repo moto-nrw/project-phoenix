@@ -64,17 +64,14 @@ var pyreportalErrorStrings = []string{
 	"device is not active",
 
 	// Capacity errors (POST /checkin)
-	"ROOM_CAPACITY_EXCEEDED",
 	"room capacity exceeded",
 	"Room capacity exceeded",
-	"ACTIVITY_CAPACITY_EXCEEDED",
 	"activity capacity exceeded",
 	"Activity capacity exceeded",
 
 	// Duplicate active visit (POST /checkin) — 409 Conflict. The canonical
 	// phrasing is modules/studentpresence.ErrStudentAlreadyActive; the api/iot/common
 	// response type references that sentinel so the two layers cannot drift.
-	"STUDENT_ALREADY_ACTIVE",
 	"student already has an active visit",
 
 	// RFID lookup (POST /checkin, POST /pickup-query)
@@ -140,26 +137,32 @@ var pyreportalErrorStrings = []string{
 	"student not found",
 }
 
-// Staff-clock screens branch on stable codes rather than English prose. Keep
-// those codes under the same cross-repository tripwire as legacy substrings.
+// The kiosk branches on registry codes rather than English prose. Keep those
+// codes under the same cross-repository tripwire as legacy substrings.
 var pyreportalErrorCodes = []string{
-	"invalid_staff_clock_request",
-	"invalid_rfid_tag",
-	"rfid_tag_not_found",
-	"rfid_tag_inactive",
-	"rfid_tag_not_staff",
+	// Check-in conflicts (POST /checkin); before #2506 PyrePortal matched
+	// their UPPER_SNAKE names as message substrings.
+	"iot.activity_capacity_exceeded",
+	"iot.room_capacity_exceeded",
+	"iot.student_already_active",
+
+	"iot.invalid_staff_clock_request",
+	"iot.invalid_rfid_tag",
+	"iot.rfid_tag_not_found",
+	"iot.rfid_tag_inactive",
+	"iot.rfid_tag_not_staff",
 	// "reopen_status_conflict" was retired with #2402: a repeated check-in
 	// now starts a new work block instead of reopening the closed one, so
 	// the backend never emits the code again. PyrePortal's handler for it is
 	// dead code and can be removed there independently.
-	"planned_start_not_reached",
-	"deviation_reason_required",
-	"invalid_staff_clock_state",
+	"iot.planned_start_not_reached",
+	"iot.deviation_reason_required",
+	"iot.invalid_staff_clock_state",
 	// Destination booking into a released room (POST /move-to-room, #3067).
-	"room_not_found",
-	"room_not_released",
-	"student_not_present",
-	"open_room_binary_mode",
+	"iot.room_not_found",
+	"rooms.not_released",
+	"iot.student_not_present",
+	"iot.open_room_binary_mode",
 }
 
 // extraGuardSources are files OUTSIDE api/iot whose error strings surface
@@ -256,12 +259,14 @@ func TestPyrePortalErrorStringsGuard(t *testing.T) {
 }
 
 // The mirror of PyrePortal's expect(ERROR_MESSAGE_MAPPINGS).toHaveLength(56):
-// 55 business patterns plus the "locked" exclusion. The codes are 8 of the 9
-// STAFF_CLOCK_MESSAGES plus the retired reopen_status_conflict, and the four
-// OPEN_ROOM_MESSAGES of the destination booking (#3067).
+// 55 business patterns plus the "locked" exclusion, minus the three
+// UPPER_SNAKE check-in codes that became registry codes with #2506. The codes
+// are those three, 8 of the 9 STAFF_CLOCK_MESSAGES plus the retired
+// reopen_status_conflict, and the four OPEN_ROOM_MESSAGES of the destination
+// booking (#3067).
 const (
-	wantPyrePortalErrorStrings = 55
-	wantPyrePortalErrorCodes   = 12
+	wantPyrePortalErrorStrings = 52
+	wantPyrePortalErrorCodes   = 15
 )
 
 // assertReconciledWithGolden fails when this guard's lists and the contract

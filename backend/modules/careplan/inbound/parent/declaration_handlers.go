@@ -168,19 +168,19 @@ func (rs *Resource) passwordConfirmer(accountID int64) parentService.PasswordCon
 func renderDeclarationError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, parentService.ErrDeclarationNotPermitted):
-		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "declaration_not_permitted"))
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCareDeclarationNotPermitted))
 	case errors.Is(err, parentService.ErrDeclarationVersionChanged):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "declaration_version_changed"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCareDeclarationVersionChanged))
 	case errors.Is(err, parentService.ErrDeclarationClosed):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "declaration_closed"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCareDeclarationClosed))
 	case errors.Is(err, parentService.ErrDeclarationActionNotAllowed):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "declaration_action_not_allowed"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCareDeclarationActionNotAllowed))
 	case errors.Is(err, parentService.ErrDeclarationPasswordRequired):
-		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "declaration_password_required"))
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCareDeclarationPasswordRequired))
 	case errors.Is(err, parentService.ErrDeclarationPasswordIncorrect):
-		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "declaration_password_incorrect"))
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCareDeclarationPasswordIncorrect))
 	case errors.Is(err, parentService.ErrChildCareEnded):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "child_care_ended"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCareChildCareEnded))
 	default:
 		renderParentWriteError(w, r, err)
 	}

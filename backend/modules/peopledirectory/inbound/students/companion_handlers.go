@@ -25,21 +25,6 @@ type CompanionResponse struct {
 	Weekdays           []string `json:"weekdays"`
 }
 
-// CodeCompanionLockBusy and CodeCompanionWouldLoseDeparture are the shared
-// wire codes of a departure-plan refusal (api/common), repeated here under the
-// names this package's routes and tests have always used.
-const (
-	CodeCompanionLockBusy           = common.CodeCompanionLockBusy
-	CodeCompanionWouldLoseDeparture = common.CodeCompanionWouldLoseDeparture
-)
-
-// CodeCompanionsChanged marks the 409 raised when the submitted "läuft mit"
-// list was built on a snapshot someone else has since replaced. Like the lock
-// collision it is retriable and carries no conflicts list, but the retry needs
-// a RELOAD first — so the client has to tell the two apart to show the right
-// instruction.
-const CodeCompanionsChanged = "companions_changed"
-
 // companionPlanErrorRenderer maps the companion sentinels that a departure-plan
 // write can raise to their wire response, and returns nil for every other error
 // so the caller can keep classifying.
@@ -58,7 +43,7 @@ func companionPlanErrorRenderer(err error) render.Renderer {
 	// sentinel text goes straight to the UI, and the code lets the client tell
 	// this expected refusal apart from any other 400 the write can produce.
 	case errors.Is(err, careplan.ErrCompanionWouldLoseDeparture), errors.Is(err, departure.ErrCompanionWouldLoseDeparture):
-		return common.ErrorInvalidRequestWithCode(err, CodeCompanionWouldLoseDeparture)
+		return common.ErrorInvalidRequestWithCode(err, common.CodeStudentsCompanionWouldLoseDeparture)
 	// A linked child was being edited elsewhere and this transaction could not
 	// wait for its row without risking a deadlock. Nothing was written and the
 	// same request succeeds once the other edit commits, so this is a retriable
@@ -67,14 +52,14 @@ func companionPlanErrorRenderer(err error) render.Renderer {
 	// extend_companion_plans): without the code the client would ask the user
 	// whether to widen another child's plan for what is really a lock collision.
 	case errors.Is(err, careplan.ErrCompanionLockBusy), errors.Is(err, departure.ErrCompanionLockBusy):
-		return common.ErrorConflictWithCode(err, CodeCompanionLockBusy)
+		return common.ErrorConflictWithCode(err, common.CodeStudentsCompanionLockBusy)
 	// The stored links no longer match the snapshot the submitted list replaces.
 	// Nothing was written, and the same list must NOT simply be re-sent — it
 	// would delete the change this refusal is protecting. A 409 with its own
 	// code lets the client reload and let the user redo the edit on the current
 	// state.
 	case errors.Is(err, careplan.ErrCompanionsChanged):
-		return common.ErrorConflictWithCode(err, CodeCompanionsChanged)
+		return common.ErrorConflictWithCode(err, common.CodeStudentsCompanionsChanged)
 	}
 	return nil
 }
@@ -84,8 +69,9 @@ func companionPlanErrorRenderer(err error) render.Renderer {
 // "Tom darf donnerstags noch nicht mit anderen Kindern gehen. Ergänzen?"
 // confirmation and resends with extend_companion_plans.
 type CompanionConflictResponse struct {
+	Status    string                       `json:"status"`
+	Error     string                       `json:"error"`
 	Conflicts []careplan.CompanionConflict `json:"conflicts"`
-	Message   string                       `json:"message"`
 }
 
 // Render satisfies render.Renderer.

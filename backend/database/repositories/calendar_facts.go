@@ -24,7 +24,7 @@ type CalendarFacts struct {
 	GuardianProfileRepo  calendarCompose.GuardianDirectory
 	StudentGuardianRepo  userModels.StudentGuardianRepository
 	ChildRepo            parentModels.ChildRepository
-	GroupRepo            educationModels.GroupRepository
+	GroupRepo            EducationGroupRepository
 	InstanceStaffRepo    scheduleModels.InstanceStaffRepository
 	ActivityInstanceRepo scheduleModels.ActivityInstanceRepository
 	RoomRepo             facilitiesModels.RoomRepository
@@ -225,7 +225,7 @@ func (p calendarChildPort) ListByAccount(ctx context.Context, id int64) ([]*cale
 }
 
 type calendarGroupPort struct {
-	source educationModels.GroupRepository
+	source EducationGroupRepository
 }
 
 func (p calendarGroupPort) List(ctx context.Context) ([]*calendarCompose.Group, error) {
@@ -267,7 +267,7 @@ type calendarInstancePort struct {
 func (p calendarInstancePort) FindByIDs(ctx context.Context, ids []int64) ([]*calendarCompose.ActivityInstance, error) {
 	value, err := p.source.FindByIDs(ctx, ids)
 	return calendarMapSlice(value, func(v *scheduleModels.ActivityInstance) *calendarCompose.ActivityInstance {
-		return &calendarCompose.ActivityInstance{ID: v.ID, RoomID: v.RoomID, Title: v.Title, Status: v.Status, Description: v.Description, Date: appointmentcap.Date(v.Date), StartTime: v.StartTime, EndTime: v.EndTime, UpdatedAt: v.UpdatedAt}
+		return &calendarCompose.ActivityInstance{ID: v.ID, RoomID: v.RoomID, Title: v.Title, Status: v.Status, Description: v.Description, Date: appointmentcap.Date(v.Date), StartTime: v.StartTime, EndTime: v.EndTime, UpdatedAt: v.UpdatedAt, ActivityType: v.TemplateType}
 	}), err
 }
 

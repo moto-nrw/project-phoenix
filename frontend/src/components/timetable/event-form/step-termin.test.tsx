@@ -149,3 +149,38 @@ describe("StepTermin — Planungsspur (#3114)", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("StepTermin — Typ Dienst (#3822)", () => {
+  it("offers Dienst as a fourth type", () => {
+    const { update } = renderStep();
+
+    fireEvent.click(screen.getByRole("button", { name: /Dienst/ }));
+
+    expect(update).toHaveBeenCalledWith("type", "duty");
+  });
+
+  it("makes the room optional and drops the Listenart for a duty", () => {
+    renderStep({ form: { ...emptyForm("2026-08-03"), type: "duty" } });
+
+    expect(
+      screen.getByText("Optional. Ein Dienst kann auch ohne Raum stattfinden."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("combobox", { name: "Listenart" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Raum")).not.toBeRequired();
+  });
+
+  it("keeps the room required for Betreuung", () => {
+    renderStep();
+
+    expect(
+      screen.queryByText(
+        "Optional. Ein Dienst kann auch ohne Raum stattfinden.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: "Listenart" }),
+    ).toBeInTheDocument();
+  });
+});

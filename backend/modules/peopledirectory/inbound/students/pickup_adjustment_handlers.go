@@ -140,12 +140,12 @@ func (rs *Resource) previewStudentPickupAdjustment(w http.ResponseWriter, r *htt
 	}
 	var body pickupAdjustmentRequest
 	if err := render.Bind(r, &body); err != nil {
-		renderError(w, r, common.ErrorInvalidRequestWithCode(err, "pickup.invalid"))
+		renderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodePickupInvalid))
 		return
 	}
 	input, err := pickupAdjustmentPreviewInput(student.ID, body)
 	if err != nil {
-		renderError(w, r, common.ErrorInvalidRequestWithCode(err, "pickup.invalid"))
+		renderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodePickupInvalid))
 		return
 	}
 	preview, err := rs.PickupAdjustmentService.Preview(r.Context(), input)
@@ -167,12 +167,12 @@ func (rs *Resource) applyStudentPickupAdjustment(w http.ResponseWriter, r *http.
 	}
 	var body pickupAdjustmentRequest
 	if err := render.Bind(r, &body); err != nil {
-		renderError(w, r, common.ErrorInvalidRequestWithCode(err, "pickup.invalid"))
+		renderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodePickupInvalid))
 		return
 	}
 	input, err := pickupAdjustmentPreviewInput(student.ID, body)
 	if err != nil {
-		renderError(w, r, common.ErrorInvalidRequestWithCode(err, "pickup.invalid"))
+		renderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodePickupInvalid))
 		return
 	}
 	staffID, err := rs.getStaffIDFromJWT(r)
@@ -353,21 +353,21 @@ func pickupAdjustmentConsequencesResponseFrom(preview *careplan.OfferingChangePr
 func renderPickupAdjustmentError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, careplan.ErrPickupAdjustmentResolutionRequired):
-		renderError(w, r, common.ErrorInvalidRequestWithCode(err, "pickup.resolution_required"))
+		renderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodePickupResolutionRequired))
 	case errors.Is(err, careplan.ErrPickupAdjustmentStale):
-		renderError(w, r, common.ErrorConflictWithCode(err, "pickup.preview_stale"))
+		renderError(w, r, common.ErrorConflictWithCode(err, common.CodePickupPreviewStale))
 	case errors.Is(err, careplan.ErrPickupAdjustmentFutureManualReset):
-		renderError(w, r, common.ErrorConflictWithCode(err, "pickup.future_manual_reset"))
+		renderError(w, r, common.ErrorConflictWithCode(err, common.CodePickupFutureManualReset))
 	case errors.Is(err, careplan.ErrOfferingChangeCapacityFull):
-		renderError(w, r, common.ErrorConflictWithCode(err, "pickup.offering_capacity_full"))
+		renderError(w, r, common.ErrorConflictWithCode(err, common.CodePickupOfferingCapacityFull))
 	case errors.Is(err, careplan.ErrCareOfferingsDisabled):
-		renderError(w, r, common.ErrorConflictWithCode(err, "pickup.offerings_disabled"))
+		renderError(w, r, common.ErrorConflictWithCode(err, common.CodePickupOfferingsDisabled))
 	case errors.Is(err, careplan.ErrCompleteWithdrawalConfirmationRequired):
-		renderError(w, r, common.ErrorConflictWithCode(err, "enrollment.complete_withdrawal_confirmation_required"))
+		renderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentCompleteWithdrawalConfirmationRequired))
 	case errors.Is(err, careplan.ErrOfferingChangeDateOutOfRange),
 		errors.Is(err, careplan.ErrOfferingChangeInvalid),
 		errors.Is(err, careplan.ErrPickupAdjustmentInvalid):
-		renderError(w, r, common.ErrorInvalidRequestWithCode(err, "pickup.invalid"))
+		renderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodePickupInvalid))
 	case errors.Is(err, careplan.ErrPickupAdjustmentUnauthorized):
 		renderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, careplan.ErrPickupAdjustmentStudentNotFound):

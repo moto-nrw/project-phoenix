@@ -116,7 +116,7 @@ func TestStaffPreviewEndpoints(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 			rec := testutil.ExecuteWithAuth(t, router, req, previewClaims)
 			assert.Equalf(t, http.StatusForbidden, rec.Code, "%s %s must be blocked", w.method, w.path)
-			assert.Containsf(t, rec.Body.String(), "read_only_preview", "%s %s", w.method, w.path)
+			assert.Containsf(t, rec.Body.String(), "identity.read_only_preview", "%s %s", w.method, w.path)
 		}
 
 		// Reads keep working — the preview must see what the target sees.
@@ -153,7 +153,7 @@ func TestStaffPreviewEndpoints(t *testing.T) {
 			rec := httptest.NewRecorder()
 			router.ServeHTTP(rec, req)
 			assert.Equalf(t, http.StatusForbidden, rec.Code, "%s must be refused", name)
-			assert.Containsf(t, rec.Body.String(), "preview_token_invalid", "%s", name)
+			assert.Containsf(t, rec.Body.String(), "identity.preview_token_invalid", "%s", name)
 		}
 	})
 

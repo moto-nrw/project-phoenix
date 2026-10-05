@@ -241,11 +241,14 @@ func datesBetweenInclusive(from, to timezone.Date) []timezone.Date {
 }
 
 // statusDayConflictResponse builds the shared 409 body for single and bulk
-// planned-status writes: a capped conflict sample plus the full total.
+// planned-status writes: a capped conflict sample plus the full total. The
+// code lets the frontend word the refusal without reading the sentence
+// (ADR 0006).
 func statusDayConflictResponse(conflictErr *studentpresence.StudentStatusDayConflictError) map[string]any {
 	return map[string]any{
 		"status":         "error",
 		"error":          "existing student status days were not overwritten",
+		"code":           common.CodeStudentsStatusDayConflict,
 		"conflicts":      newStudentStatusDayConflictResponses(conflictErr.SampleConflicts()),
 		"conflict_count": conflictErr.ConflictTotal(),
 	}
@@ -300,7 +303,7 @@ func (rs *Resource) renderStatusDayCreateError(w http.ResponseWriter, r *http.Re
 		// Stable code so the frontend can show a clear message instead of
 		// parsing this as an empty StudentStatusDayConflictError sample.
 		refuse()
-		renderError(w, r, common.ErrorConflictWithCode(err, "partial_absence_conflict"))
+		renderError(w, r, common.ErrorConflictWithCode(err, common.CodeStudentsPartialAbsenceConflict))
 		return
 	}
 	renderError(w, r, common.ErrorInternalServerWrap(failure, err))

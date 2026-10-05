@@ -1,9 +1,10 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useState, type MouseEventHandler } from "react";
+import type { MouseEventHandler } from "react";
 import { Alert, type AlertType } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { RequestIdButton } from "~/components/ui/request-id-button";
 import { cn } from "~/lib/utils";
 
 interface ToastAction {
@@ -53,21 +54,8 @@ export function Toast({
   onMouseEnter,
   onMouseLeave,
 }: Readonly<ToastProps>) {
-  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
-
-  const handleCopy = async () => {
-    if (!requestId) return;
-    try {
-      await navigator.clipboard.writeText(requestId);
-      setCopyFeedback(copySucceededLabel);
-    } catch {
-      setCopyFeedback(copyFailedLabel);
-    }
-  };
-
   const controls = (
     <span className="flex flex-wrap items-center justify-end gap-1">
-      {copyFeedback ? <span role="status">{copyFeedback}</span> : null}
       {action ? (
         <Button
           type="button"
@@ -84,16 +72,13 @@ export function Toast({
         </Button>
       ) : null}
       {requestId && copyRequestIdLabel ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="compact"
-          aria-label={copyRequestIdLabel}
-          onClick={handleCopy}
-          className="shrink-0 self-center text-current underline underline-offset-2 hover:bg-black/5 hover:text-current"
-        >
-          {requestIdLabel?.replace("{requestId}", requestId) ?? requestId}
-        </Button>
+        <RequestIdButton
+          requestId={requestId}
+          label={requestIdLabel}
+          copyLabel={copyRequestIdLabel}
+          copiedLabel={copySucceededLabel}
+          copyFailedLabel={copyFailedLabel}
+        />
       ) : null}
       <Button
         type="button"

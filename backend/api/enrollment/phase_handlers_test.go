@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
@@ -382,7 +383,7 @@ func TestCreatePhaseHandler_DuplicateNameCarriesCodeWithoutSQLDetail(t *testing.
 		Error string `json:"error"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	assert.Equal(t, ErrCodePhaseNameExists, body.Code)
+	assert.Equal(t, common.CodeEnrollmentPhaseNameExists, body.Code)
 	assert.Equal(t, capability.ErrPhaseDuplicateName.Error(), body.Error)
 	assert.NotContains(t, body.Error, "SQLSTATE")
 }
@@ -521,7 +522,7 @@ func TestUpdatePhaseHandler_CareOfferingConflictReturns409(t *testing.T) {
 		Code string `json:"code"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	assert.Equal(t, ErrCodePhaseCareOfferingConflict, body.Code)
+	assert.Equal(t, common.CodeEnrollmentPhaseCareOfferingConflict, body.Code)
 }
 
 func TestUpdatePhaseHandler_UpdateErrorReturns500(t *testing.T) {

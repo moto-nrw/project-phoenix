@@ -69,6 +69,7 @@ import { TemplateList } from "~/components/timetable/template-list";
 import { TimetableEventModal } from "~/components/timetable/timetable-event-modal";
 import { resolveDemandOrigin } from "~/components/timetable/demand-origin";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
+import { staffNamesFromOverview } from "~/components/timetable/block-staff-names";
 import { hasPermission } from "~/lib/auth-utils";
 import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
@@ -81,6 +82,7 @@ import { getSettingValue } from "~/lib/settings-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import { fetchStudents } from "~/lib/student-api";
 import { staffService } from "~/lib/staff-api";
+import { substitutionService } from "~/lib/substitution-api";
 import { listPhases } from "~/lib/enrollment-phase-api";
 import {
   berlinTodayISO,
@@ -463,6 +465,17 @@ function TimetablesContent() {
       : null,
     () => staffService.getAllStaff(),
   );
+  // Ohne users:read fehlt die Personalliste. Die Namen für die Blöcke (#3817)
+  // kommen dann aus der Vertretungsübersicht, die nur schedules:read braucht.
+  // Die Monatsansicht zeigt keine Blöcke und lädt deshalb nichts.
+  const { data: planStaffOverview } = useSWRAuth(
+    status === "authenticated" &&
+      !canReadTenantRosters &&
+      (view === "week" || view === "day")
+      ? `timetable-plan-staff-names-${fetchFromISO}-${fetchToISO}`
+      : null,
+    () => substitutionService.fetchScheduleOverview(fetchFromISO, fetchToISO),
+  );
   const { data: studentData } = useSWRAuth(
     status === "authenticated" && canReadTenantRosters
       ? "timetable-student-list"
@@ -604,6 +617,13 @@ function TimetablesContent() {
   const staffNames = useMemo(
     () => new Map(staff.map((item) => [item.id, item.name])),
     [staff],
+  );
+  const blockStaffNames = useMemo(
+    () =>
+      canReadTenantRosters
+        ? staffNames
+        : staffNamesFromOverview(planStaffOverview),
+    [canReadTenantRosters, planStaffOverview, staffNames],
   );
   const studentNames = useMemo(
     () => new Map(students.map((item) => [item.id, item.name])),
@@ -1825,6 +1845,7 @@ function TimetablesContent() {
           dayStartHour={dayStartHour}
           dayEndHour={dayEndHour}
           hourHeightPx={hourHeightPx}
+          staffNames={blockStaffNames}
           showDayHeader
           emptyState={
             instances.length === 0 && !error
@@ -1869,6 +1890,7 @@ function TimetablesContent() {
           dayStartHour={dayStartHour}
           dayEndHour={dayEndHour}
           hourHeightPx={hourHeightPx}
+          staffNames={blockStaffNames}
           showDayHeader
           emptyState={weekEmptyState}
         />

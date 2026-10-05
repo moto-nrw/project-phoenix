@@ -160,11 +160,11 @@ func (rs *Resource) runCreateInvitation(ctx context.Context, invitationReq ident
 // delegating to the shared invitation error renderer. Returns true if handled.
 func renderCreateInvitationError(w http.ResponseWriter, r *http.Request, err error) bool {
 	if errors.Is(err, identityaccess.ErrEmailAlreadyExists) {
-		common.RenderError(w, r, common.ErrorConflict(identityaccess.ErrEmailAlreadyExists))
+		common.RenderError(w, r, common.ErrorConflictOnField(identityaccess.ErrEmailAlreadyExists, common.CodeIdentityEmailAlreadyExists, "email"))
 		return true
 	}
 	if errors.Is(err, identityaccess.ErrAccountAlreadyHasTenantAccess) {
-		common.RenderError(w, r, common.ErrorConflictWithCode(identityaccess.ErrAccountAlreadyHasTenantAccess, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS"))
+		common.RenderError(w, r, common.ErrorConflictOnField(identityaccess.ErrAccountAlreadyHasTenantAccess, common.CodeIdentityAccountAlreadyHasTenantAccess, "email"))
 		return true
 	}
 	switch {
@@ -272,13 +272,13 @@ type AcceptInvitationResponse struct {
 
 var acceptInvitationErrorRules = []common.ErrorRule{
 	{Target: identityaccess.ErrInvitationOwnerRequired, Render: func(err error) render.Renderer {
-		return common.ErrorUnauthorizedWithCode(err, "INVITATION_ACCOUNT_LOGIN_REQUIRED")
+		return common.ErrorUnauthorizedWithCode(err, common.CodeIdentityInvitationAccountLoginRequired)
 	}},
 	{Target: identityaccess.ErrInvitationOwnerMismatch, Render: func(err error) render.Renderer {
-		return common.ErrorForbiddenWithCode(err, "INVITATION_ACCOUNT_MISMATCH")
+		return common.ErrorForbiddenWithCode(err, common.CodeIdentityInvitationAccountMismatch)
 	}},
 	{Target: identityaccess.ErrAccountInactive, Render: func(err error) render.Renderer {
-		return common.ErrorForbiddenWithCode(err, "ACCOUNT_INACTIVE")
+		return common.ErrorForbiddenWithCode(err, common.CodeIdentityAccountInactive)
 	}},
 	{Target: identityaccess.ErrPasswordTooWeak, Render: common.ErrorInvalidRequest},
 	{Target: identityaccess.ErrInvitationPasswordMismatch, Render: common.ErrorInvalidRequest},

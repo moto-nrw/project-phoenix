@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import type { StudentStatusDay } from "~/lib/student-status-days-api";
 import { useSWRAuth } from "~/lib/swr/hooks";
@@ -82,10 +83,24 @@ describe("CarePlanView", () => {
     expect(screen.getByText("Betreuungsplan wird geladen")).toBeInTheDocument();
   });
 
-  it("shows an error alert when the fetch fails", () => {
-    setSWR({ data: undefined, isLoading: false, error: new Error("Boom") });
+  it("shows a failed load in place with the catalog text and a retry", async () => {
+    const mutate = vi.fn();
+    const error = new ApiError("Boom", 503, { code: "general.unavailable" });
+    vi.mocked(useSWRAuth).mockImplementation(
+      (key) =>
+        (key === null
+          ? { data: undefined, isLoading: false, error: null, mutate }
+          : { data: undefined, isLoading: false, error, mutate }) as never,
+    );
     render(<CarePlanView studentId="1" statusDays={[]} />);
-    expect(screen.getByText("Boom")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Die Ansicht des Betreuungsplans ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Boom")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mutate).toHaveBeenCalled();
   });
 
   it("switches to the week view via the Woche tab", () => {

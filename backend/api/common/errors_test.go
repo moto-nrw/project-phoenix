@@ -160,6 +160,30 @@ func TestErrorConflict(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, w.Code)
 }
 
+// TestErrorInvalidRequestWithDetails pins the 400 that names the refused
+// limit (#2514): code and details travel next to the diagnostic text.
+func TestErrorInvalidRequestWithDetails(t *testing.T) {
+	t.Parallel()
+
+	renderer := common.ErrorInvalidRequestWithDetails(errors.New("range too long"),
+		common.CodeWorkforceTargetOverrideTooLong, map[string]any{"max_days": 366})
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/test", nil)
+	common.RenderError(w, r, renderer)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	var body struct {
+		Code    string         `json:"code"`
+		Details map[string]any `json:"details"`
+		Error   string         `json:"error"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, common.CodeWorkforceTargetOverrideTooLong, body.Code)
+	assert.Equal(t, map[string]any{"max_days": float64(366)}, body.Details)
+	assert.Equal(t, "range too long", body.Error)
+}
+
 func TestErrorTooManyRequests(t *testing.T) {
 	t.Parallel()
 
@@ -440,7 +464,7 @@ func TestErrorConflictWithCode(t *testing.T) {
 	t.Parallel()
 
 	testErr := errors.New("account already has access to tenant")
-	renderer := common.ErrorConflictWithCode(testErr, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS")
+	renderer := common.ErrorConflictWithCode(testErr, "identity.account_already_has_tenant_access")
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/test", nil)
@@ -454,7 +478,7 @@ func TestErrorConflictWithCode(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "error", resp["status"])
 	assert.Equal(t, "account already has access to tenant", resp["error"])
-	assert.Equal(t, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS", resp["code"])
+	assert.Equal(t, "identity.account_already_has_tenant_access", resp["code"])
 }
 
 func TestErrorConflictWithoutDomainCodeUsesClassCode(t *testing.T) {
@@ -755,7 +779,7 @@ func TestErrorConflictWithCode_NilError(t *testing.T) {
 
 	// ErrorConflictWithCode takes (err, code). nil err must still produce
 	// a valid response, and the provided code must be preserved.
-	renderer := common.ErrorConflictWithCode(nil, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS")
+	renderer := common.ErrorConflictWithCode(nil, "identity.account_already_has_tenant_access")
 	require.NotNil(t, renderer)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -764,7 +788,7 @@ func TestErrorConflictWithCode_NilError(t *testing.T) {
 	assert.Equal(t, "error", errResp.Status)
 	assert.Nil(t, errResp.Err)
 	assert.Equal(t, http.StatusText(http.StatusConflict), errResp.ErrorText)
-	assert.Equal(t, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS", errResp.Code,
+	assert.Equal(t, "identity.account_already_has_tenant_access", errResp.Code,
 		"code must be preserved even when err is nil")
 
 	w := httptest.NewRecorder()
@@ -774,7 +798,7 @@ func TestErrorConflictWithCode_NilError(t *testing.T) {
 
 	var body map[string]interface{}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	assert.Equal(t, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS", body["code"])
+	assert.Equal(t, "identity.account_already_has_tenant_access", body["code"])
 }
 
 func TestErrorHelpers_NonNilErrorPreservesMessage(t *testing.T) {
@@ -797,7 +821,7 @@ func TestErrorHelpers_NonNilErrorPreservesMessage(t *testing.T) {
 		{"ErrorConflict", common.ErrorConflict(customErr)},
 		{"ErrorTooManyRequests", common.ErrorTooManyRequests(customErr)},
 		{"ErrorGone", common.ErrorGone(customErr)},
-		{"ErrorConflictWithCode", common.ErrorConflictWithCode(customErr, "SOME_CODE")},
+		{"ErrorConflictWithCode", common.ErrorConflictWithCode(customErr, common.CodeGeneralBusinessRejection)},
 	}
 
 	for _, tc := range cases {

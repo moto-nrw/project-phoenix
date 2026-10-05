@@ -32,6 +32,21 @@ const (
 // realistic sick-leave window; longer absences are entered in slices.
 const MaxBulkSubstitutionDates = 31
 
+// The codes a DeviationConflict carries (error-registry.json). The package
+// may not import api/common, so it names each registered code once here.
+const (
+	CodeInstanceMoved            = "timetable.instance_moved"
+	CodeInvalidTransition        = "timetable.invalid_transition"
+	CodePresenceWouldOverstaff   = "timetable.presence_would_overstaff"
+	CodeUnderstaffedStillStaffed = "timetable.understaffed_still_staffed"
+	CodeInstanceNotEditable      = "timetable.instance_not_editable"
+	CodeSickAbsenceScopeLocked   = "timetable.sick_absence_scope_locked"
+	CodeSubstituteConflict       = "timetable.substitute_conflict"
+	CodeStaffAbsentOnTarget      = "timetable.staff_absent_on_target"
+	CodeStaffAlreadyOnTarget     = "timetable.staff_already_on_target"
+	CodeStaffAbsentOnDate        = "timetable.staff_absent_on_date"
+)
+
 // DeviationError carries the exact HTTP mapping a staffing save renders, so
 // the deviations wire contract (status, code, message) stays byte-identical.
 // Cause is set only for 500 responses that wrap an internal error for logs

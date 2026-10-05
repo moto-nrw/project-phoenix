@@ -313,8 +313,8 @@ const ROW_ACTION_BASELINE = new Map(
       "Gericht entfernen@738",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Antwort entfernen@1400",
-      "Entfernen@1837",
+      "Antwort entfernen@1449",
+      "Entfernen@1887",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
       "Bedingung löschen@1976",
@@ -327,13 +327,13 @@ const ROW_ACTION_BASELINE = new Map(
       "Entfernen@585",
       "Telefonnummer entfernen@844",
     ],
-    "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1338"],
+    "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1312"],
     "src/components/staff/stammdaten-section-forms.tsx": [
-      "Qualifikation entfernen@415",
+      "Qualifikation entfernen@422",
     ],
-    "src/components/students/companion-picker.tsx": ["entfernen@274"],
+    "src/components/students/companion-picker.tsx": ["entfernen@296"],
     "src/components/students/student-create-modal.tsx": [
-      "Erziehungsberechtigte/n entfernen@708",
+      "Erziehungsberechtigte/n entfernen@718",
     ],
     "src/components/timetable/substitution-slide-over.tsx": [
       "Rückgängig Entfernen@765",
@@ -1222,7 +1222,7 @@ const OWN_OBJECT_ENTRY_EXCEPTIONS = new Map(
   Object.entries({
     // Teilentschuldigungen genau dieses Kindes an genau diesen Tagen.
     "src/components/students/planned-status-days-modal.tsx": [
-      "Bearbeiten@1140",
+      "Bearbeiten@1171",
     ],
   }),
 );
@@ -1576,7 +1576,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // seinen eigenen Fuß (BAUARTEN-SPEC Bauart 2 Regel 4, #3115); die Anzeige
     // liegt auf der Route `parent-announcements/[id]`.
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1301",
+      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1349",
     ],
     // Einträge ohne eigene Objektansicht (Termin, Schließtag,
     // Kalenderzeitraum, Jahrgangswechsel, Klassenlisteneintrag,

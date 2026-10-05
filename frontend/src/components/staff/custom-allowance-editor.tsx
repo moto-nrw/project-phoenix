@@ -6,20 +6,22 @@
 // Änderungsprotokoll, unten `EditActions`.
 
 import { Minus, Plus } from "lucide-react";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";
-import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatDayCount } from "~/lib/absence-helpers";
 import {
   absenceTypeService,
   type AbsenceType,
   type AbsenceTypeAllowanceSummary,
 } from "~/lib/absence-type-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "CustomAllowanceEditor" });
 
 const MAX_DAYS = 366;
 
@@ -53,13 +55,11 @@ export function CustomAllowanceEditForm({
 }) {
   const [days, setDays] = useState(formatInput(summary.entitledDays));
   const [reason, setReason] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<{
-    days?: string;
-    reason?: string;
-  }>({});
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useFormError();
+  const formErrors = useApiFormError();
   const toast = useToast();
+  // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
+  const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
 
   const used = summary.takenDays + summary.reservedDays;
   const parsed = parseDays(days);
@@ -67,26 +67,25 @@ export function CustomAllowanceEditForm({
   const step = (delta: number) => {
     const next = Math.min(MAX_DAYS, Math.max(used, (parsed ?? 0) + delta));
     setDays(formatInput(next));
-    setFieldErrors((current) => ({ ...current, days: undefined }));
   };
 
   const save = async () => {
-    setError(null);
-    const nextErrors = {
-      days:
-        parsed === null
-          ? "Bitte ganze oder halbe Tage zwischen 0 und 366 eintragen."
-          : parsed < used
-            ? `Mindestens ${formatDayCount(used)}. So viele sind schon eingetragen oder beantragt.`
-            : undefined,
-      reason:
-        reason.trim() === ""
-          ? "Bitte kurz sagen, warum sich der Anspruch ändert."
-          : undefined,
-    };
-    setFieldErrors(nextErrors);
-    if (nextErrors.days || nextErrors.reason || parsed === null) {
-      setError("Bitte prüfen Sie die markierten Felder.");
+    formErrors.clear();
+    const daysError =
+      parsed === null
+        ? "Bitte ganze oder halbe Tage zwischen 0 und 366 eintragen."
+        : parsed < used
+          ? `Mindestens ${formatDayCount(used)}. So viele sind schon eingetragen oder beantragt.`
+          : undefined;
+    const reasonError =
+      reason.trim() === ""
+        ? "Bitte kurz sagen, warum sich der Anspruch ändert."
+        : undefined;
+    if (daysError || reasonError || parsed === null) {
+      formErrors.invalid("Bitte prüfen Sie die markierten Felder.", {
+        ...(daysError ? { entitled_days: daysError } : {}),
+        ...(reasonError ? { reason: reasonError } : {}),
+      });
       return;
     }
     setSaving(true);
@@ -96,18 +95,26 @@ export function CustomAllowanceEditForm({
         entitledDays: parsed,
         reason: reason.trim(),
       });
-      toast.success(`Anspruch ${type.name} gespeichert.`);
+      toast.success(`Der Anspruch ${type.name} ist gespeichert.`);
       await onSaved();
     } catch (cause) {
-      setError(
-        cause instanceof Error && cause.message
-          ? cause.message
-          : "Der Anspruch konnte nicht gespeichert werden.",
-      );
+      logger.error("custom_allowance_save_failed", {
+        staff_id: staffId,
+        absence_type_id: type.id,
+        error: cause instanceof Error ? cause.message : String(cause),
+      });
+      await formErrors.show(cause, {
+        object: "die Änderung am Anspruch",
+        retry: () => void latestSaveRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestSaveRef.current = save;
+  });
 
   return (
     <form
@@ -119,7 +126,7 @@ export function CustomAllowanceEditForm({
         void save();
       }}
     >
-      <FormErrorAlert message={error} />
+      <FormErrorAlert message={formErrors.error} />
       <div>
         <label
           htmlFor={`allowance-days-${type.id}`}
@@ -140,12 +147,13 @@ export function CustomAllowanceEditForm({
           </Button>
           <Input
             id={`allowance-days-${type.id}`}
+            name="entitled_days"
             inputMode="decimal"
             controlSize="compact"
             className="w-24 text-center tabular-nums"
             value={days}
             onChange={(event) => setDays(event.target.value)}
-            error={fieldErrors.days}
+            error={formErrors.fieldError("entitled_days")}
             disabled={saving}
           />
           <Button
@@ -166,11 +174,12 @@ export function CustomAllowanceEditForm({
       </div>
       <Input
         id={`allowance-reason-${type.id}`}
+        name="reason"
         label="Begründung"
         value={reason}
         onChange={(event) => setReason(event.target.value)}
         placeholder="z. B. in den Sommerferien krank"
-        error={fieldErrors.reason}
+        error={formErrors.fieldError("reason")}
         disabled={saving}
       />
       <EditActions onCancel={onCancel} saving={saving} />

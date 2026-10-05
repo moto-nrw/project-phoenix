@@ -137,8 +137,8 @@ func TestDecideMasterDataChangeRequest_MapsServiceErrors(t *testing.T) {
 		code string
 	}{
 		{name: "not found", err: masterdatarequests.ErrReviewNotFound, want: http.StatusNotFound},
-		{name: "not pending", err: masterdatarequests.ErrReviewNotPending, want: http.StatusConflict, code: "change_request_not_pending"},
-		{name: "stale", err: masterdatarequests.ErrReviewStaleValue, want: http.StatusConflict, code: "change_request_stale"},
+		{name: "not pending", err: masterdatarequests.ErrReviewNotPending, want: http.StatusConflict, code: "students.change_request_not_pending"},
+		{name: "stale", err: masterdatarequests.ErrReviewStaleValue, want: http.StatusConflict, code: "students.change_request_stale"},
 		{name: "invalid target", err: masterdatarequests.ErrReviewInvalidTarget, want: http.StatusBadRequest},
 		{name: "internal", err: errors.New("boom"), want: http.StatusInternalServerError},
 	}

@@ -3,10 +3,8 @@ package education_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,18 +23,18 @@ func TestGroupSubstitutionRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates substitution with substitute only", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubCreate")
 		substitute := testpkg.CreateTestStaff(t, db, "Substitute", "Staff")
 
-		startDate := timezone.TodayDate()
+		startDate := calendar.TodayDate()
 		endDate := startDate.AddDays(7)
 
-		sub := &education.GroupSubstitution{
-			TargetType:        education.GroupSubstitutionTypeGroupHandover,
+		sub := &testpkg.EducationGroupSubstitution{
+			TargetType:        testpkg.EducationGroupSubstitutionTypeGroupHandover,
 			GroupID:           group.ID,
 			SubstituteStaffID: substitute.ID,
 			StartDate:         startDate,
@@ -55,7 +53,7 @@ func TestGroupSubstitutionRepository_Create(t *testing.T) {
 		regular := testpkg.CreateTestStaff(t, db, "Regular", "Staff")
 		substitute := testpkg.CreateTestStaff(t, db, "Substitute", "Staff")
 
-		startDate := timezone.TodayDate()
+		startDate := calendar.TodayDate()
 		endDate := startDate.AddDays(7)
 
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, &regular.ID, substitute.ID, startDate, endDate)
@@ -73,15 +71,15 @@ func TestGroupSubstitutionRepository_DeleteActiveOrFutureByStaffID(t *testing.T)
 
 	db := testpkg.SetupTestDB(t)
 
-	dependencies := repositories.NewUnobservedTimetableDependencies(db)
-	repo := repositories.NewFactory(db, dependencies).GroupSubstitution
+	factory, dependencies := testutil.NewSchoolStructureRepositorySuiteGraph(db)
+	repo := factory.GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	group := testpkg.CreateTestEducationGroup(t, db, "SubDelOffboard")
 	staff := testpkg.CreateTestStaff(t, db, "Offboarded", "Staff")
 	otherStaff := testpkg.CreateTestStaff(t, db, "Other", "Staff")
 
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	// Past substitution (ended yesterday) — must stay as history.
 	past := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, staff.ID,
 		today.AddDays(-10), today.AddDays(-1))
@@ -118,12 +116,12 @@ func TestGroupSubstitutionRepository_BlockersExcludeLegacyPersonnelRows(t *testi
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 	group := testpkg.CreateTestEducationGroup(t, db, "TypedBlockers")
 	target := testpkg.CreateTestStaff(t, db, "Typed", "Target")
 	other := testpkg.CreateTestStaff(t, db, "Legacy", "Target")
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	handover := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, target.ID, today, today)
 	testpkg.CreateTestGroupSubstitution(t, db, group.ID, &target.ID, other.ID, today, today)
 
@@ -139,14 +137,14 @@ func TestGroupSubstitutionRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing substitution", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubFindByID")
 		substitute := testpkg.CreateTestStaff(t, db, "FindSubstitute", "Staff")
 
-		startDate := timezone.TodayDate()
+		startDate := calendar.TodayDate()
 		endDate := startDate.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
@@ -167,14 +165,14 @@ func TestGroupSubstitutionRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates substitution reason", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubUpdate")
 		substitute := testpkg.CreateTestStaff(t, db, "UpdateSubstitute", "Staff")
 
-		startDate := timezone.TodayDate()
+		startDate := calendar.TodayDate()
 		endDate := startDate.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
@@ -193,14 +191,14 @@ func TestGroupSubstitutionRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing substitution", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubDelete")
 		substitute := testpkg.CreateTestStaff(t, db, "DeleteSubstitute", "Staff")
 
-		startDate := timezone.TodayDate()
+		startDate := calendar.TodayDate()
 		endDate := startDate.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
@@ -221,14 +219,14 @@ func TestGroupSubstitutionRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all substitutions", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubList")
 		substitute := testpkg.CreateTestStaff(t, db, "ListSubstitute", "Staff")
 
-		startDate := timezone.TodayDate()
+		startDate := calendar.TodayDate()
 		endDate := startDate.AddDays(7)
 		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
@@ -243,18 +241,18 @@ func TestGroupSubstitutionRepository_ListWithOptions(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists with pagination", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubListOpts")
 		substitute := testpkg.CreateTestStaff(t, db, "ListOptsSubstitute", "Staff")
 
-		startDate := timezone.TodayDate()
+		startDate := calendar.TodayDate()
 		endDate := startDate.AddDays(7)
 		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
-		options := base.NewQueryOptions()
+		options := testpkg.NewQueryOptions()
 		options.WithPagination(1, 10)
 
 		subs, err := repo.ListWithOptions(ctx, options)
@@ -268,14 +266,14 @@ func TestGroupSubstitutionRepository_FindByGroup(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds substitutions by group ID", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubByGroup")
 		substitute := testpkg.CreateTestStaff(t, db, "ByGroupSubstitute", "Staff")
 
-		startDate := timezone.TodayDate()
+		startDate := calendar.TodayDate()
 		endDate := startDate.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
@@ -303,7 +301,7 @@ func TestGroupSubstitutionRepository_Create_Validation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil substitution", func(t *testing.T) {
@@ -316,9 +314,9 @@ func TestGroupSubstitutionRepository_Create_Validation(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubValidation")
 		substitute := testpkg.CreateTestStaff(t, db, "ValidationSub", "Staff")
 
-		today := timezone.TodayDate()
-		sub := &education.GroupSubstitution{
-			TargetType:        education.GroupSubstitutionTypeGroupHandover,
+		today := calendar.TodayDate()
+		sub := &testpkg.EducationGroupSubstitution{
+			TargetType:        testpkg.EducationGroupSubstitutionTypeGroupHandover,
 			GroupID:           group.ID,
 			SubstituteStaffID: substitute.ID,
 			StartDate:         today,
@@ -335,7 +333,7 @@ func TestGroupSubstitutionRepository_Update_Validation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil substitution", func(t *testing.T) {
@@ -354,15 +352,15 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("filters by active status", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveFilter")
 		substitute := testpkg.CreateTestStaff(t, db, "ActiveFilterSub", "Staff")
 
-		startDate := timezone.NewDate(2000, 1, 1)
-		endDate := timezone.NewDate(2100, 1, 1)
+		startDate := calendar.NewDate(2000, 1, 1)
+		endDate := calendar.NewDate(2100, 1, 1)
 		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		filters := map[string]interface{}{
@@ -378,7 +376,7 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubDateFilter")
 		substitute := testpkg.CreateTestStaff(t, db, "DateFilterSub", "Staff")
 
-		today := timezone.NewDate(2026, 8, 24)
+		today := calendar.NewDate(2026, 8, 24)
 		startDate := today
 		endDate := today.AddDays(7)
 		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
@@ -396,12 +394,12 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubReasonFilter")
 		substitute := testpkg.CreateTestStaff(t, db, "ReasonFilterSub", "Staff")
 
-		today := timezone.NewDate(2026, 8, 24)
+		today := calendar.NewDate(2026, 8, 24)
 		startDate := today
 		endDate := today.AddDays(7)
 
-		sub := &education.GroupSubstitution{
-			TargetType:        education.GroupSubstitutionTypeGroupHandover,
+		sub := &testpkg.EducationGroupSubstitution{
+			TargetType:        testpkg.EducationGroupSubstitutionTypeGroupHandover,
 			GroupID:           group.ID,
 			SubstituteStaffID: substitute.ID,
 			StartDate:         startDate,
@@ -439,7 +437,7 @@ func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
+	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("loads relations for multiple substitutions", func(t *testing.T) {
@@ -447,7 +445,7 @@ func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
 		substitute1 := testpkg.CreateTestStaff(t, db, "Sub1", "Person")
 		substitute2 := testpkg.CreateTestStaff(t, db, "Sub2", "Person")
 
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 		startDate := today
 		endDate := today.AddDays(7)
 
@@ -455,8 +453,8 @@ func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
 		sub2 := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute2.ID, startDate, endDate)
 
 		// List with relations
-		options := base.NewQueryOptions()
-		filter := base.NewFilter()
+		options := testpkg.NewQueryOptions()
+		filter := testpkg.NewQueryFilter()
 		filter.Equal("group_id", group.ID)
 		options.Filter = filter
 
@@ -476,8 +474,8 @@ func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
 	})
 
 	t.Run("handles empty result set", func(t *testing.T) {
-		options := base.NewQueryOptions()
-		filter := base.NewFilter()
+		options := testpkg.NewQueryOptions()
+		filter := testpkg.NewQueryFilter()
 		filter.Equal("group_id", int64(999999)) // Non-existent
 		options.Filter = filter
 

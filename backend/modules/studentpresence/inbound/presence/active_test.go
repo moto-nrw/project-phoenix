@@ -296,7 +296,7 @@ func TestEndActiveGroup(t *testing.T) {
 		rr := testutil.ExecuteWithAuthPermissions(t, disabledRouter, req, adminClaims, []string{permissions.GroupsUpdate})
 
 		testutil.AssertForbidden(t, rr)
-		assert.Contains(t, rr.Body.String(), common.ErrCodeAttendanceWebDisabled)
+		assert.Contains(t, rr.Body.String(), common.CodeAttendanceWebDisabled)
 		assert.Zero(t, recordingService.endCalls, "the disabled route must not invoke group teardown")
 		stored, err := tc.resource.Presence.ListLiveGroups(settingCtx, []int64{activeGroup.ID})
 		require.NoError(t, err)
@@ -1324,7 +1324,7 @@ func TestAddGroupToCombination(t *testing.T) {
 		require.Equal(t, testutil.StatusOK, first.Code, first.Body.String())
 		second := testutil.ExecuteWithAuthPermissions(t, router, testutil.NewJSONRequest(t, "POST", "/active/mappings/add", body), adminClaims, []string{permissions.GroupsUpdate})
 		assert.Equal(t, testutil.StatusBadRequest, second.Code, second.Body.String())
-		assert.Contains(t, second.Body.String(), "Group Already In Combination")
+		assert.Contains(t, second.Body.String(), "group already part of this combination")
 	})
 
 	t.Run("error with invalid combined group id", func(t *testing.T) {

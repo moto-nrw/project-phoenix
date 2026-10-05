@@ -4,9 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"time"
-
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // scheduleOutboxWorkerTask registers the platform email outbox tick.
@@ -33,7 +30,7 @@ func (s *Scheduler) runOutboxWorkerTaskPolling(task *ScheduledTask) {
 // to 30s when no override exists. Same fallback chain pattern as the
 // activate-students interval.
 func (s *Scheduler) resolveOutboxInterval() time.Duration {
-	seconds := s.resolveIntSetting(context.Background(), configModel.KeyEnrollmentOutboxWorkerIntervalSeconds, "", 30)
+	seconds := s.resolveIntSetting(context.Background(), settingEnrollmentOutboxWorkerIntervalSeconds, "", 30)
 	if seconds < 1 {
 		seconds = 30
 	}
@@ -46,8 +43,8 @@ func (s *Scheduler) resolveOutboxInterval() time.Duration {
 // tune retry budget without restart.
 func (s *Scheduler) runOutboxOnce(ctx context.Context, task *ScheduledTask) {
 	started := time.Now()
-	if !s.tenantRuntimeConfigured {
-		recordJobCommandFailure(ctx, tenant.ErrRuntimeRequired)
+	if s.tenantRuntime == nil {
+		recordJobCommandFailure(ctx, errTenantRuntimeRequired)
 		s.observeTenantRuntime("missing_tenant")
 		s.getLogger().Error("outbox worker runtime is not configured")
 		return
@@ -65,7 +62,7 @@ func (s *Scheduler) runOutboxOnce(ctx context.Context, task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	maxAttempts := s.resolveIntSetting(context.Background(), configModel.KeyEnrollmentOutboxMaxAttempts, "", 6)
+	maxAttempts := s.resolveIntSetting(context.Background(), settingEnrollmentOutboxMaxAttempts, "", 6)
 
 	ctx, cancel := s.taskContext(ctx, 5*time.Minute)
 	defer cancel()

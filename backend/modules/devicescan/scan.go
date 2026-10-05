@@ -12,7 +12,7 @@ import (
 // them; the HTTP adapter puts them on the wire unchanged (#2698).
 const (
 	MessageRFIDTagNotFound              = "RFID tag not found"
-	CodeRFIDTagNotFound                 = "rfid_tag_not_found"
+	CodeRFIDTagNotFound                 = "iot.rfid_tag_not_found"
 	MessageRFIDTagUnassigned            = "RFID tag not assigned to any person"
 	MessageRFIDTagNotStudentOrStaff     = "RFID tag not assigned to student or staff"
 	MessagePersonNotStudent             = "person is not a student"

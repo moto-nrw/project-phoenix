@@ -463,10 +463,10 @@ src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1335 text-[11px]
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@231 text-[11px]@271
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@213
-src/components/active-supervisions/planned-now-section.tsx|text-[11px]@425
+src/components/active-supervisions/planned-now-section.tsx|text-[11px]@431
 src/components/activities/activity-management-modal.tsx|text-[10px]@330 text-[10px]@359 text-[10px]@396
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
-src/components/calendar/personal-calendar.tsx|text-[11px]@786 text-[11px]@814 text-[11px]@901 text-[11px]@962 text-[11px]@966 text-[11px]@972 text-[11px]@1018 text-[11px]@1024 text-[10px]@1044 text-[11px]@1097 text-[11px]@1177 text-[11px]@1183 text-[11px]@1188
+src/components/calendar/personal-calendar.tsx|text-[11px]@807 text-[11px]@835 text-[11px]@922 text-[11px]@983 text-[11px]@987 text-[11px]@993 text-[11px]@1039 text-[11px]@1045 text-[10px]@1065 text-[11px]@1118 text-[11px]@1198 text-[11px]@1204 text-[11px]@1209
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@40 text-[10px]@94
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@920 text-[11px]@939
 src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1349
@@ -480,29 +480,29 @@ src/components/parent/parent-enroll-picker.tsx|text-[11px]@205 text-[11px]@209
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/planning/closing-day-marker.tsx|text-[10px]@53
 src/components/staff/absence-request-row.tsx|text-[11px]@107
-src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@468 text-[11px]@564 text-[11px]@573 text-[11px]@580 text-[10px]@714
+src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@480 text-[11px]@576 text-[11px]@585 text-[11px]@592 text-[10px]@726
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
-src/components/students/care-schedule-manager.tsx|text-[10px]@1201 text-[11px]@1362 text-[11px]@1451 text-[11px]@1461 text-[11px]@1491
+src/components/students/care-schedule-manager.tsx|text-[10px]@1223 text-[11px]@1384 text-[11px]@1473 text-[11px]@1483 text-[11px]@1513
 src/components/students/planned-status-days-modal.tsx|text-[10px]@927 text-[11px]@927
 src/components/students/school-checkin-fab.tsx|text-[10px]@198
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
-src/components/time-tracking/leave-requests-card.tsx|text-[10px]@488
-src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@377
+src/components/time-tracking/leave-requests-card.tsx|text-[10px]@538
+src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@366
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@437 text-[11px]@479
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@295 text-[11px]@301
-src/components/timetable/event-form/step-termin.tsx|text-[10px]@157 text-[11px]@227 text-[11px]@260 text-[11px]@321 text-[11px]@327 text-[11px]@375
+src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@340 text-[11px]@346 text-[11px]@394
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
-src/components/timetable/instance-block.tsx|text-[10px]@212 text-[10px]@218 text-[10px]@225 text-[10px]@233 text-[10px]@269
-src/components/timetable/instance-detail-modal.tsx|text-[10px]@286 text-[9px]@402 text-[9px]@984 text-[11px]@1281 text-[11px]@1307 text-[11px]@1483 text-[10px]@1592 text-[11px]@1615
+src/components/timetable/instance-block.tsx|text-[10px]@289 text-[10px]@328 text-[10px]@335 text-[10px]@345
+src/components/timetable/instance-detail-modal.tsx|text-[10px]@290 text-[9px]@406 text-[9px]@993 text-[11px]@1293 text-[11px]@1319 text-[11px]@1495 text-[10px]@1604 text-[11px]@1627
 src/components/timetable/month-planner-grid.tsx|text-[11px]@65 text-[11px]@141 text-[11px]@150 text-[11px]@171 text-[9px]@203 text-[10px]@237
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@200 text-[10px]@216 text-[11px]@225 text-[10px]@267 text-[10px]@291 text-[10px]@364 text-[10px]@378 text-[10px]@390 text-[11px]@398 text-[11px]@405
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@379 text-[11px]@444
 src/components/timetable/substitution-person-card.tsx|text-[11px]@53 text-[11px]@331 text-[11px]@338 text-[11px]@345 text-[11px]@353 text-[11px]@365
-src/components/timetable/substitution-slide-over.tsx|text-[10px]@546 text-[9px]@551 text-[11px]@704 text-[11px]@708 text-[10px]@748 text-[10px]@752 text-[10px]@756 text-[10px]@760 text-[11px]@1196
-src/components/timetable/template-card.tsx|text-[11px]@118 text-[11px]@130 text-[10px]@173
-src/components/timetable/vertretung-day-list.tsx|text-[11px]@342 text-[11px]@376 text-[11px]@383 text-[11px]@404 text-[11px]@410
+src/components/timetable/substitution-slide-over.tsx|text-[10px]@547 text-[9px]@552 text-[11px]@704 text-[11px]@708 text-[10px]@748 text-[10px]@752 text-[10px]@756 text-[10px]@760 text-[11px]@1196
+src/components/timetable/template-card.tsx|text-[11px]@119 text-[11px]@131 text-[10px]@174
+src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
 src/components/timetable/vertretung-week-list.tsx|text-[10px]@157
-src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@253 text-[9px]@269 text-[10px]@325 text-[11px]@325 text-[11px]@330 text-[10px]@353 text-[10px]@388 text-[11px]@388
+src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@259 text-[9px]@275 text-[10px]@331 text-[11px]@331 text-[11px]@336 text-[10px]@359 text-[10px]@394 text-[11px]@394
 src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
 src/components/ui/location-badge.tsx|text-[11px]@121 text-[11px]@122 text-[10px]@333 text-[10px]@363
@@ -510,9 +510,9 @@ src/components/ui/multi-checkbox-select.tsx|text-[11px]@246
 src/components/ui/notification-badge.tsx|text-[10px]@15
 src/components/ui/origin-chip.tsx|text-[11px]@24
 src/components/ui/page-header/FilterButton.tsx|text-[10px]@61
-src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@452 text-[11px]@522
+src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@463 text-[11px]@535
 src/components/ui/parent-visible-badge.tsx|text-[11px]@44
-src/components/ui/plan-block.tsx|text-[11px]@126 text-[11px]@133
+src/components/ui/plan-block.tsx|text-[11px]@138 text-[11px]@149
 src/components/ui/plan-legend.tsx|text-[11px]@106
 src/components/ui/presence-badge.tsx|text-[11px]@80 text-[11px]@81 text-[10px]@257
 `);

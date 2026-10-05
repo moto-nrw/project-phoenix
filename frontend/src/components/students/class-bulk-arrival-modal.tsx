@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useFormError } from "~/components/ui/form-error";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { ClassArrivalExceptionPanel } from "./class-arrival-exception-panel";
 import type { Student } from "~/lib/api";
 import { createLogger } from "~/lib/logger";
@@ -91,7 +95,13 @@ export function FilteredBulkArrivalModal({
   const [saving, setSaving] = useState(false);
   // Validation and save errors of the form (Bauart 2 Regel 5): shown in the
   // FormModal error slot, not as a toast.
-  const [formError, setFormError] = useFormError();
+  const formErrors = useApiFormError();
+  const clearFormErrors = formErrors.clear;
+  // „Wiederholen“ speichert den aktuellen Entwurf, nicht den vom Fehler.
+  const latestSubmitRef = useRef<() => Promise<void>>(async () => undefined);
+  const classTimesLoad = useApiLoadError();
+  const { show: showClassTimesError, clear: clearClassTimesError } =
+    classTimesLoad;
   const [
     arrivalExceptionConfirmationOpen,
     setArrivalExceptionConfirmationOpen,
@@ -122,6 +132,7 @@ export function FilteredBulkArrivalModal({
     setDraft(initialDraft());
     setLastChanged(null);
     setClassTimesError(false);
+    clearClassTimesError();
     setView("weekly");
     if (!schoolClass) {
       setClassTimesLoading(false);
@@ -148,6 +159,10 @@ export function FilteredBulkArrivalModal({
           error: err instanceof Error ? err.message : String(err),
         });
         setClassTimesError(true);
+        await showClassTimesError(err, {
+          object: "die Klassenzeit",
+          retry: () => setClassTimesLoadAttempt((attempt) => attempt + 1),
+        });
       } finally {
         if (!cancelled) setClassTimesLoading(false);
       }
@@ -157,7 +172,13 @@ export function FilteredBulkArrivalModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, schoolClass, classTimesLoadAttempt]);
+  }, [
+    isOpen,
+    schoolClass,
+    classTimesLoadAttempt,
+    clearClassTimesError,
+    showClassTimesError,
+  ]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -170,6 +191,8 @@ export function FilteredBulkArrivalModal({
         logger.warn("bulk_arrival_schedule_status_fetch_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        // Bewusst still: der Hinweis auf eigene Ankunftszeiten ist nur eine
+        // Zusatzinfo, das Speichern hängt nicht davon ab.
         if (!cancelled) setCollisionCount(0);
       });
     return () => {
@@ -188,6 +211,8 @@ export function FilteredBulkArrivalModal({
         logger.warn("school_periods_fetch_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        // Bewusst still: ohne Schulstunden fehlt nur die Auswahl nach
+        // Stunde, die Uhrzeit lässt sich weiter eintippen.
         if (!cancelled) setSchoolPeriods([]);
       });
     return () => {
@@ -220,13 +245,15 @@ export function FilteredBulkArrivalModal({
 
   const handleSubmit = async () => {
     if (isClassTimetable && (classTimesLoading || classTimesError)) return;
-    setFormError(null);
+    formErrors.clear();
     if (!hasAnyTime) {
-      setFormError("Mindestens eine Zeit angeben");
+      formErrors.invalid("Bitte tragen Sie mindestens eine Zeit ein.");
       return;
     }
     if (hasInvalidEntry) {
-      setFormError("Ungültige Uhrzeit. Format HH:MM.");
+      formErrors.invalid(
+        "Eine Uhrzeit stimmt nicht. Bitte schreiben Sie sie so: 14:30.",
+      );
       return;
     }
 
@@ -242,36 +269,41 @@ export function FilteredBulkArrivalModal({
       await bulkUpsertArrivalSchedules(filter, schedules);
       toastSuccess(
         isClassTimetable
-          ? `Unterrichtsschluss für ${targetTitle} gespeichert`
-          : `Ankunftszeiten für ${targetTitle} gesetzt (${childCountLabel(studentsInFilter.length)})`,
+          ? `Der Unterrichtsschluss für ${targetTitle} ist gespeichert.`
+          : `Die Ankunftszeiten für ${childCountLabel(studentsInFilter.length)} aus ${targetTitle} sind gespeichert.`,
       );
       onSuccess?.();
       onClose();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("failed to bulk upsert arrival schedules", {
         filter_type: filter.type,
-        error: message,
+        error: err instanceof Error ? err.message : String(err),
       });
-      setFormError(`Fehler beim Speichern: ${message}`);
+      await formErrors.show(err, {
+        object: isClassTimetable ? "die Klassenzeit" : "die Ankunftszeit",
+        retry: () => void latestSubmitRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+  useLayoutEffect(() => {
+    latestSubmitRef.current = handleSubmit;
+  });
 
   useEffect(() => {
     if (!isOpen) {
       setArrivalExceptionConfirmationOpen(false);
-      setFormError(null);
+      clearFormErrors();
     }
-  }, [isOpen, setFormError]);
+  }, [isOpen, clearFormErrors]);
 
   return (
     <FormModal
       isOpen={isOpen}
       suspended={arrivalExceptionConfirmationOpen}
       onClose={onClose}
-      error={formError}
+      error={formErrors.error}
       title={
         showDayView
           ? `Ankunftszeit an einem Tag für ${targetTitle}`
@@ -354,22 +386,7 @@ export function FilteredBulkArrivalModal({
               <Alert type="info" message="Klassenzeiten werden geladen." />
             ) : null}
             {classTimesError ? (
-              <Alert
-                type="error"
-                message="Die Klassenzeiten konnten nicht geladen werden. Bitte versuchen Sie es noch einmal."
-                action={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setClassTimesLoadAttempt((attempt) => attempt + 1)
-                    }
-                  >
-                    Erneut laden
-                  </Button>
-                }
-              />
+              <LoadErrorAlert error={classTimesLoad.error} />
             ) : null}
             {collisionCount > 0 ? (
               <Alert type="info" message={collisionMessage} />

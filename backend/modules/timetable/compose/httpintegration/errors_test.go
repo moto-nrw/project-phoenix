@@ -62,7 +62,7 @@ func TestErrorRenderer_ConflictErrors(t *testing.T) {
 			assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 			assert.Equal(t, "error", resp.Status)
 			if tt.baseErr == activities.ErrOnlySupervisorRequiresReplacement {
-				assert.Equal(t, "ONLY_SUPERVISOR_REPLACEMENT_REQUIRED", resp.Code)
+				assert.Equal(t, "timetable.only_supervisor_replacement_required", resp.Code)
 			}
 		})
 	}

@@ -21,6 +21,7 @@ import {
   setFamilyProtection,
 } from "~/lib/change-request-list-api";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 
 import { fetchCareWithdrawals } from "~/lib/care-exit-api";
 
@@ -1062,7 +1063,9 @@ describe("AggregatedRequestList", () => {
     );
     mockListOpen
       .mockResolvedValueOnce({ items: firstPage, next_cursor: "cursor-1" })
-      .mockRejectedValueOnce(new Error("page unavailable"))
+      .mockRejectedValueOnce(
+        new ApiError("page unavailable", 503, { code: "general.unavailable" }),
+      )
       .mockResolvedValueOnce({
         items: [
           {
@@ -1081,7 +1084,9 @@ describe("AggregatedRequestList", () => {
     render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
 
     expect(
-      await screen.findByText("Weitere Anfragen konnten nicht geladen werden."),
+      await screen.findByText(
+        "Die Liste der Anfragen ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+      ),
     ).toBeVisible();
     await act(async () => {});
     expect(mockListOpen).toHaveBeenCalledTimes(2);
@@ -1093,7 +1098,7 @@ describe("AggregatedRequestList", () => {
     expect(await screen.findByText("excused-item-26")).toBeVisible();
     expect(mockListOpen).toHaveBeenCalledTimes(3);
     expect(
-      screen.queryByText("Weitere Anfragen konnten nicht geladen werden."),
+      screen.queryByText(/Die Liste der Anfragen ist gerade nicht erreichbar/),
     ).toBeNull();
   });
 
@@ -1211,13 +1216,54 @@ describe("AggregatedRequestList", () => {
     ).toBeInTheDocument();
   });
 
-  it("zeigt eine Fehlermeldung, wenn das Laden scheitert", async () => {
-    mockListOpen.mockRejectedValue(new Error("kaputt"));
+  it("zeigt einen Ladefehler vor Ort mit Vorgangskennung und Wiederholen", async () => {
+    mockListOpen
+      .mockRejectedValueOnce(
+        new ApiError("kaputt", 500, {
+          code: "general.server",
+          instance: "req-list",
+        }),
+      )
+      .mockResolvedValueOnce({ items: [] });
 
     render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
 
     expect(
-      await screen.findByText("Anfragen konnten nicht geladen werden."),
+      await screen.findByText(
+        "Die Liste der Anfragen konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+      ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-list");
+    // Ein Ladefehler ist kein Toast und kein Leerzustand.
+    expect(
+      screen.queryByRole("alert", { name: /^Fehler:/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/keine offenen Anfragen/i)).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.queryByText(/konnte nicht bearbeitet werden/)).toBeNull(),
+    );
+  });
+
+  it("meldet das fehlende Recht über den Code, nicht über den Backend-Satz", async () => {
+    mockListOpen.mockRejectedValue(
+      new ApiError("absence read required", 403, {
+        code: "students.absence_read_required",
+      }),
+    );
+
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+
+    expect(
+      await screen.findByText(
+        /^Für die Liste der Anfragen brauchen Sie zusätzlich das Recht/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("absence read required")).toBeNull();
   });
 });

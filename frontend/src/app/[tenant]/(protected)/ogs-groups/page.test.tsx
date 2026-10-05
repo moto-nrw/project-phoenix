@@ -445,6 +445,16 @@ vi.mock("lucide-react", () => ({
       more
     </span>
   ),
+  // Der Umschalter Kacheln/Liste in der Kopfkarte (#3834).
+  LayoutGrid: ({ className }: { className?: string }) => (
+    <span data-testid="lucide-layout-grid" className={className} />
+  ),
+  List: ({ className }: { className?: string }) => (
+    <span data-testid="lucide-list" className={className} />
+  ),
+  Check: ({ className }: { className?: string }) => (
+    <span data-testid="lucide-check" className={className} />
+  ),
 }));
 
 // Mock the school-checkin FAB so existing tests don't need to care about
@@ -462,6 +472,10 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
     pendingIds: new Set<string>(),
     successCount: 0,
     toggle: vi.fn(),
+    selectedIds: new Set<string>(),
+    setSelected: vi.fn(),
+    clearSelection: vi.fn(),
+    isBulkRunning: false,
   }),
   deriveCheckinState: () => "unknown",
 }));
@@ -1029,6 +1043,44 @@ describe("OGSGroupPage additional scenarios", () => {
     await waitFor(() => {
       expect(screen.getByText(/Keine Kinder in/)).toBeInTheDocument();
     });
+  });
+
+  it("keeps the table view when no children match", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({
+        students: [
+          wireStudent({
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+            current_location: "Raum 101",
+          }),
+        ],
+        roomStatus: { "1": { in_group_room: true } },
+      }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Liste" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("data-table-table")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("filter-location-foreign_room"));
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Keine Einträge vorhanden.").length).toBe(2);
+    });
+    expect(screen.queryByTestId("empty-results")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Kacheln" }));
   });
 
   it("renders multiple students in grid", async () => {

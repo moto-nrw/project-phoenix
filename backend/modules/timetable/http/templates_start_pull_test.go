@@ -72,13 +72,13 @@ func TestTemplateUpdateStartDatePullForward(t *testing.T) {
 	// Later than the stored start → German rejection with a stable code.
 	w = doTemplateJSON(t, router, http.MethodPut, putPath, updateBody(oldStart.AddDays(7).String()))
 	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, w.Body.String(), ErrCodeTemplateStartNotEarlier)
+	assert.Contains(t, w.Body.String(), "timetable.template_start_not_earlier")
 	assert.Contains(t, w.Body.String(), "vorgezogen")
 
 	// In the past → German rejection with a stable code.
 	w = doTemplateJSON(t, router, http.MethodPut, putPath, updateBody(calendar.NewDate(2030, 1, 1).String()))
 	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, w.Body.String(), ErrCodeTemplateStartInPast)
+	assert.Contains(t, w.Body.String(), "timetable.template_start_in_past")
 	assert.Contains(t, w.Body.String(), "Vergangenheit")
 
 	// Outside the pinned period → the shared create/update preflight rejects.

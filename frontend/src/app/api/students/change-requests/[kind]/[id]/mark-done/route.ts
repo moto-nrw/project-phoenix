@@ -14,8 +14,8 @@ interface BackendEnvelope<T> {
  * Proxy POST /api/students/change-requests/{kind}/{id}/mark-done → backend
  * (#2267). Schließt eine Anfrage ab, die nur noch vergangene Tage betrifft:
  * nichts wird übernommen, die Zeile verlässt nur die Arbeitsliste. Ein 409
- * `request_not_past` heißt, dass die Anfrage noch kommende Tage betrifft und
- * regulär entschieden werden muss; `change_request_stale` heißt, dass sie
+ * `students.request_not_past` heißt, dass die Anfrage noch kommende Tage betrifft und
+ * regulär entschieden werden muss; `students.change_request_stale` heißt, dass sie
  * inzwischen geändert wurde.
  */
 export const POST = createPostHandler<unknown, MarkDoneBody>(

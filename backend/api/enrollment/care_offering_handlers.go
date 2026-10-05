@@ -52,40 +52,24 @@ type CareOfferingResponse struct {
 	UpdatedAt    time.Time               `json:"updated_at"`
 }
 
-// ErrCodeCareOfferingTemplatePeriodMismatch lets the admin frontend map the
-// authoritative service validation to a localized explanation.
-const ErrCodeCareOfferingTemplatePeriodMismatch = "enrollment.care_offering_template_period_mismatch"
-
-// ErrCodeCareOfferingInUse identifies a delete blocked by existing enrollment
-// selections without exposing PostgreSQL constraint names to the client.
-const ErrCodeCareOfferingInUse = "enrollment.care_offering_in_use"
-
-// ErrCodeCareOfferingDaysRequired identifies a save without any weekday so
-// the admin editor can show a localized message (#1885).
-const ErrCodeCareOfferingDaysRequired = "enrollment.care_offering_days_required"
-
-// ErrCodeCareOfferingPickupTimesRequired identifies an active care offering
-// whose selected weekdays do not all have a pickup time.
-const ErrCodeCareOfferingPickupTimesRequired = "enrollment.care_offering_pickup_times_required"
-
 var careOfferingWriteErrorRenderer = common.RulesRenderer(
 	[]common.ErrorRule{
 		{
 			Target: capability.ErrCareOfferingTemplatePeriodMismatch,
 			Render: func(err error) render.Renderer {
-				return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingTemplatePeriodMismatch)
+				return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingTemplatePeriodMismatch)
 			},
 		},
 		{
 			Target: capability.ErrCareOfferingDaysRequired,
 			Render: func(err error) render.Renderer {
-				return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingDaysRequired)
+				return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingDaysRequired)
 			},
 		},
 		{
 			Target: capability.ErrCareOfferingPickupTimesRequired,
 			Render: func(err error) render.Renderer {
-				return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingPickupTimesRequired)
+				return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingPickupTimesRequired)
 			},
 		},
 		{Target: capability.ErrCareOfferingInvalid, Render: common.ErrorInvalidRequest},
@@ -479,7 +463,7 @@ func (rs *Resource) deleteCareOffering(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
 				//nolint:staticcheck // ST1005: user-facing German message
 				errors.New("Das Betreuungsangebot wird bereits verwendet und kann nicht gelöscht werden. Deaktivieren Sie es stattdessen."),
-				ErrCodeCareOfferingInUse,
+				common.CodeEnrollmentCareOfferingInUse,
 			))
 			return
 		}
@@ -579,20 +563,6 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 	}, "Public care offerings retrieved")
 }
 
-// ErrCodeEnrollmentDisabled is the stable code returned by every public
-// enrollment-data endpoint (phases, schema, care offerings) when the
-// tenant has toggled "Anmeldung aktiv" off. The frontend maps it to a
-// friendly German notice and suppresses generic error banners. Keep in
-// sync with the matching entry in
-// frontend/src/lib/enrollment-submission-api.ts.
-const ErrCodeEnrollmentDisabled = "enrollment.disabled"
-
-// ErrCodeEnrollmentWindowClosed is returned by the public form-load
-// endpoints when a direct/stale parent link points at a phase whose
-// enrollment window is closed (or not yet open). Keep in sync with the
-// matching entry in frontend/src/lib/enrollment-error-messages.ts.
-const ErrCodeEnrollmentWindowClosed = "enrollment.window_closed"
-
 // renderPublicEnrollmentError renders the error chain returned from a
 // public enrollment endpoint. Disabled-tenant errors get a 404 with a
 // stable code so the parent landing page can render the localized
@@ -603,15 +573,15 @@ const ErrCodeEnrollmentWindowClosed = "enrollment.window_closed"
 // not found" / "phase not found" messages still work.
 func renderPublicEnrollmentError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, capability.ErrEnrollmentDisabled) {
-		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, ErrCodeEnrollmentDisabled))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentDisabled))
 		return
 	}
 	if errors.Is(err, capability.ErrEnrollmentWindowClosed) {
-		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, ErrCodeEnrollmentWindowClosed))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentWindowClosed))
 		return
 	}
 	if errors.Is(err, capability.ErrLateInviteInvalid) {
-		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, ErrCodeEnrollmentLateInviteInvalid))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentLateInviteInvalid))
 		return
 	}
 	common.RenderError(w, r, common.ErrorNotFound(err))

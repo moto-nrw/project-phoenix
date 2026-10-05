@@ -10,7 +10,7 @@ import { useUnreadCount } from "./use-unread-count";
  * Unread badge AND availability of the Team-Chat in the school portal
  * (#2208). The OGS portal reads the feature flag from its cached tenant
  * metadata; the school portal has no such cache, so the first count fetch
- * doubles as the probe: a `staff_messaging_disabled` answer hides the
+ * doubles as the probe: a `communication.staff_messaging_disabled` answer hides the
  * navigation entry instead of leaving a dead link.
  *
  * `available` is null until the probe answered — the navigation renders the
@@ -21,7 +21,7 @@ import { useUnreadCount } from "./use-unread-count";
  * Team-Chat for the rest of the session, because nothing re-probes on its own
  * before the next focus or SSE event. Such a failure schedules its own retry
  * with a growing delay, so the entry appears as soon as the backend answers
- * again. `staff_messaging_disabled` is a real answer and stops the retries.
+ * again. `communication.staff_messaging_disabled` is a real answer and stops the retries.
  *
  * Both values are bound to the authenticated school session (school + account).
  * SchoolShell stays mounted across a session change, so an unscoped state would

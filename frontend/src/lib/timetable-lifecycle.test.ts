@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   canCompleteInstance,
   canStartPlannedInstance,
+  completeAvailableClock,
   isPlannedStartExpired,
 } from "./timetable-lifecycle";
 
@@ -55,5 +56,21 @@ describe("timetable lifecycle clock", () => {
       true,
     );
     expect(canCompleteInstance(true, "", now)).toBe(true);
+  });
+});
+
+describe("completeAvailableClock", () => {
+  // #3809: with a lead before the planned end, "Beenden ab" names the earlier
+  // time the backend announces, not the planned end.
+  it("names the Berlin time from which a block can be completed", () => {
+    expect(completeAvailableClock("2026-10-02T13:45:00Z", "16:00")).toBe(
+      "15:45",
+    );
+  });
+
+  it("falls back to the planned end without an announced time", () => {
+    expect(completeAvailableClock("", "16:00")).toBe("16:00");
+    expect(completeAvailableClock(undefined, "16:00")).toBe("16:00");
+    expect(completeAvailableClock("kaputt", "16:00")).toBe("16:00");
   });
 });

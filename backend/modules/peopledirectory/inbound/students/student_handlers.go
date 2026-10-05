@@ -135,7 +135,9 @@ func (rs *Resource) buildStudentDetail(r *http.Request, student *Student, person
 // pickup times, the day planning and the care-exit flag to the detail.
 func (rs *Resource) enrichStudentDetailForToday(ctx context.Context, response *StudentDetailResponse, student *Student) error {
 	now := rs.Now()
-	rs.applyStatusDaysForDateToResponse(ctx, &response.StudentResponse, now)
+	if err := rs.applyStatusDaysForDateToResponse(ctx, &response.StudentResponse, now); err != nil {
+		return err
+	}
 
 	attendances := map[int64]*studentpresence.DailyAttendanceStatus{}
 	if response.HasFullAccess {

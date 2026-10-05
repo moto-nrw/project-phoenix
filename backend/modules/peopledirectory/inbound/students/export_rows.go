@@ -473,6 +473,9 @@ func exportIdentityFilterLabels(filters studentExportFilters, planningDate timez
 	if !isToday {
 		labels = append(labels, "Datum: "+planningDate.Format("02.01.2006"))
 	}
+	if len(filters.StudentIDs) > 0 {
+		labels = append(labels, "Nur ausgewählte Kinder")
+	}
 	if filters.Search != "" {
 		labels = append(labels, "Suche: "+filters.Search)
 	}

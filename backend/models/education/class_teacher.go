@@ -3,8 +3,6 @@ package education
 import (
 	"errors"
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // ClassTeacher assigns a staff member to a school class (#1772). The class is
@@ -14,8 +12,8 @@ import (
 // rewrites the student strings. SchoolClass stores the display form as
 // entered; comparisons must go through schoolclass.Normalize.
 type ClassTeacher struct {
-	base.Model `bun:"schema:education,table:class_teachers"`
-	base.TenantModel
+	Model
+	TenantModel
 	StaffID     int64  `bun:"staff_id,notnull" json:"staff_id"`
 	SchoolClass string `bun:"school_class,notnull" json:"school_class"`
 }

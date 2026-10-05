@@ -2,11 +2,8 @@ package education
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 )
 
 func TestGroup_Validate(t *testing.T) {
@@ -64,43 +61,6 @@ func TestGroup_Validate_Normalization(t *testing.T) {
 	}
 }
 
-func TestGroup_SetRoom(t *testing.T) {
-	t.Parallel()
-
-	t.Run("set room", func(t *testing.T) {
-		group := &Group{Name: "Test Group"}
-		room := &facilities.Room{ID: 42, Name: "Room 101"}
-
-		group.SetRoom(room)
-
-		if group.Room != room {
-			t.Error("Group.SetRoom() did not set Room reference")
-		}
-
-		if group.RoomID == nil || *group.RoomID != 42 {
-			t.Errorf("Group.RoomID = %v, want 42", group.RoomID)
-		}
-	})
-
-	t.Run("set nil room", func(t *testing.T) {
-		roomID := int64(42)
-		group := &Group{
-			Name:   "Test Group",
-			RoomID: &roomID,
-		}
-
-		group.SetRoom(nil)
-
-		if group.Room != nil {
-			t.Error("Group.SetRoom(nil) did not clear Room reference")
-		}
-
-		if group.RoomID != nil {
-			t.Error("Group.SetRoom(nil) did not clear RoomID")
-		}
-	})
-}
-
 func TestGroup_HasRoom(t *testing.T) {
 	t.Parallel()
 
@@ -142,46 +102,5 @@ func TestGroup_HasRoom(t *testing.T) {
 				t.Errorf("Group.HasRoom() = %v, want %v", got, tt.expected)
 			}
 		})
-	}
-}
-
-func TestGroup_GetID(t *testing.T) {
-	t.Parallel()
-
-	group := &Group{
-		Model: base.Model{ID: 42},
-		Name:  "Test",
-	}
-
-	if got, ok := group.GetID().(int64); !ok || got != 42 {
-		t.Errorf("GetID() = %v, want 42", group.GetID())
-	}
-}
-
-func TestGroup_GetCreatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	group := &Group{
-		Model: base.Model{CreatedAt: now},
-		Name:  "Test",
-	}
-
-	if got := group.GetCreatedAt(); !got.Equal(now) {
-		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
-	}
-}
-
-func TestGroup_GetUpdatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	group := &Group{
-		Model: base.Model{UpdatedAt: now},
-		Name:  "Test",
-	}
-
-	if got := group.GetUpdatedAt(); !got.Equal(now) {
-		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

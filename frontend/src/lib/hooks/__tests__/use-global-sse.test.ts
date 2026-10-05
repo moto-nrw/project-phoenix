@@ -948,6 +948,7 @@ describe("useGlobalSSE", () => {
         "time-tracking-schedule-targets-2026-07-01-2026-07-31",
         "time-tracking-own-schedule-42",
         "time-tracking-own-shifts-today-2026-07-25",
+        "time-tracking-own-shifts-week-2026-07-21-2026-07-27",
       ]) {
         expect(matcher(`tenant:${key}`), key).toBe(true);
       }

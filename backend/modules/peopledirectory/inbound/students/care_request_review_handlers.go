@@ -81,19 +81,27 @@ func decodeCareRequestDecision(w http.ResponseWriter, r *http.Request) (carerequ
 
 var careRequestDecisionErrorRenderer = common.RulesRenderer(parentRequestRules(
 	common.ErrorRule{Target: carerequests.ErrNotFound, Render: common.ErrorNotFound},
-	common.ErrorRule{Target: carerequests.ErrNotPending, Render: conflictWithCode("change_request_not_pending")},
-	common.ErrorRule{Target: carerequests.ErrGuardianAccessRevoked, Render: conflictWithCode("guardian_access_revoked")},
+	common.ErrorRule{Target: carerequests.ErrNotPending, Render: conflictWithCode(common.CodeStudentsChangeRequestNotPending)},
+	common.ErrorRule{Target: carerequests.ErrGuardianAccessRevoked, Render: conflictWithCode(common.CodeStudentsGuardianAccessRevoked)},
 	common.ErrorRule{Target: carerequests.ErrCareRequestForbidden, Render: common.ErrorForbidden},
-	common.ErrorRule{Target: carerequests.ErrPickupChangeConflict, Render: conflictWithCode("pickup_change_conflict")},
-	common.ErrorRule{Target: carerequests.ErrPickupChangeAlreadyCompleted, Render: conflictWithCode("pickup_change_completed")},
-	common.ErrorRule{Target: carerequests.ErrPickupChangeExpired, Render: conflictWithCode("pickup_change_expired")},
-	common.ErrorRule{Target: carerequests.ErrPickupChangeImpactChanged, Render: conflictWithCode("pickup_change_impact_changed")},
-	common.ErrorRule{Target: carerequests.ErrCareDayManagedByBooking, Render: conflictWithCode("care_day_managed_by_booking")},
+	common.ErrorRule{Target: carerequests.ErrPickupChangeConflict, Render: conflictWithCode(common.CodeStudentsPickupChangeConflict)},
+	common.ErrorRule{Target: carerequests.ErrPickupChangeAlreadyCompleted, Render: conflictWithCode(common.CodeStudentsPickupChangeCompleted)},
+	common.ErrorRule{Target: carerequests.ErrPickupChangeExpired, Render: conflictWithCode(common.CodeStudentsPickupChangeExpired)},
+	common.ErrorRule{Target: carerequests.ErrPickupChangeImpactChanged, Render: conflictWithCode(common.CodeStudentsPickupChangeImpactChanged)},
+	common.ErrorRule{Target: carerequests.ErrCareDayManagedByBooking, Render: conflictWithCode(common.CodeStudentsCareDayManagedByBooking)},
 	common.ErrorRule{Match: isInvalidCareRequestDecision, Render: common.ErrorInvalidRequest},
 ), careRequestDecisionFallback)
 
 func conflictWithCode(code string) func(error) render.Renderer {
 	return func(err error) render.Renderer { return common.ErrorConflictWithCode(err, code) }
+}
+
+func invalidWithCode(code string) func(error) render.Renderer {
+	return func(err error) render.Renderer { return common.ErrorInvalidRequestWithCode(err, code) }
+}
+
+func notFoundWithCode(code string) func(error) render.Renderer {
+	return func(err error) render.Renderer { return common.ErrorNotFoundWithCode(err, code) }
 }
 
 func careRequestDecisionFallback(err error) render.Renderer {

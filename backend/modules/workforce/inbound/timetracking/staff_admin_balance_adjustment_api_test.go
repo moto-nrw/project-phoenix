@@ -156,7 +156,7 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 		rec := do(http.MethodPost, adjustmentsPath,
 			fmt.Sprintf(`{"type":"payout","minutes_delta":-1,"effective_date":"%s","note":"Ungedeckter Abzug"}`, resetDate), token)
 		require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
-		assert.Contains(t, rec.Body.String(), `"code":"balance_adjustment_exceeds_balance"`)
+		assert.Contains(t, rec.Body.String(), `"code":"workforce.balance_adjustment_exceeds_balance"`)
 	})
 
 	// Accrue four hours before exercising payout and reset behavior. The source
@@ -204,23 +204,23 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 		rec = do(http.MethodPost, resetPath,
 			fmt.Sprintf(`{"effective_date":"%s","carryover_minutes":0,"note":"Doppelklick"}`, resetDate), token)
 		require.Equal(t, http.StatusConflict, rec.Code, "second reset for the same date must conflict: %s", rec.Body.String())
-		assert.Contains(t, rec.Body.String(), `"code":"balance_already_reset"`)
+		assert.Contains(t, rec.Body.String(), `"code":"workforce.balance_already_reset"`)
 
 		rec = do(http.MethodDelete, fmt.Sprintf("%s/%d", adjustmentsPath, payoutID), "", token)
 		require.Equal(t, http.StatusConflict, rec.Code, "an adjustment used by a later reset must not be deleted: %s", rec.Body.String())
-		assert.Contains(t, rec.Body.String(), `"code":"dependent_balance_reset"`)
+		assert.Contains(t, rec.Body.String(), `"code":"workforce.dependent_balance_reset"`)
 	})
 
 	t.Run("writes before an existing reset conflict", func(t *testing.T) {
 		rec := do(http.MethodPost, adjustmentsPath,
 			fmt.Sprintf(`{"type":"comp_time","minutes_delta":-30,"effective_date":"%s","note":"Nachträglich"}`, resetDate), token)
 		require.Equal(t, http.StatusConflict, rec.Code, "same-day writes after a reset must conflict: %s", rec.Body.String())
-		assert.Contains(t, rec.Body.String(), `"code":"dependent_balance_reset"`)
+		assert.Contains(t, rec.Body.String(), `"code":"workforce.dependent_balance_reset"`)
 
 		rec = do(http.MethodPost, resetPath,
 			fmt.Sprintf(`{"effective_date":"%s","carryover_minutes":0,"note":"Früherer Reset"}`, resetDate.AddDays(-1)), token)
 		require.Equal(t, http.StatusConflict, rec.Code, "a reset before a later reset must conflict: %s", rec.Body.String())
-		assert.Contains(t, rec.Body.String(), `"code":"dependent_balance_reset"`)
+		assert.Contains(t, rec.Body.String(), `"code":"workforce.dependent_balance_reset"`)
 	})
 
 	t.Run("open-day resets rejected", func(t *testing.T) {

@@ -34,7 +34,7 @@ const PRIVACY_CONSENT_SAVED_DETAIL = "privacy_consent_saved";
  * Re-shapes a failed student PUT into the SAME wire error plus that detail.
  *
  * Everything the client branches on has to survive untouched: the HTTP status
- * (`companions_changed` and the plan conflict are both 409s), the `code`, and
+ * (`students.companions_changed` and the plan conflict are both 409s), the `code`, and
  * the top-level `conflicts` list the confirmation dialog is built from. So the
  * backend payload is parsed and re-emitted rather than replaced, and only
  * `details` grows a key.
@@ -258,7 +258,7 @@ export const PUT = createPutHandler<
       // and the client's retry replays the identical, idempotent write. The
       // student PUT is not replayable that cheaply — it carries the companion
       // fingerprint (#1694), so once it commits, a retry of the same payload is
-      // refused as `companions_changed` and costs the user a reload. Running it
+      // refused as `students.companions_changed` and costs the user a reload. Running it
       // last means a reported failure never hides a committed companion write.
       //
       // What that ordering cannot do is make the pair atomic: they are two
@@ -340,7 +340,7 @@ export const PUT = createPutHandler<
       // fail the request: everything is committed at this point, and turning an
       // unreadable GET into a 500 would send the client down its generic save
       // failure path for a write that succeeded (and, with companions in the
-      // payload, into a `companions_changed` conflict on the retry). We know
+      // payload, into a `students.companions_changed` conflict on the retry). We know
       // what was just written, so fall back to it; with nothing written, the
       // keys stay out and the client keeps the consent state it already holds.
       const consentData = await fetchPrivacyConsent(id, apiGet, token).catch(

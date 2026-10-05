@@ -10,6 +10,7 @@ import {
   fetchWithRetry,
   ApiResponseError,
 } from "./api-helpers";
+import { ApiError } from "./api-error";
 import {
   extractParams,
   handleApiError,
@@ -263,7 +264,7 @@ describe("handleApiError", () => {
     const backendJson = JSON.stringify({
       status: "error",
       error: "account already has access to tenant",
-      code: "ACCOUNT_ALREADY_HAS_TENANT_ACCESS",
+      code: "identity.account_already_has_tenant_access",
     });
     const error = new Error(`API error (409): ${backendJson}`);
 
@@ -272,7 +273,7 @@ describe("handleApiError", () => {
 
     expect(response.status).toBe(409);
     expect(body.error).toBe("account already has access to tenant");
-    expect(body.code).toBe("ACCOUNT_ALREADY_HAS_TENANT_ACCESS");
+    expect(body.code).toBe("identity.account_already_has_tenant_access");
   });
 
   it("omits code field when backend JSON has no code", async () => {
@@ -331,9 +332,10 @@ describe("handleApiError", () => {
   // empty and "Ergänzen und speichern" loops on the same 409 forever.
   it("forwards the top-level conflicts array of a companion-plan 409", async () => {
     const backendJson = JSON.stringify({
-      conflicts: [{ student_id: 42, weekdays: ["mon", "tue"] }],
-      message:
+      status: "error",
+      error:
         "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+      conflicts: [{ student_id: 42, weekdays: ["mon", "tue"] }],
     });
     const error = new Error(`API error (409): ${backendJson}`);
 
@@ -684,6 +686,20 @@ describe("authFetch", () => {
       authFetch("http://api.test/endpoint", { token: "test-token" }),
     ).rejects.toThrow("API error (404): Not Found");
   });
+
+  it("normalizes a transport failure as a retryable unavailable error", async () => {
+    mockFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    const error = await authFetch("http://api.test/endpoint").catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 503,
+      code: "general.unavailable",
+    });
+  });
 });
 
 describe("fetchWithRetry", () => {
@@ -767,6 +783,31 @@ describe("fetchWithRetry", () => {
     expect(result.response).toBeNull();
     expect(result.data).toBeNull();
     expect(getNewToken).not.toHaveBeenCalled();
+  });
+
+  it("normalizes a transport failure while retrying after authentication", async () => {
+    mockFetchRetry
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: () => Promise.resolve("Unauthorized"),
+      } as Response)
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    const error = await fetchWithRetry(
+      "http://api.test/endpoint",
+      "old-token",
+      {
+        onAuthFailure: vi.fn().mockResolvedValue(true),
+        getNewToken: vi.fn().mockResolvedValue("new-token"),
+      },
+    ).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 503,
+      code: "general.unavailable",
+    });
   });
 
   it("returns null for 403 Forbidden (access denied)", async () => {

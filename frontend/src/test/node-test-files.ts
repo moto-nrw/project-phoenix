@@ -4,6 +4,7 @@
 // was verified to pass under node. Add a new pure-logic *.test.ts here; files
 // not listed run in happy-dom (app-dom). See docs/agents/frontend-testing.md.
 export const nodeLogicTestFiles = [
+  "scripts/product-screenshots/publish.test.ts",
   "src/app/[tenant]/(protected)/messages/[threadId]/page.test.ts",
   "src/app/[tenant]/(protected)/ogs-groups/components/group-overflow-items.test.ts",
   "src/app/[tenant]/(protected)/ogs-groups/ogs-group-helpers.test.ts",
@@ -107,6 +108,7 @@ export const nodeLogicTestFiles = [
   "src/lib/operator/child-quota.test.ts",
   "src/lib/operator/operator-invitation-helpers.test.ts",
   "src/lib/operator/provisioning-api.test.ts",
+  "src/lib/own-dienstplan-helpers.test.ts",
   "src/lib/parent-message-error.test.ts",
   "src/lib/permission-labels.test.ts",
   "src/lib/pickup-schedule-helpers.test.ts",

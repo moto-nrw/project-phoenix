@@ -11,7 +11,7 @@ interface EditPickupChangeRequestBody {
 /**
  * Proxy PUT /api/parent/me/children/{studentId}/pickup-change-requests/
  * {requestId} → backend. Changes the guardian's own still-pending pickup-time
- * request; 409 `change_request_stale` on a version mismatch.
+ * request; 409 `students.change_request_stale` on a version mismatch.
  */
 export const PUT = proxyPut<unknown, EditPickupChangeRequestBody>(
   (params) =>

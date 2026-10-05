@@ -204,13 +204,6 @@ type splitTemplateResponse struct {
 	InstancesCreated int     `json:"instances_created"`
 }
 
-// ErrCodeTemplateCareOfferingConflict is shared by split, update, end, and
-// archive so the planner can show one localized resolution message for the
-// same cross-domain invariant.
-const ErrCodeTemplateCareOfferingConflict = "timetable.template_care_offering_conflict"
-
-const ErrCodeTemplateRosterRebaseConflict = "timetable.template_roster_rebase_conflict"
-
 func renderTemplateCareOfferingConflict(w http.ResponseWriter, r *http.Request, err error) bool {
 	if !errors.Is(err, timetableModule.ErrTemplateCareOfferingConflict) {
 		return false
@@ -218,7 +211,7 @@ func renderTemplateCareOfferingConflict(w http.ResponseWriter, r *http.Request, 
 	common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
 		//nolint:staticcheck // ST1005: user-facing German message
 		errors.New("Die Änderung ist nicht möglich, weil dadurch ein verknüpftes Betreuungsangebot ungültig würde. Bitte passen Sie zuerst das Angebot oder dessen Stundenplan-Verknüpfung an."),
-		ErrCodeTemplateCareOfferingConflict,
+		common.CodeTimetableTemplateCareOfferingConflict,
 	))
 	return true
 }
@@ -231,7 +224,7 @@ func renderTemplateRosterRebaseConflict(w http.ResponseWriter, r *http.Request, 
 	common.RenderError(w, r, common.ErrorConflictWithCode(
 		//nolint:staticcheck // ST1005: user-facing German message
 		errors.New("Die Zeitraumänderung würde geschützte Kinderzuordnungen zusammenführen. Bitte bereinigen Sie zuerst die betroffenen Zuordnungen."),
-		ErrCodeTemplateRosterRebaseConflict,
+		common.CodeTimetableTemplateRosterRebaseConflict,
 	))
 	return true
 }

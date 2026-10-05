@@ -235,5 +235,5 @@ func TestLogin_GuardianOnlyReturnsParentPortalCode(t *testing.T) {
 		Code   string `json:"code"`
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
-	assert.Equal(t, "use_parent_portal", body.Code)
+	assert.Equal(t, "identity.use_parent_portal", body.Code)
 }

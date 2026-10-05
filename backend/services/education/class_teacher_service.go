@@ -2,13 +2,10 @@ package education
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"sort"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/education"
 )
 
@@ -17,11 +14,12 @@ import (
 // maps it to 404); any other failure (aborted tenant tx, dropped connection)
 // keeps its cause and surfaces as a 500 instead of a lying "nicht gefunden".
 func (s *service) requireStaff(ctx context.Context, op string, staffID int64) error {
-	if _, err := s.staffRepo.FindByID(ctx, staffID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return &EducationError{Op: op, Err: ErrStaffNotFound}
-		}
+	exists, err := s.staff.StaffExists(ctx, staffID)
+	if err != nil {
 		return &EducationError{Op: op, Err: err}
+	}
+	if !exists {
+		return &EducationError{Op: op, Err: ErrStaffNotFound}
 	}
 	return nil
 }
@@ -150,11 +148,9 @@ func (s *service) auditSchoolClassChange(
 		return nil
 	}
 
-	return s.masterDataAudit.Create(ctx, &auditModels.StaffMasterDataChange{
+	return s.masterDataAudit.RecordSchoolClassChange(ctx, education.SchoolClassChange{
 		StaffID:   staffID,
 		ChangedBy: changedBy,
-		Section:   auditModels.StammdatenSectionSchoolClasses,
-		FieldName: "school_classes",
 		OldValue:  oldValue,
 		NewValue:  newValue,
 	})

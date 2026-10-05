@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AbsenceType } from "~/lib/absence-type-api";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { suppressConsole } from "~/test/helpers/console";
 
 vi.mock("~/components/ui/date-picker", async () =>
@@ -28,7 +30,12 @@ vi.mock("~/components/ui/modal", () => ({
 const stable = vi.hoisted(() => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
-vi.mock("~/contexts/ToastContext", () => ({ useToast: () => stable.toast }));
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useToast: () => stable.toast,
+  useApiErrorDisplay: () => ({ show: actionErrors.show }),
+}));
+const actionErrors = vi.hoisted(() => ({ show: vi.fn() }));
 
 const mocks = vi.hoisted(() => ({
   getVacationQuota: vi.fn(),
@@ -228,7 +235,9 @@ describe("AbsenceBookingModal", () => {
       }),
     );
     expect(onSaved).toHaveBeenCalled();
-    expect(stable.toast.success).toHaveBeenCalledWith("Urlaub eingetragen.");
+    expect(stable.toast.success).toHaveBeenCalledWith(
+      "Urlaub ist eingetragen.",
+    );
   });
 
   it("blocks a booking beyond the account and says what to do", async () => {
@@ -378,17 +387,28 @@ describe("AbsenceBookingModal", () => {
     });
 
     it("keeps booking blocked while the preview cannot be loaded", async () => {
-      mocks.previewAllowance.mockRejectedValue(new Error("preview down"));
+      mocks.previewAllowance.mockRejectedValue(
+        new ApiError("preview down", 503, {
+          code: "general.unavailable",
+          instance: "req-preview",
+        }),
+      );
       renderModal();
       await screen.findByText("noch 1 Tag");
       choose("Regenerationstag");
 
       expect(
         await screen.findByText(
-          "Die Kontingente konnten nicht geladen werden. Bitte schließen und noch einmal öffnen.",
+          catalogText("general.unavailable", "die Übersicht der Kontingente"),
         ),
       ).toBeInTheDocument();
       expect(submit()).toBeDisabled();
+      // Wiederholen lädt die Vorschau neu, ohne den Dialog zu schließen.
+      const calls = mocks.previewAllowance.mock.calls.length;
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() =>
+        expect(mocks.previewAllowance.mock.calls.length).toBeGreaterThan(calls),
+      );
     });
   });
 
@@ -419,15 +439,23 @@ describe("AbsenceBookingModal", () => {
   });
 
   it("enables booking again after a failed account load succeeds on retry", async () => {
-    mocks.getVacationQuota.mockRejectedValueOnce(new Error("quota down"));
+    mocks.getVacationQuota.mockRejectedValueOnce(
+      new ApiError("quota down", 500, {
+        code: "general.server",
+        instance: "req-quota",
+      }),
+    );
     renderModal();
     choose("Urlaub");
 
     expect(
       await screen.findByText(
-        "Die Kontingente konnten nicht geladen werden. Bitte schließen und noch einmal öffnen.",
+        catalogText("general.server", "die Übersicht der Kontingente"),
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-quota");
     expect(submit()).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText("Von"), {
@@ -440,7 +468,7 @@ describe("AbsenceBookingModal", () => {
     await waitFor(() =>
       expect(
         screen.queryByText(
-          "Die Kontingente konnten nicht geladen werden. Bitte schließen und noch einmal öffnen.",
+          catalogText("general.server", "die Übersicht der Kontingente"),
         ),
       ).not.toBeInTheDocument(),
     );
@@ -449,7 +477,9 @@ describe("AbsenceBookingModal", () => {
 
   it("shows the server's reason when the booking is refused", async () => {
     mocks.createAbsence.mockRejectedValue(
-      new Error("An diesen Tagen ist schon eine Abwesenheit eingetragen."),
+      new ApiError("absence overlaps", 409, {
+        code: "workforce.absence_overlap",
+      }),
     );
     const { onSaved } = renderModal();
     await screen.findByText("noch 12 Tage");
@@ -459,9 +489,10 @@ describe("AbsenceBookingModal", () => {
 
     expect(
       await screen.findByText(
-        "An diesen Tagen ist schon eine Abwesenheit eingetragen.",
+        catalogText("workforce.absence_overlap", "die Abwesenheit"),
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText("absence overlaps")).not.toBeInTheDocument();
     expect(onSaved).not.toHaveBeenCalled();
   });
 
@@ -543,12 +574,23 @@ describe("AbsenceBookingModal", () => {
     });
 
     it("still allows booking when the preview fails to load", async () => {
-      mocks.getCompTimePreview.mockRejectedValue(new Error("preview down"));
+      mocks.getCompTimePreview.mockRejectedValue(
+        new ApiError("preview down", 503, { code: "general.unavailable" }),
+      );
       renderModal();
       await screen.findByText("noch 12 Tage");
       choose("Freizeitausgleich");
 
       await waitFor(() => expect(submit()).toBeEnabled());
+      // Der Ladefehler steht dort, wo die Vorschau fehlt.
+      expect(
+        await screen.findByText(
+          catalogText(
+            "general.unavailable",
+            "die Vorschau für das Stundenkonto",
+          ),
+        ),
+      ).toBeInTheDocument();
     });
 
     it("blocks the submit while a changed range's preview reloads (#2885)", async () => {

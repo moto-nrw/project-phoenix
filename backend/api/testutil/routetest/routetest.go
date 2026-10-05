@@ -323,13 +323,27 @@ func AssertSuccessResponse(t *testing.T, rr *httptest.ResponseRecorder, expected
 	assert.Equal(t, "success", response.Status, "Expected success status. Body: %s", rr.Body.String())
 }
 
-// AssertErrorResponse validates that the response has error status and expected HTTP code.
-// Note: Some handlers return {"status":"Invalid Request"} or {"status":"Not Found"} etc.
-// instead of {"status":"error"}, so we only check the HTTP status code.
+// AssertErrorResponse validates the expected HTTP code and, for a JSON body,
+// the shared error envelope's members a handler writes itself: status "error"
+// and the text in `error`, never `message` (#2507). The remaining problem
+// members are filled by ProblemResponseMiddleware, which handler tests bypass.
 func AssertErrorResponse(t *testing.T, rr *httptest.ResponseRecorder, expectedStatus int) {
 	t.Helper()
 
 	assert.Equal(t, expectedStatus, rr.Code, "Unexpected HTTP status code. Body: %s", rr.Body.String())
+	assertHandlerErrorEnvelope(t, rr)
+}
+
+func assertHandlerErrorEnvelope(t *testing.T, rr *httptest.ResponseRecorder) {
+	t.Helper()
+	var body map[string]json.RawMessage
+	if json.Unmarshal(rr.Body.Bytes(), &body) != nil || body == nil {
+		return // plain-text bodies get their envelope from ProblemResponseMiddleware
+	}
+	if status, ok := body["status"]; ok {
+		assert.JSONEq(t, `"error"`, string(status), "error body status must be \"error\". Body: %s", rr.Body.String())
+	}
+	assert.NotContains(t, body, "message", "error body text belongs in \"error\". Body: %s", rr.Body.String())
 }
 
 // AssertUnauthorized validates a 401 Unauthorized response.
@@ -338,12 +352,11 @@ func AssertUnauthorized(t *testing.T, rr *httptest.ResponseRecorder) {
 	AssertErrorResponse(t, rr, http.StatusUnauthorized)
 }
 
-// AssertForbidden validates a 403 Forbidden response.
-// Note: The authorize middleware returns {"status":"Forbidden"} not {"status":"error"},
-// so we only check the HTTP status code here, not the response body format.
+// AssertForbidden validates a 403 Forbidden response in the shared envelope.
 func AssertForbidden(t *testing.T, rr *httptest.ResponseRecorder) {
 	t.Helper()
 	assert.Equal(t, http.StatusForbidden, rr.Code, "Expected 403 Forbidden. Body: %s", rr.Body.String())
+	assertHandlerErrorEnvelope(t, rr)
 }
 
 // AssertNotFound validates a 404 Not Found response.

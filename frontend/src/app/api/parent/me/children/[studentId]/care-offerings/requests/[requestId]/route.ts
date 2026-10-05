@@ -14,7 +14,7 @@ interface EditOfferingRequestBody {
  * {requestId} → backend. Changes the guardian's own still-open offering change
  * request. The body is the same shape as the create call (`offerings`), so the
  * catalog screen feeds both without renaming a field. 409
- * `change_request_stale` on a version mismatch.
+ * `students.change_request_stale` on a version mismatch.
  */
 export const PUT = proxyPut<unknown, EditOfferingRequestBody>(
   (params) =>

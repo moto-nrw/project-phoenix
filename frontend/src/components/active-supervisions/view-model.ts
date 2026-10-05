@@ -228,6 +228,21 @@ export function hasOwnBlock(
 }
 
 /**
+ * Bulk attendance changes require one current, own supervision. A released
+ * room can mix own blocks, foreign blocks and independent stays, so its rows
+ * remain read-only even when the caller supervises one of its sessions.
+ */
+export function canBulkCheckinFromSupervision(
+  currentRoom: Pick<ActiveSupervisionRoom, "isCurrentUserSupervising"> | null,
+  currentOpenRoom: OpenRoomView | null,
+): boolean {
+  return (
+    currentOpenRoom === null &&
+    currentRoom?.isCurrentUserSupervising === true
+  );
+}
+
+/**
  * Whether the Schulhof head actions („Beaufsichtigen“, „Aufsicht abgeben“,
  * #2161) may act on the session the Schulhof status names. They belong to
  * the yard's own supervision (ADR 0019, point 3). The status names the

@@ -13,6 +13,8 @@ import { BackButton } from "~/components/ui/back-button";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { useApiLoadError } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import { FeedbackHistorySkeleton } from "./page-skeleton";
 import { createLogger } from "~/lib/logger";
 import { fetchStudent } from "~/lib/student-api";
@@ -22,6 +24,9 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 
 const logger = createLogger({ component: "StudentFeedbackHistoryPage" });
+
+const FEATURE_DISABLED_DESCRIPTION =
+  "Die Feedbackhistorie ist für Ihre Schule ausgeschaltet. Sie lässt sich in den Einstellungen unter Datenschutz einschalten.";
 
 const FEEDBACK_HISTORY_DESCRIPTION =
   "Rückmeldungen dieses Kindes im Zeitverlauf.";
@@ -81,7 +86,16 @@ function StudentFeedbackHistoryPageContent() {
   const [student, setStudent] = useState<Student | null>(null);
   const [feedbackHistory, setFeedbackHistory] = useState<FeedbackEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Set at once when a load fails, so no „Kind nicht gefunden“ flashes
+  // while the catalog text is on its way.
+  const [failed, setFailed] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+  const [featureDisabled, setFeatureDisabled] = useState(false);
+  const pageLoad = useApiLoadError();
+  const showPageError = pageLoad.show;
+  const clearPageError = pageLoad.clear;
+  // Bumped by „Wiederholen“ to load the page again.
+  const [attempt, setAttempt] = useState(0);
   const [timeRange, setTimeRange] =
     useState<(typeof timeRangeOptions)[number]["value"]>("7days");
   const [showDetails, setShowDetails] = useState(false);
@@ -94,40 +108,58 @@ function StudentFeedbackHistoryPageContent() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setError(null);
+    setFailed(false);
+    setNotFound(false);
+    setFeatureDisabled(false);
+    clearPageError();
 
     async function loadData() {
-      try {
-        const [studentData, feedbackData] = await Promise.all([
-          fetchStudent(studentId),
-          fetchStudentFeedback(studentId),
-        ]);
-        if (cancelled) return;
-        setStudent(studentData);
-        setFeedbackHistory(feedbackData);
-      } catch (err) {
-        if (cancelled) return;
-        const errMsg = err instanceof Error ? err.message : String(err);
-        logger.error("failed_to_fetch_feedback_history", {
-          error: errMsg,
-        });
-        if (errMsg === "feature_disabled") {
-          setError(
-            "Diese Funktion ist für Ihre Schule deaktiviert. Sie kann in den Einstellungen unter Datenschutz aktiviert werden.",
-          );
-        } else {
-          setError("Fehler beim Laden der Daten.");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+      const [studentResult, feedbackResult] = await Promise.allSettled([
+        fetchStudent(studentId),
+        fetchStudentFeedback(studentId),
+      ]);
+      if (cancelled) return;
+      const studentData =
+        studentResult.status === "fulfilled" ? studentResult.value : null;
+      setStudent(studentData);
+      if (feedbackResult.status === "fulfilled") {
+        setFeedbackHistory(feedbackResult.value);
       }
+      const failure =
+        studentResult.status === "rejected"
+          ? (studentResult.reason as unknown)
+          : feedbackResult.status === "rejected"
+            ? (feedbackResult.reason as unknown)
+            : null;
+      if (failure !== null) {
+        logger.error("failed_to_fetch_feedback_history", {
+          error: failure instanceof Error ? failure.message : String(failure),
+        });
+        // A switched-off feature is a state, not an error. It is read from the
+        // switch in the child's record, never from the text of the 403.
+        const switchedOff =
+          (studentData as { feedback_enabled?: boolean } | null)
+            ?.feedback_enabled === false;
+        if (switchedOff) {
+          setFeatureDisabled(true);
+        } else if (failure instanceof ApiError && failure.status === 404) {
+          setNotFound(true);
+        } else {
+          setFailed(true);
+          void showPageError(failure, {
+            object: "die Feedbackhistorie",
+            retry: () => setAttempt((current) => current + 1),
+          });
+        }
+      }
+      setLoading(false);
     }
 
     void loadData();
     return () => {
       cancelled = true;
     };
-  }, [studentId]);
+  }, [attempt, clearPageError, showPageError, studentId]);
 
   const filteredFeedbackHistory = useMemo(() => {
     if (timeRange === "all") return feedbackHistory;
@@ -232,11 +264,17 @@ function StudentFeedbackHistoryPageContent() {
     : "";
   const errorMessage = loading
     ? null
-    : (error ?? (student ? null : "Kind nicht gefunden"));
+    : featureDisabled
+      ? null
+      : failed
+        ? pageLoad.error
+        : notFound || !student
+          ? "Kind nicht gefunden"
+          : null;
   // Im Fehlerfall führt der Rückweg auf die Liste, sonst auf die Kindakte in
   // den Reiter, aus dem diese Unterseite geöffnet wurde.
   const backReferrer =
-    errorMessage !== null
+    errorMessage !== null || featureDisabled
       ? referrer
       : `/students/${studentId}?from=${referrer}&tab=historie`;
 
@@ -260,12 +298,18 @@ function StudentFeedbackHistoryPageContent() {
         loading={loading}
         error={errorMessage}
         empty={
-          !loading && errorMessage === null && totalFeedback === 0
+          featureDisabled
             ? {
-                title: "Kein Feedback für den ausgewählten Zeitraum vorhanden.",
-                description: "Wählen Sie einen anderen Zeitraum.",
+                title: "Feedbackhistorie ist ausgeschaltet",
+                description: FEATURE_DISABLED_DESCRIPTION,
               }
-            : null
+            : !loading && errorMessage === null && totalFeedback === 0
+              ? {
+                  title:
+                    "Kein Feedback für den ausgewählten Zeitraum vorhanden.",
+                  description: "Wählen Sie einen anderen Zeitraum.",
+                }
+              : null
         }
         actions={
           <SegmentedControl

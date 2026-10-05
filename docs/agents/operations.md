@@ -262,6 +262,37 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
 - Bezels live unchanged in `frontend/scripts/product-screenshots/bezels/`; the
   README there explains how to add one.
 
+### Releases and the Drive upload
+
+- Releases come from release-please (ADR 0042): every push to `main` keeps a
+  release PR with the next version and `CHANGELOG.md`; merging it tags `vX.Y.Z`
+  and publishes the GitHub release (`.github/workflows/release-please.yml`,
+  `release-please-config.json`).
+- `.github/workflows/product-screenshots.yml` runs after each release, on a
+  manually published release, and by hand (`gh workflow run
+  product-screenshots.yml --ref main [-f version=1.4.0]`; empty version = latest
+  `vX.Y.Z` release). A manual run photographs the ref it starts from: `main`
+  for the current state, `--ref v1.4.0` for exactly that release; other
+  branches cannot reach the environment and upload nothing. It seeds a fresh stack, captures every shot, attaches the output as
+  the artifact `product-screenshots-<version>` (7 days) and uploads it to Google
+  Drive: `v<version> (<date>)/` plus `Aktuell/`, whose files keep their Drive
+  file IDs across releases. A shot removed from the list moves to the trash in
+  `Aktuell/` and stays in older version folders. Pull requests that touch the
+  pipeline run the capture without upload.
+- Only Berlin weekdays: on a weekend the run stops before seeding; start it by
+  hand on the next weekday from the release tag.
+- A broken shot fails the capture job, and the upload job never starts, so Drive
+  stays unchanged. The upload adapter (`publish.ts`) checks the output against
+  its manifest and version before touching Drive. If the upload itself fails,
+  rerun the same version: it reuses the existing folders and files. Contract
+  tests:
+  `cd frontend && pnpm exec vitest run scripts/product-screenshots/publish.test.ts`.
+- Drive access: OAuth refresh token of a user account, scope `drive.file`,
+  stored as secrets of the GitHub environment `product-screenshots` (branch
+  `main` and tags `v*` only). Set up or renew with
+  `scripts/product-screenshots-drive-wizard.sh`; renew when the upload fails
+  with `invalid_grant`.
+
 ## PR screenshots and QA evidence
 
 Upload images and videos with `gh --attach` (gh >= 2.99, pinned in

@@ -4,19 +4,22 @@ package education
 import (
 	"context"
 	"errors"
+	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
-// GroupRepository implements education.GroupRepository interface
+// groupTableExpr is the table and alias every group read and write uses.
+const groupTableExpr = `education.groups AS "group"`
+
+// errNilGroup keeps the generic repository's message for a missing group.
+var errNilGroup = fmt.Errorf("%s cannot be nil or zero value", "Group")
+
+// GroupRepository is the School Structure store of education.groups.
 type GroupRepository struct {
-	*base.Repository[*education.Group]
-	db *bun.DB
+	runtime Runtime
 	// rooms resolves Group.Room through the Facilities owner (#2665).
 	rooms RoomDirectory
 	// supervisionStaff resolves the raw supervision references of a group to
@@ -27,31 +30,107 @@ type GroupRepository struct {
 	assignments func(context.Context, []int64, []int64) ([]TeacherGroupID, error)
 }
 
-// NewGroupRepository creates a new GroupRepository
-func NewGroupRepository(db *bun.DB) education.GroupRepository {
-	repo := base.NewRepository[*education.Group](db, "education.groups", "Group")
-	repo.TenantScoped = true
-	return &GroupRepository{
-		Repository: repo,
-		db:         db,
+// NewGroupRepository creates a new GroupRepository on the tenant runtime.
+func NewGroupRepository(runtime Runtime) *GroupRepository {
+	return &GroupRepository{runtime: requireRuntime(runtime)}
+}
+
+// Create inserts a group. A group without a school takes the caller's.
+func (r *GroupRepository) Create(ctx context.Context, group *education.Group) error {
+	if group == nil {
+		return errNilGroup
 	}
+	if err := group.Validate(); err != nil {
+		return err
+	}
+	if group.TenantID == 0 {
+		group.TenantID = r.runtime.TenantID(ctx)
+	}
+	if _, err := r.runtime.DB(ctx).NewInsert().
+		Model(group).
+		ModelTableExpr(`education.groups`).
+		Exec(ctx); err != nil {
+		return &education.DatabaseError{Op: "create", Err: err}
+	}
+	return nil
+}
+
+// FindByID retrieves a group by its ID.
+func (r *GroupRepository) FindByID(ctx context.Context, id any) (*education.Group, error) {
+	return r.findByID(ctx, id, "find by id", false)
+}
+
+// FindByIDForUpdate is FindByID with a row lock held until the surrounding
+// transaction finishes.
+func (r *GroupRepository) FindByIDForUpdate(ctx context.Context, id any) (*education.Group, error) {
+	return r.findByID(ctx, id, "find by id for update", true)
+}
+
+func (r *GroupRepository) findByID(ctx context.Context, id any, op string, lock bool) (*education.Group, error) {
+	group := new(education.Group)
+	query := r.runtime.DB(ctx).NewSelect().
+		Model(group).
+		ModelTableExpr(groupTableExpr).
+		Where(`"group".id = ?`, id)
+	if lock {
+		query = query.For("UPDATE")
+	}
+	query = withTenantFilter(ctx, r.runtime, query, "group")
+	if err := query.Scan(ctx); err != nil {
+		return nil, &education.DatabaseError{Op: op, Err: translateNotFound(err)}
+	}
+	return group, nil
+}
+
+// Update writes a group's columns; exactly one row of the caller's school
+// must change.
+func (r *GroupRepository) Update(ctx context.Context, group *education.Group) error {
+	if group == nil {
+		return errNilGroup
+	}
+	if err := group.Validate(); err != nil {
+		return err
+	}
+	query := r.runtime.DB(ctx).NewUpdate().
+		Model(group).
+		ModelTableExpr(groupTableExpr).
+		WherePK()
+	query = withTenantFilter(ctx, r.runtime, query, "group")
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return &education.DatabaseError{Op: "update", Err: err}
+	}
+	return assertRowsAffected(result, 1, "update Group")
+}
+
+// Delete removes a group of the caller's school.
+func (r *GroupRepository) Delete(ctx context.Context, id any) error {
+	query := r.runtime.DB(ctx).NewDelete().
+		Model((*education.Group)(nil)).
+		ModelTableExpr(groupTableExpr).
+		Where(`"group".id = ?`, id)
+	query = withTenantFilter(ctx, r.runtime, query, "group")
+	if _, err := query.Exec(ctx); err != nil {
+		return &education.DatabaseError{Op: "delete", Err: err}
+	}
+	return nil
 }
 
 // FindByName retrieves a group by its name
 func (r *GroupRepository) FindByName(ctx context.Context, name string) (*education.Group, error) {
 	group := new(education.Group)
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(group).
-		ModelTableExpr(`education.groups AS "group"`).
+		ModelTableExpr(groupTableExpr).
 		Where("LOWER(name) = LOWER(?)", name)
 
-	query = base.WithTenantFilter(ctx, query, "group")
+	query = withTenantFilter(ctx, r.runtime, query, "group")
 
 	err := query.Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
+		return nil, &education.DatabaseError{
 			Op:  "find by name",
-			Err: base.TranslateNotFound(err),
+			Err: translateNotFound(err),
 		}
 	}
 
@@ -65,18 +144,18 @@ func (r *GroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64
 	}
 
 	var groups []*education.Group
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(&groups).
-		ModelTableExpr(`education.groups AS "group"`).
+		ModelTableExpr(groupTableExpr).
 		Where(`"group".id IN (?)`, bun.List(ids))
 
-	query = base.WithTenantFilter(ctx, query, "group")
+	query = withTenantFilter(ctx, r.runtime, query, "group")
 
 	err := query.Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
+		return nil, &education.DatabaseError{
 			Op:  "find by IDs",
-			Err: base.TranslateNotFound(err),
+			Err: translateNotFound(err),
 		}
 	}
 
@@ -96,7 +175,7 @@ func (r *GroupRepository) FindByTeacher(ctx context.Context, teacherID int64) ([
 	}
 	assignments, err := r.assignments(ctx, nil, []int64{teacherID})
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
+		return nil, &education.DatabaseError{
 			Op:  "find by teacher",
 			Err: err,
 		}
@@ -145,7 +224,7 @@ type GroupMembershipPairs struct {
 	// one of these groups on that day. education.group_substitution belongs
 	// to Workforce, so this repository does not read it.
 	GroupIDs []int64
-	On       timezone.Date
+	On       calendar.Date
 }
 
 // SetSupervisionStaffResolver installs the lookup that turns the raw
@@ -163,7 +242,7 @@ func (r *GroupRepository) SetSupervisionStaffResolver(resolve func(ctx context.C
 // teacher assignments come from School Membership through the injected query,
 // the substitutions active on the day from Workforce through the supervision
 // resolver installed by the composition root.
-func (r *GroupRepository) listGroupMembershipPairs(ctx context.Context, groupIDs []int64, on timezone.Date) (GroupMembershipPairs, error) {
+func (r *GroupRepository) listGroupMembershipPairs(ctx context.Context, groupIDs []int64, on calendar.Date) (GroupMembershipPairs, error) {
 	var pairs GroupMembershipPairs
 	if len(groupIDs) == 0 {
 		return pairs, nil
@@ -174,7 +253,7 @@ func (r *GroupRepository) listGroupMembershipPairs(ctx context.Context, groupIDs
 	}
 	assignments, err := r.assignments(ctx, groupIDs, nil)
 	if err != nil {
-		return GroupMembershipPairs{}, &modelBase.DatabaseError{
+		return GroupMembershipPairs{}, &education.DatabaseError{
 			Op:  "list staff IDs by education group IDs (assigned)",
 			Err: err,
 		}
@@ -191,7 +270,7 @@ func (r *GroupRepository) listGroupMembershipPairs(ctx context.Context, groupIDs
 // substitutions active on that day, and nobody else. Resolving a teacher to
 // their staff member, and dropping offboarded teachers and staff, is done by
 // the injected School Membership lookup.
-func (r *GroupRepository) ListStaffIDsByEducationGroupIDs(ctx context.Context, groupIDs []int64, on timezone.Date) ([]education.StaffGroupID, error) {
+func (r *GroupRepository) ListStaffIDsByEducationGroupIDs(ctx context.Context, groupIDs []int64, on calendar.Date) ([]education.StaffGroupID, error) {
 	if len(groupIDs) == 0 {
 		return []education.StaffGroupID{}, nil
 	}
@@ -214,21 +293,21 @@ func (r *GroupRepository) BindRoomDirectory(rooms RoomDirectory) {
 // FindWithRoom retrieves a group with its associated room
 func (r *GroupRepository) FindWithRoom(ctx context.Context, groupID int64) (*education.Group, error) {
 	group := new(education.Group)
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(group).
-		ModelTableExpr(`education.groups AS "group"`).
+		ModelTableExpr(groupTableExpr).
 		Where(`"group".id = ?`, groupID)
 
-	query = base.WithTenantFilter(ctx, query, "group")
+	query = withTenantFilter(ctx, r.runtime, query, "group")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{
+		return nil, &education.DatabaseError{
 			Op:  "find with room",
-			Err: base.TranslateNotFound(err),
+			Err: translateNotFound(err),
 		}
 	}
 	if err := attachRooms(ctx, r.rooms, []*education.Group{group}); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find with room", Err: err}
+		return nil, &education.DatabaseError{Op: "find with room", Err: err}
 	}
 	return group, nil
 }
@@ -244,21 +323,21 @@ func (r *GroupRepository) FindByIDsWithRooms(ctx context.Context, ids []int64) (
 	}
 
 	var groups []*education.Group
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(&groups).
-		ModelTableExpr(`education.groups AS "group"`).
+		ModelTableExpr(groupTableExpr).
 		Where(`"group".id IN (?)`, bun.List(ids))
 
-	query = base.WithTenantFilter(ctx, query, "group")
+	query = withTenantFilter(ctx, r.runtime, query, "group")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{
+		return nil, &education.DatabaseError{
 			Op:  "find by IDs with rooms",
-			Err: base.TranslateNotFound(err),
+			Err: translateNotFound(err),
 		}
 	}
 	if err := attachRooms(ctx, r.rooms, groups); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find by IDs with rooms", Err: err}
+		return nil, &education.DatabaseError{Op: "find by IDs with rooms", Err: err}
 	}
 
 	for _, group := range groups {
@@ -267,55 +346,75 @@ func (r *GroupRepository) FindByIDsWithRooms(ctx context.Context, ids []int64) (
 	return result, nil
 }
 
-// List retrieves groups matching the provided query options
-func (r *GroupRepository) List(ctx context.Context, filters map[string]interface{}) ([]*education.Group, error) {
-	options := modelBase.NewQueryOptions()
-	options.Filter = buildGroupFilter(filters)
-	return r.ListWithOptions(ctx, options)
-}
-
-// buildGroupFilter converts legacy filter map to QueryOptions filter
-func buildGroupFilter(filters map[string]interface{}) *modelBase.Filter {
-	filter := modelBase.NewFilter()
+// List retrieves the groups of the caller's school matching the legacy map
+// filters: "name_like" is a case-insensitive name match, "has_room" selects
+// groups with or without a room, and any other key an equality on that column.
+func (r *GroupRepository) List(ctx context.Context, filters map[string]any) ([]*education.Group, error) {
+	groups := make([]*education.Group, 0)
+	query := r.runtime.DB(ctx).NewSelect().
+		Model(&groups).
+		ModelTableExpr(groupTableExpr)
+	query = withTenantFilter(ctx, r.runtime, query, "group")
 	for field, value := range filters {
 		if value == nil {
 			continue
 		}
-		applyGroupFilterField(filter, field, value)
+		query = applyGroupFilterField(query, field, value)
 	}
-	return filter
+	if err := query.Scan(ctx); err != nil {
+		return nil, &education.DatabaseError{Op: "list with options", Err: err}
+	}
+	return groups, nil
 }
 
-// applyGroupFilterField applies a single filter field
-func applyGroupFilterField(filter *modelBase.Filter, field string, value interface{}) {
+// applyGroupFilterField applies a single legacy map filter.
+func applyGroupFilterField(query *bun.SelectQuery, field string, value any) *bun.SelectQuery {
 	switch field {
 	case "name_like":
 		if strValue, ok := value.(string); ok {
-			filter.ILike("name", "%"+strValue+"%")
+			return query.Where(`"group".name ILIKE ?`, "%"+strValue+"%")
 		}
+		return query
 	case "has_room":
 		if boolValue, ok := value.(bool); ok {
 			if boolValue {
-				filter.IsNotNull("room_id")
-			} else {
-				filter.IsNull("room_id")
+				return query.Where(`"group".room_id IS NOT NULL`)
 			}
+			return query.Where(`"group".room_id IS NULL`)
 		}
+		return query
 	default:
-		filter.Equal(field, value)
+		return query.Where("? = ?", bun.Ident("group."+field), value)
 	}
+}
+
+// applyGroupListQuery applies the overview's filters, shared by the list and
+// the count. Ordering and pagination remain list-only concerns.
+func applyGroupListQuery(query *bun.SelectQuery, params *education.GroupListQuery) *bun.SelectQuery {
+	if params == nil {
+		return query
+	}
+	if params.Name != "" {
+		query = query.Where(`"group".name = ?`, params.Name)
+	}
+	if params.NameContains != "" {
+		query = query.Where(`"group".name ILIKE ?`, "%"+params.NameContains+"%")
+	}
+	if params.RoomID != nil {
+		query = query.Where(`"group".room_id = ?`, *params.RoomID)
+	}
+	return query
 }
 
 // ListWithRooms lists groups and their optional room in one snapshot: the
 // groups from this owner, the rooms from Facilities (#2665).
 func (r *GroupRepository) ListWithRooms(ctx context.Context, params *education.GroupListQuery) ([]*education.Group, error) {
 	groups := make([]*education.Group, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(&groups).
-		ModelTableExpr(`education.groups AS "group"`)
-	query = base.WithTenantFilter(ctx, query, "group")
-	filter := params.Filter().WithTableAlias("group")
-	query = base.ApplyFilter(query, filter)
+		ModelTableExpr(groupTableExpr)
+	query = withTenantFilter(ctx, r.runtime, query, "group")
+	query = applyGroupListQuery(query, params)
 	if params != nil {
 		if params.SortByName {
 			if params.Descending {
@@ -329,12 +428,28 @@ func (r *GroupRepository) ListWithRooms(ctx context.Context, params *education.G
 		}
 	}
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list with options", Err: base.TranslateNotFound(err)}
+		return nil, &education.DatabaseError{Op: "list with options", Err: translateNotFound(err)}
 	}
 	if err := attachRooms(ctx, r.rooms, groups); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list with options", Err: err}
+		return nil, &education.DatabaseError{Op: "list with options", Err: err}
 	}
 	return groups, nil
+}
+
+// CountGroups counts the groups matching the overview's filters, ignoring
+// ordering and pagination.
+func (r *GroupRepository) CountGroups(ctx context.Context, params *education.GroupListQuery) (int, error) {
+	query := r.runtime.DB(ctx).NewSelect().
+		Model((*education.Group)(nil)).
+		ModelTableExpr(groupTableExpr).
+		Column("group.id")
+	query = withTenantFilter(ctx, r.runtime, query, "group")
+	query = applyGroupListQuery(query, params)
+	count, err := query.Count(ctx)
+	if err != nil {
+		return 0, &education.DatabaseError{Op: "count with options", Err: err}
+	}
+	return count, nil
 }
 
 // Exists reports whether a group with the given ID exists in the current
@@ -342,10 +457,9 @@ func (r *GroupRepository) ListWithRooms(ctx context.Context, params *education.G
 // Custom method (Rule 2): the generic shape has no EXISTS projection — going
 // through List/Count would fetch or aggregate rows just to learn a boolean.
 func (r *GroupRepository) Exists(ctx context.Context, id int64) (bool, error) {
-	tenantID := tenant.FromContext(ctx)
-	return base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`education.groups AS "group"`).
-		Where(`"group".tenant_id = ?`, tenantID).
+	return r.runtime.DB(ctx).NewSelect().
+		TableExpr(groupTableExpr).
+		Where(`"group".tenant_id = ?`, r.runtime.TenantID(ctx)).
 		Where(`"group".id = ?`, id).
 		Exists(ctx)
 }

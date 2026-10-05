@@ -1,3 +1,4 @@
+import type { ErrorCode } from "~/lib/error-codes.generated";
 import { readCodedApiError } from "./coded-api-error";
 
 /**
@@ -6,8 +7,8 @@ import { readCodedApiError } from "./coded-api-error";
  * erreicht ist: sonst erhöht das Personal die Raumkapazität, obwohl die
  * Aktivität voll ist.
  */
-export const ROOM_CAPACITY_CODE = "presence.room_capacity_exceeded";
-export const ACTIVITY_PARTICIPANT_LIMIT_CODE =
+export const ROOM_CAPACITY_CODE: ErrorCode = "presence.room_capacity_exceeded";
+export const ACTIVITY_PARTICIPANT_LIMIT_CODE: ErrorCode =
   "presence.activity_participant_limit_reached";
 
 interface CapacityMessageOptions {

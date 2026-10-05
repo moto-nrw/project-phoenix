@@ -16,9 +16,9 @@ import (
 
 // evaluateLifecycleAvailability applies the owner's clock policy to a
 // retained row.
-func evaluateLifecycleAvailability(instance *scheduleModel.ActivityInstance, now time.Time, startLeadMinutes int, enforcePlannedEnd bool) timetable.LifecycleAvailability {
+func evaluateLifecycleAvailability(instance *scheduleModel.ActivityInstance, now time.Time, startLeadMinutes, completeLeadMinutes int, enforcePlannedEnd bool) timetable.LifecycleAvailability {
 	window := timetable.LifecycleWindow{Date: timezone.Date(instance.Date), StartTime: instance.StartTime, EndTime: instance.EndTime, IsSpontaneous: instance.IsSpontaneous}
-	return timetable.EvaluateLifecycleAvailability(window, now, startLeadMinutes, enforcePlannedEnd)
+	return timetable.EvaluateLifecycleAvailability(window, now, startLeadMinutes, completeLeadMinutes, enforcePlannedEnd)
 }
 
 func (s *InstanceLifecycleService) validateStartTime(ctx context.Context, instance *scheduleModel.ActivityInstance, now time.Time) error {
@@ -29,7 +29,7 @@ func (s *InstanceLifecycleService) validateStartTime(ctx context.Context, instan
 	if err != nil {
 		return fmt.Errorf("%w: resolve start lead: %v", timetable.ErrLifecycleSettings, err)
 	}
-	availability := evaluateLifecycleAvailability(instance, now, lead, true)
+	availability := evaluateLifecycleAvailability(instance, now, lead, 0, true)
 	if now.Before(availability.StartAvailableAt) {
 		return fmt.Errorf("%w: available at %s", timetable.ErrInstanceStartTooEarly, availability.StartAvailableAt.Format(time.RFC3339))
 	}
@@ -115,6 +115,9 @@ func (s *InstanceLifecycleService) startableInstance(ctx context.Context, instan
 	if err := s.checkStartable(ctx, instance); err != nil {
 		return nil, err
 	}
+	if err := rejectDutyStart(instance); err != nil {
+		return nil, err
+	}
 	instance, err = s.lockDayAndReload(ctx, instance, "start instance")
 	if err != nil {
 		return nil, err
@@ -130,6 +133,16 @@ func (s *InstanceLifecycleService) checkStartable(ctx context.Context, instance 
 		return fmt.Errorf("%w: cannot start instance in status %q", timetable.ErrInvalidInstanceTransition, instance.Status)
 	}
 	return s.validateStartTime(ctx, instance, s.now())
+}
+
+// rejectDutyStart refuses to open a session for a duty (#3822): a duty has
+// no children to check in, so a session would only show up empty under
+// „Aktuelle Aufsicht“.
+func rejectDutyStart(instance *scheduleModel.ActivityInstance) error {
+	if instance.TemplateType == timetable.GroupTypeDuty {
+		return fmt.Errorf("%w: a duty is not started", timetable.ErrInvalidInstanceTransition)
+	}
+	return nil
 }
 
 // openStartedSession creates the session, its supervisors and absorbs the

@@ -140,27 +140,13 @@ func newErrResponse(status int, err error) *ErrResponse {
 	}
 }
 
-// ErrorInvalidRequest returns a 400 Bad Request error response
+// ErrorInvalidRequest returns a 400 Bad Request error response. A failed
+// ozzo-validation Bind also lists its fields in `errors`.
 func ErrorInvalidRequest(err error) render.Renderer {
-	return newErrResponse(http.StatusBadRequest, err)
+	resp := newErrResponse(http.StatusBadRequest, err)
+	resp.Errors = validationFieldErrors(err)
+	return resp
 }
-
-// CodeCompanionLockBusy marks the retriable 409 raised when a linked child's
-// row is held by a concurrent edit. It exists because the student PUT answers
-// 409 for two very different reasons, and only this one has nothing for the
-// user to confirm — the client keys its "Ergänzen?" question off the ABSENCE of
-// this code (and off the conflicts list the other 409 carries). Every flow that
-// rewrites a departure plan answers with it, so it lives with the shared
-// renderers rather than with one route.
-const CodeCompanionLockBusy = "companion_lock_busy"
-
-// CodeCompanionWouldLoseDeparture marks the 400 raised when removing a link
-// would leave the OTHER child with an accompanied departure plan and no way to
-// say who it walks home with. The client keys the user-actionable German
-// message off this code: the save paths reduce a failed student PUT to a
-// generic "Fehler beim Speichern", which hides the one instruction that lets
-// the user get out of the refusal (fix that child's Heimweg first).
-const CodeCompanionWouldLoseDeparture = "companion_would_lose_departure"
 
 // ErrorInvalidRequestWithCode returns a 400 Bad Request with a stable
 // error code so the frontend can map to a localized German message
@@ -168,6 +154,7 @@ const CodeCompanionWouldLoseDeparture = "companion_would_lose_departure"
 func ErrorInvalidRequestWithCode(err error, code string) render.Renderer {
 	resp := newErrResponse(http.StatusBadRequest, err)
 	resp.Code = code
+	resp.Errors = validationFieldErrors(err)
 	return resp
 }
 
@@ -267,6 +254,15 @@ func ErrorConflictWithCode(err error, code string) render.Renderer {
 	return resp
 }
 
+// ErrorConflictOnField returns a 409 Conflict with a stable code that names
+// the one field the conflict is about, so the form can mark it (#2511).
+func ErrorConflictOnField(err error, code, field string) render.Renderer {
+	resp := newErrResponse(http.StatusConflict, err)
+	resp.Code = code
+	resp.Errors = []FieldError{{Field: field, Reason: resp.ErrorText}}
+	return resp
+}
+
 // ErrorConflictWithDetails returns a 409 Conflict carrying both a stable code
 // and a structured details payload. Use this when the frontend needs concrete
 // fields (e.g. the conflicting session_id) to drive a follow-up action — it
@@ -280,6 +276,16 @@ func ErrorConflictWithDetails(err error, code string, details map[string]any) re
 		Code:           code,
 		Details:        details,
 	}
+}
+
+// ErrorInvalidRequestWithDetails returns a 400 Bad Request carrying a stable
+// code and the values the refused input names (#2514), so the client words
+// the limit itself instead of reading the message.
+func ErrorInvalidRequestWithDetails(err error, code string, details map[string]any) render.Renderer {
+	resp := newErrResponse(http.StatusBadRequest, err)
+	resp.Code = code
+	resp.Details = details
+	return resp
 }
 
 // BusinessRejection is an error a module raises when a valid request cannot

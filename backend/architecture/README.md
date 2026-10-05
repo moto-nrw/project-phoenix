@@ -106,6 +106,56 @@ term through `platform.assert_worker_lease` before they commit, so the tenant
 role needs no grant on the table. Runbook:
 [worker lease](../../docs/operations/worker-lease-2726.md).
 
+#2746 closed the carrier of `services/scheduler`: its 27 keys fell without a
+new rule. The scheduler opens its transactions through its own
+`TenantRuntime` port; `modules/schedulerruntime/jobruntime`
+(`scheduler-runtime`/`postgres`, the role the lease store already holds)
+binds it to the tenant runtime. The settings keys are the scheduler's own
+constants: the Serve root refuses a Worker whose key the registry does not
+define or defines as a secret (`settingsCompose.VerifyPreloadKeys`), and binds
+the minute snapshot to the Settings Platform's cross-tenant read through
+`settingsCompose.NewTenantSnapshots` behind the `SettingsResolver` port; an
+unbindable snapshot fails its school instead of reading the database, and
+`services.TestSchedulerMinuteSnapshotReadsEverySchoolOnce` holds the one-read
+budget over the real binding. The
+overdue tick publishes through `realtimeevents` and reads the day's blocks
+and rooms through ports; the booking audit, the student lifecycle and the
+change-history sweep are ports too. `api/scheduler_ports.go` binds them to
+the retained repositories and services without importing their packages.
+The internal suites compose through test support
+(`testpkg.PassthroughTenantRuntime`, `testpkg.ScriptedTenantRuntime`) instead
+of the repository factory.
+
+#2742 closed the carrier of the retained School Structure packages: its 63
+keys fell together with `api -> api/admin` and `api -> api/groups` (#2750),
+`services/users -> models/education` (#2728), the internal-test
+`models -> models/education` (#2751) and `test -> database/repositories/education`
+(#2748), 350 -> 282. The group routes moved file for file from `api/groups`
+to `modules/schoolstructure/http` (`school-structure`/`http`), the grade
+transition routes from `api/admin` to `workflows/gradetransition/http`
+(`grade-transition`/`http`); the owners `inbound-groups` and `inbound-admin`
+are deleted and their two rules moved to the new points, whose own rules
+name the shared HTTP runtime, the token adapter, the permission registry, the
+tenant runtime and, for the group routes, their own group service and rows
+and the People Directory's public types. The group routes read the children
+and persons of a group through their `GroupPeople` port, which
+`services.NewGroupRoutePeople` binds over the retained person service.
+`services/education` names no foreign model, no ORM and no tenant runtime:
+its writes run on the `Runtime` port `schoolStructureCompose.LegacyRepositoryRuntime`
+binds, the rooms, teachers, staff, caregivers, handovers and both audit
+trails are its own ports over the `models/education` vocabulary (`Teacher`,
+`Caregiver`, `HandoverQuery`, `SubstitutionChange`, `SchoolClassChange`),
+and `database/repositories` and `services` translate the retained rows into
+it. `models/education` carries its row columns itself instead of the shared
+base shapes, keeps the room as its own `GroupRoom` projection and the
+substitution's staff as `SubstitutionStaff`; the repository contracts moved
+to the legacy composition (`database/repositories/education_repositories.go`).
+`database/repositories/education` runs on the same runtime, reads and writes
+`education.groups` with explicit statements and no longer serves the
+Timetable owner's `education.class_arrival_times`. The suites compose through
+`api/testutil` and name the rows through `test`; the two policy rules that
+only those suites used are deleted.
+
 #3349 settles the one table two owners reached for: `users.privacy_consents`
 stays with `student-presence`. The recorded window bounds how long presence
 data is kept, and the GDPR cleanup reads it through that owner's
@@ -2039,11 +2089,11 @@ route path, status code, error string or authorization check changed.
 resources from its configuration and mounts them
 (`inbound-operator.http.organization-tenancy-http`,
 `inbound-operator.http.settings-platform-http`,
-`inbound-operator.http.communication-http`). The operator error body and
-the operator-audited id action live in `api/common` (`OperatorErrResponse`,
-`OperatorAuditedIDAction`), so every half of the operator surface renders
-one wire format; #3231 removed the thin `Err*` delegations `api/operator`
-kept until then.
+`inbound-operator.http.communication-http`). The operator error
+constructors and the operator-audited id action live in `api/common`
+(`Operator*`, `OperatorAuditedIDAction`), so every half of the operator
+surface renders one wire format, the shared error envelope since #2507;
+#3231 removed the thin `Err*` delegations `api/operator` kept until then.
 The three packages are the only packages of their points, which exist only
 in the candidate. The owner rules `organization-tenancy.http.public`,
 `settings-platform.http.organization-public` and `communication.http.public`

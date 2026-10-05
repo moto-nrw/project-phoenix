@@ -1,5 +1,6 @@
 "use client";
 
+import { wireErrorCode } from "~/lib/api-error";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, Clock, RefreshCw, UserPlus } from "lucide-react";
@@ -55,7 +56,9 @@ export default function EnrollPhasePickerPage() {
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : t("unknownError");
-        const code = (err as { code?: string } | undefined)?.code;
+        const code = wireErrorCode(
+          (err as { code?: unknown } | undefined)?.code,
+        );
         logger.error("phase_picker_load_failed", { error: message, code });
         if (code === "enrollment.disabled") {
           setEnrollmentDisabled(true);

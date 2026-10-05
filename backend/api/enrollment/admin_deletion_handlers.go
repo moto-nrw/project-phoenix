@@ -145,9 +145,9 @@ func renderEnrollmentDeletionError(w http.ResponseWriter, r *http.Request, err e
 	case errors.Is(err, capability.ErrEnrollmentDeletionInvalidReason):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, capability.ErrEnrollmentDeletionStudentExists):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.student_exists"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentStudentExists))
 	case errors.Is(err, capability.ErrEnrollmentDeletionNotAllowed):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.child_deletion_not_allowed"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentChildDeletionNotAllowed))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 	}

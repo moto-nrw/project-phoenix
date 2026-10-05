@@ -112,9 +112,9 @@ func renderAttachmentError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, filestorage.ErrAttachmentNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, filestorage.ErrAttachmentPublished):
-		common.RenderError(w, r, common.ErrorConflictWithCode(errAnnouncementPublished, "announcement_published"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(errAnnouncementPublished, common.CodeFilesAnnouncementPublished))
 	case errors.Is(err, filestorage.ErrAttachmentLimitReached):
-		common.RenderError(w, r, common.ErrorConflictWithCode(errAttachmentLimit, "attachment_limit_reached"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(errAttachmentLimit, common.CodeFilesAttachmentLimitReached))
 	case errors.Is(err, filestorage.ErrObjectNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("attachment not found")))
 	default:

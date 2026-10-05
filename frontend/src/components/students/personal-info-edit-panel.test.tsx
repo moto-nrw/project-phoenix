@@ -4,6 +4,8 @@ import { PersonalInfoEditPanel } from "./personal-info-edit-panel";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import type { StudentCompanion } from "~/lib/student-companion-api";
 import { CompanionPlanConflictError } from "~/lib/api";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 function resolvedPrivacyConsent(): Promise<{
   accepted: boolean;
@@ -115,7 +117,8 @@ const mockToast = {
   warning: vi.fn(),
 };
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => mockToast,
 }));
 
@@ -338,8 +341,15 @@ describe("PersonalInfoEditPanel", () => {
       });
     });
 
-    it("shows error toast when save fails", async () => {
-      mockOnSave.mockRejectedValue(new Error("Save failed"));
+    it("shows a failed save in the form with request ID and retry, not as a toast", async () => {
+      mockOnSave
+        .mockRejectedValueOnce(
+          new ApiError("boom", 500, {
+            code: "general.server",
+            instance: "req-panel",
+          }),
+        )
+        .mockResolvedValueOnce(undefined);
 
       render(
         <PersonalInfoEditPanel
@@ -349,20 +359,57 @@ describe("PersonalInfoEditPanel", () => {
         />,
       );
 
-      const saveButton = screen.getByText("Speichern");
-      fireEvent.click(saveButton);
+      fireEvent.click(screen.getByText("Speichern"));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        "Fehler beim Speichern der persönlichen Informationen",
+        "Das Kind konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
       );
+      expect(
+        screen.getByText("Vorgangskennung: req-panel"),
+      ).toBeInTheDocument();
       expect(mockToast.error).not.toHaveBeenCalled();
+
+      // Wiederholen sendet den aktuellen Entwurf.
+      fireEvent.change(screen.getByDisplayValue("Max"), {
+        target: { value: "Moritz" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() => expect(mockOnSave).toHaveBeenCalledTimes(2));
+      expect(mockOnSave.mock.calls[1]?.[0]).toMatchObject({
+        first_name: "Moritz",
+      });
+    });
+
+    it("confirms the saved privacy consent when the rest of the save fails", async () => {
+      mockOnSave.mockRejectedValue(
+        new ApiError("boom", 500, {
+          code: "general.server",
+          details: { privacy_consent_saved: true },
+        }),
+      );
+
+      render(
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
+          student={createMockStudent()}
+          onSave={mockOnSave}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Speichern"));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/Das Kind/);
+      expect(mockToast.success).toHaveBeenCalledWith(
+        "Die Einwilligung ist gespeichert.",
+      );
+      expect(mockOnCancel).not.toHaveBeenCalled();
     });
 
     // The stranded-companion refusal is user-actionable: it says which child's
     // Heimweg has to be filled in before the link can be removed. The generic
     // save-failed toast would leave that instruction unread and the user with
     // no way to resolve the refusal.
-    it("keeps the backend message when a link would strand the other child", async () => {
+    it("names the Laufgemeinschaft when a link would strand the other child", async () => {
       const { CompanionDepartureRefusedError } = await import("~/lib/api");
       mockOnSave.mockRejectedValue(
         new CompanionDepartureRefusedError(
@@ -370,7 +417,7 @@ describe("PersonalInfoEditPanel", () => {
             status: "error",
             error:
               "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
-            code: "companion_would_lose_departure",
+            code: "students.companion_would_lose_departure",
           }),
         ),
       );
@@ -385,9 +432,15 @@ describe("PersonalInfoEditPanel", () => {
 
       fireEvent.click(screen.getByText("Speichern"));
 
-      expect(await screen.findByRole("alert")).toHaveTextContent(
-        "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
+      // Der Text kommt aus dem Katalog nach dem Code, nie der Satz des Servers.
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(
+        catalogText(
+          "students.companion_would_lose_departure",
+          "die Laufgemeinschaft",
+        ),
       );
+      expect(alert).not.toHaveTextContent(/verknüpftes Kind hätte danach/);
       expect(mockToast.error).not.toHaveBeenCalled();
     });
 
@@ -655,11 +708,41 @@ describe("PersonalInfoEditPanel", () => {
       // The user is told why the section is missing instead of being handed an
       // empty list that would look like "no links exist".
       expect(
-        await screen.findByText(/Laufgemeinschaft konnte nicht geladen werden/),
+        await screen.findByText(
+          "Die Laufgemeinschaft konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Andere Angaben können Sie trotzdem speichern/),
       ).toBeInTheDocument();
       expect(
         screen.queryByRole("button", { name: /Kind hinzufügen/ }),
       ).not.toBeInTheDocument();
+    });
+
+    it("marks the companion note when an accompanied day has nobody named", async () => {
+      fetchStudentCompanionsMock.mockResolvedValue([]);
+
+      render(
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
+          student={createMockStudent(accompaniedStudentProps)}
+          onSave={mockOnSave}
+        />,
+      );
+
+      await screen.findByRole("button", { name: /Kind hinzufügen/ });
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Bitte prüfen Sie den Heimweg.",
+      );
+      const note = screen.getByRole("textbox", {
+        name: "Oder mit welcher Person?",
+      });
+      expect(note).toHaveAttribute("aria-invalid", "true");
+      await waitFor(() => expect(note).toHaveFocus());
+      expect(mockOnSave).not.toHaveBeenCalled();
     });
 
     // Taking the last accompanied day away hides the picker, so a list left in
@@ -811,8 +894,13 @@ describe("PersonalInfoEditPanel", () => {
       );
 
       await screen.findByText(
-        /Datenschutzeinstellungen konnten nicht geladen werden/,
+        "Die Einwilligung konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
       );
+      expect(
+        screen.getByText(
+          /Speichern geht erst, wenn die Einwilligung geladen ist/,
+        ),
+      ).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
       expect(mockOnSave).not.toHaveBeenCalled();
     });
@@ -907,15 +995,42 @@ describe("PersonalInfoEditPanel", () => {
       fireEvent.click(screen.getByText("Speichern"));
 
       await waitFor(() => {
-        expect(screen.getByRole("alert")).toHaveTextContent(
-          /Daten gespeichert, aber das Foto/,
-        );
+        expect(screen.getByRole("alert")).toHaveTextContent(/^Das Foto/);
       });
+      expect(mockToast.success).toHaveBeenCalledWith(
+        "Die Angaben sind gespeichert.",
+      );
       expect(mockOnCancel).not.toHaveBeenCalled();
       expect(screen.getByTestId("photo-section")).toHaveAttribute(
         "data-pending",
         "1",
       );
+    });
+
+    it("retries only the photo after the student was saved", async () => {
+      photosEnabledState.enabled = true;
+      mockOnSave.mockResolvedValue(undefined);
+      uploadStudentPhotoMock.mockRejectedValueOnce(
+        new ApiError("unavailable", 503, { code: "general.unavailable" }),
+      );
+
+      render(
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
+          student={createMockStudent({ photo_consent_given: true })}
+          onSave={mockOnSave}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId("pick-photo"));
+      fireEvent.click(screen.getByText("Speichern"));
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Wiederholen" }),
+      );
+
+      await waitFor(() => expect(mockOnCancel).toHaveBeenCalled());
+      expect(uploadStudentPhotoMock).toHaveBeenCalledTimes(2);
+      expect(mockOnSave).toHaveBeenCalledTimes(1);
     });
   });
 

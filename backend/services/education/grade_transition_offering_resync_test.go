@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -102,11 +102,11 @@ func TestGradeTransitionWorkflow_ApplyAndRevert_ResyncOfferingSourcedRosters(t *
 	require.NoError(t, err)
 	require.Len(t, f.resyncCalls, 1,
 		"apply must resync offering-sourced rosters after rewriting school classes")
-	assert.Equal(t, timezone.NewDate(2026, 8, 24), f.resyncCalls[0])
+	assert.Equal(t, calendar.NewDate(2026, 8, 24), f.resyncCalls[0])
 
 	_, err = wf.Revert(ctx, transitionID)
 	require.NoError(t, err)
 	require.Len(t, f.resyncCalls, 2,
 		"revert must resync in the opposite direction")
-	assert.Equal(t, timezone.NewDate(2026, 8, 24), f.resyncCalls[1])
+	assert.Equal(t, calendar.NewDate(2026, 8, 24), f.resyncCalls[1])
 }

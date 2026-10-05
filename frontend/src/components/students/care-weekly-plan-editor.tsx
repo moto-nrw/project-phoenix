@@ -5,7 +5,6 @@ import { ChevronDown, Plus, StickyNote } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { EditActions } from "~/components/ui/edit-actions";
-import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
@@ -14,7 +13,7 @@ import {
   normalizeTimeInput,
 } from "~/components/ui/time-field";
 import { ConfirmationModal } from "~/components/ui/modal";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import {
   type ArrivalScheduleFormEntry,
   WEEKDAYS,
@@ -696,7 +695,11 @@ export function CareWeeklyPlanEditForm({
   const draft = useWeeklyPlanDraft(weeklyArrival, weeklyPickup, weeklyNotes);
   const pickupNeedsCareDay = careDaysSource === "bookings";
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useFormError();
+  const formRef = useRef<HTMLFormElement>(null);
+  const errors = useApiFormError(formRef);
+  const error = errors.error;
+  // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
+  const latestRetryRef = useRef<() => void>(() => undefined);
   const [showRemovalConfirm, setShowRemovalConfirm] = useState(false);
   const [weeklyAdjustment, setWeeklyAdjustment] =
     useState<PickupAdjustmentPreview | null>(null);
@@ -739,10 +742,10 @@ export function CareWeeklyPlanEditForm({
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (weeklyAdjustment || isSubmitting) return;
-    setError(null);
+    errors.clear();
     const invalid = validateWeeklyRows(draft.rows, true);
     if (invalid) {
-      setError(invalid);
+      errors.invalid(invalid);
       return;
     }
     if (weeklyRemovals.length > 0) {
@@ -753,7 +756,7 @@ export function CareWeeklyPlanEditForm({
   };
 
   const performSave = async () => {
-    setError(null);
+    errors.clear();
     setIsSubmitting(true);
     try {
       const adjustment = await onSubmitWeekly(
@@ -766,21 +769,15 @@ export function CareWeeklyPlanEditForm({
         setOfferingConfirmed(false);
         return;
       }
-      toast.success("Wochenplan wurde gespeichert");
+      toast.success("Der Wochenplan ist gespeichert.");
       onSaved();
     } catch (err) {
-      const raw =
-        err instanceof Error
-          ? err.message
-          : "Änderung konnte nicht gespeichert werden";
-      // The backend refuses to let an account without a staff profile overwrite
-      // a parent-set time. Surface that as a readable reason, not a raw 403.
-      setError(
-        raw.includes("staff_profile_required")
-          ? "Diese Zeit wurde von den Eltern gesetzt und kann nur von Mitarbeitenden mit Personalprofil geändert werden."
-          : raw,
-      );
       clearDecision();
+      latestRetryRef.current = () => void performSave();
+      await errors.show(err, {
+        object: "die Änderung am Wochenplan",
+        retry: () => latestRetryRef.current(),
+      });
     } finally {
       setShowRemovalConfirm(false);
       setIsSubmitting(false);
@@ -790,7 +787,7 @@ export function CareWeeklyPlanEditForm({
   const saveWeeklyException = async () => {
     const preview = weeklyExceptionPreview.current;
     if (!preview) return;
-    setError(null);
+    errors.clear();
     setIsSubmitting(true);
     try {
       await onSubmitWeekly(toWeeklySubmit(draft.rows, pickupNeedsCareDay), {
@@ -799,15 +796,17 @@ export function CareWeeklyPlanEditForm({
         reason: offeringReason,
         confirm: true,
       });
-      toast.success("Dauerhafte Ausnahme wurde gespeichert");
+      toast.success("Die dauerhafte Ausnahme ist gespeichert.");
       onSaved();
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Dauerhafte Ausnahme konnte nicht gespeichert werden",
-      );
       clearDecision();
+      // Die Vorschau ist mit dem Dialog verworfen; ein neuer Versuch startet
+      // beim Speichern des Wochenplans.
+      latestRetryRef.current = () => void performSave();
+      await errors.show(err, {
+        object: "die dauerhafte Ausnahme",
+        retry: () => latestRetryRef.current(),
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -831,7 +830,7 @@ export function CareWeeklyPlanEditForm({
     setOfferingSelections([]);
     setOfferingConfirmed(false);
 
-    setError(null);
+    errors.clear();
     setIsSubmitting(true);
     try {
       const preview = await onSubmitWeekly(
@@ -845,10 +844,13 @@ export function CareWeeklyPlanEditForm({
           confirm: false,
         },
       );
-      if (!preview) {
-        throw new Error("Die Angebotsänderung konnte nicht geprüft werden.");
-      }
       if (requestId !== offeringPreviewRequestId.current) return;
+      if (!preview) {
+        errors.invalid(
+          "Das Angebot konnte nicht geprüft werden. Bitte wählen Sie es noch einmal.",
+        );
+        return;
+      }
       if (
         !preview.matching_offerings.some(
           (item) => item.offering_id === offeringId,
@@ -866,7 +868,11 @@ export function CareWeeklyPlanEditForm({
         refreshedTarget.capacity !== undefined &&
         refreshedTarget.free_slots === 0
       ) {
-        throw new Error("Dieses Angebot hat keinen freien Platz mehr.");
+        setWeeklyAdjustment(preview);
+        errors.invalid(
+          "Dieses Angebot hat keinen freien Platz mehr. Bitte wählen Sie ein anderes.",
+        );
+        return;
       }
       setOfferingSelections(selections);
       setWeeklyAdjustment(preview);
@@ -874,14 +880,15 @@ export function CareWeeklyPlanEditForm({
       setOfferingConfirmed(false);
     } catch (err) {
       if (requestId !== offeringPreviewRequestId.current) return;
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Angebot konnte nicht geprüft werden",
-      );
       setOfferingSelections([]);
       setSelectedOfferingId(null);
       setOfferingConfirmed(false);
+      latestRetryRef.current = () =>
+        void previewMatchingOffering(offeringId, effectiveFrom);
+      await errors.show(err, {
+        object: "die Umbuchung",
+        retry: () => latestRetryRef.current(),
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -889,7 +896,7 @@ export function CareWeeklyPlanEditForm({
 
   const saveMatchingOffering = async () => {
     if (!weeklyAdjustment || !offeringConfirmed) return;
-    setError(null);
+    errors.clear();
     setIsSubmitting(true);
     try {
       await onSubmitWeekly(toWeeklySubmit(draft.rows, pickupNeedsCareDay), {
@@ -904,15 +911,15 @@ export function CareWeeklyPlanEditForm({
           offeringSelections,
         ),
       });
-      toast.success("Angebot und Wochenplan wurden geändert");
+      toast.success("Angebot und Wochenplan sind geändert.");
       onSaved();
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Angebot konnte nicht geändert werden",
-      );
       clearDecision();
+      latestRetryRef.current = () => void performSave();
+      await errors.show(err, {
+        object: "die Angebotsänderung",
+        retry: () => latestRetryRef.current(),
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -926,6 +933,7 @@ export function CareWeeklyPlanEditForm({
           bubble on an off-screen field. Such a field reads back as "", which
           is the removal the warning below already announces. */}
       <form
+        ref={formRef}
         noValidate
         onSubmit={handleSubmit}
         className="space-y-4"

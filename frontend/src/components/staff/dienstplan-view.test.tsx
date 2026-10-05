@@ -136,9 +136,42 @@ vi.mock("~/components/staff/dienstplan-halbjahr-grid", () => ({
   ),
 }));
 
+vi.mock("~/components/staff/dienstplan-person-week-grid", () => ({
+  DienstplanPersonWeekGrid: ({
+    member,
+    onCreate,
+  }: {
+    member: { id: string; firstName: string; lastName: string };
+    onCreate: (date: string, startTime: string, endTime: string) => void;
+  }) => (
+    <div data-testid="person-week-grid">
+      <span data-testid="person-week-member">{member.id}</span>
+      <button
+        type="button"
+        onClick={() => onCreate("2026-07-07", "09:00", "09:45")}
+      >
+        Spanne aufziehen
+      </button>
+    </div>
+  ),
+}));
+
 vi.mock("~/components/staff/shift-edit-modal", () => ({
-  ShiftEditModal: ({ onSaved }: { onSaved: () => void }) => (
-    <button type="button" data-testid="shift-modal" onClick={onSaved}>
+  ShiftEditModal: ({
+    onSaved,
+    initialStartTime,
+    initialEndTime,
+  }: {
+    onSaved: () => void;
+    initialStartTime?: string;
+    initialEndTime?: string;
+  }) => (
+    <button
+      type="button"
+      data-testid="shift-modal"
+      data-initial={`${initialStartTime ?? ""}-${initialEndTime ?? ""}`}
+      onClick={onSaved}
+    >
       Schicht speichern
     </button>
   ),
@@ -147,6 +180,9 @@ vi.mock("~/components/staff/shift-edit-modal", () => ({
 vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading" />,
 }));
+
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 import { DienstplanView } from "./dienstplan-view";
 
@@ -187,14 +223,17 @@ describe("DienstplanView", () => {
     window.history.replaceState(null, "", "/acme/dienstplan");
   });
 
-  it("shows a blocking load error instead of the editable grid", () => {
+  it("shows a blocking load error instead of the editable grid", async () => {
     const mutateOverview = vi.fn();
     const mutateShiftTypes = vi.fn();
     mocks.useSWRAuth.mockImplementation((key: string | null) => {
       if (key?.startsWith("dienstplan-overview-")) {
         return {
           data: undefined,
-          error: new Error("server down"),
+          error: new ApiError("server down", 500, {
+            code: "general.server",
+            instance: "req-plan",
+          }),
           isLoading: false,
           mutate: mutateOverview,
         };
@@ -218,14 +257,17 @@ describe("DienstplanView", () => {
     render(<DienstplanView />);
 
     expect(
-      screen.getByText(
-        /Der Dienstplan konnte nicht vollständig geladen werden/,
+      await screen.findByText(
+        catalogText("general.server", "die Dienstplanung"),
       ),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("dienstplan-grid")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-plan");
 
-    // Retrying reloads the batched overview and the independent shift types.
-    fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
+    // Retrying reloads the batched overview, not the independent shift types.
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(mutateOverview).toHaveBeenCalledTimes(1);
     expect(mutateShiftTypes).not.toHaveBeenCalled();
   });
@@ -366,7 +408,49 @@ describe("DienstplanView", () => {
     );
   });
 
-  it("keeps the overview visible when only shift types fail", () => {
+  it("shows a failed calendar period load above the grid with a retry", async () => {
+    const mutatePeriods = vi.fn();
+    mocks.useSWRAuth.mockImplementation((key: string | null) => {
+      if (key?.startsWith("dienstplan-overview-")) {
+        return {
+          data: {
+            from: "2026-06-29",
+            to: "2026-07-03",
+            dienstplanInUse: true,
+            dienstplanUsedWeeks: ["2026-06-29"],
+            staff: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
+            shifts: [],
+            assignments: [],
+          },
+          error: undefined,
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      if (key === "database-calendar-periods-list") {
+        return {
+          data: undefined,
+          error: new ApiError("down", 503, { code: "general.unavailable" }),
+          isLoading: false,
+          mutate: mutatePeriods,
+        };
+      }
+      return { data: [], error: undefined, isLoading: false, mutate: vi.fn() };
+    });
+
+    render(<DienstplanView />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Kalenderzeiträume"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mutatePeriods).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the overview visible when only shift types fail", async () => {
     mocks.useSWRAuth.mockImplementation((key: string | null) => {
       if (key?.startsWith("dienstplan-overview-")) {
         return {
@@ -387,7 +471,9 @@ describe("DienstplanView", () => {
       if (key === "dienstplan-shift-types") {
         return {
           data: undefined,
-          error: new Error("types down"),
+          error: new ApiError("types down", 503, {
+            code: "general.unavailable",
+          }),
           isLoading: false,
           mutate: vi.fn(),
         };
@@ -404,7 +490,9 @@ describe("DienstplanView", () => {
 
     expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
     expect(
-      screen.getByText(/Schichtarten konnten nicht geladen werden/),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Schichtarten"),
+      ),
     ).toBeInTheDocument();
     // Seit #3114 führt die Kopf-Aktion auf die Route der Schichtarten, die
     // ihre Liste selbst lädt: ein Ladefehler HIER sperrt sie nicht mehr.
@@ -779,7 +867,7 @@ describe("DienstplanView", () => {
     ).toBe(false);
   });
 
-  it("shows the blocking load error in the Halbjahr view when the schedule fails", () => {
+  it("shows the blocking load error in the Halbjahr view when the schedule fails", async () => {
     // Regression K1: the half-year branch used to only check for empty staff, so
     // a failed staff/overview load rendered "keine Mitarbeitenden" instead of the
     // error card. The error state now precedes the view split for both views.
@@ -788,7 +876,10 @@ describe("DienstplanView", () => {
       if (key?.startsWith("dienstplan-overview-")) {
         return {
           data: undefined,
-          error: new Error("server down"),
+          error: new ApiError("server down", 500, {
+            code: "general.server",
+            instance: "req-plan",
+          }),
           isLoading: false,
           mutate: vi.fn(),
         };
@@ -799,8 +890,8 @@ describe("DienstplanView", () => {
     render(<DienstplanView />);
 
     expect(
-      screen.getByText(
-        /Der Dienstplan konnte nicht vollständig geladen werden/,
+      await screen.findByText(
+        catalogText("general.server", "die Dienstplanung"),
       ),
     ).toBeInTheDocument();
     // Neither the half-year grid nor the empty-staff hint is shown.
@@ -808,5 +899,116 @@ describe("DienstplanView", () => {
     expect(
       screen.queryByText("Noch keine Mitarbeitenden angelegt"),
     ).not.toBeInTheDocument();
+  });
+
+  it("renders the person week grid for view=person&staff and prefills a dragged span", () => {
+    mocks.useBerlinToday.mockReturnValue("2026-07-06");
+    mocks.search.value = "view=person&staff=7";
+    mockOverviewLoaded();
+
+    render(<DienstplanView />);
+
+    expect(screen.getByTestId("person-week-grid")).toBeInTheDocument();
+    expect(screen.queryByTestId("dienstplan-grid")).not.toBeInTheDocument();
+    expect(screen.getByTestId("person-week-member")).toHaveTextContent("7");
+
+    fireEvent.click(screen.getByRole("button", { name: "Spanne aufziehen" }));
+    expect(screen.getByTestId("shift-modal")).toHaveAttribute(
+      "data-initial",
+      "09:00-09:45",
+    );
+  });
+
+  it("counts only the selected person's shifts in the Person status line", () => {
+    mocks.search.value = "view=person&staff=7";
+    mocks.useSWRAuth.mockImplementation((key: string | null) => {
+      if (key?.startsWith("dienstplan-overview-")) {
+        return {
+          data: {
+            from: "",
+            to: "",
+            dienstplanInUse: true,
+            staff: [
+              { id: "7", firstName: "Ada", lastName: "Lovelace" },
+              { id: "8", firstName: "Grace", lastName: "Hopper" },
+            ],
+            shifts: [
+              {
+                id: "shift-8",
+                staffId: "8",
+                date: "2026-07-06",
+                startTime: "08:00",
+                endTime: "12:00",
+                breakMinutes: 0,
+                shiftTypeId: null,
+                shiftTypeName: null,
+                shiftTypeColor: null,
+                notes: "",
+                seriesId: null,
+                detached: false,
+                cancelled: false,
+                changeReason: null,
+                originShiftId: null,
+              },
+            ],
+            assignments: [],
+          },
+          error: undefined,
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      return { data: [], error: undefined, isLoading: false, mutate: vi.fn() };
+    });
+
+    render(<DienstplanView />);
+
+    expect(screen.getByText(/0 Dienste · 2 Personen/)).toBeInTheDocument();
+  });
+
+  it("falls back to the first person for an unknown staff id", () => {
+    mocks.search.value = "view=person&staff=999";
+    mockOverviewLoaded();
+
+    render(<DienstplanView />);
+
+    expect(screen.getByTestId("person-week-member")).toHaveTextContent("7");
+  });
+
+  it("writes view=person and the staff id when switching to Person", async () => {
+    mockOverviewLoaded();
+
+    render(<DienstplanView />);
+    fireEvent.click(screen.getByRole("button", { name: "Person" }));
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search);
+      expect(params.get("view")).toBe("person");
+      expect(params.get("staff")).toBe("7");
+    });
+  });
+
+  it("falls back to Woche for view=person without schedules:read", () => {
+    mocks.hasPermission.mockImplementation(
+      (_session: unknown, permission: string) =>
+        permission !== "schedules:read",
+    );
+    mocks.search.value = "view=person&staff=7";
+    mocks.useSWRAuth.mockImplementation((key: string | null) => {
+      if (key === "dienstplan-staff") {
+        return {
+          data: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
+          error: undefined,
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      return { data: [], error: undefined, isLoading: false, mutate: vi.fn() };
+    });
+
+    render(<DienstplanView />);
+
+    expect(screen.queryByTestId("person-week-grid")).not.toBeInTheDocument();
+    expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
   });
 });

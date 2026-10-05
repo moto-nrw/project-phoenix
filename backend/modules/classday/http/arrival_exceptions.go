@@ -83,13 +83,13 @@ type ArrivalExceptionBlockStartResponse struct {
 
 var arrivalExceptionErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: classday.ErrArrivalExceptionPastDate, Render: func(err error) render.Renderer {
-		return common.ErrorInvalidRequestWithCode(err, "class_arrival_exception_past_date")
+		return common.ErrorInvalidRequestWithCode(err, common.CodeClassdayArrivalExceptionPastDate)
 	}},
 	{Target: classday.ErrArrivalExceptionWeekend, Render: func(err error) render.Renderer {
-		return common.ErrorInvalidRequestWithCode(err, "class_arrival_exception_weekend")
+		return common.ErrorInvalidRequestWithCode(err, common.CodeClassdayArrivalExceptionWeekend)
 	}},
 	{Target: classday.ErrArrivalExceptionClassNotFound, Render: func(err error) render.Renderer {
-		return common.ErrorNotFoundWithCode(err, "class_arrival_exception_class_not_found")
+		return common.ErrorNotFoundWithCode(err, common.CodeClassdayArrivalExceptionClassNotFound)
 	}},
 	{Target: classday.ErrArrivalExceptionNotFound, Render: common.ErrorNotFound},
 }, common.ErrorInternalServer)
@@ -129,7 +129,7 @@ func (rs *Resource) requireSchoolWrite(w http.ResponseWriter, r *http.Request) b
 		return false
 	}
 	if !allowed {
-		common.RenderError(w, r, common.ErrorForbiddenWithCode(ErrSchoolWriteDisabled, "school_write_disabled"))
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(ErrSchoolWriteDisabled, common.CodeClassdaySchoolWriteDisabled))
 		return false
 	}
 	return true
