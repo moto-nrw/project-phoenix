@@ -262,6 +262,74 @@ describe("ParentAnnouncementsPage: scheduled reminder (#3162)", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Terminabstimmung (#3861): a list copied from a spreadsheet becomes one
+  // answer per line instead of one long label.
+  it("splits a pasted list into one answer per line", async () => {
+    listState.data = [draftPoll];
+    searchParams.set("art", "umfragen");
+    searchParams.set("bearbeiten", "4");
+    render(<ParentAnnouncementsPage />);
+
+    const second = await screen.findByRole("textbox", { name: "Antwort 2" });
+    fireEvent.paste(second, {
+      clipboardData: {
+        getData: () => "Di 14.10.\t15:00\nDi 14.10.\t15:15\n\n",
+      },
+    });
+
+    expect(screen.getByRole("textbox", { name: "Antwort 2" })).toHaveValue(
+      "Nein",
+    );
+    expect(screen.getByRole("textbox", { name: "Antwort 3" })).toHaveValue(
+      "Di 14.10. 15:00",
+    );
+    expect(screen.getByRole("textbox", { name: "Antwort 4" })).toHaveValue(
+      "Di 14.10. 15:15",
+    );
+    expect(
+      screen.queryByRole("textbox", { name: "Antwort 5" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/Zwei bis 60 Antworten\./)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Als Entwurf speichern" }),
+    );
+    await waitFor(() =>
+      expect(updateAnnouncement).toHaveBeenCalledWith(
+        "4",
+        expect.objectContaining({
+          options: ["Ja", "Nein", "Di 14.10. 15:00", "Di 14.10. 15:15"],
+        }),
+      ),
+    );
+  });
+
+  it("says how many pasted lines did not fit", async () => {
+    listState.data = [draftPoll];
+    searchParams.set("art", "umfragen");
+    searchParams.set("bearbeiten", "4");
+    render(<ParentAnnouncementsPage />);
+
+    const second = await screen.findByRole("textbox", { name: "Antwort 2" });
+    const lines = Array.from({ length: 61 }, (_, i) => `Termin ${i + 1}`);
+    fireEvent.paste(second, {
+      clipboardData: { getData: () => lines.join("\n") },
+    });
+
+    expect(
+      await screen.findByText(
+        "Es passen höchstens 60 Antworten. 3 Zeilen wurden nicht übernommen.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Antwort 60" })).toHaveValue(
+      "Termin 58",
+    );
+    expect(
+      screen.getByRole("button", { name: "Antwort hinzufügen" }),
+    ).toBeDisabled();
+  });
+
   it("saves a draft with an elapsed reminder", async () => {
     listState.data = [
       {

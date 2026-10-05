@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import type { ClipboardEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Check,
@@ -87,6 +88,11 @@ import {
   formatDate,
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import {
+  MAX_POLL_OPTIONS,
+  MIN_POLL_OPTIONS,
+  insertPastedOptions,
+} from "~/lib/announcement-poll-options";
 import { useSWRAuth } from "~/lib/swr";
 import { groupService, studentService } from "~/lib/api";
 import type { Group, Student } from "~/lib/api";
@@ -968,6 +974,27 @@ function AnnouncementFormModal({
     null,
   );
   const [formError, setFormError] = useFormError();
+  // A Terminabstimmung arrives as a list copied from a spreadsheet or an old
+  // Doodle (#3861): every pasted line becomes its own answer instead of one
+  // long label.
+  const pasteOptionsAt = (
+    index: number,
+    event: ClipboardEvent<HTMLInputElement>,
+  ) => {
+    const result = insertPastedOptions(
+      optionRows,
+      index,
+      event.clipboardData.getData("text"),
+    );
+    if (!result) return;
+    event.preventDefault();
+    setOptionRows(result.rows);
+    if (result.dropped > 0) {
+      setFormError(
+        `Es passen höchstens ${MAX_POLL_OPTIONS} Antworten. ${result.dropped === 1 ? "Eine Zeile wurde" : `${result.dropped} Zeilen wurden`} nicht übernommen.`,
+      );
+    }
+  };
 
   const validateContent = (forPublication: boolean): boolean => {
     if (!title.trim()) {
@@ -984,12 +1011,14 @@ function AnnouncementFormModal({
       return false;
     }
     if (isPollForm) {
-      if (options.length < 2) {
+      if (options.length < MIN_POLL_OPTIONS) {
         setFormError("Bitte mindestens zwei Antwortmöglichkeiten angeben.");
         return false;
       }
-      if (options.length > 10) {
-        setFormError("Bitte höchstens zehn Antwortmöglichkeiten angeben.");
+      if (options.length > MAX_POLL_OPTIONS) {
+        setFormError(
+          `Bitte höchstens ${MAX_POLL_OPTIONS} Antwortmöglichkeiten angeben.`,
+        );
         return false;
       }
       const seen = new Set(options.map((o) => o.toLowerCase()));
@@ -1392,6 +1421,7 @@ function AnnouncementFormModal({
                               onChange={(e) =>
                                 setOptionAt(index, e.target.value)
                               }
+                              onPaste={(e) => pasteOptionsAt(index, e)}
                               placeholder={`Antwort ${index + 1}`}
                               aria-label={`Antwort ${index + 1}`}
                               maxLength={120}
@@ -1412,7 +1442,7 @@ function AnnouncementFormModal({
                     <button
                       type="button"
                       onClick={addOption}
-                      disabled={optionRows.length >= 10}
+                      disabled={optionRows.length >= MAX_POLL_OPTIONS}
                       className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Plus className="h-4 w-4" aria-hidden />
@@ -1420,8 +1450,9 @@ function AnnouncementFormModal({
                     </button>
 
                     <p className="mt-2 text-xs text-gray-500">
-                      Zwei bis zehn Antworten. Eltern antworten für jedes Kind
-                      einzeln.
+                      Zwei bis {MAX_POLL_OPTIONS} Antworten. Eltern antworten
+                      für jedes Kind einzeln. Eine eingefügte Liste wird Zeile
+                      für Zeile übernommen.
                     </p>
                   </div>
 

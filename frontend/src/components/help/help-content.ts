@@ -3851,7 +3851,8 @@ function parentSurveyTopic(): HelpTopic {
     notes: [
       "Mit `Mehrfachauswahl erlauben` dürfen Eltern mehrere Antworten wählen.",
       "Die Ergebnisse sehen Sie später beim Öffnen der Umfrage.",
-      "Zwei bis zehn Antworten sind möglich. Eltern antworten für jedes Kind einzeln.",
+      "Zwei bis 60 Antworten sind möglich. Eltern antworten für jedes Kind einzeln.",
+      "Viele Termine zur Auswahl? Kopieren Sie die Liste, zum Beispiel aus einer Tabelle. Fügen Sie sie in ein Antwortfeld ein. Jede Zeile wird eine eigene Antwort.",
     ],
     differences: ["Das erste Feld heißt hier `Frage`, nicht `Titel`."],
     troubleshootingDetails: [
