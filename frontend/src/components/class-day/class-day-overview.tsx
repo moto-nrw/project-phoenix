@@ -273,7 +273,12 @@ export function ClassDayOverview({
             <p className="text-xs font-semibold tracking-wide text-[var(--class-day-blue)] uppercase">
               Klassenansicht
             </p>
-            <h2 className="mt-1 text-base font-semibold text-gray-900">
+            {/* Der Gruss kommt aus der Uhr: Server und Geraet koennen
+                verschiedene Stunden sehen, das ist hier kein Fehler. */}
+            <h2
+              className="mt-1 text-base font-semibold text-gray-900"
+              suppressHydrationWarning
+            >
               {getTimeBasedGreeting()}, {getUserDisplayName(session)}
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
