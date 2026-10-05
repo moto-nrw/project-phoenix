@@ -120,7 +120,7 @@ export function TemplateCard({
               {TYPE_LABELS[template.type]}
               {template.categoryName ? ` · ${template.categoryName}` : ""}
             </p>
-            {template.rosterMaintenance ? (
+            {template.rosterMaintenance && template.type !== "duty" ? (
               <RosterMaintenanceBadge
                 state={template.rosterMaintenance}
                 className="mt-1 mr-1.5"

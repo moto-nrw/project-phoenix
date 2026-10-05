@@ -108,8 +108,8 @@ const sourceTone = {
 // Bezeichnung, damit er nicht als „Betreuung" erscheint.
 const dutyTone = {
   label: "Dienst",
-  bar: LOCATION_COLORS.HOME,
-  bg: MOTO_COLOR_PALETTE.neutral.soft,
+  bar: MOTO_COLOR_PALETTE.navy.base,
+  bg: MOTO_COLOR_PALETTE.navy.soft,
 };
 
 function toneOf(event: CalendarEvent) {

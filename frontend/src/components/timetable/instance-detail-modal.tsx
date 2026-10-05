@@ -1005,11 +1005,14 @@ export function InstanceDetailModal({
               {instance.activityGroupId && (
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   <OriginChip label={regelterminOriginLabel(instance)} />
-                  <SeriesRosterMaintenance
-                    templateId={instance.activityGroupId}
-                    periodId={seriesPeriodId}
-                    known={seriesRosterMaintenance}
-                  />
+                  {/* Ein Dienst (#3822) hat keine Kinder, also keine Teilnehmerpflege. */}
+                  {instance.activityType !== "duty" && (
+                    <SeriesRosterMaintenance
+                      templateId={instance.activityGroupId}
+                      periodId={seriesPeriodId}
+                      known={seriesRosterMaintenance}
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -1528,7 +1531,7 @@ function StatsRow({ instance }: StatsRowProps) {
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-1.5">
-        {showTimetableCounts && (
+        {showTimetableCounts && instance.activityType !== "duty" && (
           <TimetableRatioPill
             icon={<MotoConceptIcon concept="present" size={16} />}
             label="Anwesend"

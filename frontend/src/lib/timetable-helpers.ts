@@ -8,7 +8,7 @@
  */
 
 import { formatDate, parseISODate, toISODate } from "./date-helpers";
-import { LOCATION_COLORS } from "./location-helper";
+import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "./location-helper";
 import {
   shouldMaterializeWeekPattern,
   type CalendarPeriod,
@@ -107,7 +107,7 @@ export const VERTRETUNG_GAPS_KEY_PREFIX = "vertretung-gaps-";
  * - care     → blue  (#5080D8) — Mensa, Lernzeit, Freispiel
  * - activity → green (#83CD2D) — AGs (Yoga, Bouldern, …)
  * - external → orange (#F78C10) — DAZ, Musikschule, externe Förderung
- * - duty     → neutral — Dienst ohne Kinder (#3822)
+ * - duty     → navy (#365D83) — Dienst ohne Kinder (#3822)
  */
 export function getActivityColor(type: ActivityType): string {
   switch (type) {
@@ -118,7 +118,7 @@ export function getActivityColor(type: ActivityType): string {
     case "external":
       return LOCATION_COLORS.SCHOOLYARD; // #F78C10
     case "duty":
-      return LOCATION_COLORS.HOME; // neutral
+      return MOTO_COLOR_PALETTE.navy.base; // #365D83
   }
 }
 
@@ -135,7 +135,7 @@ export function getActivityTypeBadge(
     case "external":
       return { label: "EXTERN", bg: LOCATION_COLORS.SCHOOLYARD };
     case "duty":
-      return { label: "DIENST", bg: LOCATION_COLORS.HOME };
+      return { label: "DIENST", bg: MOTO_COLOR_PALETTE.navy.base };
     case "care":
       return null;
   }
