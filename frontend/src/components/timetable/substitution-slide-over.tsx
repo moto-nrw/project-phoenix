@@ -715,6 +715,11 @@ export function SubstitutionSlideOver({
                               }
                               staffLoadError={staffLoadError}
                               fullyCovered={fullyCovered}
+                              substituteInvalid={
+                                person.substituteId !== "" &&
+                                formErrors.fieldError("substitute_staff_id") !==
+                                  undefined
+                              }
                               onUpdate={(patch) =>
                                 updatePerson(row.staffId, patch)
                               }

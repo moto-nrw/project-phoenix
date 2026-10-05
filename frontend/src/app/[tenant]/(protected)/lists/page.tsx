@@ -1025,8 +1025,11 @@ export default function SlotListsPage() {
     () => new Set(selectedSlotIdsForUI),
     [selectedSlotIdsForUI],
   );
-  const slotSummary =
-    slotOptions.length === 0
+  // Ein Ladefehler ist kein Leerzustand: ohne Angebote aus dem Abruf sagt
+  // die Zusammenfassung „Nicht geladen“, nicht „keine geplant“.
+  const slotSummary = optionsFailed
+    ? "Nicht geladen"
+    : slotOptions.length === 0
       ? "Keine Angebote geplant"
       : selectableSlotIds.length === 0
         ? "Keine aktiven Angebote auswählbar"
@@ -2234,11 +2237,13 @@ export default function SlotListsPage() {
                 : option.target === "slots"
                   ? isOptionsLoading
                     ? "Prüfe Datum…"
-                    : slotCount > 0
-                      ? cancelledSlotCount > 0
-                        ? `${selectableSlotIds.length} aktiv, ${cancelledSlotCount} abgesagt`
-                        : `${slotCount} Angebot${slotCount === 1 ? "" : "e"} geplant`
-                      : "Keine Angebote geplant"
+                    : optionsFailed
+                      ? "Nicht geladen"
+                      : slotCount > 0
+                        ? cancelledSlotCount > 0
+                          ? `${selectableSlotIds.length} aktiv, ${cancelledSlotCount} abgesagt`
+                          : `${slotCount} Angebot${slotCount === 1 ? "" : "e"} geplant`
+                        : "Keine Angebote geplant"
                   : availability
                     ? availability.row_count > 0
                       ? `${availability.row_count} Kinder mit passender Abholzeit`
@@ -2346,7 +2351,9 @@ export default function SlotListsPage() {
               </div>
             ) : (
               <p className="text-sm text-gray-500">
-                Für dieses Datum sind keine Angebote geplant.
+                {optionsFailed
+                  ? "Die Angebote konnten nicht geladen werden."
+                  : "Für dieses Datum sind keine Angebote geplant."}
               </p>
             )}
             {cancelledSlotCount > 0 ? (

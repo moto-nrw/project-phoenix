@@ -1605,20 +1605,25 @@ function TimetablesContent() {
   // Kein Zeitraum in der Statuszeile: den trägt das Bedienband direkt
   // darunter, mit Pfeilen. Zweimal dieselbe Woche in der Kopfkarte kostete
   // auf dem Telefon eine Zeile, die nichts sagte.
-  const statusLine = [
-    ...(view === "series"
-      ? [
-          `${templates.length} ${templates.length === 1 ? "Regeltermin" : "Regeltermine"}`,
-        ]
+  // Ohne geladene Daten gibt es keine Zahl: „0 Termine“ neben dem Ladefehler
+  // läse sich als leere Woche.
+  const statusLine =
+    (contentError ?? contentErrorPending)
+      ? ""
       : [
-          `${instanceCount} ${instanceCount === 1 ? "Termin" : "Termine"}`,
-          ...(canManageSchedules && openConflicts.length > 0
+          ...(view === "series"
             ? [
-                `${openConflicts.length} ${openConflicts.length === 1 ? "Konflikt" : "Konflikte"}`,
+                `${templates.length} ${templates.length === 1 ? "Regeltermin" : "Regeltermine"}`,
               ]
-            : []),
-        ]),
-  ].join(" · ");
+            : [
+                `${instanceCount} ${instanceCount === 1 ? "Termin" : "Termine"}`,
+                ...(canManageSchedules && openConflicts.length > 0
+                  ? [
+                      `${openConflicts.length} ${openConflicts.length === 1 ? "Konflikt" : "Konflikte"}`,
+                    ]
+                  : []),
+              ]),
+        ].join(" · ");
 
   const overlays = (
     <>

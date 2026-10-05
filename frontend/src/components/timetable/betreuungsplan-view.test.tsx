@@ -1535,8 +1535,10 @@ describe("BetreuungsplanView", () => {
       ),
     ).toBeVisible();
     expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
-    // Kein leerer Plan, der aussieht, als sei nichts geplant.
+    // Kein leerer Plan, der aussieht, als sei nichts geplant, und keine
+    // Zahl in der Statuszeile, die nie geladen wurde.
     expect(screen.queryByText("week-grid")).not.toBeInTheDocument();
+    expect(screen.queryByText("0 Termine")).not.toBeInTheDocument();
     expect(mockToastError).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));

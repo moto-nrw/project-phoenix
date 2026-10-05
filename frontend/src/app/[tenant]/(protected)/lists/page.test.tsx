@@ -150,6 +150,13 @@ describe("SlotListsPage error paths (#2516)", () => {
     expect(
       screen.queryByText("Keine Kinder in dieser Liste"),
     ).not.toBeInTheDocument();
+    // Nor "no offers planned" for a day whose offers never loaded.
+    expect(
+      screen.queryByText("Für dieses Datum sind keine Angebote geplant."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Die Angebote konnten nicht geladen werden."),
+    ).toBeInTheDocument();
     expect(mocks.fetchSlotListPreview).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));

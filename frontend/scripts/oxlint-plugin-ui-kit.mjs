@@ -497,8 +497,8 @@ src/components/timetable/instance-detail-modal.tsx|text-[10px]@294 text-[9px]@41
 src/components/timetable/month-planner-grid.tsx|text-[11px]@65 text-[11px]@141 text-[11px]@150 text-[11px]@171 text-[9px]@203 text-[10px]@237
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@200 text-[10px]@216 text-[11px]@225 text-[10px]@267 text-[10px]@291 text-[10px]@364 text-[10px]@378 text-[10px]@390 text-[11px]@398 text-[11px]@405
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@396 text-[11px]@461
-src/components/timetable/substitution-person-card.tsx|text-[11px]@53 text-[11px]@331 text-[11px]@338 text-[11px]@345 text-[11px]@353 text-[11px]@365
-src/components/timetable/substitution-slide-over.tsx|text-[10px]@576 text-[9px]@581 text-[11px]@735 text-[11px]@739 text-[10px]@779 text-[10px]@783 text-[10px]@787 text-[10px]@791 text-[11px]@1233
+src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]@334 text-[11px]@341 text-[11px]@348 text-[11px]@356 text-[11px]@368
+src/components/timetable/substitution-slide-over.tsx|text-[10px]@576 text-[9px]@581 text-[11px]@740 text-[11px]@744 text-[10px]@784 text-[10px]@788 text-[10px]@792 text-[10px]@796 text-[11px]@1238
 src/components/timetable/template-card.tsx|text-[11px]@119 text-[11px]@131 text-[10px]@174
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
 src/components/timetable/vertretung-week-list.tsx|text-[10px]@157

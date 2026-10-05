@@ -244,6 +244,34 @@ describe("SubstitutionSlideOver", () => {
     });
   });
 
+  describe("Feldfehler", () => {
+    it("markiert die abgelehnte Ersatzperson und setzt den Fokus dorthin", async () => {
+      const onApply = applyMock(
+        new ApiError("substitute absent", 400, {
+          code: "timetable.substitute_absent",
+          errors: [{ field: "substitute_staff_id", reason: "absent" }],
+        }),
+      );
+      renderEditor({ onApply });
+
+      markAbsent();
+      chooseScope("Alle noch offenen Termine");
+      pickSubstitute("Vertretung für Anna Alt", "Bernd Neu");
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      expect(
+        await screen.findByText(
+          catalogText("timetable.substitute_absent", "die Vertretung"),
+        ),
+      ).toBeInTheDocument();
+      const picker = screen.getByRole("combobox", {
+        name: "Vertretung für Anna Alt",
+      });
+      expect(picker).toHaveAttribute("aria-invalid", "true");
+      await waitFor(() => expect(picker).toHaveFocus());
+    });
+  });
+
   describe("Speicherfehler", () => {
     it("bietet bei einem Serverfehler Wiederholen an und speichert dann den aktuellen Stand", async () => {
       const onApply = vi
