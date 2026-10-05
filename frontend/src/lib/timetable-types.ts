@@ -1452,6 +1452,8 @@ export interface ConflictCheckParams {
   staffIds?: string[];
   studentIds?: string[];
   excludeInstanceId?: string;
+  /** Regeltermin being edited: its own occurrences never conflict. */
+  excludeActivityGroupId?: string;
 }
 
 /**

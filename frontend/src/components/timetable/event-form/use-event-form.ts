@@ -756,6 +756,9 @@ export function useEventForm({
   // The convert flow edits an existing instance too — its own slot must not
   // self-conflict, exactly like the regular instance edit.
   const excludeInstanceId = initialInstance?.id ?? convertInstance?.id;
+  // A stored Regeltermin being edited never conflicts with its own
+  // occurrences, whatever their room (a Dienst may have none, #3822).
+  const excludeActivityGroupId = isSeriesFlow ? effectiveSeries?.id : undefined;
 
   // One probe per distinct staff list (#2129). A series that staffs Monday
   // with Anna and Tuesday with Bea must be checked with Monday's dates against
@@ -876,6 +879,7 @@ export function useEventForm({
         staffIds: probe.staffIds.length > 0 ? probe.staffIds : undefined,
         studentIds: probe.studentIds.length > 0 ? probe.studentIds : undefined,
         excludeInstanceId,
+        excludeActivityGroupId,
       })
       .then((result) => {
         if (probeSeq.current !== seq) return; // out-of-order response
@@ -889,7 +893,13 @@ export function useEventForm({
           setConflictWarnings([]);
         }
       });
-  }, [debouncedProbeKey, excludeInstanceId, isOpen, probeKey]);
+  }, [
+    debouncedProbeKey,
+    excludeActivityGroupId,
+    excludeInstanceId,
+    isOpen,
+    probeKey,
+  ]);
 
   useEffect(() => {
     if (!isOpen) return;
