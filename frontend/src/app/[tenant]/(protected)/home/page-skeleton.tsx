@@ -14,6 +14,7 @@ export function DashboardSkeleton() {
   return (
     <TenantPage
       title={getTimeBasedGreeting()}
+      titleFromClock
       prominent
       loading
       testId="dashboard-skeleton"
