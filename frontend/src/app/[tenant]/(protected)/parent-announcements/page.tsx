@@ -89,6 +89,7 @@ import {
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
+  MAX_POLL_OPTION_LENGTH,
   MAX_POLL_OPTIONS,
   MIN_POLL_OPTIONS,
   insertPastedOptions,
@@ -989,10 +990,14 @@ function AnnouncementFormModal({
     if (!result) return;
     event.preventDefault();
     setOptionRows(result.rows);
-    if (result.dropped > 0) {
-      setFormError(
+    const errors = [
+      result.tooLong > 0 &&
+        `${result.tooLong === 1 ? "Eine Zeile ist" : `${result.tooLong} Zeilen sind`} länger als ${MAX_POLL_OPTION_LENGTH} Zeichen. ${result.tooLong === 1 ? "Sie wurde" : "Sie wurden"} nicht übernommen.`,
+      result.dropped > 0 &&
         `Es passen höchstens ${MAX_POLL_OPTIONS} Antworten. ${result.dropped === 1 ? "Eine Zeile wurde" : `${result.dropped} Zeilen wurden`} nicht übernommen.`,
-      );
+    ].filter(Boolean);
+    if (errors.length > 0) {
+      setFormError(errors.join(" "));
     }
   };
 
@@ -1424,7 +1429,7 @@ function AnnouncementFormModal({
                               onPaste={(e) => pasteOptionsAt(index, e)}
                               placeholder={`Antwort ${index + 1}`}
                               aria-label={`Antwort ${index + 1}`}
-                              maxLength={120}
+                              maxLength={MAX_POLL_OPTION_LENGTH}
                             />
                           </div>
                           <button

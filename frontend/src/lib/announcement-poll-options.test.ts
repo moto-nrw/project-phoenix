@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  MAX_POLL_OPTION_LENGTH,
   MAX_POLL_OPTIONS,
   insertPastedOptions,
   splitPastedOptions,
@@ -31,6 +32,7 @@ describe("insertPastedOptions", () => {
     expect(insertPastedOptions(["Ja", "", "Nein"], 1, "A\nB\nC")).toEqual({
       rows: ["Ja", "A", "B", "C", "Nein"],
       dropped: 0,
+      tooLong: 0,
     });
   });
 
@@ -38,6 +40,7 @@ describe("insertPastedOptions", () => {
     expect(insertPastedOptions(["Ja", "Nein"], 0, "A\nB")).toEqual({
       rows: ["Ja", "A", "B", "Nein"],
       dropped: 0,
+      tooLong: 0,
     });
   });
 
@@ -51,6 +54,7 @@ describe("insertPastedOptions", () => {
     expect(result?.rows[0]).toBe("Ja");
     expect(result?.rows.at(-1)).toBe(`Termin ${MAX_POLL_OPTIONS - 1}`);
     expect(result?.dropped).toBe(4);
+    expect(result?.tooLong).toBe(0);
   });
 
   it("does not count blank rows against the limit", () => {
@@ -60,8 +64,23 @@ describe("insertPastedOptions", () => {
     );
     const result = insertPastedOptions(["", "", ""], 0, lines.join("\n"));
     expect(result?.dropped).toBe(0);
+    expect(result?.tooLong).toBe(0);
     expect(result?.rows.filter((row) => row.trim())).toHaveLength(
       MAX_POLL_OPTIONS,
     );
+  });
+
+  it("drops overlong lines without using space needed by valid answers", () => {
+    const result = insertPastedOptions(
+      ["Ja", ""],
+      1,
+      `${"A".repeat(MAX_POLL_OPTION_LENGTH + 1)}\nNein\nVielleicht`,
+    );
+
+    expect(result).toEqual({
+      rows: ["Ja", "Nein", "Vielleicht"],
+      dropped: 0,
+      tooLong: 1,
+    });
   });
 });

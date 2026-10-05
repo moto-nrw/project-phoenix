@@ -440,6 +440,7 @@ function usePollAnswers(
   return {
     children,
     options: item.options ?? [],
+    versionSignature: pollVersionSignature,
     closed,
     multi,
     saving,
@@ -455,6 +456,15 @@ function usePollAnswers(
 type PollAnswers = ReturnType<typeof usePollAnswers>;
 type PollOption = PollAnswers["options"][number];
 
+function initiallyOpenPollChild(
+  children: readonly ParentAnnouncementPollChild[],
+): ReadonlySet<string> {
+  const first =
+    children.find((child) => child.selected_options.length === 0) ??
+    children[0];
+  return new Set(first ? [first.student_id] : []);
+}
+
 /**
  * One card per child: name, saved state, and the answer options.
  *
@@ -467,12 +477,18 @@ function PollAnswerRows({ poll }: Readonly<{ poll: PollAnswers }>) {
   const { children, options } = poll;
   const long = options.length > LONG_POLL_OPTIONS;
   const collapsible = long && children.length > 1;
-  const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(() => {
-    const first =
-      children.find((child) => child.selected_options.length === 0) ??
-      children[0];
-    return new Set(first ? [first.student_id] : []);
-  });
+  const childListSignature = children
+    .map((child) => child.student_id)
+    .join("|");
+  const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(() =>
+    initiallyOpenPollChild(children),
+  );
+  useEffect(() => {
+    setOpenChildren(initiallyOpenPollChild(children));
+    // A corrected poll can replace the item in this still-mounted modal. Do
+    // not reset on ordinary response updates: they must preserve manual folds.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [poll.versionSignature, childListSignature]);
   if (children.length === 0 || options.length === 0) return null;
 
   return (

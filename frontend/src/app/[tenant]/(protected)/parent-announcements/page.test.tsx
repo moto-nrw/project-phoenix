@@ -330,6 +330,27 @@ describe("ParentAnnouncementsPage: scheduled reminder (#3162)", () => {
     ).toBeDisabled();
   });
 
+  it("rejects pasted answers longer than 120 characters", async () => {
+    listState.data = [draftPoll];
+    searchParams.set("art", "umfragen");
+    searchParams.set("bearbeiten", "4");
+    render(<ParentAnnouncementsPage />);
+
+    const second = await screen.findByRole("textbox", { name: "Antwort 2" });
+    fireEvent.paste(second, {
+      clipboardData: { getData: () => `${"A".repeat(121)}\nVielleicht` },
+    });
+
+    expect(
+      await screen.findByText(
+        "Eine Zeile ist länger als 120 Zeichen. Sie wurde nicht übernommen.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Antwort 3" })).toHaveValue(
+      "Vielleicht",
+    );
+  });
+
   it("saves a draft with an elapsed reminder", async () => {
     listState.data = [
       {

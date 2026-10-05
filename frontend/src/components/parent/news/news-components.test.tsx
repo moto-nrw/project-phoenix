@@ -738,6 +738,87 @@ describe("long poll for several children (#3861)", () => {
     });
   });
 
+  it("opens the first unanswered child after a corrected poll is refetched", () => {
+    const { rerender } = render(
+      <NewsDetailModal
+        item={poll({
+          response_type: "multi_choice",
+          options: slots,
+          children: twoChildren(["1"], ["2"]),
+        })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Felix Schneider einklappen" }),
+    );
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+
+    rerender(
+      <NewsDetailModal
+        item={poll({
+          response_type: "multi_choice",
+          published_at: "2026-07-02T08:00:00Z",
+          options: slots,
+          children: twoChildren(["1"], []),
+        })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Mila Schneider einklappen" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByRole("checkbox")).toHaveLength(40);
+  });
+
+  it("opens the first unanswered child after the child list changes", () => {
+    const { rerender } = render(
+      <NewsDetailModal
+        item={poll({
+          response_type: "multi_choice",
+          options: slots,
+          children: twoChildren(["1"], ["2"]),
+        })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Felix Schneider einklappen" }),
+    );
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+
+    rerender(
+      <NewsDetailModal
+        item={poll({
+          response_type: "multi_choice",
+          options: slots,
+          children: [
+            ...twoChildren(["1"], ["2"]),
+            {
+              student_id: "12",
+              first_name: "Noah",
+              last_name: "Schneider",
+              selected_options: [],
+            },
+          ],
+        })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Noah Schneider einklappen" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByRole("checkbox")).toHaveLength(40);
+  });
+
   it("lets a closed poll still be unfolded to read the answers", () => {
     render(
       <NewsDetailModal

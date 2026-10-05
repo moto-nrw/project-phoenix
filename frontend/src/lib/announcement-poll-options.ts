@@ -7,6 +7,7 @@
  */
 export const MIN_POLL_OPTIONS = 2;
 export const MAX_POLL_OPTIONS = 60;
+export const MAX_POLL_OPTION_LENGTH = 120;
 
 /**
  * Above this many options the parent portal shows the compact answer list. It
@@ -31,14 +32,14 @@ export function splitPastedOptions(text: string): string[] {
  *
  * Returns null for single-line text, so the browser pastes it into the field
  * as usual. An empty row takes the first line; a row that already has text
- * keeps it and the lines follow below. Lines past MAX_POLL_OPTIONS are
- * dropped and counted, so the form can say so.
+ * keeps it and the lines follow below. Lines past MAX_POLL_OPTIONS or longer
+ * than MAX_POLL_OPTION_LENGTH are dropped and counted, so the form can say so.
  */
 export function insertPastedOptions(
   rows: readonly string[],
   index: number,
   text: string,
-): { rows: string[]; dropped: number } | null {
+): { rows: string[]; dropped: number; tooLong: number } | null {
   const lines = splitPastedOptions(text);
   if (lines.length < 2) return null;
 
@@ -48,10 +49,14 @@ export function insertPastedOptions(
   const after = rows.slice(index + 1);
   // Only filled rows count against the limit: blank rows are dropped on save.
   const filled = [...before, ...after].filter((row) => row.trim()).length;
+  const validLines = lines.filter(
+    (line) => line.length <= MAX_POLL_OPTION_LENGTH,
+  );
   const room = Math.max(0, MAX_POLL_OPTIONS - filled);
-  const taken = lines.slice(0, room);
+  const taken = validLines.slice(0, room);
   return {
     rows: [...before, ...taken, ...after],
-    dropped: lines.length - taken.length,
+    dropped: validLines.length - taken.length,
+    tooLong: lines.length - validLines.length,
   };
 }
