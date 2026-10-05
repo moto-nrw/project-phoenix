@@ -42,6 +42,8 @@ export const PLAN_CACHE_KEY_PREFIXES = [
   "time-tracking-own-absences-",
   "staff-shifts-visible-",
   "time-tracking-own-shifts-today-",
+  // Eigener Dienstplan der Mitarbeitenden (#3821).
+  "time-tracking-own-shifts-week-",
 ] as const;
 
 // Groups Betreuungsplan assignments (only present via the full overview

@@ -33,8 +33,12 @@ import type { ShiftType } from "~/lib/shift-type-helpers";
 // Viertelstunden aufziehen öffnet das Schicht-Formular mit vorbelegten Zeiten,
 // ein Klick auf einen Block öffnet ihn zum Bearbeiten. Das Formular selbst
 // bleibt minutengenau; nur das Raster rastet auf 15 Minuten ein.
+//
+// Ohne onCreate/onEdit ist das Raster eine reine Anzeige (#3821: der eigene
+// Dienstplan der Mitarbeitenden): kein Aufziehen, keine Plus-Knöpfe, Blöcke
+// ohne Klickverhalten.
 
-const DAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr"] as const;
+const DAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] as const;
 
 const SLOT_MINUTES = 15;
 /** Höhe einer Viertelstunde in px — eine Stunde sind 64px wie im Kalender. */
@@ -52,10 +56,13 @@ const UNTYPED_SHIFT_LABEL = "Schicht";
 const UNTYPED_KEY = "__untyped__";
 
 interface DienstplanPersonWeekGridProps {
-  readonly member: StaffScheduleStaff;
+  /** Kopf der bearbeitbaren Ansicht; die Leseansicht nennt die Person schon
+   *  im Seitenkopf und braucht ihn nicht. */
+  readonly member?: StaffScheduleStaff;
   /** date ("YYYY-MM-DD") -> Schichten dieser Person. */
   readonly shiftsByDate: ReadonlyMap<string, readonly StaffShift[]> | undefined;
-  /** Die fünf Wochentage als "YYYY-MM-DD" (Montag zuerst). */
+  /** Die Wochentage als "YYYY-MM-DD" (Montag zuerst; Mo–Fr, in der
+   *  Leseansicht bei Wochenend-Diensten auch Sa/So). */
   readonly weekDays: readonly string[];
   readonly todayIso: string;
   /** OGS-Schließtage der Woche (YYYY-MM-DD → Grund, #2032). */
@@ -67,8 +74,14 @@ interface DienstplanPersonWeekGridProps {
   readonly shiftTypes: readonly ShiftType[];
   /** Soll/Plan der Woche (nur auf dem vollen Berechtigungspfad). */
   readonly summary?: StaffWeeklySummary;
-  readonly onCreate: (date: string, startTime: string, endTime: string) => void;
-  readonly onEdit: (date: string, shift: StaffShift) => void;
+  /** Fehlt er, lässt sich im Raster nichts anlegen. */
+  readonly onCreate?: (
+    date: string,
+    startTime: string,
+    endTime: string,
+  ) => void;
+  /** Fehlt er, sind die Blöcke reine Anzeige. */
+  readonly onEdit?: (date: string, shift: StaffShift) => void;
 }
 
 /** "08:15" → 495. Ungültige Werte ergeben null. */
@@ -187,7 +200,7 @@ function layoutShifts(shifts: readonly StaffShift[]): PlacedShift[] {
   return placed;
 }
 
-function resolveShiftColor(
+export function resolveShiftColor(
   shift: StaffShift,
   typesById: Map<string, ShiftType>,
 ): string | undefined {
@@ -197,7 +210,7 @@ function resolveShiftColor(
   return raw && HEX6_RE.test(raw) ? raw : undefined;
 }
 
-function shiftLabel(
+export function shiftLabel(
   shift: StaffShift,
   typesById: Map<string, ShiftType>,
 ): string {
@@ -281,6 +294,7 @@ export function DienstplanPersonWeekGrid({
   onCreate,
   onEdit,
 }: DienstplanPersonWeekGridProps) {
+  const readOnly = onCreate === undefined && onEdit === undefined;
   const [drag, setDrag] = useState<DragState | null>(null);
   const [hover, setHover] = useState<{ date: string; slot: number } | null>(
     null,
@@ -321,6 +335,7 @@ export function DienstplanPersonWeekGrid({
   );
 
   const requestCreate = (date: string, start: number, end: number) => {
+    if (!onCreate) return;
     const startClock = minutesToClock(start);
     const endClock = minutesToClock(end);
     const reason = closingDays?.get(date);
@@ -343,7 +358,7 @@ export function DienstplanPersonWeekGrid({
     date: string,
     event: ReactPointerEvent<HTMLDivElement>,
   ) => {
-    if (closingDaysLoading || event.button !== 0) return;
+    if (!onCreate || closingDaysLoading || event.button !== 0) return;
     const slot = slotFromPointer(event);
     event.currentTarget.setPointerCapture?.(event.pointerId);
     setDrag({ date, anchor: slot, current: slot, pointerId: event.pointerId });
@@ -359,6 +374,7 @@ export function DienstplanPersonWeekGrid({
       return;
     }
     if (
+      onCreate &&
       event.pointerType === "mouse" &&
       (hover?.date !== date || hover.slot !== slot)
     ) {
@@ -413,18 +429,33 @@ export function DienstplanPersonWeekGrid({
     <div className="space-y-3">
       <SectionCard className="!p-0">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-gray-200 px-4 py-3">
-          <h2 className="text-sm font-semibold text-gray-900">
-            {member.lastName}, {member.firstName}
-          </h2>
-          <p className="text-xs text-gray-600 tabular-nums">
-            Diese Woche geplant:{" "}
-            <span className="font-semibold text-gray-900">{plannedLabel}</span>
-            {targetLabel ? ` · Soll ${targetLabel}` : ""}
-          </p>
-          <p className="w-full text-xs text-gray-500">
-            Ziehen Sie über die Viertelstunden, um eine Schicht anzulegen.
-            Klicken Sie auf eine Schicht, um sie zu ändern.
-          </p>
+          {readOnly ? (
+            // Die Leseansicht nennt Person und Wochensummen schon im
+            // Seitenkopf; hier steht nur, wer den Plan ändert.
+            <p className="w-full text-xs text-gray-500">
+              Nur zur Information. Ihre Schichten plant die Leitung im
+              Dienstplan.
+            </p>
+          ) : (
+            <>
+              {member && (
+                <h2 className="text-sm font-semibold text-gray-900">
+                  {member.lastName}, {member.firstName}
+                </h2>
+              )}
+              <p className="text-xs text-gray-600 tabular-nums">
+                Diese Woche geplant:{" "}
+                <span className="font-semibold text-gray-900">
+                  {plannedLabel}
+                </span>
+                {targetLabel ? ` · Soll ${targetLabel}` : ""}
+              </p>
+              <p className="w-full text-xs text-gray-500">
+                Ziehen Sie über die Viertelstunden, um eine Schicht anzulegen.
+                Klicken Sie auf eine Schicht, um sie zu ändern.
+              </p>
+            </>
+          )}
           <p className="w-full text-xs text-gray-500 sm:hidden">
             Wischen Sie zur Seite, um weitere Tage zu sehen.
           </p>
@@ -463,23 +494,25 @@ export function DienstplanPersonWeekGrid({
                           <ClosingDayChip reason={closingReason} />
                         )}
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="shrink-0"
-                        disabled={closingDaysLoading}
-                        aria-label={`Schicht anlegen, ${label}`}
-                        onClick={() =>
-                          requestCreate(
-                            date,
-                            DEFAULT_WINDOW_START,
-                            DEFAULT_WINDOW_END,
-                          )
-                        }
-                      >
-                        <Plus className="h-4 w-4" aria-hidden />
-                      </Button>
+                      {onCreate && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="shrink-0"
+                          disabled={closingDaysLoading}
+                          aria-label={`Schicht anlegen, ${label}`}
+                          onClick={() =>
+                            requestCreate(
+                              date,
+                              DEFAULT_WINDOW_START,
+                              DEFAULT_WINDOW_END,
+                            )
+                          }
+                        >
+                          <Plus className="h-4 w-4" aria-hidden />
+                        </Button>
+                      )}
                     </div>
                   );
                 })}
@@ -513,13 +546,16 @@ export function DienstplanPersonWeekGrid({
                   const dragHere = drag?.date === date ? drag : null;
                   const hoverHere =
                     !drag && hover?.date === date ? hover.slot : null;
+                  let cursorClass = "cursor-cell";
+                  if (!onCreate) cursorClass = "";
+                  else if (closingDaysLoading) cursorClass = "cursor-wait";
                   return (
                     <div
                       key={date}
                       data-testid={`person-week-day-${date}`}
                       className={`relative touch-pan-x border-r border-gray-200 select-none last:border-r-0 ${
                         isClosing ? "bg-gray-50" : ""
-                      } ${closingDaysLoading ? "cursor-wait" : "cursor-cell"}`}
+                      } ${cursorClass}`}
                       style={{ height: bodyHeight }}
                       onPointerDown={(event) => handlePointerDown(date, event)}
                       onPointerMove={(event) => handlePointerMove(date, event)}
@@ -558,7 +594,9 @@ export function DienstplanPersonWeekGrid({
                           item={item}
                           windowStart={timeWindow.start}
                           typesById={typesById}
-                          onEdit={() => onEdit(date, item.shift)}
+                          onEdit={
+                            onEdit ? () => onEdit(date, item.shift) : undefined
+                          }
                         />
                       ))}
                     </div>
@@ -640,7 +678,7 @@ export function DienstplanPersonWeekGrid({
           onConfirm={() => {
             const { date, start, end } = closingDayPrompt;
             setClosingDayPrompt(null);
-            onCreate(date, start, end);
+            onCreate?.(date, start, end);
           }}
         />
       )}
@@ -676,7 +714,7 @@ function ShiftBlock({
   item: PlacedShift;
   windowStart: number;
   typesById: Map<string, ShiftType>;
-  onEdit: () => void;
+  onEdit: (() => void) | undefined;
 }>) {
   const { shift, start, end, column, columnCount } = item;
   const duration = end - start;
@@ -729,6 +767,7 @@ function ShiftBlock({
           ) : undefined
         }
         className={`flex h-full flex-col overflow-hidden ${isShort ? "justify-center py-0!" : "justify-start"}`}
+        interactive={onEdit !== undefined}
         onClick={onEdit}
         aria-label={ariaParts.join(", ")}
       />

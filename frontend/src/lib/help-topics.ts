@@ -82,6 +82,7 @@ export const HELP_TOPICS = {
   findStaff: "person-im-team-finden",
   sharedFiles: "gemeinsame-datei-oeffnen-oder-hochladen",
   trackWorkTime: "arbeitszeit-und-pausen-erfassen",
+  ownShiftPlan: "eigenen-dienstplan-ansehen",
   correctWorkTime: "arbeitszeit-pruefen-und-korrigieren",
   vacation: "urlaub-beantragen",
   ownAbsence: "eigene-abwesenheit-eintragen",
@@ -223,6 +224,7 @@ const EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/staff": HELP_TOPICS.findStaff,
   "/tagesinformationen": HELP_TOPICS.leadStaffNotices,
   "/time-tracking": HELP_TOPICS.trackWorkTime,
+  "/mein-dienstplan": HELP_TOPICS.ownShiftPlan,
   "/settings": HELP_TOPICS.settings,
 
   // Leitungsseiten. Sie zeigen heute auf Entwürfe: die Kontexthilfe rendert

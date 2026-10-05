@@ -342,6 +342,8 @@ describe("useDienstplanData", () => {
       "time-tracking-own-absences-",
       "staff-shifts-visible-",
       "time-tracking-own-shifts-today-",
+      // Eigener Dienstplan der Mitarbeitenden (#3821).
+      "time-tracking-own-shifts-week-",
     ]);
   });
 });

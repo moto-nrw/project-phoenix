@@ -305,3 +305,67 @@ describe("DienstplanPersonWeekGrid", () => {
     expect(onCreate).toHaveBeenCalledWith("2026-07-06", "08:00", "16:00");
   });
 });
+
+// Leseansicht (#3821): der eigene Dienstplan der Mitarbeitenden nutzt dasselbe
+// Raster ohne onCreate/onEdit.
+describe("DienstplanPersonWeekGrid read-only", () => {
+  function renderReadOnly(
+    shifts: StaffShift[],
+    weekDays: readonly string[] = WEEK_DAYS,
+  ) {
+    render(
+      <DienstplanPersonWeekGrid
+        shiftsByDate={byDate(shifts)}
+        weekDays={weekDays}
+        todayIso="2026-07-06"
+        typesById={TYPES_BY_ID}
+        shiftTypes={TYPES}
+      />,
+    );
+  }
+
+  it("shows blocks without any create or edit affordance", () => {
+    renderReadOnly([shift({ id: "a", shiftTypeId: GT.id })]);
+
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(
+      screen.getByRole("group", { name: "08:00–12:00 GT" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Ziehen Sie über die Viertelstunden/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Nur zur Information\. Ihre Schichten plant die Leitung/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("person-week-day-2026-07-06")).not.toHaveClass(
+      "cursor-cell",
+    );
+    expect(
+      screen.getByTestId("person-week-total-2026-07-06"),
+    ).toHaveTextContent("4 h");
+  });
+
+  it("ignores pointer drags on the grid", () => {
+    renderReadOnly([]);
+    const column = screen.getByTestId("person-week-day-2026-07-08");
+    fireEvent.pointerDown(column, { button: 0, pointerId: 1, clientY: 4 * 16 });
+    fireEvent.pointerMove(column, { pointerId: 1, clientY: 6 * 16 + 3 });
+
+    expect(screen.queryByText("09:00–09:45")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("labels weekend columns when the week includes them", () => {
+    renderReadOnly(
+      [shift({ id: "a", date: "2026-07-11", shiftTypeId: GT.id })],
+      [...WEEK_DAYS, "2026-07-11"],
+    );
+
+    expect(screen.getByText("Sa 11.07.")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("person-week-total-2026-07-11"),
+    ).toHaveTextContent("4 h");
+  });
+});
