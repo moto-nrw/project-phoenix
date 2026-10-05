@@ -208,6 +208,7 @@
     "newsPollAnswerSummary": "Odpowiedź: {answer}",
     "newsPollChildAnswer": "{name}, odpowiedź: {answer}",
     "newsPollAnsweredCount": "Odpowiedziano: {answered} z {total}",
+    "newsPollSelectedCount": "Wybrano: {count} z {total}",
     "newsPollSave": "Zapisz odpowiedź",
     "newsPollSaving": "Zapisywanie …",
     "newsPollUnsaved": "Jeszcze niezapisane",

@@ -111,7 +111,6 @@ var seedCoverageExemptions = map[string]string{
 
 	"users.class_list_entries":            "not in prod yet (migration newer than the deployed image)",
 	"users.guests":                        "empty in prod too",
-	"users.parent_announcement_options":   "empty in prod too",
 	"users.parent_announcement_responses": "empty in prod too",
 	"users.parent_request_rss_feeds":      "user-created capability credential; seeding only its hash would create an unusable subscription",
 	"users.persons_guardians":             "empty in prod too",

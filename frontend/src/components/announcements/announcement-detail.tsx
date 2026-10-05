@@ -29,6 +29,7 @@ import { DeclarationStatusPanel } from "~/components/announcements/declaration-s
 import type { Group } from "~/lib/api";
 import type { Activity } from "~/lib/activity-helpers";
 import { formatBerlinDate } from "~/lib/date-helpers";
+import { LONG_POLL_OPTIONS } from "~/lib/announcement-poll-options";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
@@ -280,7 +281,15 @@ function PollResultsPanel({
             </p>
           )}
 
-          <ul className="mt-3 space-y-2">
+          {/* A Terminabstimmung carries up to 60 answers (#3861): two columns
+              on a wide screen halve the list. */}
+          <ul
+            className={
+              results.options.length > LONG_POLL_OPTIONS
+                ? "mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2"
+                : "mt-3 space-y-2"
+            }
+          >
             {results.options.map((option) => {
               const share =
                 results.child_count > 0
@@ -327,9 +336,11 @@ function PollResultsPanel({
               </div>
               <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200">
                 {visibleChildren.map((child) => (
+                  // Wraps: a child with 15 chosen slots lists them on the
+                  // next line instead of pushing the name out of the row.
                   <li
                     key={child.student_id}
-                    className="flex items-center justify-between gap-3 px-3 py-2"
+                    className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-3 py-2"
                   >
                     <span className="min-w-0 truncate text-sm text-gray-800">
                       {child.first_name} {child.last_name}
@@ -341,7 +352,7 @@ function PollResultsPanel({
                       )}
                     </span>
                     {child.answer_labels.length > 0 ? (
-                      <span className="text-moto-green-strong shrink-0 text-xs font-medium">
+                      <span className="text-moto-green-strong min-w-0 text-xs font-medium">
                         {child.answer_labels.join(", ")}
                       </span>
                     ) : child.can_answer ? (

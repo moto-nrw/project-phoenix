@@ -208,6 +208,7 @@
     "newsPollAnswerSummary": "Yanıt: {answer}",
     "newsPollChildAnswer": "{name} için yanıt: {answer}",
     "newsPollAnsweredCount": "{answered} / {total} yanıtlandı",
+    "newsPollSelectedCount": "{count} / {total} seçildi",
     "newsPollSave": "Yanıtı kaydet",
     "newsPollSaving": "Kaydediliyor …",
     "newsPollUnsaved": "Henüz kaydedilmedi",

@@ -407,6 +407,8 @@ function HomeContent() {
             ? `${greeting}, ${firstName}`
             : greeting
       }
+      // Der Gruss kommt aus der Uhr; beim Bearbeiten steht ein fester Text.
+      titleFromClock={!editing}
       prominent
       statsLoading={isLoading}
       stats={
