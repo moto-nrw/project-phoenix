@@ -7,7 +7,7 @@
 // Monatskarten-Kette ein. Dazu der einmalige Eröffnungssaldo (#2132), der den
 // Übernahme-Stand aus dem Altsystem setzt.
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Banknote, Clock4, Flag, RotateCcw, Trash2 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -21,7 +21,6 @@ import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
-import { useLatest } from "~/lib/hooks/use-latest";
 import { createLogger } from "~/lib/logger";
 import { staffBalanceAdjustmentService } from "~/lib/staff-api";
 import {
@@ -372,7 +371,10 @@ function AdjustmentModal({
     }
   };
   // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
-  const latestSubmit = useLatest(handleSubmit);
+  const latestSubmit = useRef(handleSubmit);
+  useLayoutEffect(() => {
+    latestSubmit.current = handleSubmit;
+  });
 
   const canSubmit = !submitting && hours.trim() !== "" && note.trim() !== "";
 
@@ -504,7 +506,10 @@ function ResetModal({
     }
   };
   // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
-  const latestSubmit = useLatest(handleSubmit);
+  const latestSubmit = useRef(handleSubmit);
+  useLayoutEffect(() => {
+    latestSubmit.current = handleSubmit;
+  });
 
   const canSubmit = !submitting && carryoverValid && note.trim() !== "";
 
@@ -661,7 +666,10 @@ function OpeningModal({
     }
   };
   // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
-  const latestSubmit = useLatest(handleSubmit);
+  const latestSubmit = useRef(handleSubmit);
+  useLayoutEffect(() => {
+    latestSubmit.current = handleSubmit;
+  });
 
   const canSubmit = !submitting && openingValid && note.trim() !== "";
 

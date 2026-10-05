@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { useLatest } from "~/lib/hooks/use-latest";
 import { createLogger } from "~/lib/logger";
 import type { StaffHistorySession } from "~/lib/staff-api";
 import { staffSessionService } from "~/lib/staff-api";
@@ -168,7 +167,10 @@ export function AdminSessionEditModal({
     }
   };
   // „Wiederholen“ sendet den aktuellen Entwurf.
-  const latestSubmit = useLatest(handleSubmit);
+  const latestSubmit = useRef(handleSubmit);
+  useLayoutEffect(() => {
+    latestSubmit.current = handleSubmit;
+  });
 
   const title =
     mode === "edit"

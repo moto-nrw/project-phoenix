@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 
 import { Button } from "~/components/ui/button";
@@ -25,7 +25,6 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
-import { useLatest } from "~/lib/hooks/use-latest";
 import { createLogger } from "~/lib/logger";
 import {
   staffMonthSummaryService,
@@ -573,7 +572,10 @@ function ArbeitszeitmodellEditor({
     }
   };
   // „Wiederholen“ sendet den aktuellen Entwurf.
-  const latestSave = useLatest(handleSave);
+  const latestSave = useRef(handleSave);
+  useLayoutEffect(() => {
+    latestSave.current = handleSave;
+  });
 
   const updateEntry = (
     weekIndex: number,

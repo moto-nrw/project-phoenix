@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -11,7 +11,6 @@ import {
 } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
-import { useLatest } from "~/lib/hooks/use-latest";
 import { formatOverviewMonth } from "~/components/staff/staff-time-accounts-table";
 import {
   fetchDatevExportReport,
@@ -340,7 +339,10 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
     }
   };
   // „Wiederholen“ überträgt mit der aktuellen Auswahl.
-  const latestTransfer = useLatest(handleTransfer);
+  const latestTransfer = useRef(handleTransfer);
+  useLayoutEffect(() => {
+    latestTransfer.current = handleTransfer;
+  });
 
   const datevBlocked =
     datev &&

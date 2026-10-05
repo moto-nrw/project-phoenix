@@ -5,14 +5,13 @@
 // Folgt dem etablierten Muster von ResetModal/AdjustmentModal im
 // Stundenkonto-Panel: Modal + Pflicht-Textarea + canSubmit-Gate.
 
-import { useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
-import { useLatest } from "~/lib/hooks/use-latest";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "MonthCloseReasonModal" });
@@ -67,7 +66,10 @@ export function MonthCloseReasonModal({
     }
   };
   // „Wiederholen“ sendet die aktuelle Begründung.
-  const latestSubmit = useLatest(handleSubmit);
+  const latestSubmit = useRef(handleSubmit);
+  useLayoutEffect(() => {
+    latestSubmit.current = handleSubmit;
+  });
 
   return (
     <Modal

@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 
 import { Button } from "~/components/ui/button";
@@ -25,7 +25,6 @@ import {
 } from "~/contexts/ToastContext";
 import { formatClosingDayRange } from "~/lib/closing-day-helpers";
 import { formatDate } from "~/lib/date-helpers";
-import { useLatest } from "~/lib/hooks/use-latest";
 import { createLogger } from "~/lib/logger";
 import {
   staffTargetOverrideService,
@@ -282,7 +281,10 @@ export function SonderarbeitszeitenSection({
     }
   };
   // „Wiederholen“ sendet den aktuellen Entwurf.
-  const latestSave = useLatest(handleSave);
+  const latestSave = useRef(handleSave);
+  useLayoutEffect(() => {
+    latestSave.current = handleSave;
+  });
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
