@@ -1829,6 +1829,115 @@ describe("StudentDetailPage", () => {
       });
     });
 
+    describe("lifting today's excusal (#3854)", () => {
+      const renderExcusedToday = () => {
+        mockUseStudentData.mockReturnValue({
+          student: { ...mockStudent, excused: true },
+          loading: false,
+          error: null,
+          hasFullAccess: true,
+          hasWriteAccess: true,
+          hasAbsenceWriteAccess: true,
+          hasSickExcusedWriteAccess: true,
+          supervisors: [],
+          myGroups: ["1"],
+          myGroupRooms: [],
+          mySupervisedRooms: [],
+          refreshData: mockRefreshData,
+        });
+        // Own cache: the status days of an earlier render must not leak in.
+        render(
+          <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+            <StudentDetailPage />
+          </SWRConfig>,
+        );
+      };
+      const openLiftDialog = async () => {
+        fireEvent.click(screen.getByTestId("excused-toggle-button"));
+        return screen.findByTestId("modal-entschuldigung-aufheben");
+      };
+
+      it("reports success only when the response no longer shows the excusal", async () => {
+        mockUpdateStudent.mockResolvedValue({ excused: false });
+        renderExcusedToday();
+        await openLiftDialog();
+        await act(async () => {
+          fireEvent.click(screen.getByTestId("modal-confirm"));
+        });
+        await waitFor(() => {
+          expect(mockUpdateStudent).toHaveBeenCalledWith("1", {
+            excused: false,
+          });
+          expect(mockToastSuccess).toHaveBeenCalled();
+        });
+      });
+
+      it("keeps the dialog open and explains when the excusal stays", async () => {
+        mockUpdateStudent.mockResolvedValue({ excused: true });
+        renderExcusedToday();
+        const dialog = await openLiftDialog();
+        await act(async () => {
+          fireEvent.click(within(dialog).getByTestId("modal-confirm"));
+        });
+        expect(
+          await within(dialog).findByText(
+            /Die Entschuldigung für heute ist noch eingetragen\./,
+          ),
+        ).toBeInTheDocument();
+        expect(mockToastSuccess).not.toHaveBeenCalled();
+        expect(mockToastError).not.toHaveBeenCalled();
+      });
+
+      it("names a parent's Abmeldung in the dialog", async () => {
+        mockFetchStudentStatusDays.mockResolvedValue([
+          {
+            id: "7",
+            student_id: "1",
+            date: "2026-09-09",
+            status: "excused",
+            label: "Entschuldigt",
+            reported_at: "2026-09-09T06:30:00Z",
+            cleared_at: null,
+            source: "parent",
+            created_at: "2026-09-09T06:30:00Z",
+            updated_at: "2026-09-09T06:30:00Z",
+          },
+        ]);
+        renderExcusedToday();
+        const dialog = await openLiftDialog();
+        expect(
+          await within(dialog).findByText(
+            /Die Abmeldung für heute kam von den Eltern\./,
+          ),
+        ).toBeInTheDocument();
+      });
+
+      it("does not name the parents for a staff excusal", async () => {
+        renderExcusedToday();
+        const dialog = await openLiftDialog();
+        expect(
+          within(dialog).queryByText(/kam von den Eltern/),
+        ).not.toBeInTheDocument();
+      });
+
+      it("opens the list of entered days from the lift dialog", async () => {
+        renderExcusedToday();
+        const dialog = await openLiftDialog();
+        fireEvent.click(
+          within(dialog).getByRole("button", {
+            name: "Alle entschuldigten Tage ansehen",
+          }),
+        );
+        expect(
+          await screen.findByTestId("planned-status-modal-excused"),
+        ).toBeInTheDocument();
+        expect(
+          screen.queryByTestId("modal-entschuldigung-aufheben"),
+        ).not.toBeInTheDocument();
+        expect(mockUpdateStudent).not.toHaveBeenCalled();
+      });
+    });
+
     it("keeps class-trip students in the planned excused flow", async () => {
       mockUseStudentData.mockReturnValue({
         student: { ...mockStudent, excused: true, class_trip: true },

@@ -430,7 +430,7 @@ func (rs *Resource) writeStudentUpdate(ctx context.Context, update *studentUpdat
 	effectiveConsent := reconcilePhotoConsentRequest(req.PhotoConsentGiven, update.snapshot, fresh)
 	rs.applyPhotoConsent(ctx, effectiveConsent, fresh)
 
-	if err := rs.persistStudentStatusHistory(ctx, fresh, update.wasSick, update.wasExcused, update.now, strutil.TrimPtrToNil(req.SickReason)); err != nil {
+	if err := rs.persistStudentStatusHistory(ctx, fresh, req, update.wasSick, update.wasExcused, update.now, strutil.TrimPtrToNil(req.SickReason)); err != nil {
 		rs.logStatusHistoryError(update.snapshot.ID, err)
 		return false, err
 	}
@@ -579,6 +579,11 @@ func (rs *Resource) respondUpdatedStudent(w http.ResponseWriter, r *http.Request
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	// Same overlay as the detail read: the caller judges the write by this
+	// response, and a status day without the live flag (a parent's Abmeldung,
+	// #1735) still counts. A lift that left such a row active must not read as
+	// done (#3854).
+	rs.applyStatusDaysForDateToResponse(r.Context(), &response, rs.Now())
 	response.CompanionsChanged = &companionsChanged
 	common.Respond(w, r, http.StatusOK, response, "Student updated successfully")
 }
@@ -665,7 +670,9 @@ func (rs *Resource) stageStudentUpdate(ctx context.Context, userPermissions []st
 // runStudentUpdate runs the locked-row patch in the request's tenant
 // transaction and reports whether it changed the Laufgemeinschaft.
 func (rs *Resource) runStudentUpdate(ctx context.Context, student *Student, person *peopleModule.Person, req *UpdateStudentRequest, userPermissions []string, personUpdated bool) (bool, error) {
-	statusHistoryNow := time.Now()
+	// The resource clock, so the status day written here and the overlay the
+	// response reads agree on today.
+	statusHistoryNow := rs.Now()
 	tenantID := tenant.FromContext(ctx)
 	companionsChanged := false
 	err := withinTenant(ctx, tenantID, func(ctx context.Context) error {
