@@ -68,7 +68,7 @@ function mockSWR(
   data: Partial<
     Record<"summary" | "targets" | "sessions" | "absences", unknown>
   >,
-  errors: Partial<Record<"targets", unknown>> = {},
+  errors: Partial<Record<"summary" | "targets", unknown>> = {},
 ) {
   const keys: string[] = [];
   const configs = new Map<string, SWROptions>();
@@ -89,7 +89,12 @@ function mockSWR(
         };
       }
       if (typeof key === "string" && key.includes("month-summary")) {
-        return { data: data.summary, isLoading: false, mutate };
+        return {
+          data: data.summary,
+          isLoading: false,
+          error: errors.summary,
+          mutate,
+        };
       }
       if (typeof key === "string" && key.includes("schedule-targets")) {
         // Der Key trägt seit #2443 die volle Tagesprojektion. Die Testfälle
@@ -286,6 +291,24 @@ describe("usePeriodMetrics", () => {
     await result.current.retry();
     expect(
       swr.mutates.get("time-tracking-schedule-targets-2026-08-03-2026-08-09"),
+    ).toHaveBeenCalledTimes(1);
+  });
+
+  it("exposes and retries a failed month summary", async () => {
+    const error = new Error("month summary unavailable");
+    const swr = mockSWR(
+      { summary: undefined, targets: new Map(), sessions: [] },
+      { summary: error },
+    );
+
+    const { result } = renderHook(() => usePeriodMetrics());
+
+    expect(result.current.month).toBeNull();
+    expect(result.current.error).toBe(error);
+    expect(result.current.failed).toBe(true);
+    await result.current.retry();
+    expect(
+      swr.mutates.get("time-tracking-month-summary-2026-8"),
     ).toHaveBeenCalledTimes(1);
   });
 

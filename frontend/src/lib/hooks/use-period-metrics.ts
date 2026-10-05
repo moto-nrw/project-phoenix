@@ -85,7 +85,11 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
   // key. No config gating: the backend resolves the account anchor itself, and
   // Soll/Ist/Saldo of a single month are valid regardless of where the
   // cumulative chain starts.
-  const { data: monthSummary } = useSWRAuth<MonthSummary>(
+  const {
+    data: monthSummary,
+    error: monthSummaryError,
+    mutate: mutateMonthSummary,
+  } = useSWRAuth<MonthSummary>(
     staffId
       ? `staff-month-summary-${staffId}-${year}-${monthNumber}`
       : `time-tracking-month-summary-${year}-${monthNumber}`,
@@ -282,6 +286,7 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
   // The figures stay null when a source failed; the caller must not wait for
   // them forever (#2514).
   const error =
+    monthSummaryError ??
     weekProjectionError ??
     adminSessionsError ??
     ownHistoryError ??
@@ -291,6 +296,7 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
   const failed = Boolean(error);
   const retry = useCallback(async () => {
     const retries: Promise<unknown>[] = [];
+    if (monthSummaryError) retries.push(mutateMonthSummary());
     if (weekProjectionError) retries.push(mutateWeekProjection());
     if (adminSessionsError) retries.push(mutateAdminSessions());
     if (ownHistoryError) retries.push(mutateOwnHistory());
@@ -299,12 +305,14 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
     if (balanceError) retries.push(retryAccountBalance());
     await Promise.all(retries);
   }, [
+    monthSummaryError,
     weekProjectionError,
     adminSessionsError,
     ownHistoryError,
     adminAbsencesError,
     ownAbsencesError,
     balanceError,
+    mutateMonthSummary,
     mutateWeekProjection,
     mutateAdminSessions,
     mutateOwnHistory,

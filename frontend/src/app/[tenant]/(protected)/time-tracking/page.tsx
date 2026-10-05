@@ -556,6 +556,7 @@ function ClockInCard({
   metrics,
   plannedShifts,
   cancelledShifts,
+  stampingDisabled,
 }: {
   readonly currentSession: WorkSession | null;
   readonly breaks: WorkSessionBreak[];
@@ -570,6 +571,8 @@ function ClockInCard({
   readonly metrics?: PeriodMetrics | null;
   readonly plannedShifts?: readonly StaffShift[];
   readonly cancelledShifts?: readonly StaffShift[];
+  /** Session and absence data must be current before a stamp is allowed. */
+  readonly stampingDisabled: boolean;
 }) {
   // Null until the staff member explicitly picks Vor Ort / Homeoffice / Abwesend.
   // No pre-selection per Issue #1368 — silent defaults are unacceptable for an
@@ -685,6 +688,7 @@ function ClockInCard({
   useEffect(() => {
     if (
       shouldAutoEndBreak(countdownRemainingSecs, isOnBreak, actionLoading) &&
+      !stampingDisabled &&
       !autoEndInFlightRef.current &&
       activeBreak?.id !== autoEndAttemptedBreakIdRef.current
     ) {
@@ -705,6 +709,7 @@ function ClockInCard({
     countdownRemainingSecs,
     isOnBreak,
     actionLoading,
+    stampingDisabled,
     activeBreak?.id,
     onEndBreak,
   ]);
@@ -766,12 +771,19 @@ function ClockInCard({
     isCheckedIn && currentSession
       ? getSessionStatusBadge(isOnBreak, currentSession.status)
       : null;
+  const workModeItems = useMemo(
+    () =>
+      stampingDisabled
+        ? WORK_MODE_ITEMS.map((item) => ({ ...item, disabled: true }))
+        : WORK_MODE_ITEMS,
+    [stampingDisabled],
+  );
 
   const handleCheckIn = async () => {
     // mode === null: user has not yet chosen — the button is disabled in the
     // UI, but guard here too in case of stray double-clicks.
     // mode === "absent": that path opens the absence modal, not check-in.
-    if (mode === null || mode === "absent") return;
+    if (stampingDisabled || mode === null || mode === "absent") return;
     setActionLoading(true);
     try {
       await onCheckIn(mode);
@@ -781,6 +793,7 @@ function ClockInCard({
   };
 
   const handleCheckOut = async () => {
+    if (stampingDisabled) return;
     setActionLoading(true);
     try {
       await onCheckOut();
@@ -790,6 +803,7 @@ function ClockInCard({
   };
 
   const handleSelectBreakDuration = async (minutes: number) => {
+    if (stampingDisabled) return;
     setBreakMenuOpen(false);
     setPlannedBreakMinutes(minutes);
     setActionLoading(true);
@@ -810,6 +824,7 @@ function ClockInCard({
   };
 
   const handleEndBreakEarly = async () => {
+    if (stampingDisabled) return;
     setActionLoading(true);
     try {
       await onEndBreak();
@@ -827,7 +842,11 @@ function ClockInCard({
         size="icon"
         variant="ghost"
         aria-label="Pausendauer verringern"
-        disabled={actionLoading || individualBreakMinutes <= MIN_BREAK_MINUTES}
+        disabled={
+          stampingDisabled ||
+          actionLoading ||
+          individualBreakMinutes <= MIN_BREAK_MINUTES
+        }
         onClick={() => handleBreakStepperChange(-1)}
         className="h-[4.5rem] w-[4.5rem] !rounded-[1.75rem] border border-gray-200 shadow-none sm:h-12 sm:w-12 sm:!rounded-xl"
       >
@@ -856,7 +875,11 @@ function ClockInCard({
         size="icon"
         variant="ghost"
         aria-label="Pausendauer erhöhen"
-        disabled={actionLoading || individualBreakMinutes >= MAX_BREAK_MINUTES}
+        disabled={
+          stampingDisabled ||
+          actionLoading ||
+          individualBreakMinutes >= MAX_BREAK_MINUTES
+        }
         onClick={() => handleBreakStepperChange(1)}
         className="h-[4.5rem] w-[4.5rem] !rounded-[1.75rem] border border-gray-200 shadow-none sm:h-12 sm:w-12 sm:!rounded-xl"
       >
@@ -880,7 +903,7 @@ function ClockInCard({
       type="button"
       size="md"
       variant="primary"
-      disabled={actionLoading}
+      disabled={stampingDisabled || actionLoading}
       onClick={() => void handleSelectBreakDuration(individualBreakMinutes)}
       className="mx-auto w-full max-w-sm text-sm shadow-none"
     >
@@ -894,7 +917,7 @@ function ClockInCard({
         type="button"
         size="md"
         variant="primary"
-        disabled={actionLoading}
+        disabled={stampingDisabled || actionLoading}
         onClick={() => void handleSelectBreakDuration(individualBreakMinutes)}
         className="mx-auto mt-6 w-full max-w-sm text-sm shadow-none"
       >
@@ -929,7 +952,7 @@ function ClockInCard({
             <SegmentedControl
               ariaLabel="Arbeitsmodus"
               variant="pills"
-              items={WORK_MODE_ITEMS}
+              items={workModeItems}
               value={mode}
               onChange={setMode}
             />
@@ -940,6 +963,7 @@ function ClockInCard({
                 type="button"
                 variant="ghost"
                 onClick={onAddAbsence}
+                disabled={stampingDisabled || actionLoading}
                 className={`${STAMP_BUTTON_BASE} border-moto-red text-moto-red hover:bg-moto-red/5 h-16 w-16`}
                 aria-label="Abwesenheit melden"
               >
@@ -962,7 +986,7 @@ function ClockInCard({
                 type="button"
                 variant="ghost"
                 onClick={handleCheckIn}
-                disabled={actionLoading || mode === null}
+                disabled={stampingDisabled || actionLoading || mode === null}
                 className={getCheckInButtonClassName(mode)}
                 aria-label="Einstempeln"
               >
@@ -1002,7 +1026,7 @@ function ClockInCard({
                     type="button"
                     variant="ghost"
                     onClick={handleEndBreakEarly}
-                    disabled={actionLoading}
+                    disabled={stampingDisabled || actionLoading}
                     className={getBreakButtonClassName(true, breakMins)}
                     aria-label="Pause beenden"
                   >
@@ -1019,7 +1043,7 @@ function ClockInCard({
                     type="button"
                     variant="ghost"
                     onClick={() => setBreakMenuOpen(!breakMenuOpen)}
-                    disabled={actionLoading}
+                    disabled={stampingDisabled || actionLoading}
                     className={getBreakButtonClassName(false, breakMins)}
                     aria-label="Pause starten"
                     aria-expanded={breakMenuOpen}
@@ -1108,7 +1132,7 @@ function ClockInCard({
                 type="button"
                 variant="ghost"
                 onClick={handleCheckOut}
-                disabled={actionLoading || isOnBreak}
+                disabled={stampingDisabled || actionLoading || isOnBreak}
                 className={`${STAMP_BUTTON_BASE} hover:border-moto-red hover:text-moto-red h-12 w-12 border-gray-300 text-gray-500 disabled:opacity-50`}
                 aria-label="Ausstempeln"
               >
@@ -3261,6 +3285,7 @@ function TimeTrackingContent() {
   // Fetch current session
   const {
     data: currentSession,
+    isLoading: currentSessionLoading,
     error: currentSessionError,
     mutate: mutateCurrentSession,
   } = useSWRAuth<WorkSession | null>(
@@ -3308,6 +3333,7 @@ function TimeTrackingContent() {
   // Fetch absences for the same date range
   const {
     data: absencesData,
+    isLoading: absencesLoading,
     error: absencesError,
     mutate: mutateAbsences,
   } = useSWRAuth<StaffAbsence[]>(
@@ -3324,6 +3350,15 @@ function TimeTrackingContent() {
   const todayAbsence = absences.find(
     (a) => a.dateStart <= todayISO && a.dateEnd >= todayISO,
   );
+  // A missing current-session answer looks exactly like "not checked in" and
+  // a missing absence list bypasses the confirmation for an existing absence.
+  // Do not turn either unknown state into a stamp action, including after a
+  // failed refresh where SWR deliberately keeps the previous response.
+  const stampingDisabled =
+    currentSessionLoading ||
+    absencesLoading ||
+    currentSessionError !== undefined ||
+    absencesError !== undefined;
 
   // Today's own planned shifts (Dienstplan) — shown as a quiet
   // "Geplant: 08:00–16:00" line in the Stempeluhr card. Fetched for today
@@ -4195,6 +4230,7 @@ function TimeTrackingContent() {
           metrics={ownMetrics}
           plannedShifts={todayShifts}
           cancelledShifts={todayCancelledShifts}
+          stampingDisabled={stampingDisabled}
         />
         <WeekChart
           history={history}

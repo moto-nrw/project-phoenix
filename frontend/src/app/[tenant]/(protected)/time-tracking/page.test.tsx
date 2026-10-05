@@ -628,8 +628,10 @@ function chooseSelectOption(trigger: HTMLElement, optionLabel: string) {
 
 function setupDefaultMocks(overrides?: {
   currentSession?: WorkSession | null;
+  currentSessionError?: unknown;
   history?: WorkSessionHistory[];
   absences?: StaffAbsence[];
+  absencesError?: unknown;
   tableAbsencesError?: Error;
   historyLoading?: boolean;
   configLoading?: boolean;
@@ -644,8 +646,10 @@ function setupDefaultMocks(overrides?: {
   } as never);
 
   const currentSession = overrides?.currentSession ?? null;
+  const currentSessionError = overrides?.currentSessionError;
   const history = overrides?.history ?? [];
   const absences = overrides?.absences ?? [];
+  const absencesError = overrides?.absencesError;
   const historyLoading = overrides?.historyLoading ?? false;
   const configLoading = overrides?.configLoading ?? false;
   const scheduleTargets =
@@ -668,7 +672,7 @@ function setupDefaultMocks(overrides?: {
         isLoading: false,
         mutate: mockMutate,
         isValidating: false,
-        error: undefined,
+        error: currentSessionError,
       } as never;
     } else if (key?.startsWith("time-tracking-history")) {
       return {
@@ -705,6 +709,14 @@ function setupDefaultMocks(overrides?: {
         mutate: mockMutate,
         isValidating: false,
         error: overrides?.tableAbsencesError,
+      } as never;
+    } else if (key?.startsWith("time-tracking-absences-")) {
+      return {
+        data: absencesError ? undefined : absences,
+        isLoading: false,
+        mutate: mockMutate,
+        isValidating: false,
+        error: absencesError,
       } as never;
     } else if (key?.startsWith("time-tracking-table-")) {
       return {
@@ -2538,6 +2550,45 @@ describe("TimeTrackingPage", () => {
           catalogText("general.unavailable", "die laufende Arbeitszeit"),
         ),
       ).toBeInTheDocument();
+    });
+
+    it("disables active stamp controls after a current-session refresh fails", async () => {
+      setupDefaultMocks({
+        currentSession: mockActiveSession,
+        currentSessionError: new ApiError("down", 503, {
+          code: "general.unavailable",
+        }),
+      });
+
+      render(<TimeTrackingPage />);
+
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "die laufende Arbeitszeit"),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Pause starten")).toBeDisabled();
+      expect(screen.getByLabelText("Ausstempeln")).toBeDisabled();
+    });
+
+    it("disables check-in while absences are unavailable", async () => {
+      setupDefaultMocks({
+        absencesError: new ApiError("down", 503, {
+          code: "general.unavailable",
+        }),
+      });
+
+      render(<TimeTrackingPage />);
+
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "die Liste Ihrer Abwesenheiten"),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "In der OGS" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Homeoffice" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Abwesend" })).toBeDisabled();
+      expect(screen.getByLabelText("Einstempeln")).toBeDisabled();
     });
 
     // Same reason: a table rendered before the shifts resolve shows "–" in
