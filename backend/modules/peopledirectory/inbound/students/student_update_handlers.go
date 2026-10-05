@@ -583,7 +583,10 @@ func (rs *Resource) respondUpdatedStudent(w http.ResponseWriter, r *http.Request
 	// response, and a status day without the live flag (a parent's Abmeldung,
 	// #1735) still counts. A lift that left such a row active must not read as
 	// done (#3854).
-	rs.applyStatusDaysForDateToResponse(r.Context(), &response, rs.Now())
+	if err := rs.applyStatusDaysForDateToResponse(r.Context(), &response, rs.Now()); err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 	response.CompanionsChanged = &companionsChanged
 	common.Respond(w, r, http.StatusOK, response, "Student updated successfully")
 }

@@ -100,7 +100,10 @@ import {
   type StudentStatusDay,
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
-import { formatDate as formatCalendarDate, todayISO } from "~/lib/date-helpers";
+import {
+  berlinTodayISO,
+  formatDate as formatCalendarDate,
+} from "~/lib/date-helpers";
 import {
   fetchStudentCareWithdrawal,
   type CareWithdrawalCompletion,
@@ -720,11 +723,12 @@ function StudentDetailPageContent() {
   // portal), shown next to the absence badge in the header.
   const currentSickReason = useMemo(() => {
     if (!student?.sick) return undefined;
-    const now = new Date();
-    const todayIso = `${now.getFullYear()}-${`${now.getMonth() + 1}`.padStart(2, "0")}-${`${now.getDate()}`.padStart(2, "0")}`;
     const row = statusDays.find(
       (s) =>
-        s.status === "sick" && !s.cleared_at && s.date === todayIso && s.note,
+        s.status === "sick" &&
+        !s.cleared_at &&
+        s.date === berlinTodayISO() &&
+        s.note,
     );
     return row?.note ?? undefined;
   }, [student?.sick, statusDays]);
@@ -733,7 +737,8 @@ function StudentDetailPageContent() {
   const todayStatusSource = useCallback(
     (status: StudentStatusKind) =>
       statusDays.find(
-        (s) => s.status === status && !s.cleared_at && s.date === todayISO(),
+        (s) =>
+          s.status === status && !s.cleared_at && s.date === berlinTodayISO(),
       )?.source,
     [statusDays],
   );
