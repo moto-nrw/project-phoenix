@@ -82,7 +82,6 @@ func TestAutoEnd_ConcurrentManualCompletionHasOneWinner(t *testing.T) {
 	_, err := svc.Start(s.ctx, instance.ID, s.staffID)
 	require.NoError(t, err)
 	autoEnd := newLifecycleAutoEnd(t, s.repos.ActivityInstance, svc)
-
 	start := make(chan struct{})
 	manualErr := make(chan error, 1)
 	autoResult := make(chan *timetable.AutoEndResult, 1)
@@ -121,11 +120,16 @@ func TestAutoEnd_ConcurrentManualCompletionHasOneWinner(t *testing.T) {
 	winners := automatic.Completed
 	if manualCompletionErr == nil {
 		winners++
+		assert.Zero(t, automatic.Completed)
 	} else {
 		assert.True(t, errors.Is(manualCompletionErr, timetable.ErrInvalidInstanceTransition))
+		assert.Equal(t, 1, automatic.Completed)
+		assert.Zero(t, automatic.SkippedConcurrent)
 	}
 	assert.Equal(t, 1, winners)
-	assert.Equal(t, 1-automatic.Completed, automatic.SkippedConcurrent)
+	// A manual completion can win before the scheduler lists active instances.
+	// In that valid ordering the scheduler has no concurrent completion to skip.
+	assert.LessOrEqual(t, automatic.SkippedConcurrent, 1)
 
 	var repeated *timetable.AutoEndResult
 	err = testpkg.WithTenantTx(t, context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
