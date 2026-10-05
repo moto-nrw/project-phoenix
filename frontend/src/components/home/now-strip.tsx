@@ -120,7 +120,11 @@ export function NowStrip({
   const state = deriveHomeNow({
     now,
     own: own.error ? undefined : own.data?.filter((a) => a.date === today),
-    school: school.error ? undefined : school.data,
+    // Dienste (#3822) werden nie gestartet; als „Nicht gestartet" zu zählen
+    // wäre falsch.
+    school: school.error
+      ? undefined
+      : school.data?.filter((block) => block.isDuty !== true),
   });
 
   // Dieselbe Regel wie der Starten-Knopf in „Mein Tag", aus derselben

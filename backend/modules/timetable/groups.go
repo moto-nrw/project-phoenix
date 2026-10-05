@@ -1,6 +1,9 @@
 package timetable
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 const (
 	TargetGroupTypeGrade          = "jahrgang"
@@ -12,6 +15,9 @@ const (
 	GroupTypeActivity = "activity"
 	GroupTypeCare     = "care"
 	GroupTypeExternal = "external"
+	// GroupTypeDuty is a staff task without children (UI „Dienst“, #3822):
+	// no roster, no session, no kiosk entry, room optional.
+	GroupTypeDuty = "duty"
 
 	ListKindEdgeHours    = "edge_hours"
 	ListKindLearningTime = "learning_time"
@@ -175,4 +181,66 @@ type GroupTargetInput struct {
 	TargetGradeLevel  *int16
 	TargetSchoolClass *string
 	EducationGroupID  *int64
+}
+
+// IsValidGroupType reports whether value is one of the block types a
+// template may carry.
+func IsValidGroupType(value string) bool {
+	switch value {
+	case GroupTypeActivity, GroupTypeCare, GroupTypeExternal, GroupTypeDuty:
+		return true
+	}
+	return false
+}
+
+// TemplateShape is what the duty rule (#3822) looks at on a template write.
+// RoomID 0 means no room; the bool fields summarize the roster parts a
+// caller sent, whatever their wire shape.
+type TemplateShape struct {
+	Type              string
+	RoomID            int64
+	TargetGroupType   string
+	HasTargets        bool
+	HasStudents       bool
+	HasOfferingSource bool
+	MaxParticipants   int
+	ListKind          *string
+	EducationGroupID  *int64
+}
+
+// ValidateTemplateShape enforces the room and duty rule shared by template
+// create, update and split: every block needs a room except a duty, and a
+// duty carries no children — no Zielgruppe, no roster, no offering source,
+// no participant limit and no Listenart (the printable lists are children
+// lists).
+func ValidateTemplateShape(shape TemplateShape) error {
+	if shape.RoomID < 0 || (shape.RoomID == 0 && shape.Type != GroupTypeDuty) {
+		return errors.New("room_id is required")
+	}
+	if shape.Type != GroupTypeDuty {
+		return nil
+	}
+	switch {
+	case shape.TargetGroupType != "" && shape.TargetGroupType != TargetGroupTypeNone, shape.HasTargets,
+		shape.EducationGroupID != nil:
+		return errors.New("a duty has no target group")
+	case shape.HasStudents:
+		return errors.New("a duty has no children (student_ids must be empty)")
+	case shape.HasOfferingSource:
+		return errors.New("a duty has no offering source")
+	case shape.MaxParticipants > 0:
+		return errors.New("a duty has no participant limit")
+	case shape.ListKind != nil && *shape.ListKind != "":
+		return errors.New("a duty has no list_kind")
+	}
+	return nil
+}
+
+// validDutyGroup applies the duty rule to a group write; other types pass.
+func validDutyGroup(input *GroupInput) bool {
+	return input.Type != GroupTypeDuty || ValidateTemplateShape(TemplateShape{
+		Type: input.Type, TargetGroupType: input.TargetGroupType, EducationGroupID: input.EducationGroupID,
+		HasOfferingSource: len(input.SourceCareOfferingIDs) > 0, MaxParticipants: input.MaxParticipants,
+		ListKind: input.ListKind,
+	}) == nil
 }

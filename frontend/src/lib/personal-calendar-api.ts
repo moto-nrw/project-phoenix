@@ -20,6 +20,8 @@ export interface CalendarEvent {
   readonly appointment_id?: string;
   readonly occurrence_date?: string;
   readonly timetable_id?: string;
+  /** "duty" für einen Dienst ohne Kinder aus dem Betreuungsplan (#3822). */
+  readonly activity_type?: string;
   readonly student_id?: string;
   readonly student_name?: string;
   readonly tenant_id?: string;

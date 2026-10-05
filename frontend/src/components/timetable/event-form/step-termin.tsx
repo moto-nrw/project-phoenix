@@ -29,6 +29,9 @@ const TYPE_OPTIONS: Array<{
   { value: "care", label: "Betreuung", hint: "Mensa, Lernzeit, Freispiel" },
   { value: "activity", label: "AG", hint: "Yoga, Bouldern, …" },
   { value: "external", label: "Extern", hint: "DAZ, Musikschule" },
+  // #3822: Aufgabe für das Personal ohne Kinder. Nimmt an Vertretung teil,
+  // wird aber nie gestartet und hat keine Kinderliste.
+  { value: "duty", label: "Dienst", hint: "Ohne Kinder: Busaufsicht" },
 ];
 
 // Listenart (#1565): optional classification driving the printable
@@ -106,6 +109,7 @@ export function StepTermin({
   canManageCategories,
   canManagePlanningTracks = false,
 }: Readonly<StepTerminProps>) {
+  const isDuty = form.type === "duty";
   return (
     <>
       <Field label="Titel" htmlFor="event_title" required>
@@ -128,7 +132,7 @@ export function StepTermin({
             <span className="text-xs font-semibold text-gray-700">
               Typ <span className={timetableRequiredMark}>*</span>
             </span>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {TYPE_OPTIONS.map((option) => {
                 const isActive = form.type === option.value;
                 const color = getActivityColor(option.value);
@@ -239,7 +243,7 @@ export function StepTermin({
           Without this the field only rendered under expanded && isSeriesFlow, so
           spontaneous/one-off slots could not be classified nor an occurrence
           override cleared (#1565 review pass 1 P2). */}
-      {(!isSeriesFlow || expanded) && (
+      {(!isSeriesFlow || expanded) && !isDuty && (
         <Field label="Listenart" htmlFor="event_list_kind">
           <CustomSelect
             id="event_list_kind"
@@ -267,7 +271,7 @@ export function StepTermin({
       <Field
         label="Raum"
         htmlFor="event_room"
-        required
+        required={!isDuty}
         error={fieldErrors.roomId}
       >
         <CustomSelect
@@ -278,7 +282,11 @@ export function StepTermin({
           options={[
             {
               value: "",
-              label: loadingRefs ? "Lade Räume …" : "Raum auswählen …",
+              label: loadingRefs
+                ? "Lade Räume …"
+                : isDuty
+                  ? "Kein Raum"
+                  : "Raum auswählen …",
             },
             ...rooms.map((room) => ({
               value: String(room.id),
@@ -289,10 +297,21 @@ export function StepTermin({
           ]}
           onChange={(next) => update("roomId", next)}
           disabled={loadingRefs}
-          required
+          required={!isDuty}
           invalid={Boolean(fieldErrors.roomId)}
-          placeholder={loadingRefs ? "Lade Räume …" : "Raum auswählen …"}
+          placeholder={
+            loadingRefs
+              ? "Lade Räume …"
+              : isDuty
+                ? "Kein Raum"
+                : "Raum auswählen …"
+          }
         />
+        {isDuty && (
+          <p className="mt-1 text-xs text-gray-500">
+            Optional. Ein Dienst kann auch ohne Raum stattfinden.
+          </p>
+        )}
       </Field>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

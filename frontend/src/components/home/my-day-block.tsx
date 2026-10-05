@@ -227,16 +227,21 @@ function BlockRow({
     block.status === "planned" && canStartPlannedInstance(block, new Date());
   // Vorbei ist vorbei: gedimmt, damit das Laufende und Kommende von selbst
   // hervortritt — wie im Tagesplan.
-  const missed =
+  // Ein Dienst (#3822) wird nie gestartet und hat keine Kinder.
+  const isDuty = block.isDuty === true;
+  const ended =
     block.status === "planned" && now !== "" && block.endTime <= now;
-  const over = block.status === "completed" || missed;
+  const missed = ended && !isDuty;
+  const over = block.status === "completed" || ended;
   // Ein laufender Block führt in seine Kinderliste; jeder andere in den
   // Tagesplan, wo er bedient wird.
   const href =
     running && block.activeGroupId
       ? tenantPath(`/active-supervisions?session=${block.activeGroupId}`)
       : dayPlanHref;
-  const room = block.roomName ?? `Raum ${block.roomId}`;
+  const room =
+    block.roomName ??
+    (isDuty && block.roomId === "0" ? null : `Raum ${block.roomId}`);
   // Kinderzahl so knapp wie im Tagesplan: laufend „12 von 18 da", danach
   // nur noch, wer da war, davor, wer erwartet wird.
   const count =
@@ -245,11 +250,13 @@ function BlockRow({
       : block.expectedStudentsCount;
   const children = cancelled
     ? null
-    : running
-      ? `${block.presentStudentsCount} von ${block.expectedStudentsCount} da`
-      : count === 1
-        ? "1 Kind"
-        : `${count} Kinder`;
+    : isDuty
+      ? "Dienst"
+      : running
+        ? `${block.presentStudentsCount} von ${block.expectedStudentsCount} da`
+        : count === 1
+          ? "1 Kind"
+          : `${count} Kinder`;
   const staff = (block.staffNames ?? [])
     .map((entry) =>
       entry.isSubstitute

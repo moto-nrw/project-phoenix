@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
@@ -58,6 +59,10 @@ func (s *instanceAutoStart) RunForTenant(ctx context.Context, now time.Time) (*t
 	}
 	for _, inst := range instances {
 		result.Checked++
+		if inst.TemplateType == activitiesModel.GroupTypeDuty {
+			result.SkippedDuty++
+			continue
+		}
 		if err := s.startIfDue(ctx, inst, today, now, staffCounts, result); err != nil {
 			return result, err
 		}
@@ -66,11 +71,15 @@ func (s *instanceAutoStart) RunForTenant(ctx context.Context, now time.Time) (*t
 }
 
 // plannedStaffCounts verifies the planned blocks' rooms and counts their
-// present staff. A planned block whose room is gone fails the tick.
+// present staff. A planned block whose room is gone fails the tick. Duties
+// are left out: they are never started and may have no room.
 func (s *instanceAutoStart) plannedStaffCounts(ctx context.Context, instances []*scheduleModel.ActivityInstance) (map[int64]int, error) {
 	plannedIDs := make([]int64, 0, len(instances))
 	plannedRoomIDs := make(map[int64]struct{})
 	for _, inst := range instances {
+		if inst.TemplateType == activitiesModel.GroupTypeDuty {
+			continue
+		}
 		if inst.Status == scheduleModel.InstanceStatusPlanned {
 			plannedIDs = append(plannedIDs, inst.ID)
 			plannedRoomIDs[inst.RoomID] = struct{}{}

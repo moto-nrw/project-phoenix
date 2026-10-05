@@ -62,6 +62,10 @@ func (d *conflictDetection) loadOverlappingInstances(ctx context.Context, probe 
 		if probe.ExcludeInstanceID != nil && instance.ID == *probe.ExcludeInstanceID {
 			continue
 		}
+		if probe.ExcludeActivityGroupID != nil && instance.ActivityGroupID != nil &&
+			*instance.ActivityGroupID == *probe.ExcludeActivityGroupID {
+			continue
+		}
 		if clockWindowsOverlap(probe.StartTime, probe.EndTime, instance.StartTime, instance.EndTime) {
 			out = append(out, instance)
 		}
