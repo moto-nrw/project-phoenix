@@ -40,7 +40,7 @@ import (
 // MaxParticipants is optional. Omitted or null means no participant limit.
 type createTemplateRequest struct {
 	Name            string `json:"name"`
-	Type            string `json:"type"` // care | activity | external
+	Type            string `json:"type"` // care | activity | external | duty
 	Weekdays        []int  `json:"weekdays"`
 	StartTime       string `json:"start_time"` // HH:MM
 	EndTime         string `json:"end_time"`   // HH:MM
@@ -203,9 +203,6 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 	if req.EndTime == "" {
 		return errors.New("end_time is required (HH:MM)")
 	}
-	if req.RoomID <= 0 {
-		return errors.New("room_id is required")
-	}
 	if req.CategoryID <= 0 {
 		return errors.New("category_id is required")
 	}
@@ -234,7 +231,33 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 		return err
 	}
 	req.ListKind = listKind
-	return nil
+	return timetableModule.ValidateTemplateShape(timetableModule.TemplateShape{
+		Type: req.Type, RoomID: req.RoomID, TargetGroupType: req.TargetGroupType,
+		HasTargets: len(req.Targets) > 0, HasStudents: hasAssignedStudents(req.StudentIDs, req.WeekdayAssignments),
+		HasOfferingSource: len(req.SourceCareOfferingIDs) > 0, MaxParticipants: derefInt(req.MaxParticipants),
+		ListKind: req.ListKind, EducationGroupID: req.EducationGroupID,
+	})
+}
+
+// hasAssignedStudents reports whether a template write names any child, on
+// the shared roster or on a weekday deviation.
+func hasAssignedStudents(studentIDs []int64, assignments []weekdayAssignmentRequest) bool {
+	if len(studentIDs) > 0 {
+		return true
+	}
+	for _, assignment := range assignments {
+		if len(assignment.StudentIDs) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func derefInt(value *int) int {
+	if value == nil {
+		return 0
+	}
+	return *value
 }
 
 func validateTemplateWorkdays(weekdays []int) error {
@@ -322,7 +345,7 @@ func parseBoundCreateTemplateRequest(
 ) (*parsedCreateTemplate, bool) {
 	if !isValidActivityType(req.Type) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(
-			fmt.Errorf("invalid type %q (must be care, activity, or external)", req.Type)))
+			fmt.Errorf("invalid type %q (must be care, activity, external, or duty)", req.Type)))
 		return nil, false
 	}
 	timing, ok := parseTemplateTiming(w, r, req.StartTime, req.EndTime, req.WeekPattern, req.MaxParticipants)
@@ -513,14 +536,7 @@ func (rs *Resource) materializeTemplateWindow(
 	resp.MaterializedTo = to.Format(dateLayout)
 }
 
-// isValidActivityType matches the constants in models/activities/group.go.
-// Kept local to the handler so the imports stay narrow.
+// isValidActivityType matches the block types of the timetable owner.
 func isValidActivityType(t string) bool {
-	switch t {
-	case timetableModule.GroupTypeCare,
-		timetableModule.GroupTypeActivity,
-		timetableModule.GroupTypeExternal:
-		return true
-	}
-	return false
+	return timetableModule.IsValidGroupType(t)
 }

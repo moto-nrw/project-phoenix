@@ -228,6 +228,47 @@ describe("TagesplanView", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows a duty without children, start or Nicht gestartet (#3822)", () => {
+    setSWR({
+      data: [
+        makeInstance({
+          id: "7",
+          title: "Busaufsicht",
+          startTime: "08:00",
+          endTime: "08:30",
+          roomId: "0",
+          roomName: null,
+          isDuty: true,
+          expectedStudentsCount: 0,
+        }),
+        makeInstance({
+          id: "8",
+          title: "Essensausgabe",
+          startTime: "10:00",
+          endTime: "11:00",
+          roomName: "Mensa",
+          isDuty: true,
+          expectedStudentsCount: 0,
+          canStart: true,
+          startExpiresAt: "2099-01-01T00:00:00Z",
+        }),
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<TagesplanView />);
+
+    expect(screen.getByText("Dienst")).toBeInTheDocument();
+    expect(screen.getByText("Dienst · Mensa")).toBeInTheDocument();
+    expect(screen.queryByText(/Kinder/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Nicht gestartet/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Raum 0/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Starten" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows a distinct empty state for a day without blocks", () => {
     setSWR({ data: [], isLoading: false, error: null });
 

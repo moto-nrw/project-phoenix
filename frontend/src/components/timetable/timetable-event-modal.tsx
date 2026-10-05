@@ -527,7 +527,9 @@ export function TimetableEventModal({
               <SlideOverTitle>{title}</SlideOverTitle>
               <SlideOverDescription>
                 {isSeriesFlow
-                  ? "Regelmäßigen Termin mit Kindern und Personal planen."
+                  ? form.type === "duty"
+                    ? "Regelmäßigen Dienst ohne Kinder planen."
+                    : "Regelmäßigen Termin mit Kindern und Personal planen."
                   : isEditingInstance
                     ? "Termin im Betreuungsplan bearbeiten."
                     : "Einmaligen Termin im Betreuungsplan anlegen."}
@@ -538,7 +540,15 @@ export function TimetableEventModal({
         </SlideOverHeader>
 
         <div className="border-b border-gray-200 px-5 py-3">
-          <WizardStepper steps={[...WIZARD_STEPS]} current={step} />
+          <WizardStepper
+            steps={
+              // Ein Dienst (#3822) hat nur Personal.
+              form.type === "duty"
+                ? [...WIZARD_STEPS.slice(0, -1), "Personal"]
+                : [...WIZARD_STEPS]
+            }
+            current={step}
+          />
         </div>
 
         {/* Prüf- und Speicherfehler stehen oben im Rumpf (Bauart 2 Regel 5);
@@ -745,7 +755,7 @@ export function TimetableEventModal({
                   {coverageWarningCount > 0 && (
                     <Alert
                       type="warning"
-                      message={`${coverageWarningCount} Dienstplan-${coverageWarningCount === 1 ? "Lücke" : "Lücken"} gefunden. Details im Schritt „Personal und Kinder“. Speichern ist weiterhin möglich.`}
+                      message={`${coverageWarningCount} Dienstplan-${coverageWarningCount === 1 ? "Lücke" : "Lücken"} gefunden. Details im Schritt „${form.type === "duty" ? "Personal" : "Personal und Kinder"}“. Speichern ist weiterhin möglich.`}
                       announce="off"
                     />
                   )}

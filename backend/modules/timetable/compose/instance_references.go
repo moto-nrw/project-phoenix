@@ -21,19 +21,27 @@ type instanceReferences struct {
 }
 
 // validateInstanceReferences checks every supplied id against the current
-// tenant. date is the date the rows will LIVE on (the target of a move): it
-// decides whether a graduated child is still refused.
-func (s *InstanceLifecycleService) validateInstanceReferences(ctx context.Context, date timezone.Date, refs instanceReferences) error {
-	if err := s.validateRoomReference(ctx, refs.roomID); err != nil {
-		return err
+// tenant and returns the block type of the linked template ("" without one).
+// date is the date the rows will LIVE on (the target of a move): it decides
+// whether a graduated child is still refused.
+func (s *InstanceLifecycleService) validateInstanceReferences(ctx context.Context, date timezone.Date, refs instanceReferences) (string, error) {
+	groupType, err := s.validateActivityGroupReference(ctx, refs.activityGroupID)
+	if err != nil {
+		return "", err
 	}
-	if err := s.validateActivityGroupReference(ctx, refs.activityGroupID); err != nil {
-		return err
+	// A duty occurrence (#3822) may lack a room and never carries children;
+	// every other block needs a room.
+	isDuty := groupType == timetable.GroupTypeDuty
+	if isDuty && len(sliceutil.UniquePositive(refs.studentIDs)) > 0 {
+		return "", fmt.Errorf("%w: a duty has no children", timetable.ErrInvalidInstanceReference)
+	}
+	if err := s.validateRoomReference(ctx, refs.roomID, isDuty); err != nil {
+		return "", err
 	}
 	if err := s.validateStaffReferences(ctx, refs.staffIDs, refs.createdByStaffID); err != nil {
-		return err
+		return "", err
 	}
-	return s.validateStudentReferences(ctx, date, refs.studentIDs)
+	return groupType, s.validateStudentReferences(ctx, date, refs.studentIDs)
 }
 
 // invalidReference reports a lookup failure as such, and a missing row
@@ -45,7 +53,10 @@ func invalidReference(field string, err error) error {
 	return fmt.Errorf("%w: invalid %s", timetable.ErrInvalidInstanceReference, field)
 }
 
-func (s *InstanceLifecycleService) validateRoomReference(ctx context.Context, roomID int64) error {
+func (s *InstanceLifecycleService) validateRoomReference(ctx context.Context, roomID int64, roomOptional bool) error {
+	if roomID == 0 && roomOptional {
+		return nil
+	}
 	if roomID <= 0 {
 		return fmt.Errorf("%w: invalid room_id", timetable.ErrInvalidInstanceReference)
 	}
@@ -55,17 +66,20 @@ func (s *InstanceLifecycleService) validateRoomReference(ctx context.Context, ro
 	return nil
 }
 
-func (s *InstanceLifecycleService) validateActivityGroupReference(ctx context.Context, activityGroupID *int64) error {
+// validateActivityGroupReference checks the optional template link and
+// returns the linked block type ("" without a link).
+func (s *InstanceLifecycleService) validateActivityGroupReference(ctx context.Context, activityGroupID *int64) (string, error) {
 	if activityGroupID == nil {
-		return nil
+		return "", nil
 	}
 	if *activityGroupID <= 0 {
-		return fmt.Errorf("%w: invalid activity_group_id", timetable.ErrInvalidInstanceReference)
+		return "", fmt.Errorf("%w: invalid activity_group_id", timetable.ErrInvalidInstanceReference)
 	}
-	if group, err := s.deps.ActivityGroupRepo.FindByID(ctx, *activityGroupID); err != nil || group == nil {
-		return invalidReference("activity_group_id", err)
+	group, err := s.deps.ActivityGroupRepo.FindByID(ctx, *activityGroupID)
+	if err != nil || group == nil {
+		return "", invalidReference("activity_group_id", err)
 	}
-	return nil
+	return group.Type, nil
 }
 
 func (s *InstanceLifecycleService) validateStaffReferences(ctx context.Context, staffIDs []int64, createdByStaffID *int64) error {
