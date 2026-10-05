@@ -790,6 +790,8 @@ function absencesTopic(): HelpTopic {
           "Wählen Sie `Gesund melden` oder `Entschuldigung aufheben`.",
           "Bestätigen Sie im Fenster mit `Gesundmelden` oder `Entschuldigung aufheben`.",
         ],
+        description:
+          "Das gilt auch, wenn die Eltern das Kind für heute abgemeldet haben.",
       },
       {
         title: "Einen geplanten Tag entfernen",
@@ -797,6 +799,7 @@ function absencesTopic(): HelpTopic {
           "Suchen Sie das Kind unter `Alle Kinder`.",
           "Öffnen Sie die Karte des Kindes.",
           "Wählen Sie `Krank melden` oder `Entschuldigen`.",
+          "Steht dort `Gesund melden` oder `Entschuldigung aufheben`? Wählen Sie das. Wählen Sie danach im Fenster `Alle Kranktage ansehen` oder `Alle entschuldigten Tage ansehen`.",
           "Suchen Sie den Tag unter `Bereits krank` oder `Bereits entschuldigt`.",
           "Öffnen Sie beim Tag das Menü mit den drei Punkten.",
           "Wählen Sie `Entfernen`.",
@@ -824,7 +827,7 @@ function absencesTopic(): HelpTopic {
     ],
     differences: [
       "Fehlen `Krank melden` und `Entschuldigen`? Fragen Sie Ihre Leitung, ob Ihre Rolle Abwesenheiten bearbeiten darf.",
-      "Steht dort `Gesund melden`? Dann ist das Kind heute krank gemeldet. Heben Sie erst die heutige Meldung auf.",
+      "Steht dort `Gesund melden` oder `Entschuldigung aufheben`? Dann ist das Kind heute krank gemeldet oder entschuldigt.",
       "Fehlt `Ab Uhrzeit`? Dann dürfen Sie nur ganze Tage entschuldigen.",
       "Steht beim Tag `Automatisch (Abholzeit)`? Dann kommt die Entschuldigung aus der früheren Abholzeit. Ändern Sie dafür die Abholzeit des Tages.",
     ],

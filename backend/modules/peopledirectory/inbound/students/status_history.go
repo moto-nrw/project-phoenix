@@ -31,7 +31,13 @@ func newlyReportedAbsenceStatus(student *Student, wasSick, wasExcused bool) stri
 	return ""
 }
 
-func (rs *Resource) persistStudentStatusHistory(ctx context.Context, student *Student, wasSick, wasExcused bool, now time.Time, sickNote *string) error {
+// clearRequested reports whether the request explicitly lifts a status
+// ("sick": false / "excused": false).
+func clearRequested(requested *bool) bool {
+	return requested != nil && !*requested
+}
+
+func (rs *Resource) persistStudentStatusHistory(ctx context.Context, student *Student, req *UpdateStudentRequest, wasSick, wasExcused bool, now time.Time, sickNote *string) error {
 	if rs.StudentStatusDayService == nil {
 		return nil
 	}
@@ -41,17 +47,30 @@ func (rs *Resource) persistStudentStatusHistory(ctx context.Context, student *St
 
 	today := timezone.DateFromTime(now)
 	// Only the sick status carries a free-text reason; excused stays note-less.
-	if err := rs.persistSingleStatusHistory(ctx, student.ID, absencerecords.StudentStatusDaySick, wasSick, boolPtrValue(student.Sick), statusReportedAt(now, student.SickSince), today, now, sickNote); err != nil {
+	if err := rs.persistSingleStatusHistory(ctx, student.ID, absencerecords.StudentStatusDaySick, statusTransition{
+		wasActive: wasSick, isActive: boolPtrValue(student.Sick), clearRequested: clearRequested(req.Sick),
+	}, statusReportedAt(now, student.SickSince), today, now, sickNote); err != nil {
 		return err
 	}
-	if err := rs.persistSingleStatusHistory(ctx, student.ID, absencerecords.StudentStatusDayExcused, wasExcused, boolPtrValue(student.Excused), statusReportedAt(now, student.ExcusedSince), today, now, nil); err != nil {
+	if err := rs.persistSingleStatusHistory(ctx, student.ID, absencerecords.StudentStatusDayExcused, statusTransition{
+		wasActive: wasExcused, isActive: boolPtrValue(student.Excused), clearRequested: clearRequested(req.Excused),
+	}, statusReportedAt(now, student.ExcusedSince), today, now, nil); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID int64, status string, wasActive, isActive bool, reportedAt time.Time, date timezone.Date, now time.Time, note *string) error {
-	if isActive {
+// statusTransition describes one status flag across an update. wasActive and
+// isActive are the stored live flag before and after; clearRequested is set
+// when the request explicitly lifts the status.
+type statusTransition struct {
+	wasActive      bool
+	isActive       bool
+	clearRequested bool
+}
+
+func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID int64, status string, transition statusTransition, reportedAt time.Time, date timezone.Date, now time.Time, note *string) error {
+	if transition.isActive {
 		return rs.StudentStatusDayService.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 			StudentID:  studentID,
 			Date:       date,
@@ -61,7 +80,7 @@ func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID in
 			Note:       note,
 		})
 	}
-	if wasActive {
+	if transition.wasActive {
 		if err := rs.StudentStatusDayService.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 			StudentID:  studentID,
 			Date:       date,
@@ -71,6 +90,14 @@ func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID in
 		}); err != nil {
 			return err
 		}
+		return rs.StudentStatusDayService.MarkCleared(ctx, studentID, status, date, now, absencerecords.StudentStatusSourceManual)
+	}
+	if transition.clearRequested {
+		// Today's row can be active without the live flag: a parent's
+		// Abmeldung (#1735) and a day planned in advance never set it. The
+		// profile shows those rows as the same status, so lifting it must clear
+		// them too, whoever entered them (#3854). Without an active row this is
+		// a no-op.
 		return rs.StudentStatusDayService.MarkCleared(ctx, studentID, status, date, now, absencerecords.StudentStatusSourceManual)
 	}
 	return nil
