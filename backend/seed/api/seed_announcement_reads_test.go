@@ -100,8 +100,8 @@ func TestSeedParentPollCreatesSixtyAppointmentOptions(t *testing.T) {
 	assert.Equal(t, []string{"/api/parent-announcements/", "/api/parent-announcements/73/publish"}, paths)
 	assert.Equal(t, "multi_choice", poll.ResponseType)
 	require.Len(t, poll.Options, 60)
-	assert.Equal(t, "Dienstag, 14. Oktober, 14:00 Uhr", poll.Options[0])
-	assert.Equal(t, "Donnerstag, 16. Oktober, 18:45 Uhr", poll.Options[len(poll.Options)-1])
+	assert.Equal(t, "Mittwoch, 14. Oktober, 14:00 Uhr", poll.Options[0])
+	assert.Equal(t, "Freitag, 16. Oktober, 18:45 Uhr", poll.Options[len(poll.Options)-1])
 	distinct := make(map[string]struct{}, len(poll.Options))
 	for _, option := range poll.Options {
 		distinct[option] = struct{}{}

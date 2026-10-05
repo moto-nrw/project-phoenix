@@ -944,6 +944,9 @@ function AnnouncementFormModal({
     if (existing.length > 0) return existing;
     return isPollForm ? ["Ja", "Nein"] : [];
   });
+  const [defaultOptionsUntouched, setDefaultOptionsUntouched] = useState(
+    () => isPollForm && announcement === null,
+  );
   // Einverständnis settings (#3430). There is only one kind, consent; it can
   // be withdrawn unless the school decides otherwise.
   const [declarationSigners, setDeclarationSigners] =
@@ -965,11 +968,18 @@ function AnnouncementFormModal({
     [optionRows],
   );
 
-  const setOptionAt = (index: number, value: string) =>
+  const setOptionAt = (index: number, value: string) => {
+    setDefaultOptionsUntouched(false);
     setOptionRows((prev) => prev.map((row, i) => (i === index ? value : row)));
-  const addOption = () => setOptionRows((prev) => [...prev, ""]);
-  const removeOptionAt = (index: number) =>
+  };
+  const addOption = () => {
+    setDefaultOptionsUntouched(false);
+    setOptionRows((prev) => [...prev, ""]);
+  };
+  const removeOptionAt = (index: number) => {
+    setDefaultOptionsUntouched(false);
     setOptionRows((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const [submitting, setSubmitting] = useState<"draft" | "publish" | null>(
     null,
@@ -982,14 +992,18 @@ function AnnouncementFormModal({
     index: number,
     event: ClipboardEvent<HTMLInputElement>,
   ) => {
+    const replaceDefaultOptions = defaultOptionsUntouched;
     const result = insertPastedOptions(
-      optionRows,
-      index,
+      replaceDefaultOptions ? [] : optionRows,
+      replaceDefaultOptions ? 0 : index,
       event.clipboardData.getData("text"),
     );
     if (!result) return;
     event.preventDefault();
-    setOptionRows(result.rows);
+    if (!replaceDefaultOptions || result.rows.length > 0) {
+      setDefaultOptionsUntouched(false);
+      setOptionRows(result.rows);
+    }
     const errors = [
       result.tooLong > 0 &&
         `${result.tooLong === 1 ? "Eine Zeile ist" : `${result.tooLong} Zeilen sind`} länger als ${MAX_POLL_OPTION_LENGTH} Zeichen. ${result.tooLong === 1 ? "Sie wurde" : "Sie wurden"} nicht übernommen.`,

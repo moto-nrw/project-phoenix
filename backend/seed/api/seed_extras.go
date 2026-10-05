@@ -178,9 +178,9 @@ func seedParentPollOptions() []string {
 		weekday string
 		date    string
 	}{
-		{weekday: "Dienstag", date: "14. Oktober"},
-		{weekday: "Mittwoch", date: "15. Oktober"},
-		{weekday: "Donnerstag", date: "16. Oktober"},
+		{weekday: "Mittwoch", date: "14. Oktober"},
+		{weekday: "Donnerstag", date: "15. Oktober"},
+		{weekday: "Freitag", date: "16. Oktober"},
 	}
 	options := make([]string, 0, 60)
 	for _, day := range days {

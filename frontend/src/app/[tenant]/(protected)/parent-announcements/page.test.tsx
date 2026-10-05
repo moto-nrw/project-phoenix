@@ -305,6 +305,38 @@ describe("ParentAnnouncementsPage: scheduled reminder (#3162)", () => {
     );
   });
 
+  it("replaces untouched default answers with a full appointment list", async () => {
+    listState.data = [];
+    searchParams.set("art", "umfragen");
+    render(<ParentAnnouncementsPage />);
+
+    fireEvent.click(
+      (
+        await screen.findAllByRole("button", {
+          name: "Neue Umfrage erstellen",
+        })
+      )[0]!,
+    );
+
+    const lines = Array.from({ length: 60 }, (_, i) => `Termin ${i + 1}`);
+    fireEvent.paste(await screen.findByRole("textbox", { name: "Antwort 1" }), {
+      clipboardData: { getData: () => lines.join("\n") },
+    });
+
+    expect(screen.getByRole("textbox", { name: "Antwort 1" })).toHaveValue(
+      "Termin 1",
+    );
+    expect(screen.getByRole("textbox", { name: "Antwort 60" })).toHaveValue(
+      "Termin 60",
+    );
+    expect(
+      screen.queryByRole("textbox", { name: "Antwort 61" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Es passen höchstens 60 Antworten/),
+    ).not.toBeInTheDocument();
+  });
+
   it("says how many pasted lines did not fit", async () => {
     listState.data = [draftPoll];
     searchParams.set("art", "umfragen");
