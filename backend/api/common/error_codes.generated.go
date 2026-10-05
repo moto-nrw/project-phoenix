@@ -318,11 +318,14 @@ const (
 	CodeWorkforceAbsenceAlreadyDecided                   = "workforce.absence_already_decided"
 	CodeWorkforceAbsenceNoWorkingDays                    = "workforce.absence_no_working_days"
 	CodeWorkforceAbsenceNotCancelable                    = "workforce.absence_not_cancelable"
+	CodeWorkforceAbsenceNotFound                         = "workforce.absence_not_found"
+	CodeWorkforceAbsenceNotOwned                         = "workforce.absence_not_owned"
 	CodeWorkforceAbsenceOverlap                          = "workforce.absence_overlap"
 	CodeWorkforceAbsenceRebookingBlocked                 = "workforce.absence_rebooking_blocked"
 	CodeWorkforceAbsenceTypeInactive                     = "workforce.absence_type_inactive"
 	CodeWorkforceAdjustmentInClosedMonth                 = "workforce.adjustment_in_closed_month"
 	CodeWorkforceAlreadyCheckedIn                        = "workforce.already_checked_in"
+	CodeWorkforceAlreadyCheckedOut                       = "workforce.already_checked_out"
 	CodeWorkforceBalanceAdjustmentExceedsBalance         = "workforce.balance_adjustment_exceeds_balance"
 	CodeWorkforceBalanceAlreadyReset                     = "workforce.balance_already_reset"
 	CodeWorkforceBreakAlreadyActive                      = "workforce.break_already_active"
@@ -335,6 +338,7 @@ const (
 	CodeWorkforceMonthNotClosed                          = "workforce.month_not_closed"
 	CodeWorkforceNoActiveBreak                           = "workforce.no_active_break"
 	CodeWorkforceNoActiveSession                         = "workforce.no_active_session"
+	CodeWorkforceNoSessionForToday                       = "workforce.no_session_for_today"
 	CodeWorkforceOpeningBalanceAlreadyExists             = "workforce.opening_balance_already_exists"
 	CodeWorkforcePayrollConfigIncomplete                 = "workforce.payroll_config_incomplete"
 	CodeWorkforcePersonnelNumberInvalid                  = "workforce.personnel_number_invalid"
@@ -353,6 +357,8 @@ const (
 	CodeWorkforceRebookingSickReport                     = "workforce.rebooking_sick_report"
 	CodeWorkforceRebookingTooMany                        = "workforce.rebooking_too_many"
 	CodeWorkforceReplacementOutsideOrigin                = "workforce.replacement_outside_origin"
+	CodeWorkforceSessionNotFound                         = "workforce.session_not_found"
+	CodeWorkforceSessionNotOwned                         = "workforce.session_not_owned"
 	CodeWorkforceSessionNoteRequired                     = "workforce.session_note_required"
 	CodeWorkforceSessionTimesInvalid                     = "workforce.session_times_invalid"
 	CodeWorkforceShiftChanged                            = "workforce.shift_changed"
@@ -694,11 +700,14 @@ var errorClassByCode = map[string]string{
 	"workforce.absence_already_decided":                    "business_rejection",
 	"workforce.absence_no_working_days":                    "input",
 	"workforce.absence_not_cancelable":                     "business_rejection",
+	"workforce.absence_not_found":                          "business_rejection",
+	"workforce.absence_not_owned":                          "permission",
 	"workforce.absence_overlap":                            "business_rejection",
 	"workforce.absence_rebooking_blocked":                  "business_rejection",
 	"workforce.absence_type_inactive":                      "business_rejection",
 	"workforce.adjustment_in_closed_month":                 "input",
 	"workforce.already_checked_in":                         "business_rejection",
+	"workforce.already_checked_out":                        "business_rejection",
 	"workforce.balance_adjustment_exceeds_balance":         "business_rejection",
 	"workforce.balance_already_reset":                      "business_rejection",
 	"workforce.break_already_active":                       "business_rejection",
@@ -711,6 +720,7 @@ var errorClassByCode = map[string]string{
 	"workforce.month_not_closed":                           "business_rejection",
 	"workforce.no_active_break":                            "business_rejection",
 	"workforce.no_active_session":                          "business_rejection",
+	"workforce.no_session_for_today":                       "business_rejection",
 	"workforce.opening_balance_already_exists":             "business_rejection",
 	"workforce.payroll_config_incomplete":                  "business_rejection",
 	"workforce.personnel_number_invalid":                   "input",
@@ -729,6 +739,8 @@ var errorClassByCode = map[string]string{
 	"workforce.rebooking_sick_report":                      "business_rejection",
 	"workforce.rebooking_too_many":                         "input",
 	"workforce.replacement_outside_origin":                 "input",
+	"workforce.session_not_found":                          "business_rejection",
+	"workforce.session_not_owned":                          "permission",
 	"workforce.session_note_required":                      "input",
 	"workforce.session_times_invalid":                      "input",
 	"workforce.shift_changed":                              "business_rejection",

@@ -1939,10 +1939,22 @@
       "legacy": "workforce.absence_no_working_days"
     },
     {
+      "code": "workforce.absence_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.absence_not_found"
+    },
+    {
       "code": "workforce.absence_not_cancelable",
       "class": "business_rejection",
       "parameters": [],
       "legacy": "workforce.absence_not_cancelable"
+    },
+    {
+      "code": "workforce.absence_not_owned",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "workforce.absence_not_owned"
     },
     {
       "code": "workforce.absence_overlap",
@@ -1973,6 +1985,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "workforce.already_checked_in"
+    },
+    {
+      "code": "workforce.already_checked_out",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.already_checked_out"
     },
     {
       "code": "workforce.balance_adjustment_exceeds_balance",
@@ -2047,6 +2065,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "workforce.no_active_session"
+    },
+    {
+      "code": "workforce.no_session_for_today",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.no_session_for_today"
     },
     {
       "code": "workforce.opening_balance_already_exists",
@@ -2177,6 +2201,18 @@
       "class": "input",
       "parameters": [],
       "legacy": "workforce.session_note_required"
+    },
+    {
+      "code": "workforce.session_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.session_not_found"
+    },
+    {
+      "code": "workforce.session_not_owned",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "workforce.session_not_owned"
     },
     {
       "code": "workforce.session_times_invalid",

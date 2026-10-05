@@ -633,6 +633,7 @@ function setupDefaultMocks(overrides?: {
   tableAbsencesError?: Error;
   historyLoading?: boolean;
   configLoading?: boolean;
+  metricsError?: unknown;
   scheduleTargets?: ReadonlyMap<string, number>;
   monthSummary?: MonthSummary;
 }) {
@@ -682,11 +683,11 @@ function setupDefaultMocks(overrides?: {
       // schedule-targets consumer reads.
     } else if (key?.startsWith("time-tracking-schedule-targets")) {
       return {
-        data: scheduleTargets,
+        data: overrides?.metricsError ? undefined : scheduleTargets,
         isLoading: false,
         mutate: mockMutate,
         isValidating: false,
-        error: undefined,
+        error: overrides?.metricsError,
       } as never;
       // Monatskarte / period-KPI aggregate (#1842).
     } else if (key?.startsWith("time-tracking-month-summary")) {
@@ -854,6 +855,25 @@ describe("TimeTrackingPage", () => {
       setupDefaultMocks();
       render(<TimeTrackingPage />);
       expect(screen.getByText("Stempeluhr")).toBeInTheDocument();
+    });
+
+    it("shows the metrics load error with a retry in the page header", async () => {
+      setupDefaultMocks({
+        metricsError: new ApiError("metrics unavailable", 503, {
+          code: "general.unavailable",
+          instance: "req-metrics",
+        }),
+      });
+
+      render(<TimeTrackingPage />);
+
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "die Kennzahlen"),
+        ),
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(mockMutate).toHaveBeenCalled();
     });
   });
 
@@ -2479,16 +2499,20 @@ describe("TimeTrackingPage", () => {
       });
 
       render(<TimeTrackingPage />);
-      expect(
-        await screen.findByText(
-          catalogText("general.server", "die Liste Ihrer Arbeitszeiten"),
-        ),
-      ).toBeInTheDocument();
+      const tableError = await screen.findByText(
+        catalogText("general.server", "die Liste Ihrer Arbeitszeiten"),
+      );
+      const tableErrorAlert = tableError.closest<HTMLElement>('[role="alert"]');
+      expect(tableErrorAlert).not.toBeNull();
       expect(screen.queryByTestId("staff-session-table")).toBeNull();
       expect(
-        screen.getByRole("button", { name: /Vorgangskennung kopieren/ }),
+        within(tableErrorAlert!).getByRole("button", {
+          name: /Vorgangskennung kopieren/,
+        }),
       ).toHaveTextContent("req-table");
-      fireEvent.click(screen.getByRole("button", { name: /Wiederholen/ }));
+      fireEvent.click(
+        within(tableErrorAlert!).getByRole("button", { name: /Wiederholen/ }),
+      );
       expect(retry).toHaveBeenCalled();
     });
 

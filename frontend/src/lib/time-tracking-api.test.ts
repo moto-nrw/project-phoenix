@@ -208,6 +208,19 @@ describe("TimeTrackingService", () => {
       ).rejects.toMatchObject({ code: "general.unavailable" });
     });
 
+    it("reports a session lookup failure as unavailable", async () => {
+      const { clearSessionCache } = await import("./session-cache");
+      clearSessionCache();
+      mockGetSession.mockRejectedValueOnce(new Error("Session unavailable"));
+
+      await expect(
+        timeTrackingService.checkIn("present"),
+      ).rejects.toMatchObject({
+        code: "general.unavailable",
+        status: 503,
+      });
+    });
+
     it("keeps the code and request ID of a refused stamp", async () => {
       global.fetch = mockFetchResponse(
         {

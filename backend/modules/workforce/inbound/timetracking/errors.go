@@ -38,14 +38,15 @@ var serviceErrorRules = []common.ErrorRule{
 	{Target: workforce.ErrCheckInRaced, Render: conflictWithCode(common.CodeWorkforceAlreadyCheckedIn)},
 	{Match: msgIs("already checked in"), Render: conflictWithCode(common.CodeWorkforceAlreadyCheckedIn)},
 	{Match: msgIs("break already active"), Render: conflictWithCode(common.CodeWorkforceBreakAlreadyActive)},
-	{Match: msgIs("already checked out today"), Render: common.ErrorConflict},
+	{Match: msgIs("already checked out today"), Render: conflictWithCode(common.CodeWorkforceAlreadyCheckedOut)},
 	// The overlap message carries the conflicting interval, so only the code
 	// identifies it.
 	{Match: msgPrefix("work session overlaps an existing block"), Render: conflictWithCode(common.CodeWorkforceWorkSessionOverlap)},
 	{Match: msgIs("no active session found"), Render: notFoundWithCode(common.CodeWorkforceNoActiveSession)},
 	{Match: msgIs("no active break found"), Render: notFoundWithCode(common.CodeWorkforceNoActiveBreak)},
-	{Match: msgIn("no session found for today", "session not found"), Render: common.ErrorNotFound},
-	{Match: msgIn("can only update own sessions", "session does not belong to requesting staff"), Render: common.ErrorForbidden},
+	{Match: msgIs("no session found for today"), Render: notFoundWithCode(common.CodeWorkforceNoSessionForToday)},
+	{Match: msgIs("session not found"), Render: notFoundWithCode(common.CodeWorkforceSessionNotFound)},
+	{Match: msgIn("can only update own sessions", "session does not belong to requesting staff"), Render: forbiddenWithCode(common.CodeWorkforceSessionNotOwned)},
 	// Only these Validate() failures describe the recorded times; a missing
 	// staff ID or creator is a server fault and stays a 500.
 	{Match: msgIn(
@@ -74,13 +75,13 @@ var absenceErrorRules = []common.ErrorRule{
 	// Kontingente may not go negative (#3256).
 	{Target: workforce.ErrVacationQuotaExceeded, Render: conflictWithCode(common.CodeWorkforceVacationQuotaExceeded)},
 	{Target: workforce.ErrAllowanceBookingOverlap, Render: conflictWithCode(common.CodeWorkforceAbsenceOverlap)},
-	{Match: msgIs("absence not found"), Render: common.ErrorNotFound},
+	{Match: msgIs("absence not found"), Render: notFoundWithCode(common.CodeWorkforceAbsenceNotFound)},
 	{Match: msgIn(
 		"can only update own absences",
 		"can only delete own absences",
 		"can only cancel own absences",
 		"can only resubmit own absences",
-	), Render: common.ErrorForbidden},
+	), Render: forbiddenWithCode(common.CodeWorkforceAbsenceNotOwned)},
 	{Match: msgIn("only pending or approved absences can be canceled", "past absences cannot be canceled"), Render: conflictWithCode(common.CodeWorkforceAbsenceNotCancelable)},
 	{Match: msgIs("vacation range contains no working days"), Render: invalidWithCode(common.CodeWorkforceAbsenceNoWorkingDays)},
 	{Match: msgIs("vacation request must start today or in the future"), Render: invalidWithCode(common.CodeWorkforceVacationRequestInPast)},
@@ -138,4 +139,8 @@ func msgIn(messages ...string) func(error) bool {
 
 func notFoundWithCode(code string) func(error) render.Renderer {
 	return func(err error) render.Renderer { return common.ErrorNotFoundWithCode(err, code) }
+}
+
+func forbiddenWithCode(code string) func(error) render.Renderer {
+	return func(err error) render.Renderer { return common.ErrorForbiddenWithCode(err, code) }
 }

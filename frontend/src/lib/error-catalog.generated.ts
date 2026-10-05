@@ -403,8 +403,11 @@ export const ERROR_CATALOG = {
         "Über {object} wurde schon entschieden. Bitte laden Sie die Seite neu.",
       "workforce.absence_no_working_days":
         "In diesem Zeitraum gibt es keinen Arbeitstag. Bitte wählen Sie andere Tage.",
+      "workforce.absence_not_found": "Abwesenheit nicht gefunden.",
       "workforce.absence_not_cancelable":
         "{object} kann nicht mehr zurückgezogen werden. Bitte laden Sie die Seite neu.",
+      "workforce.absence_not_owned":
+        "Sie können nur eigene Abwesenheiten ändern.",
       "workforce.absence_overlap":
         "An diesen Tagen ist schon eine Abwesenheit eingetragen. Bitte wählen Sie andere Tage.",
       "workforce.absence_type_inactive":
@@ -413,6 +416,7 @@ export const ERROR_CATALOG = {
         "Dieser Monat ist schon abgeschlossen. Bitte wählen Sie ein Datum im offenen Monat. Oder öffnen Sie den Monat wieder.",
       "workforce.already_checked_in":
         "Sie sind schon eingestempelt. Bitte laden Sie die Seite neu.",
+      "workforce.already_checked_out": "Sie haben heute bereits gearbeitet.",
       "workforce.balance_adjustment_exceeds_balance":
         "Dafür reicht das Guthaben im Stundenkonto nicht. Spätere Buchungen hängen davon ab.",
       "workforce.balance_already_reset":
@@ -437,6 +441,7 @@ export const ERROR_CATALOG = {
         "Gerade läuft keine Pause. Bitte laden Sie die Seite neu.",
       "workforce.no_active_session":
         "Gerade läuft keine Arbeitszeit. Bitte laden Sie die Seite neu.",
+      "workforce.no_session_for_today": "Kein Eintrag für heute vorhanden.",
       "workforce.opening_balance_already_exists":
         "Für diese Person gibt es schon einen Eröffnungssaldo. Bitte löschen Sie zuerst den alten.",
       "workforce.payroll_config_incomplete":
@@ -475,6 +480,9 @@ export const ERROR_CATALOG = {
         "Eine Vertretung muss am Tag und in der Zeit der ausgefallenen Schicht liegen.",
       "workforce.session_note_required":
         "Bitte geben Sie einen Grund für die Änderung an.",
+      "workforce.session_not_found": "Eintrag nicht gefunden.",
+      "workforce.session_not_owned":
+        "Sie können nur eigene Einträge bearbeiten.",
       "workforce.session_times_invalid":
         "Das Ende muss nach dem Beginn liegen. Bitte prüfen Sie Beginn, Ende und Pause.",
       "workforce.shift_changed":

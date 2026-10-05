@@ -1817,10 +1817,14 @@ func TestClassifierCodes(t *testing.T) {
 		wantCode   string
 	}{
 		{"already checked in", classifyServiceError, errors.New("already checked in"), http.StatusConflict, "workforce.already_checked_in"},
+		{"already checked out", classifyServiceError, errors.New("already checked out today"), http.StatusConflict, "workforce.already_checked_out"},
 		{"check-in race", classifyServiceError, &workforce.TimeTrackingError{Kind: workforce.ErrCheckInRaced, Cause: errors.New("work session for the day is already open")}, http.StatusConflict, "workforce.already_checked_in"},
 		{"break already active", classifyServiceError, errors.New("break already active"), http.StatusConflict, "workforce.break_already_active"},
 		{"no active session", classifyServiceError, errors.New("no active session found"), http.StatusNotFound, "workforce.no_active_session"},
 		{"no active break", classifyServiceError, errors.New("no active break found"), http.StatusNotFound, "workforce.no_active_break"},
+		{"no session today", classifyServiceError, errors.New("no session found for today"), http.StatusNotFound, "workforce.no_session_for_today"},
+		{"session not found", classifyServiceError, errors.New("session not found"), http.StatusNotFound, "workforce.session_not_found"},
+		{"session not owned", classifyServiceError, errors.New("can only update own sessions"), http.StatusForbidden, "workforce.session_not_owned"},
 		{"check-in after check-out", classifyServiceError, errors.New("invalid session data: check-in time must be before check-out time"), http.StatusBadRequest, "workforce.session_times_invalid"},
 		{"negative break", classifyServiceError, errors.New("invalid session data: break minutes cannot be negative"), http.StatusBadRequest, "workforce.session_times_invalid"},
 		{"admin time range", classifyServiceError, errors.New("check_out_time must be after check_in_time"), http.StatusBadRequest, "workforce.session_times_invalid"},
@@ -1832,7 +1836,8 @@ func TestClassifierCodes(t *testing.T) {
 		{"cancel a past absence", classifyAbsenceError, errors.New("past absences cannot be canceled"), http.StatusConflict, "workforce.absence_not_cancelable"},
 		{"cancel a decided absence", classifyAbsenceError, errors.New("only pending or approved absences can be canceled"), http.StatusConflict, "workforce.absence_not_cancelable"},
 		{"answer after the decision", classifyAbsenceError, errors.New("only absences with a question can be resubmitted"), http.StatusBadRequest, "workforce.absence_already_decided"},
-		{"cancel someone else's absence", classifyAbsenceError, errors.New("can only cancel own absences"), http.StatusForbidden, "general.permission"},
+		{"absence not found", classifyAbsenceError, errors.New("absence not found"), http.StatusNotFound, "workforce.absence_not_found"},
+		{"cancel someone else's absence", classifyAbsenceError, errors.New("can only cancel own absences"), http.StatusForbidden, "workforce.absence_not_owned"},
 		{"sick cascade shift overlap", classifyAbsenceError, &workforce.TimeTrackingError{Kind: workforce.ErrStaffShiftOverlap, Cause: errors.New("shift overlaps an existing shift on this day")}, http.StatusConflict, "workforce.shift_overlap"},
 	}
 

@@ -3401,6 +3401,22 @@ function TimeTrackingContent() {
   const absencesLoad = useApiLoadError();
   const profileLoad = useApiLoadError();
   const breaksLoad = useApiLoadError();
+  const metricsLoad = useApiLoadError();
+
+  const metricsError = ownMetrics.error;
+  const retryMetrics = ownMetrics.retry;
+  const showMetricsLoadError = metricsLoad.show;
+  const clearMetricsLoadError = metricsLoad.clear;
+  useEffect(() => {
+    if (metricsError) {
+      void showMetricsLoadError(metricsError, {
+        object: "die Kennzahlen",
+        retry: () => void retryMetrics(),
+      });
+    } else {
+      clearMetricsLoadError();
+    }
+  }, [metricsError, retryMetrics, showMetricsLoadError, clearMetricsLoadError]);
 
   const showCurrentLoadError = currentLoad.show;
   const clearCurrentLoadError = currentLoad.clear;
@@ -3931,7 +3947,9 @@ function TimeTrackingContent() {
       loading={authStatus === "loading"}
       loadingLabel="Zeiterfassung wird geladen…"
       stats={
-        metricsPending ? undefined : (
+        metricsLoad.error ? (
+          <LoadErrorAlert error={metricsLoad.error} />
+        ) : metricsPending ? undefined : (
           <TenantPageStats
             items={[
               {

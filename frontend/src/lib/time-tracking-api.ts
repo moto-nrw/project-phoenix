@@ -128,9 +128,9 @@ class TimeTrackingService {
     errorMessage: string,
     body?: unknown,
   ): Promise<ApiResponse<T>> {
-    const token = await this.getToken();
     let response: Response;
     try {
+      const token = await this.getToken();
       response = await fetch(`${this.baseUrl}${path}`, {
         method,
         headers: this.buildHeaders(token, body !== undefined),
@@ -152,9 +152,9 @@ class TimeTrackingService {
     method: string,
     errorMessage: string,
   ): Promise<void> {
-    const token = await this.getToken();
     let response: Response;
     try {
+      const token = await this.getToken();
       response = await fetch(`${this.baseUrl}${path}`, {
         method,
         headers: this.buildHeaders(token, false),

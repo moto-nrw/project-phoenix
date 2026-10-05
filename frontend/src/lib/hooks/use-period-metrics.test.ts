@@ -68,20 +68,28 @@ function mockSWR(
   data: Partial<
     Record<"summary" | "targets" | "sessions" | "absences", unknown>
   >,
+  errors: Partial<Record<"targets", unknown>> = {},
 ) {
   const keys: string[] = [];
   const configs = new Map<string, SWROptions>();
+  const mutates = new Map<string, ReturnType<typeof vi.fn>>();
   mockUseSWRAuth.mockImplementation(
     (key: string | null, ...rest: unknown[]) => {
+      const mutate = vi.fn().mockResolvedValue(undefined);
       if (typeof key === "string") {
         keys.push(key);
         configs.set(key, (rest[1] ?? {}) as SWROptions);
+        mutates.set(key, mutate);
       }
       if (key === "time-tracking-config") {
-        return { data: { accountStartDate: "2026-05-13" }, isLoading: false };
+        return {
+          data: { accountStartDate: "2026-05-13" },
+          isLoading: false,
+          mutate,
+        };
       }
       if (typeof key === "string" && key.includes("month-summary")) {
-        return { data: data.summary, isLoading: false };
+        return { data: data.summary, isLoading: false, mutate };
       }
       if (typeof key === "string" && key.includes("schedule-targets")) {
         // Der Key trägt seit #2443 die volle Tagesprojektion. Die Testfälle
@@ -103,11 +111,13 @@ function mockSWR(
               ]),
             ),
           isLoading: false,
+          error: errors.targets,
+          mutate,
         };
       }
       if (typeof key === "string" && key.includes("absences")) {
         // Own portal: raw camelCase StaffAbsence[]; admin: StaffAbsenceRow[].
-        return { data: data.absences ?? [], isLoading: false };
+        return { data: data.absences ?? [], isLoading: false, mutate };
       }
       // The own history key is SHARED with the Zeiterfassung table and carries
       // that table's shape; the admin key carries a flat session array.
@@ -117,12 +127,13 @@ function mockSWR(
             ? { sessions: data.sessions, weeklySummaries: [] }
             : undefined,
           isLoading: false,
+          mutate,
         };
       }
-      return { data: data.sessions, isLoading: false };
+      return { data: data.sessions, isLoading: false, mutate };
     },
   );
-  return { keys, configs };
+  return { keys, configs, mutates };
 }
 
 beforeEach(() => {
@@ -259,6 +270,23 @@ describe("usePeriodMetrics", () => {
     const { result } = renderHook(() => usePeriodMetrics("42"));
 
     expect(result.current.week).toBeNull();
+  });
+
+  it("exposes a failed metric source with a retry", async () => {
+    const error = new Error("daily projection unavailable");
+    const swr = mockSWR(
+      { summary: SUMMARY, targets: new Map(), sessions: [] },
+      { targets: error },
+    );
+
+    const { result } = renderHook(() => usePeriodMetrics());
+
+    expect(result.current.error).toBe(error);
+    expect(result.current.failed).toBe(true);
+    await result.current.retry();
+    expect(
+      swr.mutates.get("time-tracking-schedule-targets-2026-08-03-2026-08-09"),
+    ).toHaveBeenCalledTimes(1);
   });
 
   it("reports no month while the summary is still loading", () => {

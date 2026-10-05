@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import { useAccountBalance } from "~/lib/hooks/use-account-balance";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
@@ -46,6 +46,10 @@ export interface PeriodMetrics {
   readonly hasTargetOverride?: boolean;
   /** A source failed to load; the null figures will not arrive. */
   readonly failed?: boolean;
+  /** The source error for the in-place load error display. */
+  readonly error?: unknown;
+  /** Revalidates the failed source. */
+  readonly retry: () => Promise<void>;
 }
 
 /**
@@ -108,9 +112,11 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
   // Tagesprojektion (#2443). Hier zählt nur ihr Soll — aber ein SWR-Key trägt
   // EINEN Datentyp, und wer sonst das Rennen verliert, liest die Form des
   // anderen (siehe Kommentar unten zu Sessions/Abwesenheiten).
-  const { data: weekProjection, error: weekProjectionError } = useSWRAuth<
-    ReadonlyMap<string, DayProjection>
-  >(
+  const {
+    data: weekProjection,
+    error: weekProjectionError,
+    mutate: mutateWeekProjection,
+  } = useSWRAuth<ReadonlyMap<string, DayProjection>>(
     staffId
       ? `staff-schedule-targets-${staffId}-${weekFromKey}-${weekToKey}`
       : `time-tracking-schedule-targets-${weekFromKey}-${weekToKey}`,
@@ -148,9 +154,11 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
     latest: readonly StaffHistorySession[] | undefined,
   ) => (latest?.some((s) => !s.check_out_time) ? OPEN_MONTH_REFRESH_MS : 0);
 
-  const { data: adminSessions, error: adminSessionsError } = useSWRAuth<
-    readonly StaffHistorySession[]
-  >(
+  const {
+    data: adminSessions,
+    error: adminSessionsError,
+    mutate: mutateAdminSessions,
+  } = useSWRAuth<readonly StaffHistorySession[]>(
     staffId
       ? `staff-history-${staffId}-${weekHistoryFromKey}-${weekToKey}`
       : null,
@@ -162,7 +170,11 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
       ),
     { refreshInterval },
   );
-  const { data: ownHistory, error: ownHistoryError } = useSWRAuth<{
+  const {
+    data: ownHistory,
+    error: ownHistoryError,
+    mutate: mutateOwnHistory,
+  } = useSWRAuth<{
     sessions: WorkSessionHistory[];
     weeklySummaries: WeeklySummary[];
   }>(
@@ -176,9 +188,11 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
     },
   );
 
-  const { data: adminAbsences, error: adminAbsencesError } = useSWRAuth<
-    readonly StaffAbsenceRow[]
-  >(
+  const {
+    data: adminAbsences,
+    error: adminAbsencesError,
+    mutate: mutateAdminAbsences,
+  } = useSWRAuth<readonly StaffAbsenceRow[]>(
     staffId ? `staff-absences-${staffId}-${weekFromKey}-${weekToKey}` : null,
     () =>
       staffAbsenceService.getAbsences(
@@ -187,9 +201,11 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
         weekToKey,
       ),
   );
-  const { data: ownAbsences, error: ownAbsencesError } = useSWRAuth<
-    StaffAbsence[]
-  >(
+  const {
+    data: ownAbsences,
+    error: ownAbsencesError,
+    mutate: mutateOwnAbsences,
+  } = useSWRAuth<StaffAbsence[]>(
     staffId ? null : `time-tracking-table-absences-${weekFromKey}-${weekToKey}`,
     () => timeTrackingService.getAbsences(weekFromKey, weekToKey),
   );
@@ -209,8 +225,11 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
   const { data: config } = useSWRAuth("time-tracking-config", () =>
     timeTrackingService.getConfig(),
   );
-  const { balanceMinutes: accountBalanceMinutes, error: balanceError } =
-    useAccountBalance(staffId);
+  const {
+    balanceMinutes: accountBalanceMinutes,
+    error: balanceError,
+    retry: retryAccountBalance,
+  } = useAccountBalance(staffId);
 
   const week = useMemo<PeriodTotals | null>(() => {
     // No Soll, no week card: showing Ist against a 0h Soll would read as a
@@ -262,14 +281,37 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
 
   // The figures stay null when a source failed; the caller must not wait for
   // them forever (#2514).
-  const failed = Boolean(
+  const error =
     weekProjectionError ??
     adminSessionsError ??
     ownHistoryError ??
     adminAbsencesError ??
     ownAbsencesError ??
+    balanceError;
+  const failed = Boolean(error);
+  const retry = useCallback(async () => {
+    const retries: Promise<unknown>[] = [];
+    if (weekProjectionError) retries.push(mutateWeekProjection());
+    if (adminSessionsError) retries.push(mutateAdminSessions());
+    if (ownHistoryError) retries.push(mutateOwnHistory());
+    if (adminAbsencesError) retries.push(mutateAdminAbsences());
+    if (ownAbsencesError) retries.push(mutateOwnAbsences());
+    if (balanceError) retries.push(retryAccountBalance());
+    await Promise.all(retries);
+  }, [
+    weekProjectionError,
+    adminSessionsError,
+    ownHistoryError,
+    adminAbsencesError,
+    ownAbsencesError,
     balanceError,
-  );
+    mutateWeekProjection,
+    mutateAdminSessions,
+    mutateOwnHistory,
+    mutateAdminAbsences,
+    mutateOwnAbsences,
+    retryAccountBalance,
+  ]);
 
   return {
     week,
@@ -278,5 +320,7 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
     accountBalanceMinutes,
     hasTargetOverride,
     failed,
+    error,
+    retry,
   };
 }
