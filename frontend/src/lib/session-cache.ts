@@ -10,7 +10,7 @@
 export const DELIBERATE_LOGOUT_KEY = "deliberateLogout";
 
 import { getSession } from "next-auth/react";
-import { unavailableApiError } from "./api-error";
+import { ApiError, unavailableApiError } from "./api-error";
 import { clearRateLimitBackoff } from "./rate-limit-backoff";
 
 let cached: {
@@ -35,6 +35,24 @@ async function transportFetch(
   } catch (error) {
     throw unavailableApiError(error);
   }
+}
+
+async function getSessionOrUnavailable() {
+  try {
+    return await getCachedSession();
+  } catch (error) {
+    // The session endpoint is a network dependency just like the API route.
+    // Preserve an already normalized error, but never let its raw transport
+    // failure bypass the shared API error presentation.
+    if (error instanceof ApiError) throw error;
+    throw unavailableApiError(error);
+  }
+}
+
+function authenticationRequiredError(): ApiError {
+  return new ApiError("Authentication required", 401, {
+    code: "general.permission",
+  });
 }
 
 /**
@@ -116,11 +134,11 @@ export async function sessionFetch(
   url: string,
   init?: RequestInit,
 ): Promise<Response> {
-  const session = await getCachedSession();
+  const session = await getSessionOrUnavailable();
   const token = session?.user?.token;
 
   if (!token) {
-    throw new Error("No authentication token available");
+    throw authenticationRequiredError();
   }
 
   const mergedInit: RequestInit = {
@@ -143,8 +161,9 @@ export async function sessionFetch(
     const { handleAuthFailure } = await import("./auth-failure");
     const refreshed = await handleAuthFailure();
     if (refreshed) {
-      const freshSession = await getCachedSession();
+      const freshSession = await getSessionOrUnavailable();
       const freshToken = freshSession?.user?.token;
+      if (!freshToken) throw authenticationRequiredError();
       return transportFetch(url, {
         ...init,
         headers: {
@@ -155,7 +174,7 @@ export async function sessionFetch(
       });
     }
     // handleAuthFailure already signed out
-    throw new Error("Authentication expired");
+    throw authenticationRequiredError();
   }
 
   return response;

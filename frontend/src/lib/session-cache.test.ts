@@ -231,6 +231,40 @@ describe("sessionFetch", () => {
     globalThis.fetch = originalFetch;
   });
 
+  it("normalizes a failed session lookup as unavailable", async () => {
+    const { sessionFetch } = await freshModule();
+    const { ApiError } = await import("./api-error");
+    mockGetSession.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    const error = await sessionFetch("/api/test").catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 503,
+      code: "general.unavailable",
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("normalizes a missing session token as a permission failure", async () => {
+    const { sessionFetch } = await freshModule();
+    const { ApiError } = await import("./api-error");
+    mockGetSession.mockResolvedValueOnce(null);
+
+    const error = await sessionFetch("/api/test").catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 401,
+      code: "general.permission",
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it("normalizes an initial transport failure as unavailable", async () => {
     const { sessionFetch } = await freshModule();
     const { ApiError } = await import("./api-error");
@@ -267,6 +301,44 @@ describe("sessionFetch", () => {
     expect(error).toMatchObject({
       status: 503,
       code: "general.unavailable",
+    });
+  });
+
+  it("normalizes an unrecoverable authentication failure as permission denied", async () => {
+    const { sessionFetch } = await freshModule();
+    const { ApiError } = await import("./api-error");
+    mockGetSession.mockResolvedValueOnce(session("token-old"));
+    mockHandleAuthFailure.mockResolvedValueOnce(false);
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+
+    const error = await sessionFetch("/api/test").catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 401,
+      code: "general.permission",
+    });
+  });
+
+  it("normalizes a missing token after a successful refresh as permission denied", async () => {
+    const { sessionFetch } = await freshModule();
+    const { ApiError } = await import("./api-error");
+    mockGetSession
+      .mockResolvedValueOnce(session("token-old"))
+      .mockResolvedValueOnce(null);
+    mockHandleAuthFailure.mockResolvedValueOnce(true);
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+
+    const error = await sessionFetch("/api/test").catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 401,
+      code: "general.permission",
     });
   });
 });

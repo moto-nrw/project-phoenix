@@ -203,6 +203,19 @@ describe("staff-documents-api", () => {
       expect(mockFetch()).not.toHaveBeenCalled();
     });
 
+    it("normalizes a failed session lookup as unavailable", async () => {
+      mockedGetSession.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+      const failure = staffDocumentsService.upload("7", file, "sonstiges");
+
+      await expect(failure).rejects.toBeInstanceOf(ApiError);
+      await expect(failure).rejects.toMatchObject({
+        code: "general.unavailable",
+        status: 503,
+      });
+      expect(mockFetch()).not.toHaveBeenCalled();
+    });
+
     it("keeps the backend code and request ID of a refused upload", async () => {
       mockFetch().mockResolvedValue({
         ok: false,

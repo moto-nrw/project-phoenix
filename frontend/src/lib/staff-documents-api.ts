@@ -107,7 +107,10 @@ class StaffDocumentsService {
     formData.append("file", file);
     formData.append("category", category);
 
-    const session = await getCachedSession();
+    const session = await getCachedSession().catch((error: unknown) => {
+      if (error instanceof ApiError) throw error;
+      throw unavailableApiError(error);
+    });
     const token = session?.user?.token;
     if (!token) {
       throw new ApiError("Authentication required", 401, {
