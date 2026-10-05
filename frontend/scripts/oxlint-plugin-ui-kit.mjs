@@ -468,15 +468,15 @@ src/components/activities/activity-management-modal.tsx|text-[10px]@330 text-[10
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/calendar/personal-calendar.tsx|text-[11px]@807 text-[11px]@835 text-[11px]@922 text-[11px]@983 text-[11px]@987 text-[11px]@993 text-[11px]@1039 text-[11px]@1045 text-[10px]@1065 text-[11px]@1118 text-[11px]@1198 text-[11px]@1204 text-[11px]@1209
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@40 text-[10px]@94
-src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@920 text-[11px]@939
-src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1349
-src/components/enrollment/enrollment-form.tsx|text-[11px]@2122
-src/components/enrollment/phases-editor.tsx|text-[11px]@669 text-[11px]@674
+src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@968 text-[11px]@987
+src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1481
+src/components/enrollment/enrollment-form.tsx|text-[11px]@2180
+src/components/enrollment/phases-editor.tsx|text-[11px]@758 text-[11px]@763
 src/components/files/files-page.tsx|text-[11px]@158 text-[11px]@275
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@376
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@676 text-[11px]@741
-src/components/parent/parent-enroll-picker.tsx|text-[11px]@205 text-[11px]@209
+src/components/parent/parent-enroll-picker.tsx|text-[11px]@227 text-[11px]@231
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/planning/closing-day-marker.tsx|text-[10px]@53
 src/components/staff/absence-request-row.tsx|text-[11px]@107

@@ -1,7 +1,14 @@
 "use client";
 
-import { wireErrorCode } from "~/lib/api-error";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ApiError } from "~/lib/api-error";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   CalendarClock,
   Check,
@@ -71,8 +78,16 @@ import NavigationLink from "~/components/ui/navigation-link";
 import { Alert } from "~/components/ui/alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { EditActions } from "~/components/ui/edit-actions";
-import { useFormError } from "~/components/ui/form-error";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -122,8 +137,22 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   const router = useTenantRouter();
   const [data, setData] = useState<AdminRequestDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const toast = useToast();
+  const loadError = useApiLoadError();
+  const showLoadError = loadError.show;
+  const clearLoadError = loadError.clear;
+  // Eine Entscheidung scheitert an genau einem Kind: der Kasten steht dort.
+  const decisionErrors = useApiFormError();
+  const [decisionErrorChildId, setDecisionErrorChildId] = useState<
+    string | null
+  >(null);
+  const restoreErrors = useApiFormError();
+  // „Wiederholen“ ruft die aktuelle Fassung auf, nicht die vom Fehler.
+  const reloadRef = useRef<() => Promise<void>>(async () => undefined);
+  const latestDecideRef = useRef<
+    (childId: string, status: DecisionStatus) => Promise<void>
+  >(async () => undefined);
+  const latestRestoreRef = useRef<() => Promise<void>>(async () => undefined);
   const [busyChildId, setBusyChildId] = useState<string | null>(null);
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [deletionTarget, setDeletionTarget] = useState<
@@ -136,20 +165,27 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    clearLoadError();
     try {
       const fresh = await getAdminRequest(requestId);
       setData(fresh);
       // Das Öffnen hat die Anmeldung für diese Person gelesen (#3778).
       announceAdminRequestOpened();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("admin_enrollment_detail_load_failed", { error: message });
-      setError(message);
+      logger.error("admin_enrollment_detail_load_failed", {
+        error: err instanceof Error ? err.message : "unknown",
+      });
+      await showLoadError(err, {
+        object: "die Anmeldung",
+        retry: () => void reloadRef.current(),
+      });
     } finally {
       setLoading(false);
     }
-  }, [requestId]);
+  }, [requestId, clearLoadError, showLoadError]);
+  useLayoutEffect(() => {
+    reloadRef.current = load;
+  });
 
   const handleDataCorrected = useCallback(
     (correctedChild: AdminRequestChild) => {
@@ -181,50 +217,64 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     if (!data) return;
     const reason = (reasons[childId] ?? "").trim();
     setBusyChildId(childId);
-    setError(null);
-    setInfo(null);
+    decisionErrors.clear();
+    setDecisionErrorChildId(childId);
+    let saved = false;
     try {
       await decideAdminChild(requestId, childId, status, reason || undefined);
-      setInfo(
-        `Entscheidung gespeichert: ${CHILD_STATUS_LABELS[status as ChildStatus]}`,
-      );
-      await load();
+      saved = true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("admin_enrollment_decide_failed", {
-        error: message,
+        error: err instanceof Error ? err.message : "unknown",
         request_id: requestId,
         child_id: childId,
         status,
       });
-      setError(message);
+      await decisionErrors.show(err, {
+        object: "die Entscheidung",
+        retry: () => void latestDecideRef.current(childId, status),
+      });
     } finally {
       setBusyChildId(null);
     }
+    if (!saved) return;
+    toast.success(
+      `Die Entscheidung wurde gespeichert: ${CHILD_STATUS_LABELS[status as ChildStatus]}.`,
+    );
+    await load();
   };
+  useLayoutEffect(() => {
+    latestDecideRef.current = handleDecide;
+  });
 
   const handleRestore = async () => {
     if (!data) return;
     setRestoring(true);
-    setError(null);
-    setInfo(null);
+    restoreErrors.clear();
+    let result: Awaited<ReturnType<typeof restoreAdminRequest>> | null = null;
     try {
-      const result = await restoreAdminRequest(requestId);
-      setRestoreOpen(false);
-      setInfo(buildRestoreInfoMessage(result));
-      await load();
+      result = await restoreAdminRequest(requestId);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("admin_enrollment_restore_failed", {
-        error: message,
+        error: err instanceof Error ? err.message : "unknown",
         request_id: requestId,
       });
-      setRestoreOpen(false);
-      setError(message);
+      // Der Dialog bleibt offen: dort steht, warum es nicht ging.
+      await restoreErrors.show(err, {
+        object: "die Anmeldung",
+        retry: () => void latestRestoreRef.current(),
+      });
     } finally {
       setRestoring(false);
     }
+    if (!result) return;
+    setRestoreOpen(false);
+    toast.success(buildRestoreInfoMessage(result));
+    await load();
   };
+  useLayoutEffect(() => {
+    latestRestoreRef.current = handleRestore;
+  });
 
   if (loading) {
     return (
@@ -245,7 +295,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
         back
         backHref="/admin/enrollments"
         backLabel="Zurück zur Anmeldungs-Übersicht"
-        error={error ?? "Anmeldung nicht gefunden."}
+        error={loadError.error ?? "Die Anmeldung wurde nicht gefunden."}
       />
     );
   }
@@ -323,12 +373,16 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
           </ConfirmationModal>
           <ConfirmationModal
             isOpen={restoreOpen}
-            onClose={() => setRestoreOpen(false)}
+            onClose={() => {
+              setRestoreOpen(false);
+              restoreErrors.clear();
+            }}
             onConfirm={() => void handleRestore()}
             title="Anmeldung wiederherstellen"
             confirmText="Wiederherstellen"
             isConfirmLoading={restoring}
           >
+            <FormErrorAlert message={restoreErrors.error} className="mb-3" />
             <p className="text-sm text-gray-600">
               {withdrawnChildCount === 1
                 ? "Das zurückgezogene Kind wird wieder auf „Eingegangen“ gesetzt und die Anmeldung erneut zur Prüfung geöffnet."
@@ -357,7 +411,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                 router.push(`/admin/enrollments/phases/${data.phase_id}`);
                 return;
               }
-              setInfo("Kind wurde vollständig aus der Anmeldung gelöscht.");
+              toast.success("Das Kind wurde aus der Anmeldung gelöscht.");
               void load();
             }}
           />
@@ -367,9 +421,9 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="space-y-6 p-4 sm:p-6">
-            {error ? <Alert type="error" message={error} /> : null}
-            {info ? <Alert type="success" message={info} /> : null}
-
+            {/* Ein gescheitertes Neuladen nach einer Änderung: die Seite zeigt
+                weiter den letzten Stand und sagt, dass er veraltet sein kann. */}
+            <LoadErrorAlert error={loadError.error} />
             {data.late_invite_email_mismatch === true &&
               data.late_invite_guardian_email && (
                 <Alert
@@ -399,6 +453,16 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                   reason={reasons[child.id] ?? ""}
                   schemaFields={data.schema_fields}
                   actions={availableActions}
+                  decisionError={
+                    decisionErrorChildId === child.id
+                      ? decisionErrors.error
+                      : null
+                  }
+                  decisionFieldError={
+                    decisionErrorChildId === child.id
+                      ? decisionErrors.fieldError("reason")
+                      : undefined
+                  }
                   onReasonChange={(value) =>
                     setReasons((prev) => ({ ...prev, [child.id]: value }))
                   }
@@ -503,6 +567,8 @@ function ChildInformationCard({
   actions,
   busy,
   child,
+  decisionError,
+  decisionFieldError,
   onDecide,
   onDataCorrected,
   onOfferingsChanged,
@@ -517,6 +583,8 @@ function ChildInformationCard({
   actions: ActionDef[];
   busy: boolean;
   child: AdminRequestChild;
+  decisionError: FormErrorInput;
+  decisionFieldError?: string;
   requestId: string;
   phaseId: string;
   phaseName?: string;
@@ -644,6 +712,8 @@ function ChildInformationCard({
             actions={actions}
             child={child}
             busy={busy}
+            error={decisionError}
+            reasonError={decisionFieldError}
             reason={reason}
             onReasonChange={onReasonChange}
             onDecide={onDecide}
@@ -781,13 +851,17 @@ function DecisionPanel({
   actions,
   busy,
   child,
+  error,
   onDecide,
   onReasonChange,
   reason,
+  reasonError,
 }: Readonly<{
   actions: ActionDef[];
   busy: boolean;
   child: AdminRequestChild;
+  error: FormErrorInput;
+  reasonError?: string;
   onDecide: (status: DecisionStatus) => void;
   onReasonChange: (value: string) => void;
   reason: string;
@@ -809,9 +883,13 @@ function DecisionPanel({
         </div>
       </div>
 
+      <FormErrorAlert message={error} className="mt-4" />
+
       <div className="mt-4">
         <Textarea
           id={`decision-reason-${child.id}`}
+          name="reason"
+          error={reasonError}
           label="Begründung"
           value={reason}
           onChange={(event) => onReasonChange(event.target.value)}
@@ -1275,7 +1353,17 @@ export function ChildOfferingAdjustment({
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   // Fehler stehen oben im Bearbeiten-Bereich (Bauart 2 Regel 5).
-  const [error, setError] = useFormError();
+  const errors = useApiFormError();
+  const catalogError = useApiLoadError();
+  const historyError = useApiLoadError();
+  const showHistoryError = historyError.show;
+  const clearHistoryError = historyError.clear;
+  // „Wiederholen“ ruft die aktuelle Fassung auf, nicht die vom Fehler.
+  const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
+  const latestOpenEditorRef = useRef<() => Promise<void>>(
+    async () => undefined,
+  );
+  const latestHistoryRef = useRef<() => Promise<void>>(async () => undefined);
   const [withdrawalConfirmationOpen, setWithdrawalConfirmationOpen] =
     useState(false);
   const [pendingWithdrawalInput, setPendingWithdrawalInput] = useState<{
@@ -1288,6 +1376,7 @@ export function ChildOfferingAdjustment({
   }, [careOfferingsEnabled]);
 
   const loadHistory = useCallback(async () => {
+    clearHistoryError();
     try {
       const rows = await listAdminChildOfferingAdjustments(requestId, child.id);
       setHistory(rows);
@@ -1296,8 +1385,16 @@ export function ChildOfferingAdjustment({
         error: err instanceof Error ? err.message : String(err),
         child_id: child.id,
       });
+      // Ohne Hinweis läse sich die fehlende Liste als "nie geändert".
+      await showHistoryError(err, {
+        object: "die Änderungshistorie",
+        retry: () => void latestHistoryRef.current(),
+      });
     }
-  }, [child.id, requestId]);
+  }, [child.id, requestId, clearHistoryError, showHistoryError]);
+  useLayoutEffect(() => {
+    latestHistoryRef.current = loadHistory;
+  });
 
   useEffect(() => {
     void loadHistory();
@@ -1330,7 +1427,8 @@ export function ChildOfferingAdjustment({
   const openEditor = async () => {
     if (!careOfferingsEnabled) return;
     setEditing(true);
-    setError(null);
+    errors.clear();
+    catalogError.clear();
     setDays(initialManualOfferingDays(child.offerings));
     // Occupancy is advisory: without it a full offering only announces itself
     // as an error after the whole correction is submitted (#2186). Loaded
@@ -1356,19 +1454,25 @@ export function ChildOfferingAdjustment({
       resetEditorSelection(offerings);
       setCatalogLoaded(true);
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Betreuungsangebote konnten nicht geladen werden";
-      setError(message);
+      logger.warn("offering_adjustment_catalog_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        child_id: child.id,
+      });
       setCatalog([]);
       setBlockedCatalog([]);
       setRawCatalog([]);
       setCatalogLoaded(false);
+      await catalogError.show(err, {
+        object: "die Angebotsliste",
+        retry: () => void latestOpenEditorRef.current(),
+      });
     } finally {
       setLoading(false);
     }
   };
+  useLayoutEffect(() => {
+    latestOpenEditorRef.current = openEditor;
+  });
 
   const preview = useMemo(
     () => materializeClientOfferingPreview(catalog, selected, days, child),
@@ -1459,15 +1563,14 @@ export function ChildOfferingAdjustment({
   const handleSave = async () => {
     const trimmedReason = reason.trim();
     if (trimmedReason === "") {
-      setError("Bitte eine Begründung eintragen.");
+      errors.invalid("Bitte tragen Sie eine Begründung ein.", {
+        reason: "Die Begründung fehlt.",
+      });
       return;
     }
-    if (!catalogLoaded) {
-      setError("Betreuungsangebote konnten nicht geladen werden.");
-      return;
-    }
+    if (!catalogLoaded) return;
     setSaving(true);
-    setError(null);
+    errors.clear();
     const input = {
       reason: trimmedReason,
       offerings: adjustmentPayloadOfferings(
@@ -1481,30 +1584,47 @@ export function ChildOfferingAdjustment({
       await saveAdjustment(input, false);
     } catch (err) {
       if (
-        wireErrorCode((err as { code?: unknown } | undefined)?.code) ===
-        "enrollment.complete_withdrawal_confirmation_required"
+        err instanceof ApiError &&
+        err.code === "enrollment.complete_withdrawal_confirmation_required"
       ) {
         setPendingWithdrawalInput(input);
         setWithdrawalConfirmationOpen(true);
       } else {
-        setError(
-          err instanceof Error ? err.message : "Speichern fehlgeschlagen",
-        );
+        logger.warn("offering_adjustment_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          child_id: child.id,
+        });
+        await errors.show(err, {
+          object: "die Angebotsänderung",
+          retry: () => void latestSaveRef.current(),
+        });
       }
     } finally {
       setSaving(false);
     }
   };
+  useLayoutEffect(() => {
+    latestSaveRef.current = handleSave;
+  });
 
   const confirmCompleteWithdrawal = async () => {
     if (!pendingWithdrawalInput) return;
     setSaving(true);
-    setError(null);
+    errors.clear();
     try {
       await saveAdjustment(pendingWithdrawalInput, true);
     } catch (err) {
       setWithdrawalConfirmationOpen(false);
-      setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
+      logger.warn("offering_adjustment_withdrawal_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        child_id: child.id,
+      });
+      // Der Dialog ist zu, der Entwurf steht noch im Bearbeiten-Bereich:
+      // „Wiederholen“ dort fragt wieder nach.
+      await errors.show(err, {
+        object: "die Angebotsänderung",
+        retry: () => void latestSaveRef.current(),
+      });
     } finally {
       setSaving(false);
     }
@@ -1512,10 +1632,12 @@ export function ChildOfferingAdjustment({
 
   const cancelEditing = () => {
     setEditing(false);
-    setError(null);
+    errors.clear();
+    catalogError.clear();
   };
 
-  if (!careOfferingsEnabled && history.length === 0) return null;
+  if (!careOfferingsEnabled && history.length === 0 && !historyError.error)
+    return null;
 
   return (
     <div className="rounded-lg border border-gray-100 bg-white p-3">
@@ -1563,7 +1685,8 @@ export function ChildOfferingAdjustment({
           Fläche; Auswahl und Begründung bleiben darunter erhalten. */}
       {careOfferingsEnabled && editing ? (
         <div className="mt-3 space-y-4 border-t border-gray-100 pt-3">
-          <FormErrorAlert message={error} />
+          <FormErrorAlert message={errors.error} />
+          <LoadErrorAlert error={catalogError.error} />
           {loading ? (
             <p className="text-sm text-gray-500">Angebote werden geladen…</p>
           ) : (
@@ -1685,7 +1808,8 @@ export function ChildOfferingAdjustment({
           )}
 
           <Textarea
-            name="offering-adjustment-reason"
+            name="reason"
+            error={errors.fieldError("reason")}
             label="Begründung"
             value={reason}
             onChange={(event) => setReason(event.target.value)}
@@ -1702,6 +1826,12 @@ export function ChildOfferingAdjustment({
         </div>
       ) : null}
 
+      {historyError.error ? (
+        <LoadErrorAlert
+          error={historyError.error}
+          className={careOfferingsEnabled ? "mt-3" : undefined}
+        />
+      ) : null}
       {history.length > 0 ? (
         <div
           className={

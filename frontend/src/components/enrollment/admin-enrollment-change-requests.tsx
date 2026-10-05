@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { ArrowRight, Check, Mail, UserRound, X } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
@@ -19,7 +25,12 @@ import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 import { ENROLLMENT_CHANGE_REQUEST_STATUS_META } from "~/components/enrollment/enrollment-change-request-status";
-import { Alert } from "~/components/ui/alert";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Textarea } from "~/components/ui/textarea";
@@ -41,23 +52,41 @@ export function AdminEnrollmentChangeRequestDetail({
     null,
   );
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const toast = useToast();
+  const loadError = useApiLoadError();
+  const showLoadError = loadError.show;
+  const clearLoadError = loadError.clear;
+  const questionErrors = useApiFormError();
+  const reviewErrors = useApiFormError();
+  // „Wiederholen“ sendet den aktuellen Stand, nicht den vom Fehler.
+  const latestQuestionRef = useRef<() => Promise<void>>(async () => undefined);
+  const latestReviewRef = useRef<(approved: boolean) => Promise<void>>(
+    async () => undefined,
+  );
+  const reloadRef = useRef<() => Promise<void>>(async () => undefined);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    clearLoadError();
     try {
       const fresh = await getAdminEnrollmentChangeRequest(changeRequestId);
       setData(fresh);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("change_request_detail_failed", { error: message });
-      setError(message);
+      logger.error("change_request_detail_failed", {
+        error: err instanceof Error ? err.message : "unknown",
+      });
+      await showLoadError(err, {
+        object: "die Änderungsanfrage",
+        retry: () => void reloadRef.current(),
+      });
     } finally {
       setLoading(false);
     }
-  }, [changeRequestId]);
+  }, [changeRequestId, clearLoadError, showLoadError]);
+
+  useLayoutEffect(() => {
+    reloadRef.current = load;
+  });
 
   useEffect(() => {
     void load();
@@ -67,8 +96,7 @@ export function AdminEnrollmentChangeRequestDetail({
     const body = question.trim();
     if (!body) return;
     setBusy("question");
-    setError(null);
-    setInfo(null);
+    questionErrors.clear();
     try {
       const fresh = await askEnrollmentChangeRequestQuestion(
         changeRequestId,
@@ -76,44 +104,61 @@ export function AdminEnrollmentChangeRequestDetail({
       );
       setData(fresh);
       setQuestion("");
-      setInfo("Rückfrage gesendet.");
+      toast.success("Die Rückfrage wurde gesendet.");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("change_request_question_failed", { error: message });
-      setError(message);
+      logger.error("change_request_question_failed", {
+        error: err instanceof Error ? err.message : "unknown",
+      });
+      await questionErrors.show(err, {
+        object: "die Rückfrage",
+        retry: () => void latestQuestionRef.current(),
+      });
     } finally {
       setBusy(null);
     }
   };
+  useLayoutEffect(() => {
+    latestQuestionRef.current = handleQuestion;
+  });
 
   const handleReview = async (approved: boolean) => {
     const note = reviewNote.trim();
     if (!note) {
-      setError("Bitte eine kurze Begründung eintragen.");
+      reviewErrors.invalid("Bitte tragen Sie eine kurze Begründung ein.", {
+        note: "Bitte tragen Sie eine Begründung ein.",
+      });
       return;
     }
     setBusy(approved ? "approve" : "reject");
-    setError(null);
-    setInfo(null);
+    reviewErrors.clear();
     try {
       const fresh = approved
         ? await approveEnrollmentChangeRequest(changeRequestId, note)
         : await rejectEnrollmentChangeRequest(changeRequestId, note);
       setData(fresh);
       setReviewNote("");
-      setInfo(approved ? "Änderung freigegeben." : "Änderung abgelehnt.");
+      toast.success(
+        approved
+          ? "Die Änderung wurde freigegeben."
+          : "Die Änderung wurde abgelehnt.",
+      );
       window.dispatchEvent(new Event("change-requests-refresh"));
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("change_request_review_failed", {
-        error: message,
+        error: err instanceof Error ? err.message : "unknown",
         approved,
       });
-      setError(message);
+      await reviewErrors.show(err, {
+        object: "die Entscheidung",
+        retry: () => void latestReviewRef.current(approved),
+      });
     } finally {
       setBusy(null);
     }
   };
+  useLayoutEffect(() => {
+    latestReviewRef.current = handleReview;
+  });
 
   if (loading) {
     return (
@@ -135,7 +180,7 @@ export function AdminEnrollmentChangeRequestDetail({
         back
         backHref="/anfragen"
         backLabel="Zurück zu Anfragen"
-        error={error ?? "Änderungsanfrage nicht gefunden."}
+        error={loadError.error ?? "Die Änderungsanfrage wurde nicht gefunden."}
       />
     );
   }
@@ -191,8 +236,6 @@ export function AdminEnrollmentChangeRequestDetail({
                 ? "Diese Korrektur wurde direkt an der Anmeldung vorgenommen, in die verknüpften Stammdaten übernommen und protokolliert."
                 : "Vergleichen Sie die eingereichten Änderungen mit dem gespeicherten Stand. Rückfragen pausieren die Prüfung, Freigabe übernimmt die Änderung in die Anmeldung."}
             </p>
-            {error ? <Alert type="error" message={error} /> : null}
-            {info ? <Alert type="success" message={info} /> : null}
 
             <ChangeSummary request={data} />
             {data.origin === "parent" ? <MessageThread request={data} /> : null}
@@ -247,9 +290,15 @@ export function AdminEnrollmentChangeRequestDetail({
                   <h2 className="text-base font-semibold text-gray-900">
                     Rückfrage
                   </h2>
+                  <FormErrorAlert
+                    message={questionErrors.error}
+                    className="mt-3"
+                  />
                   <div className="mt-3">
                     <Textarea
                       id="change-request-question"
+                      name="body"
+                      error={questionErrors.fieldError("body")}
                       label="Nachricht an Eltern"
                       value={question}
                       onChange={(event) => setQuestion(event.target.value)}
@@ -276,9 +325,15 @@ export function AdminEnrollmentChangeRequestDetail({
                   <h2 className="text-base font-semibold text-gray-900">
                     Entscheidung
                   </h2>
+                  <FormErrorAlert
+                    message={reviewErrors.error}
+                    className="mt-3"
+                  />
                   <div className="mt-3">
                     <Textarea
                       id="change-request-review-note"
+                      name="note"
+                      error={reviewErrors.fieldError("note")}
                       label="Begründung"
                       value={reviewNote}
                       onChange={(event) => setReviewNote(event.target.value)}

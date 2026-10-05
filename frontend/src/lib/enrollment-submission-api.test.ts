@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import {
   confirmRenewal,
   createEnrollmentChangeRequest,
@@ -215,7 +216,7 @@ describe("enrollment-submission-api", () => {
     });
   });
 
-  it("maps known submission error codes to parent-facing messages", async () => {
+  it("keeps the submission error code for the catalog, never the backend text", async () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse(
         { code: "enrollment.care_offering_full", error: "raw backend text" },
@@ -223,13 +224,23 @@ describe("enrollment-submission-api", () => {
       ),
     );
 
-    await expect(fetchPublicCareOfferings("tenant", "5")).rejects.toMatchObject(
-      {
-        message: expect.stringContaining("bereits voll"),
-        status: 409,
-        code: "enrollment.care_offering_full",
-      },
+    const error = await fetchPublicCareOfferings("tenant", "5").catch(
+      (err: unknown) => err,
     );
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 409,
+      code: "enrollment.care_offering_full",
+    });
+    expect((error as ApiError).message).not.toContain("raw backend text");
+  });
+
+  it("reports a broken connection as unavailable", async () => {
+    mockFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    await expect(fetchStatus("tok")).rejects.toMatchObject({
+      code: "general.unavailable",
+    });
   });
 
   it("loads public phases and falls back to an empty list for non-arrays", async () => {
@@ -668,14 +679,22 @@ describe("enrollment-submission-api", () => {
       patchStatus("tok", { guardian_first_name: "Mara" }),
     ).rejects.toThrow("Änderungen konnten nicht gespeichert werden");
 
+    // The backend sentence is diagnosis only (ADR 0006): the error keeps
+    // the client's fallback and the status class for the catalog.
     mockFetch.mockResolvedValueOnce(
       jsonResponse({ message: "Schon zurückgenommen" }, { status: 409 }),
     );
-    await expect(withdrawStatus("tok")).rejects.toThrow("Schon zurückgenommen");
+    await expect(withdrawStatus("tok")).rejects.toMatchObject({
+      message: "Rücknahme nicht möglich (HTTP 409)",
+      code: "general.business_rejection",
+    });
 
     mockFetch.mockResolvedValueOnce(
       jsonResponse({ error: "Abgelaufen" }, { status: 410 }),
     );
-    await expect(confirmRenewal("tok")).rejects.toThrow("Abgelaufen");
+    await expect(confirmRenewal("tok")).rejects.toMatchObject({
+      message: "Bestätigung nicht möglich (HTTP 410)",
+      code: "general.business_rejection",
+    });
   });
 });

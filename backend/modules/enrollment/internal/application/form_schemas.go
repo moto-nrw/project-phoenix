@@ -97,7 +97,7 @@ func (s *FormSchemas) ListVersions(ctx context.Context) ([]*enrollment.FormSchem
 // signal.
 func (s *FormSchemas) lockNewSchemaName(ctx context.Context, name string) error {
 	if name == "" {
-		return fmt.Errorf("schema name is required")
+		return enrollment.InvalidInput(enrollment.CodeSchemaNameRequired, "name", errors.New("schema name is required"))
 	}
 	if err := s.records.LockSchemaLineages(ctx); err != nil {
 		return err
@@ -107,7 +107,7 @@ func (s *FormSchemas) lockNewSchemaName(ctx context.Context, name string) error 
 		return fmt.Errorf("check existing name: %w", err)
 	}
 	if existing > 1 {
-		return fmt.Errorf("schema with name %q already exists; use UpdateSchema to add a new version", name)
+		return fmt.Errorf("%w: schema with name %q already exists; use UpdateSchema to add a new version", enrollment.ErrFormSchemaNameExists, name)
 	}
 	return nil
 }
@@ -344,7 +344,8 @@ func (s *FormSchemas) ensureSingleModeGradesCollectable(ctx context.Context, fie
 		return fmt.Errorf("resolve enrollment.collect_grade_level: %w", err)
 	}
 	if !collectGrade {
-		return fmt.Errorf("invalid schema: single_mode_grades requires the grade-level collection setting (Klassenstufen-Abfrage) to be active")
+		return enrollment.InvalidInput(enrollment.CodeFormGradeCollectionRequired, "",
+			errors.New("invalid schema: single_mode_grades requires the grade-level collection setting (Klassenstufen-Abfrage) to be active"))
 	}
 	return nil
 }

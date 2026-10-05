@@ -90,7 +90,7 @@ func (rs *Resource) getPhaseResponseOverview(w http.ResponseWriter, r *http.Requ
 	})
 	if err != nil {
 		if errors.Is(err, capability.ErrPhaseNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(err))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))

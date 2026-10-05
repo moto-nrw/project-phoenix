@@ -41,7 +41,7 @@ import { isAdmin, hasPermission } from "~/lib/auth-utils";
 import { useStaffPendingAbsences } from "~/lib/hooks/use-staff-pending-absences";
 import { SchoolOverviewSection } from "~/components/staff/school-overview-section";
 import { StaffAuditLog } from "~/components/staff/staff-audit-log";
-import { useSwrLoadError } from "~/components/staff/use-swr-load-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
   StaffTimeAccountsTable,
   saldoPresets,

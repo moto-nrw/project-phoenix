@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -11,9 +17,20 @@ import {
   type EnrollmentChangeRequest,
   type StatusResponse,
 } from "~/lib/enrollment-submission-api";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { EnrollmentStatusView } from "./enrollment-status-view";
 
 const mockPathname = vi.hoisted(() => ({ value: "/anmeldung/status/tok" }));
+
+const toastSuccess = vi.hoisted(() => vi.fn());
+const toastError = vi.hoisted(() => vi.fn());
+const showActionError = vi.hoisted(() => vi.fn());
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useToast: () => ({ success: toastSuccess, error: toastError }),
+  useApiErrorDisplay: () => ({ show: showActionError }),
+}));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname.value,
@@ -135,9 +152,11 @@ describe("EnrollmentStatusView", () => {
         guardian_phone: "+49 30",
       });
     });
-    expect(
-      await screen.findByText("Änderungen gespeichert."),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith(
+        "Ihre Änderungen sind gespeichert.",
+      );
+    });
     expect(mockFetchStatus).toHaveBeenCalledTimes(2);
   });
 
@@ -411,10 +430,14 @@ describe("EnrollmentStatusView", () => {
       await screen.findByText("Zugang zur Eltern-App nicht möglich"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Bitte melden Sie sich bei der OGS. Die OGS hilft Ihnen weiter."),
+      screen.getByText(
+        "Bitte melden Sie sich bei der OGS. Die OGS hilft Ihnen weiter.",
+      ),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("Öffnen Sie die E-Mail „Einladung zum Eltern-Portal“."),
+      screen.queryByText(
+        "Öffnen Sie die E-Mail „Einladung zum Eltern-Portal“.",
+      ),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Zur Eltern-App" }),
@@ -610,7 +633,11 @@ describe("EnrollmentStatusView", () => {
     await waitFor(() => {
       expect(mockConfirmRenewal).toHaveBeenCalledWith("tok");
     });
-    expect(await screen.findByText(/Anmeldung bestätigt/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith(
+        expect.stringContaining("Anmeldung bestätigt"),
+      );
+    });
   });
 
   it("withdraws a single child when multiple requests are still open", async () => {
@@ -655,9 +682,11 @@ describe("EnrollmentStatusView", () => {
     await waitFor(() => {
       expect(mockWithdrawStatus).toHaveBeenCalledWith("tok", "7");
     });
-    expect(
-      await screen.findByText("Anmeldung für dieses Kind zurückgezogen."),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith(
+        "Anmeldung für dieses Kind zurückgezogen.",
+      );
+    });
   });
 
   it("hides the withdraw section directly after submission", async () => {
@@ -740,20 +769,35 @@ describe("EnrollmentStatusView", () => {
     await waitFor(() => {
       expect(mockWithdrawStatus).toHaveBeenCalledWith("tok", undefined);
     });
-    expect(
-      await screen.findByText("Anmeldung zurückgezogen."),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith("Anmeldung zurückgezogen.");
+    });
   });
 
-  it("shows load and mutation errors", async () => {
-    mockFetchStatus.mockRejectedValueOnce(new Error("Netz kaputt"));
-    const { rerender } = render(<EnrollmentStatusView token="tok" />);
+  it("shows a failed load with retry where the status would be", async () => {
+    mockFetchStatus
+      .mockRejectedValueOnce(new ApiError("Status", 503))
+      .mockResolvedValueOnce(status());
+    render(<EnrollmentStatusView token="tok" />);
 
-    expect(await screen.findByText("Netz kaputt")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Anmeldung"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 
-    mockFetchStatus.mockResolvedValueOnce(status());
-    mockWithdrawStatus.mockRejectedValueOnce(new Error("Nicht möglich"));
-    rerender(<EnrollmentStatusView token="tok2" />);
+    expect(await screen.findByText("Lina Muster")).toBeInTheDocument();
+    expect(mockFetchStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a failed withdrawal in the open confirmation dialog", async () => {
+    mockFetchStatus.mockResolvedValue(status());
+    const failure = new ApiError("Nicht möglich", 409);
+    mockWithdrawStatus
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValueOnce(undefined);
+    render(<EnrollmentStatusView token="tok" />);
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Anmeldung zurückziehen" }),
@@ -762,7 +806,73 @@ describe("EnrollmentStatusView", () => {
       await screen.findByRole("button", { name: "Endgültig zurückziehen" }),
     );
 
-    expect(await screen.findByText("Nicht möglich")).toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      await within(dialog).findByText(
+        catalogText("general.business_rejection", "die Anmeldung"),
+      ),
+    ).toBeInTheDocument();
+    expect(showActionError).not.toHaveBeenCalled();
+    expect(screen.queryByText("Nicht möglich")).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("button", { name: "Wiederholen" }),
+    ).not.toBeInTheDocument();
+
+    // Trying again goes through the dialog's confirm button.
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Endgültig zurückziehen" }),
+    );
+    await waitFor(() => expect(mockWithdrawStatus).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("keeps a failed contact change in the form and marks the field", async () => {
+    mockFetchStatus.mockResolvedValueOnce(status());
+    mockPatchStatus.mockRejectedValueOnce(
+      new ApiError("bad", 400, {
+        code: "general.input",
+        errors: [{ field: "guardian_phone", reason: "invalid" }],
+      }),
+    );
+    render(<EnrollmentStatusView token="tok" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(catalogText("general.input", "die Änderung")),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByLabelText("Telefon, optional")).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
+    });
+    expect(
+      screen.getByRole("button", { name: "Speichern" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a failed change-request list instead of its empty text", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({ edit_mode: "change_request" }),
+    );
+    mockListEnrollmentChangeRequests.mockReset();
+    mockListEnrollmentChangeRequests.mockRejectedValueOnce(
+      new ApiError("list", 500),
+    );
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Liste der Änderungsanfragen"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Noch keine Änderungsanfrage gesendet."),
+    ).not.toBeInTheDocument();
   });
 });
 

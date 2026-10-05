@@ -32,7 +32,7 @@ func (d *Decisions) dispatchWeekdaySchedule(ctx context.Context, raw any, studen
 		return fmt.Errorf("decode weekday_schedule: %w", err)
 	}
 	if err := sched.Validate(); err != nil {
-		return err
+		return fmt.Errorf("%w: %w", enrollment.ErrDecisionInvalidData, err)
 	}
 	createdBy, err := d.resolveReviewerStaffID(ctx, reviewedBy)
 	if err != nil {

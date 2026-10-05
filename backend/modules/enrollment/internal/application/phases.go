@@ -188,7 +188,7 @@ func (s *Phases) CreatePhase(ctx context.Context, phase *enrollment.Phase) (*enr
 
 func (s *Phases) validatePhaseWrite(ctx context.Context, phase *enrollment.Phase) error {
 	if err := phase.Validate(); err != nil {
-		return fmt.Errorf("%w: %v", enrollment.ErrInvalidPhase, err)
+		return fmt.Errorf("%w: %w", enrollment.ErrInvalidPhase, err)
 	}
 	if err := s.validateEligibleClassesCollectable(ctx, phase); err != nil {
 		return err

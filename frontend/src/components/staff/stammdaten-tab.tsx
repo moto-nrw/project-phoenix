@@ -47,7 +47,7 @@ import {
   type FinancialDraft,
   type StammdatenDraft,
 } from "./stammdaten-section-forms";
-import { useSwrLoadError } from "./use-swr-load-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 
 // Stammdaten tab (#1417 Tranche 2b + #1423): the master-data home of one
 // staff member. Sections Person / Kontakt / Arbeitsvertrag / Qualifikationen

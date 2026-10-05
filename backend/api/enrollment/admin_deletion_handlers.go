@@ -141,9 +141,9 @@ func parseEnrollmentDeletionIDs(w http.ResponseWriter, r *http.Request) (int64, 
 func renderEnrollmentDeletionError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, capability.ErrEnrollmentDeletionNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(err))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentRequestNotFound))
 	case errors.Is(err, capability.ErrEnrollmentDeletionInvalidReason):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(capability.InvalidInput(common.CodeEnrollmentDeletionReasonInvalid, "reason", err)))
 	case errors.Is(err, capability.ErrEnrollmentDeletionStudentExists):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentStudentExists))
 	case errors.Is(err, capability.ErrEnrollmentDeletionNotAllowed):

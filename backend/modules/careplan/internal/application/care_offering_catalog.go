@@ -243,7 +243,7 @@ func (c *CareOfferingCatalog) validateAutoAddConfig(ctx context.Context, offerin
 		return nil
 	}
 	if offering.DaysOfWeekMode != daysOfWeekModeParentChoice {
-		return careOfferingInvalidf("an automatically added care offering must allow parent day selection")
+		return careplan.InvalidInput(careplan.CodeCareOfferingAutoAddInvalid, "days_of_week_mode", careOfferingInvalidf("an automatically added care offering must allow parent day selection"))
 	}
 	siblings, err := c.listRecords(ctx, phaseFilter(offering.PhaseID), "failed to list care offerings by phase")
 	if err != nil {
@@ -258,10 +258,10 @@ func (c *CareOfferingCatalog) validateAutoAddConfig(ctx context.Context, offerin
 	for _, triggerID := range offering.AutoAddTriggerOfferingIDs {
 		trigger, ok := triggerByID[triggerID]
 		if !ok {
-			return careOfferingInvalidf("automatic trigger offering %d must belong to the same phase", triggerID)
+			return careplan.InvalidInput(careplan.CodeCareOfferingAutoAddInvalid, "auto_add_trigger_offering_ids", careOfferingInvalidf("automatic trigger offering %d must belong to the same phase", triggerID))
 		}
 		if autoAddViolatesExclusiveGroup(*offering, trigger) {
-			return careOfferingInvalidf("automatic trigger offering %d cannot auto-add offering %d in exclusive selection group %q", triggerID, offering.ID, strings.TrimSpace(offering.SelectionGroup))
+			return careplan.InvalidInput(careplan.CodeCareOfferingAutoAddInvalid, "auto_add_trigger_offering_ids", careOfferingInvalidf("automatic trigger offering %d cannot auto-add offering %d in exclusive selection group %q", triggerID, offering.ID, strings.TrimSpace(offering.SelectionGroup)))
 		}
 	}
 	return nil

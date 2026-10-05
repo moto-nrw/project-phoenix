@@ -72,7 +72,8 @@ func ensureEligibleClassesCollectable(ctx context.Context, settings CollectionSe
 		return fmt.Errorf("resolve enrollment.collect_school_class: %w", err)
 	}
 	if !collectGrade || !collectClass {
-		return fmt.Errorf("%w: eligible_school_classes requires the concrete-class collection settings (Klassen-Abfrage) to be active", enrollment.ErrInvalidPhase)
+		return enrollment.InvalidInput(enrollment.CodePhaseEligibilitySettingRequired, "eligible_school_classes",
+			fmt.Errorf("%w: eligible_school_classes requires the concrete-class collection settings (Klassen-Abfrage) to be active", enrollment.ErrInvalidPhase))
 	}
 	return nil
 }
@@ -100,7 +101,8 @@ func ensureEligibleGradeLevelsCollectable(ctx context.Context, settings Collecti
 		return fmt.Errorf("resolve enrollment.collect_grade_level: %w", err)
 	}
 	if !collectGrade {
-		return fmt.Errorf("%w: eligible_grade_levels requires the grade-level collection setting (Klassenstufen-Abfrage) to be active", enrollment.ErrInvalidPhase)
+		return enrollment.InvalidInput(enrollment.CodePhaseEligibilitySettingRequired, "eligible_grade_levels",
+			fmt.Errorf("%w: eligible_grade_levels requires the grade-level collection setting (Klassenstufen-Abfrage) to be active", enrollment.ErrInvalidPhase))
 	}
 	return ensureEligibleGradeLevelsWithinTenantCap(ctx, settings, eligible)
 }

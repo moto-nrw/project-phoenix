@@ -16,7 +16,7 @@ func (m *Module) RenameSchema(ctx context.Context, id int64, newName string) (*F
 	}
 	newName = strings.TrimSpace(newName)
 	if newName == "" {
-		return nil, fmt.Errorf("schema name is required")
+		return nil, invalidInput(CodeSchemaNameRequired, "name", errors.New("schema name is required"))
 	}
 	var result *FormSchema
 	err := m.transactions.RunInTx(ctx, func(txCtx context.Context) error {

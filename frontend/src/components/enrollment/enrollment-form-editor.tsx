@@ -1,9 +1,12 @@
 "use client";
 
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -29,11 +32,19 @@ import {
   Trash2,
 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Modal } from "~/components/ui/modal";
-import { useFormError } from "~/components/ui/form-error";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -198,7 +209,48 @@ const targetSuggestionDescriptions: Record<
 
 const NEW_SCHEMA_VALUE = "__new__";
 const LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE =
-  "Bitte warte, bis der PDF-Upload abgeschlossen ist.";
+  "Bitte warten Sie, bis die PDF-Datei hochgeladen ist.";
+const MAX_LEGAL_DOCUMENT_BYTES = 10 * 1024 * 1024;
+
+/**
+ * The hint the save path marks a control with, by the control's `name`
+ * (#2515). The names follow the request body (`name`, `fields.2.label`,
+ * `legal_blocks.0.title`), so a field error from the API and a local check
+ * mark the same control.
+ */
+const FieldErrorContext = createContext<(name: string) => string | undefined>(
+  () => undefined,
+);
+
+/** `name`, `aria-invalid` and `aria-describedby` for a marked control. */
+function fieldErrorProps(
+  fieldError: (name: string) => string | undefined,
+  name: string,
+) {
+  const message = fieldError(name);
+  const hintId = `${name.replaceAll(".", "-")}-error`;
+  return {
+    message,
+    hintId,
+    controlProps: {
+      name,
+      "aria-invalid": message ? true : undefined,
+      "aria-describedby": message ? hintId : undefined,
+    },
+  } as const;
+}
+
+function FieldErrorHint({
+  id,
+  message,
+}: Readonly<{ id: string; message: string | undefined }>) {
+  if (!message) return null;
+  return (
+    <p id={id} className="text-moto-red-strong mt-1 text-xs">
+      {message}
+    </p>
+  );
+}
 type EditorMode = "overview" | "builder" | "detail";
 type PendingNavigation = "overview" | "new" | "preview";
 
@@ -345,7 +397,10 @@ export function EnrollmentFormEditor({
 }: {
   /** Meldet die Zahl der Vorlagen an den Seitenkopf, damit dessen Statuszeile
    *  aus denselben Daten stammt statt aus einem zweiten Request. */
-  readonly onTemplateCountChange?: (count: number | null) => void;
+  readonly onTemplateCountChange?: (
+    count: number | null,
+    loadFailed: boolean,
+  ) => void;
 } = {}) {
   const toast = useToast();
   const tenantSlug = useTenantSlugSafe();
@@ -366,7 +421,21 @@ export function EnrollmentFormEditor({
   );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useFormError();
+  const builderRef = useRef<HTMLDivElement>(null);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  const {
+    error: saveError,
+    show: showSaveError,
+    invalid: markInvalid,
+    fieldError,
+    clear: clearSaveError,
+  } = useApiFormError(builderRef);
+  const deleteErrors = useApiFormError();
+  const { show: showActionError } = useApiErrorDisplay();
   const [mode, setMode] = useState<EditorMode>("overview");
   const [pendingNavigation, setPendingNavigation] =
     useState<PendingNavigation | null>(null);
@@ -388,17 +457,21 @@ export function EnrollmentFormEditor({
     [allSchemas],
   );
 
+  // The retry of a failed load closes over the latest loadAll.
+  const loadAllRef = useRef<() => Promise<FormSchema[]>>(async () => []);
   const loadAll = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    clearLoadError();
     try {
       // Legal texts are NOT best-effort: silently swallowing a fetch
       // failure would seed the builder with all-disabled standard blocks
       // and nudge admins into saving a template without the tenant's
-      // consent contract. A failure fails the whole load instead.
+      // consent contract. A failure fails the whole load instead. The
+      // phases fail it too: without them every template would read as
+      // "not used by any phase".
       const [list, phaseList, legalTexts] = await Promise.all([
         listSchemas(),
-        listPhases().catch(() => [] as Phase[]),
+        listPhases(),
         tenantSlug ? fetchPublicLegalTexts(tenantSlug) : Promise.resolve(null),
       ]);
       const legalDefaults = mergeStandardLegalBlocks(legalTexts);
@@ -407,14 +480,21 @@ export function EnrollmentFormEditor({
       setPhases(phaseList);
       return list;
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("schema_list_failed", { error: message });
-      setError(message);
+      logger.error("schema_list_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showLoadError(err, {
+        object: "die Übersicht der Anmeldeformulare",
+        retry: () => void loadAllRef.current(),
+      });
       return [];
     } finally {
       setLoading(false);
     }
-  }, [setError, tenantSlug]);
+  }, [clearLoadError, showLoadError, tenantSlug]);
+  useLayoutEffect(() => {
+    loadAllRef.current = loadAll;
+  });
 
   useEffect(() => {
     void loadAll();
@@ -494,13 +574,24 @@ export function EnrollmentFormEditor({
       if (deletedURLs.length > 0) {
         forgetDraftDocumentURLs(deletedURLs);
       }
-      if (notify && results.some((result) => result.status === "rejected")) {
-        toast.error(
-          "Nicht alle ungespeicherten PDF-Dateien konnten bereinigt werden.",
-        );
+      const failure = results.find(
+        (result): result is PromiseRejectedResult =>
+          result.status === "rejected",
+      );
+      if (notify && failure) {
+        logger.warn("draft_legal_document_cleanup_failed", {
+          error:
+            failure.reason instanceof Error
+              ? failure.reason.message
+              : String(failure.reason),
+        });
+        // The URLs stay tracked: the next save or discard tries again.
+        void showActionError(failure.reason, {
+          object: "eine ungespeicherte PDF-Datei",
+        });
       }
     },
-    [forgetDraftDocumentURLs, toast],
+    [forgetDraftDocumentURLs, showActionError],
   );
 
   useEffect(() => {
@@ -532,7 +623,7 @@ export function EnrollmentFormEditor({
         ? mergeSavedLegalBlocks(schema.legal_blocks, standardLegalBlocks)
         : standardLegalBlocks,
     );
-    setError(null);
+    clearSaveError();
     setMode(nextMode);
   };
 
@@ -544,27 +635,33 @@ export function EnrollmentFormEditor({
     setDeleteTarget(schema);
   };
 
+  const closeDeleteDialog = () => {
+    deleteErrors.clear();
+    setDeleteTarget(null);
+  };
+
   const confirmRemoveSchema = async () => {
     if (!deleteTarget) return;
-    setError(null);
+    deleteErrors.clear();
     setDeletingSchemaId(deleteTarget.id);
     try {
       await deleteSchema(deleteTarget.id);
-      await loadAll();
-      toast.success("Formularvorlage gelöscht.");
-      if (selectedKey === deleteTarget.id) {
-        backToOverview();
-      }
-      setDeleteTarget(null);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Löschen fehlgeschlagen";
-      logger.error("schema_delete_failed", { error: message });
-      setError(message);
-      toast.error(message);
-    } finally {
+      logger.error("schema_delete_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // The dialog stays open with the reason; its button tries again.
+      void deleteErrors.show(err, { object: "die Formularvorlage" });
       setDeletingSchemaId(null);
+      return;
     }
+    setDeletingSchemaId(null);
+    toast.success("Die Formularvorlage ist gelöscht.");
+    if (selectedKey === deleteTarget.id) {
+      backToOverview();
+    }
+    closeDeleteDialog();
+    await loadAll();
   };
 
   const requestRenameSchema = (schema: FormSchema) => {
@@ -582,7 +679,7 @@ export function EnrollmentFormEditor({
     if (selectedKey === renameTarget.id) {
       setName(updated.name);
     }
-    toast.success(`Vorlage in „${updated.name}“ umbenannt.`);
+    toast.success(`Die Formularvorlage heißt jetzt „${updated.name}“.`);
     setRenameTarget(null);
   };
 
@@ -592,12 +689,12 @@ export function EnrollmentFormEditor({
     setFields([]);
     setCoreRequirements({});
     setLegalBlocks(standardLegalBlocks);
-    setError(null);
+    clearSaveError();
     setMode("builder");
   };
 
   const backToOverview = () => {
-    setError(null);
+    clearSaveError();
     setMode("overview");
   };
 
@@ -747,34 +844,45 @@ export function EnrollmentFormEditor({
         currentCoreRequirementSignature !== "{}" ||
         currentLegalBlocksSignature !== standardLegalBlocksSignature
       : editNameChanged || editContentChanged);
-  const saveBlockedMessage = getSchemaDraftValidationMessage({
-    fields,
-    legalBlocks,
-    name,
-  });
+  const saveBlockedMessage =
+    getSchemaDraftValidationMessage({
+      fields,
+      legalBlocks,
+      name,
+    })?.message ?? null;
   const pendingUploadMessage = hasPendingLegalDocumentUpload
     ? LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE
     : null;
   const effectiveSaveBlockedMessage =
     saveBlockedMessage ?? pendingUploadMessage;
 
+  // "Wiederholen" sends the draft as it is then, not as it was when the
+  // save failed.
+  const saveSchemaRef = useRef<(nextMode?: EditorMode) => Promise<unknown>>(
+    async () => null,
+  );
   const saveSchema = async (
     nextMode: EditorMode = "detail",
   ): Promise<FormSchema | null> => {
     setSaving(true);
-    setError(null);
+    clearSaveError();
     try {
-      const validationMessage = getSchemaDraftValidationMessage({
+      const validation = getSchemaDraftValidationMessage({
         fields,
         legalBlocks,
         name,
       });
-      if (validationMessage) {
-        setError(validationMessage);
+      if (validation) {
+        markInvalid(
+          validation.message,
+          validation.field && validation.hint
+            ? { [validation.field]: validation.hint }
+            : {},
+        );
         return null;
       }
       if (hasPendingLegalDocumentUpload) {
-        setError(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+        markInvalid(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
         return null;
       }
 
@@ -832,21 +940,28 @@ export function EnrollmentFormEditor({
       savingDraftDocumentURLsRef.current = new Set();
       selectSchema(savedSchema, nextMode);
       toast.success(
-        isCreating ? "Formularvorlage erstellt." : "Änderungen gespeichert.",
+        isCreating
+          ? `Die Formularvorlage „${savedSchema.name}“ ist angelegt.`
+          : `Die Formularvorlage „${savedSchema.name}“ ist gespeichert.`,
       );
       return savedSchema;
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Speichern fehlgeschlagen";
       if (unmountedRef.current) {
+        // Nobody is left to read an error: the editor is gone. Only the
+        // uploads of this save are cleaned up.
         const urls = Array.from(savingDraftDocumentURLsRef.current);
         for (const url of urls) {
           void deleteEnrollmentLegalDocument(url, { keepalive: true });
         }
         savingDraftDocumentURLsRef.current = new Set();
       } else {
-        logger.error("schema_save_failed", { error: message });
-        setError(message);
+        logger.error("schema_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        void showSaveError(err, {
+          object: "die Formularvorlage",
+          retry: () => void saveSchemaRef.current(nextMode),
+        });
       }
       return null;
     } finally {
@@ -856,6 +971,10 @@ export function EnrollmentFormEditor({
       }
     }
   };
+
+  useLayoutEffect(() => {
+    saveSchemaRef.current = saveSchema;
+  });
 
   const handleSave = async () => {
     await saveSchema("detail");
@@ -935,6 +1054,8 @@ export function EnrollmentFormEditor({
     );
     if (!savedSchema) {
       previewWindow?.close();
+      // The reason stands in the builder's alert; the dialog would cover it.
+      setPendingNavigation(null);
       return;
     }
 
@@ -955,10 +1076,14 @@ export function EnrollmentFormEditor({
     }
   };
 
+  const loadFailed = loadError !== null;
   useEffect(() => {
     if (!onTemplateCountChange) return;
-    onTemplateCountChange(loading ? null : latestByName.length);
-  }, [loading, latestByName, onTemplateCountChange]);
+    onTemplateCountChange(
+      loading || loadFailed ? null : latestByName.length,
+      loadFailed,
+    );
+  }, [loading, loadFailed, latestByName, onTemplateCountChange]);
 
   if (loading) {
     return (
@@ -966,6 +1091,12 @@ export function EnrollmentFormEditor({
         <FormSkeleton fields={6} />
       </SkeletonRegion>
     );
+  }
+
+  if (mode === "overview" && loadError) {
+    // No list without data: an empty overview would read as "this school
+    // has no templates".
+    return <LoadErrorAlert error={loadError} />;
   }
 
   if (mode === "overview") {
@@ -979,12 +1110,12 @@ export function EnrollmentFormEditor({
           onPreview={previewSchema}
           onRename={requestRenameSchema}
           onDelete={requestRemoveSchema}
-          error={error?.message ?? null}
         />
         <DeleteSchemaDialog
           schema={deleteTarget}
           deleting={deletingSchemaId === deleteTarget?.id}
-          onClose={() => setDeleteTarget(null)}
+          error={deleteErrors.error}
+          onClose={closeDeleteDialog}
           onConfirm={confirmRemoveSchema}
         />
         <RenameSchemaDialog
@@ -1013,190 +1144,195 @@ export function EnrollmentFormEditor({
     // Flex-Spalte (wie die beiden anderen Ansichten dieser Seite): als
     // Editor-Wurzel einer Tenant-Seite reicht sie den Platz an die letzte
     // Fläche weiter, die bis zur Unterkante wächst (`.moto-tenant-body`).
-    <div className="flex flex-col space-y-5">
-      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
-        <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            onClick={requestBackToOverview}
-            disabled={saving || hasPendingLegalDocumentUpload}
-            className="inline-flex items-center gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Zurück zur Übersicht
-          </Button>
-        </div>
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="space-y-6 p-5 sm:p-6">
-            {/* Speicher- und Prüffehler stehen oben im Bearbeiten-Bereich
-                (Bauart 2 Regel 5); der Alert holt sich selbst ins Bild. */}
-            <FormErrorAlert message={error} />
-
-            <FormBuilderIntro />
-
-            <BuilderTemplateSummary
-              name={name}
-              isCreating={isCreating}
-              saving={saving}
-              currentSchema={currentSchema}
-              onNameChange={setName}
-              fields={fields}
-            />
-
-            <CoreFieldsSection
-              coreRequirements={coreRequirements}
-              onRequirementChange={updateCoreRequirement}
-              disabled={saving}
-            />
-
-            <LegalBlocksSection
-              blocks={legalBlocks}
-              standardBlocks={standardLegalBlocks}
-              onChange={setLegalBlocks}
-              disabled={saving}
-              draftDocumentURLs={uploadedDraftDocumentURLs}
-              onDraftDocumentUploaded={rememberDraftDocumentURL}
-              onDraftDocumentDeleted={forgetDraftDocumentURL}
-              onUploadStart={beginLegalDocumentUpload}
-              onUploadEnd={endLegalDocumentUpload}
-            />
-
-            <section className="space-y-4">
-              <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <h2 className="text-base font-semibold text-gray-900">
-                    Was Eltern zusätzlich beantworten sollen
-                  </h2>
-                  <p className="mt-1 max-w-2xl text-sm text-gray-600">
-                    Wählen Sie feste Vorschläge, wenn die Antwort später in den
-                    Stammdaten stehen soll. Freie Zusatzfragen bleiben nur bei
-                    der Anmeldung.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    onClick={addInfoField}
-                    disabled={saving}
-                    variant="outline"
-                    size="md"
-                    className="inline-flex items-center justify-center gap-2"
-                  >
-                    <Info className="h-4 w-4" aria-hidden="true" />
-                    Infotext
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={addField}
-                    disabled={saving}
-                    variant="outline"
-                    size="md"
-                    className="inline-flex items-center justify-center gap-2"
-                  >
-                    <Plus className="h-4 w-4" aria-hidden="true" />
-                    Freie Zusatzfrage
-                  </Button>
-                </div>
-              </div>
-
-              <TargetSuggestions
-                fields={fields}
-                onAdd={addTargetField}
-                disabled={saving}
-              />
-
-              {fields.length > 0 ? (
-                <div className="space-y-3">
-                  {fields.map((field, index) => (
-                    <FieldEditorRow
-                      key={getStableObjectKey(field, "custom-field")}
-                      field={field}
-                      index={index}
-                      total={fields.length}
-                      allFields={fields}
-                      onChange={(patch) => updateField(index, patch)}
-                      onRemove={() => removeField(index)}
-                      onMoveUp={() => moveField(index, -1)}
-                      onMoveDown={() => moveField(index, 1)}
-                      disabled={saving}
-                    />
-                  ))}
-                </div>
-              ) : null}
-
-              <TranslationsSection
-                targets={schemaTranslationTargets(fields, legalBlocks)}
-                onChange={applySchemaTranslation}
-                disabled={saving}
-              />
-
-              <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-4">
-                <Button
-                  type="button"
-                  onClick={requestStartNew}
-                  disabled={saving || hasPendingLegalDocumentUpload}
-                  variant="outline"
-                  size="md"
-                  className="inline-flex items-center justify-center"
-                >
-                  Zurücksetzen
-                </Button>
-                <Button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={saving || hasPendingLegalDocumentUpload}
-                  variant="primary"
-                  size="md"
-                  className="inline-flex items-center justify-center"
-                >
-                  {saving
-                    ? "Speichert…"
-                    : isCreating
-                      ? "Formularvorlage erstellen"
-                      : "Änderungen speichern"}
-                </Button>
-              </div>
-            </section>
+    <FieldErrorContext.Provider value={fieldError}>
+      <div ref={builderRef} className="flex flex-col space-y-5">
+        <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+          <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              onClick={requestBackToOverview}
+              disabled={saving || hasPendingLegalDocumentUpload}
+              className="inline-flex items-center gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Zurück zur Übersicht
+            </Button>
           </div>
+          <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
+            <div className="space-y-6 p-5 sm:p-6">
+              {/* Ein Neuladen nach dem Speichern kann scheitern; der Entwurf
+                bleibt dann stehen. */}
+              <LoadErrorAlert error={loadError} />
+              {/* Speicher- und Prüffehler stehen oben im Bearbeiten-Bereich
+                (Bauart 2 Regel 5); der Alert holt sich selbst ins Bild. */}
+              <FormErrorAlert message={saveError} />
 
-          <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
-            <FormPreview
-              fields={fields}
-              coreRequirements={coreRequirements}
-              legalBlocks={legalBlocks}
-              templateName={name}
-              isActive={currentSchema?.is_active ?? false}
-              isSaved={currentSchema !== null}
-              previewHref={
-                currentSchema && !hasUnsavedChanges
-                  ? tenantPath(
-                      `/anmeldung/preview?schemaId=${encodeURIComponent(currentSchema.id)}`,
-                    )
-                  : undefined
-              }
-              onPreviewClick={requestExternalPreview}
-              assignedPhaseCount={
-                currentSchema
-                  ? phases.filter(
-                      (phase) => phase.form_schema_id === currentSchema.id,
-                    ).length
-                  : 0
-              }
-            />
-          </aside>
-        </div>
-      </section>
-      <UnsavedChangesDialog
-        pendingNavigation={pendingNavigation}
-        saving={saving || hasPendingLegalDocumentUpload}
-        saveBlockedMessage={effectiveSaveBlockedMessage}
-        onCancel={() => setPendingNavigation(null)}
-        onDiscard={discardPendingNavigation}
-        onSave={savePendingNavigation}
-      />
-    </div>
+              <FormBuilderIntro />
+
+              <BuilderTemplateSummary
+                name={name}
+                isCreating={isCreating}
+                saving={saving}
+                currentSchema={currentSchema}
+                onNameChange={setName}
+                fields={fields}
+              />
+
+              <CoreFieldsSection
+                coreRequirements={coreRequirements}
+                onRequirementChange={updateCoreRequirement}
+                disabled={saving}
+              />
+
+              <LegalBlocksSection
+                blocks={legalBlocks}
+                standardBlocks={standardLegalBlocks}
+                onChange={setLegalBlocks}
+                disabled={saving}
+                draftDocumentURLs={uploadedDraftDocumentURLs}
+                onDraftDocumentUploaded={rememberDraftDocumentURL}
+                onDraftDocumentDeleted={forgetDraftDocumentURL}
+                onUploadStart={beginLegalDocumentUpload}
+                onUploadEnd={endLegalDocumentUpload}
+              />
+
+              <section className="space-y-4">
+                <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <h2 className="text-base font-semibold text-gray-900">
+                      Was Eltern zusätzlich beantworten sollen
+                    </h2>
+                    <p className="mt-1 max-w-2xl text-sm text-gray-600">
+                      Wählen Sie feste Vorschläge, wenn die Antwort später in
+                      den Stammdaten stehen soll. Freie Zusatzfragen bleiben nur
+                      bei der Anmeldung.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      onClick={addInfoField}
+                      disabled={saving}
+                      variant="outline"
+                      size="md"
+                      className="inline-flex items-center justify-center gap-2"
+                    >
+                      <Info className="h-4 w-4" aria-hidden="true" />
+                      Infotext
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={addField}
+                      disabled={saving}
+                      variant="outline"
+                      size="md"
+                      className="inline-flex items-center justify-center gap-2"
+                    >
+                      <Plus className="h-4 w-4" aria-hidden="true" />
+                      Freie Zusatzfrage
+                    </Button>
+                  </div>
+                </div>
+
+                <TargetSuggestions
+                  fields={fields}
+                  onAdd={addTargetField}
+                  disabled={saving}
+                />
+
+                {fields.length > 0 ? (
+                  <div className="space-y-3">
+                    {fields.map((field, index) => (
+                      <FieldEditorRow
+                        key={getStableObjectKey(field, "custom-field")}
+                        field={field}
+                        index={index}
+                        total={fields.length}
+                        allFields={fields}
+                        onChange={(patch) => updateField(index, patch)}
+                        onRemove={() => removeField(index)}
+                        onMoveUp={() => moveField(index, -1)}
+                        onMoveDown={() => moveField(index, 1)}
+                        disabled={saving}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+
+                <TranslationsSection
+                  targets={schemaTranslationTargets(fields, legalBlocks)}
+                  onChange={applySchemaTranslation}
+                  disabled={saving}
+                />
+
+                <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-4">
+                  <Button
+                    type="button"
+                    onClick={requestStartNew}
+                    disabled={saving || hasPendingLegalDocumentUpload}
+                    variant="outline"
+                    size="md"
+                    className="inline-flex items-center justify-center"
+                  >
+                    Zurücksetzen
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saving || hasPendingLegalDocumentUpload}
+                    variant="primary"
+                    size="md"
+                    className="inline-flex items-center justify-center"
+                  >
+                    {saving
+                      ? "Speichert…"
+                      : isCreating
+                        ? "Formularvorlage erstellen"
+                        : "Änderungen speichern"}
+                  </Button>
+                </div>
+              </section>
+            </div>
+
+            <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+              <FormPreview
+                fields={fields}
+                coreRequirements={coreRequirements}
+                legalBlocks={legalBlocks}
+                templateName={name}
+                isActive={currentSchema?.is_active ?? false}
+                isSaved={currentSchema !== null}
+                previewHref={
+                  currentSchema && !hasUnsavedChanges
+                    ? tenantPath(
+                        `/anmeldung/preview?schemaId=${encodeURIComponent(currentSchema.id)}`,
+                      )
+                    : undefined
+                }
+                onPreviewClick={requestExternalPreview}
+                assignedPhaseCount={
+                  currentSchema
+                    ? phases.filter(
+                        (phase) => phase.form_schema_id === currentSchema.id,
+                      ).length
+                    : 0
+                }
+              />
+            </aside>
+          </div>
+        </section>
+        <UnsavedChangesDialog
+          pendingNavigation={pendingNavigation}
+          saving={saving || hasPendingLegalDocumentUpload}
+          saveBlockedMessage={effectiveSaveBlockedMessage}
+          onCancel={() => setPendingNavigation(null)}
+          onDiscard={discardPendingNavigation}
+          onSave={savePendingNavigation}
+        />
+      </div>
+    </FieldErrorContext.Provider>
   );
 }
 
@@ -1208,7 +1344,6 @@ function EnrollmentFormsOverview({
   onPreview,
   onRename,
   onDelete,
-  error,
 }: Readonly<{
   templates: FormSchema[];
   phases: Phase[];
@@ -1217,7 +1352,6 @@ function EnrollmentFormsOverview({
   onPreview: (schema: FormSchema) => void;
   onRename: (schema: FormSchema) => void;
   onDelete: (schema: FormSchema) => void;
-  error: string | null;
 }>) {
   const assignedTemplateCount = templates.filter((schema) =>
     phases.some((phase) => phase.form_schema_id === schema.id),
@@ -1256,8 +1390,6 @@ function EnrollmentFormsOverview({
                 Neue Vorlage
               </Button>
             </div>
-
-            {error ? <Alert type="error" message={error} /> : null}
 
             <section className="space-y-3">
               <div className="flex items-end justify-between gap-3">
@@ -1770,11 +1902,13 @@ function GuideStep({
 function DeleteSchemaDialog({
   schema,
   deleting,
+  error,
   onClose,
   onConfirm,
 }: Readonly<{
   schema: FormSchema | null;
   deleting: boolean;
+  error: FormErrorInput;
   onClose: () => void;
   onConfirm: () => void;
 }>) {
@@ -1799,7 +1933,7 @@ function DeleteSchemaDialog({
       onConfirm={onConfirm}
       onClose={onClose}
       loading={deleting}
-      error=""
+      error={error}
     />
   );
 }
@@ -1815,35 +1949,50 @@ function RenameSchemaDialog({
 }>) {
   const [value, setValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useFormError();
+  const formRef = useRef<HTMLFormElement>(null);
+  const {
+    error,
+    show: showError,
+    fieldError,
+    clear: clearError,
+  } = useApiFormError(formRef);
 
   // Reset the field to the current name each time the dialog opens for a
   // schema so the admin edits from the existing value.
   useEffect(() => {
     if (schema) {
       setValue(schema.name);
-      setError(null);
+      clearError();
       setSubmitting(false);
     }
-  }, [schema, setError]);
+  }, [schema, clearError]);
 
   const isOpen = schema !== null;
   const trimmed = value.trim();
   const canSubmit = isRenameOf(schema, value) && !submitting;
 
+  // "Wiederholen" sends the name as it is then.
+  const submitRef = useRef<() => Promise<void>>(async () => undefined);
   const submit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
-    setError(null);
+    clearError();
     try {
       await onConfirm(trimmed);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Umbenennen fehlgeschlagen",
-      );
+      logger.warn("schema_rename_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showError(err, {
+        object: "die Formularvorlage",
+        retry: () => void submitRef.current(),
+      });
       setSubmitting(false);
     }
   };
+  useLayoutEffect(() => {
+    submitRef.current = submit;
+  });
 
   return (
     <FormModal
@@ -1877,6 +2026,7 @@ function RenameSchemaDialog({
       }
     >
       <form
+        ref={formRef}
         onSubmit={(event) => {
           event.preventDefault();
           void submit();
@@ -1884,12 +2034,12 @@ function RenameSchemaDialog({
         className="space-y-3"
       >
         <Input
-          name="schema-name"
+          name="name"
           label="Name"
           type="text"
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          error={error?.message}
+          error={fieldError("name")}
           placeholder="z. B. Ferienbetreuung Sommer 2026"
           autoFocus
         />
@@ -2040,6 +2190,7 @@ function BuilderTemplateSummary({
   onNameChange: (value: string) => void;
   fields: FormField[];
 }>) {
+  const nameError = fieldErrorProps(useContext(FieldErrorContext), "name");
   const requiredCount = fields.filter((field) =>
     Boolean(field.required),
   ).length;
@@ -2072,9 +2223,11 @@ function BuilderTemplateSummary({
               onChange={(event) => onNameChange(event.target.value)}
               placeholder="z. B. Ferienbetreuung Sommer 2026"
               disabled={saving}
+              {...nameError.controlProps}
               className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600"
             />
           </label>
+          <FieldErrorHint id={nameError.hintId} message={nameError.message} />
           {!isCreating ? (
             <div className="flex flex-wrap content-start gap-2 text-xs text-gray-600">
               <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
@@ -2176,6 +2329,8 @@ function LegalBlocksSection({
   onUploadEnd: () => void;
 }>) {
   const toast = useToast();
+  const { show: showActionError } = useApiErrorDisplay();
+  const fieldError = useContext(FieldErrorContext);
   const [editingStandardKeys, setEditingStandardKeys] = useState<string[]>([]);
   const [uploadingDocumentKey, setUploadingDocumentKey] = useState<
     string | null
@@ -2220,6 +2375,19 @@ function LegalBlocksSection({
   };
   const uploadAGBDocument = async (index: number, file: File | null) => {
     if (!file) return;
+    if (
+      file.type !== "application/pdf" &&
+      !file.name.toLowerCase().endsWith(".pdf")
+    ) {
+      toast.error("Bitte wählen Sie eine PDF-Datei aus.");
+      return;
+    }
+    if (file.size > MAX_LEGAL_DOCUMENT_BYTES) {
+      toast.error(
+        "Die Datei ist größer als 10 MB. Bitte wählen Sie eine kleinere Datei.",
+      );
+      return;
+    }
     setUploadingDocumentKey(blocks[index]?.key ?? null);
     onUploadStart();
     try {
@@ -2246,17 +2414,21 @@ function LegalBlocksSection({
         try {
           await deleteEnrollmentLegalDocument(previousURL);
           onDraftDocumentDeleted(previousURL);
-        } catch {
-          toast.error("Die vorherige PDF-Datei konnte nicht bereinigt werden.");
+        } catch (error) {
+          // The URL stays tracked: the next save or discard tries again.
+          logger.warn("previous_legal_document_cleanup_failed", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          void showActionError(error, { object: "die vorherige PDF-Datei" });
         }
       }
-      toast.success("AGB-PDF hochgeladen.");
+      toast.success("Die PDF-Datei für die AGB ist hochgeladen.");
     } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "PDF-Datei konnte nicht hochgeladen werden.",
-      );
+      logger.error("legal_document_upload_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Kein Wiederholen: die Datei muss neu gewählt werden.
+      void showActionError(error, { object: "die PDF-Datei" });
     } finally {
       setUploadingDocumentKey(null);
       onUploadEnd();
@@ -2272,8 +2444,12 @@ function LegalBlocksSection({
     try {
       await deleteEnrollmentLegalDocument(documentURL);
       onDraftDocumentDeleted(documentURL);
-    } catch {
-      toast.error("PDF-Datei konnte nicht bereinigt werden.");
+    } catch (error) {
+      // The URL stays tracked: the next save or discard tries again.
+      logger.warn("legal_document_cleanup_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      void showActionError(error, { object: "die PDF-Datei" });
     }
   };
   const addCustomBlock = () => {
@@ -2319,154 +2495,173 @@ function LegalBlocksSection({
     helperText: string;
     onRemove?: () => void;
     onReset?: () => void;
-  }) => (
-    <div
-      key={`${block.key}-${index}-editor`}
-      className="moto-content-surface rounded-xl border p-4 shadow-sm"
-    >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <StyledCheckboxButton
-          checked={block.enabled}
-          disabled={disabled}
-          onCheckedChange={(checked) =>
-            updateBlock(index, { enabled: checked })
-          }
-        >
-          Im Formular anzeigen
-        </StyledCheckboxButton>
-        <p className="max-w-xl text-xs leading-5 text-gray-500">{helperText}</p>
-        <div className="flex flex-wrap gap-2">
-          {onReset ? (
-            <button
-              type="button"
-              onClick={onReset}
-              disabled={disabled}
-              className="inline-flex h-8 w-fit items-center rounded-lg px-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Einstellungen wieder verwenden
-            </button>
-          ) : null}
-          {onRemove ? (
-            <button
-              type="button"
-              onClick={onRemove}
-              disabled={disabled}
-              className="text-moto-red-strong hover:bg-moto-red/10 inline-flex h-8 w-fit items-center gap-2 rounded-lg px-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Trash2 className="h-4 w-4" aria-hidden="true" />
-              Entfernen
-            </button>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="mt-3">
-        <label className="block">
-          <span className="text-xs font-medium text-gray-700">Titel</span>
-          <input
-            type="text"
-            value={block.title}
-            disabled={disabled}
-            onChange={(event) =>
-              updateBlock(index, { title: event.target.value })
-            }
-            className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
-          />
-        </label>
-      </div>
-
-      <div className="mt-3">
-        <Textarea
-          id={`legal-block-label-${block.key}`}
-          label="Text neben der Checkbox oder dem Hinweis"
-          value={block.label}
-          disabled={disabled}
-          rows={2}
-          onChange={(event) =>
-            updateBlock(index, { label: event.target.value })
-          }
-        />
-      </div>
-
-      {block.key === "agb" && block.source === "standard" ? (
-        <AGBTemplateSourceEditor
-          mode={legalBlockDisplayMode(block)}
-          onModeChange={(mode) => updateBlock(index, { display_mode: mode })}
-          textValue={block.text}
-          onTextChange={(value) => updateBlock(index, { text: value })}
-          documentURL={block.document_url ?? ""}
-          documentSaving={uploadingDocumentKey === block.key}
-          disabled={disabled}
-          onDocumentUpload={(file) => uploadAGBDocument(index, file)}
-          onDocumentRemove={() => void removeAGBDocument(index)}
-        />
-      ) : (
-        <div className="mt-3">
-          <Textarea
-            id={`legal-block-text-${block.key}`}
-            label="Rechtstext / Erklärung"
-            value={block.text}
-            disabled={disabled}
-            rows={4}
-            onChange={(event) =>
-              updateBlock(index, { text: event.target.value })
-            }
-          />
-        </div>
-      )}
-
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <LegalBlockModeControl
-          isNotice={block.kind === "notice"}
-          disabled={disabled}
-          onModeChange={(isNotice) =>
-            updateBlock(index, {
-              kind: isNotice ? "notice" : checkboxLegalBlockKindFor(block),
-              required: isNotice ? false : block.required,
-            })
-          }
-        />
-        {block.kind !== "notice" &&
-        !(
-          block.kind === "consent" &&
-          (block.source === "standard" || standardByKey.has(block.key))
-        ) ? (
+  }) => {
+    const titleError = fieldErrorProps(
+      fieldError,
+      `legal_blocks.${index}.title`,
+    );
+    const labelError = fieldErrorProps(
+      fieldError,
+      `legal_blocks.${index}.label`,
+    );
+    return (
+      <div
+        key={`${block.key}-${index}-editor`}
+        className="moto-content-surface rounded-xl border p-4 shadow-sm"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <StyledCheckboxButton
-            checked={block.required}
+            checked={block.enabled}
             disabled={disabled}
-            muted
             onCheckedChange={(checked) =>
-              updateBlock(
-                index,
-                block.source === "standard" || standardByKey.has(block.key)
-                  ? { required: checked }
-                  : // Eine Pflicht-Checkbox ist eine Bestätigung (terms),
-                    // eine freiwillige Checkbox eine Einwilligung (consent).
-                    { required: checked, kind: checked ? "terms" : "consent" },
-              )
+              updateBlock(index, { enabled: checked })
             }
           >
-            Muss bestätigt werden
+            Im Formular anzeigen
           </StyledCheckboxButton>
+          <p className="max-w-xl text-xs leading-5 text-gray-500">
+            {helperText}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {onReset ? (
+              <button
+                type="button"
+                onClick={onReset}
+                disabled={disabled}
+                className="inline-flex h-8 w-fit items-center rounded-lg px-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Einstellungen wieder verwenden
+              </button>
+            ) : null}
+            {onRemove ? (
+              <button
+                type="button"
+                onClick={onRemove}
+                disabled={disabled}
+                className="text-moto-red-strong hover:bg-moto-red/10 inline-flex h-8 w-fit items-center gap-2 rounded-lg px-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                Entfernen
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-3">
+          <label className="block">
+            <span className="text-xs font-medium text-gray-700">Titel</span>
+            <input
+              type="text"
+              value={block.title}
+              disabled={disabled}
+              onChange={(event) =>
+                updateBlock(index, { title: event.target.value })
+              }
+              {...titleError.controlProps}
+              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
+            />
+          </label>
+          <FieldErrorHint id={titleError.hintId} message={titleError.message} />
+        </div>
+
+        <div className="mt-3">
+          <Textarea
+            id={`legal-block-label-${block.key}`}
+            name={labelError.controlProps.name}
+            error={labelError.message}
+            label="Text neben der Checkbox oder dem Hinweis"
+            value={block.label}
+            disabled={disabled}
+            rows={2}
+            onChange={(event) =>
+              updateBlock(index, { label: event.target.value })
+            }
+          />
+        </div>
+
+        {block.key === "agb" && block.source === "standard" ? (
+          <AGBTemplateSourceEditor
+            mode={legalBlockDisplayMode(block)}
+            onModeChange={(mode) => updateBlock(index, { display_mode: mode })}
+            textValue={block.text}
+            onTextChange={(value) => updateBlock(index, { text: value })}
+            documentURL={block.document_url ?? ""}
+            documentSaving={uploadingDocumentKey === block.key}
+            disabled={disabled}
+            onDocumentUpload={(file) => uploadAGBDocument(index, file)}
+            onDocumentRemove={() => void removeAGBDocument(index)}
+          />
+        ) : (
+          <div className="mt-3">
+            <Textarea
+              id={`legal-block-text-${block.key}`}
+              label="Rechtstext / Erklärung"
+              value={block.text}
+              disabled={disabled}
+              rows={4}
+              onChange={(event) =>
+                updateBlock(index, { text: event.target.value })
+              }
+            />
+          </div>
+        )}
+
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <LegalBlockModeControl
+            isNotice={block.kind === "notice"}
+            disabled={disabled}
+            onModeChange={(isNotice) =>
+              updateBlock(index, {
+                kind: isNotice ? "notice" : checkboxLegalBlockKindFor(block),
+                required: isNotice ? false : block.required,
+              })
+            }
+          />
+          {block.kind !== "notice" &&
+          !(
+            block.kind === "consent" &&
+            (block.source === "standard" || standardByKey.has(block.key))
+          ) ? (
+            <StyledCheckboxButton
+              checked={block.required}
+              disabled={disabled}
+              muted
+              onCheckedChange={(checked) =>
+                updateBlock(
+                  index,
+                  block.source === "standard" || standardByKey.has(block.key)
+                    ? { required: checked }
+                    : // Eine Pflicht-Checkbox ist eine Bestätigung (terms),
+                      // eine freiwillige Checkbox eine Einwilligung (consent).
+                      {
+                        required: checked,
+                        kind: checked ? "terms" : "consent",
+                      },
+                )
+              }
+            >
+              Muss bestätigt werden
+            </StyledCheckboxButton>
+          ) : null}
+        </div>
+        {block.kind === "consent" ? (
+          <p className="mt-2 text-xs leading-5 text-gray-500">
+            Freiwillige Einwilligung: Eltern können das Formular auch ohne
+            Häkchen abschicken.
+          </p>
+        ) : null}
+        {block.kind === "terms" &&
+        block.source !== "standard" &&
+        !standardByKey.has(block.key) ? (
+          <p className="mt-2 text-xs leading-5 text-gray-500">
+            Pflicht-Bestätigung: Eltern müssen das Häkchen setzen, sonst können
+            sie das Formular nicht abschicken. Das ist keine freiwillige
+            Einwilligung.
+          </p>
         ) : null}
       </div>
-      {block.kind === "consent" ? (
-        <p className="mt-2 text-xs leading-5 text-gray-500">
-          Freiwillige Einwilligung: Eltern können das Formular auch ohne Häkchen
-          abschicken.
-        </p>
-      ) : null}
-      {block.kind === "terms" &&
-      block.source !== "standard" &&
-      !standardByKey.has(block.key) ? (
-        <p className="mt-2 text-xs leading-5 text-gray-500">
-          Pflicht-Bestätigung: Eltern müssen das Häkchen setzen, sonst können
-          sie das Formular nicht abschicken. Das ist keine freiwillige
-          Einwilligung.
-        </p>
-      ) : null}
-    </div>
-  );
+    );
+  };
 
   return (
     <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
@@ -2711,7 +2906,7 @@ function AGBTemplateSourceEditor({
               <p className="mt-0.5 text-xs text-gray-600">
                 {hasDocument
                   ? "Diese PDF wird in dieser Formularvorlage als Link angezeigt."
-                  : "Lade die AGB / Teilnahmebedingungen als PDF hoch."}
+                  : "Laden Sie die AGB / Teilnahmebedingungen als PDF hoch."}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -3085,6 +3280,15 @@ function FieldEditorRow({
   onMoveDown,
   disabled,
 }: FieldEditorRowProps) {
+  const fieldError = useContext(FieldErrorContext);
+  // The key is derived from the question text, so a problem with the key
+  // marks the text field.
+  const labelError = fieldErrorProps(
+    (name) => fieldError(name) ?? fieldError(`fields.${index}.key`),
+    `fields.${index}.label`,
+  );
+  const contentError = fieldErrorProps(fieldError, `fields.${index}.content`);
+  const optionsError = fieldErrorProps(fieldError, `fields.${index}.options`);
   const allowedTimeIdPrefix = useId();
   const allowedTimeSequence = useRef(0);
   const target = field.target || null;
@@ -3311,22 +3515,33 @@ function FieldEditorRow({
 
           {isInfo ? (
             <>
-              <label className="block">
-                <span className="text-xs font-medium text-gray-700">
-                  Titel (optional)
-                </span>
-                <input
-                  type="text"
-                  value={field.label}
-                  onChange={(event) => onChange({ label: event.target.value })}
-                  placeholder="z. B. Wichtiger Hinweis"
-                  disabled={disabled}
-                  className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              <div>
+                <label className="block">
+                  <span className="text-xs font-medium text-gray-700">
+                    Titel (optional)
+                  </span>
+                  <input
+                    type="text"
+                    value={field.label}
+                    onChange={(event) =>
+                      onChange({ label: event.target.value })
+                    }
+                    placeholder="z. B. Wichtiger Hinweis"
+                    disabled={disabled}
+                    {...labelError.controlProps}
+                    className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                  />
+                </label>
+                <FieldErrorHint
+                  id={labelError.hintId}
+                  message={labelError.message}
                 />
-              </label>
+              </div>
               <div>
                 <Textarea
                   id={`field-info-content-${index}`}
+                  name={contentError.controlProps.name}
+                  error={contentError.message}
                   label="Infotext für Eltern"
                   value={field.content ?? ""}
                   onChange={(event) =>
@@ -3352,40 +3567,48 @@ function FieldEditorRow({
           ) : (
             <>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className="block">
-                  <span className="text-xs font-medium text-gray-700">
-                    Frage im Elternformular
-                  </span>
-                  <input
-                    type="text"
-                    value={field.label}
-                    onChange={(event) => {
-                      const nextLabel = event.target.value;
-                      if (isTargetField) {
-                        // Suggested fields keep their fixed key + type; only
-                        // the displayed question text is editable.
-                        onChange({ label: nextLabel });
-                        return;
+                <div>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-700">
+                      Frage im Elternformular
+                    </span>
+                    <input
+                      type="text"
+                      value={field.label}
+                      onChange={(event) => {
+                        const nextLabel = event.target.value;
+                        if (isTargetField) {
+                          // Suggested fields keep their fixed key + type; only
+                          // the displayed question text is editable.
+                          onChange({ label: nextLabel });
+                          return;
+                        }
+                        const currentAutoKey = normalizeFieldKey(field.label);
+                        const shouldUpdateKey =
+                          field.key.trim() === "" ||
+                          field.key === currentAutoKey;
+                        onChange({
+                          label: nextLabel,
+                          key: shouldUpdateKey
+                            ? normalizeFieldKey(nextLabel)
+                            : field.key,
+                        });
+                      }}
+                      placeholder={
+                        isTargetField && target
+                          ? RESERVED_TARGETS[target].label
+                          : "z. B. Allergien oder Hinweise"
                       }
-                      const currentAutoKey = normalizeFieldKey(field.label);
-                      const shouldUpdateKey =
-                        field.key.trim() === "" || field.key === currentAutoKey;
-                      onChange({
-                        label: nextLabel,
-                        key: shouldUpdateKey
-                          ? normalizeFieldKey(nextLabel)
-                          : field.key,
-                      });
-                    }}
-                    placeholder={
-                      isTargetField && target
-                        ? RESERVED_TARGETS[target].label
-                        : "z. B. Allergien oder Hinweise"
-                    }
-                    disabled={disabled}
-                    className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                      disabled={disabled}
+                      {...labelError.controlProps}
+                      className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                    />
+                  </label>
+                  <FieldErrorHint
+                    id={labelError.hintId}
+                    message={labelError.message}
                   />
-                </label>
+                </div>
                 <label className="block">
                   <span className="text-xs font-medium text-gray-700">
                     Typ
@@ -3434,6 +3657,8 @@ function FieldEditorRow({
                 <div>
                   <Textarea
                     id={`field-options-${index}`}
+                    name={optionsError.controlProps.name}
+                    error={optionsError.message}
                     label="Auswahloptionen"
                     value={optionsDraft}
                     onChange={(event) => updateOptions(event.target.value)}
@@ -4889,6 +5114,15 @@ function getRequiredHint(field: FormField): string {
   return "Eltern müssen diese Frage beantworten.";
 }
 
+/** A check before saving: the sentence for the alert and the control to mark. */
+interface SchemaDraftProblem {
+  readonly message: string;
+  readonly field?: string;
+  readonly hint?: string;
+}
+
+const FILL_IN_HINT = "Bitte füllen Sie dieses Feld aus.";
+
 function getSchemaDraftValidationMessage({
   fields,
   legalBlocks,
@@ -4897,9 +5131,13 @@ function getSchemaDraftValidationMessage({
   fields: FormField[];
   legalBlocks: FormLegalBlock[];
   name: string;
-}>): string | null {
+}>): SchemaDraftProblem | null {
   if (name.trim() === "") {
-    return "Bitte gib zuerst einen Namen für die Vorlage ein.";
+    return {
+      message: "Bitte geben Sie zuerst einen Namen für die Vorlage ein.",
+      field: "name",
+      hint: FILL_IN_HINT,
+    };
   }
 
   const seenKeys = new Set<string>();
@@ -4908,38 +5146,64 @@ function getSchemaDraftValidationMessage({
 
     if (field.type === "information") {
       if ((field.content ?? "").trim() === "") {
-        return `Bitte gib für den Infotext ${position} einen Text ein.`;
+        return {
+          message: `Bitte geben Sie für den Infotext ${position} einen Text ein.`,
+          field: `fields.${index}.content`,
+          hint: FILL_IN_HINT,
+        };
       }
       const infoKey =
         field.key.trim() ||
         normalizeFieldKey(field.label) ||
         `infotext_${position}`;
       if (seenKeys.has(infoKey)) {
-        return `Bitte ändere Infotext ${position}. Es entsteht ein doppeltes internes Feld.`;
+        return {
+          message: `Bitte ändern Sie den Titel von Infotext ${position}. Ein anderer Eintrag hat schon denselben Titel.`,
+          field: `fields.${index}.label`,
+          hint: "Bitte wählen Sie einen anderen Titel.",
+        };
       }
       seenKeys.add(infoKey);
       continue;
     }
 
     if (field.label.trim() === "") {
-      return `Bitte gib für Frage ${position} einen Fragetext ein.`;
+      return {
+        message: `Bitte geben Sie für Frage ${position} einen Fragetext ein.`,
+        field: `fields.${index}.label`,
+        hint: FILL_IN_HINT,
+      };
     }
 
     const key = field.key.trim() || normalizeFieldKey(field.label);
     if (key === "") {
-      return `Bitte ändere Frage ${position}. Aus dem Fragetext konnte kein internes Feld erzeugt werden.`;
+      return {
+        message: `Bitte ändern Sie den Fragetext von Frage ${position}. Er braucht mindestens einen Buchstaben oder eine Zahl.`,
+        field: `fields.${index}.label`,
+        hint: "Bitte verwenden Sie Buchstaben oder Zahlen.",
+      };
     }
     if (seenKeys.has(key)) {
-      return `Bitte ändere Frage ${position}. Zwei Zusatzfragen haben denselben oder einen zu ähnlichen Fragetext.`;
+      return {
+        message: `Bitte ändern Sie den Fragetext von Frage ${position}. Eine andere Zusatzfrage hat denselben oder einen sehr ähnlichen Text.`,
+        field: `fields.${index}.label`,
+        hint: "Bitte wählen Sie einen anderen Fragetext.",
+      };
     }
     seenKeys.add(key);
 
     if (!field.target && structuredFieldTypes.has(field.type)) {
-      return `Bitte wähle für Frage ${position} einen einfachen Typ. Telefonlisten, Wochenzeiten und Kontaktlisten sind nur als feste Vorschläge verfügbar.`;
+      return {
+        message: `Bitte wählen Sie für Frage ${position} einen einfachen Typ. Telefonlisten, Wochenzeiten und Kontaktlisten gibt es nur als feste Vorschläge.`,
+      };
     }
 
     if (field.type === "select" && (field.options ?? []).length === 0) {
-      return `Bitte ergänze für Frage ${position} mindestens eine Auswahloption.`;
+      return {
+        message: `Bitte ergänzen Sie für Frage ${position} mindestens eine Auswahloption.`,
+        field: `fields.${index}.options`,
+        hint: "Bitte tragen Sie mindestens eine Option ein.",
+      };
     }
   }
 
@@ -4949,22 +5213,36 @@ function getSchemaDraftValidationMessage({
   ).entries()) {
     const position = index + 1;
     if (seenLegalKeys.has(block.key)) {
-      return `Bitte ändere Zustimmung ${position}. Zwei Zustimmungen haben denselben internen Schlüssel.`;
+      // The key is never shown; only removing the duplicate helps.
+      return {
+        message: `Bitte entfernen Sie Zustimmung ${position} und legen Sie sie neu an. Sie ist doppelt vorhanden.`,
+      };
     }
     seenLegalKeys.add(block.key);
     if (!block.enabled) continue;
     if (block.title === "") {
-      return `Bitte gib für Zustimmung ${position} einen Titel ein.`;
+      return {
+        message: `Bitte geben Sie für Zustimmung ${position} einen Titel ein.`,
+        field: `legal_blocks.${index}.title`,
+        hint: FILL_IN_HINT,
+      };
     }
     if (block.label === "") {
-      return `Bitte gib für Zustimmung ${position} einen Text neben der Checkbox ein.`;
+      return {
+        message: `Bitte geben Sie für Zustimmung ${position} einen Text neben der Checkbox ein.`,
+        field: `legal_blocks.${index}.label`,
+        hint: FILL_IN_HINT,
+      };
     }
     if (
       block.key === "agb" &&
       block.display_mode === LEGAL_BLOCK_DISPLAY_MODE_PDF &&
       (block.document_url ?? "").trim() === ""
     ) {
-      return "Bitte lade für die AGB eine PDF-Datei hoch oder wähle wieder Text eingeben.";
+      return {
+        message:
+          "Bitte laden Sie für die AGB eine PDF-Datei hoch. Oder wählen Sie wieder „Text eingeben“.",
+      };
     }
   }
 

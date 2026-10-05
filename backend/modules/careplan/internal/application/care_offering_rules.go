@@ -156,10 +156,10 @@ func validateOfferingFields(offering *careplan.CareOffering) error {
 		return err
 	}
 	if offering.Capacity != nil && *offering.Capacity < 0 {
-		return errors.New("capacity must be non-negative")
+		return careplan.InvalidInput(careplan.CodeCareOfferingCapacityInvalid, "capacity", errors.New("capacity must be non-negative"))
 	}
 	if offering.PriceCents != nil && *offering.PriceCents < 0 {
-		return errors.New("price_cents must be non-negative")
+		return careplan.InvalidInput(careplan.CodeCareOfferingPriceInvalid, "price_cents", errors.New("price_cents must be non-negative"))
 	}
 	levels, err := normalizeGradeLevelList("auto_add_grade_levels", offering.AutoAddGradeLevels)
 	if err != nil {
@@ -181,7 +181,7 @@ func validateOfferingFields(offering *careplan.CareOffering) error {
 	// carry a hard capacity limit - a full offering would block every new
 	// enrollment in the phase.
 	if offering.IsRequired && offering.Capacity != nil {
-		return errors.New("a required care offering must not have a capacity limit")
+		return careplan.InvalidInput(careplan.CodeCareOfferingCapacityInvalid, "capacity", errors.New("a required care offering must not have a capacity limit"))
 	}
 	return nil
 }
@@ -189,7 +189,7 @@ func validateOfferingFields(offering *careplan.CareOffering) error {
 func validateOfferingIdentity(offering *careplan.CareOffering) error {
 	offering.Name = strings.TrimSpace(offering.Name)
 	if offering.Name == "" {
-		return errors.New("care offering name is required")
+		return careplan.InvalidInput(careplan.CodeCareOfferingNameRequired, "name", errors.New("care offering name is required"))
 	}
 	if offering.PhaseID == 0 {
 		return errors.New("phase_id is required")
@@ -248,7 +248,7 @@ func validateOfferingSelection(offering *careplan.CareOffering) error {
 	// A non-optional rule only makes sense within a named group — it
 	// constrains the count across the group's members.
 	if offering.SelectionRule != selectionRuleOptional && offering.SelectionGroup == "" {
-		return errors.New("a selection rule requires a selection_group name")
+		return careplan.InvalidInput(careplan.CodeCareOfferingSelectionInvalid, "selection_group", errors.New("a selection rule requires a selection_group name"))
 	}
 	return nil
 }
@@ -277,7 +277,7 @@ func normalizePickupTimes(times map[string]string, availableDays []string) (map[
 		}
 		parsed, err := time.Parse("15:04", value)
 		if err != nil {
-			return nil, fmt.Errorf("pickup_times value for %q must be HH:MM, got %q", key, hhmm)
+			return nil, careplan.InvalidInput(careplan.CodeCareOfferingPickupTimeInvalid, "pickup_times."+key, fmt.Errorf("pickup_times value for %q must be HH:MM, got %q", key, hhmm))
 		}
 		out[key] = parsed.Format("15:04")
 	}
