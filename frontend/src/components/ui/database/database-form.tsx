@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { Alert } from "~/components/ui/alert";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
@@ -260,6 +262,26 @@ function SectionTitle({
   return <Heading className={className}>{children}</Heading>;
 }
 
+/**
+ * The owner's shared API error path (`useApiFormError` from ToastContext),
+ * handed in because the kit may not import contexts (#2516). With it, a
+ * failed save shows the catalog text with retry and request ID, server field
+ * errors mark their field, and local checks run through `invalid()`.
+ */
+export interface DatabaseFormErrorPath {
+  readonly error: FormErrorInput;
+  readonly show: (
+    error: unknown,
+    options: { object: string; retry?: () => void },
+  ) => unknown;
+  readonly invalid: (
+    message: string,
+    fields?: Readonly<Record<string, string>>,
+  ) => void;
+  readonly fieldError: (name: string) => string | undefined;
+  readonly clear: () => void;
+}
+
 interface DatabaseFormProps<T = Record<string, unknown>> {
   readonly sections: FormSection[];
   readonly onSubmit: (data: T) => Promise<void>;
@@ -281,6 +303,13 @@ interface DatabaseFormProps<T = Record<string, unknown>> {
    * Abschnitte sonst ueber dem Dialog stehen, in dem sie liegen.
    */
   readonly sectionLevel?: 2 | 3 | 4;
+  /** Shared API error path, see `DatabaseFormErrorPath`. */
+  readonly errorPath?: DatabaseFormErrorPath;
+  /**
+   * `{object}` of the catalog text with `errorPath`: feminine or neuter
+   * singular („die Planungsspur“). Default „die Änderung“.
+   */
+  readonly errorObject?: string;
 }
 
 export function DatabaseForm<T = Record<string, unknown>>({
@@ -294,6 +323,8 @@ export function DatabaseForm<T = Record<string, unknown>>({
   stickyActions = false,
   preserveDraftOnSectionsChange = false,
   sectionLevel = 2,
+  errorPath,
+  errorObject = "die Änderung",
 }: DatabaseFormProps<T>) {
   const privacyStudentId =
     initialData &&
@@ -312,6 +343,12 @@ export function DatabaseForm<T = Record<string, unknown>>({
   const [error, setError] = useState<string | null>(null);
   const [errorFieldName, setErrorFieldName] = useState<string | null>(null);
   const errorRef = useScrollToError(error);
+  const formRef = useRef<HTMLFormElement>(null);
+  // „Wiederholen“ sendet den aktuellen Stand des Formulars.
+  const latestSubmitRef = useRef<() => void>(() => undefined);
+  useLayoutEffect(() => {
+    latestSubmitRef.current = () => formRef.current?.requestSubmit();
+  });
   // Local submitting state to prevent double-clicks (set synchronously before async onSubmit)
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [asyncOptions, setAsyncOptions] = useState<
@@ -483,12 +520,19 @@ export function DatabaseForm<T = Record<string, unknown>>({
     setIsSubmitting(true);
     setError(null);
     setErrorFieldName(null);
+    errorPath?.clear();
 
     // Validate all form fields
     const validationResult = validateFormFields(sections, formData);
     if (validationResult) {
-      setError(validationResult.message);
-      setErrorFieldName(validationResult.fieldName);
+      if (errorPath) {
+        errorPath.invalid(validationResult.message, {
+          [validationResult.fieldName]: validationResult.message,
+        });
+      } else {
+        setError(validationResult.message);
+        setErrorFieldName(validationResult.fieldName);
+      }
       if (isMountedRef.current) {
         setIsSubmitting(false);
       }
@@ -519,6 +563,13 @@ export function DatabaseForm<T = Record<string, unknown>>({
       logger.error("failed to submit form", {
         error: err instanceof Error ? err.message : String(err),
       });
+      if (errorPath) {
+        void errorPath.show(err, {
+          object: errorObject,
+          retry: () => latestSubmitRef.current(),
+        });
+        return;
+      }
       const errorMessage =
         err instanceof Error
           ? err.message
@@ -678,7 +729,9 @@ export function DatabaseForm<T = Record<string, unknown>>({
   };
 
   const renderField = (field: FormField) => {
-    const hasError = field.name === errorFieldName;
+    const hasError = errorPath
+      ? errorPath.fieldError(field.name) !== undefined
+      : field.name === errorFieldName;
 
     const baseInputClasses = `w-full rounded-lg border ${hasError ? "border-moto-red/40" : "border-gray-300"} px-3 py-2 md:px-4 md:py-2 text-sm transition-all duration-200 focus:ring-2 focus:ring-moto-blue focus:outline-none`;
     const labelClasses = `mb-1.5 block text-xs font-medium ${hasError ? "text-moto-red" : "text-gray-700"}`;
@@ -837,13 +890,25 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
   return (
     <>
-      {(error ?? externalError) && (
-        <div ref={errorRef} className="mb-4 md:mb-6">
-          <Alert type="error" message={error ?? externalError ?? ""} />
-        </div>
+      {errorPath ? (
+        <FormErrorAlert
+          message={errorPath.error ?? externalError}
+          className="mb-4 md:mb-6"
+        />
+      ) : (
+        (error ?? externalError) && (
+          <div ref={errorRef} className="mb-4 md:mb-6">
+            <Alert type="error" message={error ?? externalError ?? ""} />
+          </div>
+        )
       )}
 
-      <form onSubmit={handleSubmit} noValidate className="space-y-6">
+      <form
+        ref={formRef}
+        onSubmit={handleSubmit}
+        noValidate
+        className="space-y-6"
+      >
         {sections.map((section) => {
           return (
             <div

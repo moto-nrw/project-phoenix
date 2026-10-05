@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -231,12 +232,8 @@ func renderDeviationError(w http.ResponseWriter, r *http.Request, err error) {
 		return
 	}
 	switch de.Status {
-	case http.StatusBadRequest:
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(de.ClientMsg)))
-	case http.StatusNotFound:
-		common.RenderError(w, r, common.ErrorNotFound(errors.New(de.ClientMsg)))
-	case http.StatusConflict:
-		common.RenderError(w, r, common.ErrorConflictWithCode(errors.New(de.ClientMsg), de.Code))
+	case http.StatusBadRequest, http.StatusNotFound, http.StatusConflict:
+		common.RenderError(w, r, deviationRefusal(de))
 	default:
 		if de.Cause != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap(de.ClientMsg, de.Cause))
@@ -244,4 +241,22 @@ func renderDeviationError(w http.ResponseWriter, r *http.Request, err error) {
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New(de.ClientMsg)))
 	}
+}
+
+// deviationRefusal renders a 4xx DeviationError with its status, code, the
+// values it names and the field it is about (#2516). The client message stays
+// the error text.
+func deviationRefusal(de *timetable.DeviationError) render.Renderer {
+	resp := &common.ErrResponse{
+		Err:            errors.New(de.ClientMsg),
+		HTTPStatusCode: de.Status,
+		Status:         "error",
+		ErrorText:      de.ClientMsg,
+		Code:           de.Code,
+		Details:        refusalDetails(de.Details),
+	}
+	if de.Field != "" {
+		resp.Errors = []common.FieldError{{Field: de.Field, Reason: de.ClientMsg}}
+	}
+	return resp
 }

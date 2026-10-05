@@ -1,21 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { Modal } from "~/components/ui/modal";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { substitutionService } from "~/lib/substitution-api";
 import type { RunningSupervision } from "~/lib/substitution-helpers";
 
 const logger = createLogger({ component: "AddSupervisorModal" });
-const loadFallback =
-  "Die Betreuung konnte nicht geladen werden. Bitte versuchen Sie es noch einmal.";
-const saveFallback =
-  "Der Betreuer konnte nicht hinzugefügt werden. Bitte versuchen Sie es noch einmal.";
 
 interface AddSupervisorModalProps {
   readonly activeGroupId: string | null;
@@ -26,27 +31,39 @@ interface AddSupervisorModalProps {
 
 function useSupervisionOverview(activeGroupId: string | null, isOpen: boolean) {
   const [overview, setOverview] = useState<RunningSupervision | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  // Erhöht von „Wiederholen“: lädt die Betreuung erneut.
+  const [attempt, setAttempt] = useState(0);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
   useEffect(() => {
     if (!isOpen || !activeGroupId) return;
     let current = true;
     setOverview(null);
-    setError(null);
+    clearLoadError();
     setIsLoading(true);
     void substitutionService
       .fetchRunningSupervision(activeGroupId)
       .then((result) => current && setOverview(result))
       .catch((cause: unknown) => {
+        logger.error("running_supervision_load_failed", {
+          error: cause instanceof Error ? cause.message : String(cause),
+        });
         if (current)
-          setError(cause instanceof Error ? cause.message : loadFallback);
+          void showLoadError(cause, {
+            object: "die laufende Betreuung",
+            retry: () => setAttempt((value) => value + 1),
+          });
       })
       .finally(() => current && setIsLoading(false));
     return () => {
       current = false;
     };
-  }, [activeGroupId, isOpen]);
-  return { overview, error, setError, isLoading };
+  }, [activeGroupId, isOpen, attempt, showLoadError, clearLoadError]);
+  return { overview, loadError, isLoading };
 }
 
 function SupervisionDetails({
@@ -117,13 +134,19 @@ function SupervisorSelect({
 function useAddSupervisor(
   props: AddSupervisorModalProps,
   selectedStaffId: string,
-  setError: (error: string | null) => void,
 ) {
   const [isSaving, setIsSaving] = useState(false);
   const toast = useToast();
+  const formErrors = useApiFormError();
+  const { clear: clearFormErrors } = formErrors;
+  // „Wiederholen“ trägt die aktuell gewählte Person ein.
+  const latestAddRef = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    if (props.isOpen) clearFormErrors();
+  }, [props.isOpen, props.activeGroupId, clearFormErrors]);
   const add = async () => {
     if (!props.activeGroupId || !selectedStaffId) return;
-    setError(null);
+    formErrors.clear();
     setIsSaving(true);
     try {
       const result = await substitutionService.addSupervisor(
@@ -133,6 +156,8 @@ function useAddSupervisor(
       try {
         await props.onAdded();
       } catch (cause) {
+        // Bewusst still: die Person ist eingetragen; die Übersicht lädt beim
+        // nächsten Abruf den neuen Stand.
         logger.warn("additional_supervision_refresh_failed", {
           error: String(cause),
         });
@@ -140,24 +165,35 @@ function useAddSupervisor(
       toast.success(`${result.targetName} ist jetzt als Betreuer eingetragen.`);
       props.onClose();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : saveFallback);
+      logger.error("additional_supervision_failed", {
+        error: cause instanceof Error ? cause.message : String(cause),
+      });
+      void formErrors.show(cause, {
+        object: "die zusätzliche Betreuung",
+        retry: () => latestAddRef.current(),
+      });
     } finally {
       setIsSaving(false);
     }
   };
-  return { add, isSaving };
+  useLayoutEffect(() => {
+    latestAddRef.current = () => void add();
+  });
+  return { add, isSaving, error: formErrors.error };
 }
 
 function ModalBody(props: {
   overview: RunningSupervision | null;
-  error: string | null;
+  loadError: FormErrorInput;
+  saveError: FormErrorInput;
   isLoading: boolean;
   selectedStaffId: string;
   setSelectedStaffId: (value: string) => void;
 }) {
   return (
     <div className="space-y-5">
-      {props.error ? <Alert type="error" message={props.error} /> : null}
+      <LoadErrorAlert error={props.loadError} />
+      <FormErrorAlert message={props.saveError} />
       {props.isLoading ? (
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <SpinnerIcon /> Betreuung wird geladen...
@@ -217,7 +253,7 @@ function ModalFooter(props: {
 export function AddSupervisorModal(props: AddSupervisorModalProps) {
   const state = useSupervisionOverview(props.activeGroupId, props.isOpen);
   const [selectedStaffId, setSelectedStaffId] = useState("");
-  const action = useAddSupervisor(props, selectedStaffId, state.setError);
+  const action = useAddSupervisor(props, selectedStaffId);
   useEffect(() => setSelectedStaffId(""), [props.activeGroupId, props.isOpen]);
   const disabled =
     !selectedStaffId ||
@@ -242,6 +278,7 @@ export function AddSupervisorModal(props: AddSupervisorModalProps) {
     >
       <ModalBody
         {...state}
+        saveError={action.error}
         selectedStaffId={selectedStaffId}
         setSelectedStaffId={setSelectedStaffId}
       />

@@ -9,6 +9,7 @@ import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PickupExtension } from "~/lib/pickup-extension-api";
+import { catalogText } from "~/test/error-catalog-text";
 
 const mockToast = vi.hoisted(() => ({
   success: vi.fn(),
@@ -16,7 +17,8 @@ const mockToast = vi.hoisted(() => ({
   warning: vi.fn(),
   info: vi.fn(),
 }));
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => mockToast,
   useApiErrorDisplay: () => ({ show: vi.fn() }),
 }));
@@ -231,8 +233,12 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     approve();
     await screen.findByText("Längere Betreuung eintragen");
     fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
+    // Katalogtext der Klasse; der Dialog lädt die Terminliste neu (#2516).
     await screen.findByText(
-      "Der Termin hat sich inzwischen geändert. Bitte wählen Sie noch einmal.",
+      catalogText(
+        "timetable.pickup_extension_block_gone",
+        "die Zuordnung zum Termin",
+      ),
     );
     fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
     await waitFor(() =>

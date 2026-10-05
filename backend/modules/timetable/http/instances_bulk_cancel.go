@@ -53,7 +53,7 @@ func (rs *Resource) bulkCancelInstances(w http.ResponseWriter, r *http.Request) 
 	opts := timetable.BulkCancelOptions{DryRun: req.DryRun, IncludeClosingDaySeries: req.IncludeClosingDaySeries}
 	result, err := rs.InstanceService.BulkCancelPlanned(r.Context(), from, to, opts, jwt.ActorAccountIDFromCtx(r.Context()))
 	if errors.Is(err, timetable.ErrInvalidBulkCancelRange) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, codedInvalid(err))
 		return
 	}
 	if err != nil {

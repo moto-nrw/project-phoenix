@@ -20,10 +20,12 @@ func ValidateSeriesLastDay(lastDay, firstDay calendar.Date, periodEnd *calendar.
 		return fmt.Errorf("%w: end_date is required", ErrInvalidSeriesEnd)
 	}
 	if !firstDay.IsZero() && lastDay.Before(firstDay) {
-		return fmt.Errorf("%w: end_date must not be before the series start %s", ErrInvalidSeriesEnd, firstDay)
+		return WithCode(fmt.Errorf("%w: end_date must not be before the series start %s", ErrInvalidSeriesEnd, firstDay),
+			CodeSeriesEndBeforeStart, RefusalValues{Start: firstDay.Format(RefusalDateLayout)})
 	}
 	if periodEnd != nil && !periodEnd.IsZero() && lastDay.After(*periodEnd) {
-		return fmt.Errorf("%w: end_date must lie within the planning period (until %s)", ErrInvalidSeriesEnd, *periodEnd)
+		return WithCode(fmt.Errorf("%w: end_date must lie within the planning period (until %s)", ErrInvalidSeriesEnd, *periodEnd),
+			CodeSeriesEndOutsidePeriod, RefusalValues{End: periodEnd.Format(RefusalDateLayout)})
 	}
 	return nil
 }

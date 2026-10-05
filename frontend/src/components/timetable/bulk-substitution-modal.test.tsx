@@ -63,6 +63,7 @@ const {
   mockApplyBulk,
   mockToastSuccess,
   mockToastError,
+  mockToastWarning,
   mockUseTenantMutateMatching,
   mockClearPreviewCache,
   mockSwrState,
@@ -73,6 +74,7 @@ const {
     mockApplyBulk: vi.fn(),
     mockToastSuccess: vi.fn(),
     mockToastError: vi.fn(),
+    mockToastWarning: vi.fn(),
     mockClearPreviewCache,
     mockUseTenantMutateMatching: vi.fn(() => mockClearPreviewCache),
     // Steuerbarer Lade-/Fehlerzustand des Vorschau-Fetches. data bleibt dabei
@@ -82,6 +84,7 @@ const {
     mockSwrState: {
       isLoading: false,
       error: undefined as Error | undefined,
+      mutate: vi.fn(),
     },
   };
 });
@@ -96,10 +99,13 @@ vi.mock("~/lib/substitution-api", () => ({
   substitutionService: { applyBulkSubstitution: mockApplyBulk },
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+// Nur die Toasts ersetzen; der Fehlerweg des Formulars bleibt echt.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: mockToastSuccess,
     error: mockToastError,
+    warning: mockToastWarning,
   }),
 }));
 
@@ -114,6 +120,7 @@ vi.mock("~/lib/swr", () => ({
       data: mockGetWeek() as WeeklyInstancesResponse,
       isLoading: mockSwrState.isLoading,
       error: mockSwrState.error,
+      mutate: mockSwrState.mutate,
     };
   },
   useTenantMutateMatching: mockUseTenantMutateMatching,
@@ -124,7 +131,9 @@ vi.mock("~/lib/logger", () => ({
 }));
 
 import { BulkSubstitutionModal } from "./bulk-substitution-modal";
+import { ApiError } from "~/lib/api-error";
 import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
+import { catalogText } from "~/test/error-catalog-text";
 
 const STAFF_OPTIONS = [
   { id: "11", name: "Anna Alt" },
@@ -312,7 +321,7 @@ describe("BulkSubstitutionModal", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
     expect(onClose).toHaveBeenCalledOnce();
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      expect.stringContaining("Vertretung eingetragen"),
+      "Die Vertretung ist eingetragen: 3 Termine an 2 Tagen.",
     );
   });
 
@@ -342,7 +351,7 @@ describe("BulkSubstitutionModal", () => {
       reason: undefined,
     });
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      expect.stringContaining("Abwesenheit eingetragen"),
+      "Die Abwesenheit ist eingetragen: 1 Termin an 1 Tag.",
     );
   });
 
@@ -351,7 +360,9 @@ describe("BulkSubstitutionModal", () => {
       weekResponse([makeInstance({ id: "1", date: futureISO(1) })]),
     );
     mockApplyBulk.mockRejectedValue(
-      new Error("die Ersatzperson ist am 18.08.2026 selbst abwesend"),
+      new ApiError("18.08.2026: die Ersatzperson ist abwesend", 409, {
+        code: "timetable.staff_absent_on_date",
+      }),
     );
     const { onClose, onSaved } = renderModal();
 
@@ -361,10 +372,14 @@ describe("BulkSubstitutionModal", () => {
       screen.getByRole("button", { name: "Für 1 Tag(e) speichern" }),
     );
 
-    // Der Fehler steht oben im Panel (Bauart 2 Regel 5), nicht als Toast.
+    // Der Fehler steht oben im Panel (Bauart 2 Regel 5), nicht als Toast:
+    // der Katalogtext zum Code, nie der Satz des Servers.
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "die Ersatzperson ist am 18.08.2026 selbst abwesend",
+      catalogText("timetable.staff_absent_on_date", "die Sammel-Vertretung"),
     );
+    expect(
+      screen.queryByText(/die Ersatzperson ist abwesend/),
+    ).not.toBeInTheDocument();
     expect(mockToastError).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
     expect(onSaved).not.toHaveBeenCalled();
@@ -394,7 +409,7 @@ describe("BulkSubstitutionModal", () => {
     setRange(futureISO(1), futureISO(40));
 
     expect(
-      screen.getByText(/Höchstens 31 Tage pro Speichern/),
+      screen.getByText(/höchstens 31 Tage auf einmal speichern/),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Für 32 Tag(e) speichern" }),
@@ -403,7 +418,7 @@ describe("BulkSubstitutionModal", () => {
     // Einen Tag abwählen → 31 gewählte Tage sind wieder speicherbar.
     fireEvent.click(screen.getAllByRole("checkbox")[0]!);
     expect(
-      screen.queryByText(/Höchstens 31 Tage pro Speichern/),
+      screen.queryByText(/höchstens 31 Tage auf einmal speichern/),
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Für 31 Tag(e) speichern" }),
@@ -487,20 +502,47 @@ describe("BulkSubstitutionModal", () => {
     ).toBeDisabled();
   });
 
-  it("blockt den Save, wenn die Vorschau nicht geladen werden konnte", () => {
+  it("blockt den Save, wenn die Vorschau nicht geladen werden konnte", async () => {
     mockGetWeek.mockReturnValue(
       weekResponse([makeInstance({ id: "1", date: futureISO(1) })]),
     );
-    mockSwrState.error = new Error("Netzwerkfehler");
+    mockSwrState.error = new ApiError("Failed to fetch", 503, {
+      code: "general.unavailable",
+    });
     renderModal();
     pickOption("Abwesende Person", "Anna Alt");
     setRange(futureISO(1), futureISO(1));
 
     expect(
-      screen.getByText(/Termine konnten nicht geladen werden/),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Termine"),
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Für 1 Tag(e) speichern" }),
+    ).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mockSwrState.mutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("zeigt den Ladefehler der Personalliste im Panel", () => {
+    render(
+      <BulkSubstitutionModal
+        isOpen
+        onClose={vi.fn()}
+        staffOptions={[]}
+        staffLoadError
+        staffLoadErrorMessage="Die Personalliste ist gerade nicht erreichbar."
+        onSaved={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Die Personalliste ist gerade nicht erreichbar."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: "Ersatzperson" }),
     ).toBeDisabled();
   });
 
@@ -537,8 +579,22 @@ describe("BulkSubstitutionModal", () => {
     mockGetWeek.mockReturnValue(
       weekResponse([makeInstance({ id: "1", date: futureISO(1) })]),
     );
-    mockApplyBulk.mockRejectedValue(new Error("Speichern fehlgeschlagen"));
-    renderModal();
+    mockApplyBulk
+      .mockRejectedValueOnce(
+        new ApiError("boom", 500, {
+          code: "general.server",
+          instance: "req-bulk",
+        }),
+      )
+      .mockResolvedValueOnce(
+        bulkResponse({
+          days: [
+            { date: futureISO(1), affectedInstances: [], warningCount: 0 },
+          ],
+          totalAffected: 1,
+        }),
+      );
+    const { onSaved } = renderModal();
 
     pickOption("Abwesende Person", "Anna Alt");
     setRange(futureISO(1), futureISO(1));
@@ -547,11 +603,51 @@ describe("BulkSubstitutionModal", () => {
     );
 
     // Der Fehler steht oben im Panel (Bauart 2 Regel 5), nicht als Toast.
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Speichern fehlgeschlagen",
-    );
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Sammel-Vertretung"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-bulk");
     expect(mockToastError).not.toHaveBeenCalled();
     expect(mockClearPreviewCache).not.toHaveBeenCalled();
+
+    // Wiederholen sendet denselben, aktuellen Stand noch einmal.
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+    expect(mockApplyBulk).toHaveBeenCalledTimes(2);
+    expect(mockApplyBulk.mock.calls[1]?.[0]).toEqual(
+      mockApplyBulk.mock.calls[0]?.[0],
+    );
+  });
+
+  it("weist nach dem Speichern in einem ganzen Satz auf Zeitüberschneidungen hin", async () => {
+    mockGetWeek.mockReturnValue(
+      weekResponse([makeInstance({ id: "1", date: futureISO(1) })]),
+    );
+    mockApplyBulk.mockResolvedValue(
+      bulkResponse({
+        days: [{ date: futureISO(1), affectedInstances: [], warningCount: 1 }],
+        totalAffected: 1,
+        warningCount: 1,
+      }),
+    );
+    renderModal();
+
+    pickOption("Abwesende Person", "Anna Alt");
+    setRange(futureISO(1), futureISO(1));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Für 1 Tag(e) speichern" }),
+    );
+
+    await waitFor(() =>
+      expect(mockToastWarning).toHaveBeenCalledWith(
+        "Bitte prüfen Sie eine mögliche Zeitüberschneidung.",
+        { duration: 0 },
+      ),
+    );
   });
 
   it("heute (Berliner Kalendertag) als Standardzeitraum vorbelegt", () => {

@@ -359,44 +359,263 @@ export const ERROR_CATALOG = {
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "substitutions.invalid_target":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+      "timetable.ambiguous_template_instance_delete":
+        "Dieser Termin lässt sich nicht einzeln löschen. Die Serie hat an diesem Tag mehrere Termine.",
+      "timetable.attendance_entry_not_found":
+        "Diesen Eintrag gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "timetable.attendance_frozen":
+        "Der Termin ist abgeschlossen. Bitte ändern Sie die Anwesenheit über die Korrektur.",
+      "timetable.attendance_invalid":
+        "Bitte prüfen Sie die markierten Angaben zur Anwesenheit.",
       "timetable.calendar_period_care_offering_conflict":
-        "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+        "Ein Betreuungsangebot braucht diesen Zeitraum. Bitte passen Sie zuerst das Angebot an.",
+      "timetable.calendar_period_end_before_start":
+        "Das Enddatum muss nach dem Startdatum liegen. Bitte prüfen Sie die Daten.",
+      "timetable.calendar_period_invalid":
+        "Bitte prüfen Sie die markierten Angaben zum Zeitraum.",
+      "timetable.calendar_period_name_taken":
+        "Diesen Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
+      "timetable.calendar_period_not_found":
+        "Den Zeitraum gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "timetable.calendar_period_overlap_conflict":
         "{object} überschneidet sich mit anderen Zeiträumen. Bitte prüfen Sie die Termine.",
+      "timetable.calendar_period_roster_conflict":
+        "Der Zeitraum lässt sich nicht löschen. Sonst wären Kinder oder Personal doppelt eingeteilt. Bitte passen Sie zuerst die Regeltermine an.",
+      "timetable.calendar_period_week_cycle_anchor_missing":
+        "Bitte wählen Sie das Startdatum der Wiederholung.",
+      "timetable.closing_day_end_before_start":
+        "Das Enddatum darf nicht vor dem Startdatum liegen. Bitte prüfen Sie die Daten.",
+      "timetable.closing_day_invalid":
+        "Bitte prüfen Sie die markierten Angaben zum Schließtag.",
+      "timetable.closing_day_not_found":
+        "Den Schließtag gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "timetable.complete_too_early":
         "Der Termin kann erst nach seinem Ende abgeschlossen werden.",
       "timetable.completion_confirmation_stale":
         "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
+      "timetable.correction_cancelled":
+        "Ein abgesagter Termin lässt sich nicht korrigieren.",
+      "timetable.correction_not_completed":
+        "Nur abgeschlossene Termine lassen sich korrigieren. Bitte laden Sie die Seite neu.",
+      "timetable.correction_reason_missing":
+        "Bitte geben Sie einen Grund für die Korrektur an.",
+      "timetable.correction_reason_too_long":
+        "Der Grund ist zu lang. Bitte kürzen Sie ihn.",
+      "timetable.date_in_past":
+        "Der Tag liegt in der Vergangenheit. Bitte wählen Sie heute oder einen späteren Tag.",
+      "timetable.dates_in_past":
+        "Ein gewählter Tag liegt in der Vergangenheit. Bitte wählen Sie nur heute oder spätere Tage.",
+      "timetable.dates_required": "Bitte wählen Sie mindestens einen Tag aus.",
+      "timetable.deviation_note_too_long":
+        "Der Hinweis ist zu lang. Bitte kürzen Sie ihn.",
+      "timetable.deviation_selection_invalid":
+        "Bitte prüfen Sie die Auswahl der Personen.",
       "timetable.duplicate_instance":
         "Diesen Termin gibt es schon. Bitte laden Sie die Seite neu.",
+      "timetable.export_end_before_start":
+        "Das Enddatum darf nicht vor dem Startdatum liegen. Bitte prüfen Sie die Daten.",
+      "timetable.export_internal_forbidden":
+        "Den internen Plan dürfen nur Personen mit Planungsrechten herunterladen. Bitte wählen Sie den Aushang.",
+      "timetable.export_range_too_large":
+        "Der Zeitraum ist zu lang. Bitte wählen Sie höchstens {max_weeks} Wochen.",
+      "timetable.group_already_ended":
+        "Die Gruppe ist schon beendet. Bitte laden Sie die Seite neu.",
       "timetable.guardian_notice_disabled":
         "Hinweise an Eltern sind hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "timetable.guardian_notice_invalid":
+        "Die Nachricht an die Eltern ließ sich nicht senden. Bitte prüfen Sie Betreff und Text.",
+      "timetable.guardian_notice_past":
+        "Der Termin liegt in der Vergangenheit. Eine Nachricht an die Eltern ist nicht mehr möglich.",
+      "timetable.guardian_notice_text_invalid":
+        "Bitte geben Sie Betreff und Text für die Eltern ein. Der Text darf höchstens 4000 Zeichen haben.",
+      "timetable.idempotency_key_reused":
+        "Dieser Termin wurde schon angelegt. Bitte laden Sie die Seite neu.",
+      "timetable.instance_end_before_start":
+        "Das Ende muss nach dem Beginn liegen. Bitte prüfen Sie die Uhrzeiten.",
+      "timetable.instance_in_past":
+        "Der Termin liegt in der Vergangenheit. Er lässt sich nicht mehr ändern.",
+      "timetable.instance_invalid":
+        "Bitte prüfen Sie die markierten Angaben zum Termin.",
       "timetable.instance_moved":
         "Der Termin wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
+      "timetable.instance_not_active":
+        "Der Termin läuft gerade nicht. Bitte laden Sie die Seite neu.",
+      "timetable.instance_not_convertible":
+        "Dieser Termin lässt sich nicht in eine Serie umwandeln. Bitte laden Sie die Seite neu.",
+      "timetable.instance_not_editable":
+        "Dieser Termin lässt sich nicht mehr ändern. Bitte laden Sie die Seite neu.",
+      "timetable.instance_not_found":
+        "Diesen Termin gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "timetable.instance_outside_period":
+        "An diesem Tag gibt es keinen aktiven Zeitraum. Bitte wählen Sie einen anderen Tag.",
+      "timetable.instance_selection_invalid":
+        "Bitte prüfen Sie die Auswahl der Termine.",
+      "timetable.instance_weekend":
+        "Termine gibt es nur von Montag bis Freitag. Bitte wählen Sie einen anderen Tag.",
+      "timetable.instances_not_assigned":
+        "Ein gewählter Termin gehört nicht zu dieser Person. Bitte prüfen Sie die Auswahl.",
+      "timetable.instances_other_day":
+        "Alle gewählten Termine müssen am selben Tag liegen. Bitte prüfen Sie die Auswahl.",
+      "timetable.instances_required":
+        "Bitte wählen Sie mindestens einen Termin aus.",
+      "timetable.invalid_transition":
+        "Der Termin hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
+      "timetable.move_other_day":
+        "Personal lässt sich nur zu einem Termin am selben Tag verschieben.",
+      "timetable.move_same_instance":
+        "Bitte wählen Sie einen anderen Termin als Ziel.",
+      "timetable.no_staff_profile":
+        "Für diese Aktion brauchen Sie ein eigenes Personalprofil. Bitte fragen Sie die Leitung.",
+      "timetable.offering_source_inactive":
+        "Das Angebot „{offering}“ ist ausgeschaltet. Bitte wählen Sie ein anderes Angebot.",
+      "timetable.offering_source_invalid":
+        "Diese Auswahl der Angebote passt nicht. Bitte prüfen Sie die Angebote.",
+      "timetable.offering_source_mixed_phases":
+        "Alle Angebote müssen aus derselben Anmeldephase kommen. Bitte prüfen Sie „{offering}“.",
+      "timetable.offering_source_not_found":
+        "Ein gewähltes Angebot gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "timetable.offering_source_outside_period":
+        "Die Anmeldephase von „{offering}“ passt nicht zum Zeitraum. Bitte wählen Sie ein anderes Angebot.",
+      "timetable.offering_source_too_many":
+        "Bitte wählen Sie höchstens {max} Angebote aus.",
       "timetable.only_supervisor_replacement_required":
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
+      "timetable.operation_stale":
+        "Der Termin wurde gerade geändert. Bitte laden Sie die Seite neu.",
+      "timetable.pickup_extension_block_gone":
+        "Der Termin hat sich inzwischen geändert. Bitte wählen Sie noch einmal.",
+      "timetable.pickup_extension_invalid":
+        "Diese Auswahl passt nicht. Bitte laden Sie die Seite neu und wählen Sie noch einmal.",
       "timetable.pickup_extension_not_found":
         "{object} wurde nicht gefunden. Bitte laden Sie die Seite neu.",
+      "timetable.pickup_extension_too_many_blocks":
+        "Bitte wählen Sie höchstens {max} Termine aus.",
+      "timetable.planning_track_archived":
+        "Die Planungsspur ist archiviert. Bitte stellen Sie sie zuerst wieder her.",
+      "timetable.planning_track_invalid":
+        "Bitte prüfen Sie die markierten Angaben zur Planungsspur.",
+      "timetable.planning_track_name_taken":
+        "Diesen Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
+      "timetable.planning_track_not_found":
+        "Die Planungsspur gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "timetable.presence_would_overstaff":
+        "Der Termin ist schon voll besetzt. Bitte entfernen Sie zuerst die nicht mehr nötige Vertretung.",
+      "timetable.reopen_attendance_changed":
+        "Die Anwesenheit wurde nach dem Abschluss geändert. Der Termin lässt sich nicht wieder öffnen.",
+      "timetable.reopen_staff_busy":
+        "Eine Betreuungsperson betreut inzwischen eine andere Gruppe. Der Termin lässt sich nicht wieder öffnen.",
+      "timetable.reopen_student_active":
+        "Ein Kind ist inzwischen woanders eingecheckt. Der Termin lässt sich nicht wieder öffnen.",
+      "timetable.reopen_supervision_changed":
+        "Die Betreuung wurde nach dem Abschluss geändert. Der Termin lässt sich nicht wieder öffnen.",
+      "timetable.room_occupied":
+        "In diesem Raum läuft schon eine andere Gruppe. Bitte wählen Sie einen anderen Raum.",
+      "timetable.series_end_before_start":
+        "Die Serie beginnt am {start}. Das Enddatum darf nicht davor liegen.",
+      "timetable.series_end_outside_period":
+        "Der Zeitraum endet am {end}. Bitte wählen Sie ein früheres Enddatum.",
+      "timetable.sick_absence_scope_locked":
+        "Diese Abwesenheit kommt aus einer Krankmeldung. Sie lässt sich hier nicht ändern.",
+      "timetable.slot_list_drifted":
+        "Die Liste hat sich seit der Vorschau geändert. Bitte prüfen Sie die Vorschau und exportieren Sie erneut.",
+      "timetable.slot_list_grouping_invalid":
+        "Diese Gruppierung passt nicht zu dieser Liste. Bitte wählen Sie eine andere Gruppierung.",
+      "timetable.slot_list_pickup_past_date":
+        "Ganztagslisten gibt es nur für heute und spätere Tage. Bitte wählen Sie einen anderen Tag.",
+      "timetable.slot_list_reconciliation_future_date":
+        "Einen Abgleich gibt es nur für heute und vergangene Tage. Bitte wählen Sie einen anderen Tag.",
+      "timetable.slot_lists_disabled":
+        "Der Stundenplan ist an Ihrer Schule ausgeschaltet. Bitte fragen Sie die Leitung.",
+      "timetable.spontaneous_activities_disabled":
+        "Spontane Angebote sind an Ihrer Schule ausgeschaltet. Bitte fragen Sie die Leitung.",
+      "timetable.spontaneous_category_archived":
+        "Die Kategorie für spontane Angebote ist archiviert. Bitte fragen Sie die Leitung.",
       "timetable.staff_absent_on_date":
         "Die Person ist an diesem Tag abwesend. Bitte wählen Sie eine andere Person.",
+      "timetable.staff_absent_on_source":
+        "Die Person ist als abwesend markiert. Sie lässt sich nicht verschieben.",
       "timetable.staff_absent_on_target":
         "Die Person ist an diesem Tag abwesend. Bitte wählen Sie eine andere Person.",
       "timetable.staff_already_on_target":
         "Die Person ist für diesen Termin schon eingeteilt.",
+      "timetable.staff_not_found":
+        "Diese Person gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "timetable.staff_not_on_source":
+        "Die Person ist dem bisherigen Termin nicht zugeordnet. Bitte laden Sie die Seite neu.",
+      "timetable.staff_present_and_absent":
+        "Eine Person kann im selben Termin nicht anwesend und abwesend sein. Bitte prüfen Sie die Auswahl.",
       "timetable.start_too_early":
         "Der Termin kann noch nicht gestartet werden. Bitte versuchen Sie es kurz vor Beginn erneut.",
       "timetable.start_window_expired":
         "Der Termin kann nicht mehr gestartet werden. Die Startzeit ist vorbei.",
+      "timetable.student_already_active":
+        "Das Kind ist schon woanders eingecheckt. Bitte checken Sie es dort zuerst aus.",
+      "timetable.student_care_ended":
+        "Die Betreuung des Kindes ist beendet. Es kann nicht mehr eingecheckt werden.",
+      "timetable.student_graduated":
+        "Das Kind ist abgegangen. Es kann nicht mehr eingecheckt werden.",
+      "timetable.student_not_checked_in":
+        "Das Kind ist hier nicht eingecheckt. Bitte laden Sie die Seite neu.",
+      "timetable.student_not_found":
+        "Dieses Kind gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "timetable.students_not_present":
+        "Keines der gewählten Kinder ist gerade anwesend. Bitte laden Sie die Seite neu.",
+      "timetable.substitute_absent":
+        "Die Ersatzperson ist in einem gewählten Termin selbst abwesend. Bitte wählen Sie eine andere Person.",
+      "timetable.substitute_absent_on_date":
+        "Die Ersatzperson ist am {date} selbst abwesend. Bitte wählen Sie eine andere Person oder lassen Sie den Tag weg.",
+      "timetable.substitute_conflict":
+        "Der Termin hat schon eine andere Ersatzperson. Bitte entfernen Sie diese zuerst.",
+      "timetable.substitute_not_on_instances":
+        "Die Ersatzperson ist nicht in jedem gewählten Termin eingetragen. Bitte prüfen Sie die Auswahl.",
+      "timetable.substitute_self":
+        "Eine Person kann sich nicht selbst vertreten. Bitte wählen Sie eine andere Ersatzperson.",
+      "timetable.substitute_single_only":
+        "Bitte wählen Sie für jede abwesende Person nur eine Ersatzperson.",
       "timetable.template_care_offering_conflict":
-        "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+        "Ein verknüpftes Betreuungsangebot passt dann nicht mehr. Bitte passen Sie zuerst das Angebot an.",
+      "timetable.template_category_unavailable":
+        "Diese Kategorie ist archiviert. Bitte wählen Sie eine andere Kategorie.",
+      "timetable.template_education_group_invalid":
+        "Diese Gruppe gibt es nicht mehr. Bitte wählen Sie eine andere Gruppe.",
+      "timetable.template_end_before_start":
+        "Das Ende muss nach dem Beginn liegen. Bitte prüfen Sie die Uhrzeiten.",
+      "timetable.template_grade_above_max":
+        "Ihre Schule hat Jahrgänge bis {max}. Bitte wählen Sie einen anderen Jahrgang.",
+      "timetable.template_invalid":
+        "Bitte prüfen Sie die markierten Angaben zum Regeltermin.",
+      "timetable.template_max_participants_invalid":
+        "Die Höchstzahl der Kinder muss größer als null sein.",
+      "timetable.template_not_found":
+        "Diese Serie gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "timetable.template_planning_track_unavailable":
+        "Diese Planungsspur ist archiviert. Bitte wählen Sie eine andere Planungsspur.",
       "timetable.template_roster_rebase_conflict":
-        "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+        "Dann wären Kinder doppelt zugeordnet. Bitte bereinigen Sie zuerst die Zuordnungen.",
+      "timetable.template_split_in_past":
+        "Das Datum der Änderung liegt in der Vergangenheit. Bitte wählen Sie ein anderes Datum.",
+      "timetable.template_split_invalid":
+        "Die Änderung ab diesem Datum ist so nicht möglich. Bitte prüfen Sie die Angaben.",
       "timetable.template_start_in_past":
         "Das Datum für {object} liegt in der Vergangenheit. Bitte wählen Sie ein anderes Datum.",
+      "timetable.template_start_not_earlier":
+        "Der Serienbeginn lässt sich nur auf ein früheres Datum vorziehen.",
+      "timetable.template_start_outside_period":
+        "Das Startdatum muss zwischen {start} und {end} liegen.",
       "timetable.template_start_predecessor_overlap":
         "Die Zeiten für {object} überschneiden sich. Bitte prüfen Sie die Angaben.",
+      "timetable.template_week_pattern_invalid":
+        "Bitte wählen Sie, in welchen Wochen der Termin stattfindet.",
+      "timetable.template_weekend":
+        "Regeltermine gibt es nur von Montag bis Freitag. Bitte wählen Sie andere Tage.",
+      "timetable.too_many_dates":
+        "Bitte wählen Sie höchstens {max} Tage auf einmal.",
       "timetable.understaffed_still_staffed":
         "Für den Termin ist noch Personal eingeteilt. Bitte nehmen Sie das Personal zuerst heraus.",
+      "timetable.window_end_before_start":
+        "Das Enddatum darf nicht vor dem Startdatum liegen. Bitte prüfen Sie die Daten.",
+      "timetable.window_too_large":
+        "Der Zeitraum ist zu lang. Bitte wählen Sie höchstens {max_days} Tage.",
       "workforce.absence_allowance_exceeded":
         "Für diese Art sind nicht mehr genug Tage übrig. Der Anspruch muss zuerst erhöht werden.",
       "workforce.absence_already_decided":

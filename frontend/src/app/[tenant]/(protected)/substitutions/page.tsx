@@ -2,22 +2,26 @@
 
 import { CalendarClock, Clock, Repeat2, UserPlus } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
 import { RoleGuard } from "~/components/auth/role-guard";
-import { Alert } from "~/components/ui/alert";
+import { useSwrLoadError } from "~/components/staff/use-swr-load-error";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { InfoCard } from "~/components/ui/info-card";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
-import { useToast } from "~/contexts/ToastContext";
-import { readableApiMessage } from "~/lib/api-error-message";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -59,6 +63,7 @@ type GroupSectionProps = Readonly<{
 type AssignmentFieldsProps = Readonly<{
   overview: SubstitutionOverview;
   admin: boolean;
+  fieldError: (name: string) => string | undefined;
   values: {
     groupId: string;
     staffId: string;
@@ -78,15 +83,8 @@ type GroupAssignmentModalProps = Readonly<{
   isOpen: boolean;
   overview: SubstitutionOverview;
   admin: boolean;
-  saving: boolean;
-  error: string | null;
+  action: ReturnType<typeof useAssignGroup>;
   onClose: () => void;
-  onSubmit: (
-    groupId: string,
-    staffId: string,
-    start: string,
-    end: string,
-  ) => void;
 }>;
 
 function RunningSection({
@@ -307,14 +305,19 @@ function HandoverRow({
 
 function LabeledSelect({
   id,
+  name,
   label,
   value,
+  invalid,
   onChange,
   options,
 }: Readonly<{
   id: string;
+  /** Backend-Feldname, damit ein Feldfehler das Feld markiert. */
+  name: string;
   label: string;
   value: string;
+  invalid: boolean;
   onChange: (value: string) => void;
   options: Array<{ id: string; name: string }>;
 }>) {
@@ -329,6 +332,8 @@ function LabeledSelect({
       </label>
       <CustomSelect
         id={id}
+        name={name}
+        invalid={invalid}
         ariaLabelledBy={`${id}-label`}
         value={value}
         onChange={onChange}
@@ -344,15 +349,20 @@ function LabeledSelect({
 
 function LabeledDate({
   id,
+  name,
   label,
   value,
   min,
+  error,
   onChange,
 }: Readonly<{
   id: string;
+  /** Backend-Feldname, damit ein Feldfehler das Feld markiert. */
+  name: string;
   label: string;
   value: string;
   min: string;
+  error: string | undefined;
   onChange: (value: string) => void;
 }>) {
   return (
@@ -365,7 +375,8 @@ function LabeledDate({
       </label>
       <Input
         id={id}
-        name={id}
+        name={name}
+        error={error}
         type="date"
         min={min}
         value={value}
@@ -379,12 +390,14 @@ function AdminPeriodFields({
   today,
   start,
   end,
+  fieldError,
   onStart,
   onEnd,
 }: Readonly<{
   today: string;
   start: string;
   end: string;
+  fieldError: (name: string) => string | undefined;
   onStart: (value: string) => void;
   onEnd: (value: string) => void;
 }>) {
@@ -392,16 +405,20 @@ function AdminPeriodFields({
     <div className="grid gap-4 sm:grid-cols-2">
       <LabeledDate
         id="handover-start"
+        name="start_date"
         label="Startdatum"
         value={start}
         min={today}
+        error={fieldError("start_date")}
         onChange={onStart}
       />
       <LabeledDate
         id="handover-end"
+        name="end_date"
         label="Enddatum"
         value={end}
         min={start}
+        error={fieldError("end_date")}
         onChange={onEnd}
       />
     </div>
@@ -409,7 +426,7 @@ function AdminPeriodFields({
 }
 
 function AssignmentFields(props: AssignmentFieldsProps) {
-  const { overview, admin, values, setters } = props;
+  const { overview, admin, fieldError, values, setters } = props;
   return (
     <>
       <p className="text-sm text-gray-600">
@@ -419,15 +436,19 @@ function AssignmentFields(props: AssignmentFieldsProps) {
       </p>
       <LabeledSelect
         id="handover-group"
+        name="group_id"
         label="Gruppe"
         value={values.groupId}
+        invalid={Boolean(fieldError("group_id"))}
         onChange={setters.group}
         options={overview.groups}
       />
       <LabeledSelect
         id="handover-staff"
+        name="target_staff_id"
         label="Betreuungskraft"
         value={values.staffId}
+        invalid={Boolean(fieldError("target_staff_id"))}
         onChange={setters.staff}
         options={overview.targets.map((target) => ({
           id: target.id,
@@ -439,6 +460,7 @@ function AssignmentFields(props: AssignmentFieldsProps) {
           today={values.today}
           start={values.start}
           end={values.end}
+          fieldError={fieldError}
           onStart={setters.start}
           onEnd={setters.end}
         />
@@ -483,7 +505,14 @@ function AssignmentFooter({
   );
 }
 
-function useAssignmentForm(onSubmit: GroupAssignmentModalProps["onSubmit"]) {
+function useAssignmentForm(
+  onSubmit: (
+    groupId: string,
+    staffId: string,
+    start: string,
+    end: string,
+  ) => void,
+) {
   const today = berlinTodayISO();
   const [groupId, setGroupId] = useState("");
   const [staffId, setStaffId] = useState("");
@@ -507,30 +536,42 @@ function useAssignmentForm(onSubmit: GroupAssignmentModalProps["onSubmit"]) {
 }
 
 function GroupAssignmentModal(props: GroupAssignmentModalProps) {
-  const form = useAssignmentForm(props.onSubmit);
+  const { action } = props;
+  // „Wiederholen“ übergibt mit dem AKTUELLEN Formularstand.
+  const latestSubmitRef = useRef<() => void>(() => undefined);
+  const form = useAssignmentForm((groupId, staffId, start, end) => {
+    void action.assign(groupId, staffId, start, end, {
+      onDone: props.onClose,
+      retry: () => latestSubmitRef.current(),
+    });
+  });
+  useLayoutEffect(() => {
+    latestSubmitRef.current = form.submit;
+  });
   const close = () => {
-    if (!props.saving) props.onClose();
+    if (!action.saving) props.onClose();
   };
   return (
     <Modal
       isOpen={props.isOpen}
       onClose={close}
       title="Gruppe übergeben"
-      isDismissDisabled={props.saving}
+      isDismissDisabled={action.saving}
       footer={
         <AssignmentFooter
-          saving={props.saving}
-          disabled={!form.complete || props.saving}
+          saving={action.saving}
+          disabled={!form.complete || action.saving}
           onClose={close}
           onSubmit={form.submit}
         />
       }
     >
-      <div className="space-y-5">
-        {props.error ? <Alert type="error" message={props.error} /> : null}
+      <div ref={action.formRef} className="space-y-5">
+        <FormErrorAlert message={action.error} />
         <AssignmentFields
           overview={props.overview}
           admin={props.admin}
+          fieldError={action.fieldError}
           values={form.values}
           setters={form.setters}
         />
@@ -587,6 +628,7 @@ function useOverviewData(session: Parameters<typeof hasPermission>[0]) {
     mutate,
     schedule: schedule.data,
     scheduleError: schedule.error,
+    scheduleMutate: schedule.mutate,
     scheduleLoading: schedule.isLoading,
     running,
     scheduleHref,
@@ -596,24 +638,37 @@ function useOverviewData(session: Parameters<typeof hasPermission>[0]) {
 }
 
 function refreshAfterMutation(refresh: () => Promise<unknown>) {
+  // Bewusst still: die Änderung ist gespeichert und gemeldet. SWR fängt
+  // Abruffehler selbst ab und zeigt sie über den Ladefehler der Seite; hier
+  // landet nur ein unerwarteter Fehler, der den Erfolg nicht zurücknimmt.
   void refresh().catch((cause) => {
     logger.error("group_handover_refresh_failed", { error: String(cause) });
   });
 }
 
+/**
+ * Fehlerweg eines Dialogs der Seite (#2516): Meldung und Feldfehler bleiben
+ * im offenen Dialog, nie als Toast.
+ */
+function useDialogErrors() {
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  return { formRef, formErrors };
+}
+
 function useAssignGroup(refresh: () => Promise<unknown>) {
   const toast = useToast();
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { formRef, formErrors } = useDialogErrors();
   const assign = async (
     groupId: string,
     staffId: string,
     start: string,
     end: string,
-    onDone: () => void,
+    callbacks: { onDone: () => void; retry: () => void },
   ) => {
     setSaving(true);
-    setError(null);
+    formErrors.clear();
     try {
       await substitutionService.createSubstitution(
         groupId,
@@ -622,28 +677,35 @@ function useAssignGroup(refresh: () => Promise<unknown>) {
         end,
       );
       toast.success("Die Gruppe wurde übergeben.");
-      onDone();
+      callbacks.onDone();
       refreshAfterMutation(refresh);
     } catch (cause) {
       logger.error("group_handover_assign_failed", { error: String(cause) });
-      setError(
-        readableApiMessage(cause) ??
-          "Die Gruppe konnte nicht übergeben werden.",
-      );
+      void formErrors.show(cause, {
+        object: "die Gruppenübergabe",
+        retry: callbacks.retry,
+      });
     } finally {
       setSaving(false);
     }
   };
-  return { assign, saving, error, clearError: () => setError(null) };
+  return {
+    assign,
+    saving,
+    formRef,
+    error: formErrors.error,
+    fieldError: formErrors.fieldError,
+    clearError: formErrors.clear,
+  };
 }
 
 function useEndGroup(refresh: () => Promise<unknown>) {
   const toast = useToast();
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { formRef, formErrors } = useDialogErrors();
   const end = async (handover: Substitution, onDone: () => void) => {
     setSaving(true);
-    setError(null);
+    formErrors.clear();
     try {
       await substitutionService.deleteSubstitution(handover.id);
       toast.success("Die Übergabe wurde beendet.");
@@ -651,15 +713,22 @@ function useEndGroup(refresh: () => Promise<unknown>) {
       refreshAfterMutation(refresh);
     } catch (cause) {
       logger.error("group_handover_end_failed", { error: String(cause) });
-      setError(
-        readableApiMessage(cause) ??
-          "Die Übergabe konnte nicht beendet werden.",
-      );
+      void formErrors.show(cause, {
+        object: "die Übergabe",
+        // Der Dialog ist noch offen und nennt dieselbe Übergabe.
+        retry: () => void end(handover, onDone),
+      });
     } finally {
       setSaving(false);
     }
   };
-  return { end, saving, error, clearError: () => setError(null) };
+  return {
+    end,
+    saving,
+    formRef,
+    error: formErrors.error,
+    clearError: formErrors.clear,
+  };
 }
 
 function RunningCard({
@@ -682,15 +751,17 @@ function RunningCard({
 function ScheduleCardContent({
   data,
 }: Readonly<{ data: ReturnType<typeof useOverviewData> }>) {
-  if (data.scheduleError) {
-    return (
-      <Alert
-        type="error"
-        message="Terminvertretungen konnten nicht geladen werden."
-      />
-    );
+  // Ladefehler vor Ort mit Wiederholen, nie als leere Liste (#2516).
+  const loadError = useSwrLoadError(
+    data.scheduleError,
+    "die Liste der Terminvertretungen",
+    () => data.scheduleMutate(),
+  );
+  if (data.scheduleError && loadError !== null) {
+    return <LoadErrorAlert error={loadError} />;
   }
-  if (data.scheduleLoading) {
+  // Bis der Katalogtext da ist, bleibt das Skelett stehen.
+  if (data.scheduleLoading || data.scheduleError) {
     return (
       <SkeletonRegion label="Terminvertretungen werden geladen">
         <ListSkeleton rows={2} />
@@ -788,8 +859,8 @@ function EndDialog({
       isConfirmLoading={action.saving}
       isDismissDisabled={action.saving}
     >
-      <div className="space-y-3 text-sm text-gray-600">
-        {action.error ? <Alert type="error" message={action.error} /> : null}
+      <div ref={action.formRef} className="space-y-3 text-sm text-gray-600">
+        <FormErrorAlert message={action.error} />
         <p>Die Person ist danach nicht mehr für diese Gruppe zuständig.</p>
         {handover ? (
           <p className="font-medium text-gray-900">
@@ -823,12 +894,8 @@ function PageOverlays(props: PageOverlaysProps) {
           isOpen
           overview={data.overview}
           admin={props.admin}
-          saving={assignAction.saving}
-          error={assignAction.error}
+          action={assignAction}
           onClose={props.closeAssign}
-          onSubmit={(...args) =>
-            void assignAction.assign(...args, props.closeAssign)
-          }
         />
       ) : null}
       {props.runningId ? (
@@ -857,15 +924,14 @@ type OverviewContentProps = Readonly<{
 }>;
 
 function OverviewContent(props: OverviewContentProps) {
-  if (props.data.error?.name === "SubstitutionAccessError") {
+  const { error } = props.data;
+  // Ablaufentscheidung, kein Text: ohne Leserecht gibt es keine Übersicht.
+  if (error instanceof ApiError && error.status === 403) {
     return <ForbiddenPage embedded />;
   }
-  if (props.data.error) {
+  if (error) {
     return (
-      <Alert
-        type="error"
-        message="Vertretungen konnten nicht geladen werden. Bitte laden Sie die Seite neu."
-      />
+      <OverviewLoadError error={error} retry={() => props.data.mutate()} />
     );
   }
   return (
@@ -880,6 +946,27 @@ function OverviewContent(props: OverviewContentProps) {
       />
     </>
   );
+}
+
+/** Ladefehler der Übersicht vor Ort, mit Wiederholen (#2516). */
+function OverviewLoadError({
+  error,
+  retry,
+}: Readonly<{ error: unknown; retry: () => unknown }>) {
+  const loadError = useSwrLoadError(
+    error,
+    "die Übersicht der Vertretungen",
+    retry,
+  );
+  if (loadError === null) {
+    // Bis der Katalogtext da ist: Skelett statt leerer Fläche.
+    return (
+      <SkeletonRegion label="Vertretungen werden geladen">
+        <ListSkeleton rows={6} />
+      </SkeletonRegion>
+    );
+  }
+  return <LoadErrorAlert error={loadError} />;
 }
 
 type LoadedPageProps = Readonly<{

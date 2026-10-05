@@ -13,11 +13,11 @@
  * bewusst keine Termin-Granularität unterhalb eines Tages.
  *
  * Der Save ist EIN atomarer Request über das gemeinsame Vertretungsmodul:
- * entweder landen alle gewählten Tage oder keiner. Ein Fehler nennt den
- * betroffenen Tag, damit er abgewählt werden kann.
+ * entweder landen alle gewählten Tage oder keiner. Ein Fehler steht oben im
+ * Panel als Katalogtext zum Fehlercode (#2516).
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -36,8 +36,10 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
-import { useFormError } from "~/components/ui/form-error";
-import { useToast } from "~/contexts/ToastContext";
+import { useSwrLoadError } from "~/components/staff/use-swr-load-error";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
@@ -46,6 +48,8 @@ import { substitutionService } from "~/lib/substitution-api";
 import { timetableService } from "~/lib/timetable-api";
 import { getGermanWeekdayShort } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
+
+import { overlapWarningMessage } from "./substitution-deviation-input";
 
 const logger = createLogger({ component: "BulkSubstitutionModal" });
 
@@ -71,6 +75,12 @@ interface BulkSubstitutionModalProps {
   readonly onClose: () => void;
   readonly staffOptions: StaffOption[];
   readonly staffLoadError: boolean;
+  /**
+   * Der Ladefehler der Personalliste aus der Seite (Katalogtext mit
+   * Wiederholen). Das Panel liegt über der Seite und zeigt ihn deshalb
+   * selbst noch einmal.
+   */
+  readonly staffLoadErrorMessage?: FormErrorInput;
   /** Cache-Refresh nach einem committeten Save (Woche + Lücken). */
   readonly onSaved: () => Promise<void> | void;
 }
@@ -80,6 +90,20 @@ function rangeDays(fromISO: string, toISO: string): number {
   const from = parseISODate(fromISO);
   const to = parseISODate(toISO);
   return Math.round((to.getTime() - from.getTime()) / 86_400_000);
+}
+
+/** Erfolgsmeldung nach der Sammel-Vertretung, mit richtigen Einzahlformen. */
+function bulkSuccessMessage(
+  withSubstitute: boolean,
+  appointments: number,
+  days: number,
+): string {
+  const appointmentText =
+    appointments === 1 ? "1 Termin" : `${appointments} Termine`;
+  const dayText = days === 1 ? "1 Tag" : `${days} Tagen`;
+  return withSubstitute
+    ? `Die Vertretung ist eingetragen: ${appointmentText} an ${dayText}.`
+    : `Die Abwesenheit ist eingetragen: ${appointmentText} an ${dayText}.`;
 }
 
 interface DayGroup {
@@ -94,6 +118,7 @@ export function BulkSubstitutionModal({
   onClose,
   staffOptions,
   staffLoadError,
+  staffLoadErrorMessage,
   onSaved,
 }: BulkSubstitutionModalProps) {
   const toast = useToast();
@@ -114,7 +139,10 @@ export function BulkSubstitutionModal({
   const [saving, setSaving] = useState(false);
   // Speicherfehler stehen oben im Panel (SlideOverBody `error`), nicht als
   // Toast: Bauart 2 Regel 5.
-  const [saveError, setSaveError] = useFormError();
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  // „Wiederholen“ speichert den AKTUELLEN Formularstand.
+  const latestSaveRef = useRef<() => void>(() => undefined);
 
   // Nach dem Tagesübergang wären Von/Bis-Werte von gestern ungültige
   // Vergangenheit; auf den neuen Berliner "heute"-Anker nachziehen.
@@ -147,7 +175,14 @@ export function BulkSubstitutionModal({
     data: rangeData,
     isLoading: rangeLoading,
     error: rangeError,
+    mutate: mutateRange,
   } = useSWRAuth(swrKey, () => timetableService.getWeek(fromISO, toISO));
+  // Ladefehler der Vorschau vor Ort, mit Wiederholen (#2516).
+  const rangeLoadError = useSwrLoadError(
+    rangeError,
+    "die Liste der Termine",
+    () => mutateRange(),
+  );
 
   // Nach einem committeten Save tragen alle Vorschau-Caches den Stand VOR dem
   // Save; sie werden geleert statt revalidiert (siehe handleSave).
@@ -225,7 +260,7 @@ export function BulkSubstitutionModal({
     setSubstituteStaffId("");
     setReason("");
     setDeselected(new Set());
-    setSaveError(null);
+    formErrors.clear();
     onClose();
   };
 
@@ -249,7 +284,7 @@ export function BulkSubstitutionModal({
   const handleSave = async () => {
     if (!canSave) return;
     setSaving(true);
-    setSaveError(null);
+    formErrors.clear();
     try {
       const result = await substitutionService.applyBulkSubstitution({
         absentStaffId,
@@ -258,15 +293,18 @@ export function BulkSubstitutionModal({
         reason: reason.trim() || undefined,
       });
       toast.success(
-        substituteStaffId
-          ? `Vertretung eingetragen: ${result.totalAffected} Termin(e) an ${result.days.length} Tag(en)`
-          : `Abwesenheit eingetragen: ${result.totalAffected} Termin(e) an ${result.days.length} Tag(en)`,
+        bulkSuccessMessage(
+          Boolean(substituteStaffId),
+          result.totalAffected,
+          result.days.length,
+        ),
       );
       if (result.warningCount > 0) {
         // oxlint-disable-next-line bauart/no-toast-form-error -- Kein Formularfehler: der Save ist durch und das Panel schließt; der Hinweis auf Überschneidungen hat keine andere Fläche.
-        toast.error(
-          `${result.warningCount} mögliche Zeitüberschneidung(en) prüfen.`,
-        );
+        toast.warning(overlapWarningMessage(result.warningCount), {
+          // Bleibt stehen, bis die Person den Hinweis schließt.
+          duration: 0,
+        });
       }
       // Alle Vorschau-Caches leeren: sie tragen den Stand VOR dem Save, und
       // mit keepPreviousData würde ein erneutes Öffnen desselben Zeitraums
@@ -274,6 +312,9 @@ export function BulkSubstitutionModal({
       // statt revalidieren, damit der nächste Mount frisch lädt (isLoading)
       // und der Save-Gate bis dahin greift. Ein Fehler hier darf den bereits
       // committeten Save nicht als Fehler melden.
+      // Bewusst still: der Save ist gespeichert; ein misslungenes Leeren
+      // zeigt beim nächsten Öffnen höchstens kurz den alten Stand, bis SWR
+      // die Vorschau neu lädt.
       await clearPreviewCache({ clear: true }).catch((err: unknown) => {
         logger.warn("bulk_preview_cache_clear_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -283,17 +324,22 @@ export function BulkSubstitutionModal({
       resetAndClose();
     } catch (err) {
       // Der Save ist alles-oder-nichts: bei einem Fehler bleibt das Formular
-      // mit allen Eingaben offen, die Meldung nennt den betroffenen Tag.
+      // mit allen Eingaben offen, die Meldung steht oben im Panel.
       logger.error("bulk_substitution_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setSaveError(
-        err instanceof Error ? err.message : "Speichern fehlgeschlagen",
-      );
+      void formErrors.show(err, {
+        object: "die Sammel-Vertretung",
+        retry: () => latestSaveRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestSaveRef.current = () => void handleSave();
+  });
 
   const absentName =
     staffOptions.find((s) => s.id === absentStaffId)?.name ?? "";
@@ -323,180 +369,181 @@ export function BulkSubstitutionModal({
             disabled={saving}
           />
         </SlideOverHeader>
-        <SlideOverBody error={saveError} className="space-y-4">
-          {staffLoadError && (
-            <Alert
-              type="error"
-              message="Personalliste konnte nicht geladen werden. Bitte die Seite neu laden."
-            />
-          )}
+        <SlideOverBody error={formErrors.error}>
+          <div ref={formRef} className="space-y-4">
+            {staffLoadError && <LoadErrorAlert error={staffLoadErrorMessage} />}
 
-          <div>
-            <span className="mb-1 block text-sm font-medium text-gray-700">
-              Abwesende Person
-            </span>
-            <CustomSelect
-              value={absentStaffId}
-              options={absentOptions}
-              ariaLabel="Abwesende Person"
-              placeholder="Person wählen…"
-              onChange={(value) => {
-                setAbsentStaffId(value);
-                if (value === substituteStaffId) setSubstituteStaffId("");
-                setDeselected(new Set());
-              }}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <ISODatePicker
-              label="Von"
-              id="bulk-substitution-from"
-              value={fromISO}
-              min={today}
-              required
-              hideClearButton
-              onChange={(value) => {
-                setFromISO(value);
-                if (value && toISO && value > toISO) setToISO(value);
-                setDeselected(new Set());
-              }}
-            />
-            <ISODatePicker
-              label="Bis"
-              id="bulk-substitution-to"
-              value={toISO}
-              min={fromISO || today}
-              required
-              hideClearButton
-              onChange={(value) => {
-                setToISO(value);
-                setDeselected(new Set());
-              }}
-            />
-          </div>
-          {rangeTooLong && (
-            <Alert
-              type="error"
-              message={`Der Zeitraum darf höchstens ${MAX_RANGE_DAYS} Tage umfassen.`}
-            />
-          )}
-
-          {/* Vorschau der betroffenen Tage — Auswahl ist tagesweit. */}
-          {absentStaffId !== "" && rangeValid && (
             <div>
               <span className="mb-1 block text-sm font-medium text-gray-700">
-                Betroffene Termine
-                {absentName ? ` von ${absentName}` : ""}
+                Abwesende Person
               </span>
-              <div className="mb-2">
-                <Alert
-                  type="info"
-                  announce="off"
-                  message="Alle noch offenen Termine. Die Änderung gilt an jedem ausgewählten Tag. Sie gilt für alle Termine dieser Person."
-                />
-              </div>
-              {rangeError ? (
-                <Alert
-                  type="error"
-                  message="Termine konnten nicht geladen werden. Bitte erneut versuchen."
-                />
-              ) : rangeLoading ? (
-                <p className="py-2 text-sm text-gray-500">
-                  Termine werden geladen…
-                </p>
-              ) : dayGroups.length === 0 ? (
-                <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
-                  Im gewählten Zeitraum gibt es keine planbaren Termine dieser
-                  Person.
-                </p>
-              ) : (
-                <ul className="max-h-64 space-y-2 overflow-y-auto pr-1">
-                  {dayGroups.map((group) => {
-                    const checked = !deselected.has(group.date);
-                    return (
-                      <li key={group.date}>
-                        <ChoiceTile
-                          htmlFor={`bulk-day-${group.date}`}
-                          className="items-start p-3 shadow-sm"
-                        >
-                          <span className="mt-0.5 inline-flex">
-                            <Checkbox
-                              id={`bulk-day-${group.date}`}
-                              checked={checked}
-                              onChange={() => toggleDay(group.date)}
-                              aria-label={`${formatDate(group.date)} auswählen`}
-                            />
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="flex items-center gap-2 text-sm font-medium text-gray-900">
-                              {getGermanWeekdayShort(parseISODate(group.date))}
-                              {", "}
-                              {formatDate(group.date)}
-                              {group.fullyAbsent && (
-                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
-                                  bereits abwesend gemeldet
-                                </span>
-                              )}
-                            </span>
-                            <span className="mt-0.5 block text-xs text-gray-500">
-                              {group.instances
-                                .map(
-                                  (inst) => `${inst.startTime} ${inst.title}`,
-                                )
-                                .join(" · ")}
-                            </span>
-                          </span>
-                        </ChoiceTile>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-              {tooManyDates && (
-                <div className="mt-2">
+              <CustomSelect
+                value={absentStaffId}
+                options={absentOptions}
+                name="absent_staff_id"
+                invalid={Boolean(formErrors.fieldError("absent_staff_id"))}
+                ariaLabel="Abwesende Person"
+                placeholder="Person wählen…"
+                onChange={(value) => {
+                  setAbsentStaffId(value);
+                  if (value === substituteStaffId) setSubstituteStaffId("");
+                  setDeselected(new Set());
+                }}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <ISODatePicker
+                label="Von"
+                id="bulk-substitution-from"
+                value={fromISO}
+                min={today}
+                required
+                hideClearButton
+                onChange={(value) => {
+                  setFromISO(value);
+                  if (value && toISO && value > toISO) setToISO(value);
+                  setDeselected(new Set());
+                }}
+              />
+              <ISODatePicker
+                label="Bis"
+                id="bulk-substitution-to"
+                value={toISO}
+                min={fromISO || today}
+                error={
+                  rangeTooLong
+                    ? `Der Zeitraum darf höchstens ${MAX_RANGE_DAYS} Tage umfassen.`
+                    : undefined
+                }
+                required
+                hideClearButton
+                onChange={(value) => {
+                  setToISO(value);
+                  setDeselected(new Set());
+                }}
+              />
+            </div>
+
+            {/* Vorschau der betroffenen Tage — Auswahl ist tagesweit. */}
+            {absentStaffId !== "" && rangeValid && (
+              <div>
+                <span className="mb-1 block text-sm font-medium text-gray-700">
+                  Betroffene Termine
+                  {absentName ? ` von ${absentName}` : ""}
+                </span>
+                <div className="mb-2">
                   <Alert
-                    type="error"
-                    message={`Höchstens ${MAX_SELECTED_DATES} Tage pro Speichern. Bitte einzelne Tage abwählen.`}
+                    type="info"
+                    announce="off"
+                    message="Alle noch offenen Termine. Die Änderung gilt an jedem ausgewählten Tag. Sie gilt für alle Termine dieser Person."
                   />
                 </div>
-              )}
+                {rangeError && rangeLoadError !== null ? (
+                  <LoadErrorAlert error={rangeLoadError} />
+                ) : rangeLoading || rangeError ? (
+                  <p className="py-2 text-sm text-gray-500">
+                    Termine werden geladen…
+                  </p>
+                ) : dayGroups.length === 0 ? (
+                  <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
+                    Im gewählten Zeitraum gibt es keine planbaren Termine dieser
+                    Person.
+                  </p>
+                ) : (
+                  <ul className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                    {dayGroups.map((group) => {
+                      const checked = !deselected.has(group.date);
+                      return (
+                        <li key={group.date}>
+                          <ChoiceTile
+                            htmlFor={`bulk-day-${group.date}`}
+                            className="items-start p-3 shadow-sm"
+                          >
+                            <span className="mt-0.5 inline-flex">
+                              <Checkbox
+                                id={`bulk-day-${group.date}`}
+                                checked={checked}
+                                onChange={() => toggleDay(group.date)}
+                                aria-label={`${formatDate(group.date)} auswählen`}
+                              />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="flex items-center gap-2 text-sm font-medium text-gray-900">
+                                {getGermanWeekdayShort(
+                                  parseISODate(group.date),
+                                )}
+                                {", "}
+                                {formatDate(group.date)}
+                                {group.fullyAbsent && (
+                                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
+                                    bereits abwesend gemeldet
+                                  </span>
+                                )}
+                              </span>
+                              <span className="mt-0.5 block text-xs text-gray-500">
+                                {group.instances
+                                  .map(
+                                    (inst) => `${inst.startTime} ${inst.title}`,
+                                  )
+                                  .join(" · ")}
+                              </span>
+                            </span>
+                          </ChoiceTile>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {tooManyDates && (
+                  <div className="mt-2">
+                    <Alert
+                      type="warning"
+                      message={`Sie können höchstens ${MAX_SELECTED_DATES} Tage auf einmal speichern. Bitte wählen Sie Tage ab.`}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div>
+              <span className="mb-1 block text-sm font-medium text-gray-700">
+                Ersatzperson
+              </span>
+              <CustomSelect
+                value={substituteStaffId}
+                options={substituteOptions}
+                name="substitute_staff_id"
+                invalid={Boolean(formErrors.fieldError("substitute_staff_id"))}
+                ariaLabel="Ersatzperson"
+                placeholder="Keine — nur abwesend melden"
+                disabled={staffLoadError}
+                onChange={setSubstituteStaffId}
+              />
+              <p className="mt-1 text-[11px] text-gray-400">
+                Ohne Ersatzperson werden die Termine nur als abwesend markiert.
+              </p>
             </div>
-          )}
 
-          <div>
-            <span className="mb-1 block text-sm font-medium text-gray-700">
-              Ersatzperson
-            </span>
-            <CustomSelect
-              value={substituteStaffId}
-              options={substituteOptions}
-              ariaLabel="Ersatzperson"
-              placeholder="Keine — nur abwesend melden"
-              disabled={staffLoadError}
-              onChange={setSubstituteStaffId}
+            <Input
+              id="bulk-substitution-reason"
+              name="reason"
+              error={formErrors.fieldError("reason")}
+              label="Grund (optional)"
+              value={reason}
+              maxLength={500}
+              placeholder="z. B. Krankheit"
+              onChange={(e) => setReason(e.target.value)}
             />
-            <p className="mt-1 text-[11px] text-gray-400">
-              Ohne Ersatzperson werden die Termine nur als abwesend markiert.
-            </p>
+
+            {canSave && (
+              <p className="text-xs text-gray-500">
+                {selectedInstanceCount} Termin(e) an {selectedDates.length}{" "}
+                Tag(en) werden{" "}
+                {substituteStaffId ? "vertreten" : "als abwesend markiert"}.
+              </p>
+            )}
           </div>
-
-          <Input
-            id="bulk-substitution-reason"
-            label="Grund (optional)"
-            value={reason}
-            maxLength={500}
-            placeholder="z. B. Krankheit"
-            onChange={(e) => setReason(e.target.value)}
-          />
-
-          {canSave && (
-            <p className="text-xs text-gray-500">
-              {selectedInstanceCount} Termin(e) an {selectedDates.length}{" "}
-              Tag(en) werden{" "}
-              {substituteStaffId ? "vertreten" : "als abwesend markiert"}.
-            </p>
-          )}
         </SlideOverBody>
         <SlideOverFooter className="flex-row justify-end gap-2">
           <Button

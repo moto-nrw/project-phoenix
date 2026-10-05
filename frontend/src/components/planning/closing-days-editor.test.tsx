@@ -7,7 +7,9 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import type { ClosingDay } from "~/lib/closing-day-helpers";
+import { catalogText } from "~/test/error-catalog-text";
 
 const {
   mockList,
@@ -41,7 +43,8 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutateMatching: () => mockRefreshPlan,
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
 }));
 
@@ -177,7 +180,9 @@ describe("ClosingDaysEditor", () => {
       ),
     );
     await waitFor(() =>
-      expect(mockToastSuccess).toHaveBeenCalledWith("83 Termine abgesagt"),
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "83 Termine sind abgesagt.",
+      ),
     );
     expect(mockRefreshPlan).toHaveBeenCalled();
     // The periods page reloads its "Verwendung" column after a cancellation.
@@ -405,7 +410,79 @@ describe("ClosingDaysEditor", () => {
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith("3"));
     await waitFor(() => expect(mockInvalidate).toHaveBeenCalledOnce());
     await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2));
-    expect(mockToastSuccess).toHaveBeenCalled();
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "Der Schließtag „Weihnachtswoche“ ist gelöscht.",
+    );
+  });
+
+  // #2516: der Fehler bleibt im offenen Bestätigungsdialog, nie als Toast
+  // unter dem Dialog und nie als Serversatz.
+  it("zeigt einen Löschfehler im Dialog und wiederholt das Löschen", async () => {
+    mockList.mockResolvedValue([makeClosingDay()]);
+    mockDelete
+      .mockRejectedValueOnce(
+        new ApiError("delete exploded", 500, { code: "general.server" }),
+      )
+      .mockResolvedValueOnce(undefined);
+
+    render(<ClosingDaysEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Aktionen für/ }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ja, löschen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      await within(dialog).findByText(
+        catalogText("general.server", "das Löschen des Schließtags"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/delete exploded/)).not.toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Wiederholen" }),
+    );
+
+    await waitFor(() => expect(mockDelete).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Der Schließtag „Weihnachtswoche“ ist gelöscht.",
+      ),
+    );
+  });
+
+  it("zeigt einen Ladefehler vor Ort statt des Leerzustands", async () => {
+    mockList
+      .mockRejectedValueOnce(
+        new ApiError("list exploded", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce([makeClosingDay()]);
+
+    render(<ClosingDaysEditor />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Schließtage"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Noch keine Schließtage"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/list exploded/)).not.toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(await screen.findByText("Weihnachtswoche")).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        catalogText("general.unavailable", "die Liste der Schließtage"),
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("zeigt den Leerzustand ohne Schließtage", async () => {

@@ -29,20 +29,21 @@
  * vertretungsplan-view.tsx als Verhaltensvertrag (Abschnitt 2.4): Woche laden,
  * Gaps mit Heute-Klemmung, Personalliste strict, Settings-Gate. Die
  * kommentierten Invarianten (Fehler nie als leerer Plan rendern, `revalidate`
- * schluckt eigene Fehler und meldet ein committetes Save nie als Fehler,
- * Toast-Deduplizierung über die Fehlermeldung, `gapsUnavailable`-Platzhalter
- * statt erfundener Null) überleben wörtlich.
+ * meldet ein committetes Save nie als Fehler, `gapsUnavailable`-Platzhalter
+ * statt erfundener Null) überleben wörtlich. Ladefehler stehen seit #2516 vor
+ * Ort (Katalogtext, Wiederholen, Vorgangskennung), nie als Toast; ein
+ * Speicherfehler bleibt im offenen Editor.
  */
 
 import { CalendarRange, Printer } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
-import { Alert } from "~/components/ui/alert";
 import { PlanExportModal } from "~/components/planning/plan-export-modal";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
 import { CoverageIndicator } from "~/components/ui/coverage-indicator";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -57,6 +58,7 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { BulkSubstitutionModal } from "~/components/timetable/bulk-substitution-modal";
 import { SubstitutionSlideOver } from "~/components/timetable/substitution-slide-over";
 import { cancelledToast } from "~/components/timetable/guardian-notice-toast";
+import { overlapWarningMessage } from "~/components/timetable/substitution-deviation-input";
 import { VertretungCoverageNotice } from "~/components/timetable/vertretung-coverage-notice";
 import {
   VertretungDayList,
@@ -66,6 +68,7 @@ import { VertretungContentSkeleton } from "~/components/timetable/vertretung-ske
 import { buildPlanningTrackLegend } from "~/components/timetable/planning-track-legend";
 import { VertretungWeekList } from "~/components/timetable/vertretung-week-list";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
+import { useSwrLoadError } from "~/components/staff/use-swr-load-error";
 import { useToast } from "~/contexts/ToastContext";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import {
@@ -132,7 +135,7 @@ function deviationSuccessMessage(
   const appointmentCount = new Set(
     result.affectedInstances.map((affected) => affected.instanceId),
   ).size;
-  if (appointmentCount === 0) return "Vertretung aktualisiert";
+  if (appointmentCount === 0) return "Die Vertretung wurde gespeichert.";
 
   const staffIds = new Set<string>();
   input.absences?.forEach((absence) => staffIds.add(absence.staffId));
@@ -157,6 +160,12 @@ function deviationSuccessMessage(
     return `${appointmentText} für ${staffIds.size} Personen angepasst.`;
   }
   return `${appointmentText} angepasst.`;
+}
+
+/** Nur fürs Protokoll, nie für die Anzeige. */
+function errorLogText(error: unknown): string | null {
+  if (!error) return null;
+  return error instanceof Error ? error.message : String(error);
 }
 
 function VertretungContent() {
@@ -293,58 +302,76 @@ function VertretungContent() {
     getSettingValue(settingsSchema, "timetable.enabled") === false;
 
   // Fetch-Fehler erhalten, damit "Keine Termine"/Null-Lücken nie so gerendert
-  // werden, als hätte ein fehlgeschlagener Request Erfolg gehabt. SWR-Retries
-  // erzeugen pro Versuch einen frischen Error, daher die Toasts über die
-  // Fehlermeldung deduplizieren.
-  const weekErrorMessage = error
-    ? error instanceof Error
-      ? error.message
-      : String(error)
-    : null;
-  const gapsErrorMessage = gapsError
-    ? gapsError instanceof Error
-      ? gapsError.message
-      : String(gapsError)
-    : null;
+  // werden, als hätte ein fehlgeschlagener Request Erfolg gehabt.
+  const weekFailed = Boolean(error);
+  const gapsFailed = Boolean(gapsError);
   // Ein fehlgeschlagener Personalabruf darf nie wie eine leere Ersatzliste
   // aussehen — jeder Picker würde stumm deaktivieren und Namen fielen auf IDs
   // zurück, ununterscheidbar von einer Schule ohne Personal.
-  const staffErrorMessage = staffError
-    ? staffError instanceof Error
-      ? staffError.message
-      : String(staffError)
-    : null;
+  const staffFailed = Boolean(staffError);
 
+  // Retry der Fehlerfläche: ein Backend-Blip lässt typischerweise alle drei
+  // Abrufe gleichzeitig scheitern, also alle drei Keys revalidieren — sonst
+  // bleiben Gaps-Chips und Personal-Hinweis stale, bis die Seite neu geladen
+  // wird. allSettled statt all: Fehler tauchen über die error-States der
+  // jeweiligen useSWRAuth-Hooks wieder auf, nicht als unhandled rejection.
+  const retryAll = useCallback(() => {
+    void Promise.allSettled([
+      tenantMutate(weekSwrKey),
+      tenantMutate(gapsSwrKey),
+      tenantMutate(staffSwrKey),
+      ...(loadCoverage ? [tenantMutate(coverageSwrKey)] : []),
+    ]);
+  }, [
+    coverageSwrKey,
+    gapsSwrKey,
+    loadCoverage,
+    staffSwrKey,
+    weekSwrKey,
+    tenantMutate,
+  ]);
+
+  // Ladefehler stehen dort, wo die Daten fehlen (#2516): die Woche als Fehler
+  // des Gerüsts, Lücken und Personalliste über der Liste. Kein Toast, denn
+  // niemand hat eine Aktion ausgelöst.
+  const weekLoadError = useSwrLoadError(
+    error,
+    "die Liste der Termine",
+    retryAll,
+  );
+  const gapsLoadError = useSwrLoadError(
+    gapsError,
+    "die Liste der offenen Lücken",
+    () => tenantMutate(gapsSwrKey),
+  );
+  const staffLoadError = useSwrLoadError(staffError, "die Personalliste", () =>
+    tenantMutate(staffSwrKey),
+  );
+
+  // Protokolliert wird jeder Ladefehler einmal je Meldung: SWR-Retries
+  // erzeugen pro Versuch einen frischen Error mit derselben Meldung.
+  const weekErrorLog = errorLogText(error);
+  const gapsErrorLog = errorLogText(gapsError);
+  const staffErrorLog = errorLogText(staffError);
   useEffect(() => {
-    if (!weekErrorMessage) return;
-    logger.error("week_load_failed", { error: weekErrorMessage });
-    toast.error(`Vertretung konnte nicht geladen werden: ${weekErrorMessage}`);
-  }, [weekErrorMessage, toast]);
-
+    if (weekErrorLog) logger.error("week_load_failed", { error: weekErrorLog });
+  }, [weekErrorLog]);
   useEffect(() => {
-    if (!gapsErrorMessage) return;
-    logger.error("gaps_load_failed", { error: gapsErrorMessage });
-    toast.error(
-      `Offene Lücken konnten nicht geprüft werden: ${gapsErrorMessage}`,
-    );
-  }, [gapsErrorMessage, toast]);
-
+    if (gapsErrorLog) logger.error("gaps_load_failed", { error: gapsErrorLog });
+  }, [gapsErrorLog]);
   useEffect(() => {
-    if (!staffErrorMessage) return;
-    logger.error("staff_load_failed", { error: staffErrorMessage });
-    toast.error(
-      `Personalliste konnte nicht geladen werden: ${staffErrorMessage}`,
-    );
-  }, [staffErrorMessage, toast]);
+    if (staffErrorLog) {
+      logger.error("staff_load_failed", { error: staffErrorLog });
+    }
+  }, [staffErrorLog]);
 
-  // Nur protokollieren, kein Toast: siehe Kommentar am Abruf.
+  // Bewusst still: der Dienstplan-Hinweis ist eine Zusatzinformation (siehe
+  // Kommentar am Abruf). Fällt er aus, verschwindet er; protokolliert wird
+  // trotzdem.
   useEffect(() => {
     if (!coverageError) return;
     logger.warn("coverage_notice_load_failed", {
-      error:
-        coverageError instanceof Error
-          ? coverageError.message
-          : String(coverageError),
+      error: errorLogText(coverageError),
     });
   }, [coverageError]);
 
@@ -435,8 +462,7 @@ function VertretungContent() {
   // solange die Lücken noch laden.
   // Eine gemeinsame Basis für Zähler UND Chips, damit ein künftiger weiterer
   // "nicht verfügbar"-Grund nicht nur in einem der beiden Ausdrücke landet.
-  const gapsLoaded =
-    loadGaps && gapsErrorMessage === null && gapsData !== undefined;
+  const gapsLoaded = loadGaps && !gapsFailed && gapsData !== undefined;
   const gapsUnavailable = !gapsLoaded || dayISO < today;
   // Erster Tag der Woche mit Lückendaten (das Fenster ist auf heute geklemmt);
   // null, solange gar nichts geladen ist. Die Wochenliste leitet daraus pro Tag
@@ -531,11 +557,9 @@ function VertretungContent() {
     [updateUrlParams],
   );
 
-  // Cache-Refresh ist bewusst GETRENNT von der committeten Mutation: SWRs
-  // mutate rejected standardmäßig, wenn eine Revalidierung fehlschlägt, und das
-  // darf ein bereits committetes Save nie in einen gemeldeten Fehler
-  // verwandeln. revalidate schluckt daher eigene Fehler und meldet stattdessen
-  // einen eigenen "bitte neu laden"-Toast.
+  // Cache-Refresh ist bewusst GETRENNT von der committeten Mutation: ein
+  // Fehler beim Nachladen darf ein bereits committetes Save nie in einen
+  // gemeldeten Fehler verwandeln.
   const revalidate = useCallback(async () => {
     try {
       // Der Dienstplan-Abgleich hängt an den konkreten Personalzeilen, ein
@@ -549,35 +573,14 @@ function VertretungContent() {
         ...(loadCoverage ? [tenantMutate(coverageSwrKey)] : []),
       ]);
     } catch (err) {
+      // Bewusst still: SWRs mutate fängt Abruffehler selbst ab und meldet sie
+      // über den error-State des jeweiligen Abrufs, also über die Ladefehler
+      // vor Ort. Hier landet nur ein unerwarteter Fehler; die Änderung ist
+      // da schon gespeichert und darf nicht als gescheitert erscheinen.
       logger.error("revalidate_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error(
-        "Ansicht konnte nicht aktualisiert werden. Bitte die Seite neu laden.",
-      );
     }
-  }, [
-    coverageSwrKey,
-    gapsSwrKey,
-    loadCoverage,
-    staffSwrKey,
-    weekSwrKey,
-    tenantMutate,
-    toast,
-  ]);
-
-  // Retry der Fehlerfläche: ein Backend-Blip lässt typischerweise alle drei
-  // Abrufe gleichzeitig scheitern, also alle drei Keys revalidieren — sonst
-  // bleiben Gaps-Chips und Personal-Alert stale, bis die Seite neu geladen
-  // wird. allSettled statt all: Fehler tauchen über die error-States der
-  // jeweiligen useSWRAuth-Hooks wieder auf, nicht als unhandled rejection.
-  const retryAll = useCallback(() => {
-    void Promise.allSettled([
-      tenantMutate(weekSwrKey),
-      tenantMutate(gapsSwrKey),
-      tenantMutate(staffSwrKey),
-      ...(loadCoverage ? [tenantMutate(coverageSwrKey)] : []),
-    ]);
   }, [
     coverageSwrKey,
     gapsSwrKey,
@@ -588,11 +591,13 @@ function VertretungContent() {
   ]);
 
   // Ein atomares Save für das gesamte Editor-Formular. Der Cache-Refresh läuft
-  // NACH der committeten Mutation und kann ihren Erfolg nicht zurücknehmen.
+  // NACH der Mutation und kann ihren Erfolg nicht zurücknehmen. Ein Fehler
+  // geht als Ablehnung an den Editor zurück: er ist dann noch offen und zeigt
+  // die Meldung über dem Formular (Toasts lägen unter dem Panel).
   const handleApply = useCallback(
-    async (input: ApplyDeviationsInput): Promise<boolean> => {
+    async (input: ApplyDeviationsInput): Promise<void> => {
       const instance = selectedInstance;
-      if (!instance) return false;
+      if (!instance) return;
       try {
         const result = input.cancel
           ? await timetableService.applyDeviations(instance.id, input)
@@ -608,22 +613,18 @@ function VertretungContent() {
         } else {
           toast.success(deviationSuccessMessage(input, result, staffNames));
           if (result.warnings.length > 0) {
-            toast.error(
-              `${result.warnings.length} mögliche Zeitüberschneidung(en) prüfen.`,
-            );
+            // Kein Fehler: gespeichert ist schon, das Panel schließt. Der
+            // Hinweis bleibt stehen, bis die Person ihn schließt.
+            toast.warning(overlapWarningMessage(result.warnings.length), {
+              duration: 0,
+            });
           }
         }
-        return true;
       } catch (err) {
-        // Fehler an den Editor signalisieren (false zurückgeben, nicht werfen),
-        // damit er das Formular mit den Eingaben OFFEN hält.
         logger.error("apply_deviations_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        toast.error(
-          err instanceof Error ? err.message : "Speichern fehlgeschlagen",
-        );
-        return false;
+        throw err;
       } finally {
         await revalidate();
       }
@@ -639,7 +640,12 @@ function VertretungContent() {
   // Erstes Laden der Woche gehört in denselben Zustand: der Inhalt kann noch
   // nichts zeigen. Eine Revalidierung mit vorhandenen Daten nicht — die würde
   // sonst bei jedem Wochenwechsel die ganze Fläche gegen ein Skelett tauschen.
-  const contentLoading = showSkeleton || (isLoading && data === undefined);
+  // Bis der Katalogtext eines Ladefehlers da ist, bleibt das Skelett stehen:
+  // ohne Daten darf nichts leer oder bearbeitbar wirken.
+  const contentLoading =
+    showSkeleton ||
+    (isLoading && data === undefined) ||
+    (weekFailed && weekLoadError === null);
 
   if (!showSkeleton && timetableDisabled) {
     return <VertretungDisabledState />;
@@ -690,7 +696,8 @@ function VertretungContent() {
         isOpen={bulkOpen}
         onClose={() => setBulkOpen(false)}
         staffOptions={staffOptions}
-        staffLoadError={staffErrorMessage !== null}
+        staffLoadError={staffFailed}
+        staffLoadErrorMessage={staffLoadError}
         onSaved={revalidate}
       />
 
@@ -699,7 +706,7 @@ function VertretungContent() {
         dayInstances={editorDayInstances}
         staffOptions={staffOptions}
         staffNames={staffNames}
-        staffLoadError={staffErrorMessage !== null}
+        staffLoadError={staffFailed}
         canManage={canManageSchedules}
         onClose={closeEditor}
         onApply={handleApply}
@@ -834,31 +841,10 @@ function VertretungContent() {
       // Bauart 3, Regel 5: Laden und Fehler kommen aus dem Gerüst, nicht aus
       // einer eigenen Fläche. Ein Ladefehler ist `error` — NIE ein leerer
       // Plan und nie `empty` (Verhaltensvertrag).
-      error={
-        weekErrorMessage
-          ? {
-              message:
-                "Vertretung konnte nicht geladen werden. Die Termine des Tages konnten nicht abgerufen werden.",
-              action: (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={retryAll}
-                >
-                  Erneut versuchen
-                </Button>
-              ),
-            }
-          : null
-      }
+      error={weekFailed ? weekLoadError : null}
     >
-      {staffErrorMessage && (
-        <Alert
-          type="error"
-          message={`Personalliste konnte nicht geladen werden: ${staffErrorMessage}. Ersatz kann nicht ausgewählt werden, bis die Seite neu geladen wurde.`}
-        />
-      )}
+      <LoadErrorAlert error={staffLoadError} />
+      <LoadErrorAlert error={gapsLoadError} />
 
       {/* Planungshinweis, keine Störung: steht bewusst außerhalb der Liste und
         außerhalb der Zähler (siehe vertretung-coverage-notice.tsx). */}

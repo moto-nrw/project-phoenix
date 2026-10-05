@@ -65,6 +65,22 @@ export function unavailableApiError(cause?: unknown): ApiError {
   return error;
 }
 
+/**
+ * `fetch` for domain clients: a request that never reached the API (offline,
+ * DNS, aborted connection) becomes `general.unavailable` instead of a raw
+ * `TypeError` like "Failed to fetch".
+ */
+export async function transportFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    throw unavailableApiError(error);
+  }
+}
+
 export function apiErrorFromBody(
   message: string,
   status: number,

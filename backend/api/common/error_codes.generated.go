@@ -285,35 +285,134 @@ const (
 	CodeSubstitutionsNotRunning                          = "substitutions.not_running"
 	CodeSubstitutionsSelfAssignment                      = "substitutions.self_assignment"
 	CodeTimetableAmbiguousTemplateInstanceDelete         = "timetable.ambiguous_template_instance_delete"
+	CodeTimetableAttendanceEntryNotFound                 = "timetable.attendance_entry_not_found"
+	CodeTimetableAttendanceFrozen                        = "timetable.attendance_frozen"
+	CodeTimetableAttendanceInvalid                       = "timetable.attendance_invalid"
 	CodeTimetableCalendarPeriodCareOfferingConflict      = "timetable.calendar_period_care_offering_conflict"
+	CodeTimetableCalendarPeriodEndBeforeStart            = "timetable.calendar_period_end_before_start"
+	CodeTimetableCalendarPeriodInvalid                   = "timetable.calendar_period_invalid"
+	CodeTimetableCalendarPeriodNameTaken                 = "timetable.calendar_period_name_taken"
+	CodeTimetableCalendarPeriodNotFound                  = "timetable.calendar_period_not_found"
 	CodeTimetableCalendarPeriodOverlapConflict           = "timetable.calendar_period_overlap_conflict"
+	CodeTimetableCalendarPeriodRosterConflict            = "timetable.calendar_period_roster_conflict"
+	CodeTimetableCalendarPeriodWeekCycleAnchorMissing    = "timetable.calendar_period_week_cycle_anchor_missing"
+	CodeTimetableClosingDayEndBeforeStart                = "timetable.closing_day_end_before_start"
+	CodeTimetableClosingDayInvalid                       = "timetable.closing_day_invalid"
+	CodeTimetableClosingDayNotFound                      = "timetable.closing_day_not_found"
 	CodeTimetableCompleteTooEarly                        = "timetable.complete_too_early"
 	CodeTimetableCompletionConfirmationStale             = "timetable.completion_confirmation_stale"
+	CodeTimetableCorrectionCancelled                     = "timetable.correction_cancelled"
+	CodeTimetableCorrectionNotCompleted                  = "timetable.correction_not_completed"
+	CodeTimetableCorrectionReasonMissing                 = "timetable.correction_reason_missing"
+	CodeTimetableCorrectionReasonTooLong                 = "timetable.correction_reason_too_long"
+	CodeTimetableDateInPast                              = "timetable.date_in_past"
+	CodeTimetableDatesInPast                             = "timetable.dates_in_past"
+	CodeTimetableDatesRequired                           = "timetable.dates_required"
+	CodeTimetableDeviationNoteTooLong                    = "timetable.deviation_note_too_long"
+	CodeTimetableDeviationSelectionInvalid               = "timetable.deviation_selection_invalid"
 	CodeTimetableDuplicateInstance                       = "timetable.duplicate_instance"
+	CodeTimetableExportEndBeforeStart                    = "timetable.export_end_before_start"
+	CodeTimetableExportInternalForbidden                 = "timetable.export_internal_forbidden"
+	CodeTimetableExportRangeTooLarge                     = "timetable.export_range_too_large"
+	CodeTimetableGroupAlreadyEnded                       = "timetable.group_already_ended"
 	CodeTimetableGuardianNoticeDisabled                  = "timetable.guardian_notice_disabled"
+	CodeTimetableGuardianNoticeInvalid                   = "timetable.guardian_notice_invalid"
+	CodeTimetableGuardianNoticePast                      = "timetable.guardian_notice_past"
+	CodeTimetableGuardianNoticeTextInvalid               = "timetable.guardian_notice_text_invalid"
 	CodeTimetableIdempotencyKeyReused                    = "timetable.idempotency_key_reused"
+	CodeTimetableInstanceEndBeforeStart                  = "timetable.instance_end_before_start"
+	CodeTimetableInstanceInPast                          = "timetable.instance_in_past"
+	CodeTimetableInstanceInvalid                         = "timetable.instance_invalid"
 	CodeTimetableInstanceMoved                           = "timetable.instance_moved"
+	CodeTimetableInstanceNotActive                       = "timetable.instance_not_active"
 	CodeTimetableInstanceNotConvertible                  = "timetable.instance_not_convertible"
 	CodeTimetableInstanceNotEditable                     = "timetable.instance_not_editable"
+	CodeTimetableInstanceNotFound                        = "timetable.instance_not_found"
+	CodeTimetableInstanceOutsidePeriod                   = "timetable.instance_outside_period"
+	CodeTimetableInstanceSelectionInvalid                = "timetable.instance_selection_invalid"
+	CodeTimetableInstanceWeekend                         = "timetable.instance_weekend"
+	CodeTimetableInstancesNotAssigned                    = "timetable.instances_not_assigned"
+	CodeTimetableInstancesOtherDay                       = "timetable.instances_other_day"
+	CodeTimetableInstancesRequired                       = "timetable.instances_required"
 	CodeTimetableInvalidTransition                       = "timetable.invalid_transition"
+	CodeTimetableMoveOtherDay                            = "timetable.move_other_day"
+	CodeTimetableMoveSameInstance                        = "timetable.move_same_instance"
+	CodeTimetableNoStaffProfile                          = "timetable.no_staff_profile"
+	CodeTimetableOfferingSourceInactive                  = "timetable.offering_source_inactive"
+	CodeTimetableOfferingSourceInvalid                   = "timetable.offering_source_invalid"
+	CodeTimetableOfferingSourceMixedPhases               = "timetable.offering_source_mixed_phases"
+	CodeTimetableOfferingSourceNotFound                  = "timetable.offering_source_not_found"
+	CodeTimetableOfferingSourceOutsidePeriod             = "timetable.offering_source_outside_period"
+	CodeTimetableOfferingSourceTooMany                   = "timetable.offering_source_too_many"
 	CodeTimetableOnlySupervisorReplacementRequired       = "timetable.only_supervisor_replacement_required"
+	CodeTimetableOperationStale                          = "timetable.operation_stale"
 	CodeTimetablePickupExtensionBlockGone                = "timetable.pickup_extension_block_gone"
+	CodeTimetablePickupExtensionInvalid                  = "timetable.pickup_extension_invalid"
 	CodeTimetablePickupExtensionNotFound                 = "timetable.pickup_extension_not_found"
+	CodeTimetablePickupExtensionTooManyBlocks            = "timetable.pickup_extension_too_many_blocks"
+	CodeTimetablePlanningTrackArchived                   = "timetable.planning_track_archived"
+	CodeTimetablePlanningTrackInvalid                    = "timetable.planning_track_invalid"
+	CodeTimetablePlanningTrackNameTaken                  = "timetable.planning_track_name_taken"
+	CodeTimetablePlanningTrackNotFound                   = "timetable.planning_track_not_found"
 	CodeTimetablePresenceWouldOverstaff                  = "timetable.presence_would_overstaff"
+	CodeTimetableReopenAttendanceChanged                 = "timetable.reopen_attendance_changed"
+	CodeTimetableReopenStaffBusy                         = "timetable.reopen_staff_busy"
+	CodeTimetableReopenStudentActive                     = "timetable.reopen_student_active"
+	CodeTimetableReopenSupervisionChanged                = "timetable.reopen_supervision_changed"
+	CodeTimetableRoomOccupied                            = "timetable.room_occupied"
+	CodeTimetableSeriesEndBeforeStart                    = "timetable.series_end_before_start"
+	CodeTimetableSeriesEndOutsidePeriod                  = "timetable.series_end_outside_period"
 	CodeTimetableSickAbsenceScopeLocked                  = "timetable.sick_absence_scope_locked"
+	CodeTimetableSlotListDrifted                         = "timetable.slot_list_drifted"
+	CodeTimetableSlotListGroupingInvalid                 = "timetable.slot_list_grouping_invalid"
+	CodeTimetableSlotListPickupPastDate                  = "timetable.slot_list_pickup_past_date"
+	CodeTimetableSlotListReconciliationFutureDate        = "timetable.slot_list_reconciliation_future_date"
+	CodeTimetableSlotListsDisabled                       = "timetable.slot_lists_disabled"
+	CodeTimetableSpontaneousActivitiesDisabled           = "timetable.spontaneous_activities_disabled"
+	CodeTimetableSpontaneousCategoryArchived             = "timetable.spontaneous_category_archived"
 	CodeTimetableStaffAbsentOnDate                       = "timetable.staff_absent_on_date"
+	CodeTimetableStaffAbsentOnSource                     = "timetable.staff_absent_on_source"
 	CodeTimetableStaffAbsentOnTarget                     = "timetable.staff_absent_on_target"
 	CodeTimetableStaffAlreadyOnTarget                    = "timetable.staff_already_on_target"
+	CodeTimetableStaffNotFound                           = "timetable.staff_not_found"
+	CodeTimetableStaffNotOnSource                        = "timetable.staff_not_on_source"
+	CodeTimetableStaffPresentAndAbsent                   = "timetable.staff_present_and_absent"
 	CodeTimetableStartTooEarly                           = "timetable.start_too_early"
 	CodeTimetableStartWindowExpired                      = "timetable.start_window_expired"
+	CodeTimetableStudentAlreadyActive                    = "timetable.student_already_active"
+	CodeTimetableStudentCareEnded                        = "timetable.student_care_ended"
+	CodeTimetableStudentGraduated                        = "timetable.student_graduated"
+	CodeTimetableStudentNotCheckedIn                     = "timetable.student_not_checked_in"
+	CodeTimetableStudentNotFound                         = "timetable.student_not_found"
+	CodeTimetableStudentsNotPresent                      = "timetable.students_not_present"
+	CodeTimetableSubstituteAbsent                        = "timetable.substitute_absent"
+	CodeTimetableSubstituteAbsentOnDate                  = "timetable.substitute_absent_on_date"
 	CodeTimetableSubstituteConflict                      = "timetable.substitute_conflict"
+	CodeTimetableSubstituteNotOnInstances                = "timetable.substitute_not_on_instances"
+	CodeTimetableSubstituteSelf                          = "timetable.substitute_self"
+	CodeTimetableSubstituteSingleOnly                    = "timetable.substitute_single_only"
 	CodeTimetableTemplateCareOfferingConflict            = "timetable.template_care_offering_conflict"
+	CodeTimetableTemplateCategoryUnavailable             = "timetable.template_category_unavailable"
+	CodeTimetableTemplateEducationGroupInvalid           = "timetable.template_education_group_invalid"
+	CodeTimetableTemplateEndBeforeStart                  = "timetable.template_end_before_start"
+	CodeTimetableTemplateGradeAboveMax                   = "timetable.template_grade_above_max"
+	CodeTimetableTemplateInvalid                         = "timetable.template_invalid"
+	CodeTimetableTemplateMaxParticipantsInvalid          = "timetable.template_max_participants_invalid"
 	CodeTimetableTemplateNotFound                        = "timetable.template_not_found"
+	CodeTimetableTemplatePlanningTrackUnavailable        = "timetable.template_planning_track_unavailable"
 	CodeTimetableTemplateRosterRebaseConflict            = "timetable.template_roster_rebase_conflict"
+	CodeTimetableTemplateSplitInPast                     = "timetable.template_split_in_past"
+	CodeTimetableTemplateSplitInvalid                    = "timetable.template_split_invalid"
 	CodeTimetableTemplateStartInPast                     = "timetable.template_start_in_past"
 	CodeTimetableTemplateStartNotEarlier                 = "timetable.template_start_not_earlier"
+	CodeTimetableTemplateStartOutsidePeriod              = "timetable.template_start_outside_period"
 	CodeTimetableTemplateStartPredecessorOverlap         = "timetable.template_start_predecessor_overlap"
+	CodeTimetableTemplateWeekPatternInvalid              = "timetable.template_week_pattern_invalid"
+	CodeTimetableTemplateWeekend                         = "timetable.template_weekend"
+	CodeTimetableTooManyDates                            = "timetable.too_many_dates"
 	CodeTimetableUnderstaffedStillStaffed                = "timetable.understaffed_still_staffed"
+	CodeTimetableWindowEndBeforeStart                    = "timetable.window_end_before_start"
+	CodeTimetableWindowTooLarge                          = "timetable.window_too_large"
 	CodeWorkforceAbsenceAllowanceExceeded                = "workforce.absence_allowance_exceeded"
 	CodeWorkforceAbsenceAlreadyDecided                   = "workforce.absence_already_decided"
 	CodeWorkforceAbsenceNoWorkingDays                    = "workforce.absence_no_working_days"
@@ -667,35 +766,134 @@ var errorClassByCode = map[string]string{
 	"substitutions.not_running":                            "business_rejection",
 	"substitutions.self_assignment":                        "input",
 	"timetable.ambiguous_template_instance_delete":         "business_rejection",
+	"timetable.attendance_entry_not_found":                 "business_rejection",
+	"timetable.attendance_frozen":                          "business_rejection",
+	"timetable.attendance_invalid":                         "input",
 	"timetable.calendar_period_care_offering_conflict":     "business_rejection",
+	"timetable.calendar_period_end_before_start":           "input",
+	"timetable.calendar_period_invalid":                    "input",
+	"timetable.calendar_period_name_taken":                 "business_rejection",
+	"timetable.calendar_period_not_found":                  "business_rejection",
 	"timetable.calendar_period_overlap_conflict":           "business_rejection",
+	"timetable.calendar_period_roster_conflict":            "business_rejection",
+	"timetable.calendar_period_week_cycle_anchor_missing":  "input",
+	"timetable.closing_day_end_before_start":               "input",
+	"timetable.closing_day_invalid":                        "input",
+	"timetable.closing_day_not_found":                      "business_rejection",
 	"timetable.complete_too_early":                         "business_rejection",
 	"timetable.completion_confirmation_stale":              "business_rejection",
+	"timetable.correction_cancelled":                       "business_rejection",
+	"timetable.correction_not_completed":                   "business_rejection",
+	"timetable.correction_reason_missing":                  "input",
+	"timetable.correction_reason_too_long":                 "input",
+	"timetable.date_in_past":                               "input",
+	"timetable.dates_in_past":                              "input",
+	"timetable.dates_required":                             "input",
+	"timetable.deviation_note_too_long":                    "input",
+	"timetable.deviation_selection_invalid":                "input",
 	"timetable.duplicate_instance":                         "business_rejection",
+	"timetable.export_end_before_start":                    "input",
+	"timetable.export_internal_forbidden":                  "permission",
+	"timetable.export_range_too_large":                     "input",
+	"timetable.group_already_ended":                        "business_rejection",
 	"timetable.guardian_notice_disabled":                   "permission",
+	"timetable.guardian_notice_invalid":                    "input",
+	"timetable.guardian_notice_past":                       "input",
+	"timetable.guardian_notice_text_invalid":               "input",
 	"timetable.idempotency_key_reused":                     "business_rejection",
+	"timetable.instance_end_before_start":                  "input",
+	"timetable.instance_in_past":                           "input",
+	"timetable.instance_invalid":                           "input",
 	"timetable.instance_moved":                             "business_rejection",
+	"timetable.instance_not_active":                        "business_rejection",
 	"timetable.instance_not_convertible":                   "business_rejection",
 	"timetable.instance_not_editable":                      "business_rejection",
+	"timetable.instance_not_found":                         "business_rejection",
+	"timetable.instance_outside_period":                    "input",
+	"timetable.instance_selection_invalid":                 "input",
+	"timetable.instance_weekend":                           "input",
+	"timetable.instances_not_assigned":                     "input",
+	"timetable.instances_other_day":                        "input",
+	"timetable.instances_required":                         "input",
 	"timetable.invalid_transition":                         "business_rejection",
+	"timetable.move_other_day":                             "input",
+	"timetable.move_same_instance":                         "input",
+	"timetable.no_staff_profile":                           "permission",
+	"timetable.offering_source_inactive":                   "business_rejection",
+	"timetable.offering_source_invalid":                    "input",
+	"timetable.offering_source_mixed_phases":               "input",
+	"timetable.offering_source_not_found":                  "business_rejection",
+	"timetable.offering_source_outside_period":             "business_rejection",
+	"timetable.offering_source_too_many":                   "input",
 	"timetable.only_supervisor_replacement_required":       "business_rejection",
+	"timetable.operation_stale":                            "business_rejection",
 	"timetable.pickup_extension_block_gone":                "business_rejection",
+	"timetable.pickup_extension_invalid":                   "input",
 	"timetable.pickup_extension_not_found":                 "business_rejection",
+	"timetable.pickup_extension_too_many_blocks":           "input",
+	"timetable.planning_track_archived":                    "business_rejection",
+	"timetable.planning_track_invalid":                     "input",
+	"timetable.planning_track_name_taken":                  "business_rejection",
+	"timetable.planning_track_not_found":                   "business_rejection",
 	"timetable.presence_would_overstaff":                   "business_rejection",
+	"timetable.reopen_attendance_changed":                  "business_rejection",
+	"timetable.reopen_staff_busy":                          "business_rejection",
+	"timetable.reopen_student_active":                      "business_rejection",
+	"timetable.reopen_supervision_changed":                 "business_rejection",
+	"timetable.room_occupied":                              "business_rejection",
+	"timetable.series_end_before_start":                    "input",
+	"timetable.series_end_outside_period":                  "input",
 	"timetable.sick_absence_scope_locked":                  "business_rejection",
+	"timetable.slot_list_drifted":                          "business_rejection",
+	"timetable.slot_list_grouping_invalid":                 "input",
+	"timetable.slot_list_pickup_past_date":                 "input",
+	"timetable.slot_list_reconciliation_future_date":       "input",
+	"timetable.slot_lists_disabled":                        "permission",
+	"timetable.spontaneous_activities_disabled":            "permission",
+	"timetable.spontaneous_category_archived":              "business_rejection",
 	"timetable.staff_absent_on_date":                       "business_rejection",
+	"timetable.staff_absent_on_source":                     "input",
 	"timetable.staff_absent_on_target":                     "business_rejection",
 	"timetable.staff_already_on_target":                    "business_rejection",
+	"timetable.staff_not_found":                            "business_rejection",
+	"timetable.staff_not_on_source":                        "input",
+	"timetable.staff_present_and_absent":                   "input",
 	"timetable.start_too_early":                            "business_rejection",
 	"timetable.start_window_expired":                       "business_rejection",
+	"timetable.student_already_active":                     "business_rejection",
+	"timetable.student_care_ended":                         "business_rejection",
+	"timetable.student_graduated":                          "business_rejection",
+	"timetable.student_not_checked_in":                     "business_rejection",
+	"timetable.student_not_found":                          "business_rejection",
+	"timetable.students_not_present":                       "business_rejection",
+	"timetable.substitute_absent":                          "input",
+	"timetable.substitute_absent_on_date":                  "input",
 	"timetable.substitute_conflict":                        "business_rejection",
+	"timetable.substitute_not_on_instances":                "input",
+	"timetable.substitute_self":                            "input",
+	"timetable.substitute_single_only":                     "input",
 	"timetable.template_care_offering_conflict":            "input",
+	"timetable.template_category_unavailable":              "business_rejection",
+	"timetable.template_education_group_invalid":           "input",
+	"timetable.template_end_before_start":                  "input",
+	"timetable.template_grade_above_max":                   "input",
+	"timetable.template_invalid":                           "input",
+	"timetable.template_max_participants_invalid":          "input",
 	"timetable.template_not_found":                         "business_rejection",
+	"timetable.template_planning_track_unavailable":        "business_rejection",
 	"timetable.template_roster_rebase_conflict":            "business_rejection",
+	"timetable.template_split_in_past":                     "input",
+	"timetable.template_split_invalid":                     "input",
 	"timetable.template_start_in_past":                     "input",
 	"timetable.template_start_not_earlier":                 "input",
+	"timetable.template_start_outside_period":              "input",
 	"timetable.template_start_predecessor_overlap":         "input",
+	"timetable.template_week_pattern_invalid":              "input",
+	"timetable.template_weekend":                           "input",
+	"timetable.too_many_dates":                             "input",
 	"timetable.understaffed_still_staffed":                 "business_rejection",
+	"timetable.window_end_before_start":                    "input",
+	"timetable.window_too_large":                           "input",
 	"workforce.absence_allowance_exceeded":                 "business_rejection",
 	"workforce.absence_already_decided":                    "business_rejection",
 	"workforce.absence_no_working_days":                    "input",

@@ -103,7 +103,7 @@ func (rs *Resource) convertInstanceToSeries(w http.ResponseWriter, r *http.Reque
 func readConvertInstanceToSeriesRequest(w http.ResponseWriter, r *http.Request) (*convertInstanceToSeriesRequest, *parsedCreateTemplate, bool) {
 	req := &convertInstanceToSeriesRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, bindErrorRenderer(err))
 		return nil, nil, false
 	}
 	parsed, ok := parseBoundCreateTemplateRequest(w, r, &req.createTemplateRequest)
@@ -111,58 +111,30 @@ func readConvertInstanceToSeriesRequest(w http.ResponseWriter, r *http.Request) 
 		return nil, nil, false
 	}
 	if parsed.startDate == nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("start_date is required for conversion")))
+		common.RenderError(w, r, invalidOnField(common.CodeTimetableTemplateInvalid, "start_date", "start_date is required for conversion"))
 		return nil, nil, false
 	}
 	return req, parsed, true
 }
 
 var convertInstanceToSeriesErrorRules = []common.ErrorRule{
-	{Target: timetableModule.ErrInstanceNotFound, Render: common.ErrorNotFound},
+	{Target: timetableModule.ErrInstanceNotFound, Render: notFoundWithCode(common.CodeTimetableInstanceNotFound)},
 	{
 		Match: func(err error) bool {
 			return errors.Is(err, timetableModule.ErrInvalidInstanceTransition) ||
 				errors.Is(err, timetableModule.ErrInstanceAlreadyInSeries)
 		},
-		Render: func(err error) render.Renderer {
-			return common.ErrorConflictWithCode(err, common.CodeTimetableInstanceNotConvertible)
-		},
+		Render: conflictWithCode(common.CodeTimetableInstanceNotConvertible),
 	},
-	{
-		Match: func(err error) bool {
-			return errors.Is(err, timetableModule.ErrInstanceWeekend) ||
-				errors.Is(err, timetableModule.ErrInstanceOutsideActiveCalendarPeriod) ||
-				errors.Is(err, timetableModule.ErrOfferingSourceInvalid) ||
-				errors.Is(err, timetableModule.ErrTemplateTargetGradeExceedsLimit)
-		},
-		Render: common.ErrorInvalidRequest,
-	},
-	{
-		Target: timetableModule.ErrCategoryNotAssignable,
-		Render: func(error) render.Renderer {
-			return common.ErrorInvalidRequest(errors.New("category is archived or unavailable"))
-		},
-	},
-	{
-		Match: func(err error) bool {
-			return errors.Is(err, timetableModule.ErrPlanningTrackNotFound) ||
-				errors.Is(err, timetableModule.ErrPlanningTrackArchived)
-		},
-		Render: func(error) render.Renderer {
-			return common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable"))
-		},
-	},
-	{
-		Match: func(err error) bool {
-			var educationGroupErr *timetableModule.TemplateEducationGroupError
-			return errors.As(err, &educationGroupErr)
-		},
-		Render: common.ErrorInvalidRequest,
-	},
+	{Target: timetableModule.ErrInstanceWeekend, Render: invalidWithCode(common.CodeTimetableInstanceWeekend)},
+	{Target: timetableModule.ErrInstanceOutsideActiveCalendarPeriod, Render: invalidWithCode(common.CodeTimetableInstanceOutsidePeriod)},
 }
 
 func renderConvertInstanceToSeriesError(w http.ResponseWriter, r *http.Request, err error) {
 	renderer := common.RenderWithRules(err, convertInstanceToSeriesErrorRules, func(err error) render.Renderer {
+		if refusal := templateRefusalRenderer(err); refusal != nil {
+			return refusal
+		}
 		return common.ErrorInternalServerWrap("convert instance to series failed", err)
 	})
 	common.RenderError(w, r, renderer)

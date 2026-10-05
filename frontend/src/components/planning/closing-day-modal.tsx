@@ -6,12 +6,13 @@
  * unlike CalendarPeriodModal there is no type, cycle, or link section.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { closingDayService } from "~/lib/closing-day-api";
 import { type ClosingDay } from "~/lib/closing-day-helpers";
 import { createLogger } from "~/lib/logger";
@@ -30,33 +31,27 @@ export function ClosingDayModal({
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const clearErrors = formErrors.clear;
+  const latestSaveRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     if (!isOpen) return;
     setStartDate(initial?.startDate ?? "");
     setEndDate(initial?.endDate ?? "");
     setReason(initial?.reason ?? "");
-    setError(null);
-  }, [isOpen, initial]);
-
-  const validate = (): string | null => {
-    if (!reason.trim()) return "Bitte einen Grund angeben.";
-    if (!startDate) return "Bitte ein Startdatum wählen.";
-    if (!endDate) return "Bitte ein Enddatum wählen.";
-    if (endDate < startDate)
-      return "Das Enddatum darf nicht vor dem Startdatum liegen.";
-    return null;
-  };
+    clearErrors();
+  }, [isOpen, initial, clearErrors]);
 
   const handleSave = async () => {
-    const validationError = validate();
-    if (validationError) {
-      setError(validationError);
+    const fields = closingDayFieldErrors(reason, startDate, endDate);
+    if (Object.keys(fields).length > 0) {
+      formErrors.invalid("Bitte prüfen Sie die markierten Felder.", fields);
       return;
     }
     setSaving(true);
-    setError(null);
+    formErrors.clear();
     const body = {
       start_date: startDate,
       end_date: endDate,
@@ -74,16 +69,21 @@ export function ClosingDayModal({
       // Stehen noch welche im Zeitraum, bietet der Editor das Absagen an.
       await offerCancel(onOfferCancel, startDate, endDate);
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Schließtag konnte nicht gespeichert werden";
-      logger.error("closing_day_save_failed", { error: message });
-      setError(message);
+      logger.error("closing_day_save_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await formErrors.show(err, {
+        object: "das Speichern des Schließtags",
+        retry: () => latestSaveRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+  // „Wiederholen“ sendet den Stand, der dann im Formular steht.
+  useLayoutEffect(() => {
+    latestSaveRef.current = () => void handleSave();
+  });
 
   return (
     <FormModal
@@ -91,6 +91,7 @@ export function ClosingDayModal({
       onClose={onClose}
       title={initial ? "Schließtag bearbeiten" : "Schließtag anlegen"}
       size="md"
+      error={formErrors.error}
       footer={
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" size="md" onClick={onClose}>
@@ -108,16 +109,7 @@ export function ClosingDayModal({
         </div>
       }
     >
-      <div className="space-y-4">
-        {error && (
-          <div
-            className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm"
-            role="alert"
-          >
-            {error}
-          </div>
-        )}
-
+      <div ref={formRef} className="space-y-4">
         <div>
           <label
             htmlFor="closing-day-reason"
@@ -127,10 +119,12 @@ export function ClosingDayModal({
           </label>
           <Input
             id="closing-day-reason"
+            name="reason"
             type="text"
             value={reason}
             maxLength={255}
             onChange={(e) => setReason(e.target.value)}
+            error={formErrors.fieldError("reason")}
             placeholder="z. B. Pädagogischer Tag, Sommerschließung"
           />
         </div>
@@ -145,9 +139,11 @@ export function ClosingDayModal({
             </label>
             <ISODatePicker
               id="closing-day-start"
+              name="start_date"
               controlSize="lg"
               value={startDate}
               onChange={setStartDate}
+              error={formErrors.fieldError("start_date")}
               calendarLayout="popover"
             />
           </div>
@@ -160,11 +156,13 @@ export function ClosingDayModal({
             </label>
             <ISODatePicker
               id="closing-day-end"
+              name="end_date"
               controlSize="lg"
               value={endDate}
               min={startDate || undefined}
               defaultMonth={startDate}
               onChange={setEndDate}
+              error={formErrors.fieldError("end_date")}
               calendarLayout="popover"
             />
           </div>
@@ -207,4 +205,19 @@ async function offerCancel(
       error: err instanceof Error ? err.message : String(err),
     });
   }
+}
+
+/** Prüfung vor dem Senden. Schlüssel sind die Feldnamen des Backends. */
+function closingDayFieldErrors(
+  reason: string,
+  startDate: string,
+  endDate: string,
+): Record<string, string> {
+  const fields: Record<string, string> = {};
+  if (!reason.trim()) fields.reason = "Bitte geben Sie einen Grund an.";
+  if (!startDate) fields.start_date = "Bitte wählen Sie den ersten Tag.";
+  if (!endDate) fields.end_date = "Bitte wählen Sie den letzten Tag.";
+  if (startDate && endDate && endDate < startDate)
+    fields.end_date = "Der letzte Tag darf nicht vor dem ersten liegen.";
+  return fields;
 }

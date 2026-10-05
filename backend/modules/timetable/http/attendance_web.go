@@ -24,7 +24,7 @@ func (rs *Resource) requireWebAttendanceForActiveInstance(next http.Handler) htt
 		}
 		instance, err := rs.TimetableData.FindScheduledInstance(r.Context(), id)
 		if errors.Is(err, timetable.ErrActivityInstanceNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("instance not found"), common.CodeTimetableInstanceNotFound))
 			return
 		}
 		if err != nil {

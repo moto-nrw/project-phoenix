@@ -7,6 +7,7 @@ import {
   useMemo,
   useCallback,
   useRef,
+  useLayoutEffect,
 } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
@@ -41,7 +42,7 @@ import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
 import { substitutionService } from "~/lib/substitution-api";
 import type { Substitution } from "~/lib/substitution-helpers";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiLoadError, useToast } from "~/contexts/ToastContext";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 
@@ -156,25 +157,34 @@ function useGroupTransferData(
     [],
   );
   const [transfers, setTransfers] = useState<GroupTransfer[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
   const reload = useCallback(async () => {
     if (!groupId) return;
     try {
       const context = await fetchGroupTransferContext(groupId);
       setUsers(context.users);
       setTransfers(context.transfers);
-      setLoadError(null);
+      clearLoadError();
     } catch (error) {
       logger.error("failed to load group handover modal", {
         error: error instanceof Error ? error.message : String(error),
       });
       setUsers([]);
       setTransfers([]);
-      setLoadError(
-        "Fachkräfte und Übergaben konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
-      );
+      void showLoadError(error, {
+        object: "die Liste der Fachkräfte und Übergaben",
+        retry: () => void reloadRef.current(),
+      });
     }
-  }, [groupId]);
+  }, [groupId, showLoadError, clearLoadError]);
+  const reloadRef = useRef(reload);
+  useLayoutEffect(() => {
+    reloadRef.current = reload;
+  });
   useEffect(() => {
     if (open) void reload();
   }, [open, reload]);

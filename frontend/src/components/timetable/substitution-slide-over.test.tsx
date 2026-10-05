@@ -2,7 +2,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SubstitutionSlideOver } from "./substitution-slide-over";
+import { ApiError } from "~/lib/api-error";
 import { useSWRAuth } from "~/lib/swr";
+import { catalogText } from "~/test/error-catalog-text";
 import type {
   ApplyDeviationsInput,
   DeviationHistoryEvent,
@@ -10,10 +12,13 @@ import type {
   InstanceStaffSummary,
 } from "~/lib/timetable-types";
 
-type ApplyFn = (input: ApplyDeviationsInput) => Promise<boolean>;
+type ApplyFn = (input: ApplyDeviationsInput) => Promise<void>;
 
-function applyMock(result = true) {
-  return vi.fn<ApplyFn>(async () => result);
+/** Resolves (save committed) or, with `failure`, rejects like the page does. */
+function applyMock(failure?: unknown) {
+  return vi.fn<ApplyFn>(async () => {
+    if (failure !== undefined) throw failure;
+  });
 }
 
 // The editor's Verlauf reiter fetches the change log through useSWRAuth; the
@@ -27,6 +32,14 @@ vi.mock("~/lib/timetable-api", () => ({
   timetableService: {
     getDeviationHistory: vi.fn(),
   },
+}));
+
+// Der Elternhinweis einer Absage lädt seine Reichweite selbst; seine Regeln
+// testet guardian-notice-fields.test.tsx. Hier zählt nur, dass eine Absage
+// gespeichert werden kann.
+vi.mock("./guardian-notice-fields", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./guardian-notice-fields")>()),
+  guardianNoticeIncomplete: () => false,
 }));
 
 const mockUseSWRAuth = vi.mocked(useSWRAuth);
@@ -106,7 +119,7 @@ interface RenderOptions {
 }
 
 function renderEditor(opts: RenderOptions = {}) {
-  const onApply = opts.onApply ?? applyMock(true);
+  const onApply = opts.onApply ?? applyMock();
   const onClose = opts.onClose ?? vi.fn<() => void>();
   const instance = opts.instance ?? makeInstance();
   render(
@@ -171,7 +184,7 @@ describe("SubstitutionSlideOver", () => {
 
   describe("Ein-Request-Payload", () => {
     it("überträgt Abwesenheit, Ersatz und Grund in EINEM onApply-Aufruf", async () => {
-      const onApply = applyMock(true);
+      const onApply = applyMock();
       renderEditor({ onApply });
 
       markAbsent();
@@ -196,8 +209,12 @@ describe("SubstitutionSlideOver", () => {
       });
     });
 
-    it("hält das Formular offen und behält die Eingaben, wenn onApply false liefert", async () => {
-      const onApply = applyMock(false);
+    it("hält das Formular offen, behält die Eingaben und zeigt den Katalogtext, wenn onApply scheitert", async () => {
+      const onApply = applyMock(
+        new ApiError("Die Ersatzperson ist abwesend.", 409, {
+          code: "timetable.staff_absent_on_target",
+        }),
+      );
       const onClose = vi.fn<() => void>();
       renderEditor({ onApply, onClose });
 
@@ -207,6 +224,15 @@ describe("SubstitutionSlideOver", () => {
 
       await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
       expect(onClose).not.toHaveBeenCalled();
+      // Der Grund steht im Panel als Katalogtext, nie der Satz des Servers.
+      expect(
+        await screen.findByText(
+          catalogText("timetable.staff_absent_on_target", "die Vertretung"),
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Die Ersatzperson ist abwesend."),
+      ).not.toBeInTheDocument();
       // Panel bleibt offen: die Bearbeiten-Steuerung ist weiter da und die
       // Person weiter als abwesend markiert.
       expect(
@@ -214,6 +240,57 @@ describe("SubstitutionSlideOver", () => {
       ).toBeInTheDocument();
       expect(
         screen.getByRole("combobox", { name: "Vertretung für Anna Alt" }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("Speicherfehler", () => {
+    it("bietet bei einem Serverfehler Wiederholen an und speichert dann den aktuellen Stand", async () => {
+      const onApply = vi
+        .fn<ApplyFn>()
+        .mockRejectedValueOnce(
+          new ApiError("boom", 500, {
+            code: "general.server",
+            instance: "req-sub",
+          }),
+        )
+        .mockResolvedValueOnce(undefined);
+      const onClose = vi.fn<() => void>();
+      renderEditor({ onApply, onClose });
+
+      markAbsent();
+      chooseScope("Alle noch offenen Termine");
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      expect(
+        await screen.findByText(
+          catalogText("general.server", "die Vertretung"),
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+      ).toHaveTextContent("req-sub");
+
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+      await waitFor(() => expect(onApply).toHaveBeenCalledTimes(2));
+      expect(onApply.mock.calls[1]?.[0]).toEqual(onApply.mock.calls[0]?.[0]);
+      await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    });
+
+    it("nennt bei einer gescheiterten Absage die Absage", async () => {
+      const onApply = applyMock(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      );
+      renderEditor({ onApply });
+
+      fireEvent.click(screen.getByRole("radio", { name: /Block absagen/ }));
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "die Absage"),
+        ),
       ).toBeInTheDocument();
     });
   });
@@ -257,7 +334,7 @@ describe("SubstitutionSlideOver", () => {
     });
 
     it("überträgt nur die ausgewählten Termine", async () => {
-      const onApply = applyMock(true);
+      const onApply = applyMock();
       renderEditor({
         instance: randstunde,
         dayInstances: [randstunde, lernzeit],
@@ -285,7 +362,7 @@ describe("SubstitutionSlideOver", () => {
     });
 
     it("kann nur ausgewählte Termine vertreten und die Person trotzdem für alle Termine abmelden", async () => {
-      const onApply = applyMock(true);
+      const onApply = applyMock();
       renderEditor({
         instance: randstunde,
         dayInstances: [randstunde, lernzeit],
@@ -338,7 +415,7 @@ describe("SubstitutionSlideOver", () => {
     });
 
     it("speichert für mehrere Personen unabhängige Umfänge", async () => {
-      const onApply = applyMock(true);
+      const onApply = applyMock();
       const twoPeople = [
         plannedPerson(),
         plannedPerson({ staffId: "13", isPrimary: false }),
@@ -399,7 +476,7 @@ describe("SubstitutionSlideOver", () => {
   });
 
   it("sperrt die Krankmeldung, lässt aber den Umfang der Vertretung wählen", async () => {
-    const onApply = applyMock(true);
+    const onApply = applyMock();
     const sick = makeInstance({
       staff: [plannedPerson({ isAbsent: true, isSickAbsence: true })],
     });
@@ -450,7 +527,7 @@ describe("SubstitutionSlideOver", () => {
   });
 
   it("begrenzt die ganztägige Vertretung einer Krankmeldung auf deren Abwesenheiten", async () => {
-    const onApply = applyMock(true);
+    const onApply = applyMock();
     const sick = makeInstance({
       staff: [plannedPerson({ isAbsent: true, isSickAbsence: true })],
     });
@@ -481,7 +558,7 @@ describe("SubstitutionSlideOver", () => {
   });
 
   it("lässt eine manuelle Abwesenheit ändern und behält die Krankmeldung", async () => {
-    const onApply = applyMock(true);
+    const onApply = applyMock();
     const manual = makeInstance({
       staff: [plannedPerson({ isAbsent: true })],
     });
@@ -502,7 +579,7 @@ describe("SubstitutionSlideOver", () => {
   });
 
   it("behält eine andere manuelle Abwesenheit neben der geöffneten Krankmeldung", () => {
-    const onApply = applyMock(true);
+    const onApply = applyMock();
     const sick = makeInstance({
       staff: [plannedPerson({ isAbsent: true, isSickAbsence: true })],
     });
@@ -521,7 +598,7 @@ describe("SubstitutionSlideOver", () => {
   });
 
   it("entfernt eine Vertretung nur im geöffneten Termin, ohne sie abwesend zu melden", async () => {
-    const onApply = applyMock(true);
+    const onApply = applyMock();
     const instance = makeInstance({
       staff: [
         plannedPerson({ isAbsent: true }),
@@ -544,7 +621,7 @@ describe("SubstitutionSlideOver", () => {
   });
 
   it("entfernt eine abwesende Vertretung aus einem bereits voll besetzten Termin", async () => {
-    const onApply = applyMock(true);
+    const onApply = applyMock();
     const instance = makeInstance({
       staff: [
         plannedPerson(),
@@ -586,7 +663,7 @@ describe("SubstitutionSlideOver", () => {
     renderEditor({
       instance,
       dayInstances: [instance],
-      onApply: applyMock(true),
+      onApply: applyMock(),
     });
 
     expect(
@@ -595,7 +672,7 @@ describe("SubstitutionSlideOver", () => {
   });
 
   it("tauscht eine Vertretung in einem Speichervorgang", async () => {
-    const onApply = applyMock(true);
+    const onApply = applyMock();
     const instance = makeInstance({
       staff: [
         plannedPerson({ isAbsent: true }),
@@ -645,6 +722,30 @@ describe("SubstitutionSlideOver", () => {
   });
 
   describe("Verlaufs-Reiter", () => {
+    it("zeigt einen Ladefehler mit Wiederholen statt eines leeren Verlaufs", async () => {
+      const mutate = vi.fn();
+      mockUseSWRAuth.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: new ApiError("down", 503, { code: "general.unavailable" }),
+        mutate,
+        isValidating: false,
+      } as unknown as ReturnType<typeof useSWRAuth>);
+
+      renderEditor({ initialTab: "verlauf" });
+
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "die Liste der Änderungen"),
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/sind noch keine Änderungen protokolliert/),
+      ).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(mutate).toHaveBeenCalledTimes(1);
+    });
+
     it("ist über den Reiter erreichbar und startet mit initialTab='verlauf' dort", () => {
       mockHistory([
         makeEvent({
@@ -724,7 +825,7 @@ describe("SubstitutionSlideOver", () => {
         staffNames: STAFF_NAMES,
         canManage: true,
         onClose: vi.fn<() => void>(),
-        onApply: applyMock(true),
+        onApply: applyMock(),
       };
       const { rerender } = render(
         <SubstitutionSlideOver {...props} initialTab="bearbeiten" />,

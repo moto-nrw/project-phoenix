@@ -13,11 +13,10 @@
  * verschwinden dürfen.
  */
 
-import { useCallback, useMemo } from "react";
+import { type ReactNode, useCallback, useMemo } from "react";
 import { Pencil, Plus } from "lucide-react";
 
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import {
   DataTable,
@@ -25,6 +24,8 @@ import {
   type DataTableColumn,
 } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import { formErrorMessage } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
@@ -84,6 +85,7 @@ export function CalendarPeriodsEditor({
     phases,
     loading,
     error,
+    loadFailed,
     modalOpen,
     editing,
     createDefaults,
@@ -240,50 +242,66 @@ export function CalendarPeriodsEditor({
     ],
     [beginEdit, usageTotal],
   );
+  // Der Katalogtext des Ladefehlers kommt asynchron. Bis dahin steht das
+  // Ladeskelett, nie der Leerzustand „Noch keine Kalenderzeiträume“.
+  const awaitingErrorText = loadFailed && formErrorMessage(error) === null;
+  // Ohne je geladene Liste steht nur der Fehler da, keine leere Tabelle.
+  const failedWithoutData = loadFailed && periods.length === 0;
+
+  const showEmptyState = !loading && !loadFailed && periods.length === 0;
+  let body: ReactNode = null;
+  if (showEmptyState) {
+    body = (
+      <EmptyState
+        icon={
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+            <MotoConceptIcon concept="calendarPeriods" size={28} />
+          </span>
+        }
+        title="Noch keine Kalenderzeiträume"
+        description="Legen Sie das nächste Halbjahr an, damit Anmeldephasen und Betreuungsplan darauf verweisen können."
+        action={
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={beginCreateSemester}
+            className="gap-2"
+          >
+            <MotoConceptIcon
+              concept="calendarPeriods"
+              colorMode="inherit"
+              size={16}
+            />
+            Halbjahr anlegen
+          </Button>
+        }
+      />
+    );
+  } else if (!failedWithoutData || awaitingErrorText) {
+    body = (
+      <DataTable
+        columns={columns}
+        rows={periods}
+        getRowKey={(period) => period.id}
+        defaultSortKey="range"
+        defaultSortDirection="asc"
+        isLoading={loading || failedWithoutData}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
-      {error && <Alert type="error" message={error} />}
-
       <SectionCard
         title="Angelegte Zeiträume"
         description="Halbjahre, Schuljahre, Ferien und Sonderzeiträume. Anmeldephasen und Betreuungsplan verweisen auf diese Zeiträume."
       >
-        {!loading && !error && periods.length === 0 ? (
-          <EmptyState
-            icon={
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-                <MotoConceptIcon concept="calendarPeriods" size={28} />
-              </span>
-            }
-            title="Noch keine Kalenderzeiträume"
-            description="Legen Sie das nächste Halbjahr an, damit Anmeldephasen und Betreuungsplan darauf verweisen können."
-            action={
-              <Button
-                type="button"
-                variant="primary"
-                size="md"
-                onClick={beginCreateSemester}
-                className="gap-2"
-              >
-                <MotoConceptIcon
-                  concept="calendarPeriods"
-                  colorMode="inherit"
-                  size={16}
-                />
-                Halbjahr anlegen
-              </Button>
-            }
-          />
-        ) : (
-          <DataTable
-            columns={columns}
-            rows={periods}
-            getRowKey={(period) => period.id}
-            defaultSortKey="range"
-            defaultSortDirection="asc"
-            isLoading={loading}
-          />
-        )}
+        <LoadErrorAlert
+          error={error}
+          className={failedWithoutData ? undefined : "mb-4"}
+        />
+        {body}
       </SectionCard>
 
       <CalendarPeriodModal

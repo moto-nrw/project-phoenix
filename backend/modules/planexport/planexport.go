@@ -86,7 +86,13 @@ var (
 	// ErrRangeTooLarge is a specific ErrInvalidParams so the handler can
 	// phrase the limit for the user.
 	ErrRangeTooLarge = fmt.Errorf("%w: range exceeds %d weeks", ErrInvalidParams, maxExportWeeks)
+	// ErrRangeReversed is the ErrInvalidParams of a range ending before it
+	// starts (#2516).
+	ErrRangeReversed = fmt.Errorf("%w: to must not be before from", ErrInvalidParams)
 )
+
+// MaxExportWeeks is the cap a refused range names to the client (#2516).
+const MaxExportWeeks = maxExportWeeks
 
 // Params is one export request. From/To are any two calendar days; the
 // service widens them to whole Monday–Friday weeks, because a wall plan is
@@ -143,7 +149,7 @@ func (p Params) validate(allowed []Template) (window, error) {
 		return window{}, fmt.Errorf("%w: to must be YYYY-MM-DD", ErrInvalidParams)
 	}
 	if to.Before(from) {
-		return window{}, fmt.Errorf("%w: to must not be before from", ErrInvalidParams)
+		return window{}, ErrRangeReversed
 	}
 	if !p.Variant.valid() {
 		return window{}, fmt.Errorf("%w: unknown variant %q", ErrInvalidParams, p.Variant)

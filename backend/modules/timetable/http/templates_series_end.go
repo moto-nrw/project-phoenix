@@ -55,7 +55,7 @@ func (rs *Resource) validateSeriesEnd(
 		periodEnd = &end
 	}
 	if err := timetableModule.ValidateSeriesLastDay(*lastDay, firstDay, periodEnd); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, codedInvalidOnField(err, "end_date"))
 		return false
 	}
 	return true
@@ -104,7 +104,7 @@ func (rs *Resource) prepareTemplateUpdate(
 	stored templateResponse,
 ) bool {
 	if err := validateLegacyTemplateWorkdays(stored.Schedules, parsed.req.Weekdays); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, bindErrorRenderer(err))
 		return false
 	}
 	parsed.req.CalendarPeriodID = updateCalendarPeriodID(

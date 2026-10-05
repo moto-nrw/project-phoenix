@@ -473,11 +473,12 @@ function useApiErrorCore(
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
     >("input[name], textarea[name], select[name]");
     const control = [...controls].find((item) => item.name === firstField);
-    // A CustomSelect carries its value in a hidden input next to its trigger.
+    // A CustomSelect or DatePicker carries its value in a hidden input next
+    // to its trigger (combobox or the date button).
     const target =
       control instanceof HTMLInputElement && control.type === "hidden"
         ? control.nextElementSibling?.querySelector<HTMLElement>(
-            '[role="combobox"]',
+            '[role="combobox"], button',
           )
         : control;
     target?.focus();

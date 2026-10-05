@@ -169,6 +169,12 @@ type DatePickerProps =
       // htmlFor> point at it, `invalid` paints the error border a native input
       // got from the browser, and ariaDescribedBy links the caller's error text.
       readonly id?: string;
+      /**
+       * Field name a server field error (`errors[].field`) refers to. Renders
+       * a hidden input with the value, so the shared error path can find the
+       * field and focus its trigger (#2516).
+       */
+      readonly name?: string;
       readonly ariaLabel?: string;
       readonly ariaDescribedBy?: string;
       readonly invalid?: boolean;
@@ -422,6 +428,13 @@ export function DatePicker({
 
   return (
     <div className={`relative ${className}`} ref={containerRef}>
+      {!isMultiple && props.name ? (
+        <input
+          type="hidden"
+          name={props.name}
+          value={props.value ? toISODate(props.value) : ""}
+        />
+      ) : null}
       <div className="flex items-center gap-1" data-date-picker-controls>
         <button
           ref={triggerRef}
@@ -794,6 +807,8 @@ export function ISODatePicker({
   readonly required?: boolean;
   readonly disabled?: boolean;
   readonly id?: string;
+  /** See `DatePicker` `name`: lets a server field error focus this field. */
+  readonly name?: string;
   readonly ariaLabel?: string;
   readonly ariaDescribedBy?: string;
   readonly invalid?: boolean;

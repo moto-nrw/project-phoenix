@@ -1,3 +1,4 @@
+import { ApiError, apiErrorFromResponse } from "./api-error";
 import { sessionFetch } from "./session-cache";
 import {
   type BackendGroupHandover,
@@ -39,9 +40,10 @@ class SubstitutionService {
       credentials: "include",
     });
     if (!response.ok) {
-      const error = new Error("Vertretungen konnten nicht geladen werden.");
-      if (response.status === 403) error.name = "SubstitutionAccessError";
-      throw error;
+      throw await apiErrorFromResponse(
+        response,
+        "substitution overview failed",
+      );
     }
     const envelope =
       (await response.json()) as SubstitutionProxyEnvelope<BackendSubstitutionOverview>;
@@ -57,12 +59,15 @@ class SubstitutionService {
       credentials: "include",
     });
     if (!response.ok) {
-      throw new Error("Vertretungen konnten nicht geladen werden.");
+      throw await apiErrorFromResponse(
+        response,
+        "schedule substitution overview failed",
+      );
     }
     const envelope =
       (await response.json()) as SubstitutionProxyEnvelope<BackendSubstitutionOverview>;
     if (envelope.data === undefined) {
-      throw new Error("Ungültige Antwort für Vertretungen.");
+      throw invalidResponseError("schedule substitution overview");
     }
     return mapScheduleSubstitutionOverview(envelope.data);
   }
@@ -72,7 +77,9 @@ class SubstitutionService {
     input: ApplyDeviationsInput,
   ): Promise<ApplyDeviationsResponse> {
     if (input.cancel) {
-      throw new Error("Absagen laufen nicht über eine Vertretung.");
+      // Programmierfehler, kein Nutzerfehler: Absagen haben einen eigenen
+      // Weg. Der Absturztext des Anzeigewegs ist dafür die richtige Folge.
+      throw new Error("cancellations do not go through a substitution");
     }
     const response = await sessionFetch("/api/substitutions", {
       method: "POST",
@@ -118,7 +125,7 @@ class SubstitutionService {
       { credentials: "include" },
     );
     if (!response.ok) {
-      throw new Error(`Gruppenübergaben konnten nicht geladen werden.`);
+      throw await apiErrorFromResponse(response, "group handovers failed");
     }
     const envelope =
       (await response.json()) as SubstitutionProxyEnvelope<BackendSubstitutionOverview>;
@@ -131,7 +138,7 @@ class SubstitutionService {
       credentials: "include",
     });
     if (!response.ok) {
-      throw new Error("Fachkräfte konnten nicht geladen werden.");
+      throw await apiErrorFromResponse(response, "available staff failed");
     }
     const envelope =
       (await response.json()) as SubstitutionProxyEnvelope<BackendSubstitutionOverview>;
@@ -156,15 +163,13 @@ class SubstitutionService {
       credentials: "include",
     });
     if (!response.ok) {
-      throw new Error(
-        "Die Betreuung konnte nicht geladen werden. Bitte versuchen Sie es noch einmal.",
-      );
+      throw await apiErrorFromResponse(response, "running supervision failed");
     }
     const envelope =
       (await response.json()) as SubstitutionProxyEnvelope<BackendSubstitutionOverview>;
     const rows = unwrapSubstitutionProxyEnvelope(envelope).running_supervisions;
     if (!Array.isArray(rows) || rows.length !== 1 || !rows[0]) {
-      throw new Error("Ungültige Antwort für die Betreuung.");
+      throw invalidResponseError("running supervision");
     }
     return mapRunningSupervision(rows[0]);
   }
@@ -185,10 +190,9 @@ class SubstitutionService {
       }),
     });
     if (!response.ok) {
-      const body = (await response.json()) as { error?: string };
-      throw new Error(
-        body.error ??
-          "Der Betreuer konnte nicht hinzugefügt werden. Bitte versuchen Sie es noch einmal.",
+      throw await apiErrorFromResponse(
+        response,
+        "additional supervision failed",
       );
     }
     const envelope =
@@ -216,12 +220,7 @@ class SubstitutionService {
       ),
     });
     if (!response.ok) {
-      const body = (await response.json()) as { error?: string };
-      const error = new Error(
-        body.error ?? "Gruppenübergabe konnte nicht erstellt werden.",
-      );
-      error.name = "TransferError";
-      throw error;
+      throw await apiErrorFromResponse(response, "group handover failed");
     }
     const envelope =
       (await response.json()) as SubstitutionProxyEnvelope<BackendGroupHandover>;
@@ -239,19 +238,20 @@ class SubstitutionService {
       }),
     });
     if (!response.ok) {
-      const body = (await response.json()) as { error?: string };
-      const error = new Error(
-        body.error ?? "Gruppenübergabe konnte nicht beendet werden.",
-      );
-      error.name = "CancelTransferError";
-      throw error;
+      throw await apiErrorFromResponse(response, "end group handover failed");
     }
   }
 }
 
-async function substitutionError(response: Response): Promise<Error> {
-  const body = (await response.json()) as { error?: string };
-  return new Error(body.error ?? "Vertretung konnte nicht gespeichert werden.");
+async function substitutionError(response: Response): Promise<ApiError> {
+  return apiErrorFromResponse(response, "schedule substitution failed");
+}
+
+/** A 2xx answer without the expected shape counts as a server failure. */
+function invalidResponseError(what: string): ApiError {
+  return new ApiError(`invalid ${what} response`, 502, {
+    code: "general.server",
+  });
 }
 
 export const substitutionService = new SubstitutionService();
