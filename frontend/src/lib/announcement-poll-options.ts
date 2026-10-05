@@ -50,7 +50,8 @@ export function insertPastedOptions(
   // Only filled rows count against the limit: blank rows are dropped on save.
   const filled = [...before, ...after].filter((row) => row.trim()).length;
   const validLines = lines.filter(
-    (line) => line.length <= MAX_POLL_OPTION_LENGTH,
+    // Spread iterates Unicode code points, like the backend's []rune check.
+    (line) => [...line].length <= MAX_POLL_OPTION_LENGTH,
   );
   const room = Math.max(0, MAX_POLL_OPTIONS - filled);
   const taken = validLines.slice(0, room);

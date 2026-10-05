@@ -83,4 +83,20 @@ describe("insertPastedOptions", () => {
       tooLong: 1,
     });
   });
+
+  it("counts pasted labels as Unicode code points like the backend", () => {
+    const atLimit = "😀".repeat(MAX_POLL_OPTION_LENGTH);
+    const overLimit = "😀".repeat(MAX_POLL_OPTION_LENGTH + 1);
+
+    expect(insertPastedOptions(["Ja", ""], 1, `${atLimit}\nNein`)).toEqual({
+      rows: ["Ja", atLimit, "Nein"],
+      dropped: 0,
+      tooLong: 0,
+    });
+    expect(insertPastedOptions(["Ja", ""], 1, `${overLimit}\nNein`)).toEqual({
+      rows: ["Ja", "Nein"],
+      dropped: 0,
+      tooLong: 1,
+    });
+  });
 });
