@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { staffMonthSummaryService } from "~/lib/staff-api";
 import { useSWRAuth } from "~/lib/swr";
@@ -14,6 +15,8 @@ export interface AccountBalance {
   readonly balanceMinutes: number | null;
   readonly isLoading: boolean;
   readonly error: unknown;
+  /** Revalidates the configuration and the current balance after a failure. */
+  readonly retry: () => Promise<void>;
 }
 
 /**
@@ -63,6 +66,7 @@ export function useAccountBalance(staffId?: string): AccountBalance {
     data: config,
     isLoading: configLoading,
     error: configError,
+    mutate: mutateConfig,
   } = useSWRAuth("time-tracking-config", () => timeTrackingService.getConfig());
 
   // ISO "YYYY-MM-DD" compares lexicographically. An empty setting means "no
@@ -77,7 +81,7 @@ export function useAccountBalance(staffId?: string): AccountBalance {
   const anchorIsInFuture = anchor !== "" && anchor > today;
   const canResolveAccount = !configLoading && !configError && !anchorIsInFuture;
 
-  const { data, isLoading, error } = useSWRAuth<MonthSummary>(
+  const { data, isLoading, error, mutate } = useSWRAuth<MonthSummary>(
     !canResolveAccount
       ? null
       : staffId
@@ -92,11 +96,17 @@ export function useAccountBalance(staffId?: string): AccountBalance {
     { refreshInterval: OPEN_MONTH_REFRESH_MS },
   );
 
+  const retry = useCallback(async () => {
+    await mutateConfig();
+    await mutate();
+  }, [mutateConfig, mutate]);
+
   return {
     balanceMinutes: canResolveAccount
       ? (data?.closingBalanceMinutes ?? null)
       : null,
     isLoading: configLoading || (canResolveAccount && isLoading),
     error: configError ?? error,
+    retry,
   };
 }

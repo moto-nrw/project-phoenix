@@ -315,26 +315,71 @@ const (
 	CodeTimetableTemplateStartPredecessorOverlap         = "timetable.template_start_predecessor_overlap"
 	CodeTimetableUnderstaffedStillStaffed                = "timetable.understaffed_still_staffed"
 	CodeWorkforceAbsenceAllowanceExceeded                = "workforce.absence_allowance_exceeded"
+	CodeWorkforceAbsenceAlreadyDecided                   = "workforce.absence_already_decided"
+	CodeWorkforceAbsenceNoWorkingDays                    = "workforce.absence_no_working_days"
+	CodeWorkforceAbsenceNotCancelable                    = "workforce.absence_not_cancelable"
+	CodeWorkforceAbsenceNotFound                         = "workforce.absence_not_found"
+	CodeWorkforceAbsenceNotOwned                         = "workforce.absence_not_owned"
+	CodeWorkforceAbsenceOverlap                          = "workforce.absence_overlap"
 	CodeWorkforceAbsenceRebookingBlocked                 = "workforce.absence_rebooking_blocked"
 	CodeWorkforceAbsenceTypeInactive                     = "workforce.absence_type_inactive"
 	CodeWorkforceAdjustmentInClosedMonth                 = "workforce.adjustment_in_closed_month"
+	CodeWorkforceAlreadyCheckedIn                        = "workforce.already_checked_in"
+	CodeWorkforceAlreadyCheckedOut                       = "workforce.already_checked_out"
 	CodeWorkforceBalanceAdjustmentExceedsBalance         = "workforce.balance_adjustment_exceeds_balance"
 	CodeWorkforceBalanceAlreadyReset                     = "workforce.balance_already_reset"
+	CodeWorkforceBreakAlreadyActive                      = "workforce.break_already_active"
+	CodeWorkforceDecisionNoteRequired                    = "workforce.decision_note_required"
 	CodeWorkforceDependentBalanceReset                   = "workforce.dependent_balance_reset"
 	CodeWorkforceLaterMonthClosed                        = "workforce.later_month_closed"
 	CodeWorkforceManagerControlledAbsence                = "workforce.manager_controlled_absence"
+	CodeWorkforceMonthClosed                             = "workforce.month_closed"
 	CodeWorkforceMonthNotClosable                        = "workforce.month_not_closable"
 	CodeWorkforceMonthNotClosed                          = "workforce.month_not_closed"
+	CodeWorkforceNoActiveBreak                           = "workforce.no_active_break"
+	CodeWorkforceNoActiveSession                         = "workforce.no_active_session"
+	CodeWorkforceNoSessionForToday                       = "workforce.no_session_for_today"
 	CodeWorkforceOpeningBalanceAlreadyExists             = "workforce.opening_balance_already_exists"
 	CodeWorkforcePayrollConfigIncomplete                 = "workforce.payroll_config_incomplete"
 	CodeWorkforcePersonnelNumberInvalid                  = "workforce.personnel_number_invalid"
 	CodeWorkforcePersonnelNumberTaken                    = "workforce.personnel_number_taken"
+	CodeWorkforceRebookingBeforeVacationOpening          = "workforce.rebooking_before_vacation_opening"
+	CodeWorkforceRebookingHalfDayEdge                    = "workforce.rebooking_half_day_edge"
+	CodeWorkforceRebookingIntoSickReport                 = "workforce.rebooking_into_sick_report"
+	CodeWorkforceRebookingNoWorkingDay                   = "workforce.rebooking_no_working_day"
+	CodeWorkforceRebookingNotOver                        = "workforce.rebooking_not_over"
+	CodeWorkforceRebookingNothingSelected                = "workforce.rebooking_nothing_selected"
+	CodeWorkforceRebookingOutsideBalance                 = "workforce.rebooking_outside_balance"
+	CodeWorkforceRebookingOverlap                        = "workforce.rebooking_overlap"
+	CodeWorkforceRebookingReasonRequired                 = "workforce.rebooking_reason_required"
+	CodeWorkforceRebookingRequest                        = "workforce.rebooking_request"
+	CodeWorkforceRebookingSameType                       = "workforce.rebooking_same_type"
+	CodeWorkforceRebookingSickReport                     = "workforce.rebooking_sick_report"
+	CodeWorkforceRebookingTooMany                        = "workforce.rebooking_too_many"
+	CodeWorkforceReplacementOutsideOrigin                = "workforce.replacement_outside_origin"
+	CodeWorkforceSessionNotFound                         = "workforce.session_not_found"
+	CodeWorkforceSessionNotOwned                         = "workforce.session_not_owned"
+	CodeWorkforceSessionNoteRequired                     = "workforce.session_note_required"
+	CodeWorkforceSessionTimesInvalid                     = "workforce.session_times_invalid"
+	CodeWorkforceShiftChanged                            = "workforce.shift_changed"
+	CodeWorkforceShiftDuplicate                          = "workforce.shift_duplicate"
+	CodeWorkforceShiftHasReplacements                    = "workforce.shift_has_replacements"
+	CodeWorkforceShiftOverlap                            = "workforce.shift_overlap"
+	CodeWorkforceShiftSeriesNoOccurrences                = "workforce.shift_series_no_occurrences"
+	CodeWorkforceShiftSeriesOutsidePeriod                = "workforce.shift_series_outside_period"
+	CodeWorkforceShiftSeriesWeekCycleMissing             = "workforce.shift_series_week_cycle_missing"
+	CodeWorkforceShiftTypeInactive                       = "workforce.shift_type_inactive"
 	CodeWorkforceStammdatenInvalid                       = "workforce.stammdaten_invalid"
+	CodeWorkforceTargetOverrideHoursInvalid              = "workforce.target_override_hours_invalid"
+	CodeWorkforceTargetOverrideOverlap                   = "workforce.target_override_overlap"
+	CodeWorkforceTargetOverrideRangeInvalid              = "workforce.target_override_range_invalid"
+	CodeWorkforceTargetOverrideTooLong                   = "workforce.target_override_too_long"
 	CodeWorkforceVacationOpeningAbsencesBeforeCutoff     = "workforce.vacation_opening_absences_before_cutoff"
 	CodeWorkforceVacationOpeningAlreadyExists            = "workforce.vacation_opening_already_exists"
 	CodeWorkforceVacationQuotaBelowUsed                  = "workforce.vacation_quota_below_used"
 	CodeWorkforceVacationQuotaExceeded                   = "workforce.vacation_quota_exceeded"
 	CodeWorkforceVacationQuotaReasonRequired             = "workforce.vacation_quota_reason_required"
+	CodeWorkforceVacationRequestInPast                   = "workforce.vacation_request_in_past"
 	CodeWorkforceWorkSessionOverlap                      = "workforce.work_session_overlap"
 )
 
@@ -652,25 +697,70 @@ var errorClassByCode = map[string]string{
 	"timetable.template_start_predecessor_overlap":         "input",
 	"timetable.understaffed_still_staffed":                 "business_rejection",
 	"workforce.absence_allowance_exceeded":                 "business_rejection",
+	"workforce.absence_already_decided":                    "business_rejection",
+	"workforce.absence_no_working_days":                    "input",
+	"workforce.absence_not_cancelable":                     "business_rejection",
+	"workforce.absence_not_found":                          "business_rejection",
+	"workforce.absence_not_owned":                          "permission",
+	"workforce.absence_overlap":                            "business_rejection",
 	"workforce.absence_rebooking_blocked":                  "business_rejection",
 	"workforce.absence_type_inactive":                      "business_rejection",
 	"workforce.adjustment_in_closed_month":                 "input",
+	"workforce.already_checked_in":                         "business_rejection",
+	"workforce.already_checked_out":                        "business_rejection",
 	"workforce.balance_adjustment_exceeds_balance":         "business_rejection",
 	"workforce.balance_already_reset":                      "business_rejection",
+	"workforce.break_already_active":                       "business_rejection",
+	"workforce.decision_note_required":                     "input",
 	"workforce.dependent_balance_reset":                    "business_rejection",
 	"workforce.later_month_closed":                         "business_rejection",
 	"workforce.manager_controlled_absence":                 "permission",
+	"workforce.month_closed":                               "business_rejection",
 	"workforce.month_not_closable":                         "input",
 	"workforce.month_not_closed":                           "business_rejection",
+	"workforce.no_active_break":                            "business_rejection",
+	"workforce.no_active_session":                          "business_rejection",
+	"workforce.no_session_for_today":                       "business_rejection",
 	"workforce.opening_balance_already_exists":             "business_rejection",
 	"workforce.payroll_config_incomplete":                  "business_rejection",
 	"workforce.personnel_number_invalid":                   "input",
 	"workforce.personnel_number_taken":                     "business_rejection",
+	"workforce.rebooking_before_vacation_opening":          "business_rejection",
+	"workforce.rebooking_half_day_edge":                    "business_rejection",
+	"workforce.rebooking_into_sick_report":                 "business_rejection",
+	"workforce.rebooking_no_working_day":                   "business_rejection",
+	"workforce.rebooking_not_over":                         "business_rejection",
+	"workforce.rebooking_nothing_selected":                 "input",
+	"workforce.rebooking_outside_balance":                  "business_rejection",
+	"workforce.rebooking_overlap":                          "business_rejection",
+	"workforce.rebooking_reason_required":                  "input",
+	"workforce.rebooking_request":                          "business_rejection",
+	"workforce.rebooking_same_type":                        "business_rejection",
+	"workforce.rebooking_sick_report":                      "business_rejection",
+	"workforce.rebooking_too_many":                         "input",
+	"workforce.replacement_outside_origin":                 "input",
+	"workforce.session_not_found":                          "business_rejection",
+	"workforce.session_not_owned":                          "permission",
+	"workforce.session_note_required":                      "input",
+	"workforce.session_times_invalid":                      "input",
+	"workforce.shift_changed":                              "business_rejection",
+	"workforce.shift_duplicate":                            "business_rejection",
+	"workforce.shift_has_replacements":                     "business_rejection",
+	"workforce.shift_overlap":                              "business_rejection",
+	"workforce.shift_series_no_occurrences":                "input",
+	"workforce.shift_series_outside_period":                "input",
+	"workforce.shift_series_week_cycle_missing":            "input",
+	"workforce.shift_type_inactive":                        "business_rejection",
 	"workforce.stammdaten_invalid":                         "input",
+	"workforce.target_override_hours_invalid":              "input",
+	"workforce.target_override_overlap":                    "business_rejection",
+	"workforce.target_override_range_invalid":              "input",
+	"workforce.target_override_too_long":                   "input",
 	"workforce.vacation_opening_absences_before_cutoff":    "business_rejection",
 	"workforce.vacation_opening_already_exists":            "business_rejection",
 	"workforce.vacation_quota_below_used":                  "business_rejection",
 	"workforce.vacation_quota_exceeded":                    "business_rejection",
 	"workforce.vacation_quota_reason_required":             "input",
+	"workforce.vacation_request_in_past":                   "input",
 	"workforce.work_session_overlap":                       "business_rejection",
 }

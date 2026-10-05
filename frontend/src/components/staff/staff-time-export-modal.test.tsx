@@ -1,6 +1,8 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { StaffTimeExportModal } from "./staff-time-export-modal";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import {
   fetchDatevExportReport,
   DatevConfigIncompleteError,
@@ -193,11 +195,14 @@ describe("StaffTimeExportModal", () => {
     renderModal();
     fireEvent.click(screen.getByRole("button", { name: "DATEV LODAS" }));
 
-    await waitFor(() =>
-      expect(
-        screen.getByText(/Konfiguration ist unvollständig/),
-      ).toBeInTheDocument(),
-    );
+    expect(
+      await screen.findByText(
+        catalogText(
+          "workforce.payroll_config_incomplete",
+          "die Vorschau der DATEV-Datei",
+        ),
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Exportieren" })).toBeDisabled();
   });
 
@@ -238,23 +243,25 @@ describe("StaffTimeExportModal", () => {
 
   it("keeps the DATEV download blocked after a report failure and allows retrying", async () => {
     fetchReportMock
-      .mockRejectedValueOnce(new Error("report unavailable"))
+      .mockRejectedValueOnce(
+        new ApiError("report unavailable", 503, {
+          code: "general.unavailable",
+        }),
+      )
       .mockResolvedValueOnce(emptyReport);
     renderModal();
     fireEvent.click(screen.getByRole("button", { name: "DATEV LODAS" }));
 
-    await waitFor(() =>
-      expect(
-        screen.getByText(/Bericht konnte nicht geladen werden/),
-      ).toBeInTheDocument(),
-    );
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Vorschau der DATEV-Datei"),
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Exportieren" })).toBeDisabled();
     expect(globalThis.location.href).toBe("");
     const callsBeforeRetry = fetchReportMock.mock.calls.length;
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Bericht erneut laden" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 
     await waitFor(() =>
       expect(screen.getByText(/12 Buchungszeilen/)).toBeInTheDocument(),
@@ -349,6 +356,28 @@ describe("StaffTimeExportModal", () => {
       );
       // Kein Download nebenher.
       expect(globalThis.location.href).toBe("");
+    });
+
+    it("zeigt eine abgelehnte Übertragung im Dialog", async () => {
+      fetchSFTPStatusMock.mockResolvedValue(readyStatus);
+      transferMock.mockRejectedValue(
+        new ApiError("forbidden", 403, { code: "general.permission" }),
+      );
+      renderModal();
+
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "An die Gegenstelle übertragen",
+        }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Übertragen" }));
+
+      expect(
+        await screen.findByText(
+          catalogText("general.permission", "die Übertragung"),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/wurde übertragen/)).not.toBeInTheDocument();
     });
 
     it("zeigt einen Fehlschlag als Fehlschlag, obwohl die Antwort 200 ist", async () => {

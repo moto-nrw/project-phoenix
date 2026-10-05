@@ -11,6 +11,7 @@ import { useSWRConfig } from "swr";
 
 import { EditHistoryAccordion } from "~/components/time-tracking/edit-history-accordion";
 import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import {
   StatusBadge,
@@ -25,6 +26,7 @@ import {
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import type {
   StaffAbsenceRow,
@@ -237,11 +239,13 @@ export function StaffSessionTable({
   dailyProjection,
   dailyProjectionError,
   dailyProjectionPending,
+  onRetryDailyProjection,
   holidays,
   closingDays,
   accountStartDate,
   accountStartDatePending,
   accountStartDateError,
+  onRetryAccountStartDate,
   today,
   isAdminView,
   plannedShifts,
@@ -272,7 +276,10 @@ export function StaffSessionTable({
   // ungelöst ("?") statt auf `schedule` zurückzufallen: der heutige Plan als
   // historisches Soll auszugeben wäre eine stille Falschaussage, die der
   // Monatskarte widerspricht (die weiter mit datumsgültigen Versionen rechnet).
-  readonly dailyProjectionError?: boolean;
+  // Der Fehler selbst (oder `true`), damit der Hinweis den Katalogtext mit
+  // Wiederholen und Vorgangskennung zeigen kann (#2514).
+  readonly dailyProjectionError?: unknown;
+  readonly onRetryDailyProjection?: () => void;
   // Die Projektion für den SICHTBAREN Zeitraum wird noch geladen. Die Fetches
   // laufen mit keepPreviousData, `dailyProjection` hält nach einem Wechsel des
   // Zeitraums also noch die Keys des VORHERIGEN — die neuen Tage sind schlicht
@@ -301,7 +308,8 @@ export function StaffSessionTable({
   // but must not enter the Saldo before a mid-month account start.
   readonly accountStartDate: string | null;
   readonly accountStartDatePending: boolean;
-  readonly accountStartDateError: boolean;
+  readonly accountStartDateError: unknown;
+  readonly onRetryAccountStartDate?: () => void;
   readonly today: Date;
   readonly isAdminView: boolean;
   // Planned Dienstplan shifts for the visible range. When provided (admin
@@ -430,12 +438,50 @@ export function StaffSessionTable({
   // Soll eines Tages, exakt so wie die Zeile es später anzeigt: server-
   // aufgelöst, sonst der aktuelle Plan — und ungelöst, solange der Fetch
   // läuft oder fehlgeschlagen ist (#1842).
+  const projectionFailed = Boolean(dailyProjectionError);
+  const projectionLoad = useApiLoadError();
+  const accountStartLoad = useApiLoadError();
+  const showProjectionError = projectionLoad.show;
+  const clearProjectionError = projectionLoad.clear;
+  useEffect(() => {
+    if (dailyProjectionError) {
+      void showProjectionError(dailyProjectionError, {
+        object: "das Soll für diesen Zeitraum",
+        retry: onRetryDailyProjection,
+      });
+    } else {
+      clearProjectionError();
+    }
+  }, [
+    dailyProjectionError,
+    onRetryDailyProjection,
+    showProjectionError,
+    clearProjectionError,
+  ]);
+  const showAccountStartError = accountStartLoad.show;
+  const clearAccountStartError = accountStartLoad.clear;
+  useEffect(() => {
+    if (accountStartDateError) {
+      void showAccountStartError(accountStartDateError, {
+        object: "die Einstellung zum Stundenkonto",
+        retry: onRetryAccountStartDate,
+      });
+    } else {
+      clearAccountStartError();
+    }
+  }, [
+    accountStartDateError,
+    onRetryAccountStartDate,
+    showAccountStartError,
+    clearAccountStartError,
+  ]);
+
   const resolveDayTarget = useCallback(
     (day: Date) => {
       const resolved = dailyProjection?.get(toDateKey(day));
       const unresolved =
         resolved === undefined &&
-        (dailyProjectionError === true || dailyProjectionPending === true);
+        (projectionFailed || dailyProjectionPending === true);
       const planned = schedule ? resolveTargetForDate(schedule, day) : 0;
       return {
         unresolved,
@@ -443,7 +489,7 @@ export function StaffSessionTable({
         displayed: resolved?.targetMinutes ?? (unresolved ? 0 : planned),
       };
     },
-    [dailyProjection, dailyProjectionError, dailyProjectionPending, schedule],
+    [dailyProjection, projectionFailed, dailyProjectionPending, schedule],
   );
 
   // Sa/So erscheinen nur, wenn es dort etwas zu zeigen gibt (#1967). Ein
@@ -522,18 +568,21 @@ export function StaffSessionTable({
 
   return (
     <div className="space-y-3">
-      {dailyProjectionError === true && (
-        <Alert
-          type="warning"
-          message="Das Soll konnte für diesen Zeitraum nicht geladen werden. Betroffene Tage zeigen „?“ statt eines Soll- und Saldo-Werts — der aktuelle Arbeitszeitplan wird bewusst nicht auf vergangene Tage angewendet."
-        />
-      )}
-      {accountStartDateError && (
-        <Alert
-          type="error"
-          message="Der Stundenkonto-Start konnte nicht geladen werden. Soweit das Soll geladen wurde, werden Salden an Tagen ohne Soll weiterhin angezeigt; vor dem Kontostart können sie aber von der Monatskarte abweichen. Bitte die Seite neu laden."
-        />
-      )}
+      {projectionLoad.error ? (
+        <div className="space-y-1">
+          <LoadErrorAlert error={projectionLoad.error} />
+          <p className="text-xs text-gray-500">Tage ohne Soll zeigen „?“.</p>
+        </div>
+      ) : null}
+      {accountStartLoad.error ? (
+        <div className="space-y-1">
+          <LoadErrorAlert error={accountStartLoad.error} />
+          <p className="text-xs text-gray-500">
+            Salden vor dem Kontostart können deshalb von der Monatskarte
+            abweichen.
+          </p>
+        </div>
+      ) : null}
       {/* Radius, Rand und Ausschnitt bleiben auf der Fläche, gescrollt wird im
           inneren Container. Sonst zeichnet der Browser die Scrollleiste quer
           durch die abgerundeten Ecken und über den unteren Rand hinaus. */}
@@ -793,12 +842,12 @@ export function StaffSessionTable({
                         {targetUnresolved ? (
                           <span
                             title={
-                              dailyProjectionError === true
+                              projectionFailed
                                 ? "Soll konnte nicht geladen werden"
                                 : "Soll wird geladen"
                             }
                           >
-                            {dailyProjectionError === true ? "?" : "…"}
+                            {projectionFailed ? "?" : "…"}
                           </span>
                         ) : target > 0 || projected?.isOverride ? (
                           formatDuration(target)
@@ -1167,17 +1216,22 @@ function SessionEditHistory({
 }) {
   const [edits, setEdits] = useState<WorkSessionEdit[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const load = useApiLoadError();
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
 
   useEffect(() => {
     if (sessionId == null) return;
     let cancelled = false;
     setIsLoading(true);
     setEdits([]);
-    const load =
+    clearLoadError();
+    const fetchSessionEdits =
       fetchEdits ??
       ((sid: string, sess: string) =>
         staffSessionEditsService.getEdits(sid, sess));
-    load(staffId, sessionId)
+    fetchSessionEdits(staffId, sessionId)
       .then((result) => {
         if (!cancelled) setEdits(result);
       })
@@ -1187,6 +1241,11 @@ function SessionEditHistory({
           session_id: sessionId,
           error: error instanceof Error ? error.message : String(error),
         });
+        if (cancelled) return;
+        void showLoadError(error, {
+          object: "die Liste der Änderungen",
+          retry: () => setAttempt((current) => current + 1),
+        });
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -1194,8 +1253,12 @@ function SessionEditHistory({
     return () => {
       cancelled = true;
     };
-  }, [staffId, sessionId, fetchEdits]);
+  }, [staffId, sessionId, fetchEdits, attempt, showLoadError, clearLoadError]);
 
+  // Ein Ladefehler steht an Stelle der Liste, nicht als „keine Änderungen“.
+  if (load.error) {
+    return <LoadErrorAlert error={load.error} />;
+  }
   return (
     <EditHistoryAccordion edits={edits} isLoading={isLoading} onEdit={onEdit} />
   );

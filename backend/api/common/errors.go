@@ -278,6 +278,16 @@ func ErrorConflictWithDetails(err error, code string, details map[string]any) re
 	}
 }
 
+// ErrorInvalidRequestWithDetails returns a 400 Bad Request carrying a stable
+// code and the values the refused input names (#2514), so the client words
+// the limit itself instead of reading the message.
+func ErrorInvalidRequestWithDetails(err error, code string, details map[string]any) render.Renderer {
+	resp := newErrResponse(http.StatusBadRequest, err)
+	resp.Code = code
+	resp.Details = details
+	return resp
+}
+
 // BusinessRejection is an error a module raises when a valid request cannot
 // be carried out right now (Fehlerklasse "Fachliche Ablehnung", ADR 0006):
 // its stable code and the values its message names travel as code and

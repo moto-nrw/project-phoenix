@@ -327,7 +327,7 @@ const ROW_ACTION_BASELINE = new Map(
       "Entfernen@585",
       "Telefonnummer entfernen@844",
     ],
-    "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1233"],
+    "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1312"],
     "src/components/staff/stammdaten-section-forms.tsx": [
       "Qualifikation entfernen@422",
     ],

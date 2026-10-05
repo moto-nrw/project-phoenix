@@ -11,6 +11,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
@@ -266,13 +267,13 @@ func (s *staffShiftSeriesService) loadPeriodForSeries(ctx context.Context, serie
 	}
 	period := &found
 	if series.WeekPattern != WeekPatternEvery && period.WeekCycleLength <= 1 {
-		return nil, fmt.Errorf("%w: week A/B requires a calendar period with a week cycle", ErrSeriesInvalid)
+		return nil, withReason(fmt.Errorf("%w: week A/B requires a calendar period with a week cycle", ErrSeriesInvalid), workforce.ErrShiftSeriesWeekCycleMissing)
 	}
 	if series.ValidFrom.Before(period.StartDate) || series.ValidFrom.After(period.EndDate) {
-		return nil, fmt.Errorf("%w: valid from must lie within the calendar period", ErrSeriesInvalid)
+		return nil, withReason(fmt.Errorf("%w: valid from must lie within the calendar period", ErrSeriesInvalid), workforce.ErrShiftSeriesOutsidePeriod)
 	}
 	if series.ValidUntil != nil && series.ValidUntil.After(period.EndDate.AddDays(1)) {
-		return nil, fmt.Errorf("%w: valid until must not exceed the calendar period", ErrSeriesInvalid)
+		return nil, withReason(fmt.Errorf("%w: valid until must not exceed the calendar period", ErrSeriesInvalid), workforce.ErrShiftSeriesOutsidePeriod)
 	}
 	return period, nil
 }
@@ -455,10 +456,10 @@ func (s *staffShiftSeriesService) CreateSeries(ctx context.Context, series *Staf
 		return nil, err
 	}
 	if !hasFutureSeriesOccurrence(series, period, s.todayDate()) {
-		return nil, fmt.Errorf(
+		return nil, withReason(fmt.Errorf(
 			"%w: no occurrences left to create for the selected weekdays and week pattern",
 			ErrSeriesInvalid,
-		)
+		), workforce.ErrShiftSeriesNoOccurrences)
 	}
 	if err := s.lockShiftWrites(ctx, series.StaffID); err != nil {
 		return nil, err
@@ -544,10 +545,10 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 		}
 	}
 	if validUntil != nil && !effective.Before(*validUntil) {
-		return nil, fmt.Errorf(
+		return nil, withReason(fmt.Errorf(
 			"%w: series ends before %s, no occurrences left to change",
 			ErrSeriesInvalid, effective.String(),
-		)
+		), workforce.ErrShiftSeriesNoOccurrences)
 	}
 
 	rootID := old.RootID()
@@ -583,10 +584,10 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 		successor.ValidUntil = &until
 	}
 	if !hasFutureSeriesOccurrence(successor, period, today) {
-		return nil, fmt.Errorf(
+		return nil, withReason(fmt.Errorf(
 			"%w: no occurrences left to change for the selected weekdays and week pattern",
 			ErrSeriesInvalid,
-		)
+		), workforce.ErrShiftSeriesNoOccurrences)
 	}
 	if updateToday {
 		updateRetainedOccurrence := old.RetainedOccurrenceShiftID != nil &&

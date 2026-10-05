@@ -33,6 +33,17 @@ var (
 	ErrPlanExportForbidden      = errors.New("internal plan exports require schedules:manage")
 )
 
+// Reasons for a rejected shift or series. A failure carries one of them next
+// to ErrInvalidStaffShift / ErrInvalidShiftSeries, so the HTTP edge names the
+// refusal with its own error code instead of reading the message (#2514).
+var (
+	ErrReplacementOutsideOrigin    = errors.New("replacement outside the shift it covers")
+	ErrShiftHasReplacements        = errors.New("shift has replacements")
+	ErrShiftSeriesNoOccurrences    = errors.New("shift series has no occurrences left")
+	ErrShiftSeriesOutsidePeriod    = errors.New("shift series outside its calendar period")
+	ErrShiftSeriesWeekCycleMissing = errors.New("calendar period has no week cycle")
+)
+
 // InvalidStaffShiftError carries the caller-facing validation reason; it
 // unwraps to ErrInvalidStaffShift so callers classify with errors.Is.
 type InvalidStaffShiftError struct{ Reason string }

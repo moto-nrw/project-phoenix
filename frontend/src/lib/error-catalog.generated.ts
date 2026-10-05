@@ -397,24 +397,134 @@ export const ERROR_CATALOG = {
         "Die Zeiten für {object} überschneiden sich. Bitte prüfen Sie die Angaben.",
       "timetable.understaffed_still_staffed":
         "Für den Termin ist noch Personal eingeteilt. Bitte nehmen Sie das Personal zuerst heraus.",
+      "workforce.absence_allowance_exceeded":
+        "Für diese Art sind nicht mehr genug Tage übrig. Der Anspruch muss zuerst erhöht werden.",
+      "workforce.absence_already_decided":
+        "Über {object} wurde schon entschieden. Bitte laden Sie die Seite neu.",
+      "workforce.absence_no_working_days":
+        "In diesem Zeitraum gibt es keinen Arbeitstag. Bitte wählen Sie andere Tage.",
+      "workforce.absence_not_found": "Abwesenheit nicht gefunden.",
+      "workforce.absence_not_cancelable":
+        "{object} kann nicht mehr zurückgezogen werden. Bitte laden Sie die Seite neu.",
+      "workforce.absence_not_owned":
+        "Sie können nur eigene Abwesenheiten ändern.",
+      "workforce.absence_overlap":
+        "An diesen Tagen ist schon eine Abwesenheit eingetragen. Bitte wählen Sie andere Tage.",
+      "workforce.absence_type_inactive":
+        "Diese Abwesenheitsart ist ausgeschaltet. Bitte wählen Sie eine andere.",
+      "workforce.adjustment_in_closed_month":
+        "Dieser Monat ist schon abgeschlossen. Bitte wählen Sie ein Datum im offenen Monat. Oder öffnen Sie den Monat wieder.",
+      "workforce.already_checked_in":
+        "Sie sind schon eingestempelt. Bitte laden Sie die Seite neu.",
+      "workforce.already_checked_out": "Sie haben heute bereits gearbeitet.",
+      "workforce.balance_adjustment_exceeds_balance":
+        "Dafür reicht das Guthaben im Stundenkonto nicht. Spätere Buchungen hängen davon ab.",
+      "workforce.balance_already_reset":
+        "Das Stundenkonto wurde für dieses Datum schon zurückgesetzt.",
+      "workforce.break_already_active":
+        "Ihre Pause läuft schon. Bitte laden Sie die Seite neu.",
+      "workforce.decision_note_required":
+        "Bitte schreiben Sie eine kurze Begründung.",
+      "workforce.dependent_balance_reset":
+        "Ein späteres Zurücksetzen des Stundenkontos hängt davon ab. Bitte prüfen Sie zuerst dieses Zurücksetzen.",
       "workforce.later_month_closed":
-        "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
+        "Ein späterer Monat ist schon abgeschlossen. Bitte öffnen Sie zuerst den späteren Monat.",
+      "workforce.manager_controlled_absence":
+        "Diese Abwesenheit trägt nur die Leitung ein. Bitte fragen Sie die Leitung.",
+      "workforce.month_closed":
+        "Der {month} ist abgeschlossen. Öffnen Sie den Monat zuerst wieder. Das geht im Reiter Zeiterfassung.",
+      "workforce.month_not_closable":
+        "Dieser Monat ist noch nicht vorbei. Sie können ihn erst danach abschließen.",
       "workforce.month_not_closed":
-        "Der Monat für {object} ist noch offen. Bitte schließen Sie ihn zuerst ab.",
+        "Dieser Monat ist nicht abgeschlossen. Bitte laden Sie die Seite neu.",
+      "workforce.no_active_break":
+        "Gerade läuft keine Pause. Bitte laden Sie die Seite neu.",
+      "workforce.no_active_session":
+        "Gerade läuft keine Arbeitszeit. Bitte laden Sie die Seite neu.",
+      "workforce.no_session_for_today": "Kein Eintrag für heute vorhanden.",
       "workforce.opening_balance_already_exists":
-        "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
+        "Für diese Person gibt es schon einen Eröffnungssaldo. Bitte löschen Sie zuerst den alten.",
+      "workforce.payroll_config_incomplete":
+        "Für die Datei fehlen noch Angaben auf der Seite Abrechnung. Bitte ergänzen Sie diese zuerst.",
       "workforce.personnel_number_invalid":
-        "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+        "Die Personalnummer darf nur Ziffern haben, höchstens 9. Bitte prüfen Sie die Eingabe.",
       "workforce.personnel_number_taken":
-        "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
+        "Diese Personalnummer ist schon vergeben. Bitte wählen Sie eine andere.",
+      "workforce.rebooking_before_vacation_opening":
+        "Der Eintrag vom {day} liegt vor der Urlaubs-Übernahme. Dort lässt sich kein Urlaub eintragen.",
+      "workforce.rebooking_half_day_edge":
+        "Der Urlaub ab {day} hat einen halben Tag am Rand. Bitte löschen Sie ihn und tragen Sie die Tage neu ein.",
+      "workforce.rebooking_into_sick_report":
+        "In eine Krankmeldung lässt sich nicht umbuchen. Bitte löschen Sie den Eintrag und tragen Sie die Krankmeldung neu ein.",
+      "workforce.rebooking_no_working_day":
+        "Der Eintrag vom {day} hat keinen Arbeitstag. Urlaub braucht mindestens einen.",
+      "workforce.rebooking_not_over":
+        "Der Eintrag ist noch nicht vorbei. Sie können ihn danach ändern.",
+      "workforce.rebooking_nothing_selected":
+        "Bitte wählen Sie mindestens einen Eintrag aus.",
+      "workforce.rebooking_outside_balance":
+        "Der Eintrag vom {day} liegt außerhalb des Stundenkontos. Dort ist kein Freizeitausgleich möglich.",
+      "workforce.rebooking_overlap":
+        "Der Eintrag überschneidet sich mit einer anderen Abwesenheit. Bitte löschen Sie einen Eintrag und tragen Sie ihn neu ein.",
+      "workforce.rebooking_reason_required":
+        "Bitte geben Sie einen Grund für die Umbuchung an.",
+      "workforce.rebooking_request":
+        "Der Eintrag vom {day} ist ein Antrag. Anträge lassen sich nicht umbuchen.",
+      "workforce.rebooking_same_type":
+        "Der Eintrag vom {day} hat diese Art schon.",
+      "workforce.rebooking_sick_report":
+        "Die Krankmeldung vom {day} lässt sich nicht umbuchen. Bitte löschen Sie sie und tragen Sie die richtige Art neu ein.",
+      "workforce.rebooking_too_many":
+        "Bitte buchen Sie höchstens {limit} Einträge auf einmal um.",
+      "workforce.replacement_outside_origin":
+        "Eine Vertretung muss am Tag und in der Zeit der ausgefallenen Schicht liegen.",
+      "workforce.session_note_required":
+        "Bitte geben Sie einen Grund für die Änderung an.",
+      "workforce.session_not_found": "Eintrag nicht gefunden.",
+      "workforce.session_not_owned":
+        "Sie können nur eigene Einträge bearbeiten.",
+      "workforce.session_times_invalid":
+        "Das Ende muss nach dem Beginn liegen. Bitte prüfen Sie Beginn, Ende und Pause.",
+      "workforce.shift_changed":
+        "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
+      "workforce.shift_duplicate":
+        "Zu dieser Zeit beginnt schon eine Schicht dieser Person. Bitte wählen Sie eine andere Zeit.",
+      "workforce.shift_has_replacements":
+        "Für diese Schicht gibt es Vertretungen. Bitte passen Sie zuerst die Vertretungen an.",
+      "workforce.shift_overlap":
+        "Die Schicht überschneidet sich mit einer anderen Schicht dieser Person. Bitte prüfen Sie die Zeiten.",
+      "workforce.shift_series_no_occurrences":
+        "Für {object} gibt es keine Termine mehr. Bitte prüfen Sie Wochentage und „Gültig bis“.",
+      "workforce.shift_series_outside_period":
+        "Die Serie liegt außerhalb des Kalenderzeitraums. Bitte prüfen Sie „Gültig ab“ und „Gültig bis“.",
+      "workforce.shift_series_week_cycle_missing":
+        "Dieser Kalenderzeitraum hat keine Woche A und B. Bitte wählen Sie „Jede Woche“.",
+      "workforce.shift_type_inactive":
+        "Diese Schichtart ist ausgeschaltet. Bitte wählen Sie eine andere.",
       "workforce.stammdaten_invalid":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+      "workforce.target_override_hours_invalid":
+        "Die Stunden pro Tag müssen zwischen 0 und {max_hours} liegen.",
+      "workforce.target_override_overlap":
+        "Vom {start_date} bis {end_date} gibt es schon eine Sonderarbeitszeit. Bitte löschen Sie diese zuerst oder wählen Sie andere Tage.",
+      "workforce.target_override_range_invalid":
+        "Das Ende liegt vor dem Anfang. Bitte prüfen Sie den Zeitraum.",
+      "workforce.target_override_too_long":
+        "Der Zeitraum ist zu lang. Erlaubt sind höchstens {max_days} Tage.",
+      "workforce.vacation_opening_absences_before_cutoff":
+        "Vor dem Stichtag ist schon Urlaub eingetragen. Diese Tage würden doppelt zählen. Bitte wählen Sie einen früheren Stichtag.",
       "workforce.vacation_opening_already_exists":
-        "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
+        "Für dieses Jahr gibt es schon eine Urlaubs-Übernahme. Bitte löschen Sie zuerst die alte.",
+      "workforce.vacation_quota_below_used":
+        "Der Anspruch ist kleiner als die genommenen und beantragten Tage. Bitte tragen Sie einen höheren Wert ein.",
+      "workforce.vacation_quota_exceeded":
+        "Dafür reicht der Resturlaub nicht. Der Urlaubsanspruch muss zuerst erhöht werden.",
       "workforce.vacation_quota_reason_required":
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
+      "workforce.vacation_request_in_past":
+        "Urlaub können Sie nur ab heute beantragen. Bitte wählen Sie ein anderes Datum.",
       "workforce.work_session_overlap":
-        "Die Zeiten für {object} überschneiden sich. Bitte prüfen Sie die Angaben.",
+        "Die Zeit überschneidet sich mit einem anderen Eintrag an diesem Tag. Bitte prüfen Sie Beginn und Ende.",
     },
   },
   en: {

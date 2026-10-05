@@ -11,6 +11,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
@@ -387,7 +388,7 @@ func (s *staffShiftService) validateOriginLink(ctx context.Context, shift *Staff
 		return fmt.Errorf("%w: a shift cannot be its own replacement", ErrShiftInvalid)
 	}
 	if origin.Date != shift.Date {
-		return fmt.Errorf("%w: replacement must be on the same date as the shift it covers", ErrShiftInvalid)
+		return withReason(fmt.Errorf("%w: replacement must be on the same date as the shift it covers", ErrShiftInvalid), workforce.ErrReplacementOutsideOrigin)
 	}
 	if !origin.Cancelled {
 		return fmt.Errorf("%w: replacement origin must be a cancelled shift", ErrShiftInvalid)
@@ -400,7 +401,7 @@ func (s *staffShiftService) validateOriginLink(ctx context.Context, shift *Staff
 	// the edited window before rebuilding covers) is validated against the new
 	// window, not the stale one (#1841).
 	if !origin.Contains(shift) {
-		return fmt.Errorf("%w: replacement must fall within the shift it covers", ErrShiftInvalid)
+		return withReason(fmt.Errorf("%w: replacement must fall within the shift it covers", ErrShiftInvalid), workforce.ErrReplacementOutsideOrigin)
 	}
 	return nil
 }
@@ -622,10 +623,10 @@ func (s *staffShiftService) updateShiftWithOptions(ctx context.Context, shift *S
 		}
 		for _, cover := range covers {
 			if shift.Date != cover.Date {
-				return nil, fmt.Errorf("%w: cannot move a shift that has replacements to another date", ErrShiftInvalid)
+				return nil, withReason(fmt.Errorf("%w: cannot move a shift that has replacements to another date", ErrShiftInvalid), workforce.ErrShiftHasReplacements)
 			}
 			if !shift.Contains(cover) {
-				return nil, fmt.Errorf("%w: cannot resize a shift so a replacement no longer fits within it", ErrShiftInvalid)
+				return nil, withReason(fmt.Errorf("%w: cannot resize a shift so a replacement no longer fits within it", ErrShiftInvalid), workforce.ErrShiftHasReplacements)
 			}
 		}
 	}

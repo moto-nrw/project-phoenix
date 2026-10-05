@@ -22,6 +22,18 @@ func (e *capabilityError) Error() string        { return e.cause.Error() }
 func (e *capabilityError) Is(target error) bool { return target == e.kind }
 func (e *capabilityError) Unwrap() error        { return e.cause }
 
+// reasonError adds a public refusal reason to a failure without touching its
+// wording: the message stays the cause's, and both stay in the chain.
+type reasonError struct {
+	cause  error
+	reason error
+}
+
+func (e *reasonError) Error() string   { return e.cause.Error() }
+func (e *reasonError) Unwrap() []error { return []error{e.cause, e.reason} }
+
+func withReason(cause, reason error) error { return &reasonError{cause: cause, reason: reason} }
+
 // PlanningDependencies are the retained schedule services the planning
 // contract is served from.
 type PlanningDependencies struct {

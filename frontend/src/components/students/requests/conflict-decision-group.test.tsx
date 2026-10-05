@@ -309,7 +309,7 @@ describe("ConflictDecisionGroup", () => {
 
     const reason = screen.getByLabelText("Begründung");
     await waitFor(() => expect(reason).toHaveAttribute("aria-invalid", "true"));
-    expect(reason).toHaveFocus();
+    await waitFor(() => expect(reason).toHaveFocus());
     expect(screen.getByText(/Für die Entscheidung fehlt/)).toBeVisible();
   });
 

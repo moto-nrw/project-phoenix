@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 // MoveShiftInput is the complete desired slot for one concrete shift. The
@@ -259,7 +260,7 @@ func (s *staffShiftService) validateMovedOrigin(ctx context.Context, existing, m
 		return fmt.Errorf("check covers before shift move: %w", err)
 	}
 	if len(covers) > 0 {
-		return fmt.Errorf("%w: cannot move a shift that has replacements", ErrShiftInvalid)
+		return withReason(fmt.Errorf("%w: cannot move a shift that has replacements", ErrShiftInvalid), workforce.ErrShiftHasReplacements)
 	}
 	return nil
 }

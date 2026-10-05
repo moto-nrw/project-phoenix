@@ -160,6 +160,30 @@ func TestErrorConflict(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, w.Code)
 }
 
+// TestErrorInvalidRequestWithDetails pins the 400 that names the refused
+// limit (#2514): code and details travel next to the diagnostic text.
+func TestErrorInvalidRequestWithDetails(t *testing.T) {
+	t.Parallel()
+
+	renderer := common.ErrorInvalidRequestWithDetails(errors.New("range too long"),
+		common.CodeWorkforceTargetOverrideTooLong, map[string]any{"max_days": 366})
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/test", nil)
+	common.RenderError(w, r, renderer)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	var body struct {
+		Code    string         `json:"code"`
+		Details map[string]any `json:"details"`
+		Error   string         `json:"error"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, common.CodeWorkforceTargetOverrideTooLong, body.Code)
+	assert.Equal(t, map[string]any{"max_days": float64(366)}, body.Details)
+	assert.Equal(t, "range too long", body.Error)
+}
+
 func TestErrorTooManyRequests(t *testing.T) {
 	t.Parallel()
 

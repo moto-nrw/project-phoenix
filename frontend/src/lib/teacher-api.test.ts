@@ -10,6 +10,7 @@ vi.mock("next-auth/react", () => ({
 
 // Import after mocks are set up
 import { getSession } from "next-auth/react";
+import { ApiError } from "./api-error";
 import { teacherService } from "./teacher-api";
 
 // Type for mocked functions
@@ -158,9 +159,12 @@ describe("teacher-api", () => {
       // is actually honored and the real contract shows.
       mockedGetSession.mockResolvedValue(null);
 
-      await expect(teacherService.getTeachers()).rejects.toThrow(
-        "No authentication token available",
-      );
+      const failure = teacherService.getTeachers();
+      await expect(failure).rejects.toBeInstanceOf(ApiError);
+      await expect(failure).rejects.toMatchObject({
+        code: "general.permission",
+        status: 401,
+      });
     });
   });
 

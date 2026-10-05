@@ -1,6 +1,9 @@
 "use client";
 
-import { Alert } from "~/components/ui/alert";
+import { useEffect } from "react";
+
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { EmptyState } from "~/components/ui/empty-state";
 import { InfoCard } from "~/components/ui/info-card";
 import Link from "~/components/ui/navigation-link";
@@ -82,7 +85,11 @@ export function BetreuungsplanHeuteCard({
   const compact = dense && !isPhone;
   const onHome = maxRows !== undefined;
   const rowLimit = isPhone ? undefined : maxRows;
-  const { data: assignments, error } = useSWRAuth<OwnAssignment[]>(
+  const {
+    data: assignments,
+    error,
+    mutate,
+  } = useSWRAuth<OwnAssignment[]>(
     `time-tracking-own-assignments-today-${today}`,
     () => ownShiftService.getOwnAssignments(today, today),
     { revalidateOnFocus: false, errorRetryCount: 1 },
@@ -91,16 +98,27 @@ export function BetreuungsplanHeuteCard({
   // A fetch failure must stay distinguishable from "keine Einsätze geplant":
   // with only one retry and focus revalidation off, silently rendering the
   // empty-state (null) would hide the employee's schedule until a reload.
+  const load = useApiLoadError();
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
+  useEffect(() => {
+    if (error) {
+      void showLoadError(error, {
+        object: "die Liste Ihrer Einsätze",
+        retry: () => void mutate(),
+      });
+    } else {
+      clearLoadError();
+    }
+  }, [error, mutate, showLoadError, clearLoadError]);
+
   if (error) {
     return (
       <InfoCard
         title={title}
         icon={<MotoConceptIcon concept="carePlan" size={20} />}
       >
-        <Alert
-          type="error"
-          message="Die heutigen Einsätze konnten nicht geladen werden. Bitte die Seite neu laden."
-        />
+        <LoadErrorAlert error={load.error} />
       </InfoCard>
     );
   }

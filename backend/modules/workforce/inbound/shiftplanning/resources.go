@@ -73,17 +73,58 @@ func staffShiftsRuntime(deps StaffShiftsDependencies) staffshiftsHTTP.Runtime {
 	}
 }
 
+// staffShiftErrorCodes names the refusals the Dienstplan explains on its own
+// (#2514). The first match wins, so a specific reason precedes the kind it
+// travels with; anything unlisted keeps the class code of its status.
+var staffShiftErrorCodes = []struct {
+	target error
+	code   string
+}{
+	{workforce.ErrReplacementOutsideOrigin, common.CodeWorkforceReplacementOutsideOrigin},
+	{workforce.ErrShiftHasReplacements, common.CodeWorkforceShiftHasReplacements},
+	{workforce.ErrShiftSeriesNoOccurrences, common.CodeWorkforceShiftSeriesNoOccurrences},
+	{workforce.ErrShiftSeriesOutsidePeriod, common.CodeWorkforceShiftSeriesOutsidePeriod},
+	{workforce.ErrShiftSeriesWeekCycleMissing, common.CodeWorkforceShiftSeriesWeekCycleMissing},
+	{workforce.ErrStaffShiftOverlap, common.CodeWorkforceShiftOverlap},
+	{workforce.ErrStaffShiftConflict, common.CodeWorkforceShiftChanged},
+	{workforce.ErrStaffShiftDuplicate, common.CodeWorkforceShiftDuplicate},
+	{workforce.ErrShiftTypeInactive, common.CodeWorkforceShiftTypeInactive},
+}
+
+func staffShiftErrorCode(err error) string {
+	for _, entry := range staffShiftErrorCodes {
+		if errors.Is(err, entry.target) {
+			return entry.code
+		}
+	}
+	return ""
+}
+
 // renderStaffShiftsFailure renders the failure with the shared envelope; the
 // error's own wording is the message, as it was before the cutover. An
 // internal failure carrying a client message keeps its cause in the log
 // only.
 func renderStaffShiftsFailure(w http.ResponseWriter, r *http.Request, kind staffshiftsHTTP.FailureKind, err error) {
+	code := staffShiftErrorCode(err)
 	switch kind {
 	case staffshiftsHTTP.FailureInvalid:
+		if code != "" {
+			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, code))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case staffshiftsHTTP.FailureNotFound:
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case staffshiftsHTTP.FailureConflict:
+		// A duplicate is a unique violation that already aborted the
+		// transaction; it was a 500 before and must still roll back.
+		if errors.Is(err, workforce.ErrStaffShiftDuplicate) {
+			tenant.MarkRollback(r.Context())
+		}
+		if code != "" {
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, code))
+			return
+		}
 		common.RenderError(w, r, common.ErrorConflict(err))
 	case staffshiftsHTTP.FailureUnauthorized:
 		common.RenderError(w, r, common.ErrorUnauthorized(err))

@@ -10,27 +10,20 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 )
 
 // ErrAbsenceRebookingBlocked marks a rebooking the Leitung has to resolve
-// first (#3258). The error text is German and shown as it is.
-var ErrAbsenceRebookingBlocked = errors.New("absence rebooking blocked")
+// first (#3258); rebookingBlocked carries its code and values (#2514).
+var (
+	ErrAbsenceRebookingBlocked = workforce.ErrAbsenceRebookingBlocked
+	rebookingBlocked           = workforce.RebookingBlocked
+)
 
 // maxRebookedAbsences bounds one rebooking. The call from the Wissingen case
 // needs about ten entries; a school year of weekly entries stays below it.
 const maxRebookedAbsences = 100
-
-type absenceRebookingBlockedError struct{ reason string }
-
-func (e absenceRebookingBlockedError) Error() string { return e.reason }
-func (e absenceRebookingBlockedError) Is(target error) bool {
-	return target == ErrAbsenceRebookingBlocked
-}
-
-func rebookingBlocked(format string, args ...any) error {
-	return absenceRebookingBlockedError{reason: fmt.Sprintf(format, args...)}
-}
 
 // RebookAbsencesRequest moves stored absences of one staff member to another
 // type without deleting them (#3258). The target is a standard type or a
@@ -98,7 +91,7 @@ func (s *staffAbsenceService) RebookAbsences(ctx context.Context, req RebookAbse
 		return nil, fmt.Errorf("invalid absence type")
 	}
 	if baseType == AbsenceTypeSick {
-		return nil, rebookingBlocked("In eine Krankmeldung lässt sich nicht umbuchen. Löschen Sie den Eintrag und tragen Sie die Krankmeldung neu ein.")
+		return nil, rebookingBlocked(workforce.RebookingIntoSickReportCode, workforce.RebookingValues{}, "In eine Krankmeldung lässt sich nicht umbuchen. Löschen Sie den Eintrag und tragen Sie die Krankmeldung neu ein.")
 	}
 	if err := s.lockStaffAbsenceWrites(ctx, req.StaffID); err != nil {
 		return nil, err
@@ -175,13 +168,13 @@ func validateRebookingRequest(req RebookAbsencesRequest, reason string) ([]int64
 		}
 	}
 	if len(ids) == 0 {
-		return nil, rebookingBlocked("Wählen Sie mindestens einen Eintrag aus.")
+		return nil, rebookingBlocked(workforce.RebookingNothingSelectedCode, workforce.RebookingValues{}, "Wählen Sie mindestens einen Eintrag aus.")
 	}
 	if len(ids) > maxRebookedAbsences {
-		return nil, rebookingBlocked("Buchen Sie höchstens %d Einträge auf einmal um.", maxRebookedAbsences)
+		return nil, rebookingBlocked(workforce.RebookingTooManyCode, workforce.RebookingValues{Limit: maxRebookedAbsences}, "Buchen Sie höchstens %d Einträge auf einmal um.", maxRebookedAbsences)
 	}
 	if !req.DryRun && reason == "" {
-		return nil, rebookingBlocked("Geben Sie einen Grund für die Umbuchung an.")
+		return nil, rebookingBlocked(workforce.RebookingReasonRequiredCode, workforce.RebookingValues{}, "Geben Sie einen Grund für die Umbuchung an.")
 	}
 	return ids, nil
 }
@@ -205,13 +198,13 @@ func (s *staffAbsenceService) loadRebookedAbsences(ctx context.Context, staffID 
 		day := absence.DateStart.Format("02.01.2006")
 		switch {
 		case absence.AbsenceType == AbsenceTypeSick:
-			return nil, rebookingBlocked("Die Krankmeldung vom %s lässt sich nicht umbuchen. Löschen Sie sie und tragen Sie die richtige Art neu ein.", day)
+			return nil, rebookingBlocked(workforce.RebookingSickReportCode, workforce.RebookingValues{Day: day}, "Die Krankmeldung vom %s lässt sich nicht umbuchen. Löschen Sie sie und tragen Sie die richtige Art neu ein.", day)
 		case absence.Status != AbsenceStatusReported:
-			return nil, rebookingBlocked("Der Eintrag vom %s ist ein Antrag. Anträge lassen sich nicht umbuchen.", day)
+			return nil, rebookingBlocked(workforce.RebookingRequestCode, workforce.RebookingValues{Day: day}, "Der Eintrag vom %s ist ein Antrag. Anträge lassen sich nicht umbuchen.", day)
 		case absence.AbsenceType == baseType && sameAbsenceTypeID(absence.AbsenceTypeID, typeID):
-			return nil, rebookingBlocked("Der Eintrag vom %s hat diese Art schon.", day)
+			return nil, rebookingBlocked(workforce.RebookingSameTypeCode, workforce.RebookingValues{Day: day}, "Der Eintrag vom %s hat diese Art schon.", day)
 		case !absence.DateEnd.Before(s.today()):
-			return nil, rebookingBlocked("Der Eintrag ist noch nicht vorbei. Sie können ihn danach ändern.")
+			return nil, rebookingBlocked(workforce.RebookingNotOverCode, workforce.RebookingValues{}, "Der Eintrag ist noch nicht vorbei. Sie können ihn danach ändern.")
 		}
 		after := *absence
 		after.AbsenceType, after.AbsenceTypeID = baseType, typeID
@@ -247,7 +240,7 @@ func (s *staffAbsenceService) validateRebookedAbsence(ctx context.Context, entry
 	// Only vacation keeps half days at the edges of a longer range; every
 	// other type knows a half day on single-day entries only.
 	if after.AbsenceType != AbsenceTypeVacation && !after.HalfDay && (after.StartHalfDay || after.EndHalfDay) {
-		return rebookingBlocked("Der Urlaub ab %s hat einen halben Tag am Rand. Löschen Sie ihn und tragen Sie die Tage mit der richtigen Art neu ein.", day)
+		return rebookingBlocked(workforce.RebookingHalfDayEdgeCode, workforce.RebookingValues{Day: day}, "Der Urlaub ab %s hat einen halben Tag am Rand. Löschen Sie ihn und tragen Sie die Tage mit der richtigen Art neu ein.", day)
 	}
 	switch after.AbsenceType {
 	case AbsenceTypeCompTime:
@@ -256,18 +249,18 @@ func (s *staffAbsenceService) validateRebookedAbsence(ctx context.Context, entry
 		}
 		err := s.rejectPreAccountCompTime(ctx, after.AbsenceType, after.DateStart, after.DateEnd)
 		if err != nil && strings.HasPrefix(err.Error(), "invalid comp_time") {
-			return rebookingBlocked("Der Eintrag vom %s liegt außerhalb des Stundenkontos. Dort ist kein Freizeitausgleich möglich.", day)
+			return rebookingBlocked(workforce.RebookingOutsideBalanceCode, workforce.RebookingValues{Day: day}, "Der Eintrag vom %s liegt außerhalb des Stundenkontos. Dort ist kein Freizeitausgleich möglich.", day)
 		}
 		if err != nil {
 			return err
 		}
 	case AbsenceTypeVacation:
 		if after.WorkingDays == nil || *after.WorkingDays <= 0 {
-			return rebookingBlocked("Der Eintrag vom %s hat keinen Arbeitstag. Urlaub braucht mindestens einen.", day)
+			return rebookingBlocked(workforce.RebookingNoWorkingDayCode, workforce.RebookingValues{Day: day}, "Der Eintrag vom %s hat keinen Arbeitstag. Urlaub braucht mindestens einen.", day)
 		}
 		err := s.rejectVacationBeforeOpening(ctx, after)
 		if errors.Is(err, ErrVacationOpeningAbsencesBeforeCutoff) {
-			return rebookingBlocked("Der Eintrag vom %s liegt vor der Urlaubsübernahme. Dort lässt sich kein Urlaub eintragen.", day)
+			return rebookingBlocked(workforce.RebookingBeforeVacationOpeningCode, workforce.RebookingValues{Day: day}, "Der Eintrag vom %s liegt vor der Urlaubsübernahme. Dort lässt sich kein Urlaub eintragen.", day)
 		}
 		if err != nil {
 			return err
@@ -286,7 +279,7 @@ func validateRebookedAbsenceOverlaps(absences []*StaffAbsence, entries []rebooke
 				continue
 			}
 			if !absence.DateEnd.Before(entry.after.DateStart) && !entry.after.DateEnd.Before(absence.DateStart) {
-				return rebookingBlocked("Der Eintrag überschneidet sich mit einer anderen Abwesenheit. Löschen Sie einen Eintrag und tragen Sie ihn neu ein.")
+				return rebookingBlocked(workforce.RebookingOverlapCode, workforce.RebookingValues{}, "Der Eintrag überschneidet sich mit einer anderen Abwesenheit. Löschen Sie einen Eintrag und tragen Sie ihn neu ein.")
 			}
 		}
 	}
@@ -305,9 +298,11 @@ func (s *staffAbsenceService) rejectClosedMonths(ctx context.Context, staffID in
 			return fmt.Errorf("failed to check month close state for rebooking: %w", err)
 		}
 		if snapshot != nil && snapshot.Year == key.Year && snapshot.Month == key.Month {
+			month := germanMonth(key)
 			return rebookingBlocked(
+				workforce.MonthClosedCode, workforce.RebookingValues{Month: month},
 				"Der %s ist abgeschlossen. Öffnen Sie den Monat zuerst wieder. Das geht im Reiter Zeiterfassung.",
-				germanMonth(key),
+				month,
 			)
 		}
 	}

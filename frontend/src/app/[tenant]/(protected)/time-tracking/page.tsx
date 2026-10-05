@@ -1,10 +1,10 @@
 "use client";
 
-import { wireErrorCode } from "~/lib/api-error";
 import React, {
   useState,
   useEffect,
   useCallback,
+  useLayoutEffect,
   useMemo,
   Suspense,
   useRef,
@@ -80,7 +80,16 @@ import {
 } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { LOCATION_COLORS } from "~/lib/location-helper";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import {
   usePeriodMetrics,
   type PeriodMetrics,
@@ -104,7 +113,7 @@ import {
   timeTrackingService,
 } from "~/lib/time-tracking-api";
 import { userContextService } from "~/lib/usercontext-api";
-import type { ApiError } from "~/lib/auth-api";
+import { ApiError } from "~/lib/api-error";
 import {
   type MonthSummary,
   type StaffAbsence,
@@ -145,78 +154,6 @@ function formatDateGerman(date: Date): string {
   const month = (date.getMonth() + 1).toString().padStart(2, "0");
   const year = date.getFullYear();
   return `${day}.${month}.${year}`;
-}
-
-// Extracts error message string from unknown error types
-function getErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === "string") return err;
-  return "";
-}
-
-// Reads the stable machine code of a failed request. `buildApiError` puts it on
-// `ApiError.code` and leaves `message` as the human-readable backend text, so
-// the code is never in the message; the JSON fallback covers the callers that
-// surface the raw response body as the message instead.
-function getErrorCode(err: unknown): string | undefined {
-  if (err !== null && typeof err === "object" && "code" in err) {
-    const code = (err as { code?: unknown }).code;
-    if (typeof code === "string" && code !== "") return code;
-  }
-  return /"code":"([^"]+)"/.exec(getErrorMessage(err))?.[1];
-}
-
-// Maps backend error messages to user-friendly German messages
-function friendlyError(err: unknown, fallback: string): string {
-  const msg = getErrorMessage(err);
-
-  // Stable machine codes win over the human-readable message: their text can
-  // carry dynamic content (e.g. the conflicting interval of an overlap).
-  const stableCode = wireErrorCode(getErrorCode(err));
-  if (stableCode === "workforce.work_session_overlap") {
-    return "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.";
-  }
-
-  // Extract backend error from nested API error format
-  const match = /"error":"([^"]+)"/.exec(msg);
-  const code = match?.[1] ?? msg;
-
-  const map: Record<string, string> = {
-    "already checked in": "Sie sind bereits eingestempelt.",
-    "already checked out today": "Sie haben heute bereits gearbeitet.",
-    "no active session found": "Kein aktiver Eintrag vorhanden.",
-    "no session found for today": "Kein Eintrag für heute vorhanden.",
-    "session not found": "Eintrag nicht gefunden.",
-    "can only update own sessions":
-      "Sie können nur eigene Einträge bearbeiten.",
-    "break already active": "Eine Pause läuft bereits.",
-    "no active break found": "Keine aktive Pause vorhanden.",
-    "absence not found": "Abwesenheit nicht gefunden.",
-    "can only update own absences":
-      "Sie können nur eigene Abwesenheiten bearbeiten.",
-    "can only delete own absences":
-      "Sie können nur eigene Abwesenheiten löschen.",
-    "invalid absence type": "Ungültiger Abwesenheitstyp.",
-  };
-
-  // Exact match first
-  if (map[code]) return map[code];
-
-  // Prefix-based matches for messages with dynamic content
-  if (
-    code.startsWith("absence overlaps") ||
-    code.startsWith("updated dates overlap")
-  ) {
-    return "Für diesen Zeitraum ist bereits eine andere Abwesenheitsart eingetragen.";
-  }
-  if (code.startsWith("invalid session data:")) {
-    return "Bitte prüfe Start- und Endzeit.";
-  }
-  if (code === "planned start not reached") {
-    return "Einstempeln ist noch nicht möglich. Bitte prüfe deine geplante Startzeit.";
-  }
-
-  return fallback;
 }
 
 const DAY_NAMES_LONG = [
@@ -619,6 +556,7 @@ function ClockInCard({
   metrics,
   plannedShifts,
   cancelledShifts,
+  stampingDisabled,
 }: {
   readonly currentSession: WorkSession | null;
   readonly breaks: WorkSessionBreak[];
@@ -633,6 +571,8 @@ function ClockInCard({
   readonly metrics?: PeriodMetrics | null;
   readonly plannedShifts?: readonly StaffShift[];
   readonly cancelledShifts?: readonly StaffShift[];
+  /** Session and absence data must be current before a stamp is allowed. */
+  readonly stampingDisabled: boolean;
 }) {
   // Null until the staff member explicitly picks Vor Ort / Homeoffice / Abwesend.
   // No pre-selection per Issue #1368 — silent defaults are unacceptable for an
@@ -748,6 +688,7 @@ function ClockInCard({
   useEffect(() => {
     if (
       shouldAutoEndBreak(countdownRemainingSecs, isOnBreak, actionLoading) &&
+      !stampingDisabled &&
       !autoEndInFlightRef.current &&
       activeBreak?.id !== autoEndAttemptedBreakIdRef.current
     ) {
@@ -768,6 +709,7 @@ function ClockInCard({
     countdownRemainingSecs,
     isOnBreak,
     actionLoading,
+    stampingDisabled,
     activeBreak?.id,
     onEndBreak,
   ]);
@@ -829,12 +771,19 @@ function ClockInCard({
     isCheckedIn && currentSession
       ? getSessionStatusBadge(isOnBreak, currentSession.status)
       : null;
+  const workModeItems = useMemo(
+    () =>
+      stampingDisabled
+        ? WORK_MODE_ITEMS.map((item) => ({ ...item, disabled: true }))
+        : WORK_MODE_ITEMS,
+    [stampingDisabled],
+  );
 
   const handleCheckIn = async () => {
     // mode === null: user has not yet chosen — the button is disabled in the
     // UI, but guard here too in case of stray double-clicks.
     // mode === "absent": that path opens the absence modal, not check-in.
-    if (mode === null || mode === "absent") return;
+    if (stampingDisabled || mode === null || mode === "absent") return;
     setActionLoading(true);
     try {
       await onCheckIn(mode);
@@ -844,6 +793,7 @@ function ClockInCard({
   };
 
   const handleCheckOut = async () => {
+    if (stampingDisabled) return;
     setActionLoading(true);
     try {
       await onCheckOut();
@@ -853,6 +803,7 @@ function ClockInCard({
   };
 
   const handleSelectBreakDuration = async (minutes: number) => {
+    if (stampingDisabled) return;
     setBreakMenuOpen(false);
     setPlannedBreakMinutes(minutes);
     setActionLoading(true);
@@ -873,6 +824,7 @@ function ClockInCard({
   };
 
   const handleEndBreakEarly = async () => {
+    if (stampingDisabled) return;
     setActionLoading(true);
     try {
       await onEndBreak();
@@ -890,7 +842,11 @@ function ClockInCard({
         size="icon"
         variant="ghost"
         aria-label="Pausendauer verringern"
-        disabled={actionLoading || individualBreakMinutes <= MIN_BREAK_MINUTES}
+        disabled={
+          stampingDisabled ||
+          actionLoading ||
+          individualBreakMinutes <= MIN_BREAK_MINUTES
+        }
         onClick={() => handleBreakStepperChange(-1)}
         className="h-[4.5rem] w-[4.5rem] !rounded-[1.75rem] border border-gray-200 shadow-none sm:h-12 sm:w-12 sm:!rounded-xl"
       >
@@ -919,7 +875,11 @@ function ClockInCard({
         size="icon"
         variant="ghost"
         aria-label="Pausendauer erhöhen"
-        disabled={actionLoading || individualBreakMinutes >= MAX_BREAK_MINUTES}
+        disabled={
+          stampingDisabled ||
+          actionLoading ||
+          individualBreakMinutes >= MAX_BREAK_MINUTES
+        }
         onClick={() => handleBreakStepperChange(1)}
         className="h-[4.5rem] w-[4.5rem] !rounded-[1.75rem] border border-gray-200 shadow-none sm:h-12 sm:w-12 sm:!rounded-xl"
       >
@@ -943,7 +903,7 @@ function ClockInCard({
       type="button"
       size="md"
       variant="primary"
-      disabled={actionLoading}
+      disabled={stampingDisabled || actionLoading}
       onClick={() => void handleSelectBreakDuration(individualBreakMinutes)}
       className="mx-auto w-full max-w-sm text-sm shadow-none"
     >
@@ -957,7 +917,7 @@ function ClockInCard({
         type="button"
         size="md"
         variant="primary"
-        disabled={actionLoading}
+        disabled={stampingDisabled || actionLoading}
         onClick={() => void handleSelectBreakDuration(individualBreakMinutes)}
         className="mx-auto mt-6 w-full max-w-sm text-sm shadow-none"
       >
@@ -992,7 +952,7 @@ function ClockInCard({
             <SegmentedControl
               ariaLabel="Arbeitsmodus"
               variant="pills"
-              items={WORK_MODE_ITEMS}
+              items={workModeItems}
               value={mode}
               onChange={setMode}
             />
@@ -1003,6 +963,7 @@ function ClockInCard({
                 type="button"
                 variant="ghost"
                 onClick={onAddAbsence}
+                disabled={stampingDisabled || actionLoading}
                 className={`${STAMP_BUTTON_BASE} border-moto-red text-moto-red hover:bg-moto-red/5 h-16 w-16`}
                 aria-label="Abwesenheit melden"
               >
@@ -1025,7 +986,7 @@ function ClockInCard({
                 type="button"
                 variant="ghost"
                 onClick={handleCheckIn}
-                disabled={actionLoading || mode === null}
+                disabled={stampingDisabled || actionLoading || mode === null}
                 className={getCheckInButtonClassName(mode)}
                 aria-label="Einstempeln"
               >
@@ -1065,7 +1026,7 @@ function ClockInCard({
                     type="button"
                     variant="ghost"
                     onClick={handleEndBreakEarly}
-                    disabled={actionLoading}
+                    disabled={stampingDisabled || actionLoading}
                     className={getBreakButtonClassName(true, breakMins)}
                     aria-label="Pause beenden"
                   >
@@ -1082,7 +1043,7 @@ function ClockInCard({
                     type="button"
                     variant="ghost"
                     onClick={() => setBreakMenuOpen(!breakMenuOpen)}
-                    disabled={actionLoading}
+                    disabled={stampingDisabled || actionLoading}
                     className={getBreakButtonClassName(false, breakMins)}
                     aria-label="Pause starten"
                     aria-expanded={breakMenuOpen}
@@ -1171,7 +1132,7 @@ function ClockInCard({
                 type="button"
                 variant="ghost"
                 onClick={handleCheckOut}
-                disabled={actionLoading || isOnBreak}
+                disabled={stampingDisabled || actionLoading || isOnBreak}
                 className={`${STAMP_BUTTON_BASE} hover:border-moto-red hover:text-moto-red h-12 w-12 border-gray-300 text-gray-500 disabled:opacity-50`}
                 aria-label="Ausstempeln"
               >
@@ -1678,7 +1639,12 @@ function OwnZeiterfassungSection({
   // Dedicated table-range fetches. Independent from the WeekChart's
   // 10-workday history fetch, so navigating the table (especially in
   // month mode) does not enlarge the chart's data window.
-  const { data: tableData, isLoading: tableLoading } = useSWRAuth<{
+  const {
+    data: tableData,
+    isLoading: tableLoading,
+    error: tableError,
+    mutate: mutateTable,
+  } = useSWRAuth<{
     sessions: WorkSessionHistory[];
     weeklySummaries: WeeklySummary[];
   }>(
@@ -1692,6 +1658,7 @@ function OwnZeiterfassungSection({
     data: tableAbsenceData,
     isLoading: tableAbsencesLoading,
     error: tableAbsencesError,
+    mutate: mutateTableAbsences,
   } = useSWRAuth<StaffAbsence[]>(
     `time-tracking-table-absences-${visibleFromKey}-${visibleToKey}`,
     () => timeTrackingService.getAbsences(visibleFromKey, visibleToKey),
@@ -1720,6 +1687,7 @@ function OwnZeiterfassungSection({
     data: tableShifts,
     isLoading: shiftsLoading,
     error: shiftsError,
+    mutate: mutateShifts,
   } = useSWRAuth(
     `time-tracking-table-shifts-${visibleFromKey}-${visibleToKey}`,
     () => ownShiftService.getOwnShifts(visibleFromKey, visibleToKey),
@@ -1738,6 +1706,7 @@ function OwnZeiterfassungSection({
     data: dailyProjection,
     error: dailyProjectionError,
     isLoading: dailyProjectionLoading,
+    mutate: mutateDailyProjection,
   } = useSWRAuth(
     `time-tracking-schedule-targets-${visibleFromKey}-${visibleToKey}`,
     () => timeTrackingService.getDailyProjection(visibleFromKey, visibleToKey),
@@ -1773,6 +1742,7 @@ function OwnZeiterfassungSection({
     data: monthSummary,
     isLoading: monthSummaryLoading,
     error: monthSummaryError,
+    mutate: mutateMonthSummary,
   } = useSWRAuth<MonthSummary>(
     viewMode === "month"
       ? `time-tracking-month-summary-${monthYear}-${monthNumber}`
@@ -1785,6 +1755,7 @@ function OwnZeiterfassungSection({
     data: timeTrackingConfig,
     isLoading: timeTrackingConfigLoading,
     error: timeTrackingConfigError,
+    mutate: mutateTimeTrackingConfig,
   } = useSWRAuth(
     "time-tracking-config",
     () => timeTrackingService.getConfig(),
@@ -1805,6 +1776,75 @@ function OwnZeiterfassungSection({
   // lexicographically; both are "YYYY-MM-DD".
   const accountStartsInFuture =
     accountStartDate !== "" && accountStartDate > todayISO;
+
+  // Failed loads stay where the data is missing (#2514), with retry and
+  // request ID; a failed list never reads as "no entries".
+  const tableLoad = useApiLoadError();
+  const tableAbsencesLoad = useApiLoadError();
+  const shiftsLoad = useApiLoadError();
+  const monthLoad = useApiLoadError();
+
+  const showTableLoadError = tableLoad.show;
+  const clearTableLoadError = tableLoad.clear;
+  useEffect(() => {
+    if (tableError) {
+      void showTableLoadError(tableError, {
+        object: "die Liste Ihrer Arbeitszeiten",
+        retry: () => void mutateTable(),
+      });
+    } else {
+      clearTableLoadError();
+    }
+  }, [tableError, mutateTable, showTableLoadError, clearTableLoadError]);
+
+  const showTableAbsencesLoadError = tableAbsencesLoad.show;
+  const clearTableAbsencesLoadError = tableAbsencesLoad.clear;
+  useEffect(() => {
+    if (tableAbsencesError) {
+      void showTableAbsencesLoadError(tableAbsencesError, {
+        object: "die Liste Ihrer Abwesenheiten",
+        retry: () => void mutateTableAbsences(),
+      });
+    } else {
+      clearTableAbsencesLoadError();
+    }
+  }, [
+    tableAbsencesError,
+    mutateTableAbsences,
+    showTableAbsencesLoadError,
+    clearTableAbsencesLoadError,
+  ]);
+
+  const showShiftsLoadError = shiftsLoad.show;
+  const clearShiftsLoadError = shiftsLoad.clear;
+  useEffect(() => {
+    if (shiftsError) {
+      void showShiftsLoadError(shiftsError, {
+        object: "die Liste Ihrer Schichten",
+        retry: () => void mutateShifts(),
+      });
+    } else {
+      clearShiftsLoadError();
+    }
+  }, [shiftsError, mutateShifts, showShiftsLoadError, clearShiftsLoadError]);
+
+  const showMonthLoadError = monthLoad.show;
+  const clearMonthLoadError = monthLoad.clear;
+  useEffect(() => {
+    if (monthSummaryError) {
+      void showMonthLoadError(monthSummaryError, {
+        object: "die Monatskarte",
+        retry: () => void mutateMonthSummary(),
+      });
+    } else {
+      clearMonthLoadError();
+    }
+  }, [
+    monthSummaryError,
+    mutateMonthSummary,
+    showMonthLoadError,
+    clearMonthLoadError,
+  ]);
 
   // Self-scoped audit-trail fetcher so staff read their own Abweichungsgründe
   // without time_tracking:manage (#1842 AC8).
@@ -1844,11 +1884,7 @@ function OwnZeiterfassungSection({
           <Monatskarte
             summary={monthSummary ?? null}
             isLoading={monthSummaryLoading}
-            error={
-              monthSummaryError
-                ? "Die Monatskarte konnte nicht geladen werden."
-                : null
-            }
+            error={monthLoad.error}
             isCurrentMonth={isCurrentMonth}
             isPreAccountMonth={isPreAccountMonth}
             accountStartsInFuture={accountStartsInFuture}
@@ -1862,43 +1898,49 @@ function OwnZeiterfassungSection({
         </SkeletonRegion>
       ) : (
         <>
-          {shiftsError ? (
-            <div className="mb-4">
-              <Alert
-                type="error"
-                message="Der Dienstplan konnte nicht geladen werden. Die Plan-Spalte ist deshalb unvollständig; bitte die Seite neu laden."
-              />
+          {tableLoad.error || tableAbsencesLoad.error || shiftsLoad.error ? (
+            <div className="mb-4 space-y-3">
+              <LoadErrorAlert error={tableLoad.error} />
+              <LoadErrorAlert error={tableAbsencesLoad.error} />
+              <LoadErrorAlert error={shiftsLoad.error} />
             </div>
           ) : null}
-          <StaffSessionTable
-            staffId={ownStaffId ?? ""}
-            from={visibleFrom}
-            to={visibleTo}
-            sessions={adaptedSessions}
-            absences={adaptedAbsences}
-            absencesUnresolved={
-              tableAbsencesLoading ||
-              tableAbsencesError != null ||
-              tableAbsenceData === undefined
-            }
-            schedule={schedule}
-            dailyProjection={dailyProjection}
-            dailyProjectionError={dailyProjectionError != null}
-            dailyProjectionPending={dailyProjectionLoading}
-            holidays={tableHolidays}
-            closingDays={tableClosingDays}
-            accountStartDate={timeTrackingConfig?.accountStartDate ?? null}
-            accountStartDatePending={timeTrackingConfigLoading}
-            accountStartDateError={
-              timeTrackingConfig === undefined &&
-              timeTrackingConfigError != null
-            }
-            today={today}
-            isAdminView={ownStaffId !== null}
-            onEditDay={(date, session) => handleEdit(date, session)}
-            plannedShifts={tableShifts ?? []}
-            fetchEdits={fetchOwnEdits}
-          />
+          {/* Without the sessions a table of empty days would read as "nothing
+              recorded"; the notice above stands in for it. */}
+          {tableError && tableData === undefined ? null : (
+            <StaffSessionTable
+              staffId={ownStaffId ?? ""}
+              from={visibleFrom}
+              to={visibleTo}
+              sessions={adaptedSessions}
+              absences={adaptedAbsences}
+              absencesUnresolved={
+                tableAbsencesLoading ||
+                tableAbsencesError != null ||
+                tableAbsenceData === undefined
+              }
+              schedule={schedule}
+              dailyProjection={dailyProjection}
+              dailyProjectionError={dailyProjectionError}
+              onRetryDailyProjection={() => void mutateDailyProjection()}
+              dailyProjectionPending={dailyProjectionLoading}
+              holidays={tableHolidays}
+              closingDays={tableClosingDays}
+              accountStartDate={timeTrackingConfig?.accountStartDate ?? null}
+              accountStartDatePending={timeTrackingConfigLoading}
+              accountStartDateError={
+                timeTrackingConfig === undefined
+                  ? timeTrackingConfigError
+                  : undefined
+              }
+              onRetryAccountStartDate={() => void mutateTimeTrackingConfig()}
+              today={today}
+              isAdminView={ownStaffId !== null}
+              onEditDay={(date, session) => handleEdit(date, session)}
+              plannedShifts={tableShifts ?? []}
+              fetchEdits={fetchOwnEdits}
+            />
+          )}
         </>
       )}
     </SectionCard>
@@ -2212,6 +2254,10 @@ function EditSessionModal({
 
   const [activeTab, setActiveTab] = useState<"session" | "absence">("session");
   const router = useTenantRouter();
+  // A failed save or delete stays in this slide-over, which stays open.
+  const formAreaRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formAreaRef);
+  const clearFormErrors = formErrors.clear;
 
   const hasIndividualBreaks = (session?.breaks.length ?? 0) > 0;
   const hasSession = session !== null;
@@ -2222,8 +2268,9 @@ function EditSessionModal({
   useEffect(() => {
     if (isOpen) {
       setActiveTab("session");
+      clearFormErrors();
     }
-  }, [isOpen]);
+  }, [isOpen, clearFormErrors]);
 
   useEffect(() => {
     if (session && isOpen) {
@@ -2331,6 +2378,7 @@ function EditSessionModal({
     if (!session) return;
     if (hasInvalidTimeRange) return;
     setSaving(true);
+    formErrors.clear();
     try {
       // Use session's actual date, not the clicked day (they may differ)
       const parts = session.date.split("-");
@@ -2373,6 +2421,14 @@ function EditSessionModal({
         });
       }
       onClose();
+    } catch (err) {
+      logger.error("session_edit_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        session_id: session.id,
+      });
+      // No retry link: the handlers live below the early returns, so a
+      // latest-ref is not possible; „Speichern“ resends the current draft.
+      await formErrors.show(err, { object: "die Arbeitszeit" });
     } finally {
       setSaving(false);
     }
@@ -2381,6 +2437,7 @@ function EditSessionModal({
   const handleAbsenceSave = async () => {
     if (!absence) return;
     setAbsenceSaving(true);
+    formErrors.clear();
     try {
       await onUpdateAbsence(absence.id, {
         ...absenceRequestFor(absType),
@@ -2390,6 +2447,13 @@ function EditSessionModal({
         note: absNote.trim() || undefined,
       });
       onClose();
+    } catch (err) {
+      logger.error("update_absence_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        absence_id: absence.id,
+      });
+      // „Speichern“ resends the current draft (see handleSave).
+      await formErrors.show(err, { object: "die Abwesenheit" });
     } finally {
       setAbsenceSaving(false);
     }
@@ -2398,9 +2462,19 @@ function EditSessionModal({
   const handleAbsenceDelete = async () => {
     if (!absence) return;
     setAbsenceDeleting(true);
+    formErrors.clear();
     try {
       await onDeleteAbsence(absence.id);
       onClose();
+    } catch (err) {
+      logger.error("delete_absence_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        absence_id: absence.id,
+      });
+      await formErrors.show(err, {
+        object: "die Abwesenheit",
+        retry: () => void handleAbsenceDelete(),
+      });
     } finally {
       setAbsenceDeleting(false);
     }
@@ -2476,7 +2550,11 @@ function EditSessionModal({
           </div>
           <SlideOverCloseButton />
         </SlideOverHeader>
-        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+        <div
+          ref={formAreaRef}
+          className="flex-1 space-y-4 overflow-y-auto px-5 py-4"
+        >
+          <FormErrorAlert message={formErrors.error} />
           {/* Section switcher for a session or a backfillable half-day alongside
             an absence. The kit
             SegmentedControl, NOT ui/Tabs: Radix tabs activate on mousedown, and
@@ -2503,27 +2581,29 @@ function EditSessionModal({
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Input
                   id="edit-start"
-                  name="edit-start"
+                  name="check_in_time"
                   label="Start"
                   controlSize="compact"
                   type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
+                  error={formErrors.fieldError("check_in_time")}
                 />
                 <Input
                   id="edit-end"
-                  name="edit-end"
+                  name="check_out_time"
                   label="Ende"
                   controlSize="compact"
                   type="time"
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
+                  error={
+                    hasInvalidTimeRange
+                      ? "Das Ende muss nach dem Beginn liegen."
+                      : formErrors.fieldError("check_out_time")
+                  }
                 />
               </div>
-
-              {hasInvalidTimeRange && (
-                <Alert type="error" message="Ende muss nach Start liegen." />
-              )}
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {/* Break section */}
@@ -2637,6 +2717,8 @@ function EditSessionModal({
                 </div>
                 <Textarea
                   id="edit-notes"
+                  name="notes"
+                  error={formErrors.fieldError("notes")}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={2}
@@ -2722,6 +2804,7 @@ function EditSessionModal({
                       </label>
                       <ISODatePicker
                         id="edit-abs-start"
+                        error={formErrors.fieldError("date_start")}
                         value={absDateStart}
                         onChange={setAbsDateStart}
                         calendarLayout="popover"
@@ -2737,6 +2820,7 @@ function EditSessionModal({
                       </label>
                       <ISODatePicker
                         id="edit-abs-end"
+                        error={formErrors.fieldError("date_end")}
                         value={absDateEnd}
                         min={absDateStart || undefined}
                         onChange={setAbsDateEnd}
@@ -2771,6 +2855,8 @@ function EditSessionModal({
                     </label>
                     <Textarea
                       id="edit-abs-note"
+                      name="note"
+                      error={formErrors.fieldError("note")}
                       value={absNote}
                       onChange={(e) => setAbsNote(e.target.value)}
                       rows={2}
@@ -2837,6 +2923,12 @@ function CreateAbsenceModal({
   const [halfDay, setHalfDay] = useState(false);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  // A failed save stays in this dialog, which stays open.
+  const formAreaRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formAreaRef);
+  const clearFormErrors = formErrors.clear;
+  // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
+  const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
   const absenceTypeSelect = useAbsenceTypeSelect({
     value: absenceType,
     onChange: setAbsenceType,
@@ -2860,8 +2952,9 @@ function CreateAbsenceModal({
       setDateEnd(today);
       setHalfDay(false);
       setNote("");
+      clearFormErrors();
     }
-  }, [isOpen]);
+  }, [isOpen, clearFormErrors]);
 
   // Clamp dateEnd when dateStart moves past it
   useEffect(() => {
@@ -2872,6 +2965,7 @@ function CreateAbsenceModal({
 
   const handleSave = async () => {
     setSaving(true);
+    formErrors.clear();
     try {
       await onSave({
         ...absenceRequestFor(absenceType),
@@ -2880,10 +2974,21 @@ function CreateAbsenceModal({
         half_day: halfDay || undefined,
         note: note.trim() || undefined,
       });
+    } catch (err) {
+      logger.error("create_absence_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await formErrors.show(err, {
+        object: "die Abwesenheit",
+        retry: () => void latestSaveRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+  useLayoutEffect(() => {
+    latestSaveRef.current = handleSave;
+  });
 
   return (
     <Modal
@@ -2899,7 +3004,8 @@ function CreateAbsenceModal({
         />
       }
     >
-      <div className="space-y-4">
+      <div ref={formAreaRef} className="space-y-4">
+        <FormErrorAlert message={formErrors.error} />
         {/* Absence type */}
         <div>
           <div className="mb-1 flex items-baseline justify-between gap-2">
@@ -2936,6 +3042,7 @@ function CreateAbsenceModal({
             </label>
             <ISODatePicker
               id="absence-start"
+              error={formErrors.fieldError("date_start")}
               value={dateStart}
               onChange={setDateStart}
               calendarLayout="popover"
@@ -2951,6 +3058,7 @@ function CreateAbsenceModal({
             </label>
             <ISODatePicker
               id="absence-end"
+              error={formErrors.fieldError("date_end")}
               value={dateEnd}
               min={dateStart || undefined}
               onChange={setDateEnd}
@@ -2981,6 +3089,8 @@ function CreateAbsenceModal({
           </label>
           <Textarea
             id="absence-note"
+            name="note"
+            error={formErrors.fieldError("note")}
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
@@ -3136,10 +3246,17 @@ function TimeTrackingContent() {
   } | null>(null);
   const [deviationReason, setDeviationReason] = useState("");
   const [deviationSubmitting, setDeviationSubmitting] = useState(false);
+  const deviationErrors = useApiFormError();
+  const confirmDeviationRef = useRef<() => Promise<void>>(
+    async () => undefined,
+  );
+  const clearDeviationErrors = deviationErrors.clear;
   const handleClosePendingDeviation = useCallback(() => {
+    clearDeviationErrors();
     setPendingDeviation(null);
     setDeviationReason("");
-  }, []);
+  }, [clearDeviationErrors]);
+  const { show: showActionError } = useApiErrorDisplay();
 
   // Calculate date range for data fetching
   // - Chart shows trailing 10 workdays ending at reference date
@@ -3166,12 +3283,16 @@ function TimeTrackingContent() {
   })();
 
   // Fetch current session
-  const { data: currentSession, mutate: mutateCurrentSession } =
-    useSWRAuth<WorkSession | null>(
-      "time-tracking-current",
-      () => timeTrackingService.getCurrentSession(),
-      { keepPreviousData: true, revalidateOnFocus: false, errorRetryCount: 1 },
-    );
+  const {
+    data: currentSession,
+    isLoading: currentSessionLoading,
+    error: currentSessionError,
+    mutate: mutateCurrentSession,
+  } = useSWRAuth<WorkSession | null>(
+    "time-tracking-current",
+    () => timeTrackingService.getCurrentSession(),
+    { keepPreviousData: true, revalidateOnFocus: false, errorRetryCount: 1 },
+  );
 
   // Pattern-mutate helper — refreshes the OwnZeiterfassungSection's dedicated
   // table fetches, its Tagesprojektion and its Monatskarte after a
@@ -3192,7 +3313,11 @@ function TimeTrackingContent() {
   ]);
 
   // Fetch history covering 2 weeks (chart needs prev + current week)
-  const { data: historyData, mutate: mutateHistory } = useSWRAuth<{
+  const {
+    data: historyData,
+    error: historyError,
+    mutate: mutateHistory,
+  } = useSWRAuth<{
     sessions: WorkSessionHistory[];
     weeklySummaries: WeeklySummary[];
   }>(
@@ -3206,9 +3331,12 @@ function TimeTrackingContent() {
   const history = useMemo(() => historyData?.sessions ?? [], [historyData]);
 
   // Fetch absences for the same date range
-  const { data: absencesData, mutate: mutateAbsences } = useSWRAuth<
-    StaffAbsence[]
-  >(
+  const {
+    data: absencesData,
+    isLoading: absencesLoading,
+    error: absencesError,
+    mutate: mutateAbsences,
+  } = useSWRAuth<StaffAbsence[]>(
     chartFromDate && toDate
       ? `time-tracking-absences-${chartFromDate}-${toDate}`
       : null,
@@ -3222,11 +3350,23 @@ function TimeTrackingContent() {
   const todayAbsence = absences.find(
     (a) => a.dateStart <= todayISO && a.dateEnd >= todayISO,
   );
+  // A missing current-session answer looks exactly like "not checked in" and
+  // a missing absence list bypasses the confirmation for an existing absence.
+  // Do not turn either unknown state into a stamp action, including after a
+  // failed refresh where SWR deliberately keeps the previous response.
+  const stampingDisabled =
+    currentSessionLoading ||
+    absencesLoading ||
+    currentSessionError !== undefined ||
+    absencesError !== undefined;
 
   // Today's own planned shifts (Dienstplan) — shown as a quiet
   // "Geplant: 08:00–16:00" line in the Stempeluhr card. Fetched for today
   // only, independent of the viewed chart week, so navigating to another
   // week never hides today's planned shifts.
+  // A failed load only drops the quiet "Geplant" line: stamping works
+  // without it, and the plan column of the table below reports its own
+  // failed shift load in place.
   const { data: ownTodayShifts } = useSWRAuth<StaffShift[]>(
     `time-tracking-own-shifts-today-${todayISO}`,
     () => ownShiftService.getOwnShifts(todayISO, todayISO),
@@ -3262,7 +3402,11 @@ function TimeTrackingContent() {
   // plus a history fetch over the whole account range into computeStaffMetrics,
   // which re-priced historical days at today's hours and contradicted the
   // Monatskarte further down this very page.
-  const { data: ownStaff } = useSWRAuth(
+  const {
+    data: ownStaff,
+    error: ownStaffError,
+    mutate: mutateOwnStaff,
+  } = useSWRAuth(
     "time-tracking-own-staff",
     () => userContextService.getCurrentStaff(),
     { revalidateOnFocus: false },
@@ -3273,7 +3417,11 @@ function TimeTrackingContent() {
   const timetableEnabled = useTimetableEnabled();
   const tenantPath = useTenantAwarePath();
 
-  const { data: ownSchedule } = useSWRAuth(
+  const {
+    data: ownSchedule,
+    error: ownScheduleError,
+    mutate: mutateOwnSchedule,
+  } = useSWRAuth(
     ownStaffId ? `time-tracking-own-schedule-${ownStaffId}` : null,
     () => staffScheduleService.getSchedule(ownStaffId as string),
     { revalidateOnFocus: false },
@@ -3281,10 +3429,116 @@ function TimeTrackingContent() {
 
   const ownMetrics = usePeriodMetrics();
 
+  // Failed loads stay where the data is missing (#2514): with retry and
+  // request ID, never as a toast or as an empty card.
+  const currentLoad = useApiLoadError();
+  const historyLoad = useApiLoadError();
+  const absencesLoad = useApiLoadError();
+  const profileLoad = useApiLoadError();
+  const breaksLoad = useApiLoadError();
+  const metricsLoad = useApiLoadError();
+
+  const metricsError = ownMetrics.error;
+  const retryMetrics = ownMetrics.retry;
+  const showMetricsLoadError = metricsLoad.show;
+  const clearMetricsLoadError = metricsLoad.clear;
+  useEffect(() => {
+    if (metricsError) {
+      void showMetricsLoadError(metricsError, {
+        object: "die Kennzahlen",
+        retry: () => void retryMetrics(),
+      });
+    } else {
+      clearMetricsLoadError();
+    }
+  }, [metricsError, retryMetrics, showMetricsLoadError, clearMetricsLoadError]);
+
+  const showCurrentLoadError = currentLoad.show;
+  const clearCurrentLoadError = currentLoad.clear;
+  useEffect(() => {
+    if (currentSessionError) {
+      void showCurrentLoadError(currentSessionError, {
+        object: "die laufende Arbeitszeit",
+        retry: () => void mutateCurrentSession(),
+      });
+    } else {
+      clearCurrentLoadError();
+    }
+  }, [
+    currentSessionError,
+    mutateCurrentSession,
+    showCurrentLoadError,
+    clearCurrentLoadError,
+  ]);
+
+  const showHistoryLoadError = historyLoad.show;
+  const clearHistoryLoadError = historyLoad.clear;
+  useEffect(() => {
+    if (historyError) {
+      void showHistoryLoadError(historyError, {
+        object: "die Wochenübersicht",
+        retry: () => void mutateHistory(),
+      });
+    } else {
+      clearHistoryLoadError();
+    }
+  }, [
+    historyError,
+    mutateHistory,
+    showHistoryLoadError,
+    clearHistoryLoadError,
+  ]);
+
+  const showAbsencesLoadError = absencesLoad.show;
+  const clearAbsencesLoadError = absencesLoad.clear;
+  useEffect(() => {
+    if (absencesError) {
+      void showAbsencesLoadError(absencesError, {
+        object: "die Liste Ihrer Abwesenheiten",
+        retry: () => void mutateAbsences(),
+      });
+    } else {
+      clearAbsencesLoadError();
+    }
+  }, [
+    absencesError,
+    mutateAbsences,
+    showAbsencesLoadError,
+    clearAbsencesLoadError,
+  ]);
+
+  // Without the own staff record or work schedule the export, the plan
+  // column and the Soll are missing; one notice covers both.
+  const profileError: unknown = ownStaffError ?? ownScheduleError;
+  const showProfileLoadError = profileLoad.show;
+  const clearProfileLoadError = profileLoad.clear;
+  useEffect(() => {
+    if (profileError) {
+      void showProfileLoadError(profileError, {
+        object: "die Arbeitszeitregelung",
+        retry: () => {
+          void mutateOwnStaff();
+          void mutateOwnSchedule();
+        },
+      });
+    } else {
+      clearProfileLoadError();
+    }
+  }, [
+    profileError,
+    mutateOwnStaff,
+    mutateOwnSchedule,
+    showProfileLoadError,
+    clearProfileLoadError,
+  ]);
+
   // Fetch breaks for current session
+  const showBreaksLoadError = breaksLoad.show;
+  const clearBreaksLoadError = breaksLoad.clear;
   const fetchBreaks = useCallback(async () => {
     if (!currentSession?.id || currentSession.checkOutTime) {
       setCurrentBreaks([]);
+      clearBreaksLoadError();
       return;
     }
     try {
@@ -3292,18 +3546,31 @@ function TimeTrackingContent() {
         currentSession.id,
       );
       setCurrentBreaks(breaks);
+      clearBreaksLoadError();
     } catch (err) {
       logger.error("fetch_breaks_failed", {
         error: err instanceof Error ? err.message : String(err),
         session_id: currentSession?.id,
       });
+      await showBreaksLoadError(err, {
+        object: "die Liste der Pausen",
+        retry: () => void fetchBreaksRef.current(),
+      });
     }
-  }, [currentSession?.id, currentSession?.checkOutTime]);
+  }, [
+    currentSession?.id,
+    currentSession?.checkOutTime,
+    showBreaksLoadError,
+    clearBreaksLoadError,
+  ]);
+  const fetchBreaksRef = useRef(fetchBreaks);
+  useLayoutEffect(() => {
+    fetchBreaksRef.current = fetchBreaks;
+  });
 
   useEffect(() => {
-    fetchBreaks().catch(() => {
-      // Error already handled in fetchBreaks
-    });
+    // fetchBreaks shows its own failure in place; nothing is left to catch.
+    void fetchBreaks();
   }, [fetchBreaks]);
 
   // Weekly and daily minutes for the stamp card. Every block is booked on the
@@ -3345,58 +3612,95 @@ function TimeTrackingContent() {
     };
   }, [closedMinutesByDate, todayISO]);
 
+  // „Wiederholen“ im Fehler-Toast ruft die Aktion mit ihrem aktuellen Stand
+  // auf, nicht mit dem vom Fehlerzeitpunkt.
+  const stampRetryRef = useRef<{
+    checkIn: (status: SessionStatus) => Promise<void>;
+    checkOut: () => Promise<void>;
+    startBreak: (durationMinutes: number) => Promise<void>;
+    endBreak: () => Promise<void>;
+  }>({
+    checkIn: async () => undefined,
+    checkOut: async () => undefined,
+    startBreak: async () => undefined,
+    endBreak: async () => undefined,
+  });
+
+  // Opens the F9 reason prompt when the backend wants a reason for a stamp
+  // outside the planned window. Returns whether it did.
+  const promptDeviationReason = useCallback(
+    (
+      err: unknown,
+      action: "check_in" | "check_out",
+      status?: SessionStatus,
+    ) => {
+      if (
+        !(err instanceof ApiError) ||
+        err.code !== DEVIATION_REASON_REQUIRED_CODE
+      ) {
+        return false;
+      }
+      const details = err.details;
+      deviationErrors.clear();
+      setDeviationReason("");
+      setPendingDeviation({
+        action,
+        status,
+        plannedTime:
+          typeof details?.planned_time === "string"
+            ? details.planned_time
+            : undefined,
+        actualTime:
+          typeof details?.actual_time === "string"
+            ? details.actual_time
+            : undefined,
+        deviationMinutes:
+          typeof details?.deviation_minutes === "string"
+            ? details.deviation_minutes
+            : undefined,
+      });
+      return true;
+    },
+    [deviationErrors],
+  );
+
   const executeCheckIn = useCallback(
     async (status: SessionStatus) => {
       try {
         await timeTrackingService.checkIn(status);
-        await Promise.all([
-          mutateCurrentSession(),
-          mutateHistory(),
-          refreshTableData(),
-        ]);
-        toast.success("Erfolgreich eingestempelt");
       } catch (err) {
-        const apiErr = err as ApiError;
-        if (apiErr.code === DEVIATION_REASON_REQUIRED_CODE) {
-          const details = apiErr.details;
-          setDeviationReason("");
-          setPendingDeviation({
-            action: "check_in",
-            status,
-            plannedTime:
-              typeof details?.planned_time === "string"
-                ? details.planned_time
-                : undefined,
-            actualTime:
-              typeof details?.actual_time === "string"
-                ? details.actual_time
-                : undefined,
-            deviationMinutes:
-              typeof details?.deviation_minutes === "string"
-                ? details.deviation_minutes
-                : undefined,
+        if (promptDeviationReason(err, "check_in", status)) return;
+        // Too early is an expected answer, not a defect: the catalog text
+        // names the planned start from the error details.
+        if (
+          !(err instanceof ApiError) ||
+          err.code !== PLANNED_START_NOT_REACHED_CODE
+        ) {
+          logger.error("check_in_failed", {
+            error: err instanceof Error ? err.message : String(err),
           });
-          return;
         }
-        if (apiErr.code === PLANNED_START_NOT_REACHED_CODE) {
-          const plannedStart =
-            typeof apiErr.details?.planned_start_time === "string"
-              ? apiErr.details.planned_start_time
-              : undefined;
-          toast.error(
-            plannedStart
-              ? `Einstempeln ist erst ab ${plannedStart} Uhr möglich.`
-              : "Einstempeln ist noch nicht möglich.",
-          );
-          return;
-        }
-        logger.error("check_in_failed", {
-          error: err instanceof Error ? err.message : String(err),
+        await showActionError(err, {
+          object: "die Arbeitszeit",
+          retry: () => void stampRetryRef.current.checkIn(status),
         });
-        toast.error(friendlyError(err, "Fehler beim Einstempeln"));
+        return;
       }
+      await Promise.all([
+        mutateCurrentSession(),
+        mutateHistory(),
+        refreshTableData(),
+      ]);
+      toast.success("Sie sind eingestempelt.");
     },
-    [mutateCurrentSession, mutateHistory, refreshTableData, toast],
+    [
+      mutateCurrentSession,
+      mutateHistory,
+      refreshTableData,
+      toast,
+      showActionError,
+      promptDeviationReason,
+    ],
   );
 
   const handleCheckIn = useCallback(
@@ -3413,79 +3717,80 @@ function TimeTrackingContent() {
   const handleCheckOut = useCallback(async () => {
     try {
       await timeTrackingService.checkOut();
-      setCurrentBreaks([]);
-      await Promise.all([
-        mutateCurrentSession(),
-        mutateHistory(),
-        refreshTableData(),
-      ]);
-      toast.success("Erfolgreich ausgestempelt");
     } catch (err) {
-      const apiErr = err as ApiError;
-      if (apiErr.code === DEVIATION_REASON_REQUIRED_CODE) {
-        const details = apiErr.details;
-        setDeviationReason("");
-        setPendingDeviation({
-          action: "check_out",
-          plannedTime:
-            typeof details?.planned_time === "string"
-              ? details.planned_time
-              : undefined,
-          actualTime:
-            typeof details?.actual_time === "string"
-              ? details.actual_time
-              : undefined,
-          deviationMinutes:
-            typeof details?.deviation_minutes === "string"
-              ? details.deviation_minutes
-              : undefined,
-        });
-        return;
-      }
+      if (promptDeviationReason(err, "check_out")) return;
       logger.error("check_out_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error(friendlyError(err, "Fehler beim Ausstempeln"));
+      await showActionError(err, {
+        object: "die Arbeitszeit",
+        retry: () => void stampRetryRef.current.checkOut(),
+      });
+      return;
     }
-  }, [mutateCurrentSession, mutateHistory, refreshTableData, toast]);
+    setCurrentBreaks([]);
+    await Promise.all([
+      mutateCurrentSession(),
+      mutateHistory(),
+      refreshTableData(),
+    ]);
+    toast.success("Sie sind ausgestempelt.");
+  }, [
+    mutateCurrentSession,
+    mutateHistory,
+    refreshTableData,
+    toast,
+    showActionError,
+    promptDeviationReason,
+  ]);
 
   // Retry the rejected stamp with the collected reason. The modal stays open
-  // when the retry fails so the reason isn't lost.
+  // when the retry fails so the reason isn't lost; the error shows inside it.
   const confirmDeviationReason = useCallback(async () => {
     const pending = pendingDeviation;
     if (!pending) return;
     const reason = deviationReason.trim();
+    // The confirm button stays disabled until a reason is typed.
     if (!reason) return;
 
     setDeviationSubmitting(true);
+    deviationErrors.clear();
     try {
       if (pending.action === "check_in" && pending.status) {
         await timeTrackingService.checkIn(pending.status, reason);
-        toast.success("Erfolgreich eingestempelt");
       } else {
         await timeTrackingService.checkOut(reason);
         setCurrentBreaks([]);
-        toast.success("Erfolgreich ausgestempelt");
       }
-      await Promise.all([
-        mutateCurrentSession(),
-        mutateHistory(),
-        refreshTableData(),
-      ]);
-      setPendingDeviation(null);
-      setDeviationReason("");
     } catch (err) {
       logger.error("deviation_reason_submit_failed", {
         error: err instanceof Error ? err.message : String(err),
         action: pending.action,
       });
-      toast.error(friendlyError(err, "Fehler beim Stempeln"));
+      await deviationErrors.show(err, {
+        object: "die Arbeitszeit",
+        retry: () => void confirmDeviationRef.current(),
+      });
+      return;
     } finally {
       setDeviationSubmitting(false);
     }
+    toast.success(
+      pending.action === "check_in"
+        ? "Sie sind eingestempelt."
+        : "Sie sind ausgestempelt.",
+    );
+    setPendingDeviation(null);
+    setDeviationReason("");
+    await Promise.all([
+      mutateCurrentSession(),
+      mutateHistory(),
+      refreshTableData(),
+    ]);
   }, [
     pendingDeviation,
     deviationReason,
+    deviationErrors,
     mutateCurrentSession,
     mutateHistory,
     refreshTableData,
@@ -3496,15 +3801,19 @@ function TimeTrackingContent() {
     async (durationMinutes: number) => {
       try {
         await timeTrackingService.startBreak(durationMinutes);
-        await fetchBreaks();
       } catch (err) {
         logger.error("start_break_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        toast.error(friendlyError(err, "Fehler beim Starten der Pause"));
+        await showActionError(err, {
+          object: "die Pause",
+          retry: () => void stampRetryRef.current.startBreak(durationMinutes),
+        });
+        return;
       }
+      await fetchBreaks();
     },
-    [fetchBreaks, toast],
+    [fetchBreaks, showActionError],
   );
 
   const handleEndBreak = useCallback(async () => {
@@ -3518,11 +3827,20 @@ function TimeTrackingContent() {
         error: err instanceof Error ? err.message : String(err),
         status,
       };
-      if (status === 404) {
+      const code = err instanceof ApiError ? err.code : undefined;
+      if (
+        code === "workforce.no_active_break" ||
+        code === "workforce.no_active_session"
+      ) {
+        // No running break any more: it already ended (timer or another
+        // tab). The refresh below shows the current state; nothing failed.
         logger.warn("end_break_failed", context);
       } else {
         logger.error("end_break_failed", context);
-        toast.error(friendlyError(err, "Fehler beim Beenden der Pause"));
+        await showActionError(err, {
+          object: "die Pause",
+          retry: () => void stampRetryRef.current.endBreak(),
+        });
       }
     }
     const refreshResults = await Promise.allSettled([
@@ -3531,6 +3849,8 @@ function TimeTrackingContent() {
       refreshTableData(),
       fetchBreaks(),
     ]);
+    // The break ended, but the page could not reload: say so instead of
+    // leaving the old running break on screen without explanation.
     const failedRefresh = refreshResults.find(
       (result) => result.status === "rejected",
     );
@@ -3540,16 +3860,28 @@ function TimeTrackingContent() {
         error: err instanceof Error ? err.message : String(err),
         status: errorStatus(err),
       });
-      toast.error(friendlyError(err, "Fehler beim Beenden der Pause"));
+      await showActionError(err, { object: "die Zeiterfassung" });
     }
   }, [
     mutateCurrentSession,
     mutateHistory,
     refreshTableData,
     fetchBreaks,
-    toast,
+    showActionError,
   ]);
 
+  useLayoutEffect(() => {
+    stampRetryRef.current = {
+      checkIn: executeCheckIn,
+      checkOut: handleCheckOut,
+      startBreak: handleStartBreak,
+      endBreak: handleEndBreak,
+    };
+    confirmDeviationRef.current = confirmDeviationReason;
+  });
+
+  // The edit and absence dialogs show a failed save themselves (in the
+  // dialog, which stays open), so these handlers let the error through.
   const handleEditSave = useCallback(
     async (
       id: string,
@@ -3562,28 +3894,20 @@ function TimeTrackingContent() {
         breaks?: Array<{ id: string; durationMinutes: number }>;
       },
     ) => {
-      try {
-        await timeTrackingService.updateSession(id, {
-          checkInTime: updates.checkInTime,
-          checkOutTime: updates.checkOutTime,
-          breakMinutes: updates.breakMinutes,
-          status: updates.status,
-          notes: updates.notes,
-          breaks: updates.breaks,
-        });
-        await Promise.all([
-          mutateCurrentSession(),
-          mutateHistory(),
-          refreshTableData(),
-        ]);
-        toast.success("Eintrag gespeichert");
-      } catch (err) {
-        logger.error("session_edit_failed", {
-          error: err instanceof Error ? err.message : String(err),
-          session_id: id,
-        });
-        toast.error(friendlyError(err, "Fehler beim Speichern"));
-      }
+      await timeTrackingService.updateSession(id, {
+        checkInTime: updates.checkInTime,
+        checkOutTime: updates.checkOutTime,
+        breakMinutes: updates.breakMinutes,
+        status: updates.status,
+        notes: updates.notes,
+        breaks: updates.breaks,
+      });
+      await Promise.all([
+        mutateCurrentSession(),
+        mutateHistory(),
+        refreshTableData(),
+      ]);
+      toast.success("Die Arbeitszeit ist gespeichert.");
     },
     [mutateCurrentSession, mutateHistory, refreshTableData, toast],
   );
@@ -3597,43 +3921,26 @@ function TimeTrackingContent() {
       half_day?: boolean;
       note?: string;
     }) => {
-      try {
-        await timeTrackingService.createAbsence({
-          absence_type: req.absence_type,
-          absence_type_id: req.absence_type_id,
-          date_start: req.date_start,
-          date_end: req.date_end,
-          half_day: req.half_day,
-          note: req.note,
-        });
-        await Promise.all([mutateAbsences(), refreshTableData()]);
-        toast.success("Abwesenheit eingetragen");
-        setAbsenceModalOpen(false);
-      } catch (err) {
-        logger.error("create_absence_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        toast.error(
-          friendlyError(err, "Fehler beim Eintragen der Abwesenheit"),
-        );
-      }
+      await timeTrackingService.createAbsence({
+        absence_type: req.absence_type,
+        absence_type_id: req.absence_type_id,
+        date_start: req.date_start,
+        date_end: req.date_end,
+        half_day: req.half_day,
+        note: req.note,
+      });
+      setAbsenceModalOpen(false);
+      await Promise.all([mutateAbsences(), refreshTableData()]);
+      toast.success("Die Abwesenheit ist eingetragen.");
     },
     [mutateAbsences, refreshTableData, toast],
   );
 
   const handleDeleteAbsence = useCallback(
     async (id: string) => {
-      try {
-        await timeTrackingService.deleteAbsence(id);
-        await Promise.all([mutateAbsences(), refreshTableData()]);
-        toast.success("Abwesenheit gelöscht");
-      } catch (err) {
-        logger.error("delete_absence_failed", {
-          error: err instanceof Error ? err.message : String(err),
-          absence_id: id,
-        });
-        toast.error(friendlyError(err, "Fehler beim Löschen der Abwesenheit"));
-      }
+      await timeTrackingService.deleteAbsence(id);
+      await Promise.all([mutateAbsences(), refreshTableData()]);
+      toast.success("Die Abwesenheit ist gelöscht.");
     },
     [mutateAbsences, refreshTableData, toast],
   );
@@ -3650,19 +3957,9 @@ function TimeTrackingContent() {
         note?: string;
       },
     ) => {
-      try {
-        await timeTrackingService.updateAbsence(id, req);
-        await Promise.all([mutateAbsences(), refreshTableData()]);
-        toast.success("Abwesenheit aktualisiert");
-      } catch (err) {
-        logger.error("update_absence_failed", {
-          error: err instanceof Error ? err.message : String(err),
-          absence_id: id,
-        });
-        toast.error(
-          friendlyError(err, "Fehler beim Aktualisieren der Abwesenheit"),
-        );
-      }
+      await timeTrackingService.updateAbsence(id, req);
+      await Promise.all([mutateAbsences(), refreshTableData()]);
+      toast.success("Die Abwesenheit ist gespeichert.");
     },
     [mutateAbsences, refreshTableData, toast],
   );
@@ -3670,19 +3967,24 @@ function TimeTrackingContent() {
   // Statuszeile aus denselben server-gerechneten Zahlen wie die
   // Stempeluhr-Kacheln (usePeriodMetrics); solange sie fehlen, hält das
   // Gerüst ein Skelett an der Stelle.
+  // Ist eine Quelle gescheitert, bleibt die Zeile leer statt eines
+  // ewigen Skeletts; der Ladefehler steht an seiner Stelle auf der Seite.
   const metricsPending =
     ownMetrics.week === null || ownMetrics.accountBalanceMinutes === null;
+  const metricsLoading = metricsPending && !ownMetrics.failed;
 
   return (
     <TenantPage
       title="Zeiterfassung"
-      statsLoading={metricsPending}
+      statsLoading={metricsLoading}
       // Laden kommt aus dem Gerüst (Bauart 3, Regel 5) — kein eigenes
       // Seiten-Skelett neben den Zuständen der TenantPage.
       loading={authStatus === "loading"}
       loadingLabel="Zeiterfassung wird geladen…"
       stats={
-        metricsPending ? undefined : (
+        metricsLoad.error ? (
+          <LoadErrorAlert error={metricsLoad.error} />
+        ) : metricsPending ? undefined : (
           <TenantPageStats
             items={[
               {
@@ -3834,10 +4136,14 @@ function TimeTrackingContent() {
             }
           >
             <div className="py-2">
+              <FormErrorAlert
+                message={deviationErrors.error}
+                className="mb-3"
+              />
               <p className="text-sm text-gray-600">
                 {pendingDeviation?.action === "check_in" ? (
                   <>
-                    Du stempelst
+                    Sie stempeln
                     {pendingDeviation?.deviationMinutes ? (
                       <span className="font-medium text-gray-900">
                         {" "}
@@ -3846,7 +4152,7 @@ function TimeTrackingContent() {
                     ) : (
                       " deutlich"
                     )}{" "}
-                    vor deinem geplanten Dienstbeginn
+                    vor Ihrem geplanten Dienstbeginn
                     {pendingDeviation?.plannedTime
                       ? ` (${pendingDeviation.plannedTime} Uhr)`
                       : ""}{" "}
@@ -3854,7 +4160,7 @@ function TimeTrackingContent() {
                   </>
                 ) : (
                   <>
-                    Du stempelst
+                    Sie stempeln
                     {pendingDeviation?.deviationMinutes ? (
                       <span className="font-medium text-gray-900">
                         {" "}
@@ -3863,15 +4169,15 @@ function TimeTrackingContent() {
                     ) : (
                       " deutlich"
                     )}{" "}
-                    nach deinem geplanten Dienstende
+                    nach Ihrem geplanten Dienstende
                     {pendingDeviation?.plannedTime
                       ? ` (${pendingDeviation.plannedTime} Uhr)`
                       : ""}{" "}
                     aus.
                   </>
                 )}{" "}
-                Bitte gib einen kurzen Grund an. Er wird im Audit-Trail der
-                Sitzung gespeichert.
+                Bitte geben Sie einen kurzen Grund an. Er wird beim Eintrag
+                gespeichert.
               </p>
               <label
                 htmlFor="deviation-reason"
@@ -3881,6 +4187,8 @@ function TimeTrackingContent() {
               </label>
               <Textarea
                 id="deviation-reason"
+                name="reason"
+                error={deviationErrors.fieldError("reason")}
                 value={deviationReason}
                 onChange={(e) => setDeviationReason(e.target.value)}
                 disabled={deviationSubmitting}
@@ -3896,6 +4204,17 @@ function TimeTrackingContent() {
       {/* Action zone — Stempeluhr (mit integrierten Stats) und Wochenübersicht
           50/50 nebeneinander. Drunter eine Placeholder-Section für den
           Urlaubs-Workflow (kommt in eigenem Chat). */}
+      {currentLoad.error ||
+      breaksLoad.error ||
+      absencesLoad.error ||
+      profileLoad.error ? (
+        <div className="space-y-3">
+          <LoadErrorAlert error={currentLoad.error} />
+          <LoadErrorAlert error={breaksLoad.error} />
+          <LoadErrorAlert error={absencesLoad.error} />
+          <LoadErrorAlert error={profileLoad.error} />
+        </div>
+      ) : null}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
         <ClockInCard
           currentSession={currentSession ?? null}
@@ -3911,8 +4230,13 @@ function TimeTrackingContent() {
           metrics={ownMetrics}
           plannedShifts={todayShifts}
           cancelledShifts={todayCancelledShifts}
+          stampingDisabled={stampingDisabled}
         />
-        <WeekChart history={history} weekOffset={weekOffset} />
+        <WeekChart
+          history={history}
+          weekOffset={weekOffset}
+          error={historyLoad.error}
+        />
       </div>
 
       {/* Heute geplante Betreuungsplan-Einsätze (Ort/Aufgabe + Vertretungen,

@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   CardGridSkeleton,
   SkeletonRegion,
@@ -61,6 +61,7 @@ import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 
 import { StaffExportButton } from "./staff-export-button";
 import { StaffSessionTable } from "./staff-session-table";
+import { useSwrLoadError } from "./use-swr-load-error";
 import { KpiCards, ViewToggle, type ViewMode } from "./staff-time-views";
 
 const logger = createLogger({ component: "ZeiterfassungTab" });
@@ -139,15 +140,20 @@ export function ZeiterfassungTab({
     startOfWeek(resolveInitialTimeTrackingDate(initialDate)),
   );
 
-  const { data: schedule, isLoading: scheduleLoading } = useSWRAuth(
-    `staff-schedule-${staffId}`,
-    () => staffScheduleService.getSchedule(staffId),
+  const {
+    data: schedule,
+    isLoading: scheduleLoading,
+    error: scheduleError,
+    mutate: mutateSchedule,
+  } = useSWRAuth(`staff-schedule-${staffId}`, () =>
+    staffScheduleService.getSchedule(staffId),
   );
 
   const {
     data: timeTrackingConfig,
     isLoading: timeTrackingConfigLoading,
     error: timeTrackingConfigError,
+    mutate: mutateTimeTrackingConfig,
   } = useSWRAuth("time-tracking-config", () => timeTrackingService.getConfig());
 
   // Week, month and Stundenkonto all come from the server-computed model: only
@@ -179,10 +185,14 @@ export function ZeiterfassungTab({
   // Keyed by range only (no "visible" qualifier): usePeriodMetrics asks for the
   // current week under the same scheme, so while the table shows that week SWR
   // dedupes both into one request instead of fetching it twice.
-  const { data: visibleSessions, isLoading: visibleLoading } = useSWRAuth<
-    readonly StaffHistorySession[]
-  >(`staff-history-${staffId}-${historyFrom}-${visibleToKey}`, () =>
-    staffHistoryService.getHistory(staffId, historyFrom, visibleToKey),
+  const {
+    data: visibleSessions,
+    isLoading: visibleLoading,
+    error: visibleSessionsError,
+    mutate: mutateVisibleSessions,
+  } = useSWRAuth<readonly StaffHistorySession[]>(
+    `staff-history-${staffId}-${historyFrom}-${visibleToKey}`,
+    () => staffHistoryService.getHistory(staffId, historyFrom, visibleToKey),
   );
   // Absences are loaded in parallel with sessions so the table can show Krank/
   // Urlaub badges next to "Vor Ort"/"Homeoffice" (matches the MA-Sicht).
@@ -205,6 +215,7 @@ export function ZeiterfassungTab({
     data: visibleShifts,
     isLoading: shiftsLoading,
     error: shiftsError,
+    mutate: mutateShifts,
   } = useSWRAuth<StaffShift[]>(
     `staff-shifts-visible-${staffId}-${visibleFromKey}-${visibleToKey}`,
     () =>
@@ -228,6 +239,7 @@ export function ZeiterfassungTab({
     data: dailyProjection,
     error: dailyProjectionError,
     isLoading: dailyProjectionLoading,
+    mutate: mutateDailyProjection,
   } = useSWRAuth<ReadonlyMap<string, DayProjection>>(
     `staff-schedule-targets-${staffId}-${visibleFromKey}-${visibleToKey}`,
     () =>
@@ -292,6 +304,7 @@ export function ZeiterfassungTab({
     data: monthSummary,
     isLoading: monthSummaryLoading,
     error: monthSummaryError,
+    mutate: mutateMonthSummary,
   } = useSWRAuth<MonthSummary>(
     viewMode === "month"
       ? `staff-month-summary-${staffId}-${monthYear}-${monthNumber}`
@@ -299,6 +312,35 @@ export function ZeiterfassungTab({
     () =>
       staffMonthSummaryService.getMonthSummary(staffId, monthYear, monthNumber),
     { refreshInterval: isCurrentMonth ? OPEN_MONTH_REFRESH_MS : 0 },
+  );
+
+  const retryDailyProjection = useMemo(
+    () => () => void mutateDailyProjection(),
+    [mutateDailyProjection],
+  );
+  const retryTimeTrackingConfig = useMemo(
+    () => () => void mutateTimeTrackingConfig(),
+    [mutateTimeTrackingConfig],
+  );
+
+  // Ladefehler stehen dort, wo die Daten fehlen, mit Wiederholen (#2514).
+  const scheduleLoad = useSwrLoadError(
+    scheduleError,
+    "das Arbeitszeitmodell",
+    () => mutateSchedule(),
+  );
+  const sessionsLoad = useSwrLoadError(
+    visibleSessionsError,
+    "die Liste der Zeiten",
+    () => mutateVisibleSessions(),
+  );
+  const shiftsLoad = useSwrLoadError(
+    shiftsError,
+    "die Planung der Schichten",
+    () => mutateShifts(),
+  );
+  const monthLoad = useSwrLoadError(monthSummaryError, "die Monatskarte", () =>
+    mutateMonthSummary(),
   );
 
   if (scheduleLoading) {
@@ -378,11 +420,7 @@ export function ZeiterfassungTab({
             <Monatskarte
               summary={monthSummary ?? null}
               isLoading={monthSummaryLoading}
-              error={
-                monthSummaryError
-                  ? "Die Monatskarte konnte nicht geladen werden."
-                  : null
-              }
+              error={monthLoad}
               isCurrentMonth={isCurrentMonth}
               isPreAccountMonth={isPreAccountMonth}
               accountStartsInFuture={accountStartsInFuture}
@@ -412,7 +450,8 @@ export function ZeiterfassungTab({
               </>
             }
             submitLabel="Monat wieder öffnen"
-            successMessage="Monat wieder geöffnet."
+            successMessage="Der Monat ist wieder geöffnet."
+            errorObject="das Öffnen des Monats"
             destructive
             onSubmit={async (reason) => {
               await staffMonthCloseService.reopenMonth(staffId, {
@@ -430,6 +469,12 @@ export function ZeiterfassungTab({
           />
         )}
 
+        {scheduleLoad ? (
+          <div className="mt-4">
+            <LoadErrorAlert error={scheduleLoad} />
+          </div>
+        ) : null}
+
         {visibleLoading || shiftsLoading ? (
           <div className="mt-4">
             <SkeletonRegion label="Zeiterfassungstabelle wird geladen">
@@ -438,46 +483,51 @@ export function ZeiterfassungTab({
           </div>
         ) : (
           <div className="mt-4">
-            {shiftsError ? (
+            {shiftsLoad ? (
               <div className="mb-4">
-                <Alert
-                  type="error"
-                  message="Der Dienstplan konnte nicht geladen werden. Die Plan-Spalte ist deshalb unvollständig; bitte die Seite neu laden."
-                />
+                <LoadErrorAlert error={shiftsLoad} />
               </div>
             ) : null}
-            <StaffSessionTable
-              staffId={staffId}
-              from={visibleFrom}
-              to={visibleTo}
-              sessions={visibleSessions ?? []}
-              absences={visibleAbsences ?? []}
-              absencesUnresolved={
-                visibleAbsencesLoading ||
-                visibleAbsencesError != null ||
-                visibleAbsences === undefined
-              }
-              schedule={schedule ?? null}
-              dailyProjection={dailyProjection}
-              dailyProjectionError={dailyProjectionError != null}
-              dailyProjectionPending={dailyProjectionLoading}
-              holidays={tableHolidays}
-              closingDays={tableClosingDays}
-              accountStartDate={timeTrackingConfig?.accountStartDate ?? null}
-              accountStartDatePending={timeTrackingConfigLoading}
-              accountStartDateError={
-                timeTrackingConfig === undefined &&
-                timeTrackingConfigError != null
-              }
-              today={today}
-              isAdminView
-              plannedShifts={visibleShifts ?? []}
-              onBackfillAbsence={
-                canBackfill
-                  ? (day, kind) => setBackfill({ date: toDateKey(day), kind })
-                  : undefined
-              }
-            />
+            {sessionsLoad ? (
+              // Ohne Zeiten zeigte die Tabelle jeden Tag als „Nicht erfasst“.
+              <LoadErrorAlert error={sessionsLoad} />
+            ) : (
+              <StaffSessionTable
+                staffId={staffId}
+                from={visibleFrom}
+                to={visibleTo}
+                sessions={visibleSessions ?? []}
+                absences={visibleAbsences ?? []}
+                absencesUnresolved={
+                  visibleAbsencesLoading ||
+                  visibleAbsencesError != null ||
+                  visibleAbsences === undefined
+                }
+                schedule={schedule ?? null}
+                dailyProjection={dailyProjection}
+                dailyProjectionError={dailyProjectionError}
+                onRetryDailyProjection={retryDailyProjection}
+                dailyProjectionPending={dailyProjectionLoading}
+                holidays={tableHolidays}
+                closingDays={tableClosingDays}
+                accountStartDate={timeTrackingConfig?.accountStartDate ?? null}
+                accountStartDatePending={timeTrackingConfigLoading}
+                accountStartDateError={
+                  timeTrackingConfig === undefined
+                    ? timeTrackingConfigError
+                    : undefined
+                }
+                onRetryAccountStartDate={retryTimeTrackingConfig}
+                today={today}
+                isAdminView
+                plannedShifts={visibleShifts ?? []}
+                onBackfillAbsence={
+                  canBackfill
+                    ? (day, kind) => setBackfill({ date: toDateKey(day), kind })
+                    : undefined
+                }
+              />
+            )}
           </div>
         )}
       </SectionCard>

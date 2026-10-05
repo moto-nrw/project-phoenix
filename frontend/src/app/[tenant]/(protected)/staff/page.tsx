@@ -9,8 +9,9 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { TileCard } from "~/components/ui/tile-card";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
-import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import { Button } from "~/components/ui/button";
@@ -40,6 +41,7 @@ import { isAdmin, hasPermission } from "~/lib/auth-utils";
 import { useStaffPendingAbsences } from "~/lib/hooks/use-staff-pending-absences";
 import { SchoolOverviewSection } from "~/components/staff/school-overview-section";
 import { StaffAuditLog } from "~/components/staff/staff-audit-log";
+import { useSwrLoadError } from "~/components/staff/use-swr-load-error";
 import {
   StaffTimeAccountsTable,
   saldoPresets,
@@ -55,13 +57,15 @@ import { StaffCardsSkeleton } from "./page-skeleton";
 
 function DocumentDirectory({
   entries,
+  failed,
   error,
-  onRetry,
   embedded = false,
 }: {
   readonly entries: readonly StaffDocumentDirectoryEntry[];
-  readonly error?: Error;
-  readonly onRetry: () => void;
+  /** The load failed; the list must not read as „Keine Personen gefunden“. */
+  readonly failed: boolean;
+  /** The failed load from `useApiLoadError`, with retry and request ID. */
+  readonly error: FormErrorInput;
   readonly embedded?: boolean;
 }) {
   const router = useTenantRouter();
@@ -90,21 +94,8 @@ function DocumentDirectory({
           />
         </div>
       )}
-      {error ? (
-        <Alert
-          type="error"
-          message="Das Personalverzeichnis konnte nicht geladen werden."
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              size="compact"
-              onClick={onRetry}
-            >
-              Erneut versuchen
-            </Button>
-          }
-        />
+      {failed ? (
+        <LoadErrorAlert error={error} />
       ) : (
         <div className="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200">
           {filteredEntries.map((entry) => (
@@ -234,6 +225,7 @@ function StaffPageContent() {
     data: staffData,
     isLoading,
     error: staffError,
+    mutate: mutateStaff,
   } = useSWRAuth<Staff[]>(
     canListStaff ? "staff-list" : null,
     async () => {
@@ -247,7 +239,13 @@ function StaffPageContent() {
   );
 
   const staff = staffData ?? [];
-  const error = staffError ? "Fehler beim Laden der Personaldaten." : null;
+  // Ladefehler stehen dort, wo die Daten fehlen, mit Wiederholen und
+  // Vorgangskennung (#2514).
+  const staffLoadError = useSwrLoadError(
+    staffError,
+    "die Personalliste",
+    mutateStaff,
+  );
 
   const {
     data: documentDirectory,
@@ -258,6 +256,11 @@ function StaffPageContent() {
     showDocumentDirectory ? "staff-document-directory" : null,
     () => staffService.getDocumentDirectory(),
     { revalidateOnFocus: false },
+  );
+  const documentDirectoryLoadError = useSwrLoadError(
+    documentDirectoryError,
+    "das Personalverzeichnis",
+    mutateDocumentDirectory,
   );
 
   // Zeitkonten (#1417 Tranche 2a). Beschäftigungstyp und Saldo-Grenzen gehen
@@ -291,6 +294,7 @@ function StaffPageContent() {
     data: accounts,
     isLoading: accountsLoading,
     error: accountsError,
+    mutate: mutateAccounts,
   } = useSWRAuth(
     accountsKey,
     () => {
@@ -327,6 +331,16 @@ function StaffPageContent() {
     monthCloseKey,
     () => staffMonthCloseService.getStatus(monthAnchor.year, monthAnchor.month),
     { keepPreviousData: false, revalidateOnFocus: false },
+  );
+  const accountsLoadError = useSwrLoadError(
+    accountsError,
+    "die Liste der Zeitkonten",
+    mutateAccounts,
+  );
+  const monthCloseLoadError = useSwrLoadError(
+    monthCloseStatusError,
+    "die Anzeige des Monatsabschlusses",
+    mutateMonthClose,
   );
   const monthClose =
     !monthCloseStatusError && monthCloseSnapshots
@@ -596,6 +610,15 @@ function StaffPageContent() {
   const staffSummary = (() => {
     // Die Zeile beschreibt, was gerade zu sehen ist: in den Personalunterlagen
     // also die Zahl der Personen mit Unterlagen, nicht die Personalliste.
+    // Ohne geladene Daten gibt es nichts zu zählen: „0 Personen“ läse sich
+    // wie eine leere Schule, der Ladefehler steht darunter (#2514).
+    if (
+      (view === "status" && staffError) ||
+      (view === "documents" && documentDirectoryError) ||
+      (view === "accounts" && accountsError)
+    ) {
+      return undefined;
+    }
     if (view === "documents") {
       const count = documentDirectory?.length ?? 0;
       return `${count} ${count === 1 ? "Person" : "Personen"} mit Unterlagen`;
@@ -647,8 +670,8 @@ function StaffPageContent() {
       return (
         <DocumentDirectory
           entries={documentDirectory ?? []}
-          error={documentDirectoryError}
-          onRetry={() => void mutateDocumentDirectory()}
+          failed={Boolean(documentDirectoryError)}
+          error={documentDirectoryLoadError}
         />
       );
     }
@@ -663,7 +686,7 @@ function StaffPageContent() {
   const statusEmptyState =
     view === "status" &&
     !showSkeleton &&
-    !error &&
+    !staffError &&
     staffData !== undefined &&
     filteredStaff.length === 0
       ? {
@@ -754,7 +777,7 @@ function StaffPageContent() {
       // Der Ladefehler der Personalliste gehört ins Gerüst. Ihr Leerzustand
       // bleibt dagegen bei den Karten, damit unabhängige Bereiche sichtbar
       // bleiben.
-      error={view === "status" ? error : null}
+      error={view === "status" ? staffLoadError : null}
       overlays={
         <>
           {showCloseModal && (
@@ -779,7 +802,7 @@ function StaffPageContent() {
                 </>
               }
               submitLabel="Monat abschließen"
-              successMessage="Monat abgeschlossen."
+              successMessage="Der Monat ist abgeschlossen."
               onSubmit={handleCloseMonth}
               onClose={() => setShowCloseModal(false)}
             />
@@ -844,8 +867,8 @@ function StaffPageContent() {
             canAccessDocuments && (
               <DocumentDirectory
                 entries={documentDirectory ?? []}
-                error={documentDirectoryError}
-                onRetry={() => void mutateDocumentDirectory()}
+                failed={Boolean(documentDirectoryError)}
+                error={documentDirectoryLoadError}
                 embedded
               />
             )}
@@ -859,11 +882,7 @@ function StaffPageContent() {
               onNextMonth={() => shiftMonth(1)}
               canGoNextMonth={!isCurrentOrFutureMonth}
               monthClose={monthClose}
-              monthCloseError={
-                monthCloseStatusError
-                  ? "Der Abschlussstatus konnte nicht geladen werden. Abschließen und erneutes Abschließen sind bis zur erfolgreichen Aktualisierung nicht verfügbar."
-                  : null
-              }
+              monthCloseError={monthCloseLoadError}
               onRetryMonthClose={() => void mutateMonthClose()}
               monthIsOver={!isCurrentOrFutureMonth}
               onCloseMonth={() => setShowCloseModal(true)}
@@ -874,11 +893,7 @@ function StaffPageContent() {
                   : undefined
               }
               isLoading={accountsLoading && !accounts}
-              error={
-                accountsError
-                  ? "Zeitkonten konnten nicht geladen werden."
-                  : null
-              }
+              error={accountsLoadError}
               onRowClick={(row) =>
                 router.push(
                   `/staff/${row.staffId}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,

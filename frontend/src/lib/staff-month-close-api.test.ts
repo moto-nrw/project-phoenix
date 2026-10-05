@@ -4,6 +4,7 @@ vi.mock("./session-cache", () => ({
   sessionFetch: vi.fn(),
 }));
 
+import { ApiError } from "./api-error";
 import { sessionFetch } from "./session-cache";
 import {
   staffBalanceAdjustmentService,
@@ -38,6 +39,7 @@ function jsonResponse(data: unknown): Response {
 function errorResponse(code: string, message = "backend error"): Response {
   return {
     ok: false,
+    status: 409,
     text: () => Promise.resolve(JSON.stringify({ code, error: message })),
   } as Response;
 }
@@ -123,26 +125,26 @@ describe("staffMonthCloseService", () => {
     });
   });
 
+  // The catalog explains each code (#2514); the client keeps it intact and
+  // leaves the backend sentence as diagnostics only.
   it.each([
-    [
-      "workforce.month_not_closable",
-      "Dieser Monat kann noch nicht abgeschlossen werden",
-    ],
-    [
-      "workforce.later_month_closed",
-      "Ein späterer Monat ist bereits abgeschlossen",
-    ],
-    ["unexpected_code", "backend error"],
-  ])("maps close error %s", async (code, message) => {
+    "workforce.month_not_closable",
+    "workforce.later_month_closed",
+    "unexpected_code",
+  ])("keeps close error %s", async (code) => {
     mockedSessionFetch.mockResolvedValueOnce(errorResponse(code));
 
-    await expect(
-      staffMonthCloseService.closeMonth({
-        year: 2026,
-        month: 6,
-        reason: "Lohnlauf",
-      }),
-    ).rejects.toThrow(message);
+    const failure = staffMonthCloseService.closeMonth({
+      year: 2026,
+      month: 6,
+      reason: "Lohnlauf",
+    });
+    await expect(failure).rejects.toBeInstanceOf(ApiError);
+    await expect(failure).rejects.toMatchObject({
+      code,
+      status: 409,
+      message: "backend error",
+    });
   });
 
   it("reopens one staff month with backend request keys", async () => {
@@ -169,22 +171,19 @@ describe("staffMonthCloseService", () => {
   });
 
   it.each([
-    ["workforce.month_not_closed", "Dieser Monat ist nicht abgeschlossen."],
-    [
-      "workforce.later_month_closed",
-      "Für diese Person ist ein späterer Monat noch abgeschlossen",
-    ],
-    ["unexpected_code", "backend error"],
-  ])("maps reopen error %s", async (code, message) => {
+    "workforce.month_not_closed",
+    "workforce.later_month_closed",
+    "unexpected_code",
+  ])("keeps reopen error %s", async (code) => {
     mockedSessionFetch.mockResolvedValueOnce(errorResponse(code));
 
-    await expect(
-      staffMonthCloseService.reopenMonth("12", {
-        year: 2026,
-        month: 6,
-        reason: "Fehlende Schicht",
-      }),
-    ).rejects.toThrow(message);
+    const failure = staffMonthCloseService.reopenMonth("12", {
+      year: 2026,
+      month: 6,
+      reason: "Fehlende Schicht",
+    });
+    await expect(failure).rejects.toBeInstanceOf(ApiError);
+    await expect(failure).rejects.toMatchObject({ code, status: 409 });
   });
 });
 
@@ -193,7 +192,7 @@ describe("staffBalanceAdjustmentService closed-month errors", () => {
     vi.clearAllMocks();
   });
 
-  it("explains a rejected adjustment in a closed month", async () => {
+  it("keeps the closed-month code of a rejected adjustment", async () => {
     mockedSessionFetch.mockResolvedValueOnce(
       errorResponse("workforce.adjustment_in_closed_month"),
     );
@@ -205,12 +204,13 @@ describe("staffBalanceAdjustmentService closed-month errors", () => {
         effectiveDate: "2026-06-30",
         note: "Korrektur",
       }),
-    ).rejects.toThrow(
-      "Der gewählte Monat ist abgeschlossen. Buche die Korrektur mit einem Datum im offenen Monat oder öffne den Monatsabschluss wieder.",
-    );
+    ).rejects.toMatchObject({
+      code: "workforce.adjustment_in_closed_month",
+      status: 409,
+    });
   });
 
-  it("explains a rejected reset in a closed month", async () => {
+  it("keeps the closed-month code of a rejected reset", async () => {
     mockedSessionFetch.mockResolvedValueOnce(
       errorResponse("workforce.adjustment_in_closed_month"),
     );
@@ -221,20 +221,22 @@ describe("staffBalanceAdjustmentService closed-month errors", () => {
         carryoverMinutes: 0,
         note: "Korrektur",
       }),
-    ).rejects.toThrow(
-      "Der gewählte Monat ist abgeschlossen. Wähle ein Datum im offenen Monat oder öffne den Monatsabschluss wieder.",
-    );
+    ).rejects.toMatchObject({
+      code: "workforce.adjustment_in_closed_month",
+      status: 409,
+    });
   });
 
-  it("explains a rejected deletion in a closed month", async () => {
+  it("keeps the closed-month code of a rejected deletion", async () => {
     mockedSessionFetch.mockResolvedValueOnce(
       errorResponse("workforce.adjustment_in_closed_month"),
     );
 
     await expect(
       staffBalanceAdjustmentService.delete("12", "17"),
-    ).rejects.toThrow(
-      "Der gewählte Monat ist abgeschlossen. Öffne den Monatsabschluss wieder, bevor du die Buchung löschst.",
-    );
+    ).rejects.toMatchObject({
+      code: "workforce.adjustment_in_closed_month",
+      status: 409,
+    });
   });
 });

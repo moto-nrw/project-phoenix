@@ -1,7 +1,7 @@
 // This file contains the Teacher API service and related types
 
 import { sessionFetch } from "./session-cache";
-import { apiErrorFromText } from "~/lib/api-error";
+import { apiErrorFromResponse, apiErrorFromText } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import type { Activity } from "./activity-helpers";
 
@@ -668,7 +668,10 @@ class TeacherService {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to delete teacher: ${response.statusText}`);
+        throw await apiErrorFromResponse(
+          response,
+          `Failed to delete teacher: ${response.statusText}`,
+        );
       }
     } catch (error) {
       logger.error("error deleting teacher", {

@@ -1,6 +1,14 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { suppressConsole } from "~/test/helpers/console";
 
 const mocks = vi.hoisted(() => ({
@@ -184,13 +192,24 @@ describe("SickReportModal", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the backend error and does not report success", async () => {
-    mocks.createAbsence.mockRejectedValue(new Error("overlapping absence"));
+  it("shows the refusal in the dialog and does not report success", async () => {
+    mocks.createAbsence.mockRejectedValue(
+      new ApiError("absence overlaps", 409, {
+        code: "workforce.absence_overlap",
+      }),
+    );
     const { onCreated } = renderModal();
 
     fireEvent.click(screen.getByRole("button", { name: "Krank melden" }));
 
-    expect(await screen.findByText("overlapping absence")).toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      await within(dialog).findByText(
+        catalogText("workforce.absence_overlap", "die Krankmeldung"),
+      ),
+    ).toBeInTheDocument();
+    // The backend's own sentence never reaches the screen.
+    expect(screen.queryByText("absence overlaps")).not.toBeInTheDocument();
     expect(onCreated).not.toHaveBeenCalled();
     expect(
       screen.queryByRole("button", { name: "Zur Vertretung" }),
