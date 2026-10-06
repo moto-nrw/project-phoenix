@@ -14,7 +14,10 @@ export async function fetchDashboardAnalyticsClient(): Promise<DashboardAnalytic
   }
 
   if (!response.ok) {
-    throw await apiErrorFromResponse(response, "Dashboard fetch failed");
+    throw await apiErrorFromResponse(
+      response,
+      `Dashboard fetch failed: ${response.status}`,
+    );
   }
 
   const json = (await response.json()) as { data: DashboardAnalytics };
