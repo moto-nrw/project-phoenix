@@ -84,66 +84,79 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 // public sentinel; the MFA sentinels still come from the retained MFA
 // service through the gate.
 func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err error) {
+	common.RenderError(w, r, loginErrorResponse(err))
+}
+
+// loginErrorResponse maps a refused login to its response: status and code
+// per reason (#2517), never more than the caller may learn.
+func loginErrorResponse(err error) render.Renderer {
 	var authErr *identityaccess.AuthenticationError
-	if errors.As(err, &authErr) {
-		switch {
-		case errors.Is(err, identityaccess.ErrInvalidCredentials):
-			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrInvalidCredentials, common.CodeIdentityInvalidCredentials))
-		case errors.Is(err, identityaccess.ErrAccountNotFound):
-			// Mask the specific error so attackers can't enumerate accounts.
-			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrInvalidCredentials, common.CodeIdentityInvalidCredentials))
-		case errors.Is(err, identityaccess.ErrAccountInactive):
-			// The stable code the parents and school portals already send
-			// (#3376). Only reachable once the credential check accepted the
-			// password, so it tells a caller nothing about an account they do
-			// not own — and without it the frontend renders a deactivated
-			// account as "wrong password" and sends the owner into a reset
-			// loop that cannot help.
-			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
-				identityaccess.ErrAccountInactive, common.CodeIdentitySessionAccountInactive))
-		case errors.Is(err, identityaccess.ErrTenantNotFound):
-			common.RenderError(w, r, common.ErrorNotFound(identityaccess.ErrTenantNotFound))
-		case errors.Is(err, identityaccess.ErrTenantAccessDenied):
-			// Same code as a wrong password: the login page must not tell a
-			// caller that the address exists at another school (#2517).
-			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrTenantAccessDenied, common.CodeIdentityInvalidCredentials))
-		case errors.Is(err, identityaccess.ErrParentMustUseParentPortal):
-			// Guardian-only account at the staff login. The code is what the
-			// frontend switches on to point the user at the parents portal —
-			// matching on the English message text would be brittle. Safe to
-			// be specific: this branch is only reachable once the credential
-			// check has already accepted the password, so it tells the caller
-			// nothing about an account they don't own.
-			common.RenderError(w, r, common.ErrorForbiddenWithCode(
-				identityaccess.ErrParentMustUseParentPortal, common.CodeIdentityUseParentPortal))
-		case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
-			// School-portal-only account at the staff login (#2207). Same
-			// shape as the guardian split above: a stable code the frontend
-			// switches on to point the user at moto schule.
-			common.RenderError(w, r, common.ErrorForbiddenWithCode(
-				identityaccess.ErrMustUseSchoolPortal, common.CodeIdentityUseSchoolPortal))
-		case errors.Is(err, identityaccess.ErrMFARateLimited):
-			// MFA challenge initiation tripped the 3/15min sliding-window
-			// cap. Surface as 429 so the frontend shows the dedicated "too
-			// many code requests" message instead of a generic 5xx.
-			common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(authErr.Err, common.CodeIdentityMfaBlocked))
-		case errors.Is(err, identityaccess.ErrMFALocked):
-			// Account hit the failed-attempt lockout threshold while we were
-			// preparing the next challenge. Same HTTP status as rate limit,
-			// distinct message body; the frontend shows one text for both.
-			common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(authErr.Err, common.CodeIdentityMfaBlocked))
-		case errors.Is(err, identityaccess.ErrMFAStatusUnavailable):
-			// MFA gate couldn't determine required/enrolled status (settings
-			// or credentials lookup failed with a non-not-found error).
-			// Refuse this login rather than fail-open. 503 lets the client
-			// retry — the frontend renders it as "Bitte versuche es erneut".
-			common.RenderError(w, r, common.ErrorServiceUnavailable(authErr.Err))
-		default:
-			common.RenderError(w, r, common.ErrorInternalServer(err))
-		}
-		return
+	if !errors.As(err, &authErr) {
+		return common.ErrorInternalServer(err)
 	}
-	common.RenderError(w, r, common.ErrorInternalServer(err))
+	switch {
+	case errors.Is(err, identityaccess.ErrInvalidCredentials):
+		return common.ErrorUnauthorizedWithCode(identityaccess.ErrInvalidCredentials, common.CodeIdentityInvalidCredentials)
+	case errors.Is(err, identityaccess.ErrAccountNotFound):
+		// Mask the specific error so attackers can't enumerate accounts.
+		return common.ErrorUnauthorizedWithCode(identityaccess.ErrInvalidCredentials, common.CodeIdentityInvalidCredentials)
+	case errors.Is(err, identityaccess.ErrAccountInactive):
+		// The stable code the parents and school portals already send
+		// (#3376). Only reachable once the credential check accepted the
+		// password, so it tells a caller nothing about an account they do
+		// not own — and without it the frontend renders a deactivated
+		// account as "wrong password" and sends the owner into a reset
+		// loop that cannot help.
+		return common.ErrorUnauthorizedWithCode(
+			identityaccess.ErrAccountInactive, common.CodeIdentitySessionAccountInactive)
+	case errors.Is(err, identityaccess.ErrTenantNotFound):
+		return common.ErrorNotFound(identityaccess.ErrTenantNotFound)
+	case errors.Is(err, identityaccess.ErrTenantAccessDenied):
+		// Same code as a wrong password: the login page must not tell a
+		// caller that the address exists at another school (#2517).
+		return common.ErrorUnauthorizedWithCode(identityaccess.ErrTenantAccessDenied, common.CodeIdentityInvalidCredentials)
+	case errors.Is(err, identityaccess.ErrParentMustUseParentPortal):
+		// Guardian-only account at the staff login. The code is what the
+		// frontend switches on to point the user at the parents portal —
+		// matching on the English message text would be brittle. Safe to
+		// be specific: this branch is only reachable once the credential
+		// check has already accepted the password, so it tells the caller
+		// nothing about an account they don't own.
+		return common.ErrorForbiddenWithCode(
+			identityaccess.ErrParentMustUseParentPortal, common.CodeIdentityUseParentPortal)
+	case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
+		// School-portal-only account at the staff login (#2207). Same
+		// shape as the guardian split above: a stable code the frontend
+		// switches on to point the user at moto schule.
+		return common.ErrorForbiddenWithCode(
+			identityaccess.ErrMustUseSchoolPortal, common.CodeIdentityUseSchoolPortal)
+	default:
+		return mfaLoginErrorResponse(err, authErr)
+	}
+}
+
+// mfaLoginErrorResponse covers the refusals of the MFA gate during login.
+func mfaLoginErrorResponse(err error, authErr *identityaccess.AuthenticationError) render.Renderer {
+	switch {
+	case errors.Is(err, identityaccess.ErrMFARateLimited):
+		// MFA challenge initiation tripped the 3/15min sliding-window
+		// cap. Surface as 429 so the frontend shows the dedicated "too
+		// many code requests" message instead of a generic 5xx.
+		return common.ErrorTooManyRequestsWithCode(authErr.Err, common.CodeIdentityMfaBlocked)
+	case errors.Is(err, identityaccess.ErrMFALocked):
+		// Account hit the failed-attempt lockout threshold while we were
+		// preparing the next challenge. Same HTTP status as rate limit,
+		// distinct message body; the frontend shows one text for both.
+		return common.ErrorTooManyRequestsWithCode(authErr.Err, common.CodeIdentityMfaBlocked)
+	case errors.Is(err, identityaccess.ErrMFAStatusUnavailable):
+		// MFA gate couldn't determine required/enrolled status (settings
+		// or credentials lookup failed with a non-not-found error).
+		// Refuse this login rather than fail-open. 503 lets the client
+		// retry — the frontend renders it as "Bitte versuche es erneut".
+		return common.ErrorServiceUnavailable(authErr.Err)
+	default:
+		return common.ErrorInternalServer(err)
+	}
 }
 
 // register handles user registration
