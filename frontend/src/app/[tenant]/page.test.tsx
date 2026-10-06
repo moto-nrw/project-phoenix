@@ -11,6 +11,7 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
+import { catalogText } from "~/test/error-catalog-text";
 
 const mockTrackTenantEvent = vi.fn();
 const { mockLoginWithPasskey, mockIsPasskeySupported, MockPasskeyApiError } =
@@ -436,8 +437,16 @@ describe("HomePage (Login)", () => {
     expect(replaceStateSpy).toHaveBeenCalledWith({}, "", "/");
   });
 
+  // A refused login answers 401 with identity.invalid_credentials (#2517):
+  // the catalog text stays on the page, no jump to "session expired".
   it("shows error message on invalid credentials", async () => {
-    global.fetch = mockFetchResponse(401, { error: "Invalid credentials" });
+    const assign = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => undefined);
+    global.fetch = mockFetchResponse(401, {
+      error: "Invalid credentials",
+      code: "identity.invalid_credentials",
+    });
 
     render(<HomePage />);
 
@@ -460,12 +469,16 @@ describe("HomePage (Login)", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Ungültige E-Mail oder Passwort"),
+        screen.getByText(
+          catalogText("identity.invalid_credentials", "die Anmeldung"),
+        ),
       ).toBeInTheDocument();
     });
     expect(mockTrackTenantEvent).toHaveBeenCalledWith("login_failed", "42", {
       reason: "invalid_credentials",
     });
+    expect(assign).not.toHaveBeenCalled();
+    assign.mockRestore();
   });
 
   // Backend answers 401 + code "identity.session_account_inactive" once the password was
@@ -1107,8 +1120,9 @@ describe("Form error handling", () => {
     });
 
     await waitFor(() => {
+      // Not an API error: the general text for the login, no raw message.
       expect(
-        screen.getByText("Anmeldefehler. Bitte versuchen Sie es erneut."),
+        screen.getByText(catalogText("general.server", "die Anmeldung")),
       ).toBeInTheDocument();
     });
   });
@@ -1127,8 +1141,9 @@ describe("Form error handling", () => {
     });
 
     await waitFor(() => {
+      // Not an API error: the general text for the login, no raw message.
       expect(
-        screen.getByText("Anmeldefehler. Bitte versuchen Sie es erneut."),
+        screen.getByText(catalogText("general.server", "die Anmeldung")),
       ).toBeInTheDocument();
     });
   });
@@ -1169,6 +1184,7 @@ describe("Deliberate logout suppression", () => {
       render(<HomePage />);
     });
 
+    expect(screen.queryByTestId("alert-info")).not.toBeInTheDocument();
     expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
   });
 
@@ -1183,7 +1199,8 @@ describe("Deliberate logout suppression", () => {
         render(<HomePage />);
       });
 
-      expect(screen.getByTestId("alert-error")).toHaveTextContent(
+      // A notice, not an error (#2517).
+      expect(screen.getByTestId("alert-info")).toHaveTextContent(
         "Ihre Sitzung ist abgelaufen",
       );
     },
@@ -1198,6 +1215,7 @@ describe("Deliberate logout suppression", () => {
       render(<HomePage />);
     });
 
+    expect(screen.queryByTestId("alert-info")).not.toBeInTheDocument();
     expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
   });
 

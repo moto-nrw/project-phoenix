@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+} from "react";
 import Link from "~/components/ui/navigation-link";
 import { signIn, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
@@ -18,6 +24,8 @@ import { createLogger } from "~/lib/logger";
 import { trackTenantEvent } from "~/lib/analytics";
 import { clientEnv } from "~/env.client";
 import { Alert } from "~/components/ui/alert";
+import { credentialError } from "~/components/auth/credential-error";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import {
   BrandLink,
   BrandLogo,
@@ -25,6 +33,8 @@ import {
 } from "~/components/dashboard/header/brand-link";
 
 const logger = createLogger({ component: "BrandTenantSwitcher" });
+
+const NO_ACCESS = ["identity.tenant_access_denied"] as const;
 
 interface BrandTenantSwitcherProps {
   readonly href?: string;
@@ -61,8 +71,16 @@ export function BrandTenantSwitcher({
   );
   const [isOpen, setIsOpen] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
-  const [switchError, setSwitchError] = useState("");
-  const [schoolPortalUrl, setSchoolPortalUrl] = useState<string | null>(null);
+  // Lehrkraft-Konto: kein Fehler, sondern der Weg zum richtigen Portal.
+  const [schoolPortalHint, setSchoolPortalHint] = useState<{
+    url: string | null;
+  } | null>(null);
+  // Ein gescheiterter Wechsel ist eine Aktion ohne Formular: Toast mit
+  // Katalogtext und Wiederholen (#2517).
+  const { show: showSwitchError } = useApiErrorDisplay();
+  const latestSwitchRef = useRef<(target: TenantSummary) => void>(
+    () => undefined,
+  );
   const dropdownRef = useRef<HTMLDivElement>(null);
   const currentSlug = useTenantSlugSafe();
   const { status, data: session, update } = useSession();
@@ -73,6 +91,9 @@ export function BrandTenantSwitcher({
     listAvailableTenants()
       .then(setTenants)
       .catch((err: unknown) => {
+        // Bewusst still: ohne Liste bleibt der Markenbereich ein normaler
+        // Link zur Startseite, die Kopfzeile funktioniert weiter. Ein
+        // Fehler hier ist kein Schritt, den die Person angestoßen hat.
         logger.error("list_tenants_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
@@ -100,8 +121,7 @@ export function BrandTenantSwitcher({
       if (isSwitching) return;
       setIsSwitching(true);
       setIsOpen(false);
-      setSwitchError("");
-      setSchoolPortalUrl(null);
+      setSchoolPortalHint(null);
 
       try {
         // Ein Schulwechsel beendet die Mitarbeiter-Vorschau (#2893): erst
@@ -138,7 +158,7 @@ export function BrandTenantSwitcher({
         });
         if (
           err instanceof TenantSwitchError &&
-          err.code === "use_school_portal"
+          err.reason === "use_school_portal"
         ) {
           let portalUrl: string | null = null;
           try {
@@ -150,20 +170,24 @@ export function BrandTenantSwitcher({
               error: urlErr instanceof Error ? urlErr.message : String(urlErr),
             });
           }
-          setSchoolPortalUrl(portalUrl);
-          setSwitchError(
-            "Dieses Konto ist ein Lehrkraft-Konto. Bitte melden Sie sich bei moto schule an.",
-          );
+          setSchoolPortalHint({ url: portalUrl });
         } else {
-          setSwitchError(
-            `Wechsel zu ${targetTenant.name} fehlgeschlagen. Bitte erneut versuchen.`,
-          );
+          // Kein Zugang zur Schule kommt als 401: ohne den Code-Abgleich
+          // spränge der Fehlerweg wortlos zur Anmeldung (#2517).
+          void showSwitchError(credentialError(err, NO_ACCESS), {
+            object: `das Wechseln zu ${targetTenant.name}`,
+            retry: () => latestSwitchRef.current(targetTenant),
+          });
         }
         setIsSwitching(false);
       }
     },
-    [isSwitching, currentSlug, session, update],
+    [isSwitching, currentSlug, session, update, showSwitchError],
   );
+
+  useLayoutEffect(() => {
+    latestSwitchRef.current = (target) => void handleSwitch(target);
+  });
 
   // Single (or unknown) tenant: plain brand link, no dropdown
   if (tenants.length <= 1) {
@@ -193,8 +217,7 @@ export function BrandTenantSwitcher({
       <button
         type="button"
         onClick={() => {
-          setSwitchError("");
-          setSchoolPortalUrl(null);
+          setSchoolPortalHint(null);
           setIsOpen(!isOpen);
         }}
         disabled={isSwitching}
@@ -278,17 +301,18 @@ export function BrandTenantSwitcher({
         </div>
       )}
 
-      {/* Visible feedback when a switch fails — a silent no-op here caused
-          #1975 to go unnoticed. */}
-      {switchError && !isOpen && (
+      {/* Lehrkraft-Konto: Hinweis mit dem Weg zu moto schule. Andere
+          Fehler beim Wechsel kommen als Toast (#2517); ein stilles Nichts
+          hat #1975 unbemerkt gelassen. */}
+      {schoolPortalHint && !isOpen && (
         <div className="absolute left-0 z-50 mt-1 w-72">
           <Alert
-            type="error"
-            message={switchError}
+            type="info"
+            message="Dieses Konto ist ein Lehrkraft-Konto. Bitte melden Sie sich bei moto schule an."
             action={
-              schoolPortalUrl ? (
+              schoolPortalHint.url ? (
                 <a
-                  href={schoolPortalUrl}
+                  href={schoolPortalHint.url}
                   className="font-medium whitespace-nowrap underline underline-offset-2"
                 >
                   Jetzt zu moto schule

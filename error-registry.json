@@ -475,6 +475,12 @@
       "legacy": "declaration_has_submissions"
     },
     {
+      "code": "communication.notifications_disabled",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.notifications_disabled"
+    },
+    {
       "code": "communication.parent_news_disabled",
       "class": "permission",
       "parameters": [],
@@ -979,6 +985,72 @@
       "class": "permission",
       "parameters": [],
       "legacy": "use_school_portal"
+    },
+    {
+      "code": "identity.invalid_credentials",
+      "class": "input",
+      "parameters": [],
+      "legacy": "identity.invalid_credentials"
+    },
+    {
+      "code": "identity.current_password_wrong",
+      "class": "input",
+      "parameters": [],
+      "legacy": "identity.current_password_wrong"
+    },
+    {
+      "code": "identity.password_too_weak",
+      "class": "input",
+      "parameters": [],
+      "legacy": "identity.password_too_weak"
+    },
+    {
+      "code": "identity.password_reset_link_invalid",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.password_reset_link_invalid"
+    },
+    {
+      "code": "identity.password_reset_rate_limited",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.password_reset_rate_limited"
+    },
+    {
+      "code": "identity.mfa_code_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "identity.mfa_code_invalid"
+    },
+    {
+      "code": "identity.mfa_blocked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.mfa_blocked"
+    },
+    {
+      "code": "identity.invitation_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "identity.invitation_not_found"
+    },
+    {
+      "code": "identity.invitation_expired",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.invitation_expired"
+    },
+    {
+      "code": "identity.passkey_login_failed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.passkey_login_failed"
+    },
+    {
+      "code": "identity.tenant_access_denied",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "identity.tenant_access_denied"
     },
     {
       "code": "import.import_batch_failed",
@@ -3082,6 +3154,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "workforce.shift_type_inactive"
+    },
+    {
+      "code": "workforce.staff_profile_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.staff_profile_missing"
     },
     {
       "code": "workforce.stammdaten_invalid",

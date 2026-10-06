@@ -439,9 +439,9 @@ func (rs *Resource) requireMFA(w http.ResponseWriter, r *http.Request) bool {
 func (rs *Resource) mapMFAError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case rs.MFAService.ChallengeUnusable(err):
-		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(err, common.CodeIdentityMfaCodeInvalid))
 	case rs.MFAService.Blocked(err):
-		common.RenderError(w, r, common.ErrorTooManyRequests(err))
+		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeIdentityMfaBlocked))
 	case rs.MFAService.Unavailable(err):
 		// Fail-closed status/rate-limit lookup -- the same 503 the school
 		// login returns for it, so resend and enroll/start don't answer a

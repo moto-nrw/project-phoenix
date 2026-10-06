@@ -1,10 +1,9 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { ApiError, enrichApiError, transportFetch } from "./api-error";
 /**
  * Client for the per-account notification consent API.
  *
- * Mirrors push-api.ts: it throws on failure and the card renders an Alert,
- * rather than the settings-page convention of returning a German error string.
- * The two cards sit next to each other, so they behave the same way.
+ * Mirrors push-api.ts: it throws an ApiError on failure, which the card shows
+ * on the shared error path (#2517).
  */
 
 import { z } from "zod";
@@ -66,7 +65,8 @@ function basePath(portal: PreferencePortal): string {
 }
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
+  // A request that never reaches the API is general.unavailable (#2517).
+  const response = await transportFetch(url, {
     credentials: "include",
     ...init,
     headers: {

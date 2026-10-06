@@ -3,6 +3,8 @@
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useReminders } from "~/lib/hooks/use-reminders";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useTenantMutate } from "~/lib/swr/hooks";
 import type { Reminder } from "~/lib/reminders-api";
 import {
   REMINDER_SECTIONS,
@@ -35,11 +37,19 @@ function ReminderRow({ reminder }: { reminder: Reminder }) {
 
 export default function RemindersPage() {
   const { reminders, count, error, isLoading, data } = useReminders();
+  const tenantMutate = useTenantMutate();
+  // Ladefehler vor Ort mit Katalogtext und Wiederholen (#2517).
+  const loadError = useSwrLoadError(error, "die Liste der Erinnerungen", () =>
+    tenantMutate("reminders"),
+  );
 
   // Statuszeile unter dem Seitentitel, allein aus der geladenen Liste.
   const overdue = reminders.filter(isReminderOverdue).length;
   const upcoming = count - overdue;
-  const loading = isLoading && reminders.length === 0;
+  // Bis der Text eines Ladefehlers da ist, bleibt der Ladezustand stehen:
+  // keine leere Seite ohne Daten.
+  const loading =
+    (isLoading && reminders.length === 0) || Boolean(error && !loadError);
 
   return (
     <TenantPage
@@ -47,7 +57,7 @@ export default function RemindersPage() {
       stats={`${upcoming} anstehend · ${overdue} überfällig`}
       statsLoading={loading}
       loading={loading}
-      error={error ? "Erinnerungen konnten nicht geladen werden." : null}
+      error={error ? loadError : null}
       empty={
         !loading && !error && count === 0
           ? {

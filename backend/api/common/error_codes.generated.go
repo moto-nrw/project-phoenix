@@ -81,6 +81,7 @@ const (
 	CodeCommunicationAnnouncementPublishedImmutable      = "communication.announcement_published_immutable"
 	CodeCommunicationAnnouncementReminderSent            = "communication.announcement_reminder_sent"
 	CodeCommunicationDeclarationHasSubmissions           = "communication.declaration_has_submissions"
+	CodeCommunicationNotificationsDisabled               = "communication.notifications_disabled"
 	CodeCommunicationParentNewsDisabled                  = "communication.parent_news_disabled"
 	CodeCommunicationPollNotOpen                         = "communication.poll_not_open"
 	CodeCommunicationStaffCounterpartUnavailable         = "communication.staff_counterpart_unavailable"
@@ -212,6 +213,7 @@ const (
 	CodeGradeTransitionPreviewStale                      = "grade_transition.preview_stale"
 	CodeIdentityAccountAlreadyHasTenantAccess            = "identity.account_already_has_tenant_access"
 	CodeIdentityAccountInactive                          = "identity.account_inactive"
+	CodeIdentityCurrentPasswordWrong                     = "identity.current_password_wrong"
 	CodeIdentityDemoAccessExpired                        = "identity.demo_access_expired"
 	CodeIdentityDemoAccessInvalid                        = "identity.demo_access_invalid"
 	CodeIdentityDemoAccessRateLimited                    = "identity.demo_access_rate_limited"
@@ -220,14 +222,24 @@ const (
 	CodeIdentityDemoSchoolPreparing                      = "identity.demo_school_preparing"
 	CodeIdentityDemoSession                              = "identity.demo_session"
 	CodeIdentityEmailAlreadyExists                       = "identity.email_already_exists"
+	CodeIdentityInvalidCredentials                       = "identity.invalid_credentials"
 	CodeIdentityInvitationAccountLoginRequired           = "identity.invitation_account_login_required"
 	CodeIdentityInvitationAccountMismatch                = "identity.invitation_account_mismatch"
+	CodeIdentityInvitationExpired                        = "identity.invitation_expired"
+	CodeIdentityInvitationNotFound                       = "identity.invitation_not_found"
+	CodeIdentityMfaBlocked                               = "identity.mfa_blocked"
+	CodeIdentityMfaCodeInvalid                           = "identity.mfa_code_invalid"
+	CodeIdentityPasskeyLoginFailed                       = "identity.passkey_login_failed"
+	CodeIdentityPasswordResetLinkInvalid                 = "identity.password_reset_link_invalid"
+	CodeIdentityPasswordResetRateLimited                 = "identity.password_reset_rate_limited"
+	CodeIdentityPasswordTooWeak                          = "identity.password_too_weak"
 	CodeIdentityPreviewTargetNotPreviewable              = "identity.preview_target_not_previewable"
 	CodeIdentityPreviewTargetSchoolPortal                = "identity.preview_target_school_portal"
 	CodeIdentityPreviewTokenInvalid                      = "identity.preview_token_invalid"
 	CodeIdentityReadOnlyPreview                          = "identity.read_only_preview"
 	CodeIdentityRoleNameTaken                            = "identity.role_name_taken"
 	CodeIdentitySessionAccountInactive                   = "identity.session_account_inactive"
+	CodeIdentityTenantAccessDenied                       = "identity.tenant_access_denied"
 	CodeIdentityUseParentPortal                          = "identity.use_parent_portal"
 	CodeIdentityUseSchoolPortal                          = "identity.use_school_portal"
 	CodeImportFileColumnsMissing                         = "import.file_columns_missing"
@@ -558,6 +570,7 @@ const (
 	CodeWorkforceShiftSeriesOutsidePeriod                = "workforce.shift_series_outside_period"
 	CodeWorkforceShiftSeriesWeekCycleMissing             = "workforce.shift_series_week_cycle_missing"
 	CodeWorkforceShiftTypeInactive                       = "workforce.shift_type_inactive"
+	CodeWorkforceStaffProfileMissing                     = "workforce.staff_profile_missing"
 	CodeWorkforceStammdatenInvalid                       = "workforce.stammdaten_invalid"
 	CodeWorkforceTargetOverrideHoursInvalid              = "workforce.target_override_hours_invalid"
 	CodeWorkforceTargetOverrideOverlap                   = "workforce.target_override_overlap"
@@ -652,6 +665,7 @@ var errorClassByCode = map[string]string{
 	"communication.announcement_published_immutable":       "business_rejection",
 	"communication.announcement_reminder_sent":             "business_rejection",
 	"communication.declaration_has_submissions":            "business_rejection",
+	"communication.notifications_disabled":                 "business_rejection",
 	"communication.parent_news_disabled":                   "permission",
 	"communication.poll_not_open":                          "business_rejection",
 	"communication.staff_counterpart_unavailable":          "unavailable",
@@ -783,6 +797,7 @@ var errorClassByCode = map[string]string{
 	"grade_transition.preview_stale":                       "business_rejection",
 	"identity.account_already_has_tenant_access":           "business_rejection",
 	"identity.account_inactive":                            "permission",
+	"identity.current_password_wrong":                      "input",
 	"identity.demo_access_expired":                         "business_rejection",
 	"identity.demo_access_invalid":                         "input",
 	"identity.demo_access_rate_limited":                    "unavailable",
@@ -791,14 +806,24 @@ var errorClassByCode = map[string]string{
 	"identity.demo_school_preparing":                       "unavailable",
 	"identity.demo_session":                                "permission",
 	"identity.email_already_exists":                        "business_rejection",
+	"identity.invalid_credentials":                         "input",
 	"identity.invitation_account_login_required":           "permission",
 	"identity.invitation_account_mismatch":                 "permission",
+	"identity.invitation_expired":                          "business_rejection",
+	"identity.invitation_not_found":                        "input",
+	"identity.mfa_blocked":                                 "business_rejection",
+	"identity.mfa_code_invalid":                            "input",
+	"identity.passkey_login_failed":                        "business_rejection",
+	"identity.password_reset_link_invalid":                 "business_rejection",
+	"identity.password_reset_rate_limited":                 "business_rejection",
+	"identity.password_too_weak":                           "input",
 	"identity.preview_target_not_previewable":              "permission",
 	"identity.preview_target_school_portal":                "permission",
 	"identity.preview_token_invalid":                       "permission",
 	"identity.read_only_preview":                           "permission",
 	"identity.role_name_taken":                             "business_rejection",
 	"identity.session_account_inactive":                    "permission",
+	"identity.tenant_access_denied":                        "permission",
 	"identity.use_parent_portal":                           "permission",
 	"identity.use_school_portal":                           "permission",
 	"import.file_columns_missing":                          "input",
@@ -1129,6 +1154,7 @@ var errorClassByCode = map[string]string{
 	"workforce.shift_series_outside_period":                "input",
 	"workforce.shift_series_week_cycle_missing":            "input",
 	"workforce.shift_type_inactive":                        "business_rejection",
+	"workforce.staff_profile_missing":                      "business_rejection",
 	"workforce.stammdaten_invalid":                         "input",
 	"workforce.target_override_hours_invalid":              "input",
 	"workforce.target_override_overlap":                    "business_rejection",

@@ -6,11 +6,13 @@ import {
   waitFor,
   act,
 } from "@testing-library/react";
+import { catalogText } from "~/test/error-catalog-text";
 import { MFAAdminOverrideModal } from "./mfa-admin-override-modal";
 
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: toastSuccess,
     error: toastError,
@@ -23,11 +25,14 @@ vi.mock("~/contexts/ToastContext", () => ({
 const originalFetch = global.fetch;
 
 function ok(body: unknown, status = 200): typeof global.fetch {
-  return vi.fn().mockResolvedValue(
-    new Response(JSON.stringify(body), {
-      status,
-      headers: { "Content-Type": "application/json" },
-    }),
+  // A fresh Response per call: a body can only be read once.
+  return vi.fn().mockImplementation(() =>
+    Promise.resolve(
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ),
   );
 }
 
@@ -130,7 +135,7 @@ describe("MFAAdminOverrideModal", () => {
     expect(screen.getByText(/vollständig entfernt/)).toBeInTheDocument();
   });
 
-  it("shows German error from a 403 reject", async () => {
+  it("shows the catalog text of a 403 reject in the dialog", async () => {
     global.fetch = ok({ error: "Forbidden" }, 403);
     render(<MFAAdminOverrideModal {...props} />);
 
@@ -143,8 +148,34 @@ describe("MFAAdminOverrideModal", () => {
       );
     });
 
-    await waitFor(() => {
-      expect(screen.getByRole("alert")).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.permission", "das Zurücksetzen der 2FA"),
+      ),
+    ).toBeInTheDocument();
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  // Without the stored state the override choice would show a guessed
+  // "Standard" as current (#2517): the load error stands in its place.
+  it("shows a failed state load with retry instead of a guessed setting", async () => {
+    global.fetch = ok({ error: "boom" }, 500);
+    render(<MFAAdminOverrideModal {...props} />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die 2FA-Einstellung"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Aktueller Status/)).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Standard" })).toBeDisabled();
+
+    global.fetch = ok({ override: "force_on", enrolled: true });
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(await screen.findByText(/Aktueller Status/)).toBeInTheDocument();
+    expect(
+      screen.queryByText(catalogText("general.server", "die 2FA-Einstellung")),
+    ).not.toBeInTheDocument();
   });
 });

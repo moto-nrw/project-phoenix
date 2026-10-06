@@ -23,7 +23,10 @@ vi.mock("~/lib/session-cache", () => ({
   sessionFetch: (...args: unknown[]) => mockSessionFetch(...args),
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+const mockApiErrorDisplay = { show: vi.fn() };
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useApiErrorDisplay: () => mockApiErrorDisplay,
   useToast: () => ({
     success: mockToastSuccess,
     error: mockToastError,

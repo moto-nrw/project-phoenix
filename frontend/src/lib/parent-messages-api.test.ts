@@ -593,12 +593,14 @@ describe("message count setting", () => {
     expect(JSON.parse(seenBody)).toEqual({ scope: "none" });
   });
 
-  it("throws the backend error when saving fails", async () => {
+  // #2517: the card shows the catalog text; the client keeps status and code.
+  it("throws an ApiError when saving fails", async () => {
     mockFetch(async () =>
       jsonOk({ error: "messaging: invalid count scope" }, 400),
     );
-    await expect(saveMessageCountScope("all")).rejects.toThrow(
-      "messaging: invalid count scope",
-    );
+    await expect(saveMessageCountScope("all")).rejects.toMatchObject({
+      status: 400,
+      code: "general.input",
+    });
   });
 });

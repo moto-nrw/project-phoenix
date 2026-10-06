@@ -8,6 +8,17 @@ vi.mock("~/lib/hooks/use-reminders", () => ({
 }));
 
 import RemindersPage from "./page";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+// The shared error path shows failures through the toast provider (#2517).
+function renderWithToast(
+  ui: Parameters<typeof render>[0],
+  options?: Parameters<typeof render>[1],
+) {
+  return render(ui, { wrapper: ToastProvider, ...options });
+}
 
 function set(value: {
   reminders?: Reminder[];
@@ -36,7 +47,7 @@ describe("RemindersPage", () => {
       count: 0,
       data: { reminders: [], count: 0, enabled: false },
     });
-    render(<RemindersPage />);
+    renderWithToast(<RemindersPage />);
     // Leerzustand ohne Aktion und Symbol = EIN Satz: Titel mit Schlusspunkt,
     // Beschreibung dahinter.
     expect(
@@ -56,7 +67,7 @@ describe("RemindersPage", () => {
       count: 0,
       data: { reminders: [], count: 0, enabled: true },
     });
-    render(<RemindersPage />);
+    renderWithToast(<RemindersPage />);
     expect(
       screen.getByText(
         /Erinnerungen aktiviert\. Aktuell gibt es keine aktiven Erinnerungen\./,
@@ -88,7 +99,7 @@ describe("RemindersPage", () => {
         },
       ],
     });
-    render(<RemindersPage />);
+    renderWithToast(<RemindersPage />);
 
     expect(screen.getByText("Überfällige Abholung")).toBeInTheDocument();
     expect(screen.getByText("Aktivitätsbeginn")).toBeInTheDocument();
@@ -103,18 +114,22 @@ describe("RemindersPage", () => {
     );
   });
 
-  it("renders an error alert when the fetch fails", () => {
-    set({ error: new Error("nope"), reminders: [], count: 0 });
-    render(<RemindersPage />);
+  // #2517: catalog text for the failed load, in place, never an empty state.
+  it("renders an error alert when the fetch fails", async () => {
+    set({ error: new ApiError("nope", 500), reminders: [], count: 0 });
+    renderWithToast(<RemindersPage />);
     expect(
-      screen.getByText("Erinnerungen konnten nicht geladen werden."),
+      await screen.findByText(
+        catalogText("general.server", "die Liste der Erinnerungen"),
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText("Keine aktiven Erinnerungen")).toBeNull();
   });
 
   it("shows a loading indicator before the first data arrives", () => {
     set({ reminders: [], count: 0, isLoading: true });
     // Der Ladezustand kommt aus dem Seitengerüst (TenantPage).
-    const { container } = render(<RemindersPage />);
+    const { container } = renderWithToast(<RemindersPage />);
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
   });
 });

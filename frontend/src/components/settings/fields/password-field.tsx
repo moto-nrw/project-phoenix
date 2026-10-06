@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useLayoutEffect, useRef } from "react";
 import { Eye, EyeOff, Pencil } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { Input } from "~/components/ui/input";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { revealSettingValue } from "~/lib/settings-api";
 
 interface PasswordFieldProps {
@@ -63,6 +64,11 @@ export function PasswordField({
   const [isRevealing, setIsRevealing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Anzeigen ist ein Knopf ohne Formular: ein Fehler kommt als Toast mit
+  // Katalogtext, statt den Wert stumm verdeckt zu lassen (#2517).
+  const { show: showRevealError } = useApiErrorDisplay();
+  const latestRevealRef = useRef<() => void>(() => undefined);
+
   const hints = getInputHints(pattern);
   const isPin = hints.inputMode === "numeric";
 
@@ -74,12 +80,24 @@ export function PasswordField({
     }
     // Only show spinner if the fetch takes longer than 150ms (avoids flicker)
     const spinnerTimeout = setTimeout(() => setIsRevealing(true), 150);
-    const value = await revealFn(settingKey);
-    clearTimeout(spinnerTimeout);
-    setRevealedValue(value);
-    setShowValue(true);
-    setIsRevealing(false);
-  }, [showValue, settingKey, revealFn]);
+    try {
+      const value = await revealFn(settingKey);
+      setRevealedValue(value);
+      setShowValue(true);
+    } catch (err) {
+      void showRevealError(err, {
+        object: "das Anzeigen des Werts",
+        retry: () => latestRevealRef.current(),
+      });
+    } finally {
+      clearTimeout(spinnerTimeout);
+      setIsRevealing(false);
+    }
+  }, [showValue, settingKey, revealFn, showRevealError]);
+
+  useLayoutEffect(() => {
+    latestRevealRef.current = () => void handleRevealToggle();
+  });
 
   const stopEditing = useCallback(() => {
     setNewValue("");

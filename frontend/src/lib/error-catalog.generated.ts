@@ -109,6 +109,8 @@ export const ERROR_CATALOG = {
         "Die Erinnerung ist schon verschickt. Sie lässt sich nicht mehr ändern.",
       "communication.declaration_has_submissions":
         "Auf dieses Einverständnis haben Eltern schon geantwortet. Deshalb lässt es sich nicht löschen. Sie können es zurückziehen, dann sehen Eltern es nicht mehr.",
+      "communication.notifications_disabled":
+        "Ihre Schule hat Benachrichtigungen ausgeschaltet. Eine Testbenachrichtigung ist deshalb nicht möglich.",
       "communication.parent_news_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.poll_not_open":
@@ -219,6 +221,8 @@ export const ERROR_CATALOG = {
         "Klassen oder Zuordnungen haben sich seit dem Öffnen geändert. Die Vorschau ist neu geladen. Bitte prüfen Sie sie noch einmal.",
       "identity.account_already_has_tenant_access":
         "Diese Person hat schon Zugang zu dieser Schule. Sie finden sie in der Personalliste.",
+      "identity.account_inactive":
+        "Ihr Konto ist gesperrt. Bitte wenden Sie sich an moto.",
       "identity.demo_access_expired":
         "Der Demo-Zugang ist abgelaufen. Bitte fordern Sie einen neuen Zugang an.",
       "identity.demo_access_invalid":
@@ -236,11 +240,37 @@ export const ERROR_CATALOG = {
       "identity.role_name_taken":
         "Eine Rolle mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
       "identity.invitation_account_login_required":
-        "Für {object} müssen Sie angemeldet sein. Bitte melden Sie sich an.",
+        "Für diese E-Mail-Adresse gibt es schon ein Konto. Bitte melden Sie sich zuerst damit an und öffnen Sie dann die Einladung erneut.",
+      "identity.invitation_account_mismatch":
+        "Sie sind mit einem anderen Konto angemeldet. Bitte melden Sie sich mit der eingeladenen E-Mail-Adresse an.",
       "identity.preview_token_invalid":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "identity.read_only_preview":
         "In der Vorschau können Sie nur lesen. Bitte beenden Sie die Vorschau, um etwas zu ändern.",
+      "identity.session_account_inactive":
+        "Ihr Konto ist ausgeschaltet. Bitte wenden Sie sich an die Leitung Ihrer Schule.",
+      "identity.invalid_credentials":
+        "Die E-Mail-Adresse oder das Passwort stimmt nicht. Bitte prüfen Sie Ihre Eingabe.",
+      "identity.current_password_wrong":
+        "Das aktuelle Passwort stimmt nicht. Bitte prüfen Sie Ihre Eingabe.",
+      "identity.password_too_weak":
+        "Das Passwort ist zu schwach. Es braucht mindestens 8 Zeichen, Groß- und Kleinbuchstaben, eine Zahl und ein Sonderzeichen.",
+      "identity.password_reset_link_invalid":
+        "Der Link ist abgelaufen oder wurde schon benutzt. Bitte fordern Sie einen neuen Link an.",
+      "identity.password_reset_rate_limited":
+        "Sie haben zu oft einen Link angefordert. Bitte warten Sie etwas und versuchen Sie es dann erneut.",
+      "identity.mfa_code_invalid":
+        "Der Code stimmt nicht oder ist abgelaufen. Bitte geben Sie ihn erneut ein oder fordern Sie einen neuen Code an.",
+      "identity.mfa_blocked":
+        "Das waren zu viele Versuche. Bitte warten Sie einige Minuten und versuchen Sie es dann erneut.",
+      "identity.invitation_not_found":
+        "Diese Einladung gibt es nicht. Bitte prüfen Sie den Link in der E-Mail.",
+      "identity.invitation_expired":
+        "Diese Einladung ist abgelaufen oder wurde schon benutzt. Bitte fragen Sie Ihre Schule nach einer neuen Einladung.",
+      "identity.passkey_login_failed":
+        "Die Anmeldung mit Passkey hat nicht geklappt. Bitte melden Sie sich mit E-Mail-Adresse und Passwort an.",
+      "identity.tenant_access_denied":
+        "Ihr Konto hat keinen Zugang zu dieser Schule. Bitte melden Sie sich neu an.",
       "import.file_columns_missing":
         "In der Datei fehlen Spalten: {columns}. Bitte nutzen Sie die Vorlage.",
       "import.file_missing": "Bitte wählen Sie eine Datei aus.",
@@ -831,6 +861,8 @@ export const ERROR_CATALOG = {
         "Dieser Kalenderzeitraum hat keine Woche A und B. Bitte wählen Sie „Jede Woche“.",
       "workforce.shift_type_inactive":
         "Diese Schichtart ist ausgeschaltet. Bitte wählen Sie eine andere.",
+      "workforce.staff_profile_missing":
+        "Für Ihr Konto gibt es keinen Personaldatensatz. Diese Einstellung gilt nur für Personal.",
       "workforce.stammdaten_invalid":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "workforce.target_override_hours_invalid":

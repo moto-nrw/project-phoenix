@@ -1,9 +1,19 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import { Modal } from "./modal";
 import { Alert } from "./alert";
+import { FormErrorAlert } from "./form-error-alert";
 import { Input } from "./input";
+import type { DatabaseFormErrorPath } from "./database/database-form";
+import { wireErrorCode } from "~/lib/api-error";
 import { requestPasswordReset, type ApiError } from "~/lib/auth-api";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";
@@ -16,6 +26,16 @@ interface PasswordResetModalProps {
   readonly onRequestReset?: (email: string) => Promise<{ message: string }>;
   readonly rateLimitStorageKey?: string;
   readonly copy?: PasswordResetModalCopy;
+  /**
+   * The owner's shared API error path (`useApiFormError`), handed in because
+   * the kit may not import contexts (#2517). With it, a failed request shows
+   * the catalog text of its code in the dialog, a field error marks the
+   * address, and the wait after too many requests is read from the code.
+   * Without it the modal keeps its own texts (portals not yet moved).
+   */
+  readonly errorPath?: DatabaseFormErrorPath;
+  /** The element `errorPath` searches for a refused field to focus. */
+  readonly formRef?: RefObject<HTMLFormElement | null>;
 }
 
 interface PasswordResetModalCopy {
@@ -102,6 +122,8 @@ export function PasswordResetModal({
   onRequestReset = requestPasswordReset,
   rateLimitStorageKey = "passwordResetRateLimitUntil",
   copy = DEFAULT_PASSWORD_RESET_MODAL_COPY,
+  errorPath,
+  formRef,
 }: PasswordResetModalProps) {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -110,6 +132,8 @@ export function PasswordResetModal({
   const errorRef = useScrollToError(error);
   const [rateLimitUntil, setRateLimitUntil] = useState<number | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState(0);
+  const latestSubmitRef = useRef<() => void>(() => undefined);
+  const clearPathError = errorPath?.clear;
 
   useEffect(() => {
     if (typeof globalThis === "undefined") return;
@@ -138,18 +162,23 @@ export function PasswordResetModal({
         if (typeof globalThis !== "undefined") {
           globalThis.localStorage.removeItem(rateLimitStorageKey);
         }
-        setError("");
+        if (clearPathError) clearPathError();
+        else setError("");
       } else {
         const diffSeconds = Math.ceil((rateLimitUntil - now) / 1000);
         setSecondsRemaining(diffSeconds);
-        setError(copy.rateLimitError(formatCountdown(diffSeconds)));
+        // With the shared path the catalog text stays in the alert and the
+        // countdown runs next to the button.
+        if (!clearPathError) {
+          setError(copy.rateLimitError(formatCountdown(diffSeconds)));
+        }
       }
     };
 
     updateCountdown();
     const intervalId = globalThis.setInterval(updateCountdown, 1000);
     return () => globalThis.clearInterval(intervalId);
-  }, [copy, rateLimitStorageKey, rateLimitUntil]);
+  }, [copy, rateLimitStorageKey, rateLimitUntil, clearPathError]);
 
   const rateLimitActive =
     rateLimitUntil !== null && rateLimitUntil > Date.now();
@@ -158,13 +187,72 @@ export function PasswordResetModal({
   const handleClose = useCallback(() => {
     setEmail("");
     setError("");
+    clearPathError?.();
     setIsSuccess(false);
     setIsLoading(false);
     onClose();
-  }, [onClose]);
+  }, [onClose, clearPathError]);
+
+  const startRateLimit = (retryAfterSeconds: number | undefined) => {
+    const retrySeconds =
+      retryAfterSeconds && retryAfterSeconds > 0 ? retryAfterSeconds : 3600;
+    const retryUntil = Date.now() + retrySeconds * 1000;
+    setRateLimitUntil(retryUntil);
+    setSecondsRemaining(retrySeconds);
+    if (typeof globalThis !== "undefined") {
+      // This is a numeric rate-limit expiry, not an authentication token.
+      globalThis.localStorage.setItem(
+        rateLimitStorageKey,
+        retryUntil.toString(),
+      );
+    }
+    return retrySeconds;
+  };
+
+  const submitWithErrorPath = async (path: DatabaseFormErrorPath) => {
+    path.clear();
+    setIsLoading(true);
+    try {
+      await onRequestReset(email);
+      setIsSuccess(true);
+    } catch (err) {
+      const apiError = err as ApiError | undefined;
+      if (
+        wireErrorCode(apiError?.code) === "identity.password_reset_rate_limited"
+      ) {
+        logger.warn("password_reset_rate_limited", {
+          error: "rate_limit_exceeded",
+        });
+        startRateLimit(apiError?.retryAfterSeconds);
+        void path.show(err, { object: "das Senden des Links" });
+      } else {
+        logger.error("password_reset_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        void path.show(err, {
+          object: "das Senden des Links",
+          retry: () => latestSubmitRef.current(),
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // „Wiederholen“ sendet die Adresse, die dann im Feld steht.
+  useLayoutEffect(() => {
+    latestSubmitRef.current = () => {
+      if (errorPath) void submitWithErrorPath(errorPath);
+    };
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (errorPath) {
+      // The button is disabled while the wait runs.
+      if (!rateLimitActive) await submitWithErrorPath(errorPath);
+      return;
+    }
     if (rateLimitActive) {
       setError(
         copy.rateLimitError(formatCountdown(Math.max(secondsRemaining, 0))),
@@ -185,20 +273,7 @@ export function PasswordResetModal({
         logger.warn("password_reset_rate_limited", {
           error: "rate_limit_exceeded",
         });
-        const retrySeconds =
-          apiError.retryAfterSeconds && apiError.retryAfterSeconds > 0
-            ? apiError.retryAfterSeconds
-            : 3600;
-        const retryUntil = Date.now() + retrySeconds * 1000;
-        setRateLimitUntil(retryUntil);
-        setSecondsRemaining(retrySeconds);
-        if (typeof globalThis !== "undefined") {
-          // This is a numeric rate-limit expiry, not an authentication token.
-          globalThis.localStorage.setItem(
-            rateLimitStorageKey,
-            retryUntil.toString(),
-          );
-        }
+        const retrySeconds = startRateLimit(apiError.retryAfterSeconds);
         setError(copy.rateLimitError(formatCountdown(retrySeconds)));
       } else {
         logger.error("password_reset_failed", {
@@ -242,12 +317,27 @@ export function PasswordResetModal({
             </h1>
             <p className="mt-4 text-gray-600">{copy.description}</p>
 
-            <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
-              {error && (
-                <div ref={errorRef}>
-                  <Alert type="error" message={error} />
-                </div>
+            <form
+              ref={formRef}
+              onSubmit={handleSubmit}
+              noValidate
+              className="mt-6 space-y-4"
+            >
+              {errorPath ? (
+                <FormErrorAlert message={errorPath.error} />
+              ) : (
+                error && (
+                  <div ref={errorRef}>
+                    <Alert type="error" message={error} />
+                  </div>
+                )
               )}
+              {errorPath && rateLimitActive ? (
+                <p className="text-sm text-gray-600" role="status">
+                  Einen neuen Link können Sie in{" "}
+                  {formatCountdown(Math.max(secondsRemaining, 0))} anfordern.
+                </p>
+              ) : null}
 
               <div className="text-left">
                 <label
@@ -267,6 +357,7 @@ export function PasswordResetModal({
                   className="w-full"
                   label=""
                   disabled={isLoading}
+                  error={errorPath?.fieldError("email")}
                 />
               </div>
 

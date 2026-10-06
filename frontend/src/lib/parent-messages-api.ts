@@ -262,13 +262,19 @@ function toCountScope(value: unknown): MessageCountScope {
 }
 
 export async function fetchMessageCountSetting(): Promise<MessageCountSetting> {
-  const result = await getEnvelope<{
+  // Own error path (#2517): the settings card shows the catalog text, so the
+  // ApiError keeps code and request ID instead of a fixed sentence.
+  const response = await transportFetch("/api/messages/count-scope");
+  if (!response.ok) {
+    throw await apiErrorFromResponse(
+      response,
+      `Count scope fetch failed (${response.status})`,
+    );
+  }
+  const result = (await response.json()) as ApiResponse<{
     scope?: string;
     has_own_groups?: boolean;
-  }>(
-    "/api/messages/count-scope",
-    "Die Einstellung konnte nicht geladen werden.",
-  );
+  }>;
   return {
     scope: toCountScope(result.data?.scope),
     hasOwnGroups: result.data?.has_own_groups === true,
@@ -284,9 +290,9 @@ export async function saveMessageCountScope(
     body: JSON.stringify({ scope }),
   });
   if (!response.ok) {
-    await throwApiError(
+    throw await apiErrorFromResponse(
       response,
-      "Die Einstellung konnte nicht gespeichert werden.",
+      `Count scope save failed (${response.status})`,
     );
   }
 }

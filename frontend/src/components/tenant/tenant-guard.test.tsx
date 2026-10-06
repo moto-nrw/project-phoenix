@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 // ============================================================================
 // Mocks
@@ -47,23 +49,38 @@ vi.mock("~/lib/tenant-context", () => ({
   useNFCEnabled: vi.fn(() => true),
 }));
 
-vi.mock("~/lib/tenant-api", () => ({
-  performTenantSwitch: mockPerformTenantSwitch,
-  TenantSwitchError: class TenantSwitchError extends Error {
-    status: number;
-    code: "access_denied" | "unknown";
+vi.mock("~/lib/tenant-api", async () => {
+  const { ApiError } = await import("~/lib/api-error");
+  return {
+    performTenantSwitch: mockPerformTenantSwitch,
+    TenantSwitchError: class TenantSwitchError extends ApiError {
+      reason: "access_denied" | "unknown";
 
-    constructor(
-      message: string,
-      status: number,
-      code: "access_denied" | "unknown" = "unknown",
-    ) {
-      super(message);
-      this.name = "TenantSwitchError";
-      this.status = status;
-      this.code = code;
-    }
-  },
+      constructor(
+        message: string,
+        status: number,
+        reason: "access_denied" | "unknown" = "unknown",
+      ) {
+        super(message, status, {
+          code:
+            reason === "access_denied"
+              ? "identity.tenant_access_denied"
+              : undefined,
+        });
+        this.name = "TenantSwitchError";
+        this.reason = reason;
+      }
+    },
+  };
+});
+
+// "Neu anmelden" ist eine Aktion ohne Formular: ein Fehler dabei kommt als
+// Toast (#2517). Der Grund eines gescheiterten Wechsels läuft über den echten
+// Ladefehler-Weg.
+const showActionError = vi.hoisted(() => vi.fn());
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useApiErrorDisplay: () => ({ show: showActionError }),
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -333,6 +350,15 @@ describe("TenantGuard", () => {
       await screen.findByRole("button", { name: "Erneut versuchen" }),
     ).toBeInTheDocument();
     expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/" });
+    // The 401 names the missing access instead of jumping to the login.
+    expect(
+      await screen.findByText(
+        catalogText(
+          "identity.tenant_access_denied",
+          "das Wechseln zu School B",
+        ),
+      ),
+    ).toBeInTheDocument();
   });
 
   it.each(["/demo", "/school-a/demo"])(
@@ -702,9 +728,7 @@ describe("TenantGuard", () => {
       renderGuard();
 
       expect(
-        await screen.findByText(
-          "Der Wechsel zu School B hat leider nicht geklappt.",
-        ),
+        await screen.findByText(/Der Wechsel zu School B hat nicht geklappt/),
       ).toBeInTheDocument();
       expect(mockPerformTenantSwitch).toHaveBeenCalledTimes(3);
       expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
@@ -723,9 +747,7 @@ describe("TenantGuard", () => {
 
       const { rerender } = renderGuard();
 
-      await screen.findByText(
-        "Der Wechsel zu School B hat leider nicht geklappt.",
-      );
+      await screen.findByText(/Der Wechsel zu School B hat nicht geklappt/);
       expect(mockPerformTenantSwitch).toHaveBeenCalledTimes(3);
 
       mockUseTenant.mockReturnValue({
@@ -810,6 +832,28 @@ describe("TenantGuard", () => {
       expect(
         screen.getByRole("button", { name: "Neu anmelden" }),
       ).toBeInTheDocument();
+      expect(showActionError).toHaveBeenCalledWith(expect.any(Error), {
+        object: "die Abmeldung",
+      });
+    });
+
+    it("names the reason of a failed switch request with its catalog text", async () => {
+      mismatchedSession();
+      mockPerformTenantSwitch.mockRejectedValue(
+        new ApiError("boom", 503, { code: "general.unavailable" }),
+      );
+
+      renderGuard();
+
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "das Wechseln zu School B"),
+        ),
+      ).toBeInTheDocument();
+      // "Erneut versuchen" below is the retry; the alert brings none twice.
+      expect(
+        screen.getAllByRole("button", { name: /Erneut versuchen|Wiederholen/ }),
+      ).toHaveLength(1);
     });
   });
 });

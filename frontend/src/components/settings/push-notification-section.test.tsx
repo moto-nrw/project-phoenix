@@ -1,6 +1,17 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PushNotificationSection } from "./push-notification-section";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+// The shared error path shows failures through the toast provider (#2517).
+function renderWithToast(
+  ui: Parameters<typeof render>[0],
+  options?: Parameters<typeof render>[1],
+) {
+  return render(ui, { wrapper: ToastProvider, ...options });
+}
 
 const pushApi = vi.hoisted(() => ({
   isPushConfigurationMissing: vi.fn(),
@@ -73,7 +84,7 @@ describe("PushNotificationSection", () => {
   it("reserves the complete device card while push state is loading", () => {
     pushApi.syncExistingPushSubscription.mockReturnValue(new Promise(() => {}));
 
-    render(<PushNotificationSection portal="parent" />);
+    renderWithToast(<PushNotificationSection portal="parent" />);
 
     expect(
       screen.getByTestId("push-notification-skeleton"),
@@ -81,7 +92,7 @@ describe("PushNotificationSection", () => {
   });
 
   it("shows the enable button when push is supported and not subscribed", async () => {
-    render(<PushNotificationSection />);
+    renderWithToast(<PushNotificationSection />);
     expect(
       await screen.findByRole("button", {
         name: "Benachrichtigungen einschalten",
@@ -95,7 +106,7 @@ describe("PushNotificationSection", () => {
   it("shows the iOS install hint before checking generic push support", async () => {
     pushApi.needsIOSInstall.mockReturnValue(true);
     pushApi.isPushSupported.mockReturnValue(false);
-    render(<PushNotificationSection />);
+    renderWithToast(<PushNotificationSection />);
     expect(await screen.findByText(/Zum Home-Bildschirm/)).toBeInTheDocument();
     expect(screen.getByText(/Auf iPhone und iPad funktionieren/)).toHaveClass(
       "text-sm",
@@ -111,7 +122,7 @@ describe("PushNotificationSection", () => {
 
   it("shows the unsupported message on browsers without push", async () => {
     pushApi.isPushSupported.mockReturnValue(false);
-    render(<PushNotificationSection />);
+    renderWithToast(<PushNotificationSection />);
     expect(
       await screen.findByText(
         "Öffnen Sie moto in Safari, Chrome, Edge oder Firefox und versuchen Sie es dort erneut.",
@@ -127,7 +138,7 @@ describe("PushNotificationSection", () => {
     pwaInstall.isAndroidDevice.mockReturnValue(true);
     pwaInstall.canPromptInstall.mockReturnValue(true);
 
-    render(<PushNotificationSection portal="parent" />);
+    renderWithToast(<PushNotificationSection portal="parent" />);
 
     fireEvent.click(
       await screen.findByRole("button", { name: "App installieren" }),
@@ -147,7 +158,7 @@ describe("PushNotificationSection", () => {
     pwaInstall.isSamsungInternet.mockReturnValue(true);
     pwaInstall.canPromptInstall.mockReturnValue(true);
 
-    render(<PushNotificationSection portal="parent" />);
+    renderWithToast(<PushNotificationSection portal="parent" />);
 
     expect(
       await screen.findByRole("button", {
@@ -163,7 +174,7 @@ describe("PushNotificationSection", () => {
   it("shows the Android browser-menu fallback when no prompt is available", async () => {
     pwaInstall.isAndroidDevice.mockReturnValue(true);
 
-    render(<PushNotificationSection portal="parent" />);
+    renderWithToast(<PushNotificationSection portal="parent" />);
 
     // Seit #2831 dieselben nummerierten Schritte wie auf iPhone und iPad
     // statt eines Fließtextes.
@@ -184,7 +195,7 @@ describe("PushNotificationSection", () => {
     );
     pushApi.isPushConfigurationMissing.mockReturnValue(true);
 
-    render(<PushNotificationSection />);
+    renderWithToast(<PushNotificationSection />);
 
     await waitFor(() =>
       expect(pushApi.syncExistingPushSubscription).toHaveBeenCalled(),
@@ -208,7 +219,7 @@ describe("PushNotificationSection", () => {
     );
     pushApi.isPushConfigurationMissing.mockReturnValue(true);
 
-    render(<PushNotificationSection />);
+    renderWithToast(<PushNotificationSection />);
 
     await waitFor(() =>
       expect(pushApi.verifyPushConfiguration).toHaveBeenCalledWith("tenant"),
@@ -218,7 +229,7 @@ describe("PushNotificationSection", () => {
 
   it("shows the blocked message when permission is denied", async () => {
     stubNotificationPermission("denied");
-    render(<PushNotificationSection />);
+    renderWithToast(<PushNotificationSection />);
     expect(
       await screen.findByText(/Öffnen Sie die Einstellungen Ihres Geräts/),
     ).toBeInTheDocument();
@@ -235,7 +246,7 @@ describe("PushNotificationSection", () => {
       return Promise.resolve();
     });
 
-    render(<PushNotificationSection portal="tenant" />);
+    renderWithToast(<PushNotificationSection portal="tenant" />);
     fireEvent.click(
       await screen.findByRole("button", {
         name: "Benachrichtigungen einschalten",
@@ -258,7 +269,7 @@ describe("PushNotificationSection", () => {
   });
 
   it("passes the parent portal through to the push API", async () => {
-    render(<PushNotificationSection portal="parent" />);
+    renderWithToast(<PushNotificationSection portal="parent" />);
     const enableButton = await screen.findByRole("button", {
       name: "Benachrichtigungen einschalten",
     });
@@ -276,7 +287,7 @@ describe("PushNotificationSection", () => {
     pushApi.subscribePush.mockRejectedValue(
       new Error("Benachrichtigungen wurden nicht erlaubt."),
     );
-    render(<PushNotificationSection />);
+    renderWithToast(<PushNotificationSection />);
     fireEvent.click(
       await screen.findByRole("button", {
         name: "Benachrichtigungen einschalten",
@@ -298,7 +309,7 @@ describe("PushNotificationSection", () => {
       return Promise.resolve();
     });
 
-    render(<PushNotificationSection />);
+    renderWithToast(<PushNotificationSection />);
     fireEvent.click(
       await screen.findByRole("button", {
         name: "Benachrichtigungen ausschalten",
@@ -320,7 +331,9 @@ describe("PushNotificationSection", () => {
       endpoint: "https://push.example/e",
     });
 
-    const { rerender } = render(<PushNotificationSection portal="tenant" />);
+    const { rerender } = renderWithToast(
+      <PushNotificationSection portal="tenant" />,
+    );
     await openSecondaryMenu();
     expect(
       screen.getByRole("menuitem", { name: "Testbenachrichtigung senden" }),
@@ -347,7 +360,7 @@ describe("PushNotificationSection", () => {
       endpoint: "https://push.example/e",
     });
 
-    render(<PushNotificationSection />);
+    renderWithToast(<PushNotificationSection />);
     await openSecondaryMenu();
     fireEvent.click(
       screen.getByRole("menuitem", { name: "Testbenachrichtigung senden" }),
@@ -373,7 +386,7 @@ describe("PushNotificationSection", () => {
         }),
     );
 
-    render(<PushNotificationSection />);
+    renderWithToast(<PushNotificationSection />);
     await openSecondaryMenu();
     fireEvent.click(
       screen.getByRole("menuitem", { name: "Testbenachrichtigung senden" }),
@@ -401,18 +414,24 @@ describe("PushNotificationSection", () => {
       endpoint: "https://push.example/e",
     });
     notificationApi.sendTestNotification.mockRejectedValue(
-      new Error("Ihre Schule hat Benachrichtigungen derzeit deaktiviert."),
+      new ApiError("disabled", 409, {
+        code: "communication.notifications_disabled",
+      }),
     );
 
-    render(<PushNotificationSection />);
+    renderWithToast(<PushNotificationSection />);
     await openSecondaryMenu();
     fireEvent.click(
       screen.getByRole("menuitem", { name: "Testbenachrichtigung senden" }),
     );
 
+    // #2517: the code's own catalog text, as a toast.
     expect(
       await screen.findByText(
-        "Ihre Schule hat Benachrichtigungen derzeit deaktiviert.",
+        catalogText(
+          "communication.notifications_disabled",
+          "die Testbenachrichtigung",
+        ),
       ),
     ).toBeInTheDocument();
   });
@@ -424,7 +443,7 @@ describe("PushNotificationSection", () => {
       endpoint: "https://push.example/e",
     });
 
-    render(<PushNotificationSection portal="tenant" />);
+    renderWithToast(<PushNotificationSection portal="tenant" />);
 
     expect(
       await screen.findByText("moto als App geöffnet"),
@@ -439,7 +458,7 @@ describe("PushNotificationSection", () => {
   it("marks a blocked browser permission as blocked", async () => {
     stubNotificationPermission("denied");
 
-    render(<PushNotificationSection portal="tenant" />);
+    renderWithToast(<PushNotificationSection portal="tenant" />);
 
     expect(await screen.findByText("Blockiert")).toBeInTheDocument();
   });
@@ -448,7 +467,7 @@ describe("PushNotificationSection", () => {
     pwaInstall.isAndroidDevice.mockReturnValue(true);
     pwaInstall.canPromptInstall.mockReturnValue(true);
 
-    render(<PushNotificationSection portal="tenant" />);
+    renderWithToast(<PushNotificationSection portal="tenant" />);
 
     expect(
       await screen.findByRole("button", { name: "App installieren" }),
@@ -459,7 +478,7 @@ describe("PushNotificationSection", () => {
     pwaInstall.isDesktopDevice.mockReturnValue(true);
     pwaInstall.canPromptInstall.mockReturnValue(true);
 
-    render(<PushNotificationSection portal="tenant" />);
+    renderWithToast(<PushNotificationSection portal="tenant" />);
 
     fireEvent.click(
       await screen.findByRole("button", { name: "moto installieren" }),
@@ -474,7 +493,7 @@ describe("PushNotificationSection", () => {
     pwaInstall.canPromptInstall.mockReturnValue(true);
     pushApi.isStandaloneApp.mockReturnValue(true);
 
-    render(<PushNotificationSection portal="tenant" />);
+    renderWithToast(<PushNotificationSection portal="tenant" />);
 
     await screen.findByText("moto als App geöffnet");
     expect(
@@ -483,7 +502,7 @@ describe("PushNotificationSection", () => {
   });
 
   it("restarts the guided setup from the card", async () => {
-    render(<PushNotificationSection portal="tenant" />);
+    renderWithToast(<PushNotificationSection portal="tenant" />);
 
     await openSecondaryMenu();
     fireEvent.click(
@@ -496,7 +515,7 @@ describe("PushNotificationSection", () => {
   it("hides the restart action without a known account", async () => {
     shellAuth.useShellAuthSafe.mockReturnValue(undefined);
 
-    render(<PushNotificationSection portal="tenant" />);
+    renderWithToast(<PushNotificationSection portal="tenant" />);
 
     await screen.findByText("moto als App geöffnet");
     // Ohne Konto bleibt im nicht abonnierten Zustand keine Zweitaktion übrig,
@@ -514,7 +533,7 @@ describe("PushNotificationSection", () => {
       endpoint: "https://push.example/e",
     });
 
-    render(<PushNotificationSection portal="tenant" />);
+    renderWithToast(<PushNotificationSection portal="tenant" />);
 
     const disableButton = await screen.findByRole("button", {
       name: "Benachrichtigungen ausschalten",

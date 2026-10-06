@@ -88,10 +88,10 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 	if errors.As(err, &authErr) {
 		switch {
 		case errors.Is(err, identityaccess.ErrInvalidCredentials):
-			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidCredentials))
+			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrInvalidCredentials, common.CodeIdentityInvalidCredentials))
 		case errors.Is(err, identityaccess.ErrAccountNotFound):
 			// Mask the specific error so attackers can't enumerate accounts.
-			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidCredentials))
+			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrInvalidCredentials, common.CodeIdentityInvalidCredentials))
 		case errors.Is(err, identityaccess.ErrAccountInactive):
 			// The stable code the parents and school portals already send
 			// (#3376). Only reachable once the credential check accepted the
@@ -104,7 +104,9 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 		case errors.Is(err, identityaccess.ErrTenantNotFound):
 			common.RenderError(w, r, common.ErrorNotFound(identityaccess.ErrTenantNotFound))
 		case errors.Is(err, identityaccess.ErrTenantAccessDenied):
-			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantAccessDenied))
+			// Same code as a wrong password: the login page must not tell a
+			// caller that the address exists at another school (#2517).
+			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrTenantAccessDenied, common.CodeIdentityInvalidCredentials))
 		case errors.Is(err, identityaccess.ErrParentMustUseParentPortal):
 			// Guardian-only account at the staff login. The code is what the
 			// frontend switches on to point the user at the parents portal —
@@ -124,12 +126,12 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 			// MFA challenge initiation tripped the 3/15min sliding-window
 			// cap. Surface as 429 so the frontend shows the dedicated "too
 			// many code requests" message instead of a generic 5xx.
-			common.RenderError(w, r, common.ErrorTooManyRequests(authErr.Err))
+			common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(authErr.Err, common.CodeIdentityMfaBlocked))
 		case errors.Is(err, identityaccess.ErrMFALocked):
 			// Account hit the failed-attempt lockout threshold while we were
 			// preparing the next challenge. Same HTTP status as rate limit,
-			// distinct message body — handled separately on the frontend.
-			common.RenderError(w, r, common.ErrorTooManyRequests(authErr.Err))
+			// distinct message body; the frontend shows one text for both.
+			common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(authErr.Err, common.CodeIdentityMfaBlocked))
 		case errors.Is(err, identityaccess.ErrMFAStatusUnavailable):
 			// MFA gate couldn't determine required/enrolled status (settings
 			// or credentials lookup failed with a non-not-found error).
@@ -488,11 +490,13 @@ func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &authErr) {
 			switch {
 			case errors.Is(authErr.Err, identityaccess.ErrInvalidCredentials):
-				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidCredentials))
+				// The status stays 401; the code and field tell the form that
+				// the current password was refused, not the session (#2517).
+				common.RenderError(w, r, common.ErrorUnauthorizedOnField(identityaccess.ErrInvalidCredentials, common.CodeIdentityCurrentPasswordWrong, "current_password"))
 			case errors.Is(authErr.Err, identityaccess.ErrAccountNotFound):
 				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountNotFound))
 			case errors.Is(authErr.Err, identityaccess.ErrPasswordTooWeak):
-				common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrPasswordTooWeak))
+				common.RenderError(w, r, common.ErrorInvalidOnField(identityaccess.ErrPasswordTooWeak, common.CodeIdentityPasswordTooWeak, "new_password"))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}

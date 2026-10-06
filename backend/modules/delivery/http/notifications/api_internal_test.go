@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -115,6 +116,8 @@ func TestSendTestNotificationDisabledMapsToConflict(t *testing.T) {
 	rs.sendTestNotification(rec, newTestRequest(41))
 
 	assert.Equal(t, http.StatusConflict, rec.Code)
+	assert.Contains(t, rec.Body.String(),
+		`"code":"`+common.CodeCommunicationNotificationsDisabled+`"`)
 }
 
 func TestSendTestNotificationErrorsMapToInternal(t *testing.T) {

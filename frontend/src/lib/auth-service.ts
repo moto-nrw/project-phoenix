@@ -37,7 +37,12 @@ import {
   type BackendParentAccount,
 } from "./auth-helpers";
 import type { AxiosError } from "axios";
-import { type ApiError, apiErrorFromText } from "./api-error";
+import {
+  type ApiError,
+  apiErrorFromBody,
+  apiErrorFromText,
+  transportFetch,
+} from "./api-error";
 
 // Generic API response interface
 interface ApiResponse<T> {
@@ -164,12 +169,14 @@ async function buildFetchApiError(
   fallbackMessage: string,
 ): Promise<ApiError> {
   let message = fallbackMessage;
+  let body: unknown;
 
   try {
     const contentType = response.headers.get("Content-Type") ?? "";
     if (contentType.includes("application/json")) {
       const payload = (await response.json()) as ApiErrorResponseBody;
       message = payload.error ?? payload.message ?? fallbackMessage;
+      body = payload;
     } else {
       const text = (await response.text()).trim();
       if (text) {
@@ -183,8 +190,9 @@ async function buildFetchApiError(
     });
   }
 
-  const apiError = new Error(message) as ApiError;
-  apiError.status = response.status;
+  // A real ApiError with code, field errors and request ID, so the shared
+  // error path can show the catalog text (#2517).
+  const apiError = apiErrorFromBody(message, response.status, body);
 
   const retryAfterSeconds = parseRetryAfter(
     response.headers.get("Retry-After"),
@@ -213,8 +221,11 @@ function buildAxiosApiError(
     message = error.message;
   }
 
-  const apiError = new Error(message) as ApiError;
-  apiError.status = error.response?.status;
+  const apiError = apiErrorFromBody(
+    message,
+    error.response?.status ?? 500,
+    typeof data === "object" ? data : undefined,
+  );
 
   const headers = error.response?.headers as
     Record<string, unknown> | undefined;
@@ -706,7 +717,7 @@ export const authService = {
 
     try {
       if (useProxyApi) {
-        const response = await fetch(url, {
+        const response = await transportFetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),

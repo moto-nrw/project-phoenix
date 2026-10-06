@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -11,13 +17,19 @@ import { InvitationAcceptForm } from "~/components/auth/invitation-accept-form";
 import { InvitationOwnerAcceptForm } from "~/components/auth/invitation-owner-accept-form";
 import { validateInvitation } from "~/lib/invitation-api";
 import type { InvitationValidation } from "~/lib/invitation-helpers";
-import type { ApiError } from "~/lib/auth-api";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Loading } from "~/components/ui/loading";
+import { useApiLoadError } from "~/contexts/ToastContext";
+import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { useTenantSafe } from "~/lib/tenant-context";
 import { loginImageSrc } from "~/lib/tenant-api";
 
 const logger = createLogger({ component: "InvitationPageContent" });
+
+/** Ohne Token im Link gibt es nichts zu laden. */
+const MISSING_TOKEN_TEXT =
+  "Der Link ist unvollständig. Bitte öffnen Sie den Link aus der E-Mail erneut.";
 
 /**
  * Shared invitation page content used by both:
@@ -37,8 +49,20 @@ export function InvitationPageContent({
   const [invitation, setInvitation] = useState<InvitationValidation | null>(
     null,
   );
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Ladefehler vor Ort mit Katalogtext je Code (#2517): abgelaufen oder
+  // unbekannt hat eigene Texte, ein Serverfehler bietet Wiederholen.
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  const [isLoading, setIsLoading] = useState(Boolean(token));
+  const [attempt, setAttempt] = useState(0);
+  const retryRef = useRef<() => void>(() => undefined);
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  useLayoutEffect(() => {
+    retryRef.current = retry;
+  });
   const tenantContext = useTenantSafe();
   const tenant = tenantContext?.tenant;
   const brand = tenant?.settings?.loginImageUrl ? (
@@ -57,12 +81,11 @@ export function InvitationPageContent({
     let cancelled = false;
     async function fetchInvitation() {
       if (!token) {
-        setError("Kein Einladungstoken angegeben.");
         setIsLoading(false);
         return;
       }
       setIsLoading(true);
-      setError(null);
+      clearLoadError();
       try {
         const result = await validateInvitation(token);
         if (!cancelled) {
@@ -70,31 +93,23 @@ export function InvitationPageContent({
         }
       } catch (err) {
         if (cancelled) return;
-        const apiError = err as ApiError | undefined;
-        const status = apiError?.status;
+        // Ein abgelaufener oder unbekannter Link ist kein Defekt.
+        const status = errorStatus(err);
+        const context = {
+          error: err instanceof Error ? err.message : String(err),
+          status,
+        };
         if (status === 410 || status === 404) {
-          logger.warn("invitation_validation_failed", {
-            error: err instanceof Error ? err.message : String(err),
-            status,
-          });
+          logger.warn("invitation_validation_failed", context);
         } else {
-          logger.error("invitation_validation_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-        if (status === 410) {
-          setError(
-            "Diese Einladung ist abgelaufen oder wurde bereits verwendet.",
-          );
-        } else if (status === 404) {
-          setError("Wir konnten diese Einladung nicht finden.");
-        } else {
-          setError(
-            apiError?.message ??
-              "Beim Laden der Einladung ist ein Fehler aufgetreten.",
-          );
+          logger.error("invitation_validation_failed", context);
         }
         setInvitation(null);
+        // Bis der Katalogtext da ist, bleibt die Ladeanzeige stehen.
+        await showLoadError(err, {
+          object: "die Einladung",
+          retry: () => retryRef.current(),
+        });
       } finally {
         if (!cancelled) {
           setIsLoading(false);
@@ -106,7 +121,9 @@ export function InvitationPageContent({
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, attempt, clearLoadError, showLoadError]);
+
+  const error = token ? loadError : MISSING_TOKEN_TEXT;
 
   if (isLoading) {
     return (
@@ -114,7 +131,7 @@ export function InvitationPageContent({
         eyebrow="Einladung"
         eyebrowClassName="text-moto-green"
         title="Konto einrichten"
-        subtitle="Wir prüfen deine Einladung."
+        subtitle="Wir prüfen Ihre Einladung."
         variant="tenant"
         brand={brand}
         formMaxWidth="max-w-[32rem]"
@@ -144,26 +161,7 @@ export function InvitationPageContent({
     >
       {error && (
         <div className="space-y-4">
-          <div className="border-moto-red/20 bg-moto-red-soft rounded-xl border p-4">
-            <div className="flex items-start gap-3">
-              <svg
-                role="img"
-                aria-label="Fehler"
-                className="text-moto-red mt-0.5 h-5 w-5 flex-shrink-0"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-              <p className="text-moto-red-strong text-sm">{error}</p>
-            </div>
-          </div>
+          <LoadErrorAlert error={error} />
           <Link href="/" className={authPrimaryButtonClassName}>
             Zur Anmeldung
           </Link>

@@ -1,6 +1,17 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotificationPreferencesSection } from "./notification-preferences-section";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+// The shared error path shows failures through the toast provider (#2517).
+function renderWithToast(
+  ui: Parameters<typeof render>[0],
+  options?: Parameters<typeof render>[1],
+) {
+  return render(ui, { wrapper: ToastProvider, ...options });
+}
 
 const api = vi.hoisted(() => ({
   fetchNotificationPreferences: vi.fn(),
@@ -37,7 +48,7 @@ describe("NotificationPreferencesSection", () => {
   it("reserves grouped rows and header action while preferences load", () => {
     api.fetchNotificationPreferences.mockReturnValue(new Promise(() => {}));
 
-    render(<NotificationPreferencesSection portal="parent" />);
+    renderWithToast(<NotificationPreferencesSection portal="parent" />);
 
     const skeleton = screen.getByTestId("notification-preferences-skeleton");
     expect(skeleton.querySelectorAll(".min-h-16")).toHaveLength(5);
@@ -47,7 +58,7 @@ describe("NotificationPreferencesSection", () => {
   });
 
   it("renders the catalogue grouped under German headings", async () => {
-    render(<NotificationPreferencesSection />);
+    renderWithToast(<NotificationPreferencesSection />);
 
     expect(await screen.findByText("Anstehende Abholung")).toBeInTheDocument();
     expect(screen.getByText("Abholungen")).toBeInTheDocument();
@@ -91,7 +102,7 @@ describe("NotificationPreferencesSection", () => {
       ],
     });
 
-    render(<NotificationPreferencesSection portal="parent" />);
+    renderWithToast(<NotificationPreferencesSection portal="parent" />);
 
     expect(await screen.findByText("Termine")).toBeInTheDocument();
     expect(
@@ -105,7 +116,7 @@ describe("NotificationPreferencesSection", () => {
   });
 
   it("saves a decision when a switch is flipped", async () => {
-    render(<NotificationPreferencesSection />);
+    renderWithToast(<NotificationPreferencesSection />);
 
     fireEvent.click(
       await screen.findByRole("switch", { name: "Anstehende Abholung" }),
@@ -124,18 +135,21 @@ describe("NotificationPreferencesSection", () => {
   });
 
   it("rolls the switch back when saving fails", async () => {
-    api.setNotificationPreference.mockRejectedValue(new Error("boom"));
-    render(<NotificationPreferencesSection />);
+    api.setNotificationPreference.mockRejectedValue(new ApiError("boom", 500));
+    renderWithToast(<NotificationPreferencesSection />);
 
     fireEvent.click(
       await screen.findByRole("switch", { name: "Anstehende Abholung" }),
     );
 
     // The optimistic flip must not survive a failed save: otherwise the card
-    // claims a consent the server never recorded.
+    // claims a consent the server never recorded. #2517: catalog text toast.
     expect(
       await screen.findByText(
-        "Die Einstellung konnte nicht gespeichert werden.",
+        catalogText(
+          "general.server",
+          "die Benachrichtigung „Anstehende Abholung“",
+        ),
       ),
     ).toBeInTheDocument();
     expect(
@@ -151,7 +165,7 @@ describe("NotificationPreferencesSection", () => {
           finishSave = resolve;
         }),
     );
-    render(<NotificationPreferencesSection />);
+    renderWithToast(<NotificationPreferencesSection />);
 
     const preferenceSwitch = await screen.findByRole("switch", {
       name: "Anstehende Abholung",
@@ -167,7 +181,7 @@ describe("NotificationPreferencesSection", () => {
     api.fetchNotificationPreferences.mockResolvedValue(
       preferences({ available: false }),
     );
-    render(<NotificationPreferencesSection />);
+    renderWithToast(<NotificationPreferencesSection />);
 
     expect(
       await screen.findByText("Von Ihrer Schule derzeit deaktiviert."),
@@ -184,7 +198,7 @@ describe("NotificationPreferencesSection", () => {
       ...preferences(),
       tenant_enabled: false,
     });
-    render(<NotificationPreferencesSection />);
+    renderWithToast(<NotificationPreferencesSection />);
 
     expect(
       await screen.findByText(/Ihre Schule hat Benachrichtigungen derzeit/),
@@ -208,7 +222,7 @@ describe("NotificationPreferencesSection", () => {
     api.fetchNotificationPreferences.mockResolvedValue(
       preferences({ enabled: true }),
     );
-    render(<NotificationPreferencesSection />);
+    renderWithToast(<NotificationPreferencesSection />);
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Alle deaktivieren" }),
@@ -242,7 +256,7 @@ describe("NotificationPreferencesSection", () => {
         },
       ],
     });
-    render(<NotificationPreferencesSection portal="parent" />);
+    renderWithToast(<NotificationPreferencesSection portal="parent" />);
 
     expect(
       await screen.findByText(
@@ -282,7 +296,7 @@ describe("NotificationPreferencesSection", () => {
     api.fetchNotificationPreferences.mockResolvedValue(
       preferences({ enabled: true }),
     );
-    render(<NotificationPreferencesSection portal="parent" />);
+    renderWithToast(<NotificationPreferencesSection portal="parent" />);
 
     expect(await screen.findByText("Alle aktiviert")).toBeVisible();
     expect(
@@ -292,7 +306,7 @@ describe("NotificationPreferencesSection", () => {
 
   it("keeps the parent action available when enabling all fails", async () => {
     api.setNotificationPreference.mockRejectedValue(new Error("boom"));
-    render(<NotificationPreferencesSection portal="parent" />);
+    renderWithToast(<NotificationPreferencesSection portal="parent" />);
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Alle aktivieren" }),
@@ -310,7 +324,7 @@ describe("NotificationPreferencesSection", () => {
   });
 
   it("uses the parent portal when asked to", async () => {
-    render(<NotificationPreferencesSection portal="parent" />);
+    renderWithToast(<NotificationPreferencesSection portal="parent" />);
 
     await waitFor(() =>
       expect(api.fetchNotificationPreferences).toHaveBeenCalledWith("parent"),
