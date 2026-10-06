@@ -90,8 +90,8 @@ export function PushNotificationSection({
   const [testing, setTesting] = useState(false);
   const toast = useToast();
   // Einschalten, Ausschalten und Testen sind Aktionen ohne Formular: Erfolg
-  // und Fehler kommen als Toast (#2517). Das Elternportal behält seine
-  // übersetzten Sätze, bis #2518 die Fehlerobjekte übersetzt.
+  // und Fehler kommen als Toast (#2517). Die Fehlerobjekte sind übersetzt, im
+  // Elternportal spricht der Katalog die gewählte Sprache (#2518).
   const { show: showActionError } = useApiErrorDisplay();
   const latestEnableRef = useRef<() => void>(() => undefined);
   const latestDisableRef = useRef<() => void>(() => undefined);
@@ -191,19 +191,6 @@ export function PushNotificationSection({
     void refresh();
   }, [refresh]);
 
-  const reportError = (
-    err: unknown,
-    parentMessage: string,
-    object: string,
-    retry: () => void,
-  ) => {
-    if (portal === "parent") {
-      toast.error(parentMessage);
-      return;
-    }
-    void showActionError(err, { object, retry });
-  };
-
   const enable = async () => {
     setBusy(true);
     try {
@@ -223,12 +210,10 @@ export function PushNotificationSection({
       ) {
         toast.error(t("enableError"));
       } else {
-        reportError(
-          err,
-          t("enableError"),
-          "das Einschalten der Benachrichtigungen",
-          () => latestEnableRef.current(),
-        );
+        void showActionError(err, {
+          object: t("errorObjectEnable"),
+          retry: () => latestEnableRef.current(),
+        });
       }
       await refresh();
     } finally {
@@ -264,12 +249,10 @@ export function PushNotificationSection({
       logger.error("push_unsubscribe_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      reportError(
-        err,
-        t("disableError"),
-        "das Ausschalten der Benachrichtigungen",
-        () => latestDisableRef.current(),
-      );
+      void showActionError(err, {
+        object: t("errorObjectDisable"),
+        retry: () => latestDisableRef.current(),
+      });
     } finally {
       setBusy(false);
     }
@@ -285,9 +268,10 @@ export function PushNotificationSection({
       logger.error("test_notification_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      reportError(err, t("testError"), "die Testbenachrichtigung", () =>
-        latestTestRef.current(),
-      );
+      void showActionError(err, {
+        object: t("errorObjectTest"),
+        retry: () => latestTestRef.current(),
+      });
     } finally {
       setTesting(false);
       setBusy(false);

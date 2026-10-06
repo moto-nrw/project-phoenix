@@ -1,11 +1,19 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 // eslint-disable-next-line no-restricted-imports -- parent routes are not tenant-scoped
 import { redirect, useSearchParams } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import {
   AuthShell,
   AuthShellSkeleton,
@@ -17,9 +25,14 @@ import { buildParentAuthShellCopy } from "~/components/auth/parent-auth-shell-co
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
+import { useApiFormError } from "~/contexts/ToastContext";
+import { ApiError, unavailableApiError } from "~/lib/api-error";
+import { createLogger } from "~/lib/logger";
 import { requestParentPasswordReset } from "~/lib/auth-api";
 import { parentPath } from "~/lib/parent-url";
 import { clientEnv } from "~/env.client";
+
+const logger = createLogger({ component: "ParentLoginPage" });
 
 /**
  * Wie lange nach einem erfolgreichen signIn auf die publizierte Session
@@ -43,6 +56,27 @@ function staffLoginUrl(): string {
   return `${window.location.protocol}//${clientEnv.NEXT_PUBLIC_TENANT_DOMAIN}${portSuffix}/`;
 }
 
+/**
+ * The refusal codes parent-config.ts hands back through NextAuth, as the
+ * registry codes the shared error path speaks (#2518). Any other
+ * CredentialsSignin is a refused login ("invalid_credentials", or NextAuth's
+ * own "credentials" when authorize returned nothing). Any other NextAuth
+ * error is a fault on our side.
+ */
+function loginRefusal(error: string, code: string | undefined): ApiError {
+  if (code === "account_inactive") {
+    return new ApiError("parent login refused", undefined, {
+      code: "identity.session_account_inactive",
+    });
+  }
+  if (error === "CredentialsSignin") {
+    return new ApiError("parent login refused", undefined, {
+      code: "identity.invalid_credentials",
+    });
+  }
+  return new ApiError("parent login failed", 500, { code: "general.server" });
+}
+
 export default function ParentLoginPage() {
   // useSearchParams verlangt eine Suspense-Grenze (siehe frontend/CLAUDE.md).
   return (
@@ -59,8 +93,15 @@ function ParentLoginForm() {
   const tReset = useTranslations("parentPasswordResetModal");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  // Steuert nur, ob der Fehler den Link zur Schul-Anmeldung mitbekommt.
+  // Fehler laufen über den gemeinsamen Weg (#2518): Katalogtext je Code im
+  // Fehlerkasten des Formulars, in der Sprache der Eltern.
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const latestSubmitRef = useRef<() => void>(() => undefined);
+  const resetFormRef = useRef<HTMLFormElement>(null);
+  const resetErrors = useApiFormError(resetFormRef);
+  // Ein Personal-Konto: kein Fehler der Eingabe, sondern der falsche Ort. Der
+  // Hinweis bringt den Link zur Schul-Anmeldung mit.
   const [isStaffAccount, setIsStaffAccount] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -80,7 +121,10 @@ function ParentLoginForm() {
   // Ref prevents re-triggering signOut (not in effect deps → no loop).
   // Separate state controls the loading spinner for the UI.
   const cleanupStartedRef = useRef(false);
+  const [cleanupAttempt, setCleanupAttempt] = useState(0);
   const [isCleaningUp, setIsCleaningUp] = useState(false);
+  const { error: formError, show: showFormError } = formErrors;
+  const hasError = Boolean(formError) || isStaffAccount;
   const testimonialPanelCopy = useMemo(
     () => buildParentAuthShellCopy(tAuthShell),
     [tAuthShell],
@@ -108,15 +152,24 @@ function ParentLoginForm() {
         setIsCleaningUp(true);
         try {
           await signOut({ redirect: false });
-        } catch {
+        } catch (err) {
           cleanupStartedRef.current = false;
+          logger.warn("parent_login_stale_session_cleanup_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          // The stale session keeps the form locked: say so, and let
+          // Wiederholen run the cleanup again.
+          void showFormError(unavailableApiError(err), {
+            object: t("errorObject"),
+            retry: () => setCleanupAttempt((current) => current + 1),
+          });
         }
         setIsCleaningUp(false);
         return;
       }
     };
     void check();
-  }, [status, session]);
+  }, [status, session, cleanupAttempt, showFormError, t]);
 
   // Watchdog für die Übergabe von signIn an die Session. signIn kann ok
   // melden, ohne dass danach je eine Session ankommt: NextAuth holt sie per
@@ -131,10 +184,14 @@ function ParentLoginForm() {
     const timer = setTimeout(() => {
       setAwaitingSession(false);
       setIsLoading(false);
-      setError(t("errors.generic"));
+      // Die Session kam nicht an: die Verbindung hakt, ein neuer Versuch hilft.
+      void showFormError(unavailableApiError(), {
+        object: t("errorObject"),
+        retry: () => latestSubmitRef.current(),
+      });
     }, SESSION_HANDOFF_TIMEOUT_MS);
     return () => clearTimeout(timer);
-  }, [awaitingSession, t]);
+  }, [awaitingSession, showFormError, t]);
 
   // Einzige Weiterleitung nach erfolgreichem Login. Sie greift, sobald NextAuth
   // die neue Session veröffentlicht — auch für den Fall "bereits angemeldet,
@@ -148,11 +205,10 @@ function ParentLoginForm() {
     redirect(parentPath("/parents"));
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async () => {
     if (isSessionSettling) return;
     setIsLoading(true);
-    setError("");
+    formErrors.clear();
     setIsStaffAccount(false);
 
     try {
@@ -163,19 +219,25 @@ function ParentLoginForm() {
       });
 
       if (result?.error) {
-        const errorMessages: Record<string, string> = {
-          account_inactive: t("errors.accountInactive"),
-          rate_limited: t("errors.rateLimited"),
-          invalid_credentials: t("errors.invalidCredentials"),
-          // ErrAccountNoGuardianRole: Personal-Konto im Elternportal. Der
-          // Backend-Code kommt seit parent-config.ts unmaskiert an — der
-          // 403 setzt eine korrekte Passwortpruefung voraus, verraet also
-          // nichts ueber ein fremdes Konto.
-          not_a_guardian: t("errors.notAGuardian"),
-        };
-        setError(errorMessages[result.code ?? ""] ?? t("errors.invalid"));
-        setIsStaffAccount(result.code === "not_a_guardian");
         setIsLoading(false);
+        // ErrAccountNoGuardianRole: Personal-Konto im Elternportal. Der
+        // Backend-Code kommt seit parent-config.ts unmaskiert an — der
+        // 403 setzt eine korrekte Passwortprüfung voraus, verrät also
+        // nichts über ein fremdes Konto.
+        if (result.code === "not_a_guardian") {
+          setIsStaffAccount(true);
+          return;
+        }
+        // Für zu viele Versuche kennt die Registry keinen Anmelde-Code; der
+        // Klassentext "nicht erreichbar, erneut versuchen" wäre hier falsch.
+        if (result.code === "rate_limited") {
+          formErrors.invalid(t("errors.rateLimited"));
+          return;
+        }
+        void formErrors.show(loginRefusal(result.error, result.code), {
+          object: t("errorObject"),
+          retry: () => latestSubmitRef.current(),
+        });
         return;
       }
 
@@ -185,10 +247,27 @@ function ParentLoginForm() {
       // gibt es wieder frei, falls die Session ausbleibt.
       setAwaitingSession(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("errors.generic"));
+      // signIn wirft nur, wenn die Anfrage nicht ankam.
+      void formErrors.show(
+        err instanceof ApiError ? err : unavailableApiError(err),
+        {
+          object: t("errorObject"),
+          retry: () => latestSubmitRef.current(),
+        },
+      );
       setIsLoading(false);
     }
   };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void submit();
+  };
+
+  // „Wiederholen“ sendet, was dann in den Feldern steht.
+  useLayoutEffect(() => {
+    latestSubmitRef.current = () => void submit();
+  });
 
   return (
     <>
@@ -203,24 +282,25 @@ function ParentLoginForm() {
         testimonialPanelCopy={testimonialPanelCopy}
       >
         <form
+          ref={formRef}
           onSubmit={handleSubmit}
           noValidate
           className="space-y-6"
           aria-busy={isSessionSettling || undefined}
         >
-          {cameFromStaffLogin && !error && (
+          {cameFromStaffLogin && !hasError && (
             <Alert type="info" message={t("fromStaffBanner")} />
           )}
-          {sessionExpired && !error && (
+          {sessionExpired && !hasError && (
             <Alert type="info" message={tErrorCatalog("loginNotice")} />
           )}
 
-          {error && (
+          {isStaffAccount ? (
             <Alert
-              type="error"
-              message={error}
+              type="info"
+              message={t("errors.notAGuardian")}
               action={
-                isStaffAccount && staffUrl ? (
+                staffUrl ? (
                   <a
                     href={staffUrl}
                     className="font-medium whitespace-nowrap underline underline-offset-2"
@@ -230,6 +310,8 @@ function ParentLoginForm() {
                 ) : undefined
               }
             />
+          ) : (
+            <FormErrorAlert message={formErrors.error} />
           )}
 
           <div className="space-y-4">
@@ -310,6 +392,8 @@ function ParentLoginForm() {
         onClose={() => setIsResetModalOpen(false)}
         onRequestReset={requestParentPasswordReset}
         rateLimitStorageKey="parentPasswordResetRateLimitUntil"
+        errorPath={resetErrors}
+        formRef={resetFormRef}
         copy={{
           title: tReset("title"),
           description: tReset("description"),
@@ -321,9 +405,8 @@ function ParentLoginForm() {
           successMessage: tReset("successMessage"),
           successHint: tReset("successHint"),
           close: tReset("close"),
-          rateLimitError: (countdown) =>
-            tReset("errors.rateLimited", { countdown }),
-          genericError: tReset("errors.generic"),
+          errorObject: tReset("errorObject"),
+          rateLimitWait: (countdown) => tReset("rateLimitWait", { countdown }),
         }}
       />
     </>

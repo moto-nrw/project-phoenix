@@ -326,6 +326,38 @@ describe("PushNotificationSection", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows a failed parent unsubscribe on the shared path with retry", async () => {
+    pushApi.syncExistingPushSubscription.mockResolvedValue({
+      endpoint: "https://push.example/e",
+    });
+    pushApi.unsubscribePush
+      .mockRejectedValueOnce(
+        new ApiError("diag", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue(undefined);
+
+    renderWithToast(<PushNotificationSection portal="parent" />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Benachrichtigungen ausschalten",
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText(
+          "general.unavailable",
+          "das Ausschalten der Benachrichtigungen",
+        ),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() =>
+      expect(pushApi.unsubscribePush).toHaveBeenCalledTimes(2),
+    );
+    expect(pushApi.unsubscribePush).toHaveBeenLastCalledWith("parent");
+  });
+
   it("offers a test notification only for an active tenant subscription", async () => {
     pushApi.syncExistingPushSubscription.mockResolvedValue({
       endpoint: "https://push.example/e",

@@ -1,7 +1,8 @@
 {
   "language": {
     "label": "Dil",
-    "saveError": "Dil hesabınıza kaydedilemedi. Seçim bu cihazda geçerli."
+    "errorObject": "hesabınızdaki dil seçimi",
+    "savedOnDevice": "Dil şimdilik yalnızca bu cihazda geçerli."
   },
   "datePicker": {
     "placeholder": "Tarih seçin",
@@ -92,7 +93,6 @@
     "emptyTitle": "Yemek planı yok",
     "empty": "Okulunuz için yemek planı şu anda açık değil.",
     "loading": "Yemek planı yükleniyor",
-    "loadError": "Yemek planı yüklenemedi.",
     "emptyThisWeekTitle": "Bu hafta için henüz yemek planı girilmemiş",
     "emptyNextWeekTitle": "Gelecek hafta için henüz yemek planı girilmemiş",
     "emptyWeek": "OGS bir plan girdiğinde onu burada görürsünüz.",
@@ -108,8 +108,6 @@
     "participationCutoff": "Kaydı aynı gün saat {time} olana kadar değiştirebilirsiniz.",
     "participationSickness": "Saat {time} olana kadar onaylanan bir hastalık bildirimi, çocuğunuzun öğle yemeği kaydını iptal eder. Sonrasında kayıt geçerli kalır.",
     "participationLoading": "Öğle yemeği kaydı yükleniyor",
-    "participationError": "Öğle yemeği kaydı yüklenemedi veya kaydedilemedi. Lütfen tekrar deneyin.",
-    "retry": "Tekrar dene",
     "regularDays": "Sabit günler",
     "noRegularDays": "Sabit gün yok",
     "allWeekdays": "Pazartesi ile Cuma arası",
@@ -136,7 +134,10 @@
     "closed": "Artık değiştirilemez",
     "register": "Kayıt yap",
     "unregister": "Kaydı iptal et",
-    "useRegular": "Sabit kaydı kullan"
+    "useRegular": "Sabit kaydı kullan",
+    "errorObjectSchools": "yemek özeti",
+    "errorObjectWeek": "bu haftanın yemek listesi",
+    "errorObjectParticipation": "öğle yemeği kaydı"
   },
   "mealParticipantList": {
     "title": "Mutfak için günlük liste",
@@ -191,7 +192,6 @@
     "newsMessageFrom": "Veli mektubu: {school}",
     "newsDeclarationFrom": "İzin · {school}",
     "newsRead": "Okundu",
-    "newsActionError": "İşlem başarısız oldu. Lütfen tekrar deneyin.",
     "newsStaleError": "Bu veli mektubu artık güncel değil. Lütfen sayfayı yenileyin.",
     "newsPoll": "Anket",
     "newsDeclaration": "İzin",
@@ -217,13 +217,14 @@
     "newsAttachmentsHint": "Dosyayı açmak veya kaydetmek için adına dokunun.",
     "newsAttachmentsDownload": "İndir",
     "newsAttachmentsOpen": "Tarayıcıda aç",
-    "newsAttachmentsError": "Dosyalar yüklenemedi.",
-    "newsAttachmentsRetry": "Tekrar dene",
     "newsClose": "Kapat",
     "newsLetterBadge": "Onay gerekli",
     "newsReminder": "Hatırlatma",
     "newsReminderFrom": "{date} tarihli hatırlatma",
-    "newsLetterBindingHint": "Bu e-posta yalnızca bilgilendirme amaçlıdır. Geçerli olan, buradaki veli portalındaki onaydır. Her çocuk için bir veli yeterlidir."
+    "newsLetterBindingHint": "Bu e-posta yalnızca bilgilendirme amaçlıdır. Geçerli olan, buradaki veli portalındaki onaydır. Her çocuk için bir veli yeterlidir.",
+    "newsErrorObjectAnswer": "yanıt",
+    "newsErrorObjectConfirmation": "okundu onayı",
+    "newsErrorObjectAttachments": "dosya listesi"
   },
   "parentDeclaration": {
     "sectionTitle": "Cevabınız",
@@ -292,30 +293,19 @@
     "saving": "Kaydediliyor …",
     "saved": "{name} için yanıtınız kaydedildi.",
     "errors": {
-      "notFound": "Bu izin talebi artık mevcut değil. Liste yeniden yükleniyor.",
-      "notPermitted": "Bu çocuk için yanıt veremezsiniz. Sorularınız için OGS ile iletişime geçin.",
-      "versionChanged": "Okul metni değiştirdi. Lütfen tekrar okuyun ve ardından yeniden yanıtlayın.",
-      "closed": "Süre doldu. Artık yanıt veremezsiniz.",
-      "actionNotAllowed": "Bu şu anda mümkün değil. Güncel durum yeniden yükleniyor.",
-      "careEnded": "Bu çocuğun bakımı sona erdi. Artık yanıt veremezsiniz.",
       "passwordRequired": "Lütfen şifrenizi girin.",
-      "passwordIncorrect": "Şifre doğru değil. Lütfen tekrar deneyin.",
-      "tooMany": "Çok fazla deneme. Lütfen biraz bekleyin ve tekrar deneyin.",
-      "uncertain": "Bu işe yaramamış olabilir. Durum yeniden yükleniyor. Lütfen kontrol edin ve gerekirse tekrar yanıtlayın.",
-      "generic": "Maalesef olmadı. Lütfen tekrar deneyin."
-    }
+      "uncertainReload": "Güncel durum yeniden yükleniyor. Lütfen tekrar yanıt vermeden önce kontrol edin."
+    },
+    "errorObjectAnswer": "yanıt"
   },
   "parentDeclarationProof": {
     "title": "Cevabınızın belgesi",
     "back": "Veli mektuplarına dön",
     "download": "PDF olarak indir",
     "downloading": "Oluşturuluyor …",
-    "downloadError": "PDF oluşturulamadı. Lütfen tekrar deneyin.",
     "integrityOk": "Metin ve cevaplar yayından bu yana değişmedi.",
     "integrityBroken": "Dikkat: Kayıtlı bir giriş sonradan değiştirildi. Lütfen OGS ile iletişime geçin.",
     "notFound": "Bu çocuk için henüz belge yok. Bir izin talebine cevap verdiğinizde oluşturulur.",
-    "loadError": "Belge yüklenemedi. Lütfen tekrar deneyin.",
-    "retry": "Tekrar dene",
     "generated": "Oluşturulma: {date}",
     "child": "Çocuk",
     "school": "Okul",
@@ -330,7 +320,9 @@
     "versionsTitle": "Okulun metni",
     "versionHeading": "Sürüm {version}, yayınlanma: {date}",
     "attachments": "Dosyalar",
-    "note": "Bu belge basit bir elektronik beyanı kanıtlar. Yasanın gerektirdiği kağıt üzerindeki imzanın yerini tutmaz."
+    "note": "Bu belge basit bir elektronik beyanı kanıtlar. Yasanın gerektirdiği kağıt üzerindeki imzanın yerini tutmaz.",
+    "errorObjectProof": "kanıt belgesi",
+    "errorObjectPdf": "PDF dosyası"
   },
   "parentNotificationSetup": {
     "title": "Önemli mesajları kaçırmayın",
@@ -375,11 +367,9 @@
     "enabledMessage": "Bildirimler bu cihazda açık.",
     "disabledMessage": "Bildirimler bu cihazda kapalı.",
     "enableError": "Bildirimler açılamadı. Lütfen tekrar deneyin.",
-    "disableError": "Bildirimler kapatılamadı. Lütfen tekrar deneyin.",
     "sendTest": "Test bildirimi gönder",
     "testing": "Gönderiliyor …",
     "testSent": "Test bildirimi gönderildi.",
-    "testError": "Test bildirimi gönderilemedi. Lütfen tekrar deneyin.",
     "statusInstallLabel": "moto uygulama olarak açıldı",
     "statusInstallYes": "Evet",
     "statusInstallNo": "Hayır",
@@ -395,7 +385,10 @@
     "installStepAndroid1": "Tarayıcıda sağ üstteki üç noktaya dokunun.",
     "installStepAndroid2": "“Uygulamayı yükle” veya “Ana ekrana ekle” seçeneğini seçin.",
     "installStepAndroid3": "“Yükle” ile onaylayın. Sonra moto'yu yeni simgeden açın.",
-    "installOutroAndroid": "Uygulamada tekrar Ayarlar'ı açın. Orada bildirimleri tek dokunuşla açarsınız."
+    "installOutroAndroid": "Uygulamada tekrar Ayarlar'ı açın. Orada bildirimleri tek dokunuşla açarsınız.",
+    "errorObjectEnable": "bildirimleri açma",
+    "errorObjectDisable": "bildirimleri kapatma",
+    "errorObjectTest": "test bildirimi"
   },
   "parentSettings": {
     "eyebrow": "Hesabınız",
@@ -430,9 +423,6 @@
     "enableAll": "Tümünü aç",
     "enablingAll": "Açılıyor ...",
     "disableAll": "Tümünü kapat",
-    "loadError": "Ayarlar yüklenemedi.",
-    "saveError": "Ayar kaydedilemedi.",
-    "bulkError": "Ayarlar değiştirilemedi.",
     "tenantDisabled": "Okulunuz bildirimleri şu anda kapatmış. Seçiminiz kaydedilir ve okul bildirimleri tekrar açınca geçerli olur.",
     "typeUnavailable": "Okulunuz tarafından şu anda kapatılmış.",
     "groups": {
@@ -465,7 +455,11 @@
         "label": "Bakım iptal edildi",
         "description": "OGS çocuğunuzun bir bakım gününü iptal ettiğinde."
       }
-    }
+    },
+    "errorObjectList": "bildirim listesi",
+    "errorObjectType": "„{name}“ bildirimi",
+    "errorObjectEnableAll": "tüm bildirimleri açma",
+    "errorObjectDisableAll": "tüm bildirimleri kapatma"
   },
   "parentEnroll": {
     "errorObject": "kayıt dönemleri listesi",
@@ -516,7 +510,6 @@
       "createContactIntro": "Bu kişi çocuğunuz için kaydedilir ve OGS tarafından görülebilir. Hesap oluşturulmaz ve davet gönderilmez.",
       "relationshipLabel": "Çocukla ilişkisi",
       "emailDoesNotInvite": "E-posta adresi yalnızca iletişim bilgisi olarak kullanılır. Uygulama erişimini daha sonra ayrıca verebilirsiniz.",
-      "loadError": "Kişiler yüklenemedi.",
       "loading": "Yükleniyor…",
       "empty": "Henüz kişi eklenmedi.",
       "contactSaved": "İletişim bilgileri kaydedildi.",
@@ -567,27 +560,12 @@
       "removePhone": "Telefon numarasını kaldır",
       "addPhone": "Numara ekle",
       "nameRequired": "Ad ve soyadı gereklidir.",
-      "contactSaveError": "İletişim bilgileri kaydedilemedi.",
-      "pickupSaveError": "Teslim alma bilgileri kaydedilemedi.",
       "canPickupLabel": "Teslim alabilir",
       "canPickupDescription": "Bu kişi çocuğu teslim almaya yetkilidir.",
       "emergencyLabel": "Acil durum kişisi",
       "emergencyDescription": "Acil durumda aranır.",
       "pickupNotes": "Teslim alma notu",
       "pickupNotesPlaceholder": "örn. Bisikletle gelir",
-      "errors": {
-        "contactInvalid": "Lütfen iletişim bilgilerini kontrol edin.",
-        "relationshipInvalid": "Lütfen teslim alma bilgilerini kontrol edin.",
-        "emailConflict": "Bu e-posta adresi zaten başka bir kişi için kullanılıyor.",
-        "hasOwnAccount": "Bu kişi iletişim bilgilerini kendi veli hesabından yönetiyor.",
-        "sharedAcrossFamilies": "Bu kişi birden fazla aileye bağlı. Bilgilerini yalnızca okul değiştirebilir.",
-        "notLinked": "Bu kişi bu çocuğa bağlı değil.",
-        "permissionDenied": "Bu değişiklik için yetkiniz yok.",
-        "noChange": "Herhangi bir değişiklik gönderilmedi.",
-        "socialWorkerManaged": "Bu iletişim bilgilerini okul yönetiyor.",
-        "roleManaged": "Bu kişi velidir. Bilgilerini yalnızca kendisi veya okul düzenleyebilir.",
-        "managementDisabled": "Bu okulda kişi yönetimi kapalı."
-      },
       "access": {
         "title": "Bağlı hesaplar",
         "description": "Veli uygulamasında bu çocuğa kimlerin erişimi var.",
@@ -606,7 +584,6 @@
         "invitePending": "Talebiniz OGS'de. Orada incelenecek.",
         "inviteSent": "{email} adresine davet gönderildi.",
         "inviteLinked": "Kişi artık bağlı.",
-        "inviteError": "Davet gönderilemedi.",
         "grant": "Erişim ver",
         "grantTitle": "Tam erişim verilsin mi?",
         "grantBody": "{name} adlı kişinin bir hesabı var ama bu çocuğa henüz erişimi yok. Onaylarsanız OGS'ye bir talep gider. Onaydan sonra bu kişi çocuğunuzla ilgili her şeyi görür.",
@@ -614,14 +591,19 @@
         "remove": "Erişimi kaldır",
         "removeConfirm": "Evet, erişimi kaldır",
         "removed": "Erişim kaldırıldı.",
-        "removeError": "Erişim kaldırılamadı.",
         "status": {
           "active": "Uygulamaya erişimi var",
           "pending": "Davet yolda",
           "no_account": "Uygulama erişimi olmayan kişi",
           "active_no_access": "Hesabı var ama bu çocuğa henüz erişimi yok"
         }
-      }
+      },
+      "errorObjectContacts": "kişi listesi",
+      "errorObjectAccounts": "bağlı hesaplar listesi",
+      "errorObjectInvite": "davet",
+      "errorObjectRemove": "bu hesabın erişimi",
+      "errorObjectContact": "kişi değişikliği",
+      "errorObjectPickup": "teslim alma düzeni"
     },
     "back": "Çocuklarım sayfasına dön",
     "today": {
@@ -669,7 +651,6 @@
       "reasonLabel": "OGS'ye not",
       "reasonPlaceholder": "Örneğin ateş veya doktor randevusu",
       "invalidDate": "Lütfen geçerli bir tarih seçin. Son gün ilk günden önce olamaz.",
-      "saveError": "Mazeret bildirimi kaydedilemedi.",
       "submittedButRefreshFailed": "Mazeret bildirimi gönderildi ama gösterilemedi. Lütfen sayfayı yenileyin.",
       "overlapError": "Bu günlerden biri için zaten açık bir mazeret bildirimi var.",
       "submit": "Devamsızlık bildir",
@@ -678,7 +659,8 @@
       "reasonLabelRequired": "Neden / OGS'ye not",
       "reasonRequiredError": "Lütfen OGS için kısa bir not girin.",
       "requestSentTitle": "Talep gönderildi",
-      "requestSentBody": "OGS devamsızlığı henüz onaylamadı. O zamana kadar çocuğunuz bekleniyor sayılır."
+      "requestSentBody": "OGS devamsızlığı henüz onaylamadı. O zamana kadar çocuğunuz bekleniyor sayılır.",
+      "errorObject": "devamsızlık bildirimi"
     },
     "summary": {
       "none": "Mazeret bildirimi yok",
@@ -701,7 +683,6 @@
       "reasonPlaceholder": "Örneğin doktor randevusu veya erken teslim alma",
       "reasonRequired": "Lütfen teslim alma saatinin neden değiştiğini kısaca belirtin.",
       "reasonTooLong": "Neden en fazla 255 karakter olabilir.",
-      "saveError": "Değişiklik kaydedilemedi.",
       "loadError": "Kayıtlı saatler yüklenemedi. Lütfen sayfayı yenileyin ve tekrar deneyin.",
       "errorDisabled": "Bu OGS'de teslim alma saatini değiştirme kapalı.",
       "errorStaffConflict": "Bu gün için OGS zaten farklı bir teslim alma saati belirledi. Lütfen ekiple iletişime geçin.",
@@ -731,7 +712,8 @@
       "statusApproved": "Onaylandı, yeni teslim alma saati uygulandı.",
       "statusRejected": "Reddedildi: {reason}",
       "noDecisionReason": "Neden belirtilmedi",
-      "submit": "Talep gönder"
+      "submit": "Talep gönder",
+      "errorObject": "teslim alma saati"
     },
     "actions": {
       "sick": {
@@ -768,13 +750,10 @@
     "fromStaffBanner": "Veli hesapları buradan giriş yapar. Lütfen şifrenizi bir kez daha girin.",
     "staffLoginLink": "Okul girişine git",
     "errors": {
-      "accountInactive": "Hesabınız kapalı. Lütfen okulla iletişime geçin.",
       "rateLimited": "Çok fazla giriş denemesi. Lütfen daha sonra tekrar deneyin.",
-      "invalidCredentials": "Giriş yapılamadı. Lütfen giriş bilgilerinizi kontrol edin.",
-      "notAGuardian": "Bu hesap bir okulun personeline ait. Lütfen okul girişinden giriş yapın.",
-      "invalid": "Geçersiz giriş bilgileri",
-      "generic": "Giriş hatası. Lütfen tekrar deneyin."
-    }
+      "notAGuardian": "Bu hesap bir okulun personeline ait. Lütfen okul girişinden giriş yapın."
+    },
+    "errorObject": "giriş"
   },
   "parentPasswordResetModal": {
     "title": "Şifreyi sıfırla",
@@ -787,20 +766,13 @@
     "successMessage": "Size şifrenizi sıfırlamak için bağlantı içeren bir e-posta gönderdik.",
     "successHint": "Lütfen gelen kutunuzu kontrol edin ve e-postadaki adımları izleyin.",
     "close": "Kapat",
-    "errors": {
-      "rateLimited": "Çok fazla deneme. Lütfen {countdown} sonra tekrar deneyin.",
-      "generic": "Bir hata oluştu. Lütfen tekrar deneyin."
-    }
+    "errorObject": "bağlantının gönderilmesi",
+    "rateLimitWait": "{countdown} sonra yeni bir bağlantı isteyebilirsiniz."
   },
   "parentPasswordResetPage": {
     "backToLogin": "Girişe dön",
     "errors": {
-      "missingToken": "Bağlantı geçersiz veya eksik. Lütfen yeni bir bağlantı isteyin.",
-      "invalidToken": "Bağlantı geçersiz.",
-      "generic": "Bir hata oluştu. Lütfen tekrar deneyin.",
-      "invalidRequest": "Lütfen bağlantıyı ve şifre kurallarını kontrol edin ve tekrar deneyin.",
-      "expired": "Bu şifre sıfırlama bağlantısının süresi doldu. Lütfen yeni bir bağlantı isteyin.",
-      "notFound": "Bu şifre sıfırlama bağlantısını bulamadık. Lütfen yeni bir bağlantı isteyin."
+      "missingToken": "Bağlantı geçersiz veya eksik. Lütfen yeni bir bağlantı isteyin."
     },
     "validation": {
       "tooShort": "Şifre en az 8 karakter olmalıdır.",
@@ -833,7 +805,8 @@
       "mixedCase": "Büyük ve küçük harf",
       "number": "En az bir rakam",
       "special": "En az bir özel karakter"
-    }
+    },
+    "errorObject": "şifrenin sıfırlanması"
   },
   "guardianInvite": {
     "eyebrow": "Veli portalı",
@@ -843,23 +816,9 @@
     "errorHelpBefore": "Okuldan yeni bir davet isteyebilir veya",
     "startPage": "ana sayfa",
     "errorHelpAfter": "üzerinden giriş yapabilirsiniz.",
-    "contactOgs": "Lütfen OGS'nize başvurun.",
-    "errors": {
-      "expired": "Bu davetin süresi dolmuş veya davet zaten kullanılmış.",
-      "notFound": "Bu daveti bulamadık.",
-      "load": "Davet yüklenirken bir hata oluştu.",
-      "incomplete": "Davet bilgileri eksik. Lütfen yeni bir davet isteyin.",
-      "missingToken": "Davet kodu belirtilmedi."
-    },
     "formErrors": {
-      "expired": "Bu davet artık geçerli değil.",
-      "notFound": "Davet bulunamadı.",
-      "conflict": "Bu e-posta için zaten bir hesap var. Lütfen doğrudan giriş yapın veya destek ekibine başvurun.",
-      "invalid": "Girilen bilgiler geçersiz. Lütfen formu kontrol edin.",
-      "generic": "Davet kabul edilirken bir hata oluştu.",
       "passwordRules": "Şifre henüz tüm güvenlik kurallarına uymuyor.",
-      "passwordMismatch": "Şifreler birbiriyle uyuşmuyor.",
-      "offline": "Ağ bağlantısı yok. Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin."
+      "passwordMismatch": "Şifreler birbiriyle uyuşmuyor."
     },
     "acceptedTitle": "Hesap oluşturuldu",
     "acceptedText": "Lütfen yeni giriş bilgilerinizle giriş yapın.",
@@ -877,7 +836,8 @@
       "2": "Bir küçük harf",
       "3": "Bir rakam",
       "4": "Bir özel karakter"
-    }
+    },
+    "errorObject": "davet"
   },
   "enrollmentPublic": {
     "errorObjectPhases": "kayıt dönemleri listesi",
@@ -1374,12 +1334,11 @@
     "reasonLabel": "Neden / OGS'ye not",
     "reasonRequired": "Lütfen OGS için kısa bir not yazın.",
     "valueRequired": "Lütfen bir değer girin.",
-    "saveError": "Maalesef işlem yapılamadı. Lütfen tekrar deneyin.",
-    "staleError": "Talep bu arada işleme alındı. Lütfen sayfayı yenileyin.",
     "submit": "Değişikliği kaydet",
     "saving": "Kaydediliyor …",
     "cancel": "İptal",
-    "close": "Pencereyi kapat"
+    "close": "Pencereyi kapat",
+    "errorObject": "talep"
   },
   "parentRequestSharing": {
     "button": "Talebi paylaş",
@@ -1389,20 +1348,19 @@
     "protected": "Bu talep gizli kalır. OGS aile korumasını açtı.",
     "noRecipients": "Veli uygulamasına erişimi olan başka veli yok.",
     "loading": "Alıcılar yükleniyor …",
-    "error": "Alıcılar yüklenemedi.",
-    "optionsError": "Alıcılar yüklenemedi. Talebi yine de gönderebilir ve daha sonra paylaşabilirsiniz.",
     "save": "Seçimi kaydet",
     "saving": "Kaydediliyor …",
     "cancel": "İptal",
-    "close": "Pencereyi kapat"
+    "close": "Pencereyi kapat",
+    "errorObjectRecipients": "alıcı listesi",
+    "errorObjectSelection": "seçim",
+    "optionsHint": "Talebi yine de gönderebilir ve daha sonra paylaşabilirsiniz."
   },
   "parentMasterData": {
     "title": "Bilgiler ve bakım",
     "subtitle": "Çocuğunuzun bilgilerini ve kayıtlı bakımı kontrol edin. İnceleme gerektiren değişiklikler açıkça işaretlenir.",
     "back": "Geri",
-    "loadError": "Bilgiler yüklenemedi. Lütfen sayfayı yenileyin.",
     "saved": "Kaydedildi",
-    "saveError": "Değişiklik kaydedilemedi.",
     "editableHint": "Değişiklikler otomatik olarak kaydedilir.",
     "unsaved": {
       "title": "Kaydedilmemiş değişiklikler",
@@ -1421,7 +1379,6 @@
     "departureReadOnlyAccompanied": "Çocuğunuz en az bir gün başka bir çocukla gidiyor. Eve gidiş şeklini burada değiştiremezsiniz.",
     "requestButton": "Değişiklik talep et",
     "requestSubmitted": "Talep gönderildi. Ekip değişikliğinizi inceliyor.",
-    "requestError": "Talep gönderilemedi.",
     "requestEdit": "Talebi düzenle",
     "pendingBadge": "İnceleniyor",
     "pendingNotice": "Bu alandaki bir değişiklik ekibin onayını bekliyor.",
@@ -1486,7 +1443,6 @@
     },
     "careOfferings": {
       "hint": "Bu bakım çocuğunuz için kayıtlı. Değişiklikleri önce ekip inceler, sonra geçerli olur.",
-      "loadError": "Kayıtlı bakım yüklenemedi. Lütfen sayfayı yenileyin.",
       "period": "Bakım dönemi {name} ({from} ile {until} arası)",
       "offeringsTitle": "Kayıtlı bakım",
       "offeringsDescription": "Burada bakımla ilgili diğer bilgileri görürsünüz, örneğin öğle yemeği veya tatil bakımı.",
@@ -1528,7 +1484,8 @@
       "autoAddedDaysWithTrigger": "Otomatik olarak eklendi: {days}, çünkü {trigger} seçili.",
       "decisionApplied": "Bu değiştirildi:",
       "decisionConsidered": "Talep edilen değişiklik:",
-      "decisionOverridden": "Bakım ekibi şunları eklemedi: {names}."
+      "decisionOverridden": "Bakım ekibi şunları eklemedi: {names}.",
+      "errorObject": "kayıtlı bakım"
     },
     "careOfferingsModal": {
       "title": "Kayıtlı bakımı değiştir",
@@ -1539,7 +1496,6 @@
       "noteRequired": "Lütfen bakımın neden değişmesi gerektiğini kısaca yazın.",
       "staleError": "Talep bu arada işleme alındı. Lütfen sayfayı yenileyin.",
       "intro": "Çocuğunuzun bundan sonra hangi tekliflere katılacağını seçin. Değişikliğin ne zaman başlayacağını da seçin. Ekip talebinizi inceler.",
-      "loadError": "Mevcut teklifler yüklenemedi.",
       "noOfferings": "Bu dönem için kayıt yapılabilecek bakım yok.",
       "effectiveFromLabel": "Değişikliğin başlangıcı",
       "effectiveFromHint": "En erken {date}. Onaylanmış bir bakım dönemi içinde bir tarih seçin.",
@@ -1554,13 +1510,14 @@
       "cancel": "İptal",
       "noChange": "Seçiminiz mevcut kayıtla aynı. Talep göndermek için bir şeyi değiştirin.",
       "noDaysSelected": "Seçtiğiniz her teklif için en az bir gün seçin.",
-      "submitError": "Talep gönderilemedi.",
-      "capacityFull": "Seçtiğiniz tekliflerden birinde boş yer kalmadı.",
+      "capacityFull": "Seçtiğiniz tekliflerden birinde boş yer kalmadı. Lütfen başka bir teklif seçin veya okulla iletişime geçin.",
       "alreadyPending": "Çocuğunuz için zaten bir talep var. Lütfen incelemenin bitmesini bekleyin.",
       "withdrawalConfirmTitle": "Bakım tamamen sonlandırılsın mı?",
       "withdrawalConfirmBody": "Bundan sonra {name} için kayıtlı hiçbir bakım günü kalmaz. Bu talebi gerçekten göndermek istiyor musunuz?",
       "withdrawalConfirmBack": "Geri",
-      "withdrawalConfirmSubmit": "Talebi gönder"
+      "withdrawalConfirmSubmit": "Talebi gönder",
+      "errorObjectCatalog": "teklif listesi",
+      "errorObjectRequest": "değişiklik talebi"
     },
     "weekdayShort": {
       "1": "Pzt",
@@ -1591,14 +1548,14 @@
       "otherRequest": "Bakımla ilgili zaten açık bir talebiniz var. Lütfen yanıtı bekleyin.",
       "needsEnrollment": "Çocuğunuzun kaydı tamamlanınca kurs talep edebilirsiniz.",
       "noCourses": "Şu anda kurs yok.",
-      "loadError": "Kurslar yüklenemedi.",
-      "actionError": "Maalesef işlem yapılamadı. Lütfen tekrar deneyin."
+      "errorObjectList": "kurs listesi",
+      "errorObjectRequest": "kurs talebi",
+      "errorObjectWithdraw": "kurs talebinin geri çekilmesi"
     },
     "careSchedule": {
       "arrival": "Geliş saati",
       "pickup": "Teslim alma saati",
       "modes": "Teslim alma şekli",
-      "loadError": "Bakım saatleri yüklenemedi. Lütfen sayfayı yenileyin.",
       "readOnlyNotice": "Haftalık planı burada değiştiremezsiniz. Kayıtlı tekliflerdeki değişiklikleri bir sonraki bölümde bulursunuz.",
       "noPermissionNotice": "Burada değişiklik talep edemezsiniz. Lütfen OGS'ye sorun.",
       "requestButton": "Değişiklik talep et",
@@ -1612,11 +1569,9 @@
       "cancel": "İptal",
       "requestNoChange": "Lütfen en az bir bakım gününü, teslim alma saatini veya teslim alma şeklini değiştirin.",
       "requestMissingPlan": "Yeni bakım günleri için bir teslim alma saati ve bir teslim alma şekli seçin.",
-      "requestError": "Talep gönderilemedi.",
       "requestAlreadyPending": "Bu çocuk için zaten bir değişiklik inceleniyor.",
       "requestDisabled": "Bu değişiklik OGS'niz için açık değil.",
       "requestBookingLed": "OGS'niz haftalık planla ilgili talep kabul etmiyor. Değişiklikler kayıtlı teklifler üzerinden yapılır.",
-      "requestInvalid": "Lütfen bakım günlerini, teslim alma saatlerini ve teslim alma şekillerini kontrol edin.",
       "modeUnchanged": "Teslim alma şeklini seç",
       "modeCurrent": "Şu anda: {modes}",
       "careDay": "Bu gün bakım var",
@@ -1637,8 +1592,14 @@
       "timeExample": "örn. 15:30",
       "pendingBadge": "İnceleniyor",
       "pendingNotice": "OGS değişikliğinizi inceliyor. Onaya kadar mevcut haftalık plan geçerli kalır.",
-      "requestedAt": "{date} tarihinde talep edildi"
-    }
+      "requestedAt": "{date} tarihinde talep edildi",
+      "errorObject": "bakım saatleri listesi",
+      "requestErrorObject": "haftalık plan talebi"
+    },
+    "errorObject": "bilgi özeti",
+    "errorObjectChange": "değişiklik",
+    "errorObjectRequest": "talep",
+    "errorNoEnrollment": "Çocuğunuzun artık geçerli bir kaydı yok. Lütfen okulla iletişime geçin."
   },
   "parentOgsMessaging": {
     "readByStaff": "Okundu",
@@ -1762,15 +1723,15 @@
       "ackContext": "Onay gerekli · {school}",
       "appointmentContext": "{name} için randevu",
       "appointmentContextPlain": "Randevu",
-      "partialLoadError": "Bazı maddeler şu anda yüklenemedi.",
       "showMoreOne": "Bir madde daha göster",
       "showMoreMany": "{count} madde daha göster",
       "showLess": "Daha az göster",
-      "loading": "Görevler yükleniyor"
+      "loading": "Görevler yükleniyor",
+      "errorObject": "yapılacaklar listesinin tamamı"
     },
     "childrenLoading": "Çocuklar yükleniyor",
-    "loadError": "Genel bakışınız şu anda yüklenemedi. Lütfen daha sonra tekrar deneyin.",
-    "noChildren": "Hesabınıza henüz bir çocuk bağlı değil. Okulunuzun OGS'si bunu ayarlayabilir."
+    "noChildren": "Hesabınıza henüz bir çocuk bağlı değil. Okulunuzun OGS'si bunu ayarlayabilir.",
+    "errorObject": "çocuklarınızın özeti"
   },
   "parentChild": {
     "switcherLabel": "Çocuk seçin",
@@ -1781,8 +1742,7 @@
       "title": "Bakım sona erdi",
       "body": "Çocuğunuz bu OGS'de artık bakım almıyor. Önceki her şeyi görmeye devam edebilirsiniz. Yeni bildirimler artık mümkün değil."
     },
-    "loadError": "Çocuğunuzun bilgileri şu anda yüklenemedi. Lütfen daha sonra tekrar deneyin.",
-    "notFound": "Bu adres için hesabınızda bir çocuk yok.",
+    "notFound": "Bu adres için hesabınızda bir çocuk yok. Lütfen çocuğunuzu genel bakıştan seçin.",
     "noChildren": "Hesabınıza henüz bir çocuk bağlı değil. Okulunuzun OGS'si bunu ayarlayabilir.",
     "sections": {
       "today": "Bugün",
@@ -1853,9 +1813,6 @@
       "cancel": "İptal",
       "close": "Pencereyi kapat",
       "success": "Fotoğraf izni geri alındı. Kayıtlı bir fotoğraf varsa silindi.",
-      "loadError": "İzinler şu anda yüklenemedi. Lütfen tekrar deneyin.",
-      "retry": "Yeniden yükle",
-      "withdrawError": "Fotoğraf izni geri alınamadı. Lütfen tekrar deneyin.",
       "grantButton": "Fotoğraf iznini yeniden ver",
       "grantButtonShort": "Yeniden ver",
       "grantConfirmTitle": "Fotoğraf izni yeniden verilsin mi?",
@@ -1863,14 +1820,16 @@
       "grantConfirmButton": "İzin ver",
       "granting": "Kaydediliyor",
       "grantSuccess": "Fotoğraf izni yeniden verildi.",
-      "grantError": "Fotoğraf izni kaydedilemedi. Lütfen tekrar deneyin."
-    }
+      "errorObjectList": "izinler listesi",
+      "errorObjectPhoto": "fotoğraf izni"
+    },
+    "errorObject": "çocuklarınızın listesi",
+    "errorObjectCare": "bakım özeti"
   },
   "parentMessages": {
     "kicker": "OGS ile iletişim",
     "title": "Mesajlar",
     "description": "Mesajları okuyun ve doğrudan OGS'ye yazın.",
-    "loadError": "Mesajlar şu anda yüklenemedi. Lütfen daha sonra tekrar deneyin.",
     "noChildren": "Hesabınıza henüz bir çocuk bağlı değil. Bir çocuk bağlanır bağlanmaz burada OGS ile yazışabilirsiniz.",
     "noMessagesYet": "Yazmak için dokunun.",
     "previewFromOgs": "OGS: {text}",
@@ -1887,16 +1846,14 @@
     "writingDisabled": "Bu çocuk için yazamazsınız. Geçmiş mesajları okumaya devam edebilirsiniz.",
     "emptyThreadTitle": "Henüz mesaj yok",
     "emptyThreadDescription": "OGS'ye ilk mesajı yazın.",
-    "sendError": "Mesaj gönderilemedi.",
-    "sessionExpired": "Oturumunuzun süresi doldu. Lütfen yeniden giriş yapın.",
-    "permissionDenied": "Bu çocuk için mesaj gönderme izniniz yok.",
-    "invalidRequest": "Mesaj işlenemedi. Lütfen girdiğiniz bilgileri kontrol edin."
+    "errorObjectConversation": "yazışma",
+    "errorObjectMessage": "mesaj",
+    "errorObjectList": "yazışma listesi"
   },
   "parentCalendar": {
     "kicker": "Randevulara genel bakış",
     "title": "Takvim",
     "description": "Çocuklarınızın randevuları ve etkinlikleri tek bakışta.",
-    "loadError": "Randevular şu anda yüklenemedi. Lütfen daha sonra tekrar deneyin.",
     "empty": "Önümüzdeki 3 ay içinde randevu yok.",
     "groups": {
       "thisWeek": "Bu hafta",
@@ -1917,7 +1874,6 @@
     "declined": "Katılım reddedildi.",
     "answeredAccepted": "Katılıyoruz",
     "answeredDeclined": "Katılmıyoruz",
-    "respondError": "Yanıtınız kaydedilemedi. Lütfen tekrar deneyin.",
     "cancelledByOgs": "OGS tarafından iptal edildi",
     "previousMonth": "Önceki ay",
     "nextMonth": "Sonraki ay",
@@ -1933,7 +1889,9 @@
       "5": "Cum",
       "6": "Cmt",
       "7": "Paz"
-    }
+    },
+    "errorObjectList": "randevu listesi",
+    "errorObjectResponse": "yanıt"
   },
   "parentCalendarSubscribe": {
     "title": "Takvime abone ol",
@@ -1982,7 +1940,8 @@
     "empty": "Şu anda yeni veli mektubu yok.",
     "open": "Açık",
     "openLabel": "Açık, {count}",
-    "completed": "Tamamlandı"
+    "completed": "Tamamlandı",
+    "errorObjectList": "veli mektupları listesi"
   },
   "errorCatalog": {
     "classes": {
@@ -1999,72 +1958,72 @@
       "care": {
         "announcement_ack_not_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "announcement_not_a_poll": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "announcement_stale": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "announcement_stale": "{object} bu arada değiştirildi. Lütfen sayfayı yenileyin.",
         "cannot_remove_own_access": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "care_exception_already_left": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "care_exception_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "care_exception_conflict": "{object} bu arada değiştirildi. Lütfen bilgilerinizi yeniden kontrol edin.",
         "care_exception_no_time": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "care_exception_past_date": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "care_exception_reason_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "care_exception_past_date": "{object} için tarih geçmişte kalıyor. Lütfen başka bir tarih seçin.",
+        "care_exception_reason_required": "{object} için bir bilgi eksik. Lütfen işaretli alanı doldurun.",
         "care_exception_reason_too_long": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "care_exception_too_far": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "care_request_already_pending": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "care_request_already_pending": "{object} için zaten bir talep var. Lütfen güncel durumu kontrol edin.",
         "care_request_bookings_authoritative": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "care_request_field_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "child_care_ended": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "care_request_field_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+        "child_care_ended": "Bu çocuğun bakımı sona erdi. Artık değişiklik yapılamaz. Sorularınız için OGS ile iletişime geçin.",
         "child_not_linked": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "course_already_booked": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "course_request_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "course_request_invalid": "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
         "course_request_not_own": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "course_requests_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "declaration_action_not_allowed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "declaration_closed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "declaration_not_permitted": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "course_requests_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+        "declaration_action_not_allowed": "Bu şu anda mümkün değil. Lütfen sayfayı yenileyin ve güncel durumu kontrol edin.",
+        "declaration_closed": "Süre doldu. Artık yanıt veremezsiniz. Sorularınız için OGS ile iletişime geçin.",
+        "declaration_not_permitted": "Bu çocuk için yanıt veremezsiniz. Sorularınız için OGS ile iletişime geçin.",
         "declaration_password_incorrect": "Şifre doğru değil. Lütfen tekrar deneyin.",
         "declaration_password_required": "Lütfen şifrenizi girin.",
-        "declaration_version_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "excused_request_not_pending": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "excused_request_overlap": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "declaration_version_changed": "Okul metni değiştirdi. Lütfen tekrar okuyun ve ardından yeniden yanıtlayın.",
+        "excused_request_not_pending": "{object} artık açık değil. Lütfen sayfayı yenileyin.",
+        "excused_request_overlap": "{object} için saatler çakışıyor. Lütfen bilgileri kontrol edin.",
         "family_protection": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "guardian_contact_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "guardian_email_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "guardian_has_own_account": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "guardian_management_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "guardian_no_change": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "guardian_not_linked": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "guardian_contact_invalid": "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
+        "guardian_email_conflict": "Bu e-posta adresi zaten kullanılıyor. Lütfen adresi kontrol edin.",
+        "guardian_has_own_account": "Bu kişi iletişim bilgilerini kendi veli hesabından yönetiyor. Bilgileri orada kendisi değiştirebilir.",
+        "guardian_management_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+        "guardian_no_change": "Hiçbir şey değiştirilmedi. Lütfen bilgilerinizi kontrol edin.",
+        "guardian_not_linked": "Bu kişi bu çocuğa bağlı değil. Lütfen sayfayı yenileyin.",
         "guardian_permission_denied": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "guardian_relationship_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "guardian_role_managed": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "guardian_shared_across_families": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "guardian_social_worker_managed": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "guardian_relationship_invalid": "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
+        "guardian_role_managed": "Bu kişi velidir. Bilgilerini yalnızca kendisi veya okul değiştirebilir.",
+        "guardian_shared_across_families": "Bu kişi birden fazla aileye bağlı. Bilgilerini yalnızca okul değiştirebilir. Lütfen okulla iletişime geçin.",
+        "guardian_social_worker_managed": "Bu iletişim bilgilerini okul yönetiyor. Değişiklik için lütfen okulla iletişime geçin.",
         "invalid_credentials": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "invalid_poll_response": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "invalid_recipients": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "invalid_request_payload": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "invite_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "invalid_poll_response": "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
+        "invalid_recipients": "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
+        "invalid_request_payload": "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
+        "invite_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
         "master_data_duplicate_pending": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "master_data_edit_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "master_data_edit_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
         "master_data_field_not_editable": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "master_data_invalid_value": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "master_data_no_changes": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "master_data_request_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "master_data_invalid_value": "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
+        "master_data_no_changes": "{object} için hiçbir şey değiştirilmedi. Lütfen bilgilerinizi kontrol edin.",
+        "master_data_request_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
         "not_a_guardian": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "notes_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "offering_change_already_pending": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "notes_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+        "offering_change_already_pending": "{object} için zaten bir talep var. Lütfen güncel durumu kontrol edin.",
         "offering_change_forbidden": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "offering_change_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "offering_changes_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "offering_change_invalid": "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
+        "offering_changes_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
         "payer_guardian_protected": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "photo_consent_not_withdrawn": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "pickup_change_cutoff_passed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "pickup_change_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "poll_closed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "pickup_change_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+        "poll_closed": "{object} artık açık değil. Lütfen ilgili kişinize danışın.",
         "primary_guardian_protected": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "remove_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "request_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "request_not_open": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "request_sharing_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "sick_note_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "remove_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+        "request_not_found": "{object} bulunamadı. Lütfen sayfayı yenileyin.",
+        "request_not_open": "{object} artık açık değil. Lütfen ilgili kişinize danışın.",
+        "request_sharing_invalid": "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
+        "sick_note_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
         "staff_managed_guardian_protected": "{object} için erişim izniniz yok. Okulla iletişime geçin."
       },
       "classday": {
@@ -2109,9 +2068,9 @@
         "care_offering_selection_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "care_offering_template_period_mismatch": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "care_offering_unavailable": "Seçilen hizmet çocuğun sınıf düzeyi için sunulmuyor. Sınıf düzeyini ve seçimi kontrol edin.",
-        "care_offerings_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "care_offerings_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
         "change_request_child_locked": "Bu çocuk zaten bakımda. Değişiklikleri lütfen veli uygulamasında yapın.",
-        "change_request_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "change_request_conflict": "{object} bu arada değiştirildi. Lütfen bilgilerinizi yeniden kontrol edin.",
         "change_request_guardian_linked": "Lütfen bu bilgileri veli uygulamasında değiştirin.",
         "change_request_not_allowed": "Bu kayıt şu anda değiştirilemez. Lütfen okulla iletişime geçin.",
         "change_request_not_found": "Bu değişiklik talebi artık yok. Lütfen sayfayı yenileyin.",
@@ -2129,7 +2088,7 @@
         "child_required": "Lütfen en az bir çocuk ekleyin.",
         "class_not_eligible": "Bu kayıt yalnızca belirli sınıflar içindir. Lütfen çocuğunuzun sınıfını kontrol edin.",
         "companion_note_required": "Lütfen çocuğun eve kiminle gittiğini belirtin.",
-        "complete_withdrawal_confirmation_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "complete_withdrawal_confirmation_required": "{object} henüz kayıttan çıkarılamaz. Lütfen {confirmation} ile onaylayın.",
         "consent_required": "Lütfen tüm zorunlu onayları verin.",
         "correction_reason_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "correction_school_class_mismatch": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
@@ -2225,33 +2184,33 @@
       },
       "identity": {
         "account_already_has_tenant_access": "Bu kişinin bu okula zaten erişimi var. Kişiyi personel listesinde bulabilirsiniz.",
-        "account_inactive": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "account_inactive": "Hesabınız engellendi. Lütfen moto ile iletişime geçin.",
         "current_password_wrong": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "demo_access_expired": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "demo_access_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "demo_access_rate_limited": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
-        "demo_access_unknown": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "demo_capacity_reached": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
-        "demo_school_preparing": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
+        "demo_access_expired": "Demo erişiminin süresi doldu. Lütfen yeni bir erişim isteyin.",
+        "demo_access_invalid": "Demo bağlantısı geçersiz. Lütfen yeni bir bağlantı isteyin.",
+        "demo_access_rate_limited": "Çok fazla deneme. Lütfen biraz bekleyin ve tekrar deneyin.",
+        "demo_access_unknown": "Bu demo bağlantısı mevcut değil. Lütfen yeni bir bağlantı isteyin.",
+        "demo_capacity_reached": "Şu anda tüm demo yerleri dolu. Lütfen daha sonra tekrar deneyin.",
+        "demo_school_preparing": "Demo okul hazırlanıyor. Lütfen birazdan tekrar deneyin.",
         "demo_session": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "email_already_exists": "Bu e-posta adresi için zaten bir hesap var. Lütfen başka bir adres kullanın.",
-        "invalid_credentials": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "invitation_account_login_required": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "invitation_account_mismatch": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "invitation_expired": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "invitation_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "mfa_blocked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "invalid_credentials": "E-posta adresi veya şifre doğru değil. Lütfen girdiğiniz bilgileri kontrol edin.",
+        "invitation_account_login_required": "Bu e-posta adresi için zaten bir hesap var. Lütfen önce bu hesapla giriş yapın, sonra daveti yeniden açın.",
+        "invitation_account_mismatch": "Başka bir hesapla giriş yaptınız. Lütfen davet edilen e-posta adresiyle giriş yapın.",
+        "invitation_expired": "Bu davetin süresi dolmuş veya davet zaten kullanılmış. Lütfen okulunuzdan yeni bir davet isteyin.",
+        "invitation_not_found": "Bu davet mevcut değil. Lütfen e-postadaki bağlantıyı kontrol edin.",
+        "mfa_blocked": "Çok fazla deneme yapıldı. Lütfen birkaç dakika bekleyin ve sonra yeniden deneyin.",
         "mfa_code_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "passkey_login_failed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "password_reset_link_invalid": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "password_reset_rate_limited": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "password_too_weak": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "password_reset_link_invalid": "Bağlantının süresi dolmuş veya bağlantı zaten kullanılmış. Lütfen yeni bir bağlantı isteyin.",
+        "password_reset_rate_limited": "Çok sık bağlantı istediniz. Lütfen biraz bekleyin ve sonra yeniden deneyin.",
+        "password_too_weak": "Şifre çok zayıf. En az 8 karakter, büyük ve küçük harf, bir rakam ve bir özel karakter gerekir.",
         "preview_target_not_previewable": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "preview_target_school_portal": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "preview_token_invalid": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "read_only_preview": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "role_name_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "session_account_inactive": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "session_account_inactive": "Hesabınız kapalı. Lütfen okulunuzun yönetimiyle iletişime geçin.",
         "tenant_access_denied": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "use_parent_portal": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "use_school_portal": "{object} için erişim izniniz yok. Okulla iletişime geçin."
@@ -2287,12 +2246,12 @@
       "meals": {
         "invalid_dishes": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "invalid_meal_date": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "invalid_participation": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "invalid_participation": "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
         "participation_cutoff_passed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "participation_out_of_range": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "plan_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "plan_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
         "plan_week_out_of_range": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "registration_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin."
+        "registration_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
@@ -2331,7 +2290,7 @@
         "absence_read_required": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "bulk_approval_ineligible": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "care_day_managed_by_booking": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "care_exception_raced": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "care_exception_raced": "{object} bu arada değiştirildi. Lütfen bilgilerinizi yeniden kontrol edin.",
         "care_exit_already_effective": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "care_exit_blocked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "care_exit_day_in_past": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
@@ -2343,7 +2302,7 @@
         "care_exit_note_too_long": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "care_exit_preview_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "care_exit_too_many_students": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "care_offerings_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "care_offerings_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
         "care_resume_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "care_resume_not_checked": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "care_resume_not_ended": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -2353,7 +2312,7 @@
         "care_withdrawal_date_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "care_withdrawal_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "change_request_not_pending": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "change_request_stale": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "change_request_stale": "{object} bu arada değiştirildi. Lütfen sayfayı yenileyin.",
         "checkin_care_ended": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "checkout_note_too_long": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "child_quota_reached": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -2383,9 +2342,9 @@
         "guardian_account_holder_too_long": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "guardian_email_taken": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "guardian_iban_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "offering_change_capacity_full": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "offering_change_capacity_full": "Tekliflerden birinde boş yer kalmadı. Lütfen doluluk durumunu kontrol edin.",
         "offering_change_date_out_of_range": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "offering_changes_no_enrollment": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "offering_changes_no_enrollment": "Çocuğun artık geçerli bir kaydı yok. Lütfen şunu reddedin: {object}.",
         "partial_absence_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "partial_absence_requires_dedicated_action": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "photo_consent_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
@@ -2396,7 +2355,7 @@
         "pickup_change_expired": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "pickup_change_impact_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "pickup_reset_requires_offering": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "reason_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "reason_required": "{object} için gerekçe eksik. Lütfen bir gerekçe girin.",
         "request_not_decided": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "request_not_past": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "request_past": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -2631,5 +2590,10 @@
       "fieldCheck": "Bu alanı kontrol edin."
     },
     "loginNotice": "Oturumunuz sona erdi. Yeniden giriş yapın."
+  },
+  "parentCrash": {
+    "title": "Sayfa gösterilemedi",
+    "object": "sayfa",
+    "home": "Ana sayfaya git"
   }
 }

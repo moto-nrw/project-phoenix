@@ -8,12 +8,14 @@
  * ist.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Download } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { Button } from "~/components/ui/button";
 import { AttachmentList } from "~/components/ui/attachment-list";
 import {
@@ -46,17 +48,24 @@ export function DeclarationProofPage({
   const t = useTranslations("parentDeclarationProof");
   const studentId = useSearchParams().get("student") ?? "";
   const [proof, setProof] = useState<ParentDeclarationProof | null>(null);
-  const [failure, setFailure] = useState<"notFound" | "error" | null>(null);
+  // A missing proof is a state, not an error: it gets its own sentence.
+  const [notFound, setNotFound] = useState(false);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  const { show: showDownloadError } = useApiErrorDisplay();
   const [reload, setReload] = useState(0);
   const [downloading, setDownloading] = useState(false);
-  const [downloadFailed, setDownloadFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
     setProof(null);
-    setFailure(null);
+    setNotFound(false);
+    clearLoadError();
     if (!studentId) {
-      setFailure("notFound");
+      setNotFound(true);
       return;
     }
     fetchDeclarationProof(announcementId, studentId)
@@ -68,33 +77,41 @@ export function DeclarationProofPage({
         logger.warn("parent_declaration_proof_load_failed", {
           status: err instanceof ParentApiError ? err.status : undefined,
         });
-        setFailure(
-          err instanceof ParentApiError && err.status === 404
-            ? "notFound"
-            : "error",
-        );
+        if (err instanceof ParentApiError && err.status === 404) {
+          setNotFound(true);
+          return;
+        }
+        void showLoadError(err, {
+          object: t("errorObjectProof"),
+          retry: () => setReload((n) => n + 1),
+        });
       });
     return () => {
       active = false;
     };
-  }, [announcementId, studentId, reload]);
-
-  const retry = useCallback(() => setReload((n) => n + 1), []);
+  }, [announcementId, studentId, reload, clearLoadError, showLoadError, t]);
 
   const download = async () => {
     setDownloading(true);
-    setDownloadFailed(false);
     try {
       await downloadDeclarationProofPdf(announcementId, studentId);
     } catch (err: unknown) {
       logger.warn("parent_declaration_proof_pdf_failed", {
         status: err instanceof ParentApiError ? err.status : undefined,
       });
-      setDownloadFailed(true);
+      void showDownloadError(err, {
+        object: t("errorObjectPdf"),
+        retry: () => void downloadRef.current(),
+      });
     } finally {
       setDownloading(false);
     }
   };
+  // The retry runs the latest download, not the one of the failed attempt.
+  const downloadRef = useRef(download);
+  useLayoutEffect(() => {
+    downloadRef.current = download;
+  });
 
   return (
     <ParentPage>
@@ -124,21 +141,9 @@ export function DeclarationProofPage({
         }
       />
 
-      {downloadFailed && <Alert type="error" message={t("downloadError")} />}
-
-      {failure === "notFound" && <Alert type="info" message={t("notFound")} />}
-      {failure === "error" && (
-        <Alert
-          type="error"
-          message={t("loadError")}
-          action={
-            <Button type="button" variant="outline" size="md" onClick={retry}>
-              {t("retry")}
-            </Button>
-          }
-        />
-      )}
-      {!proof && !failure && <ParentPageSkeleton rows={2} />}
+      {notFound && <Alert type="info" message={t("notFound")} />}
+      {loadError ? <LoadErrorAlert error={loadError} /> : null}
+      {!proof && !notFound && !loadError && <ParentPageSkeleton rows={2} />}
 
       {proof && (
         <div className="moto-content-surface rounded-2xl border p-5 shadow-sm">

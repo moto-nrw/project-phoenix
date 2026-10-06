@@ -645,10 +645,29 @@ describe("updateParentPortalLocale", () => {
   });
 
   it("throws when the backend rejects the update", async () => {
-    mockFetch(async () => jsonResponse({}, { status: 400 }));
-    await expect(updateParentPortalLocale("en")).rejects.toThrow(
-      /Profile update failed \(400\)/,
+    mockFetch(async () =>
+      jsonResponse(
+        { status: "error", code: "general.input", instance: "req-locale" },
+        { status: 400 },
+      ),
     );
+    // #2518: a coded error, so the switcher shows the catalog text.
+    await expect(updateParentPortalLocale("en")).rejects.toMatchObject({
+      name: "ParentApiError",
+      status: 400,
+      code: "general.input",
+      requestId: "req-locale",
+    });
+  });
+
+  it("reports a broken connection as unavailable", async () => {
+    mockFetch(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    await expect(updateParentPortalLocale("en")).rejects.toMatchObject({
+      status: 503,
+      code: "general.unavailable",
+    });
   });
 });
 

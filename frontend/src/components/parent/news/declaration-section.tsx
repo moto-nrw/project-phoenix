@@ -10,11 +10,13 @@
  * meldet deshalb niemanden ab.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { FileText } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Alert } from "~/components/ui/alert";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import NavigationLink from "~/components/ui/navigation-link";
@@ -84,61 +86,45 @@ const DECISION_ACTIONS: readonly ParentDeclarationAction[] = [
   "declined",
 ];
 
-type ErrorKey =
-  | "notFound"
-  | "notPermitted"
-  | "versionChanged"
-  | "closed"
-  | "actionNotAllowed"
-  | "careEnded"
-  | "passwordRequired"
-  | "passwordIncorrect"
-  | "tooMany"
-  | "uncertain"
-  | "generic";
-
 /**
- * Maps a failed submit onto a message and on whether the dialog stays open.
- * Password and rate-limit errors keep it open so the guardian can try again;
+ * What a failed submit does to the dialog. The text comes from the shared
+ * error path (#2518); this only decides by code and status. Password and
+ * rate-limit errors keep the dialog open so the guardian can try again;
  * everything that changed the Einverständnis itself closes it and reloads.
+ * `uncertain`: no clear answer came back, the backend may have saved it.
  */
-export function declarationErrorKey(err: unknown): {
-  key: ErrorKey;
+export function declarationErrorOutcome(err: unknown): {
   keepDialog: boolean;
   reload: boolean;
+  uncertain: boolean;
+  clearPassword: boolean;
 } {
+  const keep = { keepDialog: true, reload: false, uncertain: false };
+  const close = { keepDialog: false, reload: true, uncertain: false };
   if (err instanceof ParentApiError) {
-    if (err.status === 429) {
-      return { key: "tooMany", keepDialog: true, reload: false };
-    }
+    if (err.status === 429) return { ...keep, clearPassword: false };
     switch (err.code) {
       case "care.declaration_password_required":
-        return { key: "passwordRequired", keepDialog: true, reload: false };
+        return { ...keep, clearPassword: false };
       case "care.declaration_password_incorrect":
-        return { key: "passwordIncorrect", keepDialog: true, reload: false };
+        return { ...keep, clearPassword: true };
       case "care.declaration_version_changed":
-        return { key: "versionChanged", keepDialog: false, reload: true };
       case "care.declaration_closed":
-        return { key: "closed", keepDialog: false, reload: true };
       case "care.declaration_action_not_allowed":
-        return { key: "actionNotAllowed", keepDialog: false, reload: true };
       case "care.declaration_not_permitted":
-        return { key: "notPermitted", keepDialog: false, reload: true };
       case "care.child_care_ended":
-        return { key: "careEnded", keepDialog: false, reload: true };
+        return { ...close, clearPassword: false };
     }
-    if (err.status === 404) {
-      return { key: "notFound", keepDialog: false, reload: true };
-    }
+    if (err.status === 404) return { ...close, clearPassword: false };
     if (err.status >= 500) {
-      return { key: "uncertain", keepDialog: false, reload: true };
+      return { ...close, uncertain: true, clearPassword: false };
     }
-    return { key: "generic", keepDialog: true, reload: false };
+    return { ...keep, clearPassword: false };
   }
   // No answer at all (network, a proxy that never finished): the backend may
   // still have saved it. Submitting is idempotent, so reload and let the card
   // show what is really stored instead of guessing.
-  return { key: "uncertain", keepDialog: false, reload: true };
+  return { ...close, uncertain: true, clearPassword: false };
 }
 
 /**
@@ -182,19 +168,23 @@ export function DeclarationSection({
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
-  const [dialogError, setDialogError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{
-    type: "success" | "error" | "warning";
-    message: string;
-  } | null>(null);
+  // Both sit inside the open letter dialog, which lies above every toast:
+  // the confirmation's own error while it is open, the section's after a
+  // refusal closed it.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const dialogError = useApiFormError(dialogRef);
+  const sectionError = useApiFormError();
+  const [notice, setNotice] = useState<string | null>(null);
 
   // A different Einverständnis starts clean. A new version of the same one keeps
   // the notice: "the text was changed" must still be visible after the
   // reload brought the new version in.
+  const { clear: clearSectionError } = sectionError;
   useEffect(() => {
     setNotice(null);
+    clearSectionError();
     setPending(null);
-  }, [item.id]);
+  }, [item.id, clearSectionError]);
 
   useEffect(() => {
     onBusyChange?.(pending !== null || saving);
@@ -205,8 +195,9 @@ export function DeclarationSection({
     action: ParentDeclarationAction,
   ) => {
     setPassword("");
-    setDialogError(null);
+    dialogError.clear();
     setNotice(null);
+    sectionError.clear();
     setPending({ child, action });
   };
 
@@ -214,18 +205,18 @@ export function DeclarationSection({
     if (saving) return;
     setPending(null);
     setPassword("");
-    setDialogError(null);
+    dialogError.clear();
   };
 
   const submit = async () => {
     if (!pending) return;
     if (declaration.requires_password && password === "") {
-      setDialogError(t("errors.passwordRequired"));
+      dialogError.invalid(t("errors.passwordRequired"));
       return;
     }
     const { child, action } = pending;
     setSaving(true);
-    setDialogError(null);
+    dialogError.clear();
     try {
       const result = await submitDeclaration(item.id, {
         studentId: child.student_id,
@@ -256,35 +247,44 @@ export function DeclarationSection({
       });
       setPending(null);
       setPassword("");
-      setNotice({
-        type: "success",
-        message: t("saved", { name: child.first_name }),
-      });
+      setNotice(t("saved", { name: child.first_name }));
       window.dispatchEvent(new Event("parent-news-unread-refresh"));
       onReload?.(item.id);
     } catch (err: unknown) {
-      const mapped = declarationErrorKey(err);
+      const outcome = declarationErrorOutcome(err);
       logger.warn("parent_declaration_submit_failed", {
         status: err instanceof ParentApiError ? err.status : undefined,
         code: err instanceof ParentApiError ? err.code : undefined,
       });
-      const message = t(`errors.${mapped.key}`);
-      if (mapped.keepDialog) {
-        setDialogError(message);
-        if (mapped.key === "passwordIncorrect") setPassword("");
+      if (outcome.keepDialog) {
+        if (outcome.clearPassword) setPassword("");
+        void dialogError.show(err, {
+          object: t("errorObjectAnswer"),
+          retry: () => void submitRef.current(),
+        });
       } else {
         setPending(null);
         setPassword("");
-        setNotice({
-          type: mapped.key === "versionChanged" ? "warning" : "error",
-          message,
+        // The dialog is gone, so there is nothing to retry from here; the
+        // reload shows the stored state.
+        void sectionError.show(err, {
+          object: t("errorObjectAnswer"),
+          messageSuffix: outcome.uncertain
+            ? t("errors.uncertainReload")
+            : undefined,
         });
       }
-      if (mapped.reload) onReload?.(item.id);
+      if (outcome.reload) onReload?.(item.id);
     } finally {
       setSaving(false);
     }
   };
+
+  // The retry sends the current password and choice, not the failed ones.
+  const submitRef = useRef(submit);
+  useLayoutEffect(() => {
+    submitRef.current = submit;
+  });
 
   const children = declaration.children;
   if (children.length === 0) return null;
@@ -321,7 +321,8 @@ export function DeclarationSection({
         </p>
       </div>
 
-      {notice && <Alert type={notice.type} message={notice.message} />}
+      {notice && <Alert type="success" message={notice} />}
+      <FormErrorAlert message={sectionError.error} />
 
       {children.map((child) => (
         <DeclarationChildCard
@@ -357,7 +358,10 @@ export function DeclarationSection({
           isBackdropDismissDisabled
           mobileSheet
         >
-          <div className="space-y-3 text-base leading-7 text-gray-800">
+          <div
+            ref={dialogRef}
+            className="space-y-3 text-base leading-7 text-gray-800"
+          >
             <p>
               {pending.action === "revoked"
                 ? t("revokeBody", { name: pending.child.first_name })
@@ -388,13 +392,14 @@ export function DeclarationSection({
                 type="password"
                 autoComplete="current-password"
                 value={password}
+                error={dialogError.fieldError("declaration-password")}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") void submit();
                 }}
               />
             )}
-            {dialogError && <Alert type="error" message={dialogError} />}
+            <FormErrorAlert message={dialogError.error} />
           </div>
         </ConfirmationModal>
       )}

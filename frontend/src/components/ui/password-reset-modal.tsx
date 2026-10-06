@@ -49,11 +49,19 @@ interface PasswordResetModalCopy {
   readonly successMessage: string;
   readonly successHint: string;
   readonly close: string;
-  readonly rateLimitError: (countdown: string) => string;
-  readonly genericError: string;
+  /** Own texts without `errorPath` (portals not yet moved). */
+  readonly rateLimitError?: (countdown: string) => string;
+  readonly genericError?: string;
+  /**
+   * With `errorPath`: `{object}` of the catalog text, feminine or neuter
+   * with article ("das Senden des Links"), and the wait shown next to the
+   * button after too many requests.
+   */
+  readonly errorObject?: string;
+  readonly rateLimitWait?: (countdown: string) => string;
 }
 
-const DEFAULT_PASSWORD_RESET_MODAL_COPY: PasswordResetModalCopy = {
+const DEFAULT_PASSWORD_RESET_MODAL_COPY: Required<PasswordResetModalCopy> = {
   title: "Passwort zurücksetzen",
   description:
     "Geben Sie Ihre E-Mail-Adresse ein und wir senden Ihnen einen Link zum Zurücksetzen Ihres Passworts.",
@@ -70,7 +78,15 @@ const DEFAULT_PASSWORD_RESET_MODAL_COPY: PasswordResetModalCopy = {
   rateLimitError: (countdown) =>
     `Zu viele Versuche. Bitte versuche es erneut in ${countdown}.`,
   genericError: "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
+  errorObject: "das Senden des Links",
+  rateLimitWait: (countdown) =>
+    `Einen neuen Link können Sie in ${countdown} anfordern.`,
 };
+
+const rateLimitErrorText = (copy: PasswordResetModalCopy, countdown: string) =>
+  (copy.rateLimitError ?? DEFAULT_PASSWORD_RESET_MODAL_COPY.rateLimitError)(
+    countdown,
+  );
 
 // Email Icon Component
 const EmailIcon = ({ className }: { className?: string }) => (
@@ -170,7 +186,7 @@ export function PasswordResetModal({
         // With the shared path the catalog text stays in the alert and the
         // countdown runs next to the button.
         if (!clearPathError) {
-          setError(copy.rateLimitError(formatCountdown(diffSeconds)));
+          setError(rateLimitErrorText(copy, formatCountdown(diffSeconds)));
         }
       }
     };
@@ -209,6 +225,9 @@ export function PasswordResetModal({
     return retrySeconds;
   };
 
+  const errorObject =
+    copy.errorObject ?? DEFAULT_PASSWORD_RESET_MODAL_COPY.errorObject;
+
   const submitWithErrorPath = async (path: DatabaseFormErrorPath) => {
     path.clear();
     setIsLoading(true);
@@ -224,13 +243,13 @@ export function PasswordResetModal({
           error: "rate_limit_exceeded",
         });
         startRateLimit(apiError?.retryAfterSeconds);
-        void path.show(err, { object: "das Senden des Links" });
+        void path.show(err, { object: errorObject });
       } else {
         logger.error("password_reset_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
         void path.show(err, {
-          object: "das Senden des Links",
+          object: errorObject,
           retry: () => latestSubmitRef.current(),
         });
       }
@@ -255,7 +274,10 @@ export function PasswordResetModal({
     }
     if (rateLimitActive) {
       setError(
-        copy.rateLimitError(formatCountdown(Math.max(secondsRemaining, 0))),
+        rateLimitErrorText(
+          copy,
+          formatCountdown(Math.max(secondsRemaining, 0)),
+        ),
       );
       return;
     }
@@ -274,12 +296,14 @@ export function PasswordResetModal({
           error: "rate_limit_exceeded",
         });
         const retrySeconds = startRateLimit(apiError.retryAfterSeconds);
-        setError(copy.rateLimitError(formatCountdown(retrySeconds)));
+        setError(rateLimitErrorText(copy, formatCountdown(retrySeconds)));
       } else {
         logger.error("password_reset_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        setError(copy.genericError);
+        setError(
+          copy.genericError ?? DEFAULT_PASSWORD_RESET_MODAL_COPY.genericError,
+        );
       }
     } finally {
       setIsLoading(false);
@@ -334,8 +358,10 @@ export function PasswordResetModal({
               )}
               {errorPath && rateLimitActive ? (
                 <p className="text-sm text-gray-600" role="status">
-                  Einen neuen Link können Sie in{" "}
-                  {formatCountdown(Math.max(secondsRemaining, 0))} anfordern.
+                  {(
+                    copy.rateLimitWait ??
+                    DEFAULT_PASSWORD_RESET_MODAL_COPY.rateLimitWait
+                  )(formatCountdown(Math.max(secondsRemaining, 0)))}
                 </p>
               ) : null}
 

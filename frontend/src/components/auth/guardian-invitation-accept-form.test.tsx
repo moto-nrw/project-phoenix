@@ -11,14 +11,13 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mocks.push }),
 }));
 
-vi.mock("~/lib/hooks/use-scroll-to-error", () => ({
-  useScrollToError: () => ({ current: null }),
-}));
-
 vi.mock("~/lib/guardian-invitation-api", () => ({
   acceptGuardianInvitation: mocks.acceptGuardianInvitation,
 }));
 
+import deMessages from "~/i18n/messages/de.json";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { GuardianInvitationAcceptForm } from "./guardian-invitation-accept-form";
 import type { GuardianInvitationValidation } from "~/lib/guardian-invitation-api";
 
@@ -159,10 +158,10 @@ describe("GuardianInvitationAcceptForm", () => {
     expect(mocks.push).toHaveBeenCalledWith("/");
   });
 
-  it("maps API and offline errors to German form messages", async () => {
-    const apiError = new Error("gone") as Error & { status?: number };
-    apiError.status = 410;
-    mocks.acceptGuardianInvitation.mockRejectedValueOnce(apiError);
+  it("shows API and connection errors on the shared error path", async () => {
+    mocks.acceptGuardianInvitation.mockRejectedValueOnce(
+      new ApiError("gone", 410, { code: "identity.invitation_expired" }),
+    );
 
     const { rerender } = render(
       <GuardianInvitationAcceptForm
@@ -176,15 +175,19 @@ describe("GuardianInvitationAcceptForm", () => {
     );
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Diese Einladung ist nicht mehr gültig.");
-    expect(alert).toHaveTextContent("Kontaktieren Sie bitte Ihre OGS.");
+    expect(alert).toHaveTextContent(
+      catalogText(
+        "identity.invitation_expired",
+        deMessages.guardianInvite.errorObject,
+      ),
+    );
     expect(screen.queryByText(/moto-(Team|Support)/i)).not.toBeInTheDocument();
 
-    Object.defineProperty(globalThis, "navigator", {
-      value: { onLine: false },
-      configurable: true,
-    });
-    mocks.acceptGuardianInvitation.mockRejectedValueOnce(new Error("network"));
+    mocks.acceptGuardianInvitation
+      .mockRejectedValueOnce(
+        new ApiError("Failed to fetch", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce({ accountId: "5", email: "mara@example.test" });
     rerender(
       <GuardianInvitationAcceptForm
         key="offline"
@@ -198,7 +201,40 @@ describe("GuardianInvitationAcceptForm", () => {
     );
 
     expect(
-      await screen.findByText(/Keine Netzwerkverbindung/),
+      await screen.findByText(
+        catalogText(
+          "general.unavailable",
+          deMessages.guardianInvite.errorObject,
+        ),
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText("Failed to fetch")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText("Konto erstellt")).toBeInTheDocument();
+  });
+
+  it("checks the passwords before sending and marks the field", async () => {
+    render(
+      <GuardianInvitationAcceptForm
+        token="invite-token"
+        invitation={invitation}
+      />,
+    );
+    fillPasswords(acceptedCredential(), "anders");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Einladung akzeptieren" }),
+    );
+
+    expect(
+      await screen.findByText(
+        deMessages.guardianInvite.formErrors.passwordMismatch,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Passwort bestätigen")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(mocks.acceptGuardianInvitation).not.toHaveBeenCalled();
   });
 });

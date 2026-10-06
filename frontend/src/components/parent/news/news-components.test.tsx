@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NewsCard, NewsDetailModal, isOpenPoll } from "./news-components";
 import type { ParentAnnouncement } from "~/lib/parent-api";
 import * as parentApi from "~/lib/parent-api";
+import { ParentApiError } from "~/lib/parent-api";
+import { catalogText } from "~/test/error-catalog-text";
 import * as dateHelpers from "~/lib/date-helpers";
 import { BELOW_SM } from "~/lib/hooks/use-media-query";
 
@@ -278,7 +280,7 @@ describe("Umfrage answering in the detail view", () => {
 
   it("keeps the selection and reports the error when saving fails", async () => {
     vi.spyOn(parentApi, "respondToAnnouncement").mockRejectedValue(
-      new Error("boom"),
+      new ParentApiError("boom", 503, "general.unavailable"),
     );
     const onUpdated = vi.fn();
     const onClose = vi.fn();
@@ -290,14 +292,39 @@ describe("Umfrage answering in the detail view", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Ja" }));
     fireEvent.click(screen.getByRole("button", { name: "Antwort speichern" }));
 
+    // #2518: the shared error path, inside the dialog, never the server text.
     expect(
-      await screen.findByText("Aktion fehlgeschlagen. Bitte erneut versuchen."),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Antwort"),
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/boom/)).not.toBeInTheDocument();
     // Nothing was committed, the dialog stays open, and the choice stays on
     // screen so it can be retried.
     expect(onUpdated).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByRole("radio", { name: "Ja" })).toBeChecked();
+  });
+
+  it("retries a failed answer from the alert and closes like the footer", async () => {
+    const respond = vi
+      .spyOn(parentApi, "respondToAnnouncement")
+      .mockRejectedValueOnce(
+        new ParentApiError("down", 503, "general.unavailable"),
+      )
+      .mockResolvedValueOnce(undefined);
+    const onClose = vi.fn();
+
+    render(
+      <NewsDetailModal item={poll()} onClose={onClose} onUpdated={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole("radio", { name: "Ja" }));
+    fireEvent.click(screen.getByRole("button", { name: "Antwort speichern" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(respond).toHaveBeenCalledTimes(2);
   });
 
   it("reconciles earlier child responses when a later save fails", async () => {
@@ -958,5 +985,68 @@ describe("scheduled reminder in the parent feed (#3162)", () => {
     );
 
     expect(screen.getByText(/Erinnerung vom 21\.07\.2026/)).toBeInTheDocument();
+  });
+});
+
+// #2518: every error in the detail dialog runs through the shared error path
+// and stays inside the dialog, which lies above every toast.
+describe("NewsDetailModal errors", () => {
+  it("shows a failed read confirmation in the dialog", async () => {
+    vi.spyOn(parentApi, "acknowledgeAnnouncement").mockRejectedValue(
+      new ParentApiError("ack kaputt", 500, "general.server"),
+    );
+    const onClose = vi.fn();
+
+    render(
+      <NewsDetailModal
+        item={announcement({ requires_acknowledgement: true })}
+        onClose={onClose}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Gelesen bestätigen" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Lesebestätigung"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/ack kaputt/)).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("shows a failed file list with retry instead of hiding it", async () => {
+    const list = vi
+      .spyOn(parentApi, "listAnnouncementAttachments")
+      .mockRejectedValueOnce(
+        new ParentApiError("files kaputt", 503, "general.unavailable"),
+      )
+      .mockResolvedValueOnce([]);
+
+    render(
+      <NewsDetailModal
+        item={announcement()}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Dateien"),
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "die Liste der Dateien"),
+        ),
+      ).not.toBeInTheDocument(),
+    );
   });
 });
