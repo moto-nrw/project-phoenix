@@ -1098,6 +1098,10 @@ export const ERROR_CATALOG = {
         "This person already has access to this school. You can find them in the staff list.",
       "identity.email_already_exists":
         "There is already an account for this email address. Please use a different address.",
+      "identity.password_reset_rate_limited":
+        "{object} could not be changed. Please check its current status.",
+      "identity.mfa_blocked":
+        "{object} could not be changed. Please check its current status.",
       "students.export_selection_too_large":
         "The selection has {total} children. A list can have at most {limit} children. Please narrow the selection, for example by group or class.",
       "students.staff_profile_required":
@@ -1216,6 +1220,10 @@ export const ERROR_CATALOG = {
         "У этого человека уже есть доступ к этой школе. Он есть в списке сотрудников.",
       "identity.email_already_exists":
         "Для этого адреса электронной почты уже есть учётная запись. Укажите другой адрес.",
+      "identity.password_reset_rate_limited":
+        "Не удалось изменить: {object}. Проверьте текущее состояние.",
+      "identity.mfa_blocked":
+        "Не удалось изменить: {object}. Проверьте текущее состояние.",
       "students.export_selection_too_large":
         "Выбрано детей: {total}. В списке может быть не больше {limit} детей. Сузьте выбор, например по группе или классу.",
       "students.staff_profile_required":
@@ -1333,6 +1341,10 @@ export const ERROR_CATALOG = {
         "Ky person ka tashmë qasje në këtë shkollë. E gjeni në listën e personelit.",
       "identity.email_already_exists":
         "Për këtë adresë email ka tashmë një llogari. Ju lutemi përdorni një adresë tjetër.",
+      "identity.password_reset_rate_limited":
+        "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+      "identity.mfa_blocked":
+        "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
       "students.export_selection_too_large":
         "Përzgjedhja ka {total} fëmijë. Një listë mund të ketë më së shumti {limit} fëmijë. Ju lutemi ngushtoni përzgjedhjen, p.sh. sipas grupit ose klasës.",
       "students.staff_profile_required":
@@ -1456,6 +1468,10 @@ export const ERROR_CATALOG = {
         "Ta osoba ma już dostęp do tej szkoły. Znajdziesz ją na liście personelu.",
       "identity.email_already_exists":
         "Dla tego adresu e-mail istnieje już konto. Użyj innego adresu.",
+      "identity.password_reset_rate_limited":
+        "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+      "identity.mfa_blocked":
+        "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
       "students.export_selection_too_large":
         "Wybrano {total} dzieci. Lista może mieć najwyżej {limit} dzieci. Zawęź wybór, na przykład według grupy lub klasy.",
       "students.staff_profile_required":
@@ -1571,6 +1587,10 @@ export const ERROR_CATALOG = {
         "Bu kişinin bu okula zaten erişimi var. Kişiyi personel listesinde bulabilirsiniz.",
       "identity.email_already_exists":
         "Bu e-posta adresi için zaten bir hesap var. Lütfen başka bir adres kullanın.",
+      "identity.password_reset_rate_limited":
+        "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+      "identity.mfa_blocked":
+        "{object} değiştirilemedi. Güncel durumu kontrol edin.",
       "students.export_selection_too_large":
         "Seçimde {total} çocuk var. Bir liste en fazla {limit} çocuk içerebilir. Lütfen seçimi daraltın, örneğin gruba veya sınıfa göre.",
       "students.staff_profile_required":
@@ -1690,6 +1710,10 @@ export const ERROR_CATALOG = {
         "Ця особа вже має доступ до цієї школи. Її можна знайти в списку персоналу.",
       "identity.email_already_exists":
         "Для цієї адреси електронної пошти вже є обліковий запис. Укажіть іншу адресу.",
+      "identity.password_reset_rate_limited":
+        "Не вдалося змінити: {object}. Перевірте поточний стан.",
+      "identity.mfa_blocked":
+        "Не вдалося змінити: {object}. Перевірте поточний стан.",
       "students.export_selection_too_large":
         "Вибрано дітей: {total}. У списку може бути не більше {limit} дітей. Звузьте вибір, наприклад за групою або класом.",
       "students.staff_profile_required":

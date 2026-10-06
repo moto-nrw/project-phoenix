@@ -47,6 +47,22 @@ describe("presentError", () => {
     expect(result.retryable).toBe(true);
   });
 
+  it.each([
+    "identity.mfa_blocked",
+    "identity.password_reset_rate_limited",
+  ] as const)("makes %s retryable after its cooldown", (code) => {
+    const error = new ApiError("rate limited", 429, {
+      code,
+      instance: "req-429",
+    });
+
+    expect(presentError(error, "die Anmeldung")).toMatchObject({
+      errorClass: "unavailable",
+      retryable: true,
+      requestId: "req-429",
+    });
+  });
+
   it("uses the class text when a known code has no runtime override", () => {
     const error = new ApiError("backend", 400, {
       code: "care.announcement_ack_not_required",

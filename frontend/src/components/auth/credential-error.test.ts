@@ -34,6 +34,18 @@ describe("credentialError", () => {
     ).toBe(false);
   });
 
+  it("uses invalid credentials for an uncoded 401", () => {
+    const shown = credentialError(new ApiError("Unauthorized", 401));
+
+    expect(shown).toMatchObject({
+      status: undefined,
+      code: "identity.invalid_credentials",
+    });
+    expect(presentError(shown, "die Anmeldung").message).toBe(
+      "Die E-Mail-Adresse oder das Passwort stimmt nicht. Bitte prüfen Sie Ihre Eingabe.",
+    );
+  });
+
   it("only rewrites the listed codes when a list is given", () => {
     const expired = new ApiError("Unauthorized", 401);
 

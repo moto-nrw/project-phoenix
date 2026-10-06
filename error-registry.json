@@ -1044,7 +1044,7 @@
     },
     {
       "code": "identity.password_reset_rate_limited",
-      "class": "business_rejection",
+      "class": "unavailable",
       "parameters": [],
       "legacy": "identity.password_reset_rate_limited"
     },
@@ -1056,7 +1056,7 @@
     },
     {
       "code": "identity.mfa_blocked",
-      "class": "business_rejection",
+      "class": "unavailable",
       "parameters": [],
       "legacy": "identity.mfa_blocked"
     },

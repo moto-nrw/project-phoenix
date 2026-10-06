@@ -19,8 +19,14 @@ export function credentialError(
 ): unknown {
   if (!(error instanceof ApiError) || error.status !== 401) return error;
   if (codes && !(error.code && codes.includes(error.code))) return error;
+  // ApiError uses general.permission for an uncoded 401. At this boundary,
+  // however, the 401 is a refused credential rather than a missing session.
+  const code =
+    error.code === "general.permission"
+      ? "identity.invalid_credentials"
+      : error.code;
   const copy = new ApiError(error.message, undefined, {
-    code: error.code,
+    code,
     details: error.details,
     errors: error.errors,
     instance: error.instance,
