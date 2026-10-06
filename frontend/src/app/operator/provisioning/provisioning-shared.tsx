@@ -5,8 +5,8 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState as UIEmptyState } from "~/components/ui/empty-state";
 
 /**
- * Label, control and its field error (#2519). With `error` the single child
- * control gets `aria-invalid` and `aria-describedby`, so a screen reader
+ * Label, control and its field error (#2519). With `error` the first child
+ * element (the control) gets `aria-invalid` and `aria-describedby`, so a screen reader
  * reads the hint with the field.
  */
 export function FormField({
@@ -23,13 +23,23 @@ export function FormField({
   readonly children: React.ReactNode;
 }) {
   const errorId = `${htmlFor}-error`;
-  const control =
-    error && isValidElement<Record<string, unknown>>(children)
-      ? cloneElement(children, {
-          "aria-invalid": true,
-          "aria-describedby": errorId,
-        })
-      : children;
+  // The control is the first element child; a hint after it stays as is.
+  let marked = false;
+  const control = error
+    ? Children.map(children, (child) => {
+        if (marked || !isValidElement<Record<string, unknown>>(child)) {
+          return child;
+        }
+        marked = true;
+        // CustomSelect takes its ARIA state as named props.
+        return child.type === CustomSelect
+          ? cloneElement(child, { invalid: true, ariaDescribedBy: errorId })
+          : cloneElement(child, {
+              "aria-invalid": true,
+              "aria-describedby": errorId,
+            });
+      })
+    : children;
   return (
     <div>
       <label
@@ -46,24 +56,6 @@ export function FormField({
           {error}
         </p>
       ) : null}
-    </div>
-  );
-}
-
-export function FormError({
-  message,
-  ref,
-}: {
-  readonly message: string;
-  readonly ref?: React.Ref<HTMLDivElement>;
-}) {
-  return (
-    <div
-      ref={ref}
-      role="alert"
-      className="bg-moto-red-soft text-moto-red rounded-lg px-3 py-2 text-sm"
-    >
-      {message}
     </div>
   );
 }
@@ -160,6 +152,8 @@ export function SelectWithChevron({
   disabled,
   required,
   "aria-label": ariaLabel,
+  "aria-invalid": ariaInvalid,
+  "aria-describedby": ariaDescribedBy,
 }: React.SelectHTMLAttributes<HTMLSelectElement> & {
   readonly children: React.ReactNode;
 }) {
@@ -202,6 +196,8 @@ export function SelectWithChevron({
       required={required}
       ariaLabel={ariaLabel}
       ariaLabelledBy={ariaLabelledBy}
+      ariaDescribedBy={ariaDescribedBy}
+      invalid={ariaInvalid === true || ariaInvalid === "true"}
     />
   );
 }

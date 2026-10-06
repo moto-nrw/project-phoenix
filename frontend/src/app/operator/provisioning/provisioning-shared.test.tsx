@@ -2,7 +2,6 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import {
   FormField,
-  FormError,
   FieldWarning,
   StatusBadge,
   DeliveryStatusBadge,
@@ -96,27 +95,6 @@ describe("FormField", () => {
     );
 
     expect(screen.getByTestId("child-input")).toBeInTheDocument();
-  });
-});
-
-describe("FormError", () => {
-  it("should render error message", () => {
-    render(<FormError message="Something went wrong" />);
-
-    expect(screen.getByText("Something went wrong")).toBeInTheDocument();
-  });
-
-  it("should have role alert", () => {
-    render(<FormError message="Error occurred" />);
-
-    expect(screen.getByRole("alert")).toBeInTheDocument();
-  });
-
-  it("should render error message inside alert role element", () => {
-    render(<FormError message="Validation failed" />);
-
-    const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("Validation failed");
   });
 });
 

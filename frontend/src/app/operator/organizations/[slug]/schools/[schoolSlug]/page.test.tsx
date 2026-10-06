@@ -7,13 +7,18 @@
  */
 import {
   act,
-  render,
+  render as renderPlain,
   screen,
   fireEvent,
   waitFor,
   within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
 
 vi.mock("~/components/operator/transfer-device-modal", () => ({
   TransferDeviceModal: () => null,

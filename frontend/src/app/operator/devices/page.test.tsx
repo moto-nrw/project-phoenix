@@ -4,8 +4,18 @@
  * Ported from provisioning/page.test.tsx (Devices Tab). Device filtering
  * moved from client state to URL query params (schoolId, orgId).
  */
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render as renderPlain,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
 
 vi.mock("~/components/operator/transfer-device-modal", () => ({
   TransferDeviceModal: () => null,

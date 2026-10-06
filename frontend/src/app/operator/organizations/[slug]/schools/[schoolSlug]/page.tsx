@@ -334,11 +334,9 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     softDeleteFn: operatorProvisioningService.softDeleteSchool,
     restoreFn: operatorProvisioningService.restoreSchool,
     mutateList: refreshSchoolDetail,
-    errorMessages: {
-      softDelete:
-        "Fehler beim Löschen der Schule. Bitte versuchen Sie es erneut.",
-      restore:
-        "Fehler beim Wiederherstellen der Schule. Bitte versuchen Sie es erneut.",
+    errorObjects: {
+      softDelete: "das Löschen der Schule",
+      restore: "die Wiederherstellung der Schule",
     },
     logEventPrefix: "school",
     onAfterSoftDelete: async (target) => {

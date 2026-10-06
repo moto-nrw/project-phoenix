@@ -5,8 +5,20 @@
  * moved from client state (set via another tab) to URL query params
  * (schoolId, orgId) driven by the page's own OrgSchoolFilter.
  */
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render as renderPlain,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
 
 const {
   mockUseSession,
@@ -437,7 +449,9 @@ describe("OperatorPersonsPage", () => {
       key === "schoolId" ? "10" : null,
     );
     mockSoftDeletePerson.mockRejectedValue(
-      new Error("Person hat aktive Besuche"),
+      new ApiError("Person hat aktive Besuche", 409, {
+        code: "general.business_rejection",
+      }),
     );
     const consoleError = vi
       .spyOn(console, "error")
@@ -459,7 +473,11 @@ describe("OperatorPersonsPage", () => {
     fireEvent.click(screen.getByText("Endgültig löschen"));
 
     await waitFor(() => {
-      expect(screen.getByText("Person hat aktive Besuche")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          catalogText("general.business_rejection", "das Löschen der Person"),
+        ),
+      ).toBeInTheDocument();
       expect(consoleError).toHaveBeenCalledWith(
         "person_soft_delete_failed",
         expect.objectContaining({

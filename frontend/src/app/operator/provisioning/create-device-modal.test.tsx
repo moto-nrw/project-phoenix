@@ -1,8 +1,26 @@
 import type { ReactNode } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render as renderPlain,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { ERROR_CATALOG } from "~/lib/error-catalog.generated";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
+
+/** What the shared path shows for a failure that is no API error. */
+function crashText(object: string) {
+  const text = ERROR_CATALOG.de.actions.crash.replace("{object}", object);
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 import { CreateDeviceModal } from "./create-device-modal";
-import { OperatorApiError } from "~/lib/operator/api-helpers";
 
 function selectCustomOption(
   labelMatcher: RegExp | string,
@@ -47,6 +65,9 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
 vi.mock("~/lib/logger", () => ({
   createLogger: () => ({
     error: mockLoggerError,
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
   }),
 }));
 
@@ -137,7 +158,10 @@ describe("CreateDeviceModal", () => {
 
   it("shows duplicate api key conflict message", async () => {
     mockCreateDevice.mockRejectedValue(
-      new OperatorApiError("api_key already exists", 409),
+      new ApiError("api_key already exists", 409, {
+        code: "general.business_rejection",
+        errors: [{ field: "api_key", reason: "taken" }],
+      }),
     );
 
     render(
@@ -153,18 +177,30 @@ describe("CreateDeviceModal", () => {
       target: { value: "DEV-001" },
     });
     selectCustomOption(/Typ/, "Terminal");
+    fireEvent.click(screen.getByLabelText("Eigenen Key eingeben"));
+    fireEvent.change(screen.getByPlaceholderText("API-Key eingeben..."), {
+      target: { value: "taken-key" },
+    });
     fireEvent.click(screen.getByText("Erstellen"));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("Dieser API-Key wird bereits verwendet."),
-      ).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.business_rejection", "das Anlegen des Geräts"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("API-Key eingeben...")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(screen.queryByText("api_key already exists")).toBeNull();
   });
 
   it("shows duplicate device id conflict message", async () => {
     mockCreateDevice.mockRejectedValue(
-      new OperatorApiError("device already exists", 409),
+      new ApiError("device already exists", 409, {
+        code: "general.business_rejection",
+        errors: [{ field: "device_id", reason: "taken" }],
+      }),
     );
 
     render(
@@ -182,13 +218,15 @@ describe("CreateDeviceModal", () => {
     selectCustomOption(/Typ/, "Terminal");
     fireEvent.click(screen.getByText("Erstellen"));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          "Ein Gerät mit dieser ID existiert bereits für diese Schule.",
-        ),
-      ).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.business_rejection", "das Anlegen des Geräts"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Geräte-ID/)).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
   });
 
   it("logs and shows a generic error", async () => {
@@ -210,7 +248,10 @@ describe("CreateDeviceModal", () => {
     fireEvent.click(screen.getByText("Erstellen"));
 
     await waitFor(() => {
-      expect(screen.getByText("kaputt")).toBeInTheDocument();
+      expect(
+        screen.getByText(crashText("das Anlegen des Geräts")),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("kaputt")).toBeNull();
       expect(mockLoggerError).toHaveBeenCalledWith(
         "device_create_failed",
         expect.objectContaining({ error: "kaputt" }),
@@ -367,5 +408,10 @@ describe("CreateDeviceModal", () => {
         }),
       );
     });
+    expect(
+      await screen.findByText(
+        "Der API-Key konnte nicht kopiert werden. Bitte markieren und kopieren Sie ihn selbst.",
+      ),
+    ).toBeInTheDocument();
   });
 });

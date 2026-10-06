@@ -1,11 +1,11 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Modal } from "~/components/ui/modal";
-import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { generateSlug, isValidSlug } from "~/lib/operator/provisioning-helpers";
-import { isOperatorApiError } from "~/lib/operator/api-helpers";
 import { createLogger } from "~/lib/logger";
-import { FormField, FormError } from "./provisioning-shared";
+import { FormField } from "./provisioning-shared";
 
 const logger = createLogger({ component: "CreateOrganizationModal" });
 
@@ -22,15 +22,16 @@ export function CreateOrganizationModal({
   const [orgSlug, setOrgSlug] = useState("");
   const [orgSlugManual, setOrgSlugManual] = useState(false);
   const [orgSaving, setOrgSaving] = useState(false);
-  const [orgError, setOrgError] = useState("");
-  const errorRef = useScrollToError(orgError);
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { show: showError, invalid, clear: clearError } = formErrors;
 
   const resetForm = useCallback(() => {
     setOrgName("");
     setOrgSlug("");
     setOrgSlugManual(false);
-    setOrgError("");
-  }, []);
+    clearError();
+  }, [clearError]);
 
   const handleOrgNameChange = useCallback(
     (value: string) => {
@@ -52,13 +53,13 @@ export function CreateOrganizationModal({
       e.preventDefault();
       if (!orgName.trim() || !orgSlug.trim()) return;
       if (!isValidSlug(orgSlug)) {
-        setOrgError(
-          "Slug darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.",
-        );
+        const hint =
+          "Slug darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.";
+        invalid("Bitte prüfen Sie die markierten Felder.", { slug: hint });
         return;
       }
       setOrgSaving(true);
-      setOrgError("");
+      clearError();
       try {
         await operatorProvisioningService.createOrganization({
           name: orgName.trim(),
@@ -67,21 +68,15 @@ export function CreateOrganizationModal({
         handleClose();
         await onCreated();
       } catch (error) {
-        if (isOperatorApiError(error) && error.status === 409) {
-          setOrgError("Ein Träger mit diesem Slug existiert bereits.");
-        } else {
-          setOrgError(
-            error instanceof Error ? error.message : "Fehler beim Erstellen.",
-          );
-          logger.error("organization_create_failed", {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
+        logger.error("organization_create_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        void showError(error, { object: "das Anlegen des Trägers" });
       } finally {
         setOrgSaving(false);
       }
     },
-    [orgName, orgSlug, onCreated, handleClose],
+    [orgName, orgSlug, onCreated, handleClose, invalid, clearError, showError],
   );
 
   return (
@@ -110,13 +105,21 @@ export function CreateOrganizationModal({
       }
     >
       <form
+        ref={formRef}
         onSubmit={(e) => void handleCreate(e)}
         className="space-y-4"
         id="create-org-form"
       >
-        <FormField label="Name" htmlFor="org-name" required>
+        <FormErrorAlert message={formErrors.error} />
+        <FormField
+          label="Name"
+          htmlFor="org-name"
+          required
+          error={formErrors.fieldError("name")}
+        >
           <input
             id="org-name"
+            name="name"
             type="text"
             value={orgName}
             onChange={(e) => handleOrgNameChange(e.target.value)}
@@ -125,9 +128,15 @@ export function CreateOrganizationModal({
             required
           />
         </FormField>
-        <FormField label="Slug" htmlFor="org-slug" required>
+        <FormField
+          label="Slug"
+          htmlFor="org-slug"
+          required
+          error={formErrors.fieldError("slug")}
+        >
           <input
             id="org-slug"
+            name="slug"
             type="text"
             value={orgSlug}
             onChange={(e) => {
@@ -142,7 +151,6 @@ export function CreateOrganizationModal({
             URL-freundlicher Bezeichner (z.B. &quot;stadt-koeln&quot;)
           </p>
         </FormField>
-        {orgError && <FormError ref={errorRef} message={orgError} />}
       </form>
     </Modal>
   );

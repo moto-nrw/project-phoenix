@@ -319,11 +319,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     softDeleteFn: operatorProvisioningService.softDeleteOrganization,
     restoreFn: operatorProvisioningService.restoreOrganization,
     mutateList: refreshOrganizationDrillIn,
-    errorMessages: {
-      softDelete:
-        "Fehler beim Löschen des Trägers. Bitte versuchen Sie es erneut.",
-      restore:
-        "Fehler beim Wiederherstellen des Trägers. Bitte versuchen Sie es erneut.",
+    errorObjects: {
+      softDelete: "das Löschen des Trägers",
+      restore: "die Wiederherstellung des Trägers",
     },
     logEventPrefix: "organization",
     onAfterSoftDelete: async () => {
@@ -343,11 +341,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     softDeleteFn: operatorProvisioningService.softDeleteSchool,
     restoreFn: operatorProvisioningService.restoreSchool,
     mutateList: refreshOrganizationDrillIn,
-    errorMessages: {
-      softDelete:
-        "Fehler beim Löschen der Schule. Bitte versuchen Sie es erneut.",
-      restore:
-        "Fehler beim Wiederherstellen der Schule. Bitte versuchen Sie es erneut.",
+    errorObjects: {
+      softDelete: "das Löschen der Schule",
+      restore: "die Wiederherstellung der Schule",
     },
     logEventPrefix: "school",
     onAfterSoftDelete: async (target) => {

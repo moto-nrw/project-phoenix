@@ -6,8 +6,27 @@
  * cancel resets state, and error path surfaces the API message and keeps
  * the modal open.
  */
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render as renderPlain,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { ERROR_CATALOG } from "~/lib/error-catalog.generated";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
+
+/** What the shared path shows for a failure that is no API error. */
+function crashText(object: string) {
+  const text = ERROR_CATALOG.de.actions.crash.replace("{object}", object);
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 const { mockSoftDeletePerson } = vi.hoisted(() => ({
   mockSoftDeletePerson: vi.fn(),
@@ -53,7 +72,7 @@ describe("DeletePersonModal", () => {
   });
 
   it("renders nothing when person is null", () => {
-    const { container } = render(
+    const { container } = renderPlain(
       <DeletePersonModal person={null} onClose={vi.fn()} onDeleted={vi.fn()} />,
     );
     expect(container).toBeEmptyDOMElement();
@@ -154,7 +173,11 @@ describe("DeletePersonModal", () => {
   });
 
   it("surfaces the API error message and keeps the modal open on failure", async () => {
-    mockSoftDeletePerson.mockRejectedValue(new Error("person has open visits"));
+    mockSoftDeletePerson.mockRejectedValue(
+      new ApiError("person has open visits", 409, {
+        code: "general.business_rejection",
+      }),
+    );
     const onClose = vi.fn();
     const onDeleted = vi.fn();
 
@@ -172,9 +195,12 @@ describe("DeletePersonModal", () => {
     );
     fireEvent.click(getDeleteButton());
 
-    await waitFor(() => {
-      expect(screen.getByText("person has open visits")).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.business_rejection", "das Löschen der Person"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("person has open visits")).toBeNull();
     expect(onDeleted).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
@@ -244,7 +270,7 @@ describe("DeletePersonModal", () => {
     resolveDelete?.();
   });
 
-  it("falls back to a generic German error when the thrown value has no message", async () => {
+  it("shows the generic text when the failure is no API error", async () => {
     mockSoftDeletePerson.mockRejectedValue("non-error value");
 
     render(
@@ -263,7 +289,7 @@ describe("DeletePersonModal", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Fehler beim Löschen der Person"),
+        screen.getByText(crashText("das Löschen der Person")),
       ).toBeInTheDocument();
     });
   });
