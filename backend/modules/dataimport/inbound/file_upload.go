@@ -2,6 +2,7 @@ package importapi
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -48,9 +49,14 @@ func (rs *Resource) openValidatedUploadFile(w http.ResponseWriter, r *http.Reque
 	r.Body = http.MaxBytesReader(w, r.Body, maxFileSize)
 
 	// Parse multipart form
-	if r.ParseMultipartForm(maxFileSize) != nil {
+	if err := r.ParseMultipartForm(maxFileSize); err != nil {
 		render.Status(r, http.StatusBadRequest)
-		rs.runtime.Failure(w, r, uploadFailure(codeImportFileTooLarge, fmt.Errorf("datei zu groß (max 10MB)")))
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			rs.runtime.Failure(w, r, uploadFailure(codeImportFileTooLarge, fmt.Errorf("datei zu groß (max 10MB)")))
+		} else {
+			rs.runtime.Failure(w, r, uploadFailure(codeImportFileUnreadable, fmt.Errorf("datei kann nicht gelesen werden")))
+		}
 		return nil, nil, false, false
 	}
 
