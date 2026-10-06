@@ -95,7 +95,12 @@ export default function OperatorLoginPage() {
         setIsCleaningUp(true);
         try {
           await signOut({ redirect: false });
-        } catch {
+        } catch (err) {
+          // Nothing is shown: no one asked for this cleanup (no error
+          // without a user action, #2501), and the login form still works.
+          logger.warn("stale_session_cleanup_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
           cleanupStartedRef.current = false;
         }
         setIsCleaningUp(false);

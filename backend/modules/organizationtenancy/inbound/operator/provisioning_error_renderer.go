@@ -129,21 +129,22 @@ func deviceErrorRenderer(err error) (render.Renderer, bool) {
 }
 
 // provisioningConflictRenderer answers a collision with the code of the
-// colliding value.
+// colliding value and marks the request field that holds it.
 func provisioningConflictRenderer(conflict *organizationtenancy.ProvisioningConflictError) render.Renderer {
-	codes := map[organizationtenancy.ProvisioningConflictKind]string{
-		organizationtenancy.ConflictOrganizationSlug: common.CodeProvisioningOrganizationSlugTaken,
-		organizationtenancy.ConflictSchoolSubdomain:  common.CodeProvisioningSchoolSubdomainTaken,
-		organizationtenancy.ConflictSchoolSlug:       common.CodeProvisioningSchoolSlugTaken,
-		organizationtenancy.ConflictDeviceAPIKey:     common.CodeProvisioningDeviceApiKeyTaken,
-		organizationtenancy.ConflictDeviceID:         common.CodeProvisioningDeviceIdTaken,
+	type taken struct{ code, field string }
+	outcomes := map[organizationtenancy.ProvisioningConflictKind]taken{
+		organizationtenancy.ConflictOrganizationSlug: {common.CodeProvisioningOrganizationSlugTaken, "slug"},
+		organizationtenancy.ConflictSchoolSubdomain:  {common.CodeProvisioningSchoolSubdomainTaken, "subdomain"},
+		organizationtenancy.ConflictSchoolSlug:       {common.CodeProvisioningSchoolSlugTaken, "slug"},
+		organizationtenancy.ConflictDeviceAPIKey:     {common.CodeProvisioningDeviceApiKeyTaken, "api_key"},
+		organizationtenancy.ConflictDeviceID:         {common.CodeProvisioningDeviceIdTaken, "device_id"},
 	}
 	message := conflict.Error()
 	if conflict.Err != nil {
 		message = conflict.Err.Error()
 	}
-	if code, ok := codes[conflict.Kind]; ok {
-		return common.OperatorRejection(http.StatusConflict, code, message)
+	if outcome, ok := outcomes[conflict.Kind]; ok {
+		return common.OperatorRejectionOnField(http.StatusConflict, outcome.code, outcome.field, message)
 	}
 	return common.OperatorConflict(message)
 }

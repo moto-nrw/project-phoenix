@@ -49,15 +49,21 @@ func OperatorInvalidRequestWithCode(err error, code string) render.Renderer {
 	return resp
 }
 
-// OperatorInvalidField renders a 400 that marks one request field.
-func OperatorInvalidField(code, field, message string) render.Renderer {
+// OperatorRejectionOnField is OperatorRejection that also marks the request
+// field the outcome is about, e.g. the slug that is already taken (#2519).
+func OperatorRejectionOnField(status int, code, field, message string) render.Renderer {
 	return &ErrResponse{
-		HTTPStatusCode: http.StatusBadRequest,
+		HTTPStatusCode: status,
 		Status:         "error",
 		ErrorText:      message,
 		Code:           code,
 		Errors:         []FieldError{{Field: field, Reason: message}},
 	}
+}
+
+// OperatorInvalidField renders a 400 that marks one request field.
+func OperatorInvalidField(code, field, message string) render.Renderer {
+	return OperatorRejectionOnField(http.StatusBadRequest, code, field, message)
 }
 
 // OperatorInvalidInput renders a 400 with a fixed text: the cause may carry

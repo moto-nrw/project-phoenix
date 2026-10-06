@@ -61,6 +61,33 @@ func TestProvisioningErrorRendererAnswersWithCodes(t *testing.T) {
 	}
 }
 
+// A taken value marks the field that holds it, so the form focuses it
+// (#2519). The names are the request fields the operator forms send.
+func TestProvisioningConflictMarksTheField(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		kind  organizationtenancy.ProvisioningConflictKind
+		field string
+	}{
+		{organizationtenancy.ConflictOrganizationSlug, "slug"},
+		{organizationtenancy.ConflictSchoolSubdomain, "subdomain"},
+		{organizationtenancy.ConflictSchoolSlug, "slug"},
+		{organizationtenancy.ConflictDeviceAPIKey, "api_key"},
+		{organizationtenancy.ConflictDeviceID, "device_id"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.field, func(t *testing.T) {
+			t.Parallel()
+			resp, ok := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningConflictError{Kind: tc.kind, Err: errors.New("taken")}).(*common.ErrResponse)
+			require.True(t, ok)
+			assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
+			require.Len(t, resp.Errors, 1)
+			assert.Equal(t, tc.field, resp.Errors[0].Field)
+		})
+	}
+}
+
 func TestProvisioningErrorRendererCarriesSchoolCount(t *testing.T) {
 	t.Parallel()
 

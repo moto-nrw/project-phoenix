@@ -40,8 +40,14 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   ),
 }));
 
+const passwordModalProps = vi.hoisted(() => ({
+  current: null as Record<string, unknown> | null,
+}));
 vi.mock("~/components/ui/password-change-modal", () => ({
-  PasswordChangeModal: () => null,
+  PasswordChangeModal: (props: Record<string, unknown>) => {
+    passwordModalProps.current = props;
+    return null;
+  },
 }));
 
 // TrustedDevicesSection pulls in useToast/useTrustedDevices and is exercised
@@ -630,6 +636,22 @@ describe("OperatorSettingsPage", () => {
           screen.queryByText("E-Mail-Adresse ändern"),
         ).not.toBeInTheDocument();
       });
+    });
+  });
+
+  // #2519: the password dialog runs on the shared form error path, so a
+  // refused current password marks its field with the catalog text.
+  it("hands the password dialog the shared form error path", async () => {
+    render(<OperatorSettingsPage />);
+    fireEvent.click(await screen.findByText("Passwort ändern"));
+
+    const props = passwordModalProps.current;
+    expect(props?.apiEndpoint).toBe("/api/operator/profile/password");
+    expect(props?.formRef).toBeDefined();
+    expect(props?.errorPath).toMatchObject({
+      show: expect.any(Function),
+      invalid: expect.any(Function),
+      fieldError: expect.any(Function),
     });
   });
 });

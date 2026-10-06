@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { operatorErrorResponse } from "~/lib/operator/route-wrapper.server";
 import { createOperatorJsonProxy } from "~/lib/backend-proxy-route.server";
 
 // Global MFA emergency override is operator-only, not a school-admin setting.
@@ -8,9 +8,10 @@ const path = (
 ) => {
   const accountId = params.accountId;
   if (typeof accountId !== "string") {
-    return NextResponse.json(
-      { error: "Invalid account parameter", code: "general.input" },
-      { status: 400 },
+    return operatorErrorResponse(
+      400,
+      "general.input",
+      "Invalid account parameter",
     );
   }
   return `/operator/accounts/${encodeURIComponent(accountId)}/mfa/global-override`;

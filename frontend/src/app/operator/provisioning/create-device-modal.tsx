@@ -1,3 +1,4 @@
+import { API_KEY_COPY_FAILED_MESSAGE } from "~/lib/operator/provisioning-helpers";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Modal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -128,9 +129,7 @@ export function CreateDeviceModal({
       logger.error("clipboard_copy_failed", {
         error: "Failed to copy API key to clipboard",
       });
-      toastError(
-        "Der API-Key konnte nicht kopiert werden. Bitte markieren und kopieren Sie ihn selbst.",
-      );
+      toastError(API_KEY_COPY_FAILED_MESSAGE);
     }
   }, [createdDevice, toastError]);
 

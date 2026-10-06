@@ -73,13 +73,12 @@ describe("operator-settings-api", () => {
       expect(result).toEqual(schema);
     });
 
-    it("returns null on 404", async () => {
-      mockOperatorFetch.mockRejectedValue(
-        new OperatorApiError("not found", 404),
-      );
+    // #2519: an unknown school is an error the page shows, not "no schema".
+    it("rethrows a 404", async () => {
+      const error = new OperatorApiError("not found", 404);
+      mockOperatorFetch.mockRejectedValue(error);
 
-      const result = await fetchOperatorSettingsSchema(SCHOOL_ID);
-      expect(result).toBeNull();
+      await expect(fetchOperatorSettingsSchema(SCHOOL_ID)).rejects.toBe(error);
     });
 
     it("rethrows on non-404 error", async () => {

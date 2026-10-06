@@ -113,13 +113,35 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
     }
   }, [schoolId, showSchemaError, clearSchemaError]);
 
+  // The heading names the school; a failed lookup is shown in place (#2519).
+  const schoolNameLoad = useApiLoadError();
+  const { show: showSchoolNameError, clear: clearSchoolNameError } =
+    schoolNameLoad;
+  const loadSchoolName = useCallback(async () => {
+    clearSchoolNameError();
+    try {
+      const schools = await operatorProvisioningService.listSchools();
+      const school = schools.find((s) => s.id === schoolId);
+      if (school) setSchoolName(school.name);
+    } catch (err) {
+      logger.warn("operator_school_name_lookup_failed", {
+        school_id: schoolId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showSchoolNameError(err, {
+        object: "die Bezeichnung der Schule",
+        retry: () => void loadSchoolName(),
+      });
+    }
+  }, [schoolId, showSchoolNameError, clearSchoolNameError]);
+
   // After a save the schema is read again for the server state and DependsOn.
   // A failed refresh keeps the shown values and reports the stale list.
   const refreshSchema = useCallback(async () => {
     try {
       const fresh = await fetchOperatorSettingsSchema(schoolId);
       clearSchemaError();
-      if (fresh) setSchema(fresh);
+      setSchema(fresh);
     } catch (err) {
       logger.warn("operator_settings_refresh_failed", {
         school_id: schoolId,
@@ -135,19 +157,8 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
   useEffect(() => {
     if (sessionStatus !== "authenticated") return;
     void loadSchema();
-    void operatorProvisioningService
-      .listSchools()
-      .then((schools) => {
-        const school = schools.find((s) => s.id === schoolId);
-        if (school) setSchoolName(school.name);
-      })
-      .catch((err: unknown) => {
-        logger.warn("operator_school_name_lookup_failed", {
-          school_id: schoolId,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-  }, [sessionStatus, schoolId, loadSchema]);
+    void loadSchoolName();
+  }, [sessionStatus, loadSchema, loadSchoolName]);
 
   // Save and reset throw the ApiError of a failed request; the field shows
   // it on the shared error path (#2519).
@@ -207,6 +218,7 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
         />
       </div>
 
+      <LoadErrorAlert error={schoolNameLoad.error} className="mb-4" />
       <LoadErrorAlert error={schemaLoad.error} className="mb-4" />
 
       {loading && (

@@ -60,20 +60,18 @@ function mapImpactChild(
 
 /**
  * Fetch the settings schema for a specific school.
- * Operators see all settings regardless of per-setting permissions.
+ * Operators see all settings regardless of per-setting permissions. Every
+ * failure throws, an unknown school too, so the page shows it (#2519).
  */
 export async function fetchOperatorSettingsSchema(
   schoolId: string,
-): Promise<SettingsSchema | null> {
+): Promise<SettingsSchema> {
   try {
     return await operatorFetch<SettingsSchema>(
       `/api/operator/provisioning/schools/${schoolId}/settings/schema`,
       { method: "GET" },
     );
   } catch (error) {
-    if (isOperatorApiError(error) && error.status === 404) {
-      return null;
-    }
     logger.error("fetch_operator_settings_schema_failed", {
       school_id: schoolId,
       error: error instanceof Error ? error.message : String(error),

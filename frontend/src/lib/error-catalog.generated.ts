@@ -1047,7 +1047,7 @@ export const ERROR_CATALOG = {
       "enrollment.phase_eligibility_setting_required":
         "Für eine Einschränkung nach Klasse oder Klassenstufe muss die passende Abfrage eingeschaltet sein. Bitte schalten Sie sie in den Einstellungen ein.",
       "identity.username_taken":
-        "Diesen Benutzernamen gibt es schon. Bitte wählen Sie einen anderen.",
+        "Der erzeugte Benutzername war schon vergeben. Bitte versuchen Sie es noch einmal.",
       "identity.password_mismatch":
         "Die beiden Passwörter stimmen nicht überein. Bitte geben Sie sie erneut ein.",
       "identity.operator_invitation_invalid":
@@ -1077,13 +1077,13 @@ export const ERROR_CATALOG = {
       "identity.access_name_required":
         "Für diese Schule fehlt der Name der Person. Bitte geben Sie Vor- und Nachnamen ein.",
       "provisioning.organization_slug_taken":
-        "Diese Kurzbezeichnung hat schon ein anderer Träger. Bitte wählen Sie eine andere.",
+        "Diesen Slug hat schon ein anderer Träger. Bitte wählen Sie einen anderen.",
       "provisioning.school_subdomain_taken":
         "Diese Subdomain hat schon eine andere Schule. Bitte wählen Sie eine andere.",
       "provisioning.school_slug_taken":
-        "Diese Kurzbezeichnung hat schon eine andere Schule dieses Trägers. Bitte wählen Sie eine andere.",
+        "Diesen Slug hat schon eine andere Schule dieses Trägers. Bitte wählen Sie einen anderen.",
       "provisioning.device_api_key_taken":
-        "Diesen API-Schlüssel nutzt schon ein anderes Gerät. Bitte wählen Sie einen anderen.",
+        "Diesen API-Key nutzt schon ein anderes Gerät. Bitte wählen Sie einen anderen.",
       "provisioning.device_id_taken":
         "Diese Geräte-ID gibt es an der Schule schon. Bitte wählen Sie eine andere.",
       "provisioning.organization_not_found":
@@ -1093,7 +1093,7 @@ export const ERROR_CATALOG = {
       "provisioning.organization_not_deleted":
         "Dieser Träger ist nicht gelöscht. Bitte laden Sie die Seite neu.",
       "provisioning.organization_has_schools":
-        "Zu diesem Träger gehören noch {school_count} Schulen. Bitte löschen Sie zuerst die Schulen.",
+        "Zu diesem Träger gehören noch Schulen (Anzahl: {school_count}). Bitte löschen Sie zuerst alle Schulen des Trägers.",
       "provisioning.organization_deleted":
         "Der Träger ist gelöscht. Bitte wählen Sie einen anderen Träger.",
       "provisioning.school_not_found":
@@ -1138,7 +1138,7 @@ export const ERROR_CATALOG = {
       "settings.booking_authority_blocked":
         "Der Buchungsmodus wurde nicht aktiviert: Für mindestens ein betreutes Kind ist kein Betreuungstag gebucht. Bitte prüfen Sie die Auswirkungen erneut.",
       "communication.announcement_not_found":
-        "Diese Mitteilung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+        "Diese Ankündigung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "devices.tag_scan_not_found":
         "Diesen Scan gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "devices.tag_scan_already_resolved":

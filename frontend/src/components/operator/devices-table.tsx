@@ -1,5 +1,7 @@
 "use client";
 
+import { API_KEY_COPY_FAILED_MESSAGE } from "~/lib/operator/provisioning-helpers";
+
 import { useCallback, useMemo, useState } from "react";
 import type { OperatorDevice } from "~/lib/operator/provisioning-helpers";
 import { getRelativeTime } from "~/lib/format-utils";
@@ -116,9 +118,7 @@ export function DevicesTable({
         logger.error("clipboard_copy_failed", {
           error: "Failed to copy API key to clipboard",
         });
-        toastError(
-          "Der API-Key konnte nicht kopiert werden. Bitte markieren und kopieren Sie ihn selbst.",
-        );
+        toastError(API_KEY_COPY_FAILED_MESSAGE);
       }
     },
     [toastError],

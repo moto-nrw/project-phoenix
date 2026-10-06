@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { operatorErrorResponse } from "~/lib/operator/route-wrapper.server";
 import { createOperatorJsonProxy } from "~/lib/backend-proxy-route.server";
 
 const path = (
@@ -7,9 +7,10 @@ const path = (
 ) => {
   const { accountId, tenantId } = params;
   if (typeof accountId !== "string" || typeof tenantId !== "string") {
-    return NextResponse.json(
-      { error: "Invalid account or school parameter", code: "general.input" },
-      { status: 400 },
+    return operatorErrorResponse(
+      400,
+      "general.input",
+      "Invalid account or school parameter",
     );
   }
   return `/operator/accounts/${encodeURIComponent(accountId)}/tenants/${encodeURIComponent(tenantId)}`;

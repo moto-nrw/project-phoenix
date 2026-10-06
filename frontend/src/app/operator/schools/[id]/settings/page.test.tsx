@@ -460,17 +460,44 @@ describe("OperatorSchoolSettingsPage", () => {
     expect(mockFetchSchema).not.toHaveBeenCalled();
   });
 
-  it("swallows school-name lookup failures without crashing", async () => {
+  // #2519: no silent catch; the missing school name is reported in place.
+  it("shows a failed school name lookup with retry", async () => {
     mockFetchSchema.mockResolvedValue({ tabs: [] });
-    mockListSchools.mockRejectedValue(new Error("listSchools failed"));
+    mockListSchools
+      .mockRejectedValueOnce(new ApiError("down", 503))
+      .mockResolvedValueOnce([{ id: "42", name: "Schule am Berg" }]);
 
     await renderPage();
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Keine Einstellungen für diese Schule verfügbar/),
-      ).toBeDefined();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Bezeichnung der Schule"),
+      ),
+    ).toBeDefined();
+    expect(
+      screen.getByText(/Keine Einstellungen für diese Schule verfügbar/),
+    ).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText(/Schule am Berg/)).toBeDefined();
+  });
+
+  it("shows an unknown school as a load error, not as a blank page", async () => {
+    mockFetchSchema.mockRejectedValue(
+      new ApiError("school not found", 404, {
+        code: "provisioning.school_not_found",
+      }),
+    );
+
+    await renderPage();
+
+    expect(
+      await screen.findByText(
+        catalogText(
+          "provisioning.school_not_found",
+          "die Liste der Einstellungen",
+        ),
+      ),
+    ).toBeDefined();
   });
 
   // --- Back link ---

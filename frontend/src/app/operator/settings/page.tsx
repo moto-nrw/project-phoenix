@@ -85,6 +85,11 @@ function OperatorSettingsContent() {
   const [showEmailChangeDialog, setShowEmailChangeDialog] = useState(false);
   const emailFormRef = useRef<HTMLFormElement>(null);
   const emailChangeErrors = useApiFormError(emailFormRef);
+  // The kit dialog may not import contexts; this page hands it the shared
+  // form error path (#2519). A wrong current password answers 400 with a
+  // field error, so no credential mapping is needed here.
+  const passwordFormRef = useRef<HTMLFormElement>(null);
+  const passwordErrors = useApiFormError(passwordFormRef);
   const { show: showEmailChangeError, clear: clearEmailChangeError } =
     emailChangeErrors;
   const [emailChangeLoading, setEmailChangeLoading] = useState(false);
@@ -379,6 +384,8 @@ function OperatorSettingsContent() {
           isOpen={showPasswordModal}
           onClose={handleClosePasswordModal}
           apiEndpoint="/api/operator/profile/password"
+          errorPath={passwordErrors}
+          formRef={passwordFormRef}
           onSuccess={() => {
             handleClosePasswordModal();
             toastSuccess("Passwort erfolgreich geändert", { duration: 3000 });

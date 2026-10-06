@@ -2045,7 +2045,7 @@
         "staff_messaging_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
         "staff_notice_outdated": "Diese Tagesinformation hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
         "system_announcement_immutable": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
-        "announcement_not_found": "Diese Mitteilung gibt es nicht mehr. Bitte laden Sie die Seite neu."
+        "announcement_not_found": "Diese Ankündigung gibt es nicht mehr. Bitte laden Sie die Seite neu."
       },
       "enrollment": {
         "approval_care_offering_exactly_one": "Für dieses Kind muss genau ein Betreuungsangebot gebucht sein. Die Familie muss die Auswahl ändern.",
@@ -2215,7 +2215,7 @@
         "tenant_access_denied": "Ihr Konto hat keinen Zugang zu dieser Schule. Bitte melden Sie sich neu an.",
         "use_parent_portal": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "use_school_portal": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
-        "username_taken": "Diesen Benutzernamen gibt es schon. Bitte wählen Sie einen anderen.",
+        "username_taken": "Der erzeugte Benutzername war schon vergeben. Bitte versuchen Sie es noch einmal.",
         "password_mismatch": "Die beiden Passwörter stimmen nicht überein. Bitte geben Sie sie erneut ein.",
         "operator_invitation_invalid": "Dieser Einladungslink ist abgelaufen oder ungültig. Bitte lassen Sie sich neu einladen.",
         "invitation_rate_limited": "Es wurden zu viele Einladungen verschickt. Bitte versuchen Sie es in einer Stunde erneut.",
@@ -2598,15 +2598,15 @@
         "work_session_overlap": "Die Zeit überschneidet sich mit einem anderen Eintrag an diesem Tag. Bitte prüfen Sie Beginn und Ende."
       },
       "provisioning": {
-        "organization_slug_taken": "Diese Kurzbezeichnung hat schon ein anderer Träger. Bitte wählen Sie eine andere.",
+        "organization_slug_taken": "Diesen Slug hat schon ein anderer Träger. Bitte wählen Sie einen anderen.",
         "school_subdomain_taken": "Diese Subdomain hat schon eine andere Schule. Bitte wählen Sie eine andere.",
-        "school_slug_taken": "Diese Kurzbezeichnung hat schon eine andere Schule dieses Trägers. Bitte wählen Sie eine andere.",
-        "device_api_key_taken": "Diesen API-Schlüssel nutzt schon ein anderes Gerät. Bitte wählen Sie einen anderen.",
+        "school_slug_taken": "Diesen Slug hat schon eine andere Schule dieses Trägers. Bitte wählen Sie einen anderen.",
+        "device_api_key_taken": "Diesen API-Key nutzt schon ein anderes Gerät. Bitte wählen Sie einen anderen.",
         "device_id_taken": "Diese Geräte-ID gibt es an der Schule schon. Bitte wählen Sie eine andere.",
         "organization_not_found": "Diesen Träger gibt es nicht mehr. Bitte laden Sie die Seite neu.",
         "organization_already_deleted": "Dieser Träger ist schon gelöscht. Bitte laden Sie die Seite neu.",
         "organization_not_deleted": "Dieser Träger ist nicht gelöscht. Bitte laden Sie die Seite neu.",
-        "organization_has_schools": "Zu diesem Träger gehören noch {school_count} Schulen. Bitte löschen Sie zuerst die Schulen.",
+        "organization_has_schools": "Zu diesem Träger gehören noch Schulen (Anzahl: {school_count}). Bitte löschen Sie zuerst alle Schulen des Trägers.",
         "organization_deleted": "Der Träger ist gelöscht. Bitte wählen Sie einen anderen Träger.",
         "school_not_found": "Diese Schule gibt es nicht mehr. Bitte laden Sie die Seite neu.",
         "school_inactive": "Die Schule ist ausgeschaltet. Bitte schalten Sie sie zuerst ein.",
