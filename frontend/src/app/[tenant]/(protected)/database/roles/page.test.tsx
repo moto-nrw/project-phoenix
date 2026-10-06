@@ -43,7 +43,6 @@ const mockGetList = vi.fn();
 const mockGetOne = vi.fn();
 const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
-const mockDelete = vi.fn();
 const mockRemove = vi.fn();
 vi.mock("@/lib/database/service-factory", () => {
   const service = () => ({
@@ -51,12 +50,10 @@ vi.mock("@/lib/database/service-factory", () => {
     getOne: mockGetOne,
     create: mockCreate,
     update: mockUpdate,
-    delete: mockDelete,
     remove: mockRemove,
   });
   return {
     createCrudService: vi.fn(service),
-    createRemovableCrudService: vi.fn(service),
   };
 });
 

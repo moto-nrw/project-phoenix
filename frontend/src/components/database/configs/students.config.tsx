@@ -2,6 +2,7 @@
 
 import { defineEntityConfig } from "@/lib/database/types";
 import { GroupSelect } from "@/components/ui/database/database-select";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import type { Student } from "@/lib/api";
 import { busDaysFromToggle, formatBusDays } from "@/lib/student-helpers";
 import dynamic from "next/dynamic";
@@ -22,6 +23,38 @@ const PrivacyConsentSection = dynamic(
     loading: () => <div className="text-sm text-gray-500">Lädt…</div>,
   },
 );
+
+/**
+ * Owner of the group choice: a failed load of the groups shows the catalog
+ * text with retry in place of the select (#2517).
+ */
+function StudentGroupField(props: {
+  value: unknown;
+  onChange: (value: unknown) => void;
+  label: string;
+  required?: boolean;
+}) {
+  const { error, show, clear } = useApiLoadError();
+  return (
+    <GroupSelect
+      name="group_id"
+      value={props.value as string}
+      onChange={props.onChange as (value: string) => void}
+      label={props.label}
+      required={props.required}
+      loadError={error}
+      onLoadError={(loadError, retry) =>
+        void show(loadError, {
+          object: "die Liste der Gruppen",
+          retry: () => {
+            clear();
+            retry();
+          },
+        })
+      }
+    />
+  );
+}
 
 export const studentsConfig = defineEntityConfig<Student>({
   name: {
@@ -68,19 +101,7 @@ export const studentsConfig = defineEntityConfig<Student>({
             label: "OGS Gruppe",
             type: "custom",
             required: true,
-            component: (props: {
-              value: unknown;
-              onChange: (value: unknown) => void;
-              label: string;
-              required?: boolean;
-            }) =>
-              GroupSelect({
-                name: "group_id",
-                value: props.value as string,
-                onChange: props.onChange as (value: string) => void,
-                label: props.label,
-                required: props.required,
-              }),
+            component: StudentGroupField,
           },
         ],
       },

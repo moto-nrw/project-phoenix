@@ -16,7 +16,7 @@ interface RoomStammdatenTabProps {
   readonly showOccupancy: boolean;
   readonly onSave: (data: Partial<Room>) => Promise<void>;
   /** Shared error path (#2517): catalog text, field errors at the field. */
-  readonly errorPath?: DatabaseFormErrorPath;
+  readonly errorPath: DatabaseFormErrorPath;
 }
 
 /**

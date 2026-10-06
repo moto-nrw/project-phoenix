@@ -26,7 +26,7 @@ import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
-import { createRemovableCrudService } from "@/lib/database/service-factory";
+import { createCrudService } from "@/lib/database/service-factory";
 import { devicesConfig } from "@/components/database/configs/devices.config";
 import { getDeviceTypeDisplayName, type Device } from "@/lib/iot-helpers";
 import { DevicesMasterDetail } from "@/components/devices/devices-master-detail";
@@ -112,7 +112,7 @@ function DevicesPageContent() {
     },
   });
 
-  const service = useMemo(() => createRemovableCrudService(devicesConfig), []);
+  const service = useMemo(() => createCrudService(devicesConfig), []);
   const tenantMutate = useTenantMutate();
 
   const {

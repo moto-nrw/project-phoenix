@@ -22,7 +22,7 @@ import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
-import { createRemovableCrudService } from "@/lib/database/service-factory";
+import { createCrudService } from "@/lib/database/service-factory";
 import { rolesConfig } from "@/components/database/configs/roles.config";
 import type { Role } from "@/lib/auth-helpers";
 import { getRoleDisplayName } from "@/lib/auth-helpers";
@@ -100,7 +100,7 @@ function RolesPageContent() {
     (isAdmin(session) || hasPermission(session, "roles:read")) &&
     (isAdmin(session) || hasPermission(session, "permissions:read"));
 
-  const service = useMemo(() => createRemovableCrudService(rolesConfig), []);
+  const service = useMemo(() => createCrudService(rolesConfig), []);
 
   const fetchRoles = useCallback(async () => {
     try {

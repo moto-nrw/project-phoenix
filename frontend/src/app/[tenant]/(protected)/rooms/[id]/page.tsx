@@ -209,7 +209,7 @@ function RoomDetailPageContent() {
             : String(deleteError),
       });
       void showDeleteError(deleteError, {
-        object: "der Raum",
+        object: "das Löschen des Raums",
         retry: () => retryDeleteRef.current(),
       });
       setDeleting(false);

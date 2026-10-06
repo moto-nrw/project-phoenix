@@ -350,12 +350,6 @@ export interface CrudService<T> {
   getOne(id: string): Promise<T>;
   create(data: Partial<T>): Promise<T>;
   update(id: string, data: Partial<T>): Promise<T>;
-  /** Returns null on success, or a user-facing error message string on failure. */
-  delete(id: string): Promise<string | null>;
-}
-
-/** A CRUD service with deletion on the shared error path (#2517). */
-export interface RemovableCrudService<T> extends CrudService<T> {
   /**
    * Throws an `ApiError` with code, field errors and request ID instead of
    * returning a sentence. Resolves `false` when the `beforeDelete` hook

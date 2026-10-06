@@ -36,7 +36,7 @@ The `service-factory.ts` automatically generates CRUD services from configuratio
 - getOne
 - create
 - update
-- delete
+- remove (throws the ApiError)
 
 ## Usage Example
 
@@ -111,12 +111,15 @@ import { DatabaseFormModal } from "~/components/ui/database/database-form-modal"
 import { RoomsList } from "@/components/rooms/rooms-list";
 import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { createCrudService } from "@/lib/database/service-factory";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 export default function RoomsPage() {
   const service = useMemo(() => createCrudService(roomsConfig), []);
   const tenantPath = useTenantAwarePath();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  // The kit may not import contexts: the owner hands in the error path.
+  const createErrors = useApiFormError();
 
   return (
     <DatabasePageLayout loading={loading} sessionLoading={sessionLoading}>
@@ -136,6 +139,8 @@ export default function RoomsPage() {
         mode="create"
         config={roomsConfig}
         onSubmit={handleCreateRoom}
+        errorPath={createErrors}
+        errorObject="das Speichern des Raums"
       />
     </DatabasePageLayout>
   );
@@ -145,6 +150,14 @@ export default function RoomsPage() {
 `DatabaseFormModal` renders the config's `form.sections` inside the shared
 modal; `mode` picks the `createModalTitle` / `editModalTitle` label (the label
 for the used mode is required — the modal fails loudly when it is missing).
+
+`errorPath` is required on `DatabaseForm` and `DatabaseFormModal` (#2517):
+`onSubmit` lets the error propagate, and the form shows the catalog text with
+retry, marks named fields and runs its own checks through `invalid()`. A
+failed `options()` loader of a select field throws its `ApiError` too; the
+form names the choice and offers a retry instead of an empty select. Deleting
+goes through `service.remove(id)`, which throws the `ApiError`; show it in
+the open `ConfirmDeleteModal` via a second `useApiFormError`.
 
 The configuration and service factory provide the shared CRUD behavior. Each page still owns its own data loading, selection state, filters, and entity-specific UI:
 
