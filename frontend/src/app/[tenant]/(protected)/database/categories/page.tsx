@@ -20,6 +20,7 @@ import type { ActivityCategory } from "~/lib/activity-helpers";
 import { categoryService } from "~/lib/category-api";
 import { formatCount } from "~/lib/format-utils";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 const CACHE_KEY = "database-categories";
@@ -125,12 +126,13 @@ const config: CatalogConfig<ActivityCategory> = {
     describe: (item) =>
       `Die Terminkategorie „${item.name}“ wird für neue Termine und Aktivitäten nicht mehr angeboten. Bestehende Einträge behalten sie und bleiben gültig.`,
     run: (item) => categoryService.archiveCategory(item.id),
-    toast: (item) => `Terminkategorie „${item.name}“ archiviert`,
+    toast: (item) => `Die Terminkategorie „${item.name}“ ist archiviert.`,
   },
   restore: {
     menuLabel: "Wieder anbieten",
     run: (item) => categoryService.restoreCategory(item.id),
-    toast: (item) => `Terminkategorie „${item.name}“ wird wieder angeboten`,
+    toast: (item) =>
+      `Die Terminkategorie „${item.name}“ wird wieder angeboten.`,
   },
 };
 
@@ -141,9 +143,17 @@ function CategoriesPageContent() {
   const {
     data,
     isLoading,
-    error: loadError,
+    error: swrError,
+    mutate,
   } = useSWRAuth<ActivityCategory[]>(CACHE_KEY, () =>
     categoryService.getManagedCategories(),
+  );
+  // Ladefehler mit Katalogtext und Wiederholen statt eines eigenen Satzes
+  // (#2517).
+  const loadError = useSwrLoadError(
+    swrError,
+    "die Liste der Terminkategorien",
+    () => mutate(),
   );
 
   const onChanged = useCallback(() => tenantMutate(CACHE_KEY), [tenantMutate]);
@@ -160,12 +170,13 @@ function CategoriesPageContent() {
     <CatalogPage
       config={config}
       items={items}
-      isLoading={isLoading && data === undefined}
-      error={
-        loadError
-          ? "Die Terminkategorien konnten nicht geladen werden. Bitte laden Sie die Seite neu."
-          : null
+      // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett
+      // stehen: sonst blitzt der Leerzustand auf.
+      isLoading={
+        (isLoading && data === undefined) ||
+        (swrError !== undefined && loadError === null)
       }
+      error={loadError}
       onChanged={onChanged}
       // Die Route liegt hinter activities:manage_categories (database/layout);
       // wer sie öffnen darf, darf hier auch schreiben.

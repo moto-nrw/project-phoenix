@@ -2,10 +2,19 @@
 
 import { getCachedSession } from "~/lib/session-cache";
 import { createLogger } from "~/lib/logger";
-import { apiErrorFromText, type ApiError } from "~/lib/api-error";
+import {
+  apiErrorFromText,
+  transportFetch,
+  type ApiError,
+} from "~/lib/api-error";
 
 const logger = createLogger({ component: "ServiceFactory" });
-import type { EntityConfig, CrudService, PaginatedResponse } from "./types";
+import type {
+  EntityConfig,
+  CrudService,
+  PaginatedResponse,
+  RemovableCrudService,
+} from "./types";
 
 /**
  * Extract a user-friendly error message from a caught error.
@@ -118,6 +127,20 @@ function isApiWrapper(
 }
 
 export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
+  return buildCrudService(config);
+}
+
+/**
+ * The CRUD service with `remove`, the deletion on the shared error path
+ * (#2517). Screens still on `delete` keep `createCrudService`.
+ */
+export function createRemovableCrudService<T>(
+  config: EntityConfig<T>,
+): RemovableCrudService<T> {
+  return buildCrudService(config);
+}
+
+function buildCrudService<T>(config: EntityConfig<T>): RemovableCrudService<T> {
   const { api: apiConfig, service } = config;
 
   // Helper to get auth token
@@ -189,7 +212,8 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
       headers.set("Authorization", `Bearer ${token}`);
     }
 
-    const response = await fetch(url, {
+    // A request that never reached the API becomes general.unavailable.
+    const response = await transportFetch(url, {
       ...options,
       headers,
       credentials: "include",
@@ -515,6 +539,29 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
         });
         return getDeleteErrorMessage(error);
       }
+    },
+
+    async remove(id: string): Promise<boolean> {
+      if (config.hooks?.beforeDelete) {
+        const shouldDelete = await config.hooks.beforeDelete(id);
+        if (!shouldDelete) return false;
+      }
+      try {
+        await fetchWithAuth(endpoints.delete.replace("{id}", id), {
+          method: "DELETE",
+        });
+      } catch (error) {
+        logger.warn("entity_delete_failed", {
+          entity: config.name.singular,
+          id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      }
+      if (config.hooks?.afterDelete) {
+        await config.hooks.afterDelete(id);
+      }
+      return true;
     },
   };
 }

@@ -3,6 +3,16 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import DevicesPage from "./page";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+/** Text of a FormErrorInput, as the shared kit components render it. */
+function errorText(error: unknown): string | null {
+  if (!error) return null;
+  return typeof error === "string"
+    ? error
+    : (error as { message: string }).message;
+}
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
@@ -41,15 +51,21 @@ const mockGetOne = vi.fn();
 const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
 const mockDelete = vi.fn();
-vi.mock("@/lib/database/service-factory", () => ({
-  createCrudService: vi.fn(() => ({
+const mockRemove = vi.fn();
+vi.mock("@/lib/database/service-factory", () => {
+  const service = () => ({
     getList: mockGetList,
     getOne: mockGetOne,
     create: mockCreate,
     update: mockUpdate,
     delete: mockDelete,
-  })),
-}));
+    remove: mockRemove,
+  });
+  return {
+    createCrudService: vi.fn(service),
+    createRemovableCrudService: vi.fn(service),
+  };
+});
 
 vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
@@ -57,7 +73,8 @@ vi.mock("~/components/ui/hooks/useIsMobile", () => ({
 
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: vi.fn(() => ({
     success: mockToastSuccess,
     error: mockToastError,
@@ -69,13 +86,18 @@ vi.mock("~/components/ui/confirm-delete-modal", () => ({
     isOpen,
     onConfirm,
     onClose,
+    error,
   }: {
     isOpen: boolean;
     onConfirm?: () => void;
     onClose?: () => void;
+    error?: unknown;
   }) =>
     isOpen ? (
       <div data-testid="confirmation-modal">
+        {errorText(error) ? (
+          <span data-testid="delete-error">{errorText(error)}</span>
+        ) : null}
         <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
           Confirm
         </button>
@@ -100,7 +122,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
     loading: boolean;
     intro?: { title: string; description?: ReactNode; actions?: ReactNode };
     search?: ReactNode;
-    error?: string | null;
+    error?: unknown;
     empty?: {
       title: string;
       description?: string;
@@ -119,7 +141,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
         </div>
       ) : null}
       {/* Fehler und Leerzustand liefert das Geruest, nicht die Seite. */}
-      {error ? <div data-testid="page-error">{error}</div> : null}
+      {error ? <div data-testid="page-error">{errorText(error)}</div> : null}
       {!error && empty ? (
         <div data-testid="page-empty">
           <p>{empty.title}</p>
@@ -164,32 +186,34 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
 vi.mock("~/components/ui/database/database-form-modal", () => ({
   // One mock serves both the create and the edit instance; the edit modal is
   // the one that receives initialData. Mirrors what DatabaseForm does in
-  // production: catches the rejection from onSubmit and renders the message
-  // inline. Tests assert against the resulting message, not the transport
-  // mechanism.
+  // production: catches the rejection from onSubmit and hands it to the
+  // shared error path, whose catalog text it renders inline.
   DatabaseFormModal: ({
     isOpen,
     onClose,
     onSubmit,
     initialData,
+    errorPath,
+    errorObject,
   }: {
     isOpen: boolean;
     onClose: () => void;
     onSubmit: (data: { name?: string; device_id?: string }) => Promise<void>;
     initialData?: unknown;
+    errorPath?: {
+      error: unknown;
+      show: (error: unknown, options: { object: string }) => unknown;
+    };
+    errorObject?: string;
   }) => {
     const isEdit = initialData !== undefined;
-    const [error, setError] = useState<string | null>(null);
     const submit = (data: { name?: string; device_id?: string }) => {
-      setError(null);
       void onSubmit(data).catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : String(err));
+        void errorPath?.show(err, { object: errorObject ?? "" });
       });
     };
-    const handleClose = () => {
-      setError(null);
-      onClose();
-    };
+    const handleClose = () => onClose();
+    const error = errorText(errorPath?.error);
     if (!isOpen || isEdit) return null;
     return (
       <div data-testid="device-create-modal">
@@ -419,18 +443,18 @@ describe("DevicesPage", () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: undefined,
       isLoading: false,
-      error: new Error("Failed to fetch"),
+      error: new ApiError("Failed to fetch", 503, {
+        code: "general.unavailable",
+      }),
       isValidating: false,
       mutate: vi.fn(),
     } as ReturnType<typeof useSWRAuth>);
 
     render(<DevicesPage />);
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Fehler beim Laden der Geräte/),
-      ).toBeInTheDocument();
-    });
+    expect(await screen.findByTestId("page-error")).toHaveTextContent(
+      catalogText("general.unavailable", "die Liste der Geräte"),
+    );
   });
 
   it("shows empty state when no devices exist", async () => {
@@ -551,7 +575,7 @@ describe("DevicesPage", () => {
       room_name: "Werkraum",
     });
 
-    render(<DevicesPage />);
+    const { rerender } = render(<DevicesPage />);
 
     await waitFor(() => {
       expect(screen.getByTestId("device-detail-panel")).toBeInTheDocument();
@@ -579,6 +603,10 @@ describe("DevicesPage", () => {
         "1",
         expect.objectContaining({ name: "Updated Device" }),
       );
+    });
+    // SWR re-renders the page with the revalidated list.
+    rerender(<DevicesPage />);
+    await waitFor(() => {
       expect(screen.getByTestId("detail-device-name")).toHaveTextContent(
         "Updated Device",
       );
@@ -590,7 +618,7 @@ describe("DevicesPage", () => {
 
   it("calls delete service after confirming deletion from the detail panel", async () => {
     setSelectedDevice("1");
-    mockDelete.mockResolvedValueOnce(null);
+    mockRemove.mockResolvedValueOnce(true);
 
     render(<DevicesPage />);
 
@@ -607,16 +635,18 @@ describe("DevicesPage", () => {
     fireEvent.click(screen.getByTestId("confirm-delete"));
 
     await waitFor(() => {
-      expect(mockDelete).toHaveBeenCalledWith("1");
+      expect(mockRemove).toHaveBeenCalledWith("1");
       expect(mockReplace).toHaveBeenCalledWith("/tenant/database/devices", {
         scroll: false,
       });
     });
   });
 
-  it("shows an error toast when delete returns an error", async () => {
+  it("keeps a delete error in the confirmation dialog", async () => {
     setSelectedDevice("1");
-    mockDelete.mockResolvedValueOnce("Gerät kann nicht gelöscht werden");
+    mockRemove.mockRejectedValueOnce(
+      new ApiError("protected", 403, { code: "general.permission" }),
+    );
 
     render(<DevicesPage />);
 
@@ -631,11 +661,10 @@ describe("DevicesPage", () => {
 
     fireEvent.click(screen.getByTestId("confirm-delete"));
 
-    await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith(
-        "Gerät kann nicht gelöscht werden",
-      );
-    });
+    expect(await screen.findByTestId("delete-error")).toHaveTextContent(
+      catalogText("general.permission", "das Löschen des Geräts"),
+    );
+    expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
   });
 
   it("preserves the once-only API key in the detail panel after create", async () => {
@@ -928,129 +957,12 @@ describe("DevicesPage", () => {
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
-  it("translates duplicate-ID conflicts on update into a German hint and renders inline (Issue #1356)", async () => {
-    setSelectedDevice("1");
-    mockUpdate.mockRejectedValueOnce(
-      new Error(
-        "IoT service error in UpdateDevice: Diese Geräte-ID ist bereits vergeben",
-      ),
-    );
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("device-detail-panel")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("trigger-edit"));
-    await waitFor(() => {
-      expect(screen.getByTestId("device-edit-form")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("submit-edit-duplicate"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("edit-error")).toHaveTextContent(
-        /Die Geräte-ID "duplicate-id" ist bereits vergeben/,
-      );
-    });
-    // The modal must NOT close on a duplicate so the user can correct the ID.
-    expect(screen.getByTestId("device-edit-form")).toBeInTheDocument();
-    expect(mockToastSuccess).not.toHaveBeenCalled();
-  });
-
-  it("logs the stringified value when create rejects with a non-Error", async () => {
-    // Exercises the `err instanceof Error : false` ternary branch in the
-    // create catch — handler logs `String(err)` and re-throws the fallback.
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
-    mockCreate.mockRejectedValueOnce("plain-string-error");
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Eingang Kiosk")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
-    await waitFor(() => {
-      expect(screen.getByTestId("device-create-modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("submit-create"));
-
-    await waitFor(() => {
-      expect(consoleError).toHaveBeenCalledWith("device_create_failed", {
-        error: "plain-string-error",
-      });
-    });
-    consoleError.mockRestore();
-  });
-
-  it("logs the stringified value when update rejects with a non-Error", async () => {
-    setSelectedDevice("1");
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
-    mockUpdate.mockRejectedValueOnce("plain-string-error");
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("device-detail-panel")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("trigger-edit"));
-    await waitFor(() => {
-      expect(screen.getByTestId("device-edit-form")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("submit-edit"));
-
-    await waitFor(() => {
-      expect(consoleError).toHaveBeenCalledWith("failed to update device", {
-        device_id: "1",
-        error: "plain-string-error",
-      });
-    });
-    consoleError.mockRestore();
-  });
-
-  it("matches duplicate-ID errors on update via the HTTP 409 branch", async () => {
-    setSelectedDevice("1");
-    mockUpdate.mockRejectedValueOnce(
-      new Error("Request failed with status 409"),
-    );
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("device-detail-panel")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("trigger-edit"));
-    await waitFor(() => {
-      expect(screen.getByTestId("device-edit-form")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("submit-edit-duplicate"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("edit-error")).toHaveTextContent(
-        /bereits vergeben/,
-      );
-    });
-    // Modal stays open so the user can correct the ID.
-    expect(screen.getByTestId("device-edit-form")).toBeInTheDocument();
-    expect(mockToastSuccess).not.toHaveBeenCalled();
-  });
-
-  it("surfaces a German duplicate-ID hint that includes the rejected device_id", async () => {
+  it("shows a taken device ID with its own text in the dialog (Issue #1356)", async () => {
     mockCreate.mockRejectedValueOnce(
-      new Error(
-        "IoT service error in CreateDevice: Diese Geräte-ID ist bereits vergeben",
-      ),
+      new ApiError("device id taken", 409, {
+        code: "iot.device_id_taken",
+        errors: [{ field: "device_id", reason: "taken" }],
+      }),
     );
 
     render(<DevicesPage />);
@@ -1068,7 +980,7 @@ describe("DevicesPage", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("create-error")).toHaveTextContent(
-        /Die Geräte-ID "duplicate-id" ist bereits vergeben/,
+        catalogText("iot.device_id_taken", "das Gerät"),
       );
     });
     // The modal must NOT close on a duplicate so the user can correct the ID.
@@ -1077,33 +989,12 @@ describe("DevicesPage", () => {
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
-  it("matches duplicate-ID errors when the backend uses an HTTP 409 message", async () => {
+  it("shows the catalog text when create fails for another reason", async () => {
     mockCreate.mockRejectedValueOnce(
-      new Error("Request failed with status 409"),
+      new ApiError("network unreachable", 503, {
+        code: "general.unavailable",
+      }),
     );
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Eingang Kiosk")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
-    await waitFor(() => {
-      expect(screen.getByTestId("device-create-modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("submit-create-duplicate"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("create-error")).toHaveTextContent(
-        /bereits vergeben/,
-      );
-    });
-  });
-
-  it("falls back to a generic error when the failure is not a duplicate", async () => {
-    mockCreate.mockRejectedValueOnce(new Error("network unreachable"));
 
     render(<DevicesPage />);
 
@@ -1120,13 +1011,17 @@ describe("DevicesPage", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("create-error")).toHaveTextContent(
-        /Fehler beim Erstellen des Geräts/,
+        catalogText("general.unavailable", "das Gerät"),
       );
     });
   });
 
   it("clears the create error when the user closes the create modal", async () => {
-    mockCreate.mockRejectedValueOnce(new Error("network unreachable"));
+    mockCreate.mockRejectedValueOnce(
+      new ApiError("network unreachable", 503, {
+        code: "general.unavailable",
+      }),
+    );
 
     render(<DevicesPage />);
 

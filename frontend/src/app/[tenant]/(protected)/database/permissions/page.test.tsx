@@ -1,4 +1,6 @@
 import "@testing-library/jest-dom/vitest";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -55,7 +57,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
     loading: boolean;
     intro?: { title: string; description?: ReactNode; actions?: ReactNode };
     search?: ReactNode;
-    error?: string | null;
+    error?: string | { message: string } | null;
     empty?: {
       title: string;
       description?: string;
@@ -74,7 +76,11 @@ vi.mock("~/components/database/database-page-layout", () => ({
         </div>
       ) : null}
       {/* Fehler und Leerzustand liefert das Geruest, nicht die Seite. */}
-      {error ? <div data-testid="page-error">{error}</div> : null}
+      {error ? (
+        <div data-testid="page-error">
+          {typeof error === "string" ? error : error.message}
+        </div>
+      ) : null}
       {!error && empty ? (
         <div data-testid="page-empty">
           <p>{empty.title}</p>
@@ -197,15 +203,15 @@ describe("PermissionsPage", () => {
   });
 
   it("shows error message when fetch fails", async () => {
-    mockGetList.mockRejectedValueOnce(new Error("Failed to fetch"));
+    mockGetList.mockRejectedValueOnce(
+      new ApiError("Failed to fetch", 503, { code: "general.unavailable" }),
+    );
 
     render(<PermissionsPage />);
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Fehler beim Laden der Berechtigungen/),
-      ).toBeInTheDocument();
-    });
+    expect(await screen.findByTestId("page-error")).toHaveTextContent(
+      catalogText("general.unavailable", "die Liste der Berechtigungen"),
+    );
   });
 
   it("shows empty state when no permissions exist", async () => {
