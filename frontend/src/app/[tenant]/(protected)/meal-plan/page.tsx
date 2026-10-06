@@ -511,7 +511,16 @@ export default function MealPlanPage() {
       ? `${shortDate(weekDates[0]!)} bis ${shortDate(weekDates[4]!)}${startYear}`
       : `${shortDateWithYear(weekDates[0]!)} bis ${shortDateWithYear(weekDates[4]!)}`;
   const initialLoading = loading && !hasLoaded;
-  const statusLine = `KW ${weekNumber} · ${spokenRange} · ${plannedDays} von ${weekDates.length} Tagen geplant`;
+  // Die Zahl der geplanten Tage gibt es nur für eine geladene Woche: nach
+  // einem Ladefehler stünde sonst "0 von 5 Tagen geplant" da (#2517).
+  const weekLoaded = weekDates.every((date) => date in originals);
+  const statusLine = [
+    `KW ${weekNumber}`,
+    spokenRange,
+    weekLoaded ? `${plannedDays} von ${weekDates.length} Tagen geplant` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <TenantPage

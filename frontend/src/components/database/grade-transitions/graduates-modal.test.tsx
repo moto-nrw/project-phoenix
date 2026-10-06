@@ -311,5 +311,7 @@ describe("GraduatesModal", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/keine Abgänge/i)).not.toBeInTheDocument();
+    // #2517: keine Zählung aus einer Liste, die nie geladen wurde.
+    expect(screen.queryByText(/noch löschbar/)).not.toBeInTheDocument();
   });
 });

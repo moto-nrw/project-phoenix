@@ -442,8 +442,10 @@ function ParentAnnouncementsContent() {
 
   // Statuszeile unter dem Seitentitel, allein aus der geladenen Liste:
   // wie viele Einträge der aktiven Art es gibt und wie viele davon
-  // veröffentlicht sind.
+  // veröffentlicht sind. Ohne geladene Liste steht keine "0 Mitteilungen"
+  // neben dem Ladefehler (#2517).
   const kindSummary = (() => {
+    if (announcements === undefined) return null;
     const ofKind = list.filter((entry) => kindOf(entry) === kind);
     const published = ofKind.filter(
       (entry) => entry.status === "published",

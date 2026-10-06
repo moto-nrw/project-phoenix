@@ -11,12 +11,14 @@ export default function CareOfferingsPage() {
   const { isReady } = useRequirePermission("config:manage");
   // Statuszeile des Seitenkopfs: der Editor meldet die Zahlen seines
   // Katalogs, damit die Kopfkarte ohne zweiten Request auskommt.
-  const [summary, setSummary] = useState<{
-    total: number;
-    active: number;
-  } | null>(null);
+  // "unavailable": der Katalog lädt nicht, der Kopf zählt dann nichts
+  // (#2517).
+  const [summary, setSummary] = useState<
+    { total: number; active: number } | "unavailable" | null
+  >(null);
   const handleSummaryChange = useCallback(
-    (next: { total: number; active: number } | null) => setSummary(next),
+    (next: { total: number; active: number } | "unavailable" | null) =>
+      setSummary(next),
     [],
   );
 
@@ -24,7 +26,7 @@ export default function CareOfferingsPage() {
     <TenantPage
       title="Angebote"
       stats={
-        summary
+        summary && summary !== "unavailable"
           ? `${summary.total} ${summary.total === 1 ? "Angebot" : "Angebote"} · ${summary.active} aktiv`
           : null
       }

@@ -144,6 +144,8 @@ describe("FilesPage errors", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("Noch keine Ordner")).not.toBeInTheDocument();
     expect(screen.queryByText(/boom/)).not.toBeInTheDocument();
+    // #2517: keine Zählung aus einer Ablage, die nie geladen wurde.
+    expect(screen.queryByText(/0 Dateien/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(mutate).toHaveBeenCalled();

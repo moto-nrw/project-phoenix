@@ -183,4 +183,35 @@ describe("TeamChatInbox (#2517)", () => {
       await screen.findByText("Noch keine Nachrichten"),
     ).toBeInTheDocument();
   });
+
+  it("reports no zero counts for a list that failed to load", async () => {
+    const api = stubApi();
+    api.fetchInbox.mockRejectedValueOnce(
+      new ApiError("inbox kaputt", 503, { code: "general.unavailable" }),
+    );
+    const seen: { stats: string | null; count: number | null }[] = [];
+    render(
+      <TeamChatInbox
+        portal={portalFor(api)}
+        frame={(parts) => {
+          seen.push({ stats: parts.stats, count: parts.count });
+          return (
+            <>
+              <p>{parts.stats}</p>
+              {parts.error ? <p>{parts.error.message}</p> : null}
+            </>
+          );
+        }}
+      />,
+      { wrapper: Fresh },
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Unterhaltungen"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/0 Unterhaltungen/)).not.toBeInTheDocument();
+    expect(seen.at(-1)).toEqual({ stats: null, count: null });
+  });
 });

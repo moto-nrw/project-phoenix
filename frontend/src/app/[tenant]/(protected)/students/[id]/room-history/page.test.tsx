@@ -379,6 +379,8 @@ describe("StudentRoomHistoryPage", () => {
         ),
       ).toBeInTheDocument();
     });
+    // #2517: keine Zählung aus einem Protokoll, das nie geladen wurde.
+    expect(screen.queryByText(/0 Tage erfasst/)).not.toBeInTheDocument();
   });
 
   it("handles student fetch failure without crashing", async () => {

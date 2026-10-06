@@ -398,6 +398,9 @@ describe("ActivitiesPage", () => {
         catalogText("general.unavailable", "die Liste der Aktivitäten"),
       ),
     ).toBeInTheDocument();
+    // #2517: keine Zählung aus einer Liste, die nie geladen wurde.
+    expect(screen.queryByText(/0 Aktivitäten/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/0 Kategorien/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(mockMutate).toHaveBeenCalled();
   });

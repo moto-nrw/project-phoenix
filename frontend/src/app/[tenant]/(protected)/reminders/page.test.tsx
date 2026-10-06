@@ -124,6 +124,19 @@ describe("RemindersPage", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Keine aktiven Erinnerungen")).toBeNull();
+    // Keine Zählung aus einer Liste, die nie geladen wurde.
+    expect(screen.queryByText(/0 anstehend/)).toBeNull();
+    expect(screen.queryByText(/0 überfällig/)).toBeNull();
+  });
+
+  it("counts upcoming and overdue reminders of a loaded list", () => {
+    set({
+      count: 0,
+      reminders: [],
+      data: { reminders: [], count: 0, enabled: true },
+    });
+    renderWithToast(<RemindersPage />);
+    expect(screen.getByText("0 anstehend · 0 überfällig")).toBeInTheDocument();
   });
 
   it("shows a loading indicator before the first data arrives", () => {

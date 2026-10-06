@@ -94,6 +94,8 @@ describe("InfoDisplaysPage error path (#2517)", () => {
         catalogText("general.unavailable", "die Liste der Info-Displays"),
       ),
     ).toBeInTheDocument();
+    // #2517: keine Zählung aus einer Liste, die nie geladen wurde.
+    expect(screen.queryByText(/0 Displays/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(mocks.mutate).toHaveBeenCalled();
   });

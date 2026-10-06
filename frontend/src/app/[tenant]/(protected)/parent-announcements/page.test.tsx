@@ -477,6 +477,9 @@ describe("ParentAnnouncementsPage: scheduled reminder (#3162)", () => {
         catalogText("general.unavailable", "die Liste der Mitteilungen"),
       ),
     ).toBeInTheDocument();
+    // #2517: keine Zählung aus einer Liste, die nie geladen wurde.
+    expect(screen.queryByText(/0 Mitteilungen/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/0 veröffentlicht/)).not.toBeInTheDocument();
   });
 });
 

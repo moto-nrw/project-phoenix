@@ -54,7 +54,12 @@ export default function RemindersPage() {
   return (
     <TenantPage
       title="Erinnerungen"
-      stats={`${upcoming} anstehend · ${overdue} überfällig`}
+      // Ohne geladene Liste keine "0 anstehend" neben dem Ladefehler (#2517).
+      stats={
+        data === undefined
+          ? null
+          : `${upcoming} anstehend · ${overdue} überfällig`
+      }
       statsLoading={loading}
       loading={loading}
       error={error ? loadError : null}

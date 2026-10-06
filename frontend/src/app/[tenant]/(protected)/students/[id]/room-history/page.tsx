@@ -785,14 +785,15 @@ function StudentRoomHistoryPageContent() {
     ? (student.name ?? `${student.first_name} ${student.second_name}`)
     : "";
   // Statuszeile: Klasse, Gruppe und die Zahl der protokollierten Tage, alles
-  // aus den Daten, die die Seite ohnehin geladen hat.
-  const dayCount = history?.days.length ?? 0;
+  // aus den Daten, die die Seite ohnehin geladen hat. Ohne geladenes
+  // Protokoll steht keine "0 Tage erfasst" neben dem Ladefehler (#2517).
+  const dayCount = history ? history.days.length : null;
+  const dayLine =
+    dayCount === null
+      ? null
+      : `${dayCount} ${dayCount === 1 ? "Tag" : "Tage"} erfasst`;
   const studentMeta = student
-    ? [
-        student.school_class,
-        student.group_name,
-        `${dayCount} ${dayCount === 1 ? "Tag" : "Tage"} erfasst`,
-      ]
+    ? [student.school_class, student.group_name, dayLine]
         .filter(Boolean)
         .join(" · ")
     : "";
@@ -822,10 +823,7 @@ function StudentRoomHistoryPageContent() {
       <TenantPage
         leading={<ConceptIconTile concept="changeHistory" variant="page" />}
         title={displayName || "Anwesenheitsprotokoll"}
-        stats={
-          studentMeta ||
-          `${dayCount} ${dayCount === 1 ? "Tag" : "Tage"} erfasst`
-        }
+        stats={studentMeta || dayLine}
         statsLoading={loading}
         loading={loading}
         error={pageError}

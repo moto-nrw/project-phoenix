@@ -624,6 +624,8 @@ describe("VertretungView", () => {
     ).toHaveTextContent("req-week");
     expect(screen.queryByTestId("day-list")).not.toBeInTheDocument();
     expect(screen.queryByTestId("calendar-grid")).not.toBeInTheDocument();
+    // #2517: keine Zählung aus einer Woche, die nie geladen wurde.
+    expect(screen.queryByText(/0 Termine/)).not.toBeInTheDocument();
     // Ladefehler nie als Toast: niemand hat eine Aktion ausgelöst.
     expect(mockToastError).not.toHaveBeenCalled();
   });

@@ -130,7 +130,12 @@ function DocumentDirectory({
   return (
     <TenantPage
       title="Personalunterlagen"
-      stats={`${entries.length} ${entries.length === 1 ? "Person" : "Personen"} mit Unterlagen`}
+      // Ohne geladene Liste keine "0 Personen" neben dem Ladefehler (#2517).
+      stats={
+        failed
+          ? null
+          : `${entries.length} ${entries.length === 1 ? "Person" : "Personen"} mit Unterlagen`
+      }
       search={{
         value: search,
         onChange: setSearch,
@@ -654,7 +659,8 @@ function StaffPageContent() {
       }
       return parts.join(" · ");
     }
-    const count = documentDirectory?.length ?? 0;
+    if (documentDirectory === undefined) return undefined;
+    const count = documentDirectory.length;
     return `${count} ${count === 1 ? "Person" : "Personen"} mit Unterlagen`;
   })();
 

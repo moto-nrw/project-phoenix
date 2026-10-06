@@ -171,13 +171,14 @@ function StudentChangeHistoryPageContent() {
     : "";
   // Statuszeile: Klasse, Gruppe und die Zahl der geladenen Einträge. Beides
   // steht schon im Datensatz der Seite, es entsteht kein weiterer Request.
+  // Ohne geladene Einträge steht keine "0 Einträge" neben dem Ladefehler
+  // (#2517).
   const entryCount = entries?.length ?? 0;
+  const entryLine = entries
+    ? `${entryCount} ${entryCount === 1 ? "Eintrag" : "Einträge"}`
+    : null;
   const studentMeta = student
-    ? [
-        student.school_class,
-        student.group_name,
-        `${entryCount} ${entryCount === 1 ? "Eintrag" : "Einträge"}`,
-      ]
+    ? [student.school_class, student.group_name, entryLine]
         .filter(Boolean)
         .join(" · ")
     : "";
@@ -197,10 +198,7 @@ function StudentChangeHistoryPageContent() {
       <TenantPage
         leading={<ConceptIconTile concept="changeHistory" variant="page" />}
         title={displayName || "Änderungsverlauf"}
-        stats={
-          studentMeta ||
-          `${entryCount} ${entryCount === 1 ? "Eintrag" : "Einträge"}`
-        }
+        stats={studentMeta || entryLine}
         statsLoading={loading}
         loading={loading}
         error={notFound ? "Kind nicht gefunden." : historyLoad.error}

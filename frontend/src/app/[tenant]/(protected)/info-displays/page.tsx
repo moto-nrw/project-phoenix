@@ -308,7 +308,12 @@ function InfoDisplaysPageContent() {
   return (
     <TenantPage
       title="Info-Displays"
-      stats={`${total} ${total === 1 ? "Display" : "Displays"} · ${active} aktiv`}
+      // Ohne geladene Liste keine "0 Displays" neben dem Ladefehler (#2517).
+      stats={
+        displays === undefined
+          ? null
+          : `${total} ${total === 1 ? "Display" : "Displays"} · ${active} aktiv`
+      }
       statsLoading={listLoading}
       actions={
         canManage ? (

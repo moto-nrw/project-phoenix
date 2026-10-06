@@ -290,13 +290,26 @@ export default function ClassListEntriesPage() {
   );
 
   const classCount = classOptions.length;
-  // Statuszeile des Seitenkopfs aus den bereits geladenen Zeilen.
-  const studentCount = students?.length ?? 0;
-  const statusLine = [
-    `${formatCount(allRows.length)} ${allRows.length === 1 ? "Kind" : "Kinder"}`,
-    `${formatCount(entryRows.length)} ohne Betreuung`,
-    `${formatCount(duplicateCount)} mögliche ${duplicateCount === 1 ? "Dublette" : "Dubletten"}`,
-  ].join(" · ");
+  // Statuszeile des Seitenkopfs aus den bereits geladenen Zeilen. Ohne
+  // geladene Einträge steht keine "0 Kinder" neben dem Ladefehler; fehlen
+  // nur die angelegten Kinder, entfällt die Gesamtzahl, statt sie still
+  // auszulassen (#2517).
+  const statusLine =
+    entries === undefined
+      ? null
+      : [
+          ...(students === undefined
+            ? []
+            : [
+                `${formatCount(allRows.length)} ${allRows.length === 1 ? "Kind" : "Kinder"}`,
+              ]),
+          `${formatCount(entryRows.length)} ohne Betreuung`,
+          `${formatCount(duplicateCount)} mögliche ${duplicateCount === 1 ? "Dublette" : "Dubletten"}`,
+        ].join(" · ");
+  const rosterSummary =
+    students === undefined
+      ? ""
+      : ` ${formatCount(students.length)} davon sind in moto angelegt und verteilen sich auf ${formatCount(classCount)} ${classCount === 1 ? "Klasse" : "Klassen"}.`;
 
   // Klassenfilter der Kopfkarte: dieselbe Bauart wie auf jeder anderen
   // Tenant-Seite.
@@ -790,7 +803,7 @@ export default function ClassListEntriesPage() {
     >
       <SectionCard
         title="Kinder im Klassenverband"
-        description={`Reguläre Kinder werden in der Kinder-Datenbank gepflegt. Hier kommen nur Kinder ohne OGS-Betreuung dazu. ${formatCount(studentCount)} davon sind in moto angelegt und verteilen sich auf ${formatCount(classCount)} ${classCount === 1 ? "Klasse" : "Klassen"}.`}
+        description={`Reguläre Kinder werden in der Kinder-Datenbank gepflegt. Hier kommen nur Kinder ohne OGS-Betreuung dazu.${rosterSummary}`}
       >
         {/* Ohne die angelegten Kinder ist die Liste unvollständig: der Fehler
             steht über ihr, mit Wiederholen. */}

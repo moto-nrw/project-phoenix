@@ -52,12 +52,18 @@ interface TeamChatEmptyState {
  */
 export interface TeamChatInboxParts {
   readonly title: string;
-  /** Statuszeile aus echten Zahlen: Unterhaltungen und ungelesene. */
-  readonly stats: string;
+  /**
+   * Statuszeile aus echten Zahlen: Unterhaltungen und ungelesene. `null`,
+   * solange keine Liste geladen ist (#2517).
+   */
+  readonly stats: string | null;
   readonly statsLoading: boolean;
   readonly chatEnabled: boolean;
-  /** Zahl der sichtbaren (gefilterten) Unterhaltungen — für die Zähler-Plakette. */
-  readonly count: number;
+  /**
+   * Zahl der sichtbaren (gefilterten) Unterhaltungen — für die
+   * Zähler-Plakette. `null`, solange keine Liste geladen ist (#2517).
+   */
+  readonly count: number | null;
   readonly search: {
     readonly value: string;
     readonly onChange: (value: string) => void;
@@ -194,9 +200,13 @@ export function TeamChatInbox({
   const unreadThreads = threadList.filter(
     (thread) => thread.unread_count > 0,
   ).length;
-  const stats = chatEnabled
-    ? `${threadList.length} ${threadList.length === 1 ? "Unterhaltung" : "Unterhaltungen"} · ${unreadThreads} ungelesen`
-    : "Ausgeschaltet";
+  // Ohne geladene Liste steht keine "0 Unterhaltungen" neben dem Ladefehler
+  // (#2517).
+  const stats = !chatEnabled
+    ? "Ausgeschaltet"
+    : threads === undefined
+      ? null
+      : `${threadList.length} ${threadList.length === 1 ? "Unterhaltung" : "Unterhaltungen"} · ${unreadThreads} ungelesen`;
 
   const composeButton = chatEnabled ? (
     <Button
@@ -303,7 +313,7 @@ export function TeamChatInbox({
     stats,
     statsLoading: showSkeleton,
     chatEnabled,
-    count: filteredThreads.length,
+    count: threads === undefined ? null : filteredThreads.length,
     search: {
       value: searchTerm,
       onChange: setSearchTerm,
@@ -344,7 +354,7 @@ function DefaultInboxFrame({ parts }: { readonly parts: TeamChatInboxParts }) {
       <PageHeaderWithSearch
         title={title}
         badge={
-          loading
+          loading || parts.count === null
             ? undefined
             : { icon: <MessagesSquare size={20} />, count: parts.count }
         }

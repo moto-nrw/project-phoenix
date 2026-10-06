@@ -179,10 +179,16 @@ export default function TagesinformationenPage() {
   });
 
   // Statuszeile aus echten Zahlen: was heute gilt, für Admins zusätzlich der
-  // Bestand. Der frühere Erklärsatz steht in der Hilfe, nicht im Kopf.
-  const statusLine = isAdmin
-    ? `${todayNotices.length} heute · ${notices.length} insgesamt`
-    : `${todayNotices.length} heute`;
+  // Bestand. Der frühere Erklärsatz steht in der Hilfe, nicht im Kopf. Eine
+  // Zahl steht nur für eine geladene Liste da, nie "0 heute" neben einem
+  // Ladefehler (#2517).
+  const statusLine =
+    [
+      todayData === undefined ? null : `${todayNotices.length} heute`,
+      isAdmin && data !== undefined ? `${notices.length} insgesamt` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || null;
 
   return (
     <TenantPage

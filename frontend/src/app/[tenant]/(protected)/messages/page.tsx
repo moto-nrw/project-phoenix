@@ -154,7 +154,12 @@ function MessagesInboxContent() {
   const unreadThreads = threadList.filter(
     (thread) => thread.unread_count > 0,
   ).length;
-  const inboxSummary = `${threadList.length} ${threadList.length === 1 ? "Unterhaltung" : "Unterhaltungen"} · ${unreadThreads} ungelesen`;
+  // Ohne geladene Inbox steht keine "0 Unterhaltungen" neben dem Ladefehler
+  // (#2517).
+  const inboxSummary =
+    threads === undefined
+      ? null
+      : `${threadList.length} ${threadList.length === 1 ? "Unterhaltung" : "Unterhaltungen"} · ${unreadThreads} ungelesen`;
 
   const composeButton = messagingEnabled ? (
     <Button

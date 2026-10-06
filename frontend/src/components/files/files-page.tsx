@@ -197,7 +197,8 @@ export function FilesPage() {
   return (
     <TenantPage
       title="Dateien"
-      stats={filesStatusLine(folders)}
+      // Ohne geladene Ablage keine "0 Ordner" neben dem Ladefehler (#2517).
+      stats={overview === undefined ? null : filesStatusLine(folders)}
       statsLoading={isLoading}
       // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett
       // stehen, nie der Leerzustand.

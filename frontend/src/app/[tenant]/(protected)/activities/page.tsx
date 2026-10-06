@@ -300,9 +300,13 @@ function ActivitiesPageContent() {
 
   const hasFilters =
     searchTerm !== "" || categoryFilter !== "all" || myActivitiesFilter;
-  const stats = hasFilters
-    ? `${filteredActivities.length} von ${activities.length} Aktivitäten · ${categories.length} ${categories.length === 1 ? "Kategorie" : "Kategorien"}`
-    : `${activities.length} ${activities.length === 1 ? "Aktivität" : "Aktivitäten"} · ${categories.length} ${categories.length === 1 ? "Kategorie" : "Kategorien"}`;
+  // Ohne geladene Liste steht keine "0 Aktivitäten" neben dem Ladefehler
+  // (#2517).
+  const stats = !pageData
+    ? null
+    : hasFilters
+      ? `${filteredActivities.length} von ${activities.length} Aktivitäten · ${categories.length} ${categories.length === 1 ? "Kategorie" : "Kategorien"}`
+      : `${activities.length} ${activities.length === 1 ? "Aktivität" : "Aktivitäten"} · ${categories.length} ${categories.length === 1 ? "Kategorie" : "Kategorien"}`;
 
   return (
     <>

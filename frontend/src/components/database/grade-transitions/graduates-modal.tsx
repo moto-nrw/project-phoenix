@@ -299,10 +299,14 @@ export function GraduatesModal({
           </div>
           <SlideOverFooter className="flex-row items-center justify-between gap-3">
             <div className="flex w-full items-center justify-between gap-3">
+              {/* Ohne geladene Liste kein "0 von 0 noch löschbar" unter dem
+                  Ladefehler (#2517). */}
               <span className="text-sm text-gray-500">
                 {selectedIds.length > 0
                   ? `${selectedIds.length} ausgewählt`
-                  : `${deletable.length} von ${entries?.length ?? 0} noch löschbar`}
+                  : entries === null || loadFailed
+                    ? null
+                    : `${deletable.length} von ${entries.length} noch löschbar`}
               </span>
               <div className="flex gap-2">
                 <Button
