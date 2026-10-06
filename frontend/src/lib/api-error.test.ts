@@ -117,6 +117,20 @@ describe("transportFetch", () => {
     }
   });
 
+  it("preserves an AbortError that is not an Error instance", async () => {
+    const abortError = { name: "AbortError", message: "Request aborted" };
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValueOnce(abortError);
+    try {
+      await expect(
+        transportFetch("/api/timetable/shift-coverage"),
+      ).rejects.toBe(abortError);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("turns a request that never reached the API into general.unavailable", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")

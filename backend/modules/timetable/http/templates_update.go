@@ -105,8 +105,11 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	if req.CategoryID <= 0 {
 		return invalidField(invalid, "category_id", "category_id is required")
 	}
-	if req.StartTime == "" || req.EndTime == "" {
-		return invalidField(invalid, "start_time", "start_time and end_time are required")
+	if req.StartTime == "" {
+		return invalidField(invalid, "start_time", "start_time is required (HH:MM)")
+	}
+	if req.EndTime == "" {
+		return invalidField(invalid, "end_time", "end_time is required (HH:MM)")
 	}
 	if len(req.Weekdays) == 0 {
 		return invalidField(invalid, "weekdays", "at least one weekday is required")

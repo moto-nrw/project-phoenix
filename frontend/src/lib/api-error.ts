@@ -78,7 +78,14 @@ export async function transportFetch(
   try {
     return await fetch(input, init);
   } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") throw error;
+    if (
+      error !== null &&
+      typeof error === "object" &&
+      "name" in error &&
+      error.name === "AbortError"
+    ) {
+      throw error;
+    }
     throw unavailableApiError(error);
   }
 }
