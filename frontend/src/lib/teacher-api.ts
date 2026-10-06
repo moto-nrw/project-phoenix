@@ -1,7 +1,11 @@
 // This file contains the Teacher API service and related types
 
 import { sessionFetch } from "./session-cache";
-import { apiErrorFromResponse, apiErrorFromText } from "~/lib/api-error";
+import {
+  apiErrorFromResponse,
+  apiErrorFromText,
+  wireErrorCode,
+} from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import type { Activity } from "./activity-helpers";
 
@@ -11,16 +15,6 @@ const logger = createLogger({ component: "TeacherAPI" });
 type CreateTeacherResult =
   | { status: "created"; data: TeacherWithCredentials }
   | { status: "account_exists"; email: string };
-
-/**
- * Extracts error message from API error response
- */
-function extractErrorMessage(
-  errorData: { error?: string; message?: string },
-  fallback: string,
-): string {
-  return errorData.error ?? errorData.message ?? fallback;
-}
 
 /**
  * Extracts ID from potentially wrapped API response
@@ -353,20 +347,16 @@ class TeacherService {
     });
 
     if (!response.ok) {
-      const errorData = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
-      const msg = extractErrorMessage(errorData, response.statusText);
-      if (msg.includes("bereits registriert")) {
+      const error = await apiErrorFromResponse(
+        response,
+        `account registration failed (${response.status})`,
+      );
+      // Ein vorhandenes Konto wird zum Verknüpfen angeboten; erkannt am
+      // Code, nie am Text (#2517).
+      if (wireErrorCode(error.code) === "identity.email_already_exists") {
         return { status: "account_exists" as const };
       }
-      if (msg.includes("Benutzername ist bereits vergeben")) {
-        throw new Error(
-          "Ein Konto mit diesem Benutzernamen existiert bereits.",
-        );
-      }
-      throw new Error(`Konto konnte nicht erstellt werden: ${msg}`);
+      throw error;
     }
 
     const data = (await response.json()) as AccountWithIdentityResponse;
@@ -405,12 +395,9 @@ class TeacherService {
     });
 
     if (!response.ok) {
-      const errorData = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
-      throw new Error(
-        `Konto konnte nicht verknüpft werden: ${extractErrorMessage(errorData, response.statusText)}`,
+      throw await apiErrorFromResponse(
+        response,
+        `account link failed (${response.status})`,
       );
     }
 

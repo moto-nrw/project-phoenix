@@ -345,11 +345,12 @@ func (rs *Resource) handleRegistrationError(w http.ResponseWriter, r *http.Reque
 
 	switch {
 	case errors.Is(authErr.Err, identityaccess.ErrEmailAlreadyExists):
-		common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrEmailAlreadyExists))
+		// The staff form offers to link the existing account on this code (#2517).
+		common.RenderError(w, r, common.ErrorInvalidOnField(identityaccess.ErrEmailAlreadyExists, common.CodeIdentityEmailAlreadyExists, "email"))
 	case errors.Is(authErr.Err, identityaccess.ErrUsernameAlreadyExists):
 		common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrUsernameAlreadyExists))
 	case errors.Is(authErr.Err, identityaccess.ErrPasswordTooWeak):
-		common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrPasswordTooWeak))
+		common.RenderError(w, r, common.ErrorInvalidOnField(identityaccess.ErrPasswordTooWeak, common.CodeIdentityPasswordTooWeak, "password"))
 	case errors.Is(authErr.Err, identityaccess.ErrTenantRequiredForRoleAssignment):
 		common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrTenantRequiredForRoleAssignment))
 	case errors.Is(authErr.Err, identityaccess.ErrRoleNotAssignable),

@@ -145,3 +145,31 @@ func TestPasswordResetRateLimitCarriesCode(t *testing.T) {
 	assert.NotEmpty(t, rr.Header().Get("Retry-After"))
 	assert.Equal(t, common.CodeIdentityPasswordResetRateLimited, decodeWireError(t, rr).Code)
 }
+
+func TestRegistrationRefusalsCarryCodes(t *testing.T) {
+	t.Parallel()
+
+	wrap := func(err error) error { return &identityaccess.AuthenticationError{Op: "register", Err: err} }
+	cases := []struct {
+		name  string
+		err   error
+		code  string
+		field string
+	}{
+		// The staff form offers to link the existing account on this code.
+		{"address already registered", wrap(identityaccess.ErrEmailAlreadyExists), common.CodeIdentityEmailAlreadyExists, "email"},
+		{"password too weak", wrap(identityaccess.ErrPasswordTooWeak), common.CodeIdentityPasswordTooWeak, "password"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			rr := httptest.NewRecorder()
+			(&Resource{}).handleRegistrationError(rr, httptest.NewRequest(http.MethodPost, "/auth/register", nil), tc.err)
+			body := decodeWireError(t, rr)
+			assert.Equal(t, http.StatusBadRequest, rr.Code)
+			assert.Equal(t, tc.code, body.Code)
+			require.Len(t, body.Errors, 1)
+			assert.Equal(t, tc.field, body.Errors[0].Field)
+		})
+	}
+}

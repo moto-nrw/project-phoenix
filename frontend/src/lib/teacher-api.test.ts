@@ -324,22 +324,25 @@ describe("teacher-api", () => {
 
     it("throws error when account creation fails", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        statusText: "Bad Request",
-        json: () => Promise.resolve({ error: "Email already exists" }),
-      } as Response);
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ status: "error", error: "Email already exists" }),
+          { status: 400 },
+        ),
+      );
 
-      await expect(
-        teacherService.createTeacher({
+      const failure = await teacherService
+        .createTeacher({
           first_name: "Test",
           last_name: "Teacher",
           password: "SecurePass123!",
           role_id: 1,
-        }),
-      ).rejects.toThrow(
-        "Konto konnte nicht erstellt werden: Email already exists",
-      );
+        })
+        .catch((error: unknown) => error);
+
+      // #2517: the status class survives, no own sentence around it.
+      expect(failure).toBeInstanceOf(ApiError);
+      expect((failure as ApiError).status).toBe(400);
     });
 
     // Successor of "throws error when person creation fails": the person is no
@@ -890,19 +893,21 @@ describe("teacher-api", () => {
   });
 
   describe("teacherService.createTeacher — account_exists flow", () => {
+    // #2517: the existing account is recognised by its code, never its text.
     it("returns account_exists when email already exists", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
 
-      // Mock account creation returning the German duplicate-email sentinel
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        statusText: "Conflict",
-        json: () =>
-          Promise.resolve({
-            error:
-              "auth error during register: Diese E-Mail-Adresse ist bereits registriert",
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            status: "error",
+            error: "email already registered",
+            code: "identity.email_already_exists",
+            errors: [{ field: "email", reason: "taken" }],
           }),
-      } as Response);
+          { status: 400 },
+        ),
+      );
 
       const result = await teacherService.createTeacher({
         first_name: "Test",
@@ -917,48 +922,34 @@ describe("teacher-api", () => {
       }
     });
 
-    it("throws error for username conflict", async () => {
+    it("throws the ApiError with its code for other account creation failures", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
 
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        statusText: "Conflict",
-        json: () =>
-          Promise.resolve({
-            error:
-              "auth error during register: Dieser Benutzername ist bereits vergeben",
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            status: "error",
+            error: "password too weak",
+            code: "identity.password_too_weak",
+            errors: [{ field: "password", reason: "weak" }],
           }),
-      } as Response);
-
-      await expect(
-        teacherService.createTeacher({
-          first_name: "Test",
-          last_name: "Teacher",
-          password: "SecurePass123!",
-          role_id: 1,
-        }),
-      ).rejects.toThrow(
-        "Ein Konto mit diesem Benutzernamen existiert bereits.",
+          { status: 400 },
+        ),
       );
-    });
 
-    it("throws generic error for other account creation failures", async () => {
-      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        statusText: "Bad Request",
-        json: () => Promise.resolve({ error: "weak password" }),
-      } as Response);
-
-      await expect(
-        teacherService.createTeacher({
+      const failure = await teacherService
+        .createTeacher({
           first_name: "Test",
           last_name: "Teacher",
           password: "weak",
           role_id: 1,
-        }),
-      ).rejects.toThrow("Konto konnte nicht erstellt werden: weak password");
+        })
+        .catch((error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(ApiError);
+      expect((failure as ApiError).code).toBe("identity.password_too_weak");
+      expect((failure as ApiError).status).toBe(400);
+      expect((failure as ApiError).errors?.[0]?.field).toBe("password");
     });
   });
 
@@ -1007,26 +998,31 @@ describe("teacher-api", () => {
       );
     });
 
-    it("throws error when link-to-tenant fails", async () => {
+    it("throws the ApiError when link-to-tenant fails", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
 
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        statusText: "Not Found",
-        json: () => Promise.resolve({ error: "account not found" }),
-      } as Response);
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            status: "error",
+            error: "account not found",
+          }),
+          { status: 404 },
+        ),
+      );
 
-      await expect(
-        teacherService.createTeacher({
+      const failure = await teacherService
+        .createTeacher({
           first_name: "Missing",
           last_name: "User",
           email: "missing@example.com",
           role_id: 1,
           linkExisting: true,
-        }),
-      ).rejects.toThrow(
-        "Konto konnte nicht verknüpft werden: account not found",
-      );
+        })
+        .catch((error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(ApiError);
+      expect((failure as ApiError).status).toBe(404);
     });
 
     it("throws error when link response has no school identity", async () => {
