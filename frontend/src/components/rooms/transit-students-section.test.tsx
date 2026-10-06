@@ -778,7 +778,14 @@ describe("TransitStudentsSection booking into a released room", () => {
         details,
       });
       // The catalog text names the full room or activity with its numbers.
-      const message = Object.entries(details).reduce(
+      const maximum =
+        ("max_participants" in details
+          ? details.max_participants
+          : details.max_capacity) ?? 0;
+      const message = Object.entries({
+        ...details,
+        free_slots: Math.max(0, maximum - details.current_occupancy),
+      }).reduce(
         (text, [key, value]) => text.replace(`{${key}}`, String(value)),
         catalogText(code, ""),
       );

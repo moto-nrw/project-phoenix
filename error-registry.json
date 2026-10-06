@@ -1354,7 +1354,8 @@
         "activity_name",
         "current_occupancy",
         "max_participants",
-        "incoming_students"
+        "incoming_students",
+        "free_slots"
       ],
       "legacy": "presence.activity_participant_limit_reached"
     },
@@ -1366,7 +1367,8 @@
         "room_name",
         "current_occupancy",
         "max_capacity",
-        "incoming_students"
+        "incoming_students",
+        "free_slots"
       ],
       "legacy": "presence.room_capacity_exceeded"
     },

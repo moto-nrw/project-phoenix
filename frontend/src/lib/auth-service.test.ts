@@ -461,6 +461,38 @@ describe("authService", () => {
           expect(apiError.retryAfterSeconds).toBe(60);
         }
       });
+
+      it("keeps structured errors from problem JSON responses", async () => {
+        vi.stubGlobal("window", {});
+        vi.stubGlobal(
+          "fetch",
+          vi.fn().mockResolvedValueOnce(
+            new Response(
+              JSON.stringify({
+                error: "The reset link is invalid",
+                code: "identity.password_reset_link_invalid",
+                errors: [{ field: "token", reason: "invalid" }],
+                details: { source: "reset" },
+                instance: "req-reset-1",
+              }),
+              {
+                status: 400,
+                headers: { "Content-Type": "application/problem+json" },
+              },
+            ),
+          ),
+        );
+
+        await expect(
+          authService.resetPassword(confirmRequest),
+        ).rejects.toMatchObject({
+          status: 400,
+          code: "identity.password_reset_link_invalid",
+          errors: [{ field: "token", reason: "invalid" }],
+          details: { source: "reset" },
+          requestId: "req-reset-1",
+        });
+      });
     });
   });
 

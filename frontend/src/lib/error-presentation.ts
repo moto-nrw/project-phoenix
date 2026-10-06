@@ -51,6 +51,27 @@ function interpolate(
   return missing ? null : result.charAt(0).toUpperCase() + result.slice(1);
 }
 
+function withDerivedCapacityDetails(
+  code: ErrorCode | undefined,
+  details: Record<string, unknown>,
+): Record<string, unknown> {
+  const maximumKey =
+    code === "presence.activity_participant_limit_reached"
+      ? "max_participants"
+      : code === "presence.room_capacity_exceeded"
+        ? "max_capacity"
+        : undefined;
+  if (!maximumKey) return details;
+
+  const maximum = details[maximumKey];
+  const current = details.current_occupancy;
+  if (typeof maximum !== "number" || typeof current !== "number") {
+    return details;
+  }
+
+  return { ...details, free_slots: Math.max(0, maximum - current) };
+}
+
 /** No backend sentence is read here. Only the code and structured fields are used. */
 export function presentError(
   error: unknown,
@@ -78,8 +99,11 @@ export function presentError(
       : "server";
   const codeTemplate = known ? catalog.codes[known] : undefined;
   const allowed = new Set(known ? ERROR_CODE_PARAMETERS[known] : []);
-  const values = Object.fromEntries(
-    Object.entries(error.details ?? {}).filter(([key]) => allowed.has(key)),
+  const values = withDerivedCapacityDetails(
+    known,
+    Object.fromEntries(
+      Object.entries(error.details ?? {}).filter(([key]) => allowed.has(key)),
+    ),
   );
   const fallbackCatalog = known ? catalog : catalogs.de;
   const message =

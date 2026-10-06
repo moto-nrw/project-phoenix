@@ -175,4 +175,12 @@ describe("login error bodies", () => {
       login("tenant", { email: "a@b.de", password: "pw", tenantSlug: "s" }),
     ).rejects.toMatchObject({ status: 401, code: "general.permission" });
   });
+
+  it("classifies a failed transport as unavailable", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+
+    await expect(
+      login("tenant", { email: "a@b.de", password: "pw", tenantSlug: "s" }),
+    ).rejects.toMatchObject({ status: 503, code: "general.unavailable" });
+  });
 });

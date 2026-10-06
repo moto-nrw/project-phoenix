@@ -654,7 +654,14 @@ describe("MeinRaumPage roster actions", () => {
       );
 
       // The catalog text names the full room or activity with its numbers.
-      const expected = Object.entries(details).reduce(
+      const maximum =
+        ("max_participants" in details
+          ? details.max_participants
+          : details.max_capacity) ?? 0;
+      const expected = Object.entries({
+        ...details,
+        free_slots: Math.max(0, maximum - details.current_occupancy),
+      }).reduce(
         (text, [key, value]) => text.replace(`{${key}}`, String(value)),
         catalogText(code as Parameters<typeof catalogText>[0], ""),
       );
@@ -686,10 +693,16 @@ describe("MeinRaumPage roster actions", () => {
         await screen.findByRole("button", { name: "Rückgängig" }),
       );
 
-      const expected = catalogText("presence.room_capacity_exceeded", "")
-        .replace("{room_name}", "Turnhalle")
-        .replace("{current_occupancy}", "29")
-        .replace("{max_capacity}", "30");
+      const expected = Object.entries({
+        room_name: "Turnhalle",
+        current_occupancy: 29,
+        max_capacity: 30,
+        incoming_students: 2,
+        free_slots: 1,
+      }).reduce(
+        (text, [key, value]) => text.replace(`{${key}}`, String(value)),
+        catalogText("presence.room_capacity_exceeded", ""),
+      );
       expect(await screen.findByText(expected)).toBeInTheDocument();
     } finally {
       globalThis.sessionStorage.removeItem("timetable-reopenable-instance");

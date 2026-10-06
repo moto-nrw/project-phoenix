@@ -169,30 +169,27 @@ async function buildFetchApiError(
   fallbackMessage: string,
 ): Promise<ApiError> {
   let message = fallbackMessage;
-  let body: unknown;
+  let text = "";
 
   try {
-    const contentType = response.headers.get("Content-Type") ?? "";
-    if (contentType.includes("application/json")) {
-      const payload = (await response.json()) as ApiErrorResponseBody;
-      message = payload.error ?? payload.message ?? fallbackMessage;
-      body = payload;
-    } else {
-      const text = (await response.text()).trim();
-      if (text) {
-        message = text;
+    text = await response.text();
+    if (text) {
+      try {
+        const payload = JSON.parse(text) as ApiErrorResponseBody;
+        message = payload.error ?? payload.message ?? fallbackMessage;
+      } catch {
+        message = text.trim();
       }
     }
-  } catch (parseError) {
+  } catch (readError) {
     logger.warn("failed to parse password reset error response", {
-      error:
-        parseError instanceof Error ? parseError.message : String(parseError),
+      error: readError instanceof Error ? readError.message : String(readError),
     });
   }
 
   // A real ApiError with code, field errors and request ID, so the shared
   // error path can show the catalog text (#2517).
-  const apiError = apiErrorFromBody(message, response.status, body);
+  const apiError = apiErrorFromText(message, response.status, text);
 
   const retryAfterSeconds = parseRetryAfter(
     response.headers.get("Retry-After"),

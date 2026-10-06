@@ -963,6 +963,13 @@ describe("DatabaseForm", () => {
       expect(options).toHaveBeenCalledTimes(2);
     });
     await waitFor(() => {
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "die Auswahl „Gruppenraum“"),
+        ),
+      ).not.toBeInTheDocument();
+    });
+    await waitFor(() => {
       expect(screen.getByRole("combobox")).not.toBeDisabled();
     });
     fireEvent.click(screen.getByRole("combobox"));

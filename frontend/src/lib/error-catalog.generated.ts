@@ -335,9 +335,9 @@ export const ERROR_CATALOG = {
       "pickup.resolution_required":
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
       "presence.activity_participant_limit_reached":
-        "Die Aktivität {activity_name} ist voll ({current_occupancy} von {max_participants} Kindern).",
+        "Die Aktivität {activity_name}: {current_occupancy} von {max_participants} Kindern sind da. Freie Plätze: {free_slots}. Es sollen {incoming_students} Kinder dazukommen.",
       "presence.room_capacity_exceeded":
-        "Der Raum {room_name} ist voll ({current_occupancy} von {max_capacity} Plätzen).",
+        "Der Raum {room_name}: {current_occupancy} von {max_capacity} Plätzen sind belegt. Freie Plätze: {free_slots}. Es sollen {incoming_students} Kinder dazukommen.",
       "presence.statistics_range_invalid":
         "Der Zeitraum passt nicht. Er darf höchstens ein Jahr lang sein und nicht in der Zukunft enden.",
       "rollover.duplicate_name":

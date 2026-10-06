@@ -467,6 +467,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
                 void errorPathRef.current.show(error, {
                   object: `die Auswahl „${field.label}“`,
                   retry: () => {
+                    errorPathRef.current.clear();
                     loadedFieldsRef.current.delete(fieldName);
                     setOptionsReload((value) => value + 1);
                   },

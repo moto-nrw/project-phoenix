@@ -1496,6 +1496,7 @@ export const ERROR_CODE_PARAMETERS: Record<ErrorCode, readonly string[]> = {
     "current_occupancy",
     "max_participants",
     "incoming_students",
+    "free_slots",
   ],
   "presence.room_capacity_exceeded": [
     "room_id",
@@ -1503,6 +1504,7 @@ export const ERROR_CODE_PARAMETERS: Record<ErrorCode, readonly string[]> = {
     "current_occupancy",
     "max_capacity",
     "incoming_students",
+    "free_slots",
   ],
   "presence.statistics_range_invalid": [],
   "rollover.deadline_required": [],

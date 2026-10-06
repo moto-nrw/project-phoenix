@@ -133,7 +133,16 @@ function codedError(code: ErrorCode, details: Record<string, unknown>) {
 
 /** The catalog text of `code` with its details filled in. */
 function capacityText(code: ErrorCode, details: Record<string, unknown>) {
-  return Object.entries(details).reduce(
+  const maximum =
+    code === "presence.activity_participant_limit_reached"
+      ? details.max_participants
+      : details.max_capacity;
+  const current = details.current_occupancy;
+  const freeSlots =
+    typeof maximum === "number" && typeof current === "number"
+      ? Math.max(0, maximum - current)
+      : undefined;
+  return Object.entries({ ...details, free_slots: freeSlots }).reduce(
     (text, [key, value]) => text.replace(`{${key}}`, String(value)),
     catalogText(code, ""),
   );

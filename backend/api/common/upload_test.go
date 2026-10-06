@@ -582,3 +582,24 @@ func TestErrorUpload_CarriesTheRefusalCode(t *testing.T) {
 
 	assert.Empty(t, render(assert.AnError).Code)
 }
+
+func TestParseDocumentWithLimits_RejectsMalformedMultipartAsUnreadable(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/",
+		strings.NewReader(
+			"--broken\r\n"+
+				"Content-Disposition: form-data; name=\"document\"; filename=\"broken.pdf\"\r\n"+
+				"Content-Type: application/pdf\r\n\r\n"+
+				"%PDF-1.4",
+		),
+	)
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=broken")
+	_, err := ParseDocumentWithLimits(httptest.NewRecorder(), req, "document", 10<<20, 10<<20)
+	resp, ok := ErrorUpload(err, 10<<20).(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, CodeFilesFileUnreadable, resp.Code)
+	assert.Nil(t, resp.Details)
+}

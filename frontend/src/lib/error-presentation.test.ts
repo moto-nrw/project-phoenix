@@ -19,6 +19,22 @@ describe("presentError", () => {
     expect(result.retryable).toBe(false);
   });
 
+  it("explains the remaining capacity for a partial bulk admission", () => {
+    const error = new ApiError("capacity", 409, {
+      code: "presence.room_capacity_exceeded",
+      details: {
+        room_name: "Turnhalle",
+        current_occupancy: 29,
+        max_capacity: 30,
+        incoming_students: 2,
+      },
+    });
+
+    expect(presentError(error, "die Anwesenheit").message).toBe(
+      "Der Raum Turnhalle: 29 von 30 Plätzen sind belegt. Freie Plätze: 1. Es sollen 2 Kinder dazukommen.",
+    );
+  });
+
   it("falls back to the German class text when a code is unknown", () => {
     const error = new ApiError("English diagnostic", 503, {
       code: "future.unknown",

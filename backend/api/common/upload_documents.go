@@ -80,7 +80,11 @@ func parseValidatedUpload(w http.ResponseWriter, r *http.Request, fieldName stri
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
 
 	if err := r.ParseMultipartForm(maxBodySize); err != nil {
-		return nil, uploadRefusal{code: CodeFilesFileTooLarge, text: "file too large"}
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			return nil, uploadRefusal{code: CodeFilesFileTooLarge, text: "file too large"}
+		}
+		return nil, uploadRefusal{code: CodeFilesFileUnreadable, text: "cannot read upload"}
 	}
 
 	file, header, err := r.FormFile(fieldName)
