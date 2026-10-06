@@ -1,7 +1,25 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
 import "@testing-library/jest-dom/vitest";
+import enMessages from "~/i18n/messages/en.json";
+import { ERROR_CATALOG } from "~/lib/error-catalog.generated";
+import {
+  ERROR_CODE_CLASSES,
+  type ErrorCode,
+} from "~/lib/error-codes.generated";
+
+/** The English sentence the shared error path shows (#2518). */
+function enCatalogText(code: ErrorCode, object: string): string {
+  const en = ERROR_CATALOG.en as {
+    classes: Record<string, string>;
+    codes: Partial<Record<ErrorCode, string>>;
+  };
+  const template = en.codes[code] ?? en.classes[ERROR_CODE_CLASSES[code]]!;
+  const text = template.replaceAll("{object}", object);
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+const LOGIN_OBJECT = enMessages.parentLogin.errorObject;
 
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
@@ -10,6 +28,11 @@ const mocks = vi.hoisted(() => ({
   signOut: vi.fn(),
   useSession: vi.fn(),
   searchParamsGet: vi.fn((_key: string) => null as string | null),
+  requestParentPasswordReset: vi.fn(),
+}));
+
+vi.mock("~/lib/auth-api", () => ({
+  requestParentPasswordReset: mocks.requestParentPasswordReset,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -92,9 +115,16 @@ vi.mock("next-intl", async () => {
 
 import ParentLoginPage from "./page";
 
+afterEach(() => {
+  document.documentElement.lang = "";
+});
+
 describe("ParentLoginPage i18n", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The shared error path reads the page language from <html lang>, which
+    // the parents layout sets to the parent's locale.
+    document.documentElement.lang = "en";
     mocks.searchParamsGet.mockReturnValue(null);
     mocks.useSession.mockReturnValue({
       status: "unauthenticated",
@@ -247,7 +277,12 @@ describe("ParentLoginPage i18n", () => {
       expect(
         screen.getByRole("button", { name: "Forgot your password?" }),
       ).toBeEnabled();
-      expect(screen.getByText("Login error. Please try again.")).toBeVisible();
+      await vi.waitFor(() =>
+        expect(
+          screen.getByText(enCatalogText("general.unavailable", LOGIN_OBJECT)),
+        ).toBeVisible(),
+      );
+      expect(screen.getByRole("button", { name: "Try again" })).toBeVisible();
       expect(mocks.push).not.toHaveBeenCalled();
     } finally {
       releaseFakeTimers();
@@ -274,6 +309,35 @@ describe("ParentLoginPage i18n", () => {
       resetDialog.getByRole("button", { name: "Send link" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Passwort zurücksetzen")).not.toBeInTheDocument();
+  });
+
+  it("shows a failed reset request in the dialog in the parent's language", async () => {
+    const { ApiError } = await import("~/lib/api-error");
+    mocks.requestParentPasswordReset.mockRejectedValue(
+      new ApiError("diag", 503, { code: "general.unavailable" }),
+    );
+    render(<ParentLoginPage />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Forgot your password?" }),
+    );
+    const resetDialog = within(screen.getByRole("dialog"));
+    fireEvent.change(resetDialog.getByLabelText("Email address"), {
+      target: { value: "parent@example.com" },
+    });
+    fireEvent.click(resetDialog.getByRole("button", { name: "Send link" }));
+
+    expect(
+      await resetDialog.findByText(
+        enCatalogText(
+          "general.unavailable",
+          enMessages.parentPasswordResetModal.errorObject,
+        ),
+      ),
+    ).toBeVisible();
+    expect(
+      resetDialog.getByRole("button", { name: "Try again" }),
+    ).toBeVisible();
   });
 
   describe("portal mix-up", () => {
@@ -346,10 +410,110 @@ describe("ParentLoginPage i18n", () => {
       await submitLogin();
 
       expect(
-        screen.getByText(/Please check your credentials/),
+        await screen.findByText(
+          enCatalogText("identity.invalid_credentials", LOGIN_OBJECT),
+        ),
       ).toBeInTheDocument();
       expect(
         screen.queryByRole("link", { name: "Go to the school login" }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  describe("login errors from codes", () => {
+    async function submitLogin() {
+      render(<ParentLoginPage />);
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText("Email address"), {
+          target: { value: "parent@example.com" },
+        });
+        fireEvent.change(screen.getByLabelText("Password"), {
+          target: { value: "password123" },
+        });
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+      });
+    }
+
+    it("names a switched-off account by its code", async () => {
+      mocks.signIn.mockResolvedValue({
+        error: "CredentialsSignin",
+        code: "account_inactive",
+      });
+
+      await submitLogin();
+
+      expect(
+        await screen.findByText(
+          enCatalogText("identity.session_account_inactive", LOGIN_OBJECT),
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps its own sentence for too many attempts", async () => {
+      mocks.signIn.mockResolvedValue({
+        error: "CredentialsSignin",
+        code: "rate_limited",
+      });
+
+      await submitLogin();
+
+      expect(
+        screen.getByText(enMessages.parentLogin.errors.rateLimited),
+      ).toBeInTheDocument();
+    });
+
+    it("never shows the text of a thrown sign-in error", async () => {
+      mocks.signIn
+        .mockRejectedValueOnce(new Error("Failed to fetch secret detail"))
+        .mockResolvedValue({ error: null });
+
+      await submitLogin();
+
+      expect(
+        await screen.findByText(
+          enCatalogText("general.unavailable", LOGIN_OBJECT),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/secret detail/)).not.toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+      });
+      expect(mocks.signIn).toHaveBeenCalledTimes(2);
+      expect(mocks.signIn).toHaveBeenLastCalledWith("parent-credentials", {
+        redirect: false,
+        email: "parent@example.com",
+        password: "password123",
+      });
+    });
+
+    it("keeps the session-expired notice until an error replaces it", async () => {
+      mocks.searchParamsGet.mockImplementation((key: string) =>
+        key === "error" ? "SessionExpired" : null,
+      );
+      mocks.signIn.mockResolvedValue({
+        error: "CredentialsSignin",
+        code: "invalid_credentials",
+      });
+
+      render(<ParentLoginPage />);
+      expect(
+        screen.getByText(enMessages.errorCatalog.loginNotice),
+      ).toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+      });
+
+      expect(
+        await screen.findByText(
+          enCatalogText("identity.invalid_credentials", LOGIN_OBJECT),
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(enMessages.errorCatalog.loginNotice),
       ).not.toBeInTheDocument();
     });
   });

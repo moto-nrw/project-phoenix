@@ -475,7 +475,7 @@ src/components/enrollment/phases-editor.tsx|text-[11px]@758 text-[11px]@763
 src/components/files/files-page.tsx|text-[11px]@175 text-[11px]@297
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@376
-src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@676 text-[11px]@741
+src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@741 text-[11px]@806
 src/components/parent/parent-enroll-picker.tsx|text-[11px]@227 text-[11px]@231
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/planning/closing-day-marker.tsx|text-[10px]@53

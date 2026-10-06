@@ -1,10 +1,17 @@
 import { describe, expect, it } from "vitest";
+import {
+  ERROR_CODES,
+  ERROR_CODE_CLASSES,
+  type ErrorClass,
+} from "~/lib/error-codes.generated";
 import de from "./messages/de.json";
+import en from "./messages/en.json";
 import pl from "./messages/pl.json";
 import ru from "./messages/ru.json";
 import sq from "./messages/sq.json";
 import tr from "./messages/tr.json";
 import uk from "./messages/uk.json";
+import { PARENT_PORTAL_ERROR_CODES } from "./parent-error-codes";
 
 interface MessageTree {
   [key: string]: string | MessageTree;
@@ -62,5 +69,84 @@ describe("complete catalogs for pl, tr and uk", () => {
     );
 
     expect(untranslated).toEqual([]);
+  });
+});
+
+// Error texts the parents portal can show (#2518). A code with its own German
+// sentence names a specific next step; a locale that only has the class text
+// for it would hide that step from families reading another language.
+const errorLocales = [
+  ["en", en],
+  ["ru", ru],
+  ["sq", sq],
+  ["pl", pl],
+  ["tr", tr],
+  ["uk", uk],
+] as const;
+
+interface ErrorCatalogTree {
+  classes: Record<ErrorClass, string>;
+  actions: Record<string, string>;
+  loginNotice: string;
+  codes: Record<string, Record<string, string>>;
+}
+
+function codeText(catalog: ErrorCatalogTree, code: string): string | undefined {
+  const [area, name] = code.split(".") as [string, string];
+  return catalog.codes[area]?.[name];
+}
+
+describe("parent portal error texts", () => {
+  const german = de.errorCatalog as ErrorCatalogTree;
+
+  it.each(errorLocales)(
+    "translates the class texts, actions and login notice in %s",
+    (_locale, messages) => {
+      const catalog = messages.errorCatalog as ErrorCatalogTree;
+      const untranslated = [
+        ...Object.entries(catalog.classes).map(([key, value]) => [
+          `classes.${key}`,
+          value === german.classes[key as ErrorClass],
+        ]),
+        ...Object.entries(catalog.actions).map(([key, value]) => [
+          `actions.${key}`,
+          value === german.actions[key],
+        ]),
+        ["loginNotice", catalog.loginNotice === german.loginNotice],
+      ]
+        .filter(([, same]) => same)
+        .map(([key]) => key);
+
+      expect(untranslated).toEqual([]);
+    },
+  );
+
+  it.each(errorLocales)(
+    "gives every parent code with its own German text its own text in %s",
+    (_locale, messages) => {
+      const catalog = messages.errorCatalog as ErrorCatalogTree;
+      const missing = PARENT_PORTAL_ERROR_CODES.filter((code) => {
+        const errorClass = ERROR_CODE_CLASSES[code];
+        const germanText = codeText(german, code);
+        if (germanText === german.classes[errorClass]) return false;
+        const text = codeText(catalog, code);
+        // Any class text counts as missing: a code moved to another class
+        // can keep the old class sentence and read as the wrong next step.
+        return (
+          !text ||
+          Object.values(catalog.classes).includes(text) ||
+          text === germanText
+        );
+      });
+
+      expect(missing).toEqual([]);
+    },
+  );
+
+  it("lists only registered codes", () => {
+    const registered: ReadonlySet<string> = new Set(ERROR_CODES);
+    expect(
+      PARENT_PORTAL_ERROR_CODES.filter((code) => !registered.has(code)),
+    ).toEqual([]);
   });
 });

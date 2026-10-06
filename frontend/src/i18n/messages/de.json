@@ -1,7 +1,8 @@
 {
   "language": {
     "label": "Sprache",
-    "saveError": "Sprache konnte nicht in Ihrem Konto gespeichert werden. Die Auswahl gilt auf diesem Gerät."
+    "errorObject": "die Sprachwahl in Ihrem Konto",
+    "savedOnDevice": "Die Sprache gilt vorerst nur auf diesem Gerät."
   },
   "datePicker": {
     "placeholder": "Datum auswählen",
@@ -92,7 +93,6 @@
     "emptyTitle": "Kein Essensplan verfügbar",
     "empty": "Für Ihre Schule ist der Essensplan derzeit nicht freigeschaltet.",
     "loading": "Essensplan wird geladen",
-    "loadError": "Essensplan konnte nicht geladen werden.",
     "emptyThisWeekTitle": "Für diese Woche ist noch kein Essensplan eingetragen",
     "emptyNextWeekTitle": "Für nächste Woche ist noch kein Essensplan eingetragen",
     "emptyWeek": "Sobald die OGS einen Plan einträgt, sehen Sie ihn hier.",
@@ -108,8 +108,6 @@
     "participationCutoff": "Sie können die Anmeldung am selben Tag bis {time} Uhr ändern.",
     "participationSickness": "Eine bestätigte Krankmeldung bis {time} Uhr meldet Ihr Kind vom Essen ab. Danach bleibt die Anmeldung bestehen.",
     "participationLoading": "Anmeldung zum Mittagessen wird geladen",
-    "participationError": "Die Anmeldung zum Mittagessen konnte nicht geladen oder gespeichert werden. Bitte versuchen Sie es erneut.",
-    "retry": "Erneut versuchen",
     "regularDays": "Feste Tage",
     "noRegularDays": "Keine festen Tage",
     "allWeekdays": "Montag bis Freitag",
@@ -136,7 +134,10 @@
     "closed": "Nicht mehr änderbar",
     "register": "Anmelden",
     "unregister": "Abmelden",
-    "useRegular": "Feste Anmeldung verwenden"
+    "useRegular": "Feste Anmeldung verwenden",
+    "errorObjectSchools": "die Essensübersicht",
+    "errorObjectWeek": "die Essensliste dieser Woche",
+    "errorObjectParticipation": "die Anmeldung zum Mittagessen"
   },
   "mealParticipantList": {
     "title": "Tagesliste für die Küche",
@@ -191,7 +192,6 @@
     "newsMessageFrom": "Elternbrief von {school}",
     "newsDeclarationFrom": "Einverständnis · {school}",
     "newsRead": "Gelesen",
-    "newsActionError": "Aktion fehlgeschlagen. Bitte erneut versuchen.",
     "newsStaleError": "Dieser Elternbrief ist nicht mehr aktuell. Bitte laden Sie die Seite neu.",
     "newsPoll": "Umfrage",
     "newsDeclaration": "Einverständnis",
@@ -217,13 +217,14 @@
     "newsAttachmentsHint": "Tippen Sie auf den Namen, um die Datei zu öffnen oder zu speichern.",
     "newsAttachmentsDownload": "Herunterladen",
     "newsAttachmentsOpen": "Im Browser öffnen",
-    "newsAttachmentsError": "Die Dateien konnten nicht geladen werden.",
-    "newsAttachmentsRetry": "Erneut versuchen",
     "newsClose": "Schließen",
     "newsLetterBadge": "Bestätigung erforderlich",
     "newsReminder": "Erinnerung",
     "newsReminderFrom": "Erinnerung vom {date}",
-    "newsLetterBindingHint": "Diese E-Mail ist nur zur Information. Es zählt die Bestätigung hier im Eltern-Portal. Eine sorgeberechtigte Person pro Kind genügt."
+    "newsLetterBindingHint": "Diese E-Mail ist nur zur Information. Es zählt die Bestätigung hier im Eltern-Portal. Eine sorgeberechtigte Person pro Kind genügt.",
+    "newsErrorObjectAnswer": "die Antwort",
+    "newsErrorObjectConfirmation": "die Lesebestätigung",
+    "newsErrorObjectAttachments": "die Liste der Dateien"
   },
   "parentDeclaration": {
     "sectionTitle": "Ihre Antwort",
@@ -292,30 +293,19 @@
     "saving": "Wird gespeichert …",
     "saved": "Ihre Antwort für {name} ist gespeichert.",
     "errors": {
-      "notFound": "Dieses Einverständnis ist nicht mehr verfügbar. Die Liste wird neu geladen.",
-      "notPermitted": "Für dieses Kind dürfen Sie nicht antworten. Bei Fragen wenden Sie sich an die OGS.",
-      "versionChanged": "Die Schule hat den Text geändert. Bitte lesen Sie ihn noch einmal und antworten Sie dann neu.",
-      "closed": "Die Frist ist abgelaufen. Sie können nicht mehr antworten.",
-      "actionNotAllowed": "Das geht gerade nicht. Der aktuelle Stand wird neu geladen.",
-      "careEnded": "Die Betreuung dieses Kindes ist beendet. Sie können nicht mehr antworten.",
       "passwordRequired": "Bitte geben Sie Ihr Passwort ein.",
-      "passwordIncorrect": "Das Passwort stimmt nicht. Bitte versuchen Sie es noch einmal.",
-      "tooMany": "Zu viele Versuche. Bitte warten Sie kurz und versuchen Sie es dann noch einmal.",
-      "uncertain": "Das hat vielleicht nicht geklappt. Der Stand wird neu geladen. Prüfen Sie ihn und antworten Sie bei Bedarf noch einmal.",
-      "generic": "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal."
-    }
+      "uncertainReload": "Der Stand wird neu geladen. Bitte prüfen Sie ihn, bevor Sie noch einmal antworten."
+    },
+    "errorObjectAnswer": "die Antwort"
   },
   "parentDeclarationProof": {
     "title": "Nachweis Ihrer Antwort",
     "back": "Zurück zu den Elternbriefen",
     "download": "Als PDF herunterladen",
     "downloading": "Wird erstellt …",
-    "downloadError": "Das PDF konnte nicht erstellt werden. Bitte versuchen Sie es noch einmal.",
     "integrityOk": "Text und Antworten sind seit der Veröffentlichung unverändert.",
     "integrityBroken": "Achtung: Ein gespeicherter Eintrag wurde nachträglich verändert. Bitte wenden Sie sich an die OGS.",
     "notFound": "Für dieses Kind gibt es noch keinen Nachweis. Er entsteht, sobald Sie auf ein Einverständnis geantwortet haben.",
-    "loadError": "Der Nachweis konnte nicht geladen werden. Bitte versuchen Sie es noch einmal.",
-    "retry": "Erneut versuchen",
     "generated": "Erstellt am {date} Uhr",
     "child": "Kind",
     "school": "Schule",
@@ -330,7 +320,9 @@
     "versionsTitle": "Text der Schule",
     "versionHeading": "Fassung {version}, veröffentlicht am {date} Uhr",
     "attachments": "Dateien",
-    "note": "Dieser Nachweis belegt eine einfache elektronische Erklärung. Er ersetzt keine gesetzlich vorgeschriebene Unterschrift auf Papier."
+    "note": "Dieser Nachweis belegt eine einfache elektronische Erklärung. Er ersetzt keine gesetzlich vorgeschriebene Unterschrift auf Papier.",
+    "errorObjectProof": "das Nachweisdokument",
+    "errorObjectPdf": "das PDF"
   },
   "parentNotificationSetup": {
     "title": "Keine wichtige Nachricht verpassen",
@@ -375,11 +367,9 @@
     "enabledMessage": "Benachrichtigungen sind auf diesem Gerät eingeschaltet.",
     "disabledMessage": "Benachrichtigungen sind auf diesem Gerät ausgeschaltet.",
     "enableError": "Die Benachrichtigungen konnten nicht eingeschaltet werden. Bitte versuchen Sie es erneut.",
-    "disableError": "Die Benachrichtigungen konnten nicht ausgeschaltet werden. Bitte versuchen Sie es erneut.",
     "sendTest": "Testbenachrichtigung senden",
     "testing": "Wird gesendet …",
     "testSent": "Testbenachrichtigung wurde gesendet.",
-    "testError": "Die Testbenachrichtigung konnte nicht gesendet werden. Bitte versuchen Sie es erneut.",
     "statusInstallLabel": "moto als App geöffnet",
     "statusInstallYes": "Ja",
     "statusInstallNo": "Nein",
@@ -395,7 +385,10 @@
     "installStepAndroid1": "Tippen Sie oben rechts im Browser auf die drei Punkte.",
     "installStepAndroid2": "Wählen Sie „App installieren“ oder „Zum Startbildschirm hinzufügen“.",
     "installStepAndroid3": "Bestätigen Sie mit „Installieren“. Öffnen Sie moto danach über das neue Symbol.",
-    "installOutroAndroid": "Öffnen Sie in der App wieder die Einstellungen. Dort schalten Sie Benachrichtigungen mit einem Tipp ein."
+    "installOutroAndroid": "Öffnen Sie in der App wieder die Einstellungen. Dort schalten Sie Benachrichtigungen mit einem Tipp ein.",
+    "errorObjectEnable": "das Einschalten der Benachrichtigungen",
+    "errorObjectDisable": "das Ausschalten der Benachrichtigungen",
+    "errorObjectTest": "die Testbenachrichtigung"
   },
   "parentSettings": {
     "eyebrow": "Ihr Konto",
@@ -430,9 +423,6 @@
     "enableAll": "Alle aktivieren",
     "enablingAll": "Wird aktiviert ...",
     "disableAll": "Alle deaktivieren",
-    "loadError": "Die Einstellungen konnten nicht geladen werden.",
-    "saveError": "Die Einstellung konnte nicht gespeichert werden.",
-    "bulkError": "Die Einstellungen konnten nicht geändert werden.",
     "tenantDisabled": "Ihre Schule hat Benachrichtigungen derzeit deaktiviert. Ihre Auswahl wird gespeichert und gilt, sobald die Schule sie wieder einschaltet.",
     "typeUnavailable": "Von Ihrer Schule derzeit deaktiviert.",
     "groups": {
@@ -465,7 +455,11 @@
         "label": "Betreuung fällt aus",
         "description": "Wenn die OGS einen Betreuungstermin Ihres Kindes absagt."
       }
-    }
+    },
+    "errorObjectList": "die Liste der Benachrichtigungen",
+    "errorObjectType": "die Benachrichtigung „{name}“",
+    "errorObjectEnableAll": "das Einschalten aller Benachrichtigungen",
+    "errorObjectDisableAll": "das Ausschalten aller Benachrichtigungen"
   },
   "parentEnroll": {
     "errorObject": "die Liste der Anmeldephasen",
@@ -516,7 +510,6 @@
       "createContactIntro": "Dieser Kontakt wird für Ihr Kind hinterlegt und ist für die OGS sichtbar. Es wird kein Konto erstellt und keine Einladung gesendet.",
       "relationshipLabel": "Beziehung zum Kind",
       "emailDoesNotInvite": "Die E-Mail-Adresse dient nur als Kontaktdatum. Sie können später separat App-Zugang geben.",
-      "loadError": "Kontakte konnten nicht geladen werden.",
       "loading": "Wird geladen…",
       "empty": "Noch keine Kontakte hinterlegt.",
       "contactSaved": "Kontaktdaten gespeichert.",
@@ -567,27 +560,12 @@
       "removePhone": "Telefonnummer entfernen",
       "addPhone": "Nummer hinzufügen",
       "nameRequired": "Vor- und Nachname sind erforderlich.",
-      "contactSaveError": "Kontaktdaten konnten nicht gespeichert werden.",
-      "pickupSaveError": "Abholangaben konnten nicht gespeichert werden.",
       "canPickupLabel": "Darf abholen",
       "canPickupDescription": "Diese Person ist berechtigt, das Kind abzuholen.",
       "emergencyLabel": "Notfallkontakt",
       "emergencyDescription": "Wird im Notfall kontaktiert.",
       "pickupNotes": "Hinweis zur Abholung",
       "pickupNotesPlaceholder": "z. B. Kommt mit dem Fahrrad",
-      "errors": {
-        "contactInvalid": "Bitte prüfen Sie die Kontaktdaten.",
-        "relationshipInvalid": "Bitte prüfen Sie die Abholangaben.",
-        "emailConflict": "Diese E-Mail-Adresse wird bereits für einen anderen Kontakt verwendet.",
-        "hasOwnAccount": "Diese Person verwaltet ihre Kontaktdaten über ein eigenes Elternkonto.",
-        "sharedAcrossFamilies": "Dieser Kontakt ist mehreren Familien zugeordnet und kann nur von der Schule geändert werden.",
-        "notLinked": "Dieser Kontakt gehört nicht zu diesem Kind.",
-        "permissionDenied": "Sie haben keine Berechtigung für diese Änderung.",
-        "noChange": "Es wurde keine Änderung übermittelt.",
-        "socialWorkerManaged": "Diese Kontaktdaten werden von der Schule verwaltet.",
-        "roleManaged": "Diese Person ist erziehungsberechtigt und kann nur von ihr selbst oder der Schule bearbeitet werden.",
-        "managementDisabled": "Die Verwaltung von Kontakten ist für diese Schule deaktiviert."
-      },
       "access": {
         "title": "Verbundene Konten",
         "description": "Wer in der Eltern-App Zugriff auf dieses Kind hat.",
@@ -606,7 +584,6 @@
         "invitePending": "Ihre Anfrage ist bei der OGS. Sie wird dort geprüft.",
         "inviteSent": "Einladung an {email} gesendet.",
         "inviteLinked": "Die Person ist jetzt verbunden.",
-        "inviteError": "Die Einladung konnte nicht gesendet werden.",
         "grant": "Zugang geben",
         "grantTitle": "Vollen Zugang geben?",
         "grantBody": "{name} hat ein Konto, bisher aber keinen Zugang zu diesem Kind. Mit Ihrer Bestätigung geht eine Anfrage an die OGS. Nach der Freigabe sieht diese Person alles zu Ihrem Kind.",
@@ -614,14 +591,19 @@
         "remove": "Zugang entziehen",
         "removeConfirm": "Ja, Zugang entziehen",
         "removed": "Der Zugang wurde entzogen.",
-        "removeError": "Der Zugang konnte nicht entzogen werden.",
         "status": {
           "active": "Hat Zugang zur App",
           "pending": "Einladung ist unterwegs",
           "no_account": "Kontakt ohne Zugang zur App",
           "active_no_access": "Hat ein Konto, aber noch keinen Zugang zu diesem Kind"
         }
-      }
+      },
+      "errorObjectContacts": "die Liste der Kontakte",
+      "errorObjectAccounts": "die Liste der verbundenen Konten",
+      "errorObjectInvite": "die Einladung",
+      "errorObjectRemove": "die Freigabe für dieses Konto",
+      "errorObjectContact": "die Änderung am Kontakt",
+      "errorObjectPickup": "die Abholregelung"
     },
     "back": "Zurück zu Meine Kinder",
     "today": {
@@ -669,7 +651,6 @@
       "reasonLabel": "Hinweis an die OGS",
       "reasonPlaceholder": "Zum Beispiel Fieber oder Arzttermin",
       "invalidDate": "Bitte wählen Sie ein gültiges Datum. Das Bis-Datum darf nicht vor dem Von-Datum liegen.",
-      "saveError": "Die Abmeldung konnte nicht gespeichert werden.",
       "submittedButRefreshFailed": "Die Abmeldung wurde gesendet, konnte aber nicht angezeigt werden. Bitte laden Sie die Seite neu.",
       "overlapError": "Für einen dieser Tage liegt bereits eine offene Abmeldung vor.",
       "submit": "Abwesenheit melden",
@@ -678,7 +659,8 @@
       "reasonLabelRequired": "Grund / Hinweis an die OGS",
       "reasonRequiredError": "Bitte geben Sie einen kurzen Hinweis für die OGS ein.",
       "requestSentTitle": "Anfrage gesendet",
-      "requestSentBody": "Die OGS muss die Abwesenheit noch bestätigen. Bis dahin gilt Ihr Kind als erwartet."
+      "requestSentBody": "Die OGS muss die Abwesenheit noch bestätigen. Bis dahin gilt Ihr Kind als erwartet.",
+      "errorObject": "die Abwesenheitsmeldung"
     },
     "summary": {
       "none": "Keine Abmeldung",
@@ -701,7 +683,6 @@
       "reasonPlaceholder": "Zum Beispiel Arzttermin oder frühere Abholung",
       "reasonRequired": "Bitte geben Sie kurz an, warum sich die Abholzeit ändert.",
       "reasonTooLong": "Der Grund darf höchstens 255 Zeichen lang sein.",
-      "saveError": "Die Änderung konnte nicht gespeichert werden.",
       "loadError": "Die aktuell hinterlegten Zeiten konnten nicht geladen werden. Bitte laden Sie die Seite neu und versuchen Sie es erneut.",
       "errorDisabled": "Das Ändern der Abholzeit ist für diese OGS nicht aktiviert.",
       "errorStaffConflict": "Für diesen Tag hat die Einrichtung bereits eine abweichende Abholzeit festgelegt. Bitte wenden Sie sich an das Team.",
@@ -731,7 +712,8 @@
       "statusApproved": "Bestätigt, die neue Abholzeit wurde übernommen.",
       "statusRejected": "Abgelehnt: {reason}",
       "noDecisionReason": "Keine Begründung angegeben",
-      "submit": "Anfrage senden"
+      "submit": "Anfrage senden",
+      "errorObject": "die Abholzeit"
     },
     "actions": {
       "sick": {
@@ -768,13 +750,10 @@
     "fromStaffBanner": "Elternkonten melden sich hier an. Bitte geben Sie Ihr Passwort noch einmal ein.",
     "staffLoginLink": "Zur Schul-Anmeldung",
     "errors": {
-      "accountInactive": "Ihr Konto ist deaktiviert. Bitte kontaktieren Sie die Schule.",
       "rateLimited": "Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut.",
-      "invalidCredentials": "Anmeldung nicht möglich. Bitte prüfen Sie Ihre Zugangsdaten.",
-      "notAGuardian": "Dieses Konto gehört zum Personal einer Schule. Bitte melden Sie sich über die Schul-Anmeldung an.",
-      "invalid": "Ungültige Anmeldedaten",
-      "generic": "Anmeldefehler. Bitte versuchen Sie es erneut."
-    }
+      "notAGuardian": "Dieses Konto gehört zum Personal einer Schule. Bitte melden Sie sich über die Schul-Anmeldung an."
+    },
+    "errorObject": "die Anmeldung"
   },
   "parentPasswordResetModal": {
     "title": "Passwort zurücksetzen",
@@ -787,20 +766,13 @@
     "successMessage": "Wir haben Ihnen eine E-Mail mit einem Link zum Zurücksetzen Ihres Passworts gesendet.",
     "successHint": "Bitte überprüfen Sie Ihren Posteingang und folgen Sie den Anweisungen in der E-Mail.",
     "close": "Schließen",
-    "errors": {
-      "rateLimited": "Zu viele Versuche. Bitte versuchen Sie es erneut in {countdown}.",
-      "generic": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut."
-    }
+    "errorObject": "das Senden des Links",
+    "rateLimitWait": "Einen neuen Link können Sie in {countdown} anfordern."
   },
   "parentPasswordResetPage": {
     "backToLogin": "Zurück zur Anmeldung",
     "errors": {
-      "missingToken": "Ungültiger oder fehlender Reset-Token. Bitte fordern Sie einen neuen Link an.",
-      "invalidToken": "Ungültiger Reset-Token.",
-      "generic": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-      "invalidRequest": "Bitte prüfen Sie den Link und die Passwort-Anforderungen und versuchen Sie es erneut.",
-      "expired": "Dieser Passwort-Reset-Link ist abgelaufen. Bitte fordern Sie einen neuen Link an.",
-      "notFound": "Wir konnten diesen Passwort-Reset-Link nicht finden. Bitte fordern Sie einen neuen Link an."
+      "missingToken": "Der Link ist unvollständig. Bitte fordern Sie einen neuen Link an."
     },
     "validation": {
       "tooShort": "Das Passwort muss mindestens 8 Zeichen lang sein.",
@@ -833,7 +805,8 @@
       "mixedCase": "Groß- und Kleinbuchstaben",
       "number": "Mindestens eine Zahl",
       "special": "Mindestens ein Sonderzeichen"
-    }
+    },
+    "errorObject": "das Zurücksetzen des Passworts"
   },
   "guardianInvite": {
     "eyebrow": "Eltern-Portal",
@@ -843,23 +816,9 @@
     "errorHelpBefore": "Sie können eine neue Einladung bei der Schule anfordern oder sich über",
     "startPage": "die Startseite",
     "errorHelpAfter": "anmelden.",
-    "contactOgs": "Kontaktieren Sie bitte Ihre OGS.",
-    "errors": {
-      "expired": "Diese Einladung ist abgelaufen oder wurde bereits verwendet.",
-      "notFound": "Wir konnten diese Einladung nicht finden.",
-      "load": "Beim Laden der Einladung ist ein Fehler aufgetreten.",
-      "incomplete": "Die Einladungsdaten sind unvollständig. Bitte fordere eine neue Einladung an.",
-      "missingToken": "Kein Einladungstoken angegeben."
-    },
     "formErrors": {
-      "expired": "Diese Einladung ist nicht mehr gültig.",
-      "notFound": "Einladung wurde nicht gefunden.",
-      "conflict": "Für diese E-Mail existiert bereits ein Konto. Bitte melden Sie sich direkt an oder kontaktieren Sie den Support.",
-      "invalid": "Ungültige Eingaben. Bitte überprüfe das Formular.",
-      "generic": "Beim Annehmen der Einladung ist ein Fehler aufgetreten.",
       "passwordRules": "Das Passwort erfüllt noch nicht alle Sicherheitsanforderungen.",
-      "passwordMismatch": "Die Passwörter stimmen nicht überein.",
-      "offline": "Keine Netzwerkverbindung. Bitte überprüfen Sie Ihre Internetverbindung und versuchen Sie es erneut."
+      "passwordMismatch": "Die Passwörter stimmen nicht überein."
     },
     "acceptedTitle": "Konto erstellt",
     "acceptedText": "Bitte melden Sie sich mit Ihren neuen Zugangsdaten an.",
@@ -877,7 +836,8 @@
       "2": "Ein Kleinbuchstabe",
       "3": "Eine Zahl",
       "4": "Ein Sonderzeichen"
-    }
+    },
+    "errorObject": "die Einladung"
   },
   "enrollmentPublic": {
     "errorObjectPhases": "die Liste der Anmeldephasen",
@@ -1374,12 +1334,11 @@
     "reasonLabel": "Grund / Hinweis an die OGS",
     "reasonRequired": "Bitte geben Sie einen kurzen Hinweis für die OGS ein.",
     "valueRequired": "Bitte tragen Sie einen Wert ein.",
-    "saveError": "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
-    "staleError": "Die Anfrage wurde inzwischen bearbeitet. Bitte laden Sie die Seite neu.",
     "submit": "Änderung speichern",
     "saving": "Wird gespeichert …",
     "cancel": "Abbrechen",
-    "close": "Fenster schließen"
+    "close": "Fenster schließen",
+    "errorObject": "die Anfrage"
   },
   "parentRequestSharing": {
     "button": "Anfrage teilen",
@@ -1389,20 +1348,19 @@
     "protected": "Diese Anfrage bleibt privat. Die OGS hat den Familienschutz eingeschaltet.",
     "noRecipients": "Es gibt keine weiteren Sorgeberechtigten mit Zugang zur Eltern-App.",
     "loading": "Empfänger werden geladen …",
-    "error": "Die Empfänger konnten nicht geladen werden.",
-    "optionsError": "Die Empfänger konnten nicht geladen werden. Sie können die Anfrage trotzdem senden und später teilen.",
     "save": "Auswahl speichern",
     "saving": "Wird gespeichert …",
     "cancel": "Abbrechen",
-    "close": "Fenster schließen"
+    "close": "Fenster schließen",
+    "errorObjectRecipients": "die Liste der Empfänger",
+    "errorObjectSelection": "die Auswahl",
+    "optionsHint": "Sie können die Anfrage trotzdem senden und später teilen."
   },
   "parentMasterData": {
     "title": "Daten und Betreuung",
     "subtitle": "Prüfen Sie die Angaben zu Ihrem Kind und die gebuchte Betreuung. Änderungen mit Prüfbedarf werden deutlich gekennzeichnet.",
     "back": "Zurück",
-    "loadError": "Die Angaben konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
     "saved": "Gespeichert",
-    "saveError": "Die Änderung konnte nicht gespeichert werden.",
     "editableHint": "Änderungen werden automatisch gespeichert.",
     "unsaved": {
       "title": "Nicht gespeicherte Änderungen",
@@ -1421,7 +1379,6 @@
     "departureReadOnlyAccompanied": "Ihr Kind geht an mindestens einem Tag mit einem anderen Kind. Sie können den Heimweg hier nicht ändern.",
     "requestButton": "Änderung anfragen",
     "requestSubmitted": "Anfrage gesendet. Das Team prüft Ihre Änderung.",
-    "requestError": "Die Anfrage konnte nicht gesendet werden.",
     "requestEdit": "Anfrage bearbeiten",
     "pendingBadge": "In Prüfung",
     "pendingNotice": "Eine Änderung an diesem Feld wartet auf Bestätigung durch das Team.",
@@ -1486,7 +1443,6 @@
     },
     "careOfferings": {
       "hint": "Diese Betreuung ist für Ihr Kind gebucht. Änderungen prüft das Team, bevor sie gelten.",
-      "loadError": "Die gebuchte Betreuung konnte nicht geladen werden. Bitte aktualisieren Sie die Seite.",
       "period": "Betreuungszeitraum {name} ({from} bis {until})",
       "offeringsTitle": "Gebuchte Betreuung",
       "offeringsDescription": "Hier sehen Sie weitere Angaben zur Betreuung, zum Beispiel Mittagessen oder Ferienbetreuung.",
@@ -1528,7 +1484,8 @@
       "autoAddedDaysWithTrigger": "Automatisch mitgebucht: {days}, weil {trigger} gewählt ist.",
       "decisionApplied": "Das wurde geändert:",
       "decisionConsidered": "Angefragte Änderung:",
-      "decisionOverridden": "Die Betreuung hat {names} nicht mitgebucht."
+      "decisionOverridden": "Die Betreuung hat {names} nicht mitgebucht.",
+      "errorObject": "die gebuchte Betreuung"
     },
     "careOfferingsModal": {
       "title": "Gebuchte Betreuung ändern",
@@ -1539,7 +1496,6 @@
       "noteRequired": "Bitte geben Sie kurz an, warum sich die Betreuung ändern soll.",
       "staleError": "Die Anfrage wurde inzwischen bearbeitet. Bitte laden Sie die Seite neu.",
       "intro": "Wählen Sie, welche Angebote Ihr Kind künftig besuchen soll, und ab wann die Änderung gelten soll. Das Team prüft Ihre Anfrage.",
-      "loadError": "Die verfügbaren Angebote konnten nicht geladen werden.",
       "noOfferings": "Für diesen Zeitraum ist keine Betreuung buchbar.",
       "effectiveFromLabel": "Änderung gilt ab",
       "effectiveFromHint": "Frühestens {date}. Wählen Sie einen Termin innerhalb eines bestätigten Betreuungszeitraums.",
@@ -1554,13 +1510,14 @@
       "cancel": "Abbrechen",
       "noChange": "Ihre Auswahl entspricht der aktuellen Buchung. Ändern Sie etwas, um eine Anfrage zu senden.",
       "noDaysSelected": "Wählen Sie für jedes gewählte Angebot mindestens einen Tag.",
-      "submitError": "Die Anfrage konnte nicht gesendet werden.",
-      "capacityFull": "Für ein gewähltes Angebot ist kein Platz mehr frei.",
+      "capacityFull": "Für ein gewähltes Angebot ist kein Platz mehr frei. Bitte wählen Sie ein anderes Angebot oder wenden Sie sich an die Schule.",
       "alreadyPending": "Für Ihr Kind liegt bereits eine Anfrage vor. Bitte warten Sie die Prüfung ab.",
       "withdrawalConfirmTitle": "Betreuung vollständig abmelden?",
       "withdrawalConfirmBody": "Danach ist für {name} kein Betreuungstag mehr gebucht. Möchten Sie diese Anfrage wirklich senden?",
       "withdrawalConfirmBack": "Zurück",
-      "withdrawalConfirmSubmit": "Anfrage senden"
+      "withdrawalConfirmSubmit": "Anfrage senden",
+      "errorObjectCatalog": "die Liste der Angebote",
+      "errorObjectRequest": "die Änderungsanfrage"
     },
     "weekdayShort": {
       "1": "Mo",
@@ -1591,14 +1548,14 @@
       "otherRequest": "Sie haben schon eine offene Anfrage zur Betreuung. Bitte warten Sie die Antwort ab.",
       "needsEnrollment": "Kurse können Sie anfragen, sobald Ihr Kind angemeldet ist.",
       "noCourses": "Zurzeit gibt es keine Kurse.",
-      "loadError": "Die Kurse konnten nicht geladen werden.",
-      "actionError": "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal."
+      "errorObjectList": "die Liste der Kurse",
+      "errorObjectRequest": "die Kursanfrage",
+      "errorObjectWithdraw": "die Rücknahme der Kursanfrage"
     },
     "careSchedule": {
       "arrival": "Ankunftszeit",
       "pickup": "Abholzeit",
       "modes": "Abholart",
-      "loadError": "Die Betreuungszeiten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
       "readOnlyNotice": "Den Wochenplan können Sie hier nicht ändern. Änderungen an gebuchten Angeboten finden Sie im nächsten Abschnitt.",
       "noPermissionNotice": "Sie können hier keine Änderung anfragen. Bitte fragen Sie bei der OGS nach.",
       "requestButton": "Änderungen anfragen",
@@ -1612,11 +1569,9 @@
       "cancel": "Abbrechen",
       "requestNoChange": "Bitte ändern Sie mindestens einen Betreuungstag, eine Abholzeit oder eine Abholart.",
       "requestMissingPlan": "Wählen Sie für neue Betreuungstage eine Abholzeit und eine Abholart.",
-      "requestError": "Die Anfrage konnte nicht gesendet werden.",
       "requestAlreadyPending": "Für dieses Kind wird bereits eine Änderung geprüft.",
       "requestDisabled": "Diese Änderung ist für Ihre OGS nicht freigeschaltet.",
       "requestBookingLed": "Ihre OGS nimmt keine Anfragen zum Wochenplan an. Änderungen laufen über die gebuchten Angebote.",
-      "requestInvalid": "Bitte prüfen Sie die Betreuungstage, Abholzeiten und Abholarten.",
       "modeUnchanged": "Abholart wählen",
       "modeCurrent": "Aktuell: {modes}",
       "careDay": "Betreuung an diesem Tag",
@@ -1637,8 +1592,14 @@
       "timeExample": "z. B. 15:30",
       "pendingBadge": "In Prüfung",
       "pendingNotice": "Die OGS prüft Ihre Änderung. Bis zur Bestätigung bleibt der bisherige Wochenplan gültig.",
-      "requestedAt": "Angefragt am {date}"
-    }
+      "requestedAt": "Angefragt am {date}",
+      "errorObject": "die Liste der Betreuungszeiten",
+      "requestErrorObject": "die Anfrage zum Wochenplan"
+    },
+    "errorObject": "die Übersicht der Angaben",
+    "errorObjectChange": "die Änderung",
+    "errorObjectRequest": "die Anfrage",
+    "errorNoEnrollment": "Für Ihr Kind gibt es keine gültige Anmeldung mehr. Bitte wenden Sie sich an die Schule."
   },
   "parentOgsMessaging": {
     "readByStaff": "Gelesen",
@@ -1762,15 +1723,15 @@
       "ackContext": "Bestätigung erforderlich · {school}",
       "appointmentContext": "Termin für {name}",
       "appointmentContextPlain": "Termin",
-      "partialLoadError": "Einige Punkte konnten gerade nicht geladen werden.",
       "showMoreOne": "Einen weiteren Punkt anzeigen",
       "showMoreMany": "{count} weitere Punkte anzeigen",
       "showLess": "Weniger anzeigen",
-      "loading": "Aufgaben werden geladen"
+      "loading": "Aufgaben werden geladen",
+      "errorObject": "die vollständige Liste „Zu erledigen“"
     },
     "childrenLoading": "Kinder werden geladen",
-    "loadError": "Ihre Übersicht konnte gerade nicht geladen werden. Bitte versuchen Sie es später noch einmal.",
-    "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die OGS Ihrer Schule kann das einrichten."
+    "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die OGS Ihrer Schule kann das einrichten.",
+    "errorObject": "die Übersicht Ihrer Kinder"
   },
   "parentChild": {
     "switcherLabel": "Kind auswählen",
@@ -1781,8 +1742,7 @@
       "title": "Betreuung beendet",
       "body": "Ihr Kind wird in dieser OGS nicht mehr betreut. Alles Bisherige können Sie weiter ansehen. Neue Meldungen sind nicht mehr möglich."
     },
-    "loadError": "Die Angaben zu Ihrem Kind konnten gerade nicht geladen werden. Bitte versuchen Sie es später noch einmal.",
-    "notFound": "Zu dieser Adresse gibt es kein Kind in Ihrem Konto.",
+    "notFound": "Zu dieser Adresse gibt es kein Kind in Ihrem Konto. Bitte wählen Sie Ihr Kind in der Übersicht.",
     "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die OGS Ihrer Schule kann das einrichten.",
     "sections": {
       "today": "Heute",
@@ -1853,9 +1813,6 @@
       "cancel": "Abbrechen",
       "close": "Dialog schließen",
       "success": "Die Foto-Einwilligung wurde widerrufen. Falls ein Foto gespeichert war, wurde es gelöscht.",
-      "loadError": "Die Einwilligungen konnten gerade nicht geladen werden. Bitte versuchen Sie es noch einmal.",
-      "retry": "Erneut laden",
-      "withdrawError": "Die Foto-Einwilligung konnte nicht widerrufen werden. Bitte versuchen Sie es noch einmal.",
       "grantButton": "Foto-Einwilligung erneut geben",
       "grantButtonShort": "Erneut geben",
       "grantConfirmTitle": "Foto-Einwilligung erneut geben?",
@@ -1863,14 +1820,16 @@
       "grantConfirmButton": "Einwilligung geben",
       "granting": "Wird gespeichert",
       "grantSuccess": "Die Foto-Einwilligung wurde erneut gegeben.",
-      "grantError": "Die Foto-Einwilligung konnte nicht gespeichert werden. Bitte versuchen Sie es noch einmal."
-    }
+      "errorObjectList": "die Liste der Einwilligungen",
+      "errorObjectPhoto": "die Foto-Einwilligung"
+    },
+    "errorObject": "die Liste Ihrer Kinder",
+    "errorObjectCare": "die Übersicht zur Betreuung"
   },
   "parentMessages": {
     "kicker": "Austausch mit der OGS",
     "title": "Nachrichten",
     "description": "Lesen Sie Nachrichten und schreiben Sie direkt an die OGS.",
-    "loadError": "Die Nachrichten konnten gerade nicht geladen werden. Bitte versuchen Sie es später noch einmal.",
     "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Sobald ein Kind verknüpft ist, können Sie hier mit der OGS schreiben.",
     "noMessagesYet": "Tippen Sie, um zu schreiben.",
     "previewFromOgs": "OGS: {text}",
@@ -1887,16 +1846,14 @@
     "writingDisabled": "Für dieses Kind können Sie nicht schreiben. Den Verlauf können Sie weiterhin lesen.",
     "emptyThreadTitle": "Noch keine Nachrichten",
     "emptyThreadDescription": "Schreiben Sie die erste Nachricht an die OGS.",
-    "sendError": "Die Nachricht konnte nicht gesendet werden.",
-    "sessionExpired": "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
-    "permissionDenied": "Sie dürfen für dieses Kind keine Nachricht senden.",
-    "invalidRequest": "Die Nachricht konnte nicht verarbeitet werden. Bitte prüfen Sie Ihre Eingabe."
+    "errorObjectConversation": "die Unterhaltung",
+    "errorObjectMessage": "die Nachricht",
+    "errorObjectList": "die Liste der Unterhaltungen"
   },
   "parentCalendar": {
     "kicker": "Termine im Blick",
     "title": "Kalender",
     "description": "Termine und Veranstaltungen Ihrer Kinder auf einen Blick.",
-    "loadError": "Die Termine konnten gerade nicht geladen werden. Bitte versuchen Sie es später noch einmal.",
     "empty": "In den nächsten 3 Monaten stehen keine Termine an.",
     "groups": {
       "thisWeek": "Diese Woche",
@@ -1917,7 +1874,6 @@
     "declined": "Termin abgesagt.",
     "answeredAccepted": "Zugesagt",
     "answeredDeclined": "Abgesagt",
-    "respondError": "Ihre Antwort konnte nicht gespeichert werden. Bitte versuchen Sie es noch einmal.",
     "cancelledByOgs": "Von der OGS abgesagt",
     "previousMonth": "Vorheriger Monat",
     "nextMonth": "Nächster Monat",
@@ -1933,7 +1889,9 @@
       "5": "Fr",
       "6": "Sa",
       "7": "So"
-    }
+    },
+    "errorObjectList": "die Liste der Termine",
+    "errorObjectResponse": "die Antwort"
   },
   "parentCalendarSubscribe": {
     "title": "Kalender abonnieren",
@@ -1982,7 +1940,8 @@
     "empty": "Derzeit gibt es keine neuen Elternbriefe.",
     "open": "Offen",
     "openLabel": "Offen, {count}",
-    "completed": "Erledigt"
+    "completed": "Erledigt",
+    "errorObjectList": "die Liste der Elternbriefe"
   },
   "errorCatalog": {
     "classes": {
@@ -2011,32 +1970,32 @@
         "care_request_already_pending": "Für {object} gibt es bereits eine Anfrage. Bitte prüfen Sie den aktuellen Stand.",
         "care_request_bookings_authoritative": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "care_request_field_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
-        "child_care_ended": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+        "child_care_ended": "Die Betreuung dieses Kindes ist beendet. Änderungen sind nicht mehr möglich. Bei Fragen wenden Sie sich bitte an die OGS.",
         "child_not_linked": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "course_already_booked": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
         "course_request_invalid": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "course_request_not_own": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
         "course_requests_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
-        "declaration_action_not_allowed": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
-        "declaration_closed": "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
-        "declaration_not_permitted": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+        "declaration_action_not_allowed": "Das geht gerade nicht. Bitte laden Sie die Seite neu und prüfen Sie den aktuellen Stand.",
+        "declaration_closed": "Die Frist ist abgelaufen. Sie können nicht mehr antworten. Bei Fragen wenden Sie sich bitte an die OGS.",
+        "declaration_not_permitted": "Für dieses Kind dürfen Sie nicht antworten. Bei Fragen wenden Sie sich an die OGS.",
         "declaration_password_incorrect": "Das Passwort stimmt nicht. Bitte versuchen Sie es noch einmal.",
         "declaration_password_required": "Bitte geben Sie Ihr Passwort ein.",
-        "declaration_version_changed": "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
+        "declaration_version_changed": "Die Schule hat den Text geändert. Bitte lesen Sie ihn noch einmal und antworten Sie dann neu.",
         "excused_request_not_pending": "{object} ist nicht mehr offen. Bitte laden Sie die Seite neu.",
         "excused_request_overlap": "Die Zeiten für {object} überschneiden sich. Bitte prüfen Sie die Angaben.",
         "family_protection": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "guardian_contact_invalid": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "guardian_email_conflict": "Diese E-Mail-Adresse wird bereits verwendet. Bitte prüfen Sie die Adresse.",
-        "guardian_has_own_account": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+        "guardian_has_own_account": "Diese Person verwaltet ihre Kontaktdaten über ein eigenes Elternkonto. Sie kann die Angaben dort selbst ändern.",
         "guardian_management_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
-        "guardian_no_change": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
-        "guardian_not_linked": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+        "guardian_no_change": "Es wurde nichts geändert. Bitte prüfen Sie Ihre Angaben.",
+        "guardian_not_linked": "Dieser Kontakt gehört nicht zu diesem Kind. Bitte laden Sie die Seite neu.",
         "guardian_permission_denied": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "guardian_relationship_invalid": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
-        "guardian_role_managed": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
-        "guardian_shared_across_families": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
-        "guardian_social_worker_managed": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+        "guardian_role_managed": "Diese Person ist erziehungsberechtigt. Ihre Angaben kann nur sie selbst oder die Schule ändern.",
+        "guardian_shared_across_families": "Dieser Kontakt ist mehreren Familien zugeordnet und kann nur von der Schule geändert werden. Bitte wenden Sie sich an die Schule.",
+        "guardian_social_worker_managed": "Diese Kontaktdaten werden von der Schule verwaltet. Für Änderungen wenden Sie sich bitte an die Schule.",
         "invalid_credentials": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "invalid_poll_response": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "invalid_recipients": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",

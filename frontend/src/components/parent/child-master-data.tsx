@@ -8,6 +8,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -18,12 +19,17 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
-import { Alert } from "~/components/ui/alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import type { FormError } from "~/components/ui/form-error";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useNavigationGuard } from "~/lib/hooks/use-navigation-guard";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { SUPPORTED_LOCALES } from "~/i18n/locales";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -101,7 +107,8 @@ export interface ChildMasterDataState {
   readonly data: ChildMasterData | null;
   readonly features: ChildFeatures | null;
   readonly loading: boolean;
-  readonly error: string | null;
+  /** A failed load from the shared error path (#2518), with retry. */
+  readonly error: FormError | null;
   readonly setData: Dispatch<SetStateAction<ChildMasterData | null>>;
 }
 
@@ -120,7 +127,6 @@ export function ChildMasterDataView({
   const loadedMasterData = useChildMasterData(studentId, !masterData);
   const { data, features, loading, error, setData } =
     masterData ?? loadedMasterData;
-  const t = useTranslations("parentMasterData");
 
   if (loading) {
     if (area === "details") {
@@ -140,7 +146,9 @@ export function ChildMasterDataView({
   }
 
   if (error || !data || !features) {
-    return <Alert type="error" message={t("loadError")} />;
+    // Without data the error is the only content; the message arrives once
+    // the catalog has loaded.
+    return <LoadErrorAlert error={error} />;
   }
 
   return (
@@ -169,11 +177,12 @@ export function useChildMasterData(
   const [data, setData] = useState<ChildMasterData | null>(null);
   const [features, setFeatures] = useState<ChildFeatures | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const t = useTranslations("parentMasterData");
+  const { error, show, clear } = useApiLoadError();
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    clear();
     try {
       const [md, feats] = await Promise.all([
         getChildMasterData(studentId),
@@ -182,16 +191,23 @@ export function useChildMasterData(
       setData(md);
       setFeatures(feats);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
       logger.warn("child_master_data_load_failed", {
-        error: message,
+        error: err instanceof Error ? err.message : String(err),
         student_id: studentId,
       });
-      setError(message);
+      void show(err, {
+        object: t("errorObject"),
+        retry: () => void loadRef.current(),
+      });
     } finally {
       setLoading(false);
     }
-  }, [studentId]);
+  }, [clear, show, studentId, t]);
+  // The retry runs the latest load, not the one of the failed attempt.
+  const loadRef = useRef(load);
+  useLayoutEffect(() => {
+    loadRef.current = load;
+  });
 
   useEffect(() => {
     if (!enabled) return;
@@ -416,6 +432,9 @@ function IdentitySection({
       try {
         onApplied(await getChildMasterData(studentId));
       } catch (err) {
+        // Deliberately silent: the edit itself was saved and the dialog has
+        // confirmed it. This refresh only pulls the newest version in the
+        // background; the next page load shows it anyway.
         logger.warn("master_data_refresh_failed", {
           error: err instanceof Error ? err.message : String(err),
           student_id: studentId,
@@ -446,6 +465,8 @@ function IdentitySection({
     try {
       onApplied(await getChildMasterData(studentId));
     } catch (refreshErr) {
+      // Deliberately silent: the request was sent and is already shown as
+      // pending from the response. The refresh only fills in details.
       const refreshText =
         refreshErr instanceof Error ? refreshErr.message : String(refreshErr);
       logger.warn("master_data_request_refresh_failed", {
@@ -621,6 +642,11 @@ function DepartureSection({
   );
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [message, setMessage] = useState<string | null>(null);
+  const {
+    error: submitError,
+    show: showSubmitError,
+    clear: clearSubmitError,
+  } = useApiFormError();
   const [recipientIds, setRecipientIds] = useState<string[]>([]);
   const [requestSaved, setRequestSaved] = useState(false);
   const current = useMemo(
@@ -652,8 +678,9 @@ function DepartureSection({
     if (!changed && status === "error") {
       setStatus("idle");
       setMessage(null);
+      clearSubmitError();
     }
-  }, [changed, status]);
+  }, [changed, clearSubmitError, status]);
 
   useEffect(() => {
     const previous = departureBase.current;
@@ -682,6 +709,7 @@ function DepartureSection({
     if (!changed || !requestable) return;
     setStatus("saving");
     setMessage(null);
+    clearSubmitError();
     try {
       const submitted = await submitMasterDataRequest(
         studentId,
@@ -705,6 +733,8 @@ function DepartureSection({
         const next = await getChildMasterData(studentId);
         onApplied(next);
       } catch (refreshErr) {
+        // Deliberately silent: the request was sent and is already shown as
+        // pending from the response. The refresh only fills in details.
         const refreshText =
           refreshErr instanceof Error ? refreshErr.message : String(refreshErr);
         logger.warn("master_data_departure_request_refresh_failed", {
@@ -719,9 +749,17 @@ function DepartureSection({
         student_id: studentId,
       });
       setStatus("error");
-      setMessage(t("requestError"));
+      void showSubmitError(err, {
+        object: t("errorObjectRequest"),
+        retry: () => void submitRef.current(),
+      });
     }
   };
+  // The retry sends the latest selection, not the one of the failed attempt.
+  const submitRef = useRef(submit);
+  useLayoutEffect(() => {
+    submitRef.current = submit;
+  });
 
   return (
     <ParentSection
@@ -790,17 +828,11 @@ function DepartureSection({
           onChange={setRecipientIds}
         />
       )}
+      <FormErrorAlert message={submitError} />
       {features.master_data_request_enabled ? (
         <div className="flex flex-col-reverse items-stretch gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-end">
           {message && (
-            <span
-              role="status"
-              className={
-                status === "error"
-                  ? "text-moto-red-strong text-sm"
-                  : "text-moto-green-strong text-sm"
-              }
-            >
+            <span role="status" className="text-moto-green-strong text-sm">
               {message}
             </span>
           )}
@@ -844,6 +876,8 @@ function AutoSaveField({
   disabled?: boolean;
   onSave: (value: string) => Promise<void>;
 }>) {
+  const t = useTranslations("parentMasterData");
+  const { error: saveError, show: showSaveError, clear } = useApiFormError();
   const [local, setLocal] = useState(value);
   const [status, setStatus] = useState<SaveStatus>("idle");
   // Ungespeicherte Eingabe (Debounce läuft oder ein Speichern steht aus).
@@ -869,13 +903,15 @@ function AutoSaveField({
       inFlightValue.current === null
     ) {
       setStatus("saved");
+      clear();
     }
-  }, [value]);
+  }, [clear, value]);
 
   const doSave = useCallback(
     async (next: string) => {
       if (next === savedValue.current) {
         setStatus("idle");
+        clear();
         return;
       }
       if (inFlightValue.current === next) {
@@ -895,10 +931,14 @@ function AutoSaveField({
         if (latestValue.current === next) {
           setStatus("saved");
           setDirty(false);
+          clear();
         }
-      } catch {
+      } catch (err) {
         if (latestValue.current === next && next !== savedValue.current) {
           setStatus("error");
+          // The field's own "Erneut versuchen" sends the latest value, so the
+          // alert carries no second retry.
+          void showSaveError(err, { object: t("errorObjectChange") });
         }
       } finally {
         inFlightValue.current = null;
@@ -913,7 +953,7 @@ function AutoSaveField({
         }
       }
     },
-    [onSave],
+    [clear, onSave, showSaveError, t],
   );
 
   useReportFieldState(
@@ -936,6 +976,7 @@ function AutoSaveField({
     setLocal(next);
     latestValue.current = next;
     setStatus("idle");
+    clear();
     setDirty(next !== savedValue.current);
     if (timer.current) clearTimeout(timer.current);
     if (inFlightValue.current !== null) {
@@ -987,6 +1028,7 @@ function AutoSaveField({
           />
         )}
       </div>
+      <FormErrorAlert message={saveError} className="mt-2" />
     </div>
   );
 }
@@ -1004,6 +1046,8 @@ function AutoSaveSelect({
   disabled?: boolean;
   onSave: (value: string) => Promise<void>;
 }>) {
+  const t = useTranslations("parentMasterData");
+  const { error: saveError, show: showSaveError, clear } = useApiFormError();
   const [local, setLocal] = useState(value);
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [dirty, setDirty] = useState(false);
@@ -1027,13 +1071,15 @@ function AutoSaveSelect({
       inFlightValue.current === null
     ) {
       setStatus("saved");
+      clear();
     }
-  }, [value]);
+  }, [clear, value]);
 
   const doSave = useCallback(
     async (next: string) => {
       if (next === savedValue.current) {
         setStatus("idle");
+        clear();
         return;
       }
       if (inFlightValue.current === next) {
@@ -1053,10 +1099,14 @@ function AutoSaveSelect({
         if (latestValue.current === next) {
           setStatus("saved");
           setDirty(false);
+          clear();
         }
-      } catch {
+      } catch (err) {
         if (latestValue.current === next && next !== savedValue.current) {
           setStatus("error");
+          // The field's own "Erneut versuchen" sends the latest value, so the
+          // alert carries no second retry.
+          void showSaveError(err, { object: t("errorObjectChange") });
         }
       } finally {
         inFlightValue.current = null;
@@ -1071,7 +1121,7 @@ function AutoSaveSelect({
         }
       }
     },
-    [onSave],
+    [clear, onSave, showSaveError, t],
   );
 
   useReportFieldState(
@@ -1094,6 +1144,7 @@ function AutoSaveSelect({
     setLocal(next);
     latestValue.current = next;
     setStatus("idle");
+    clear();
     setDirty(next !== savedValue.current);
     void doSave(next);
   };
@@ -1113,6 +1164,7 @@ function AutoSaveSelect({
           onChange={handleChange}
         />
       </div>
+      <FormErrorAlert message={saveError} className="mt-2" />
     </div>
   );
 }
@@ -1234,7 +1286,6 @@ function SaveIndicator({
         className="text-moto-red-strong inline-flex flex-wrap items-center gap-1 text-xs font-medium"
       >
         <AlertCircle className="h-3 w-3" aria-hidden="true" />
-        {t("saveError")}
         {onRetry && (
           <Button
             type="button"

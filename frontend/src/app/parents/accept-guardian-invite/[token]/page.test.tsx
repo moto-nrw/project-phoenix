@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import deMessages from "~/i18n/messages/de.json";
+import { catalogText } from "~/test/error-catalog-text";
 
 const messages = {
   "guardianInvite.eyebrow": "Eltern-Portal",
@@ -8,9 +10,6 @@ const messages = {
   "guardianInvite.fallbackSchool": "deiner Schule",
   "guardianInvite.subtitle":
     "Bestätige deine Einladung für {school} und lege dein persönliches Passwort fest.",
-  "guardianInvite.errors.expired":
-    "Diese Einladung ist abgelaufen oder wurde bereits verwendet.",
-  "guardianInvite.contactOgs": "Kontaktieren Sie bitte Ihre OGS.",
   "guardianInvite.errorHelpBefore": "Du kannst dich über",
   "guardianInvite.startPage": "die Startseite",
   "guardianInvite.errorHelpAfter": "anmelden.",
@@ -69,11 +68,67 @@ describe("AcceptGuardianInvitePage", () => {
       }),
     );
 
-    const alert = screen.getByRole("alert");
+    // An uncoded 410 still means the invitation; its catalog text sends
+    // parents to their school (#2518).
+    const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(
-      "Diese Einladung ist abgelaufen oder wurde bereits verwendet.",
+      catalogText(
+        "identity.invitation_expired",
+        deMessages.guardianInvite.errorObject,
+      ),
     );
-    expect(alert).toHaveTextContent("Kontaktieren Sie bitte Ihre OGS.");
     expect(screen.queryByText(/moto-(Team|Support)/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the code the backend sends, not its sentence", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json(
+        {
+          code: "identity.invitation_not_found",
+          message: "invitation row 42 missing",
+        },
+        { status: 404 },
+      ),
+    );
+
+    render(
+      await AcceptGuardianInvitePage({
+        params: Promise.resolve({ token: "unknown-token" }),
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText(
+          "identity.invitation_not_found",
+          deMessages.guardianInvite.errorObject,
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/row 42/)).not.toBeInTheDocument();
+  });
+
+  it("offers a retry when the invitation service is unreachable", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(
+      new TypeError("fetch failed"),
+    );
+
+    render(
+      await AcceptGuardianInvitePage({
+        params: Promise.resolve({ token: "some-token" }),
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText(
+          "general.unavailable",
+          deMessages.guardianInvite.errorObject,
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Wiederholen" }),
+    ).toBeInTheDocument();
   });
 });

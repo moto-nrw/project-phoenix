@@ -1,7 +1,8 @@
 {
   "language": {
     "label": "Gjuha",
-    "saveError": "Gjuha nuk u ruajt në llogarinë tënde. Zgjedhja vlen në këtë pajisje."
+    "errorObject": "zgjedhja e gjuhës në llogarinë tuaj",
+    "savedOnDevice": "Për momentin gjuha vlen vetëm në këtë pajisje."
   },
   "datePicker": {
     "placeholder": "Zgjidhni datën",
@@ -92,7 +93,6 @@
     "emptyTitle": "Nuk ka plan ushqimi",
     "empty": "Plani i ushqimit nuk është aktivizuar aktualisht për shkollën tuaj.",
     "loading": "Plani i vakteve po ngarkohet",
-    "loadError": "Plani i ushqimit nuk mund të ngarkohej.",
     "emptyThisWeekTitle": "Për këtë javë ende nuk është futur asnjë plan ushqimi",
     "emptyNextWeekTitle": "Për javën tjetër ende nuk është futur asnjë plan ushqimi",
     "emptyWeek": "Sapo OGS-ja të vendosë një plan, do ta shihni këtu.",
@@ -108,8 +108,6 @@
     "participationCutoff": "Mund ta ndryshoni regjistrimin po atë ditë deri në orën {time}.",
     "participationSickness": "Një njoftim i konfirmuar për sëmundje deri në orën {time} e anulon drekën. Pas kësaj, regjistrimi mbetet i pandryshuar.",
     "participationLoading": "Regjistrimi për drekë po ngarkohet",
-    "participationError": "Regjistrimi për drekë nuk mund të ngarkohej ose ruhej. Ju lutemi provoni përsëri.",
-    "retry": "Provo përsëri",
     "regularDays": "Ditë të rregullta",
     "noRegularDays": "Asnjë ditë e rregullt",
     "allWeekdays": "Nga e hëna deri të premten",
@@ -136,7 +134,10 @@
     "closed": "Nuk mund të ndryshohet më",
     "register": "Regjistro",
     "unregister": "Çregjistro",
-    "useRegular": "Përdor regjistrimin e rregullt"
+    "useRegular": "Përdor regjistrimin e rregullt",
+    "errorObjectSchools": "përmbledhja e ushqimit",
+    "errorObjectWeek": "lista e ushqimeve për këtë javë",
+    "errorObjectParticipation": "regjistrimi për drekë"
   },
   "mealParticipantList": {
     "title": "Lista ditore për kuzhinën",
@@ -191,7 +192,6 @@
     "newsMessageFrom": "Mesazh nga {school}",
     "newsDeclarationFrom": "Pëlqim · {school}",
     "newsRead": "Lexuar",
-    "newsActionError": "Veprimi dështoi. Provoni përsëri.",
     "newsStaleError": "Ky njoftim nuk është më aktual. Ju lutemi, ringarkoni faqen.",
     "newsPoll": "Sondazh",
     "newsDeclaration": "Pëlqim",
@@ -217,13 +217,14 @@
     "newsAttachmentsHint": "Prekni emrin për ta hapur ose ruajtur skedarin.",
     "newsAttachmentsDownload": "Shkarko",
     "newsAttachmentsOpen": "Hap në shfletues",
-    "newsAttachmentsError": "Skedarët nuk mund të ngarkoheshin.",
-    "newsAttachmentsRetry": "Provoni përsëri",
     "newsClose": "Mbyll",
     "newsLetterBadge": "Kërkohet konfirmim",
     "newsReminder": "Kujtesë",
     "newsReminderFrom": "Kujtesë nga {date}",
-    "newsLetterBindingHint": "Ky e-mail është vetëm për informim. Vlen konfirmimi këtu në portalin e prindërve. Mjafton një person kujdestar për çdo fëmijë."
+    "newsLetterBindingHint": "Ky e-mail është vetëm për informim. Vlen konfirmimi këtu në portalin e prindërve. Mjafton një person kujdestar për çdo fëmijë.",
+    "newsErrorObjectAnswer": "përgjigjja",
+    "newsErrorObjectConfirmation": "konfirmimi i leximit",
+    "newsErrorObjectAttachments": "lista e skedarëve"
   },
   "parentDeclaration": {
     "sectionTitle": "Përgjigjja juaj",
@@ -292,30 +293,19 @@
     "saving": "Po ruhet …",
     "saved": "Përgjigjja juaj për {name} u ruajt.",
     "errors": {
-      "notFound": "Kjo kërkesë për pëlqim nuk është më e disponueshme. Lista po ngarkohet përsëri.",
-      "notPermitted": "Nuk mund të përgjigjeni për këtë fëmijë. Për pyetje kontaktoni OGS-në.",
-      "versionChanged": "Shkolla e ka ndryshuar tekstin. Ju lutemi lexojeni përsëri dhe pastaj përgjigjuni sërish.",
-      "closed": "Afati ka kaluar. Nuk mund të përgjigjeni më.",
-      "actionNotAllowed": "Kjo nuk është e mundur tani. Gjendja aktuale po ngarkohet përsëri.",
-      "careEnded": "Kujdesi për këtë fëmijë ka përfunduar. Nuk mund të përgjigjeni më.",
       "passwordRequired": "Ju lutemi shkruani fjalëkalimin.",
-      "passwordIncorrect": "Fjalëkalimi nuk është i saktë. Ju lutemi provoni përsëri.",
-      "tooMany": "Shumë përpjekje. Ju lutemi prisni pak dhe provoni përsëri.",
-      "uncertain": "Ndoshta nuk funksionoi. Gjendja po ngarkohet përsëri. Kontrollojeni dhe përgjigjuni përsëri nëse duhet.",
-      "generic": "Fatkeqësisht nuk funksionoi. Ju lutemi provoni përsëri."
-    }
+      "uncertainReload": "Gjendja aktuale po ngarkohet sërish. Ju lutemi kontrollojeni para se të përgjigjeni përsëri."
+    },
+    "errorObjectAnswer": "përgjigjja"
   },
   "parentDeclarationProof": {
     "title": "Vërtetimi i përgjigjes suaj",
     "back": "Kthehu te letrat për prindërit",
     "download": "Shkarko si PDF",
     "downloading": "Po krijohet …",
-    "downloadError": "PDF-ja nuk u krijua. Ju lutemi provoni përsëri.",
     "integrityOk": "Teksti dhe përgjigjet nuk kanë ndryshuar që nga publikimi.",
     "integrityBroken": "Kujdes: Një regjistrim i ruajtur u ndryshua më vonë. Ju lutemi kontaktoni OGS-në.",
     "notFound": "Për këtë fëmijë nuk ka ende vërtetim. Ai krijohet sapo t’i përgjigjeni një kërkese për pëlqim.",
-    "loadError": "Vërtetimi nuk u ngarkua. Ju lutemi provoni përsëri.",
-    "retry": "Provo përsëri",
     "generated": "Krijuar më {date}",
     "child": "Fëmija",
     "school": "Shkolla",
@@ -330,7 +320,9 @@
     "versionsTitle": "Teksti i shkollës",
     "versionHeading": "Versioni {version}, publikuar më {date}",
     "attachments": "Skedarët",
-    "note": "Ky vërtetim dokumenton një deklaratë të thjeshtë elektronike. Nuk zëvendëson një nënshkrim në letër kur ai kërkohet me ligj."
+    "note": "Ky vërtetim dokumenton një deklaratë të thjeshtë elektronike. Nuk zëvendëson një nënshkrim në letër kur ai kërkohet me ligj.",
+    "errorObjectProof": "dokumenti i vërtetimit",
+    "errorObjectPdf": "skedari PDF"
   },
   "parentNotificationSetup": {
     "title": "Mos humbisni asnjë mesazh të rëndësishëm",
@@ -375,11 +367,9 @@
     "enabledMessage": "Njoftimet janë aktive në këtë pajisje.",
     "disabledMessage": "Njoftimet janë joaktive në këtë pajisje.",
     "enableError": "Njoftimet nuk mund të aktivizoheshin. Provoni përsëri.",
-    "disableError": "Njoftimet nuk mund të çaktivizoheshin. Provoni përsëri.",
     "sendTest": "Dërgo njoftim provë",
     "testing": "Po dërgohet …",
     "testSent": "Njoftimi provë u dërgua.",
-    "testError": "Njoftimi provë nuk mund të dërgohej. Provoni përsëri.",
     "statusInstallLabel": "moto i hapur si aplikacion",
     "statusInstallYes": "Po",
     "statusInstallNo": "Jo",
@@ -395,7 +385,10 @@
     "installStepAndroid1": "Prekni tri pikat lart djathtas në shfletues.",
     "installStepAndroid2": "Zgjidhni „Instalo aplikacionin“ ose „Shto në ekranin kryesor“.",
     "installStepAndroid3": "Konfirmoni me „Instalo“. Pastaj hapni moto nga ikona e re.",
-    "installOutroAndroid": "Hapni sërish cilësimet brenda aplikacionit. Aty i ndizni njoftimet me një prekje."
+    "installOutroAndroid": "Hapni sërish cilësimet brenda aplikacionit. Aty i ndizni njoftimet me një prekje.",
+    "errorObjectEnable": "aktivizimi i njoftimeve",
+    "errorObjectDisable": "çaktivizimi i njoftimeve",
+    "errorObjectTest": "njoftimi provë"
   },
   "parentSettings": {
     "eyebrow": "Llogaria juaj",
@@ -430,9 +423,6 @@
     "enableAll": "Aktivizo të gjitha",
     "enablingAll": "Po aktivizohen ...",
     "disableAll": "Çaktivizo të gjitha",
-    "loadError": "Cilësimet nuk mund të ngarkoheshin.",
-    "saveError": "Cilësimi nuk mund të ruhej.",
-    "bulkError": "Cilësimet nuk mund të ndryshoheshin.",
     "tenantDisabled": "Shkolla juaj i ka çaktivizuar përkohësisht njoftimet. Zgjedhja juaj ruhet dhe zbatohet sapo shkolla t'i aktivizojë përsëri.",
     "typeUnavailable": "Aktualisht e çaktivizuar nga shkolla juaj.",
     "groups": {
@@ -465,7 +455,11 @@
         "label": "Kujdesi anulohet",
         "description": "Kur OGS-ja anulon një nga takimet e kujdesit të fëmijës suaj."
       }
-    }
+    },
+    "errorObjectList": "lista e njoftimeve",
+    "errorObjectType": "njoftimi „{name}“",
+    "errorObjectEnableAll": "aktivizimi i të gjitha njoftimeve",
+    "errorObjectDisableAll": "çaktivizimi i të gjitha njoftimeve"
   },
   "parentEnroll": {
     "errorObject": "lista e fazave të regjistrimit",
@@ -516,7 +510,6 @@
       "createContactIntro": "Ky kontakt ruhet për fëmijën tuaj dhe është i dukshëm për OGS. Nuk krijohet llogari dhe nuk dërgohet ftesë.",
       "relationshipLabel": "Lidhja me fëmijën",
       "emailDoesNotInvite": "Adresa e emailit shërben vetëm si kontakt. Qasjen në aplikacion mund ta jepni veçmas më vonë.",
-      "loadError": "Kontaktet nuk mund të ngarkoheshin.",
       "loading": "Duke u ngarkuar…",
       "empty": "Ende nuk ka kontakte.",
       "contactSaved": "Të dhënat e kontaktit u ruajtën.",
@@ -567,27 +560,12 @@
       "removePhone": "Hiq numrin e telefonit",
       "addPhone": "Shto numër",
       "nameRequired": "Emri dhe mbiemri janë të detyrueshëm.",
-      "contactSaveError": "Të dhënat e kontaktit nuk mund të ruheshin.",
-      "pickupSaveError": "Të dhënat e marrjes nuk mund të ruheshin.",
       "canPickupLabel": "Mund ta marrë",
       "canPickupDescription": "Ky person lejohet ta marrë fëmijën.",
       "emergencyLabel": "Kontakt emergjence",
       "emergencyDescription": "Do të kontaktohet në rast emergjence.",
       "pickupNotes": "Shënim për marrjen",
       "pickupNotesPlaceholder": "p.sh. Vjen me biçikletë",
-      "errors": {
-        "contactInvalid": "Ju lutemi kontrolloni të dhënat e kontaktit.",
-        "relationshipInvalid": "Ju lutemi kontrolloni të dhënat e marrjes.",
-        "emailConflict": "Kjo adresë e-mail përdoret tashmë për një kontakt tjetër.",
-        "hasOwnAccount": "Ky person i menaxhon të dhënat e kontaktit përmes llogarisë së vet prindërore.",
-        "sharedAcrossFamilies": "Ky kontakt përdoret nga disa familje dhe mund të ndryshohet vetëm nga shkolla.",
-        "notLinked": "Ky kontakt nuk i përket këtij fëmije.",
-        "permissionDenied": "Nuk keni leje për këtë ndryshim.",
-        "noChange": "Nuk u dërgua asnjë ndryshim.",
-        "socialWorkerManaged": "Këto të dhëna kontakti menaxhohen nga shkolla.",
-        "roleManaged": "Ky person është kujdestar ligjor dhe mund të ndryshohet vetëm nga vetë ai ose nga shkolla.",
-        "managementDisabled": "Menaxhimi i kontakteve është çaktivizuar për këtë shkollë."
-      },
       "access": {
         "title": "Llogaritë e lidhura",
         "description": "Kush ka qasje te ky fëmijë në aplikacionin e prindërve.",
@@ -606,7 +584,6 @@
         "invitePending": "Kërkesa juaj është te OGS. Ata do ta shqyrtojnë.",
         "inviteSent": "Ftesa u dërgua te {email}.",
         "inviteLinked": "Personi tani është i lidhur.",
-        "inviteError": "Ftesa nuk mundi të dërgohej.",
         "grant": "Jepni qasje",
         "grantTitle": "Të jepet qasje e plotë?",
         "grantBody": "{name} ka një llogari, por ende nuk ka qasje te ky fëmijë. Me konfirmimin tuaj shkon një kërkesë te OGS. Pas miratimit ky person sheh gjithçka për fëmijën tuaj.",
@@ -614,14 +591,19 @@
         "remove": "Hiqni qasjen",
         "removeConfirm": "Po, hiqni qasjen",
         "removed": "Qasja u hoq.",
-        "removeError": "Qasja nuk mundi të hiqej.",
         "status": {
           "active": "Ka qasje në aplikacion",
           "pending": "Ftesa është nisur",
           "no_account": "Kontakt pa qasje në aplikacion",
           "active_no_access": "Ka llogari, por ende pa qasje te ky fëmijë"
         }
-      }
+      },
+      "errorObjectContacts": "lista e kontakteve",
+      "errorObjectAccounts": "lista e llogarive të lidhura",
+      "errorObjectInvite": "ftesa",
+      "errorObjectRemove": "qasja për këtë llogari",
+      "errorObjectContact": "ndryshimi i kontaktit",
+      "errorObjectPickup": "rregullimi i marrjes"
     },
     "back": "Kthehu te Fëmijët e mi",
     "today": {
@@ -669,7 +651,6 @@
       "reasonLabel": "Njoftim për OGS-në",
       "reasonPlaceholder": "p.sh. temperaturë, takim te dentisti",
       "invalidDate": "Ju lutemi zgjidhni një datë të vlefshme. Data e fundit nuk duhet të jetë para datës së parë.",
-      "saveError": "Mungesa nuk u ruajt dot.",
       "submittedButRefreshFailed": "Mungesa u dërgua, por nuk mund të shfaqej. Ju lutemi rifreskoni faqen.",
       "overlapError": "Për një nga këto ditë ekziston tashmë një kërkesë mungese e hapur.",
       "submit": "Dërgoni njoftimin e sëmundjes",
@@ -678,7 +659,8 @@
       "reasonLabelRequired": "Arsyeja / njoftimi për OGS-në",
       "reasonRequiredError": "Shkruani një njoftim të shkurtër për OGS-në.",
       "requestSentTitle": "Kërkesa u dërgua",
-      "requestSentBody": "OGS-ja duhet ta konfirmojë mungesën. Deri atëherë, fëmija juaj pritet të vijë."
+      "requestSentBody": "OGS-ja duhet ta konfirmojë mungesën. Deri atëherë, fëmija juaj pritet të vijë.",
+      "errorObject": "njoftimi i mungesës"
     },
     "summary": {
       "none": "Asnjë mungesë",
@@ -701,7 +683,6 @@
       "reasonPlaceholder": "Për shembull, takim te mjeku ose marrje nga gjyshërit",
       "reasonRequired": "Ju lutemi shkruani shkurt pse ndryshon marrja.",
       "reasonTooLong": "Arsyeja mund të ketë maksimumi 255 karaktere.",
-      "saveError": "Ndryshimi nuk mund të ruhej.",
       "loadError": "Oraret e ruajtura aktuale nuk mund të ngarkoheshin. Ju lutemi ringarkoni faqen dhe provoni përsëri.",
       "errorDisabled": "Ndryshimi i orarit të marrjes nuk është aktivizuar për këtë institucion.",
       "errorStaffConflict": "Institucioni ka caktuar tashmë orare të veçanta për këtë ditë. Ju lutemi kontaktoni ekipin.",
@@ -731,7 +712,8 @@
       "statusApproved": "U konfirmua, orari i ri i marrjes u ruajt.",
       "statusRejected": "U refuzua: {reason}",
       "noDecisionReason": "Nuk u dha arsye",
-      "submit": "Dërgo kërkesën"
+      "submit": "Dërgo kërkesën",
+      "errorObject": "ora e marrjes"
     },
     "actions": {
       "sick": {
@@ -768,13 +750,10 @@
     "fromStaffBanner": "Llogaritë e prindërve hyjnë këtu. Ju lutemi shkruani përsëri fjalëkalimin tuaj.",
     "staffLoginLink": "Shko te hyrja e shkollës",
     "errors": {
-      "accountInactive": "Llogaria juaj është çaktivizuar. Ju lutemi kontaktoni shkollën.",
       "rateLimited": "Shumë përpjekje hyrjeje. Ju lutemi provoni më vonë.",
-      "invalidCredentials": "Hyrja nuk është e mundur. Kontrolloni të dhënat tuaja.",
-      "notAGuardian": "Kjo llogari i përket personelit të shkollës. Ju lutemi përdorni hyrjen e shkollës.",
-      "invalid": "Të dhëna hyrjeje të pavlefshme",
-      "generic": "Gabim gjatë hyrjes. Ju lutemi provoni përsëri."
-    }
+      "notAGuardian": "Kjo llogari i përket personelit të shkollës. Ju lutemi përdorni hyrjen e shkollës."
+    },
+    "errorObject": "hyrja"
   },
   "parentPasswordResetModal": {
     "title": "Rivendos fjalëkalimin",
@@ -787,20 +766,13 @@
     "successMessage": "Ju kemi dërguar një e-mail me një lidhje për të rivendosur fjalëkalimin.",
     "successHint": "Ju lutemi kontrolloni kutinë hyrëse dhe ndiqni udhëzimet në e-mail.",
     "close": "Mbyll",
-    "errors": {
-      "rateLimited": "Shumë përpjekje. Ju lutemi provoni përsëri pas {countdown}.",
-      "generic": "Ndodhi një gabim. Ju lutemi provoni përsëri."
-    }
+    "errorObject": "dërgimi i lidhjes",
+    "rateLimitWait": "Mund të kërkoni një lidhje të re pas {countdown}."
   },
   "parentPasswordResetPage": {
     "backToLogin": "Kthehu te hyrja",
     "errors": {
-      "missingToken": "Tokeni i rivendosjes është i pavlefshëm ose mungon. Ju lutemi kërkoni një lidhje të re.",
-      "invalidToken": "Token i pavlefshëm për rivendosje.",
-      "generic": "Ndodhi një gabim. Ju lutemi provoni përsëri.",
-      "invalidRequest": "Kontrolloni lidhjen dhe kërkesat e fjalëkalimit, pastaj provoni përsëri.",
-      "expired": "Kjo lidhje për rivendosjen e fjalëkalimit ka skaduar. Ju lutemi kërkoni një lidhje të re.",
-      "notFound": "Nuk mundëm ta gjenim këtë lidhje për rivendosjen e fjalëkalimit. Ju lutemi kërkoni një lidhje të re."
+      "missingToken": "Lidhja nuk është e plotë. Ju lutemi kërkoni një lidhje të re."
     },
     "validation": {
       "tooShort": "Fjalëkalimi duhet të ketë të paktën 8 karaktere.",
@@ -833,7 +805,8 @@
       "mixedCase": "Shkronja të mëdha dhe të vogla",
       "number": "Të paktën një numër",
       "special": "Të paktën një karakter special"
-    }
+    },
+    "errorObject": "rivendosja e fjalëkalimit"
   },
   "guardianInvite": {
     "eyebrow": "Portali i prindërve",
@@ -843,23 +816,9 @@
     "errorHelpBefore": "Mund të kërkoni një ftesë të re nga shkolla ose të hyni përmes",
     "startPage": "faqes fillestare",
     "errorHelpAfter": ".",
-    "contactOgs": "Ju lutemi kontaktoni OGS-në tuaj.",
-    "errors": {
-      "expired": "Kjo ftesë ka skaduar ose është përdorur tashmë.",
-      "notFound": "Nuk mundëm ta gjenim këtë ftesë.",
-      "load": "Ndodhi një gabim gjatë ngarkimit të ftesës.",
-      "incomplete": "Të dhënat e ftesës janë të paplota. Ju lutemi kërkoni një ftesë të re.",
-      "missingToken": "Nuk u dha token ftese."
-    },
     "formErrors": {
-      "expired": "Kjo ftesë nuk është më e vlefshme. Ju lutemi kërkoni një ftesë të re nga shkolla.",
-      "notFound": "Ftesa nuk u gjet.",
-      "conflict": "Për këtë e-mail ekziston tashmë një llogari. Hyni direkt ose kontaktoni mbështetjen.",
-      "invalid": "Të dhëna të pavlefshme. Ju lutemi kontrolloni formularin.",
-      "generic": "Ndodhi një gabim gjatë pranimit të ftesës.",
       "passwordRules": "Fjalëkalimi ende nuk i plotëson të gjitha kërkesat e sigurisë.",
-      "passwordMismatch": "Fjalëkalimet nuk përputhen.",
-      "offline": "Nuk ka lidhje rrjeti. Kontrolloni lidhjen e internetit dhe provoni përsëri."
+      "passwordMismatch": "Fjalëkalimet nuk përputhen."
     },
     "acceptedTitle": "Llogaria u krijua",
     "acceptedText": "Ju lutemi hyni me të dhënat tuaja të reja.",
@@ -877,7 +836,8 @@
       "2": "Një shkronjë e vogël",
       "3": "Një numër",
       "4": "Një karakter special"
-    }
+    },
+    "errorObject": "ftesa"
   },
   "enrollmentPublic": {
     "errorObjectPhases": "lista e fazave të regjistrimit",
@@ -1374,12 +1334,11 @@
     "reasonLabel": "Arsyeja / shënim për shkollën",
     "reasonRequired": "Ju lutemi shkruani një shënim të shkurtër për shkollën.",
     "valueRequired": "Ju lutemi shkruani një vlerë.",
-    "saveError": "Fatkeqësisht nuk funksionoi. Ju lutemi provoni përsëri.",
-    "staleError": "Kërkesa ka ndryshuar ndërkohë. Ju lutemi rifreskoni faqen.",
     "submit": "Ruaj ndryshimin",
     "saving": "Po ruhet …",
     "cancel": "Anulo",
-    "close": "Mbyll dritaren"
+    "close": "Mbyll dritaren",
+    "errorObject": "kërkesa"
   },
   "parentRequestSharing": {
     "button": "Ndaje kërkesën",
@@ -1389,20 +1348,19 @@
     "protected": "Kjo kërkesë mbetet private. Shkolla ka aktivizuar mbrojtjen e familjes.",
     "noRecipients": "Nuk ka kujdestarë të tjerë me qasje në aplikacionin e prindërve.",
     "loading": "Po ngarkohen marrësit …",
-    "error": "Marrësit nuk mund të ngarkoheshin.",
-    "optionsError": "Marrësit nuk mund të ngarkoheshin. Mund ta dërgoni kërkesën gjithsesi dhe ta ndani më vonë.",
     "save": "Ruaj zgjedhjen",
     "saving": "Po ruhet …",
     "cancel": "Anulo",
-    "close": "Mbyll dritaren"
+    "close": "Mbyll dritaren",
+    "errorObjectRecipients": "lista e marrësve",
+    "errorObjectSelection": "zgjedhja",
+    "optionsHint": "Mund ta dërgoni kërkesën gjithsesi dhe ta ndani më vonë."
   },
   "parentMasterData": {
     "title": "Të dhënat dhe përkujdesja",
     "subtitle": "Kontrolloni të dhënat e fëmijës dhe ofertat e rezervuara të përkujdesjes. Ndryshimet që kërkojnë miratim shënohen qartë.",
     "back": "Mbrapa",
-    "loadError": "Të dhënat nuk mund të ngarkoheshin. Rifreskoni faqen.",
     "saved": "U ruajt",
-    "saveError": "Ndryshimi nuk mund të ruhej.",
     "editableHint": "Ndryshimet ruhen automatikisht.",
     "unsaved": {
       "title": "Ndryshime të paruajtura",
@@ -1421,7 +1379,6 @@
     "departureReadOnlyAccompanied": "Fëmija juaj shkon në shtëpi me një fëmijë tjetër të paktën një ditë. Këtu nuk mund ta ndryshoni rrugën për në shtëpi.",
     "requestButton": "Kërko ndryshim",
     "requestSubmitted": "Kërkesa u dërgua. Ekipi do ta kontrollojë ndryshimin.",
-    "requestError": "Kërkesa nuk mund të dërgohej.",
     "requestEdit": "Ndrysho kërkesën",
     "pendingBadge": "Në shqyrtim",
     "pendingNotice": "Një ndryshim në këtë fushë pret konfirmimin e ekipit.",
@@ -1486,7 +1443,6 @@
     },
     "careOfferings": {
       "hint": "Këto oferta përkujdesjeje janë rezervuar për fëmijën tuaj. Ekipi i shqyrton ndryshimet para se të hyjnë në fuqi.",
-      "loadError": "Përkujdesja e rezervuar nuk mund të ngarkohej. Rifreskoni faqen.",
       "period": "Periudha e përkujdesjes {name} ({from} deri më {until})",
       "offeringsTitle": "Kujdesi i rezervuar",
       "offeringsDescription": "Këtu shihni të dhëna të tjera për kujdesin, si dreka ose kujdesi gjatë pushimeve.",
@@ -1528,7 +1484,8 @@
       "autoAddedDaysWithTrigger": "Rezervohet automatikisht: {days}, sepse është zgjedhur {trigger}.",
       "decisionApplied": "Kjo u ndryshua:",
       "decisionConsidered": "Ndryshimi i kërkuar:",
-      "decisionOverridden": "Ekipi i kujdesit nuk e rezervoi {names}."
+      "decisionOverridden": "Ekipi i kujdesit nuk e rezervoi {names}.",
+      "errorObject": "kujdesi i rezervuar"
     },
     "careOfferingsModal": {
       "title": "Kërko ndryshim të përkujdesjes së rezervuar",
@@ -1539,7 +1496,6 @@
       "noteRequired": "Shkruani shkurt pse duhet të ndryshojë përkujdesja.",
       "staleError": "Kërkesa ka ndryshuar ndërkohë. Ju lutemi rifreskoni faqen.",
       "intro": "Zgjidhni cilat oferta duhet të ndjekë fëmija dhe nga cila datë. Ekipi do ta shqyrtojë kërkesën.",
-      "loadError": "Ofertat e disponueshme nuk mund të ngarkoheshin.",
       "noOfferings": "Nuk ka oferta përkujdesjeje për këtë periudhë.",
       "effectiveFromLabel": "Ndryshimi vlen nga",
       "effectiveFromHint": "Jo më herët se {date}. Zgjidhni një datë brenda një periudhe të konfirmuar përkujdesjeje.",
@@ -1554,13 +1510,14 @@
       "cancel": "Anulo",
       "noChange": "Zgjedhja juaj përputhet me rezervimin aktual. Ndryshoni diçka për të dërguar kërkesën.",
       "noDaysSelected": "Zgjidhni të paktën një ditë për çdo ofertë të zgjedhur.",
-      "submitError": "Kërkesa nuk mund të dërgohej.",
-      "capacityFull": "Një nga ofertat e zgjedhura nuk ka më vende të lira.",
+      "capacityFull": "Një nga ofertat e zgjedhura nuk ka më vende të lira. Ju lutemi zgjidhni një ofertë tjetër ose kontaktoni shkollën.",
       "alreadyPending": "Ka tashmë një kërkesë për fëmijën tuaj. Prisni shqyrtimin e saj.",
       "withdrawalConfirmTitle": "Të çregjistrohet plotësisht nga përkujdesja?",
       "withdrawalConfirmBody": "Pas kësaj, {name} nuk do të ketë asnjë ditë përkujdesjeje të rezervuar. Dëshironi vërtet ta dërgoni këtë kërkesë?",
       "withdrawalConfirmBack": "Kthehu",
-      "withdrawalConfirmSubmit": "Dërgo kërkesën"
+      "withdrawalConfirmSubmit": "Dërgo kërkesën",
+      "errorObjectCatalog": "lista e ofertave",
+      "errorObjectRequest": "kërkesa për ndryshim"
     },
     "weekdayShort": {
       "1": "Hën",
@@ -1591,14 +1548,14 @@
       "otherRequest": "Ju keni tashmë një kërkesë të hapur për kujdesin. Ju lutemi prisni përgjigjen.",
       "needsEnrollment": "Kurset mund t'i kërkoni sapo fëmija juaj të jetë regjistruar.",
       "noCourses": "Për momentin nuk ka kurse.",
-      "loadError": "Kurset nuk u ngarkuan dot.",
-      "actionError": "Fatkeqësisht nuk funksionoi. Ju lutemi provoni sërish."
+      "errorObjectList": "lista e kurseve",
+      "errorObjectRequest": "kërkesa për kursin",
+      "errorObjectWithdraw": "tërheqja e kërkesës për kursin"
     },
     "careSchedule": {
       "arrival": "Ora e mbërritjes",
       "pickup": "Ora e marrjes",
       "modes": "Mënyra e marrjes",
-      "loadError": "Oraret e kujdesit nuk mund të ngarkoheshin. Ju lutemi përditësoni faqen.",
       "readOnlyNotice": "Planin javor nuk mund ta ndryshoni këtu. Ndryshimet e ofertave të rezervuara janë në pjesën tjetër.",
       "noPermissionNotice": "Këtu nuk mund të kërkoni ndryshim. Ju lutemi pyesni OGS-në.",
       "requestButton": "Kërko ndryshime",
@@ -1612,11 +1569,9 @@
       "cancel": "Anulo",
       "requestNoChange": "Ndryshoni të paktën një ditë kujdesi, orë ose mënyrë marrjeje.",
       "requestMissingPlan": "Zgjidhni orën dhe mënyrën e marrjes për ditët e reja të kujdesit.",
-      "requestError": "Kërkesa nuk mund të dërgohej.",
       "requestAlreadyPending": "Një ndryshim për këtë fëmijë është tashmë në shqyrtim.",
       "requestDisabled": "Ky ndryshim nuk është aktivizuar nga OGS-ja juaj.",
       "requestBookingLed": "OGS-ja juaj nuk pranon kërkesa për planin javor. Ndryshimet bëhen përmes ofertave të rezervuara.",
-      "requestInvalid": "Kontrolloni ditët e kujdesit, oraret dhe mënyrat e marrjes.",
       "modeUnchanged": "Mënyra e marrjes pa ndryshim",
       "modeCurrent": "Aktualisht: {modes}",
       "careDay": "Kujdes në këtë ditë",
@@ -1637,8 +1592,14 @@
       "timeExample": "p.sh. 15:30",
       "pendingBadge": "Në shqyrtim",
       "pendingNotice": "OGS-ja po shqyrton ndryshimin. Plani aktual javor mbetet në fuqi deri në miratim.",
-      "requestedAt": "Kërkuar më {date}"
-    }
+      "requestedAt": "Kërkuar më {date}",
+      "errorObject": "lista e orareve të kujdesit",
+      "requestErrorObject": "kërkesa për planin javor"
+    },
+    "errorObject": "përmbledhja e të dhënave",
+    "errorObjectChange": "ndryshimi",
+    "errorObjectRequest": "kërkesa",
+    "errorNoEnrollment": "Fëmija juaj nuk ka më një regjistrim të vlefshëm. Ju lutemi kontaktoni shkollën."
   },
   "parentOgsMessaging": {
     "readByStaff": "Lexuar",
@@ -1762,15 +1723,15 @@
       "ackContext": "Kërkohet konfirmim · {school}",
       "appointmentContext": "Takim për {name}",
       "appointmentContextPlain": "Takim",
-      "partialLoadError": "Disa zëra nuk u ngarkuan dot për momentin.",
       "showMoreOne": "Shfaq edhe një pikë",
       "showMoreMany": "Shfaq edhe {count} pika",
       "showLess": "Shfaq më pak",
-      "loading": "Po ngarkohen detyrat"
+      "loading": "Po ngarkohen detyrat",
+      "errorObject": "lista e plotë e detyrave"
     },
     "childrenLoading": "Po ngarkohen të dhënat e fëmijëve",
-    "loadError": "Përmbledhja juaj nuk u ngarkua dot për momentin. Ju lutemi provoni më vonë.",
-    "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. OGS-ja e shkollës suaj mund ta rregullojë këtë."
+    "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. OGS-ja e shkollës suaj mund ta rregullojë këtë.",
+    "errorObject": "përmbledhja e fëmijëve tuaj"
   },
   "parentChild": {
     "switcherLabel": "Zgjidhni fëmijën",
@@ -1781,8 +1742,7 @@
       "title": "Kujdesi ka përfunduar",
       "body": "Fëmija juaj nuk kujdeset më në këtë shkollë. Gjithçka e mëparshme mund ta shihni ende. Njoftime të reja nuk janë më të mundura."
     },
-    "loadError": "Të dhënat e fëmijës suaj nuk u ngarkuan dot për momentin. Ju lutemi provoni më vonë.",
-    "notFound": "Në këtë adresë nuk ka asnjë fëmijë në llogarinë tuaj.",
+    "notFound": "Në këtë adresë nuk ka asnjë fëmijë në llogarinë tuaj. Ju lutemi zgjidhni fëmijën tuaj te përmbledhja.",
     "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. OGS-ja e shkollës suaj mund ta rregullojë këtë.",
     "sections": {
       "today": "Sot",
@@ -1853,9 +1813,6 @@
       "cancel": "Anulo",
       "close": "Mbyll dialogun",
       "success": "Pëlqimi për fotografinë u tërhoq. Nëse kishte një fotografi të ruajtur, ajo u fshi.",
-      "loadError": "Pëlqimet nuk mund të ngarkoheshin. Ju lutemi provoni përsëri.",
-      "retry": "Provo përsëri",
-      "withdrawError": "Pëlqimi për fotografinë nuk mund të tërhiqej. Ju lutemi provoni përsëri.",
       "grantButton": "Jep përsëri pëlqimin për fotografinë",
       "grantButtonShort": "Jep përsëri",
       "grantConfirmTitle": "Të jepet përsëri pëlqimi për fotografinë?",
@@ -1863,14 +1820,16 @@
       "grantConfirmButton": "Jep pëlqimin",
       "granting": "Po ruhet",
       "grantSuccess": "Pëlqimi për fotografinë u dha përsëri.",
-      "grantError": "Pëlqimi për fotografinë nuk mund të ruhej. Ju lutemi provoni përsëri."
-    }
+      "errorObjectList": "lista e pëlqimeve",
+      "errorObjectPhoto": "pëlqimi për fotografinë"
+    },
+    "errorObject": "lista e fëmijëve tuaj",
+    "errorObjectCare": "përmbledhja e kujdesit"
   },
   "parentMessages": {
     "kicker": "Komunikimi me OGS-në",
     "title": "Mesazhet",
     "description": "Lexoni mesazhet dhe shkruajini drejtpërdrejt OGS-së.",
-    "loadError": "Mesazhet nuk u ngarkuan dot për momentin. Ju lutemi provoni më vonë.",
     "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. Sapo të lidhet një fëmijë, mund t'i shkruani OGS-së këtu.",
     "noMessagesYet": "Prekni për të shkruar.",
     "previewFromOgs": "OGS: {text}",
@@ -1887,16 +1846,14 @@
     "writingDisabled": "Për këtë fëmijë nuk mund të shkruani. Historikun mund ta lexoni ende.",
     "emptyThreadTitle": "Ende asnjë mesazh",
     "emptyThreadDescription": "Shkruani mesazhin e parë për OGS-në.",
-    "sendError": "Mesazhi nuk mund të dërgohej.",
-    "sessionExpired": "Seanca juaj ka përfunduar. Hyni përsëri.",
-    "permissionDenied": "Nuk keni leje të dërgoni mesazh për këtë fëmijë.",
-    "invalidRequest": "Mesazhi nuk mund të përpunohej. Kontrolloni të dhënat."
+    "errorObjectConversation": "biseda",
+    "errorObjectMessage": "mesazhi",
+    "errorObjectList": "lista e bisedave"
   },
   "parentCalendar": {
     "kicker": "Terminet me një vështrim",
     "title": "Kalendari",
     "description": "Terminet dhe aktivitetet e fëmijëve tuaj me një vështrim.",
-    "loadError": "Takimet nuk u ngarkuan dot për momentin. Ju lutemi provoni më vonë.",
     "empty": "Nuk ka takime në 3 muajt e ardhshëm.",
     "groups": {
       "thisWeek": "Këtë javë",
@@ -1917,7 +1874,6 @@
     "declined": "Takimi u refuzua.",
     "answeredAccepted": "Pranuar",
     "answeredDeclined": "Refuzuar",
-    "respondError": "Përgjigja juaj nuk u ruajt dot. Ju lutemi provoni sërish.",
     "cancelledByOgs": "Anuluar nga OGS",
     "previousMonth": "Muaji i mëparshëm",
     "nextMonth": "Muaji tjetër",
@@ -1933,7 +1889,9 @@
       "5": "Pre",
       "6": "Sht",
       "7": "Die"
-    }
+    },
+    "errorObjectList": "lista e takimeve",
+    "errorObjectResponse": "përgjigjja"
   },
   "parentCalendarSubscribe": {
     "title": "Abononi kalendarin",
@@ -1982,7 +1940,8 @@
     "empty": "Për momentin nuk ka letra të reja për prindërit.",
     "open": "Të hapura",
     "openLabel": "Të hapura, {count}",
-    "completed": "Të përfunduara"
+    "completed": "Të përfunduara",
+    "errorObjectList": "lista e letrave për prindërit"
   },
   "errorCatalog": {
     "classes": {
@@ -1999,72 +1958,72 @@
       "care": {
         "announcement_ack_not_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "announcement_not_a_poll": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "announcement_stale": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "announcement_stale": "Ndërkohë është ndryshuar: {object}. Ju lutemi ringarkoni faqen.",
         "cannot_remove_own_access": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "care_exception_already_left": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "care_exception_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "care_exception_conflict": "Ndërkohë është ndryshuar: {object}. Kontrolloni përsëri të dhënat tuaja.",
         "care_exception_no_time": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "care_exception_past_date": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "care_exception_reason_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "care_exception_past_date": "Data është në të kaluarën: {object}. Zgjidhni një datë tjetër.",
+        "care_exception_reason_required": "Mungon një e dhënë: {object}. Plotësoni fushën e shënuar.",
         "care_exception_reason_too_long": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "care_exception_too_far": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "care_request_already_pending": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "care_request_already_pending": "Ka tashmë një kërkesë për: {object}. Kontrolloni gjendjen aktuale.",
         "care_request_bookings_authoritative": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "care_request_field_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "child_care_ended": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "care_request_field_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+        "child_care_ended": "Kujdesi për këtë fëmijë ka përfunduar. Ndryshimet nuk janë më të mundshme. Për pyetje kontaktoni OGS-në.",
         "child_not_linked": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "course_already_booked": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "course_request_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "course_request_invalid": "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
         "course_request_not_own": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "course_requests_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "declaration_action_not_allowed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "declaration_closed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "declaration_not_permitted": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "course_requests_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+        "declaration_action_not_allowed": "Kjo nuk është e mundur tani. Ju lutemi ringarkoni faqen dhe kontrolloni gjendjen aktuale.",
+        "declaration_closed": "Afati ka kaluar. Nuk mund të përgjigjeni më. Për pyetje kontaktoni OGS-në.",
+        "declaration_not_permitted": "Nuk mund të përgjigjeni për këtë fëmijë. Për pyetje kontaktoni OGS-në.",
         "declaration_password_incorrect": "Fjalëkalimi nuk është i saktë. Ju lutemi provoni përsëri.",
         "declaration_password_required": "Ju lutemi shkruani fjalëkalimin.",
-        "declaration_version_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "excused_request_not_pending": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "excused_request_overlap": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "declaration_version_changed": "Shkolla e ka ndryshuar tekstin. Ju lutemi lexojeni përsëri dhe pastaj përgjigjuni sërish.",
+        "excused_request_not_pending": "Nuk është më i hapur: {object}. Ju lutemi ringarkoni faqen.",
+        "excused_request_overlap": "Oraret mbivendosen: {object}. Kontrolloni të dhënat.",
         "family_protection": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "guardian_contact_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "guardian_email_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "guardian_has_own_account": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "guardian_management_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "guardian_no_change": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "guardian_not_linked": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "guardian_contact_invalid": "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
+        "guardian_email_conflict": "Kjo adresë e-maili përdoret tashmë. Kontrolloni adresën.",
+        "guardian_has_own_account": "Ky person i menaxhon të dhënat e kontaktit përmes llogarisë së vet prindërore. Ai mund t'i ndryshojë vetë të dhënat atje.",
+        "guardian_management_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+        "guardian_no_change": "Nuk u ndryshua asgjë. Kontrolloni të dhënat tuaja.",
+        "guardian_not_linked": "Ky kontakt nuk i përket këtij fëmije. Ju lutemi ringarkoni faqen.",
         "guardian_permission_denied": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "guardian_relationship_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "guardian_role_managed": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "guardian_shared_across_families": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "guardian_social_worker_managed": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "guardian_relationship_invalid": "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
+        "guardian_role_managed": "Ky person është kujdestar ligjor. Të dhënat e tij mund t'i ndryshojë vetëm vetë ai ose shkolla.",
+        "guardian_shared_across_families": "Ky kontakt përdoret nga disa familje dhe mund të ndryshohet vetëm nga shkolla. Kontaktoni shkollën.",
+        "guardian_social_worker_managed": "Këto të dhëna kontakti menaxhohen nga shkolla. Për ndryshime kontaktoni shkollën.",
         "invalid_credentials": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "invalid_poll_response": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "invalid_recipients": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "invalid_request_payload": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "invite_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "invalid_poll_response": "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
+        "invalid_recipients": "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
+        "invalid_request_payload": "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
+        "invite_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
         "master_data_duplicate_pending": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "master_data_edit_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "master_data_edit_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
         "master_data_field_not_editable": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "master_data_invalid_value": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "master_data_no_changes": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "master_data_request_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "master_data_invalid_value": "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
+        "master_data_no_changes": "Nuk u ndryshua asgjë: {object}. Kontrolloni të dhënat tuaja.",
+        "master_data_request_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
         "not_a_guardian": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "notes_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "offering_change_already_pending": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "notes_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+        "offering_change_already_pending": "Ka tashmë një kërkesë për: {object}. Kontrolloni gjendjen aktuale.",
         "offering_change_forbidden": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "offering_change_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "offering_changes_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "offering_change_invalid": "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
+        "offering_changes_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
         "payer_guardian_protected": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "photo_consent_not_withdrawn": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "pickup_change_cutoff_passed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "pickup_change_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "poll_closed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "pickup_change_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+        "poll_closed": "Nuk është më i hapur: {object}. Pyetni personin tuaj të kontaktit.",
         "primary_guardian_protected": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "remove_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "request_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "request_not_open": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "request_sharing_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "sick_note_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "remove_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+        "request_not_found": "Nuk u gjet: {object}. Ju lutemi ringarkoni faqen.",
+        "request_not_open": "Nuk është më i hapur: {object}. Pyetni personin tuaj të kontaktit.",
+        "request_sharing_invalid": "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
+        "sick_note_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
         "staff_managed_guardian_protected": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       },
       "classday": {
@@ -2109,9 +2068,9 @@
         "care_offering_selection_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "care_offering_template_period_mismatch": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "care_offering_unavailable": "Një ofertë e zgjedhur nuk ofrohet për klasën e fëmijës. Kontrolloni klasën dhe zgjedhjen.",
-        "care_offerings_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "care_offerings_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
         "change_request_child_locked": "Ky fëmijë është tashmë në kujdes. Ju lutemi bëni ndryshimet në aplikacionin për prindër.",
-        "change_request_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "change_request_conflict": "Ndërkohë është ndryshuar: {object}. Kontrolloni përsëri të dhënat tuaja.",
         "change_request_guardian_linked": "Ju lutemi ndryshoni këto të dhëna në aplikacionin për prindër.",
         "change_request_not_allowed": "Ky regjistrim nuk mund të ndryshohet tani. Ju lutemi kontaktoni shkollën.",
         "change_request_not_found": "Kjo kërkesë për ndryshim nuk ekziston më. Ju lutemi ringarkoni faqen.",
@@ -2129,7 +2088,7 @@
         "child_required": "Ju lutemi shtoni të paktën një fëmijë.",
         "class_not_eligible": "Ky regjistrim vlen vetëm për disa klasa. Kontrolloni klasën e fëmijës suaj.",
         "companion_note_required": "Ju lutemi shkruani me kë shkon fëmija në shtëpi.",
-        "complete_withdrawal_confirmation_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "complete_withdrawal_confirmation_required": "Ende nuk mund të çregjistrohet: {object}. Konfirmoni me {confirmation}.",
         "consent_required": "Ju lutemi konfirmoni të gjitha pëlqimet e detyrueshme.",
         "correction_reason_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "correction_school_class_mismatch": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
@@ -2225,33 +2184,33 @@
       },
       "identity": {
         "account_already_has_tenant_access": "Ky person ka tashmë qasje në këtë shkollë. E gjeni në listën e personelit.",
-        "account_inactive": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "account_inactive": "Llogaria juaj është bllokuar. Kontaktoni moto.",
         "current_password_wrong": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "demo_access_expired": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "demo_access_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "demo_access_rate_limited": "{object} nuk është i disponueshëm tani. Provoni përsëri.",
-        "demo_access_unknown": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "demo_capacity_reached": "{object} nuk është i disponueshëm tani. Provoni përsëri.",
-        "demo_school_preparing": "{object} nuk është i disponueshëm tani. Provoni përsëri.",
+        "demo_access_expired": "Qasja demo ka skaduar. Kërkoni një qasje të re.",
+        "demo_access_invalid": "Lidhja demo nuk është e vlefshme. Kërkoni një lidhje të re.",
+        "demo_access_rate_limited": "Shumë përpjekje. Prisni pak dhe provoni përsëri.",
+        "demo_access_unknown": "Kjo lidhje demo nuk ekziston. Kërkoni një lidhje të re.",
+        "demo_capacity_reached": "Tani të gjitha vendet demo janë të zëna. Provoni përsëri më vonë.",
+        "demo_school_preparing": "Shkolla demo po përgatitet. Provoni përsëri pas pak.",
         "demo_session": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "email_already_exists": "Për këtë adresë email ka tashmë një llogari. Ju lutemi përdorni një adresë tjetër.",
-        "invalid_credentials": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "invitation_account_login_required": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "invitation_account_mismatch": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "invitation_expired": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "invitation_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "mfa_blocked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "invalid_credentials": "Adresa e email-it ose fjalëkalimi nuk është i saktë. Kontrolloni të dhënat.",
+        "invitation_account_login_required": "Për këtë adresë e-maili ekziston tashmë një llogari. Fillimisht hyni me të dhe pastaj hapeni përsëri ftesën.",
+        "invitation_account_mismatch": "Jeni i identifikuar me një llogari tjetër. Hyni me adresën e e-mailit që është ftuar.",
+        "invitation_expired": "Kjo ftesë ka skaduar ose është përdorur tashmë. Kërkojini shkollës suaj një ftesë të re.",
+        "invitation_not_found": "Kjo ftesë nuk ekziston. Kontrolloni lidhjen në e-mail.",
+        "mfa_blocked": "Shumë përpjekje. Prisni disa minuta dhe provoni përsëri.",
         "mfa_code_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "passkey_login_failed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "password_reset_link_invalid": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "password_reset_rate_limited": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "password_too_weak": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "password_reset_link_invalid": "Lidhja ka skaduar ose është përdorur tashmë. Kërkoni një lidhje të re.",
+        "password_reset_rate_limited": "Keni kërkuar një lidhje shumë shpesh. Prisni pak dhe provoni përsëri.",
+        "password_too_weak": "Fjalëkalimi është shumë i dobët. Duhen të paktën 8 karaktere, shkronja të mëdha dhe të vogla, një numër dhe një karakter special.",
         "preview_target_not_previewable": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "preview_target_school_portal": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "preview_token_invalid": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "read_only_preview": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "role_name_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "session_account_inactive": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "session_account_inactive": "Llogaria juaj është e çaktivizuar. Kontaktoni drejtimin e shkollës suaj.",
         "tenant_access_denied": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "use_parent_portal": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "use_school_portal": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
@@ -2287,12 +2246,12 @@
       "meals": {
         "invalid_dishes": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "invalid_meal_date": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "invalid_participation": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "invalid_participation": "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
         "participation_cutoff_passed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "participation_out_of_range": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "plan_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "plan_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
         "plan_week_out_of_range": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "registration_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
+        "registration_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
@@ -2331,7 +2290,7 @@
         "absence_read_required": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "bulk_approval_ineligible": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "care_day_managed_by_booking": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "care_exception_raced": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "care_exception_raced": "Ndërkohë është ndryshuar: {object}. Kontrolloni përsëri të dhënat tuaja.",
         "care_exit_already_effective": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "care_exit_blocked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "care_exit_day_in_past": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
@@ -2343,7 +2302,7 @@
         "care_exit_note_too_long": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "care_exit_preview_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "care_exit_too_many_students": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "care_offerings_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "care_offerings_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
         "care_resume_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "care_resume_not_checked": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "care_resume_not_ended": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -2353,7 +2312,7 @@
         "care_withdrawal_date_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "care_withdrawal_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "change_request_not_pending": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "change_request_stale": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "change_request_stale": "Ndërkohë është ndryshuar: {object}. Ju lutemi ringarkoni faqen.",
         "checkin_care_ended": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "checkout_note_too_long": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "child_quota_reached": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -2383,9 +2342,9 @@
         "guardian_account_holder_too_long": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "guardian_email_taken": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "guardian_iban_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "offering_change_capacity_full": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "offering_change_capacity_full": "Në njërën nga ofertat nuk ka më vende të lira. Kontrolloni zënien e vendeve.",
         "offering_change_date_out_of_range": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "offering_changes_no_enrollment": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "offering_changes_no_enrollment": "Fëmija nuk ka më një regjistrim të vlefshëm. Refuzoni: {object}.",
         "partial_absence_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "partial_absence_requires_dedicated_action": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "photo_consent_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
@@ -2396,7 +2355,7 @@
         "pickup_change_expired": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "pickup_change_impact_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "pickup_reset_requires_offering": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "reason_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "reason_required": "Mungon arsyeja: {object}. Ju lutemi shkruani një.",
         "request_not_decided": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "request_not_past": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "request_past": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

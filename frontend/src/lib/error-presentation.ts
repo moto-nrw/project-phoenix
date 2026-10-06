@@ -105,10 +105,11 @@ export function presentError(
       Object.entries(error.details ?? {}).filter(([key]) => allowed.has(key)),
     ),
   );
-  const fallbackCatalog = known ? catalog : catalogs.de;
+  // The class text speaks the reader's language too, also for a code this
+  // build does not know yet (#2518).
   const message =
     (codeTemplate && interpolate(codeTemplate, object, values)) ||
-    interpolate(fallbackCatalog.classes[errorClass], object, {}) ||
+    interpolate(catalog.classes[errorClass], object, {}) ||
     catalogs.de.classes.server;
 
   return {

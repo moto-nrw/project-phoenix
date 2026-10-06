@@ -305,7 +305,9 @@ describe("NotificationPreferencesSection", () => {
   });
 
   it("keeps the parent action available when enabling all fails", async () => {
-    api.setNotificationPreference.mockRejectedValue(new Error("boom"));
+    api.setNotificationPreference.mockRejectedValue(
+      new ApiError("diag", 503, { code: "general.unavailable" }),
+    );
     renderWithToast(<NotificationPreferencesSection portal="parent" />);
 
     fireEvent.click(
@@ -314,13 +316,70 @@ describe("NotificationPreferencesSection", () => {
 
     expect(
       await screen.findByText(
-        "Die Einstellungen konnten nicht geändert werden.",
+        catalogText(
+          "general.unavailable",
+          "das Einschalten aller Benachrichtigungen",
+        ),
       ),
     ).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Alle aktivieren" }),
     ).toBeEnabled();
     expect(screen.queryByText("Alle aktiviert")).not.toBeInTheDocument();
+  });
+
+  it("shows a failed parent load in the card with retry", async () => {
+    api.fetchNotificationPreferences
+      .mockRejectedValueOnce(
+        new ApiError("diag", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue(preferences());
+    renderWithToast(<NotificationPreferencesSection portal="parent" />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Benachrichtigungen"),
+      ),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(
+      await screen.findByRole("switch", { name: "Anstehende Abholung" }),
+    ).toBeInTheDocument();
+  });
+
+  it("names the translated parent type when its switch fails", async () => {
+    api.fetchNotificationPreferences.mockResolvedValue({
+      tenant_enabled: true,
+      types: [
+        {
+          key: "parent_message",
+          label: "Backend-Name",
+          description: "Backend-Text",
+          group: "mitteilungen",
+          enabled: false,
+          available: true,
+        },
+      ],
+    });
+    api.setNotificationPreference.mockRejectedValue(
+      new ApiError("diag", 500, { code: "general.server" }),
+    );
+    renderWithToast(<NotificationPreferencesSection portal="parent" />);
+
+    fireEvent.click(
+      await screen.findByRole("switch", { name: "Neue Nachricht der OGS" }),
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText(
+          "general.server",
+          "die Benachrichtigung „Neue Nachricht der OGS“",
+        ),
+      ),
+    ).toBeVisible();
   });
 
   it("uses the parent portal when asked to", async () => {

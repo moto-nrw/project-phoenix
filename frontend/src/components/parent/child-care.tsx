@@ -48,6 +48,8 @@ import {
   useRequestVersion,
 } from "~/components/parent/request-edit-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { formatLocalizedDate } from "~/lib/localized-date-format";
 import {
@@ -273,6 +275,12 @@ export interface ChildCare {
   readonly todayPickup: TodayPickup;
   readonly features: ChildFeatures;
   readonly loading: boolean;
+  /**
+   * The first failure of the latest load, null when every list arrived. The
+   * page shows it on the shared load-error path: without it a failed feature
+   * request would hide every action without a word (#2518).
+   */
+  readonly loadError: unknown;
   reportSick(
     dates: string[],
     reason: string,
@@ -318,6 +326,7 @@ export function useChildCare(studentId: string): ChildCare {
   const [weekPlanDate, setWeekPlanDate] = useState<string | null>(null);
   const [features, setFeatures] = useState<ChildFeatures>(DEFAULT_FEATURES);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   // Today's calendar day in the SCHOOL's timezone (Europe/Berlin) — the axis the
   // backend resolves absences/overrides against. A guardian's browser may sit in
   // another timezone, so deriving "today" from the local clock can land on the
@@ -372,6 +381,7 @@ export function useChildCare(studentId: string): ChildCare {
     setTodayAbsent(false);
     setWeekPlanDate(null);
     setFeatures(DEFAULT_FEATURES);
+    setLoadError(null);
     setLoading(true);
   }, [loadedStudentId, studentId]);
 
@@ -395,35 +405,46 @@ export function useChildCare(studentId: string): ChildCare {
     let exceptionsOk = true;
     let pickupRequestsOk = true;
     let weekPlanOk = true;
+    // Each list keeps its own fallback above; the first failure is what the
+    // page reports (see ChildCare.loadError).
+    const failures: unknown[] = [];
     try {
       const [days, requests, exceptions, pickupRequests, plan, flags] =
         await Promise.all([
-          listSickDays(studentId).catch(() => {
+          listSickDays(studentId).catch((err: unknown) => {
             sickOk = false;
+            failures.push(err);
             return [] as StatusDay[];
           }),
           // Always fetch: it's a cheap call and the response is empty for schools
           // without the approval gate, so gating it on the (separately fetched)
           // feature flag would only add an ordering dependency for no real saving.
-          listExcusedRequests(studentId).catch(() => {
+          listExcusedRequests(studentId).catch((err: unknown) => {
             requestsOk = false;
+            failures.push(err);
             return [] as ExcusedRequest[];
           }),
-          listCareExceptions(studentId).catch(() => {
+          listCareExceptions(studentId).catch((err: unknown) => {
             exceptionsOk = false;
+            failures.push(err);
             return [] as CareException[];
           }),
-          listPickupChangeRequests(studentId).catch(() => {
+          listPickupChangeRequests(studentId).catch((err: unknown) => {
             pickupRequestsOk = false;
+            failures.push(err);
             return [] as PickupChangeRequest[];
           }),
-          getChildCareSchedule(studentId).catch(() => {
+          getChildCareSchedule(studentId).catch((err: unknown) => {
             weekPlanOk = false;
+            failures.push(err);
             return null;
           }),
           // Approval settings have no safe fallback: keep them unknown when
           // the feature request fails so the modal uses neutral wording.
-          getChildFeatures(studentId).catch(() => DEFAULT_FEATURES),
+          getChildFeatures(studentId).catch((err: unknown) => {
+            failures.push(err);
+            return DEFAULT_FEATURES;
+          }),
         ]);
       if (!mountedRef.current || seq !== loadSeqRef.current)
         return { requestsOk, requests };
@@ -450,12 +471,14 @@ export function useChildCare(studentId: string): ChildCare {
       }
       setWeekPlanLoaded(weekPlanOk);
       setFeatures(flags);
+      setLoadError(failures[0] ?? null);
       return { requestsOk, requests };
     } catch (err) {
       logger.warn("child_care_load_failed", {
         error: err instanceof Error ? err.message : String(err),
         student_id: studentId,
       });
+      if (mountedRef.current && seq === loadSeqRef.current) setLoadError(err);
       return { requestsOk: false, requests: [] };
     } finally {
       // Only the latest run owns the loading flag, so a stale load resolving
@@ -642,6 +665,7 @@ export function useChildCare(studentId: string): ChildCare {
     todayPickup,
     features: hasCurrentStudentData ? features : DEFAULT_FEATURES,
     loading: !hasCurrentStudentData || loading,
+    loadError: hasCurrentStudentData ? loadError : null,
     reportSick,
     saveCareException,
     removeCareException,
@@ -651,21 +675,25 @@ export function useChildCare(studentId: string): ChildCare {
 
 // --- sick-note modal ---
 
-function resolveSickError(
-  err: unknown,
-  refreshFailed: string,
-  overlap: string,
-  save: string,
-): string {
-  if (err instanceof ChildCareRefreshError) return refreshFailed;
+/**
+ * The two failures the absence dialog explains itself: the report went
+ * through but the list did not reload, and the request overlaps an open one.
+ * Every other failure goes through the shared error path.
+ */
+function knownSickErrorKey(err: unknown): string | null {
+  if (err instanceof ChildCareRefreshError) {
+    return "sick.submittedButRefreshFailed";
+  }
   if (
     err instanceof ParentApiError &&
     err.code === "care.excused_request_overlap"
   ) {
-    return overlap;
+    return "sick.overlapError";
   }
-  return err instanceof Error ? err.message : save;
+  return null;
 }
+
+const SICK_REASON_FIELD = "absence-reason";
 
 export function SickNoteModal({
   studentId,
@@ -708,9 +736,12 @@ export function SickNoteModal({
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [recipientIds, setRecipientIds] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const reasonRef = useRef<HTMLTextAreaElement>(null);
+  // Fehler aus dem offenen Dialog stehen im Dialog: ein Toast läge
+  // unsichtbar unter ihm.
+  const form = useApiFormError();
+  const latestSubmitRef = useRef<() => void>(() => undefined);
   const errorId = useId();
+  const reasonError = form.fieldError(SICK_REASON_FIELD);
   const dates = useMemo(() => enumerateDates(from, to), [from, to]);
   const noteMissing = reason.trim() === "";
   const requiresApproval =
@@ -733,33 +764,40 @@ export function SickNoteModal({
   const handleSubmit = async () => {
     if (!sickEnabled && !excusedEnabled) return;
     if (dates.length === 0) {
-      setError(t("sick.invalidDate"));
+      form.invalid(t("sick.invalidDate"));
       return;
     }
     if (reasonRequired && noteMissing) {
-      setError(t("sick.reasonRequiredError"));
-      reasonRef.current?.focus();
+      form.invalid(t("sick.reasonRequiredError"), {
+        [SICK_REASON_FIELD]: t("sick.reasonRequiredError"),
+      });
       return;
     }
     setSubmitting(true);
-    setError(null);
+    form.clear();
     try {
       const outcome = await onSubmit(dates, reason, status, recipientIds);
       if (outcome === "pending") setSubmitted(true);
       else onClose();
     } catch (err) {
-      setError(
-        resolveSickError(
-          err,
-          t("sick.submittedButRefreshFailed"),
-          t("sick.overlapError"),
-          t("sick.saveError"),
-        ),
-      );
+      const known = knownSickErrorKey(err);
+      if (known) {
+        form.invalid(t(known));
+      } else {
+        // Wiederholen sendet die Angaben, die jetzt im Dialog stehen.
+        void form.show(err, {
+          object: t("sick.errorObject"),
+          retry: () => latestSubmitRef.current(),
+        });
+      }
     } finally {
       setSubmitting(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestSubmitRef.current = () => void handleSubmit();
+  });
 
   return (
     <Modal
@@ -814,7 +852,7 @@ export function SickNoteModal({
               ariaLabel={t("sick.kindLabel")}
               onChange={(value) => {
                 setStatus(value as StudentStatusKind);
-                setError(null);
+                form.clear();
               }}
               options={[
                 ...(sickEnabled
@@ -874,20 +912,19 @@ export function SickNoteModal({
               {reasonRequired && <span aria-hidden="true"> *</span>}
             </span>
             <textarea
-              ref={reasonRef}
               value={reason}
               maxLength={MAX_NOTE_LEN}
               onChange={(event) => {
                 setReason(event.target.value);
-                if (error) setError(null);
+                if (form.error) form.clear();
               }}
-              name="absence-reason"
+              name={SICK_REASON_FIELD}
               autoComplete="off"
               required={reasonRequired}
               rows={3}
               placeholder={t("sick.reasonPlaceholder")}
-              aria-invalid={noteMissing && Boolean(error)}
-              aria-describedby={noteMissing && error ? errorId : undefined}
+              aria-invalid={Boolean(reasonError)}
+              aria-describedby={reasonError ? errorId : undefined}
               className="min-h-20 w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-base shadow-sm transition-colors hover:border-gray-400 focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             />
           </label>
@@ -898,15 +935,9 @@ export function SickNoteModal({
               onChange={setRecipientIds}
             />
           )}
-          {error && (
-            <p
-              id={errorId}
-              role="alert"
-              className="bg-parent-red-soft text-parent-red-strong rounded-lg px-3 py-2 text-sm"
-            >
-              {error}
-            </p>
-          )}
+          <div id={errorId}>
+            <FormErrorAlert message={form.error} />
+          </div>
         </div>
       )}
     </Modal>
@@ -991,13 +1022,23 @@ export function PickupTimeModal({
   const [pickupTime, setPickupTime] = useState("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Fehler aus dem offenen Dialog stehen im Dialog: ein Toast läge
+  // unsichtbar unter ihm. Die Rückfrage zum Zurücknehmen hat ihren eigenen.
+  const form = useApiFormError();
+  const resetForm = useApiFormError();
+  const { clear: clearForm } = form;
+  const latestActionsRef = useRef<
+    Record<"submit" | "saveEdit" | "remove", () => void>
+  >({
+    submit: () => undefined,
+    saveEdit: () => undefined,
+    remove: () => undefined,
+  });
   const [recipientIds, setRecipientIds] = useState<string[]>([]);
   const [editing, setEditing] = useState(false);
   // „Änderung zurücknehmen“ löscht die eigene Abholzeit des Tages: der Klick
   // im Footer öffnet erst die Rückfrage, entfernt wird im Dialog (#3109).
   const [confirmingReset, setConfirmingReset] = useState(false);
-  const [resetError, setResetError] = useState<string | null>(null);
   const [invalidField, setInvalidField] = useState<
     "pickupTime" | "reason" | null
   >(null);
@@ -1029,10 +1070,10 @@ export function PickupTimeModal({
     canEditRequest === true,
   );
 
-  // Map the backend's stable error code to a localized message; fall back to
-  // the raw message (or a generic one) when the code is missing/unknown so the
-  // German parent UI never surfaces an English backend string.
-  const resolveError = (err: unknown): string => {
+  // The pickup rules this dialog explains with its own context (the child's
+  // name, the school's cutoff time). Every other failure goes through the
+  // shared error path, which never shows the backend's sentence.
+  const knownPickupError = (err: unknown): string | null => {
     if (err instanceof ParentApiError) {
       switch (err.code) {
         case "care.pickup_change_disabled":
@@ -1065,7 +1106,21 @@ export function PickupTimeModal({
             : t("pickup.cutoffClosedGeneric");
       }
     }
-    return err instanceof Error ? err.message : t("pickup.saveError");
+    return null;
+  };
+
+  const reportError = (
+    target: typeof form,
+    err: unknown,
+    retry: () => void,
+  ) => {
+    const known = knownPickupError(err);
+    if (known) {
+      target.invalid(known);
+      return;
+    }
+    // Wiederholen sendet die Angaben, die jetzt im Dialog stehen.
+    void target.show(err, { object: t("pickup.errorObject"), retry });
   };
 
   // When the selected date already has an override, prefill the fields so the
@@ -1073,32 +1128,32 @@ export function PickupTimeModal({
   useEffect(() => {
     setPickupTime(request?.pickup_time ?? existing?.pickup_time ?? "");
     setReason(request?.reason ?? existing?.reason ?? "");
-    setError(null);
+    clearForm();
     setInvalidField(null);
-  }, [existing, request]);
+  }, [clearForm, existing, request]);
 
   const handleSubmit = async () => {
     // Guard: if the existing overrides never loaded we can't trust the
     // prefilled fields, and a save would send the empty leg as an authoritative
     // clear. Block until the list is known (the page must be reloaded).
     if (!careExceptionsLoaded || !pickupChangeRequestsLoaded) {
-      setError(t("pickup.loadError"));
+      form.invalid(t("pickup.loadError"));
       return;
     }
     if (!pickupTime) {
-      setError(t("pickup.noTime"));
+      form.invalid(t("pickup.noTime"));
       setInvalidField("pickupTime");
       pickupTimeRef.current?.focus();
       return;
     }
     if (reasonRequired && !reason.trim()) {
-      setError(t("pickup.reasonRequired"));
+      form.invalid(t("pickup.reasonRequired"));
       setInvalidField("reason");
       reasonRef.current?.focus();
       return;
     }
     setSubmitting(true);
-    setError(null);
+    form.clear();
     setInvalidField(null);
     try {
       await onSubmit({
@@ -1109,7 +1164,7 @@ export function PickupTimeModal({
       });
       onClose();
     } catch (err) {
-      setError(resolveError(err));
+      reportError(form, err, () => latestActionsRef.current.submit());
     } finally {
       setSubmitting(false);
     }
@@ -1120,19 +1175,19 @@ export function PickupTimeModal({
   const handleSaveEdit = async () => {
     if (!studentId || !request) return;
     if (!pickupTime) {
-      setError(t("pickup.noTime"));
+      form.invalid(t("pickup.noTime"));
       setInvalidField("pickupTime");
       pickupTimeRef.current?.focus();
       return;
     }
     if (reasonRequired && !reason.trim()) {
-      setError(t("pickup.reasonRequired"));
+      form.invalid(t("pickup.reasonRequired"));
       setInvalidField("reason");
       reasonRef.current?.focus();
       return;
     }
     setSubmitting(true);
-    setError(null);
+    form.clear();
     setInvalidField(null);
     try {
       await updatePickupChangeRequest(studentId, request.id, {
@@ -1143,12 +1198,14 @@ export function PickupTimeModal({
       });
       onClose();
     } catch (err) {
-      setError(
+      if (
         err instanceof ParentApiError &&
-          err.code === "students.change_request_stale"
-          ? t("pickup.staleError")
-          : resolveError(err),
-      );
+        err.code === "students.change_request_stale"
+      ) {
+        form.invalid(t("pickup.staleError"));
+      } else {
+        reportError(form, err, () => latestActionsRef.current.saveEdit());
+      }
     } finally {
       setSubmitting(false);
     }
@@ -1156,16 +1213,24 @@ export function PickupTimeModal({
 
   const handleRemove = async () => {
     setSubmitting(true);
-    setResetError(null);
+    resetForm.clear();
     try {
       await onRemove(date);
       onClose();
     } catch (err) {
-      setResetError(resolveError(err));
+      reportError(resetForm, err, () => latestActionsRef.current.remove());
     } finally {
       setSubmitting(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestActionsRef.current = {
+      submit: () => void handleSubmit(),
+      saveEdit: () => void handleSaveEdit(),
+      remove: () => void handleRemove(),
+    };
+  });
 
   if (confirmingReset) {
     return (
@@ -1183,11 +1248,11 @@ export function PickupTimeModal({
         backdropLabel={t("close")}
         mobileSheet
         loading={submitting}
-        error={resetError ?? ""}
+        error={resetForm.error}
         onConfirm={() => void handleRemove()}
         onClose={() => {
           setConfirmingReset(false);
-          setResetError(null);
+          resetForm.clear();
         }}
       />
     );
@@ -1211,7 +1276,7 @@ export function PickupTimeModal({
                 size="md"
                 className="w-full gap-2 whitespace-nowrap sm:w-auto"
                 onClick={() => {
-                  setResetError(null);
+                  resetForm.clear();
                   setConfirmingReset(true);
                 }}
                 disabled={submitting || alreadyHome}
@@ -1382,7 +1447,7 @@ export function PickupTimeModal({
                 setPickupTime(next);
                 if (invalidField === "pickupTime") {
                   setInvalidField(null);
-                  setError(null);
+                  form.clear();
                 }
               }}
               label={t("pickup.pickupLabel")}
@@ -1404,7 +1469,7 @@ export function PickupTimeModal({
                   setReason(e.target.value);
                   if (invalidField === "reason") {
                     setInvalidField(null);
-                    setError(null);
+                    form.clear();
                   }
                 }}
                 maxLength={255}
@@ -1436,14 +1501,10 @@ export function PickupTimeModal({
           </p>
         )}
 
-        {error && !todayLocked && (
-          <p
-            id={errorId}
-            role="alert"
-            className="bg-parent-red-soft text-parent-red-strong rounded-lg px-3 py-2 text-sm"
-          >
-            {error}
-          </p>
+        {!todayLocked && (
+          <div id={errorId}>
+            <FormErrorAlert message={form.error} />
+          </div>
         )}
       </div>
     </Modal>

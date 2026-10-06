@@ -35,14 +35,18 @@ describe("presentError", () => {
     );
   });
 
-  it("falls back to the German class text when a code is unknown", () => {
-    const error = new ApiError("English diagnostic", 503, {
+  it("falls back to the class text in the reader's language when a code is unknown", () => {
+    const error = new ApiError("Backend diagnostic", 503, {
       code: "future.unknown",
       instance: "req-18",
     });
-    const result = presentError(error, "die Gruppe", "en");
-    expect(result.message).toContain("Die Gruppe");
-    expect(result.message).not.toContain("English diagnostic");
+    const result = presentError(error, "the group", "en");
+    // #2518: parents read the next step in their own language, also for a
+    // code this frontend does not know yet.
+    expect(result.message).toBe(
+      "The group is unavailable right now. Please try again.",
+    );
+    expect(result.message).not.toContain("Backend diagnostic");
     expect(result.requestId).toBe("req-18");
     expect(result.retryable).toBe(true);
   });

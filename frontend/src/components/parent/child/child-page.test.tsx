@@ -4,6 +4,8 @@ import { NextIntlClientProvider } from "next-intl";
 import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import deMessages from "~/i18n/messages/de.json";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { getChildToday, listMyChildren } from "~/lib/parent-api";
 import { ChildPage } from "./child-page";
 
@@ -367,5 +369,54 @@ describe("ChildPage", () => {
     await screen.findByRole("heading", { level: 1, name: "Felix Schneider" });
 
     expect(screen.queryByTestId("pickup-modal")).not.toBeInTheDocument();
+  });
+});
+
+describe("ChildPage Fehlerweg (#2518)", () => {
+  it("zeigt einen Ladefehler der Kinderliste mit Wiederholen", async () => {
+    const user = userEvent.setup();
+    mockedChildren
+      .mockRejectedValueOnce(
+        new ApiError("diag", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce([felix]);
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", deMessages.parentChild.errorObject),
+      ),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Felix Schneider" }),
+    ).toBeInTheDocument();
+  });
+
+  it("nennt bei einem fremden Kind den Weg zurück zur Übersicht", async () => {
+    renderPage("999");
+
+    expect(
+      await screen.findByText(deMessages.parentChild.notFound),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("meldet einen Ladefehler der Betreuungsdaten über dem Profil", async () => {
+    careMock.value = {
+      ...buildCare(),
+      loadError: new ApiError("diag", 503, { code: "general.unavailable" }),
+    } as ReturnType<typeof buildCare>;
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        catalogText(
+          "general.unavailable",
+          deMessages.parentChild.errorObjectCare,
+        ),
+      ),
+    ).toBeInTheDocument();
   });
 });

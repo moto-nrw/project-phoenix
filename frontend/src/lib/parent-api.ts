@@ -1,4 +1,4 @@
-import { ApiError, unavailableApiError } from "./api-error";
+import { ApiError, transportFetch, unavailableApiError } from "./api-error";
 /**
  * Parent-portal client API. Symmetric to the operator-api / tenant
  * api-helpers split. Every call goes through a Next.js proxy route
@@ -511,7 +511,7 @@ async function throwResponseError(
 }
 
 async function getJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, {
+  const response = await transportFetch(url, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
   });
@@ -520,7 +520,7 @@ async function getJson<T>(url: string): Promise<T> {
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const response = await fetch(url, {
+  const response = await transportFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -530,7 +530,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 }
 
 async function deleteJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, {
+  const response = await transportFetch(url, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
   });
@@ -539,7 +539,7 @@ async function deleteJson<T>(url: string): Promise<T> {
 }
 
 async function patchJson<T>(url: string, body: unknown): Promise<T> {
-  const response = await fetch(url, {
+  const response = await transportFetch(url, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -549,7 +549,7 @@ async function patchJson<T>(url: string, body: unknown): Promise<T> {
 }
 
 async function putJson<T>(url: string, body: unknown): Promise<T> {
-  const response = await fetch(url, {
+  const response = await transportFetch(url, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -622,14 +622,13 @@ export async function fetchParentProfile(): Promise<ParentProfile> {
 export async function updateParentPortalLocale(
   locale: AppLocale,
 ): Promise<ParentProfile> {
-  const response = await fetch("/api/parent/me/profile", {
+  const url = "/api/parent/me/profile";
+  const response = await transportFetch(url, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ portal_locale: locale }),
   });
-  if (!response.ok) {
-    throw new Error(`Profile update failed (${response.status})`);
-  }
+  if (!response.ok) await throwResponseError(url, response);
   const json = (await response.json()) as ApiEnvelope<ParentProfile>;
   return unwrapEnvelope(json);
 }
@@ -1329,7 +1328,7 @@ export async function downloadDeclarationProofPdf(
   studentId: string,
 ): Promise<void> {
   const url = `/api/parent/me/news/${encodeURIComponent(announcementId)}/declaration/proof/pdf?student_id=${encodeURIComponent(studentId)}`;
-  const response = await fetch(url, { method: "GET" });
+  const response = await transportFetch(url, { method: "GET" });
   if (!response.ok) await throwResponseError(url, response);
   const blob = await response.blob();
   downloadBlob(
@@ -2029,26 +2028,11 @@ export async function removeRelatedAccount(
   studentId: string,
   guardianProfileId: string,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/related-accounts/${encodeURIComponent(guardianProfileId)}`,
     { method: "DELETE" },
   );
-  if (!response.ok) {
-    let message = `Request failed (${response.status})`;
-    try {
-      const body = (await response.json()) as { error?: string };
-      if (body.error) message = body.error;
-    } catch {
-      // Body was not JSON, keep the generic message.
-    }
-    if (response.status === 401 && typeof window !== "undefined") {
-      window.location.assign("/parents/login");
-    }
-    logger.error("parent_api_request_failed", {
-      url: "remove_related_account",
-      status: response.status,
-      message,
-    });
-    throw new Error(message);
-  }
+  // Logged under a fixed label; the path carries the other guardian's ID.
+  if (!response.ok)
+    await throwResponseError("remove_related_account", response);
 }

@@ -52,19 +52,12 @@ export interface ResetPasswordPageCopy {
    * example "das Zurücksetzen des Passworts" (#2517).
    */
   readonly errorObject?: string;
-  // No longer shown: server errors use the catalog text of their code
-  // (#2517). Kept optional until the portals stop passing them.
-  readonly invalidToken?: string;
   readonly passwordTooShort: string;
   readonly passwordMissingUppercase: string;
   readonly passwordMissingLowercase: string;
   readonly passwordMissingNumber: string;
   readonly passwordMissingSpecial: string;
   readonly passwordMismatch: string;
-  readonly genericError?: string;
-  readonly invalidRequest?: string;
-  readonly expiredLink?: string;
-  readonly notFoundLink?: string;
   readonly successEyebrow: string;
   readonly successTitle: string;
   readonly successSubtitle: string;

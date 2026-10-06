@@ -6,6 +6,7 @@ import { fetchParentProfile, updateParentPortalLocale } from "./parent-api";
 import { useSession } from "next-auth/react";
 import { useLocale } from "next-intl";
 import { writeLocaleCookie } from "~/i18n/locales";
+import { ApiError } from "~/lib/api-error";
 
 const reloadMock = vi.hoisted(() => vi.fn());
 vi.mock("~/lib/parent-locale-navigation", () => ({
@@ -17,22 +18,18 @@ vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
 
 // Override the globally-mocked next-intl so we can drive the server-resolved
 // locale (useLocale) the provider starts from. useTranslations returns the key
-// verbatim so failure-toast assertions can match on "saveError".
+// verbatim so failure assertions can match on "errorObject".
 vi.mock("next-intl", () => ({
   useLocale: vi.fn(() => "de"),
   useTranslations: () => (key: string) => key,
 }));
 
-// The provider surfaces a toast when an authenticated locale save fails.
-const toastErrorMock = vi.fn();
+// The provider reports a failed authenticated locale save on the shared
+// error path. A stable mock keeps the provider's callbacks stable.
+const showErrorMock = vi.hoisted(() => vi.fn());
+const errorDisplay = vi.hoisted(() => ({ show: showErrorMock }));
 vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => ({
-    error: toastErrorMock,
-    success: vi.fn(),
-    info: vi.fn(),
-    warning: vi.fn(),
-    remove: vi.fn(),
-  }),
+  useApiErrorDisplay: () => errorDisplay,
 }));
 
 // The profile API is exercised through the provider, never hit for real.
@@ -99,6 +96,7 @@ function createDeferred<T>() {
 beforeEach(() => {
   vi.clearAllMocks();
   window.localStorage.clear();
+  window.sessionStorage.clear();
   mockedUseLocale.mockReturnValue("de");
   mockedUpdateLocale.mockResolvedValue({ portal_locale: "ru" });
 });
@@ -213,32 +211,47 @@ describe("ParentLocaleProvider — setLocale when authenticated", () => {
     expect(reloadMock).toHaveBeenCalled();
   });
 
-  it("toasts but still switches the UI when the persist fails", async () => {
+  it("shows the failed persist after the reload but still switches the UI", async () => {
     setSession("authenticated");
     mockedUseLocale.mockReturnValue("de");
     mockedFetchProfile.mockResolvedValue({ portal_locale: "de" });
-    mockedUpdateLocale.mockRejectedValue(new Error("network"));
+    mockedUpdateLocale.mockRejectedValue(
+      new ApiError("diag", 503, { code: "general.unavailable" }),
+    );
 
-    const { rerender } = renderProvider();
+    const { unmount } = renderProvider();
     await waitFor(() => expect(mockedFetchProfile).toHaveBeenCalled());
     reloadMock.mockClear();
     mockedWriteCookie.mockClear();
 
     fireEvent.click(screen.getByText("set-ru"));
 
-    // The cookie + soft refresh still apply the choice locally, ...
+    // The cookie + reload still apply the choice locally, ...
     await waitFor(() => expect(mockedWriteCookie).toHaveBeenCalledWith("ru"));
-    expect(reloadMock).toHaveBeenCalled();
-    // ... but the failed account save is surfaced, not swallowed.
-    await waitFor(() =>
-      expect(toastErrorMock).toHaveBeenCalledWith("saveError"),
-    );
+    await waitFor(() => expect(reloadMock).toHaveBeenCalled());
+    // ... and the reload would wipe a toast, so nothing is shown yet.
+    expect(showErrorMock).not.toHaveBeenCalled();
 
+    // The reloaded page shows the failed account save, not swallowed.
+    unmount();
     mockedUseLocale.mockReturnValue("ru");
-    rerender(
-      <ParentLocaleProvider>
-        <Consumer />
-      </ParentLocaleProvider>,
+    mockedUpdateLocale.mockResolvedValue({ portal_locale: "ru" });
+    renderProvider();
+
+    await waitFor(() => expect(showErrorMock).toHaveBeenCalledTimes(1));
+    const [shownError, options] = showErrorMock.mock.calls[0]!;
+    expect(shownError).toBeInstanceOf(ApiError);
+    expect((shownError as ApiError).code).toBe("general.unavailable");
+    expect(options).toMatchObject({
+      object: "errorObject",
+      messageSuffix: "savedOnDevice",
+    });
+    expect(window.sessionStorage.length).toBe(0);
+
+    // Wiederholen saves the chosen language again.
+    (options as { retry: () => void }).retry();
+    await waitFor(() =>
+      expect(mockedUpdateLocale).toHaveBeenLastCalledWith("ru"),
     );
 
     await waitFor(() =>
@@ -246,6 +259,33 @@ describe("ParentLocaleProvider — setLocale when authenticated", () => {
     );
     expect(screen.getByTestId("locale").textContent).toBe("ru");
     expect(mockedWriteCookie).not.toHaveBeenCalledWith("de");
+  });
+
+  it("shows the failed persist at once when the reload could not keep it", async () => {
+    setSession("authenticated");
+    mockedFetchProfile.mockResolvedValue({ portal_locale: "de" });
+    const failure = new ApiError("diag", 503, { code: "general.unavailable" });
+    mockedUpdateLocale.mockRejectedValue(failure);
+    const setItem = vi
+      .spyOn(window.sessionStorage, "setItem")
+      .mockImplementation(() => {
+        throw new Error("quota");
+      });
+
+    renderProvider();
+    await waitFor(() => expect(mockedFetchProfile).toHaveBeenCalled());
+    reloadMock.mockClear();
+
+    fireEvent.click(screen.getByText("set-ru"));
+
+    await waitFor(() =>
+      expect(showErrorMock).toHaveBeenCalledWith(
+        failure,
+        expect.objectContaining({ object: "errorObject" }),
+      ),
+    );
+    expect(reloadMock).not.toHaveBeenCalled();
+    setItem.mockRestore();
   });
 
   it("serializes profile saves so the last locale choice wins", async () => {

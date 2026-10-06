@@ -293,6 +293,9 @@ func TestParentPasswordReset_RateLimitedSetsRetryAfter(t *testing.T) {
 
 	assert.Equal(t, http.StatusTooManyRequests, rr.Code)
 	assert.NotEmpty(t, rr.Header().Get("Retry-After"))
+	// Same code as the staff flow, so parents read "wait and try again" in
+	// their language (#2518).
+	assert.Equal(t, "identity.password_reset_rate_limited", decodeError(t, rr).Code)
 }
 
 func TestParentPasswordResetConfirm_Success(t *testing.T) {
@@ -448,6 +451,7 @@ func TestParentPasswordResetConfirm_InvalidToken_Returns410(t *testing.T) {
 	})
 
 	assert.Equal(t, http.StatusGone, rr.Code)
+	assert.Equal(t, "identity.password_reset_link_invalid", decodeError(t, rr).Code)
 }
 
 func TestParentPasswordResetConfirm_WeakPassword_Returns400(t *testing.T) {
@@ -467,6 +471,10 @@ func TestParentPasswordResetConfirm_WeakPassword_Returns400(t *testing.T) {
 	})
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	body := decodeError(t, rr)
+	assert.Equal(t, "identity.password_too_weak", body.Code)
+	// The field is marked, so the reset form focuses the password input.
+	assert.Contains(t, rr.Body.String(), `"field":"new_password"`)
 }
 
 func TestParentPasswordResetConfirm_UnexpectedError_Returns500(t *testing.T) {

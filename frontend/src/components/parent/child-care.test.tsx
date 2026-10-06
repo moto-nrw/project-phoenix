@@ -21,6 +21,9 @@ import type {
   StatusDay,
 } from "~/lib/parent-api";
 import * as parentApi from "~/lib/parent-api";
+import deMessages from "~/i18n/messages/de.json";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import {
   berlinTodayISO,
   parseISODate,
@@ -237,7 +240,9 @@ describe("PickupTimeModal — failed preload guard", () => {
   it("keeps the request sendable while the recipients load and after an error", async () => {
     const options = vi
       .spyOn(parentApi, "getRequestSharingOptions")
-      .mockRejectedValue(new Error("offline"));
+      .mockRejectedValue(
+        new ApiError("diag", 503, { code: "general.unavailable" }),
+      );
     const { pickupInput, reasonInput } = renderModal({ studentId: "1" });
 
     expect(
@@ -248,7 +253,10 @@ describe("PickupTimeModal — failed preload guard", () => {
 
     expect(
       await screen.findByText(
-        "Die Empfänger konnten nicht geladen werden. Sie können die Anfrage trotzdem senden und später teilen.",
+        `${catalogText(
+          "general.unavailable",
+          deMessages.parentRequestSharing.errorObjectRecipients,
+        )} ${deMessages.parentRequestSharing.optionsHint}`,
       ),
     ).toBeInTheDocument();
     expect(
@@ -322,11 +330,9 @@ describe("PickupTimeModal — failed preload guard", () => {
     fireEvent.change(pickupInput!, { target: { value: "14:30" } });
     fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
 
-    expect(
-      screen.getByText(
-        "Bitte geben Sie kurz an, warum sich die Abholzeit ändert.",
-      ),
-    ).toHaveAttribute("role", "alert");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Bitte geben Sie kurz an, warum sich die Abholzeit ändert.",
+    );
     expect(reasonInput).toHaveAttribute("aria-invalid", "true");
     expect(reasonInput).toHaveFocus();
     expect(onSubmit).not.toHaveBeenCalled();
@@ -1590,9 +1596,9 @@ describe("Dialoge in Elternsprache", () => {
     fireEvent.change(reasonInput!, { target: { value: "Arzttermin" } });
     fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
 
-    expect(
-      screen.getByText("Bitte tragen Sie eine Abholzeit ein."),
-    ).toHaveAttribute("role", "alert");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Bitte tragen Sie eine Abholzeit ein.",
+    );
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
@@ -1606,5 +1612,110 @@ describe("Dialoge in Elternsprache", () => {
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({ pickupTime: "14:30" }),
     );
+  });
+});
+
+// #2518: jeder Fehler läuft über den gemeinsamen Fehlerweg. Ein Satz des
+// Servers erscheint nie, Wiederholen sendet die aktuellen Angaben.
+describe("Fehlerweg der Dialoge (#2518)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("zeigt einen Ausfall beim Ändern der Abholzeit im Dialog und wiederholt", async () => {
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ApiError("backend sentence", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce(undefined);
+    const { pickupInput, reasonInput, onClose } = renderModal({ onSubmit });
+
+    fireEvent.change(pickupInput, { target: { value: "14:00" } });
+    fireEvent.change(reasonInput!, { target: { value: "Arzttermin" } });
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    const text = catalogText(
+      "general.unavailable",
+      deMessages.parentChildCare.pickup.errorObject,
+    );
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(text);
+    expect(screen.queryByText(/backend sentence/)).not.toBeInTheDocument();
+
+    fireEvent.change(reasonInput!, { target: { value: "Arzttermin früher" } });
+    fireEvent.click(within(alert).getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(onSubmit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ reason: "Arzttermin früher" }),
+    );
+  });
+
+  it("zeigt bei einem unbekannten Fehler der Abwesenheit den Katalogtext", async () => {
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValue(
+        new parentApi.ParentApiError("backend sentence", 500, "general.server"),
+      );
+    render(<SickNoteModal onClose={vi.fn()} onSubmit={onSubmit} />);
+
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Grund / Hinweis an die OGS" }),
+      { target: { value: "Fieber" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      catalogText(
+        "general.server",
+        deMessages.parentChildCare.sick.errorObject,
+      ),
+    );
+    expect(screen.queryByText(/backend sentence/)).not.toBeInTheDocument();
+  });
+
+  it("erklärt eine überlappende Abwesenheit mit eigenem Text", async () => {
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValue(
+        new parentApi.ParentApiError(
+          "overlap",
+          409,
+          "care.excused_request_overlap",
+        ),
+      );
+    render(<SickNoteModal onClose={vi.fn()} onSubmit={onSubmit} />);
+
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Grund / Hinweis an die OGS" }),
+      { target: { value: "Fieber" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      deMessages.parentChildCare.sick.overlapError,
+    );
+  });
+
+  it("meldet einen fehlgeschlagenen Abruf der Freigaben als Ladefehler", async () => {
+    vi.spyOn(parentApi, "listSickDays").mockResolvedValue([]);
+    vi.spyOn(parentApi, "listExcusedRequests").mockResolvedValue([]);
+    vi.spyOn(parentApi, "listCareExceptions").mockResolvedValue([]);
+    vi.spyOn(parentApi, "listPickupChangeRequests").mockResolvedValue([]);
+    vi.spyOn(parentApi, "getChildCareSchedule").mockResolvedValue(
+      null as never,
+    );
+    const failure = new ApiError("diag", 503, { code: "general.unavailable" });
+    vi.spyOn(parentApi, "getChildFeatures").mockRejectedValue(failure);
+
+    const { result } = renderHook(() => useChildCare("1"));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.loadError).toBe(failure);
   });
 });
