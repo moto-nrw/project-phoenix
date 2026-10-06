@@ -115,6 +115,8 @@ func TestSendTestNotificationDisabledMapsToConflict(t *testing.T) {
 	rs.sendTestNotification(rec, newTestRequest(41))
 
 	assert.Equal(t, http.StatusConflict, rec.Code)
+	assert.Contains(t, rec.Body.String(),
+		`"code":"`+"communication.notifications_disabled"+`"`)
 }
 
 func TestSendTestNotificationErrorsMapToInternal(t *testing.T) {

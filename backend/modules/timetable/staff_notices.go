@@ -3,6 +3,7 @@ package timetable
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -18,6 +19,10 @@ var (
 	ErrStaffNoticeNotFound = errors.New("staffnotice: notice not found")
 	// ErrStaffNoticeInvalid meldet fachlich unzulässige Eingaben.
 	ErrStaffNoticeInvalid = errors.New("staffnotice: invalid notice")
+	// ErrStaffNoticeOutdated meldet eine Kenntnisnahme aus einer veralteten
+	// Ansicht: der Hinweis gilt heute nicht oder verlangt keine Kenntnisnahme
+	// mehr. Er bleibt eine unzulässige Eingabe (#2517).
+	ErrStaffNoticeOutdated = fmt.Errorf("%w: notice is outdated", ErrStaffNoticeInvalid)
 )
 
 // Wichtigkeit eines Hinweises.

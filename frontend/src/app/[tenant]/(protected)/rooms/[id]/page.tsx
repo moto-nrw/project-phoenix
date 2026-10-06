@@ -1,6 +1,13 @@
 "use client";
 
-import { Suspense, useCallback, useMemo, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   useParams,
   usePathname,
@@ -23,7 +30,8 @@ import {
 } from "~/components/rooms/room-detail-content";
 import { RoomStammdatenTab } from "~/components/rooms/room-stammdaten-tab";
 import { roomsConfig } from "~/components/database/configs/rooms.config";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { roomService } from "~/lib/api";
 import { hasPermission } from "~/lib/auth-utils";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { createCrudService } from "~/lib/database/service-factory";
@@ -38,7 +46,6 @@ import {
 import { usePresenceMode } from "~/lib/tenant-context";
 import { resolveDetailReferrer } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { getDbOperationMessage } from "~/lib/use-notification";
 import { RoomDetailLoadingPage } from "./page-skeleton";
 
 const logger = createLogger({ component: "RoomDetailPage" });
@@ -86,7 +93,13 @@ function RoomDetailPageContent() {
   const backLabel = backLabelFor(referrer);
   const { data: session } = useSession();
   const presenceMode = usePresenceMode();
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
+  // Stammdaten speichern: Fehler im Formular, Feldfehler am Feld (#2517).
+  const saveErrors = useApiFormError();
+  // Löschen: der Fehler bleibt im offenen Löschdialog.
+  const deleteErrors = useApiFormError();
+  const { clear: clearDeleteErrors, show: showDeleteError } = deleteErrors;
+  const retryDeleteRef = useRef<() => void>(() => undefined);
   const tenantMutate = useTenantMutate();
   const refreshRoomConsumers = useTenantMutateMatching(
     ROOM_DERIVED_CACHE_KEY_FRAGMENTS,
@@ -159,9 +172,8 @@ function RoomDetailPageContent() {
           ? roomsConfig.form.transformBeforeSubmit(data)
           : data;
         await service.update(room.id, payload);
-        toastSuccess(
-          getDbOperationMessage("update", roomsConfig.name.singular, room.name),
-        );
+        const savedName = data.name?.trim() || room.name;
+        toastSuccess(`Der Raum „${savedName}“ ist gespeichert.`);
         await Promise.all([
           refreshRoomLists(),
           // Refetch every consumer that holds room-stamped data so badges
@@ -185,22 +197,44 @@ function RoomDetailPageContent() {
   const handleDeleteRoom = useCallback(async () => {
     if (!room) return;
     setDeleting(true);
+    clearDeleteErrors();
     try {
-      const deleteError = await service.delete(room.id);
-      if (deleteError) {
-        toastError(deleteError);
-        return;
-      }
-      toastSuccess(
-        getDbOperationMessage("delete", roomsConfig.name.singular, room.name),
-      );
+      await roomService.deleteRoom(room.id);
+    } catch (deleteError) {
+      logger.warn("failed to delete room", {
+        room_id: room.id,
+        error:
+          deleteError instanceof Error
+            ? deleteError.message
+            : String(deleteError),
+      });
+      void showDeleteError(deleteError, {
+        object: "das Löschen des Raums",
+        retry: () => retryDeleteRef.current(),
+      });
+      setDeleting(false);
+      return;
+    }
+    try {
+      toastSuccess(`Der Raum „${room.name}“ ist gelöscht.`);
       await Promise.all(ROOM_LIST_CACHE_KEYS.map((key) => tenantMutate(key)));
       setShowDeleteModal(false);
       router.push(referrer);
     } finally {
       setDeleting(false);
     }
-  }, [referrer, room, router, service, tenantMutate, toastError, toastSuccess]);
+  }, [
+    clearDeleteErrors,
+    showDeleteError,
+    referrer,
+    room,
+    router,
+    tenantMutate,
+    toastSuccess,
+  ]);
+  useLayoutEffect(() => {
+    retryDeleteRef.current = () => void handleDeleteRoom();
+  });
 
   if (loading && !room) {
     return <RoomDetailLoadingPage referrer={referrer} backLabel={backLabel} />;
@@ -279,7 +313,10 @@ function RoomDetailPageContent() {
       overlays={
         <ConfirmDeleteModal
           isOpen={showDeleteModal}
-          onClose={() => setShowDeleteModal(false)}
+          onClose={() => {
+            clearDeleteErrors();
+            setShowDeleteModal(false);
+          }}
           onConfirm={() => void handleDeleteRoom()}
           title="Raum löschen?"
           description={
@@ -291,7 +328,7 @@ function RoomDetailPageContent() {
           }
           gate={{ mode: "twoStep" }}
           loading={deleting}
-          error=""
+          error={deleteErrors.error}
         />
       }
     >
@@ -321,6 +358,7 @@ function RoomDetailPageContent() {
           room={room}
           showOccupancy={hasOccupancy}
           onSave={handleSaveRoom}
+          errorPath={saveErrors}
         />
       ) : null}
     </TenantPage>

@@ -3,6 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useSWRAuth } from "~/lib/swr";
+import type { FormError } from "~/components/ui/form-error";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import {
+  ApiError,
+  apiErrorFromResponse,
+  transportFetch,
+  wireErrorCode,
+} from "~/lib/api-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 import type { BulkArrivalTime } from "~/lib/student-arrival-api";
@@ -220,8 +229,18 @@ export interface SupervisionDashboard {
   readonly isInitialLoading: boolean;
   readonly isSwitchingSession: boolean;
   readonly isWaitingForUrlRoomSelection: boolean;
-  readonly error: string | null;
-  readonly setError: (message: string | null) => void;
+  /**
+   * A failed aggregate other than "no access", for `LoadErrorAlert` with
+   * retry and request ID. A 403 is the no-access view, not an error.
+   */
+  readonly loadError: FormError | null;
+}
+
+/** The aggregate refuses a caller without supervision (HTTP 403). */
+function isNoAccessError(err: unknown): boolean {
+  return (
+    err instanceof ApiError && wireErrorCode(err.code) === "general.permission"
+  );
 }
 
 /**
@@ -264,9 +283,7 @@ export function useSupervisionDashboard(
   const [selectedTimetableInstanceId, setSelectedTimetableInstanceId] =
     useState<string | null>(null);
   const [isSwitchingSession, setIsSwitchingSession] = useState(false);
-  // Mutation/switch errors; dashboard fetch errors are folded in by the
-  // effect below and cleared again when a fresh aggregate arrives.
-  const [error, setError] = useState<string | null>(null);
+  const { show: showActionError } = useApiErrorDisplay();
 
   // The selected session for the fetcher. The SWR key is contractually
   // stable (SSE invalidation matches on its prefix), so the selection cannot
@@ -296,7 +313,7 @@ export function useSupervisionDashboard(
           groupId && /^[1-9]\d{0,18}$/.test(groupId)
             ? `?group_id=${encodeURIComponent(groupId)}`
             : "";
-        return fetch(`/api/active-supervision-dashboard${query}`, {
+        return transportFetch(`/api/active-supervision-dashboard${query}`, {
           headers: {
             Authorization: `Bearer ${sessionToken}`,
             "Content-Type": "application/json",
@@ -317,7 +334,10 @@ export function useSupervisionDashboard(
       if (!response.ok) {
         // No silent fallback fan-out (#2096): a failed aggregate is an
         // error, never a partial-empty payload — admins included.
-        throw new Error(`BFF request failed: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `BFF request failed: ${response.status}`,
+        );
       }
 
       const bffData = (await response.json()) as {
@@ -360,24 +380,13 @@ export function useSupervisionDashboard(
     setSnapshot(dashboardData);
   }
 
-  // A fresh aggregate supersedes any stale mutation/switch error, exactly
-  // like the former sync effect's unconditional setError(null).
-  const lastClearedSnapshotRef = useRef<BFFDashboardResponse | null>(null);
-  useEffect(() => {
-    if (!snapshot || lastClearedSnapshotRef.current === snapshot) return;
-    lastClearedSnapshotRef.current = snapshot;
-    setError(null);
-  }, [snapshot]);
-
-  // Fold dashboard fetch failures into the error surface.
-  useEffect(() => {
-    if (!dashboardError) return;
-    setError(
-      dashboardError.message.includes("403")
-        ? "Sie haben aktuell keinen aktiven Raum zur Supervision."
-        : "Fehler beim Laden der Aktivitätsdaten.",
-    );
-  }, [dashboardError]);
+  // A failed aggregate shows where the data is missing, with retry (#2517).
+  // "No access" (403) is the page's own view, not an error message.
+  const loadError = useSwrLoadError(
+    isNoAccessError(dashboardError) ? null : dashboardError,
+    "die Aufsicht",
+    () => mutateDashboard(),
+  );
 
   // ---- Pure projections of the snapshot ----
 
@@ -618,7 +627,7 @@ export function useSupervisionDashboard(
     [selectedOpenRoomId, allRooms, selectedRoomId],
   );
 
-  const hasAccess: boolean | null = dashboardError?.message.includes("403")
+  const hasAccess: boolean | null = isNoAccessError(dashboardError)
     ? false
     : snapshot
       ? true
@@ -720,7 +729,8 @@ export function useSupervisionDashboard(
     if (!explicitDesiredGroupId || !hasSnapshot) return;
     if (resolvedGroupId === explicitDesiredGroupId) return;
     void Promise.resolve(mutateDashboard()).catch(() => {
-      // Errors surface via dashboardError handling
+      // Bewusst still: ein Fehlschlag landet in dashboardError und damit im
+      // Ladefehler der Seite.
     });
   }, [explicitDesiredGroupId, resolvedGroupId, hasSnapshot, mutateDashboard]);
 
@@ -741,24 +751,21 @@ export function useSupervisionDashboard(
         // projections pick up its visits and student count on arrival.
         requestedGroupIdRef.current = sessionId;
         await mutateDashboard();
-        setError(null);
       } catch (err) {
-        // Handle 403 gracefully - show message but don't break the UI
-        if (err instanceof Error && err.message.includes("403")) {
-          setError(
-            `Keine Berechtigung für "${targetRoom.name}". Kontaktieren Sie einen Administrator.`,
-          );
-        } else {
-          setError("Fehler beim Laden der Raumdaten.");
-          logger.error("failed to load room data", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+        logger.error("failed to load room data", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Show the reason but keep the page usable; „Wiederholen“ loads the
+        // newly selected session again.
+        void showActionError(err, {
+          object: `die Aufsicht in „${targetRoom.name}“`,
+          retry: () => void mutateDashboard(),
+        });
       } finally {
         setIsSwitchingSession(false);
       }
     },
-    [selectedRoomId, allRoomsBase, mutateDashboard],
+    [selectedRoomId, allRoomsBase, mutateDashboard, showActionError],
   );
 
   const selectOpenRoom = useCallback((roomId: string) => {
@@ -882,7 +889,6 @@ export function useSupervisionDashboard(
     isInitialLoading,
     isSwitchingSession,
     isWaitingForUrlRoomSelection,
-    error,
-    setError,
+    loadError,
   };
 }

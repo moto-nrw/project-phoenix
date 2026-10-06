@@ -3,6 +3,8 @@ import { render, fireEvent, waitFor } from "@testing-library/react";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { SettingsField } from "./settings-field";
 import type { ResolvedSetting } from "~/lib/settings-api";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 function renderWithProviders(ui: React.ReactElement) {
   return render(<ToastProvider>{ui}</ToastProvider>);
@@ -1141,5 +1143,103 @@ describe("SettingsField", () => {
     ) as HTMLInputElement;
     expect(input).not.toBeNull();
     expect(input.value).toBe("fallback");
+  });
+
+  // #2517: the tenant page throws the ApiError of a failed save.
+  describe("shared error path", () => {
+    it("shows a failed field save as a toast and retries the value", async () => {
+      const onSave = vi
+        .fn()
+        .mockRejectedValueOnce(new ApiError("boom", 500))
+        .mockResolvedValueOnce(null);
+      const { getByRole, findByText, container } = renderWithProviders(
+        <SettingsField
+          setting={makeSetting({
+            label: "Kinderfotos",
+            type: "boolean",
+            value: false,
+          })}
+          onSave={onSave}
+          onReset={vi.fn().mockResolvedValue(null)}
+        />,
+      );
+
+      fireEvent.click(getByRole("switch"));
+
+      expect(
+        await findByText(
+          catalogText("general.server", "die Einstellung „Kinderfotos“"),
+        ),
+      ).toBeInTheDocument();
+      // No inline sentence at the field: the toast carries the message.
+      expect(container.querySelector(".text-moto-red")).toBeNull();
+
+      fireEvent.click(getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+      expect(onSave).toHaveBeenLastCalledWith("test.setting", true);
+      expect(
+        await findByText("Die Einstellung „Kinderfotos“ ist gespeichert."),
+      ).toBeInTheDocument();
+    });
+
+    it("shows a failed reset as a toast", async () => {
+      const onReset = vi.fn().mockRejectedValue(new ApiError("boom", 503));
+      const { container, findByText } = renderWithProviders(
+        <SettingsField
+          setting={makeSetting({ label: "Startzeit" })}
+          onSave={vi.fn().mockResolvedValue(null)}
+          onReset={onReset}
+        />,
+      );
+
+      fireEvent.click(
+        container.querySelector("button[title='Auf Standard zurücksetzen']")!,
+      );
+
+      expect(
+        await findByText(
+          catalogText("general.unavailable", "die Einstellung „Startzeit“"),
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps a failed legal text save inside the open dialog", async () => {
+      const onSave = vi.fn().mockRejectedValue(new ApiError("boom", 500));
+      const { getByRole, getByLabelText } = renderWithProviders(
+        <SettingsField
+          setting={makeSetting({
+            key: "enrollment.legal_dsgvo_text",
+            label: "Datenschutzinformation Text",
+            type: "textarea",
+            value: "Datenschutz Text",
+          })}
+          categoryItems={[
+            makeSetting({
+              key: "enrollment.legal_dsgvo_enabled",
+              type: "boolean",
+              value: true,
+            }),
+          ]}
+          onSave={onSave}
+          onReset={vi.fn().mockResolvedValue(null)}
+        />,
+      );
+
+      fireEvent.click(getByRole("button", { name: "Rechtstext bearbeiten" }));
+      fireEvent.change(getByLabelText("Rechtstext"), {
+        target: { value: "Neuer Text" },
+      });
+      fireEvent.click(getByRole("button", { name: "Speichern" }));
+
+      const dialog = getByRole("dialog");
+      await waitFor(() =>
+        expect(dialog.textContent).toContain(
+          catalogText(
+            "general.server",
+            "die Einstellung „Datenschutzinformation Text“",
+          ),
+        ),
+      );
+    });
   });
 });

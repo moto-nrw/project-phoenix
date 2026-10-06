@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { ApiError, enrichApiError, transportFetch } from "./api-error";
 /**
  * Staff client for the post-enrollment offering change-request review queue
  * (#1665). Calls the Next.js proxy routes under
@@ -162,7 +162,7 @@ export async function decideOfferingChangeRequest(
   completeWithdrawalConfirmed?: boolean,
   expectedVersion?: string,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/offering-change-requests/${encodeURIComponent(requestId)}/decide`,
     {
       method: "POST",
@@ -193,7 +193,7 @@ export async function previewOfferingChangeRequest(
   excludedOfferingIds: readonly string[],
   effectiveFrom?: string,
 ): Promise<OfferingRequestPreview> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/offering-change-requests/${encodeURIComponent(requestId)}/preview`,
     {
       method: "POST",

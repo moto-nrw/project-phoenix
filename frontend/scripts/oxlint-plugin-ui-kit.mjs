@@ -458,21 +458,21 @@ const TINY_TEXT_BASELINE_FILES = new Set([
 ]);
 
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
-src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@169
+src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@182
 src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1335 text-[11px]@1335 text-[10px]@1339 text-[10px]@1348 text-[11px]@1348
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@231 text-[11px]@271
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@213
 src/components/active-supervisions/planned-now-section.tsx|text-[11px]@431
-src/components/activities/activity-management-modal.tsx|text-[10px]@330 text-[10px]@359 text-[10px]@396
+src/components/activities/activity-management-modal.tsx|text-[10px]@313 text-[10px]@343 text-[10px]@381
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
-src/components/calendar/personal-calendar.tsx|text-[11px]@807 text-[11px]@835 text-[11px]@922 text-[11px]@983 text-[11px]@987 text-[11px]@993 text-[11px]@1039 text-[11px]@1045 text-[10px]@1065 text-[11px]@1118 text-[11px]@1198 text-[11px]@1204 text-[11px]@1209
+src/components/calendar/personal-calendar.tsx|text-[11px]@802 text-[11px]@830 text-[11px]@917 text-[11px]@978 text-[11px]@982 text-[11px]@988 text-[11px]@1034 text-[11px]@1040 text-[10px]@1060 text-[11px]@1113 text-[11px]@1193 text-[11px]@1199 text-[11px]@1204
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@40 text-[10px]@94
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@968 text-[11px]@987
 src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1481
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2180
 src/components/enrollment/phases-editor.tsx|text-[11px]@758 text-[11px]@763
-src/components/files/files-page.tsx|text-[11px]@158 text-[11px]@275
+src/components/files/files-page.tsx|text-[11px]@175 text-[11px]@297
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@376
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@676 text-[11px]@741

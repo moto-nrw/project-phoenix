@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { CaregiverBlockerResolutionPanel } from "./caregiver-blocker-resolution-panel";
 
 const { mockToastSuccess, mockGetAllAvailableStaff, mockFetch } = vi.hoisted(
@@ -48,7 +50,8 @@ vi.mock("~/components/ui/detail-modal-components", async () => {
   };
 });
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: mockToastSuccess,
   }),
@@ -133,13 +136,15 @@ describe("CaregiverBlockerResolutionPanel", () => {
   });
 
   it("shows when replacement staff cannot be loaded", async () => {
-    mockGetAllAvailableStaff.mockRejectedValueOnce(new Error("invalid data"));
+    mockGetAllAvailableStaff.mockRejectedValueOnce(
+      new ApiError("invalid data", 503, { code: "general.unavailable" }),
+    );
 
     render(<CaregiverBlockerResolutionPanel active state={createState()} />);
 
     expect(
       await screen.findByText(
-        "Ersatzkräfte konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+        catalogText("general.unavailable", "die Liste der Ersatzkräfte"),
       ),
     ).toBeInTheDocument();
   });
@@ -176,7 +181,7 @@ describe("CaregiverBlockerResolutionPanel", () => {
       expect(screen.queryByText("Gruppe Blau")).not.toBeInTheDocument();
     });
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      'Gruppenaufsicht für "Gruppe Blau" beendet.',
+      "Die Gruppenaufsicht für „Gruppe Blau“ ist beendet.",
     );
   });
 
@@ -215,7 +220,7 @@ describe("CaregiverBlockerResolutionPanel", () => {
       );
     });
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      'Gruppenübergabe für "Gruppe Rot" beendet.',
+      "Die Gruppenübergabe für „Gruppe Rot“ ist beendet.",
     );
   });
 
@@ -258,7 +263,7 @@ describe("CaregiverBlockerResolutionPanel", () => {
     });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      'Aktivitätsleitung für "Theater" übertragen.',
+      "Die Leitung von „Theater“ ist übertragen.",
     );
   });
 
@@ -266,10 +271,11 @@ describe("CaregiverBlockerResolutionPanel", () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 409,
-      json: async () => ({
-        error: "cannot remove the only supervisor",
-        code: "timetable.only_supervisor_replacement_required",
-      }),
+      text: async () =>
+        JSON.stringify({
+          error: "cannot remove the only supervisor",
+          code: "timetable.only_supervisor_replacement_required",
+        }),
     });
 
     render(
@@ -302,7 +308,10 @@ describe("CaregiverBlockerResolutionPanel", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("alert")).toHaveTextContent(
-        '"Theater": Einzige Leitung',
+        catalogText(
+          "timetable.only_supervisor_replacement_required",
+          "die Leitung von „Theater“",
+        ),
       );
     });
   });
@@ -311,9 +320,7 @@ describe("CaregiverBlockerResolutionPanel", () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 500,
-      json: async () => {
-        throw new Error("invalid json");
-      },
+      text: async () => "<html>gateway</html>",
     });
 
     render(
@@ -341,7 +348,7 @@ describe("CaregiverBlockerResolutionPanel", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("alert")).toHaveTextContent(
-        "Aktivitätsleitung konnte nicht entfernt werden (500)",
+        catalogText("general.server", "die Leitung von „Theater“"),
       );
     });
   });
@@ -384,7 +391,7 @@ describe("CaregiverBlockerResolutionPanel", () => {
       );
     });
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      'Gruppenleitung für "Gruppe Gelb" entfernt.',
+      "Die Gruppenleitung für „Gruppe Gelb“ ist entfernt.",
     );
   });
 
@@ -427,7 +434,7 @@ describe("CaregiverBlockerResolutionPanel", () => {
       );
     });
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      'Gruppenleitung für "Gruppe Gelb" übertragen.',
+      "Die Gruppenleitung für „Gruppe Gelb“ ist übertragen.",
     );
   });
 

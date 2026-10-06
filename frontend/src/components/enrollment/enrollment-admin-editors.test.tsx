@@ -2097,6 +2097,20 @@ describe("CareOfferingsEditor", () => {
       screen.queryByText("Erst eine Anmeldephase anlegen"),
     ).not.toBeInTheDocument();
   });
+  // #2517: Der Seitenkopf bekommt nach einem Ladefehler keine "0 Angebote".
+  it("reports an unavailable summary, not zero, when the catalog fails", async () => {
+    mocks.listPhases.mockRejectedValueOnce(
+      new ApiError("Phasen kaputt", 500, { code: "general.server" }),
+    );
+    const onSummaryChange = vi.fn();
+    render(<CareOfferingsEditor onSummaryChange={onSummaryChange} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      catalogText("general.server", "die Liste der Betreuungsangebote"),
+    );
+    expect(onSummaryChange).toHaveBeenLastCalledWith("unavailable");
+    expect(onSummaryChange).not.toHaveBeenCalledWith({ total: 0, active: 0 });
+  });
   it("keeps a failed offering delete in the open dialog (#2515)", async () => {
     mocks.listPhases.mockResolvedValue([phase()]);
     mocks.listCareOfferings.mockResolvedValue([offering()]);

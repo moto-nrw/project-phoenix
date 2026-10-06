@@ -79,11 +79,29 @@ describe("exportRoomSnapshot", () => {
     expect(download).toBe("wer-ist-wo.xlsx");
   });
 
-  it("throws the backend error body when the export fails", async () => {
+  it("throws an ApiError with the backend code when the export fails", async () => {
+    globalThis.fetch = vi.fn(async () => {
+      return Response.json(
+        { error: "keine Räume", code: "general.input", instance: "req-1" },
+        { status: 400 },
+      );
+    });
+
+    await expect(exportRoomSnapshot(request)).rejects.toMatchObject({
+      name: "ApiError",
+      status: 400,
+      code: "general.input",
+      requestId: "req-1",
+    });
+  });
+
+  it("classifies a plain-text failure by its status", async () => {
     globalThis.fetch = vi.fn(async () => {
       return new Response("keine Räume", { status: 400 });
     });
 
-    await expect(exportRoomSnapshot(request)).rejects.toThrow("keine Räume");
+    await expect(exportRoomSnapshot(request)).rejects.toMatchObject({
+      code: "general.input",
+    });
   });
 });

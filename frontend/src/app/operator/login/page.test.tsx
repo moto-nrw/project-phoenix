@@ -323,7 +323,7 @@ describe("OperatorLoginPage", () => {
     });
   });
 
-  it("shows error message when fetch throws an exception", async () => {
+  it("shows a generic error when fetch throws an exception", async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
 
     render(<OperatorLoginPage />);
@@ -332,7 +332,9 @@ describe("OperatorLoginPage", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent("Network error");
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Anmeldefehler. Bitte versuchen Sie es erneut.",
+      );
     });
   });
 

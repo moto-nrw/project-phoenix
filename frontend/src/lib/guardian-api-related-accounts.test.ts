@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { ApiError } from "./api-error";
 import {
   inviteGuardianToStudent,
   listPendingApprovals,
@@ -108,11 +109,19 @@ describe("guardian-api related accounts", () => {
       );
     });
 
-    it("falls back to statusText when the error body is unshaped", async () => {
+    // #2517: the message is only a diagnostic; the status classifies the
+    // error for the shared display path.
+    it("classifies an unshaped error body by its status", async () => {
       mockFetch(errStatus(500, { unexpected: true }));
-      await expect(inviteGuardianToStudent("5", "x")).rejects.toThrow(
-        /Failed to invite guardian: Err/,
+      const error = await inviteGuardianToStudent("5", "x").catch(
+        (err: unknown) => err,
       );
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error).toMatchObject({
+        message: "Failed to invite guardian",
+        status: 500,
+        code: "general.server",
+      });
     });
 
     it("handles a non-JSON error response", async () => {

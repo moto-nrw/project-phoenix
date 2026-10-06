@@ -607,7 +607,7 @@ function VertretungContent() {
             );
         if (result.cancelled) {
           toast.success(
-            cancelledToast("Block abgesagt", result.guardianNotice),
+            cancelledToast("Der Block ist abgesagt.", result.guardianNotice),
           );
           updateUrlParams({ block: null, verlauf: null });
         } else {
@@ -667,15 +667,21 @@ function VertretungContent() {
   // Statuszeile der Kopfkarte: Zeitraum und die Zahlen der sichtbaren
   // Ansicht.
   const scopeInstanceCount = visibleInstances.length;
-  const statusLine = [
-    // Kein Datum in der Statuszeile: Woche und Tag trägt das Bedienband
-    // direkt darunter, mit Pfeilen. Zweimal dieselbe Angabe in der Kopfkarte
-    // kostete auf dem Telefon eine Zeile, die nichts sagte.
-    `${scopeInstanceCount} ${scopeInstanceCount === 1 ? "Termin" : "Termine"}`,
-    ...(countsUnavailable
-      ? []
-      : [`${openCount} offen`, `${ackCount} quittiert`]),
-  ].join(" · ");
+  const statusLine =
+    [
+      // Kein Datum in der Statuszeile: Woche und Tag trägt das Bedienband
+      // direkt darunter, mit Pfeilen. Zweimal dieselbe Angabe in der
+      // Kopfkarte kostete auf dem Telefon eine Zeile, die nichts sagte.
+      // Ohne geladene Woche keine "0 Termine" neben dem Ladefehler (#2517).
+      ...(data === undefined
+        ? []
+        : [
+            `${scopeInstanceCount} ${scopeInstanceCount === 1 ? "Termin" : "Termine"}`,
+          ]),
+      ...(countsUnavailable
+        ? []
+        : [`${openCount} offen`, `${ackCount} quittiert`]),
+    ].join(" · ") || null;
 
   const overlays = (
     <>

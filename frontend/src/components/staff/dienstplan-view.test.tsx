@@ -265,6 +265,9 @@ describe("DienstplanView", () => {
     expect(
       screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
     ).toHaveTextContent("req-plan");
+    // #2517: keine Zählung aus einem Plan, der nie geladen wurde.
+    expect(screen.queryByText(/0 Dienste/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/0 Personen/)).not.toBeInTheDocument();
 
     // Retrying reloads the batched overview, not the independent shift types.
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));

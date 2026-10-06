@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Check, X } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
@@ -9,12 +15,24 @@ import {
   rejectGuardianInvitation,
   type PendingApproval,
 } from "@/lib/guardian-api";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import {
+  formErrorMessage,
+  type FormErrorInput,
+} from "~/components/ui/form-error";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { CardSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { useTenantRouter } from "~/lib/tenant-router";
 
@@ -29,6 +47,14 @@ export type GuardianInviteModeState =
       readonly status: "error";
       readonly isRetrying: boolean;
       readonly retry: () => void;
+      /**
+       * The failed settings request on the shared error path (#2517), with
+       * catalog text, retry and request ID. Absent when the request worked
+       * but the setting is missing from it.
+       */
+      readonly error?: FormErrorInput;
+      /** True while the catalog text of a failed request is still loading. */
+      readonly awaitingError?: boolean;
     }
   | { readonly status: "ready"; readonly mode: GuardianInviteMode };
 
@@ -124,22 +150,24 @@ function InviteModeDependentEmptyState({
   }
 
   if (state.status === "error") {
+    if (state.awaitingError) {
+      return (
+        <SkeletonRegion label="Einladungs-Einstellung wird geladen…">
+          <CardSkeleton rows={2} />
+        </SkeletonRegion>
+      );
+    }
+    if (state.error) return <LoadErrorAlert error={state.error} />;
+    // The request worked, but the setting is missing from it: no API error to
+    // present, so the card names the consequence and offers a reload.
     return (
-      <Alert
-        type="error"
-        message="Die Einladungs-Einstellung konnte nicht geladen werden. Der leere Zustand der Elternzugänge kann deshalb derzeit nicht zuverlässig eingeordnet werden."
-        action={
-          <Button
-            type="button"
-            variant="outline_danger"
-            size="md"
-            isLoading={state.isRetrying}
-            loadingText="Wird geladen…"
-            onClick={state.retry}
-          >
-            Erneut versuchen
-          </Button>
-        }
+      <LoadErrorAlert
+        error={{
+          message:
+            "Die Einladungs-Einstellung konnte nicht geladen werden. Darum ist unklar, warum hier keine Anfragen stehen.",
+          retry: { label: "Wiederholen", onClick: state.retry },
+          attempt: 0,
+        }}
       />
     );
   }
@@ -157,33 +185,53 @@ export default function GuardianApprovalQueue({
 }) {
   const [requests, setRequests] = useState<PendingApproval[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Ladefehler stehen vor Ort, mit Wiederholen (#2517).
+  const [loadFailed, setLoadFailed] = useState(false);
+  const loadError = useApiLoadError();
+  const showLoadError = loadError.show;
+  const clearLoadError = loadError.clear;
+  const latestLoadRef = useRef<() => void>(() => undefined);
   const [actingId, setActingId] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<PendingApproval | null>(
     null,
   );
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
+  // Freigeben ist eine Aktion ohne Formular: Fehler als Toast.
+  const { show: showActionError } = useApiErrorDisplay();
+  // Ablehnen läuft im Bestätigungsdialog; sein Fehler bleibt im Dialog.
+  const rejectErrors = useApiFormError();
+  const clearRejectError = rejectErrors.clear;
+  const latestRejectRef = useRef<() => void>(() => undefined);
 
+  // Never rejects: a failed load shows its error where the list belongs.
   const load = useCallback(async () => {
     try {
       setIsLoading(true);
-      setError(null);
       setRequests(await listPendingApprovals());
+      setLoadFailed(false);
+      clearLoadError();
     } catch (err) {
       logger.error("approvals_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError("Anfragen konnten nicht geladen werden");
+      setLoadFailed(true);
+      void showLoadError(err, {
+        object: "die Liste der Anfragen",
+        retry: () => latestLoadRef.current(),
+      });
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [showLoadError, clearLoadError]);
+  useLayoutEffect(() => {
+    latestLoadRef.current = () => void load();
+  });
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const reportedCount = isLoading ? null : requests.length;
+  const reportedCount = isLoading || loadFailed ? null : requests.length;
   useEffect(() => {
     onCountChange?.(reportedCount);
   }, [onCountChange, reportedCount]);
@@ -194,13 +242,16 @@ export default function GuardianApprovalQueue({
       await approveGuardianInvitation(req.id);
       await load();
       toastSuccess(
-        `${req.guardianName || req.guardianEmail || "Bezugsperson"} wurde freigegeben`,
+        `Der Zugang für ${req.guardianName || req.guardianEmail || "die Bezugsperson"} ist freigegeben.`,
       );
     } catch (err) {
       logger.error("approval_approve_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      toastError("Freigabe fehlgeschlagen");
+      void showActionError(err, {
+        object: "die Freigabe der Anfrage",
+        retry: () => void handleApprove(req),
+      });
     } finally {
       setActingId(null);
     }
@@ -210,22 +261,40 @@ export default function GuardianApprovalQueue({
     if (!rejectTarget) return;
     const req = rejectTarget;
     setActingId(req.id);
+    clearRejectError();
     try {
       await rejectGuardianInvitation(req.id);
       setRejectTarget(null);
       await load();
-      toastSuccess("Anfrage abgelehnt");
+      toastSuccess("Die Anfrage ist abgelehnt.");
     } catch (err) {
       logger.error("approval_reject_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      toastError("Ablehnen fehlgeschlagen");
+      await rejectErrors.show(err, {
+        object: "das Ablehnen der Anfrage",
+        retry: () => latestRejectRef.current(),
+      });
     } finally {
       setActingId(null);
     }
   };
+  useLayoutEffect(() => {
+    latestRejectRef.current = () => void handleReject();
+  });
 
-  if (isLoading) {
+  const closeReject = () => {
+    clearRejectError();
+    setRejectTarget(null);
+  };
+
+  // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett stehen,
+  // nie der Leerzustand.
+  const failedWithoutData = loadFailed && requests.length === 0;
+  if (
+    isLoading ||
+    (failedWithoutData && formErrorMessage(loadError.error) === null)
+  ) {
     return (
       <SkeletonRegion label="Konto-Anfragen werden geladen">
         <CardSkeleton rows={3} />
@@ -235,24 +304,9 @@ export default function GuardianApprovalQueue({
 
   return (
     <div className="space-y-3">
-      {error ? (
-        <Alert
-          type="error"
-          message={error}
-          action={
-            <Button
-              type="button"
-              variant="outline_danger"
-              size="md"
-              onClick={() => void load()}
-            >
-              Erneut versuchen
-            </Button>
-          }
-        />
-      ) : null}
+      <LoadErrorAlert error={loadError.error} />
 
-      {requests.length === 0 && !error ? (
+      {failedWithoutData ? null : requests.length === 0 ? (
         <InviteModeDependentEmptyState state={inviteModeState} />
       ) : (
         requests.map((req) => (
@@ -320,7 +374,7 @@ export default function GuardianApprovalQueue({
 
       <ConfirmationModal
         isOpen={!!rejectTarget}
-        onClose={() => setRejectTarget(null)}
+        onClose={closeReject}
         onConfirm={() => void handleReject()}
         title="Anfrage ablehnen?"
         confirmText="Ablehnen"
@@ -336,6 +390,7 @@ export default function GuardianApprovalQueue({
           </span>{" "}
           ablehnen? Es wird kein Zugang gewährt.
         </p>
+        <FormErrorAlert message={rejectErrors.error} className="mt-3" />
       </ConfirmationModal>
     </div>
   );

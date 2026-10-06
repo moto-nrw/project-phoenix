@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -17,7 +23,10 @@ const {
   mockRotateStaffFeed: vi.fn(),
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+// Der echte Anzeigeweg (useApiErrorDisplay) zeigt Fehler im ToastProvider;
+// nur die direkten Toasts der Komponente werden abgefangen.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
 }));
 
@@ -34,7 +43,15 @@ vi.mock("~/lib/personal-calendar-api", async () => {
   };
 });
 
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
 import { CalendarSubscribePanel } from "./calendar-subscribe-panel";
+
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 describe("CalendarSubscribePanel", () => {
   beforeEach(() => {
@@ -91,7 +108,7 @@ describe("CalendarSubscribePanel", () => {
     expect(writeText).toHaveBeenCalledWith(
       "https://parents.test/api/calendar-feed/abc",
     );
-    expect(mockToastSuccess).toHaveBeenCalledWith("Link kopiert.");
+    expect(mockToastSuccess).toHaveBeenCalledWith("Der Link ist kopiert.");
   });
 
   it("passes the subscription URL to Apple Calendar on macOS", async () => {
@@ -172,6 +189,78 @@ describe("CalendarSubscribePanel", () => {
       ).toBeInTheDocument(),
     );
     expect(mockToastSuccess).toHaveBeenCalled();
+  });
+});
+
+// #2517: Fehler laufen über den gemeinsamen Anzeigeweg, mit Katalogtext und
+// Wiederholen statt eines festen Satzes.
+describe("CalendarSubscribePanel errors", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("shows the catalog text for a failed link and retries", async () => {
+    mockGetFeed
+      .mockRejectedValueOnce(
+        new ApiError("feed kaputt", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce({
+        url: "https://parents.test/api/calendar-feed/abc",
+        webcal_url: "webcal://parents.test/api/calendar-feed/abc",
+      });
+
+    render(<CalendarSubscribePanel />);
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "das Anzeigen des Abo-Links"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/feed kaputt/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(
+      await screen.findByText("https://parents.test/api/calendar-feed/abc"),
+    ).toBeInTheDocument();
+    expect(mockGetFeed).toHaveBeenCalledTimes(2);
+  });
+
+  it("names the read-only staff preview when it blocks the link", async () => {
+    mockGetStaffFeed.mockRejectedValueOnce(
+      new ApiError("preview", 403, { code: "identity.read_only_preview" }),
+    );
+
+    render(<CalendarSubscribePanel audience="staff" />);
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+
+    expect(
+      await screen.findByText(
+        catalogText("identity.read_only_preview", "das Anzeigen des Abo-Links"),
+      ),
+    ).toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it("shows the catalog text when renewing the link fails", async () => {
+    mockGetFeed.mockResolvedValue({ url: "", webcal_url: "" });
+    mockRotateFeed.mockRejectedValueOnce(
+      new ApiError("rotate kaputt", 500, { code: "general.server" }),
+    );
+
+    render(<CalendarSubscribePanel />);
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Neuen Abo-Link erstellen/ }),
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "das Erneuern des Abo-Links"),
+      ),
+    ).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 });
 

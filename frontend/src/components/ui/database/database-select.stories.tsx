@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { useState } from "react";
 
+import { useFormError } from "~/components/ui/form-error";
+
 import { DatabaseSelect, GroupSelect } from "./database-select";
 
 const sampleOptions = [
@@ -12,7 +14,7 @@ const sampleOptions = [
 function DatabaseSelectDemo(
   props: Omit<
     React.ComponentProps<typeof DatabaseSelect>,
-    "value" | "onChange"
+    "value" | "onChange" | "loadOptions" | "loadError" | "onLoadError"
   >,
 ) {
   const [value, setValue] = useState("");
@@ -94,7 +96,30 @@ export const NoOptions: Story = {
 
 function GroupSelectDemo() {
   const [value, setValue] = useState("");
-  return <GroupSelect name="group_id" value={value} onChange={setValue} />;
+  // Stands in for the owner's `useApiLoadError`: a failed load shows the
+  // catalog text with retry instead of the select.
+  const [loadError, setLoadError] = useFormError();
+  return (
+    <GroupSelect
+      name="group_id"
+      value={value}
+      onChange={setValue}
+      loadError={loadError}
+      onLoadError={(_error, retry) =>
+        setLoadError({
+          message:
+            "Die Liste der Gruppen ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+          retry: {
+            label: "Wiederholen",
+            onClick: () => {
+              setLoadError(null);
+              retry();
+            },
+          },
+        })
+      }
+    />
+  );
 }
 
 export const GroupSelectStory: StoryObj = {

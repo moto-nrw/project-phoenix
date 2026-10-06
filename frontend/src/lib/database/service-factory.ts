@@ -2,20 +2,14 @@
 
 import { getCachedSession } from "~/lib/session-cache";
 import { createLogger } from "~/lib/logger";
-import { apiErrorFromText, type ApiError } from "~/lib/api-error";
+import {
+  apiErrorFromText,
+  transportFetch,
+  type ApiError,
+} from "~/lib/api-error";
 
 const logger = createLogger({ component: "ServiceFactory" });
 import type { EntityConfig, CrudService, PaginatedResponse } from "./types";
-
-/**
- * Extract a user-friendly error message from a caught error.
- * Use in catch blocks: `toastError(getDeleteErrorMessage(err))`
- */
-export function getDeleteErrorMessage(err: unknown): string {
-  return err instanceof Error
-    ? err.message
-    : "Fehler beim Löschen. Bitte versuchen Sie es erneut.";
-}
 
 export class MalformedCrudListResponseError extends Error {
   readonly entity: string;
@@ -189,7 +183,8 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
       headers.set("Authorization", `Bearer ${token}`);
     }
 
-    const response = await fetch(url, {
+    // A request that never reached the API becomes general.unavailable.
+    const response = await transportFetch(url, {
       ...options,
       headers,
       credentials: "include",
@@ -472,49 +467,27 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
       }
     },
 
-    async delete(id: string): Promise<string | null> {
+    async remove(id: string): Promise<boolean> {
+      if (config.hooks?.beforeDelete) {
+        const shouldDelete = await config.hooks.beforeDelete(id);
+        if (!shouldDelete) return false;
+      }
       try {
-        // Apply hook
-        if (config.hooks?.beforeDelete) {
-          const shouldDelete = await config.hooks.beforeDelete(id);
-          if (!shouldDelete) {
-            return "Löschen wurde abgebrochen";
-          }
-        }
-
-        const url = endpoints.delete.replace("{id}", id);
-
-        await fetchWithAuth(url, {
+        await fetchWithAuth(endpoints.delete.replace("{id}", id), {
           method: "DELETE",
         });
-
-        // Apply after hook
-        if (config.hooks?.afterDelete) {
-          await config.hooks.afterDelete(id);
-        }
-        return null;
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        const is5xx = /API error: 5\d\d/.test(errorMsg);
-
-        if (is5xx) {
-          // 5xx = unexpected server error → log at error level, show generic message
-          logger.error("entity_delete_server_error", {
-            entity: config.name.singular,
-            id,
-            error: errorMsg,
-          });
-          return "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.";
-        }
-
-        // 4xx = expected business error → warn level, show backend message
-        logger.warn("entity_delete_rejected", {
+        logger.warn("entity_delete_failed", {
           entity: config.name.singular,
           id,
-          error: errorMsg,
+          error: error instanceof Error ? error.message : String(error),
         });
-        return getDeleteErrorMessage(error);
+        throw error;
       }
+      if (config.hooks?.afterDelete) {
+        await config.hooks.afterDelete(id);
+      }
+      return true;
     },
   };
 }

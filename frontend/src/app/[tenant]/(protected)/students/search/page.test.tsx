@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { roomService } from "~/lib/api";
 import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import StudentSearchPage from "./page";
 
 const STUDENT_SEARCH_FILTER_STORAGE_KEY =
@@ -1853,6 +1854,13 @@ describe("StudentSearchPage", () => {
           "Die Liste der Kinder konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
         );
       });
+      // #2517: Neben dem Ladefehler steht keine Zählung aus einer Liste,
+      // die nie geladen wurde.
+      expect(screen.getByTestId("alert-error")).toHaveTextContent(
+        catalogText("general.server", "die Liste der Kinder"),
+      );
+      expect(screen.queryByText(/0 Kinder/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/0 in der Schule/)).not.toBeInTheDocument();
     });
   });
 

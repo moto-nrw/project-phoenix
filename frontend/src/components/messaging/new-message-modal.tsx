@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import {
   SlideOver,
@@ -10,10 +10,13 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
-import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { formErrorMessage } from "~/components/ui/form-error";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
-import { getApiErrorMessage } from "~/lib/api-error-message";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { fetchStudents } from "~/lib/student-api";
 import type { Student } from "~/lib/student-helpers";
 import {
@@ -60,6 +63,13 @@ export function NewMessageModal({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Student[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  // A failed search is not "Kein Kind gefunden": it shows its own error with
+  // a retry (#2517).
+  const [searchFailed, setSearchFailed] = useState(false);
+  const [searchReloadKey, setSearchReloadKey] = useState(0);
+  const searchError = useApiLoadError();
+  const showSearchError = searchError.show;
+  const clearSearchError = searchError.clear;
 
   const [student, setStudent] = useState<PickedStudent | null>(
     presetStudentId
@@ -72,10 +82,15 @@ export function NewMessageModal({
   // A failed guardian lookup (403/500/network) is an operational error, not the
   // domain fact "this child has no portal guardian" — keep it separate so the UI
   // can offer a retry instead of misreporting the failure as an empty list.
-  const [guardiansError, setGuardiansError] = useState<string | null>(null);
+  const [guardiansFailed, setGuardiansFailed] = useState(false);
   const [guardiansReloadKey, setGuardiansReloadKey] = useState(0);
+  const guardiansError = useApiLoadError();
+  const showGuardiansError = guardiansError.show;
+  const clearGuardiansError = guardiansError.clear;
   const [openingId, setOpeningId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Opening the chat fails inside the open panel; the error stays there.
+  const openError = useApiFormError();
+  const latestPickRef = useRef<(guardian: Guardian) => void>(() => undefined);
 
   // Debounced child search (only while no child is picked).
   useEffect(() => {
@@ -83,6 +98,8 @@ export function NewMessageModal({
     const term = query.trim();
     if (term.length < 2) {
       setResults([]);
+      setSearchFailed(false);
+      clearSearchError();
       return;
     }
     let active = true;
@@ -90,13 +107,22 @@ export function NewMessageModal({
     const handle = setTimeout(() => {
       fetchStudents({ search: term, page_size: 20 })
         .then((res) => {
-          if (active) setResults(res.students);
+          if (!active) return;
+          setResults(res.students);
+          setSearchFailed(false);
+          clearSearchError();
         })
         .catch((err) => {
           logger.warn("new_message_student_search_failed", {
             error: err instanceof Error ? err.message : String(err),
           });
-          if (active) setResults([]);
+          if (!active) return;
+          setResults([]);
+          setSearchFailed(true);
+          void showSearchError(err, {
+            object: "die Suche nach Kindern",
+            retry: () => setSearchReloadKey((key) => key + 1),
+          });
         })
         .finally(() => {
           if (active) setIsSearching(false);
@@ -106,24 +132,23 @@ export function NewMessageModal({
       active = false;
       clearTimeout(handle);
     };
-  }, [query, student]);
+  }, [query, student, searchReloadKey, showSearchError, clearSearchError]);
 
   // Load the guardians of the picked child for the recipient step.
   useEffect(() => {
     if (!student) {
       setGuardians([]);
-      setGuardiansError(null);
+      setGuardiansFailed(false);
+      clearGuardiansError();
       return;
     }
     let active = true;
     setGuardiansLoading(true);
-    setGuardiansError(null);
+    setGuardiansFailed(false);
+    clearGuardiansError();
     fetchGuardians(student.id)
       .then((list) => {
-        if (active) {
-          setGuardians(list);
-          setGuardiansError(null);
-        }
+        if (active) setGuardians(list);
       })
       .catch((err) => {
         logger.warn("new_message_guardians_load_failed", {
@@ -132,14 +157,11 @@ export function NewMessageModal({
         });
         if (active) {
           setGuardians([]);
-          setGuardiansError(
-            getApiErrorMessage(
-              err,
-              "laden",
-              "Eltern",
-              "Eltern konnten nicht geladen werden.",
-            ),
-          );
+          setGuardiansFailed(true);
+          void showGuardiansError(err, {
+            object: "die Liste der Eltern",
+            retry: () => setGuardiansReloadKey((key) => key + 1),
+          });
         }
       })
       .finally(() => {
@@ -148,17 +170,17 @@ export function NewMessageModal({
     return () => {
       active = false;
     };
-  }, [student, guardiansReloadKey]);
+  }, [student, guardiansReloadKey, showGuardiansError, clearGuardiansError]);
 
   const resetToStudentStep = () => {
     setStudent(null);
-    setError(null);
+    openError.clear();
   };
 
   const handlePickGuardian = async (guardian: Guardian) => {
     if (!student || openingId) return;
     setOpeningId(guardian.account_id);
-    setError(null);
+    openError.clear();
     try {
       const thread = await openThread({
         studentId: student.id,
@@ -171,18 +193,25 @@ export function NewMessageModal({
         error: err instanceof Error ? err.message : String(err),
         student_id: student.id,
       });
-      setError(
-        getApiErrorMessage(
-          err,
-          "öffnen",
-          "Unterhaltung",
-          "Unterhaltung konnte nicht geöffnet werden.",
-        ),
-      );
+      void openError.show(err, {
+        object: "die Unterhaltung",
+        retry: () => latestPickRef.current(guardian),
+      });
     } finally {
       setOpeningId(null);
     }
   };
+  // "Wiederholen" opens with the then current child.
+  useLayoutEffect(() => {
+    latestPickRef.current = (guardian) => void handlePickGuardian(guardian);
+  });
+
+  // The catalog text loads on demand; until it is there the failed list
+  // keeps its loading line, never "Kein Kind gefunden" / no guardians.
+  const searchErrorPending =
+    searchFailed && formErrorMessage(searchError.error) === null;
+  const guardiansErrorPending =
+    guardiansFailed && formErrorMessage(guardiansError.error) === null;
 
   return (
     <SlideOver
@@ -214,12 +243,16 @@ export function NewMessageModal({
                 autoFocus
               />
               <div className="max-h-72 space-y-1 overflow-y-auto">
-                {isSearching && (
+                {(isSearching || searchErrorPending) && (
                   <p className="py-3 text-center text-sm text-gray-500">
                     Suche...
                   </p>
                 )}
+                {!isSearching && searchFailed && (
+                  <LoadErrorAlert error={searchError.error} />
+                )}
                 {!isSearching &&
+                  !searchFailed &&
                   query.trim().length >= 2 &&
                   results.length === 0 && (
                     <p className="py-3 text-center text-sm text-gray-500">
@@ -287,23 +320,13 @@ export function NewMessageModal({
                 )}
               </div>
               <p className="text-sm font-medium text-gray-700">Eltern wählen</p>
-              {error && <Alert type="error" message={error} />}
-              {guardiansLoading ? (
+              <FormErrorAlert message={openError.error} />
+              {guardiansLoading || guardiansErrorPending ? (
                 <p className="py-3 text-center text-sm text-gray-500">
                   Lädt...
                 </p>
-              ) : guardiansError ? (
-                <div className="space-y-2">
-                  <Alert type="error" message={guardiansError} />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    onClick={() => setGuardiansReloadKey((k) => k + 1)}
-                  >
-                    Erneut versuchen
-                  </Button>
-                </div>
+              ) : guardiansFailed ? (
+                <LoadErrorAlert error={guardiansError.error} />
               ) : guardians.length === 0 ? (
                 <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600">
                   Für dieses Kind ist kein Eltern-Zugang hinterlegt.

@@ -7,7 +7,9 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
 import type { Permission, Role } from "~/lib/auth-helpers";
+import { catalogText } from "~/test/error-catalog-text";
 import { RolePermissionsTab } from "./role-permissions-tab";
 
 const {
@@ -24,7 +26,8 @@ const {
   mockReplaceRolePermissions: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: mockToastSuccess, error: vi.fn() }),
 }));
 
@@ -200,7 +203,7 @@ describe("RolePermissionsTab", () => {
       expect(onSaved).toHaveBeenCalledOnce();
     });
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      "Berechtigungen gespeichert.",
+      "Die Berechtigungen der Rolle sind gespeichert.",
     );
   });
 
@@ -355,7 +358,9 @@ describe("RolePermissionsTab", () => {
   });
 
   it("shows the save error in the alert and keeps the draft", async () => {
-    mockReplaceRolePermissions.mockRejectedValueOnce(new Error("offline"));
+    mockReplaceRolePermissions.mockRejectedValueOnce(
+      new ApiError("offline", 503, { code: "general.unavailable" }),
+    );
     render(
       <RolePermissionsTab
         role={role}
@@ -371,11 +376,15 @@ describe("RolePermissionsTab", () => {
 
     expect(
       await screen.findByText(
-        "Die Berechtigungen konnten nicht gespeichert werden.",
+        catalogText("general.unavailable", "das Speichern der Berechtigungen"),
       ),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("rooms:read")).toBeChecked();
     expect(onSaved).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => {
+      expect(mockReplaceRolePermissions).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("hands cancel back to the caller", async () => {
@@ -394,7 +403,9 @@ describe("RolePermissionsTab", () => {
   });
 
   it("reports when the permissions could not be loaded", async () => {
-    mockGetRolePermissions.mockRejectedValueOnce(new Error("offline"));
+    mockGetRolePermissions.mockRejectedValueOnce(
+      new ApiError("offline", 503, { code: "general.unavailable" }),
+    );
     render(
       <RolePermissionsTab
         role={role}
@@ -406,13 +417,15 @@ describe("RolePermissionsTab", () => {
 
     expect(
       await screen.findByText(
-        "Die Berechtigungen konnten nicht geladen werden.",
+        catalogText("general.unavailable", "die Liste der Berechtigungen"),
       ),
     ).toBeInTheDocument();
   });
 
   it("keeps cancellation available when the edit catalogue cannot be loaded", async () => {
-    mockGetRolePermissions.mockRejectedValueOnce(new Error("offline"));
+    mockGetRolePermissions.mockRejectedValueOnce(
+      new ApiError("offline", 503, { code: "general.unavailable" }),
+    );
     render(
       <RolePermissionsTab
         role={role}
@@ -424,7 +437,7 @@ describe("RolePermissionsTab", () => {
 
     expect(
       await screen.findByText(
-        "Die Berechtigungen konnten nicht geladen werden.",
+        catalogText("general.unavailable", "die Liste der Berechtigungen"),
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();

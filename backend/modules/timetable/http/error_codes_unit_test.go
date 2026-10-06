@@ -301,7 +301,7 @@ func TestOperationErrorCodes(t *testing.T) {
 		{"reopen staff busy", operationErrorRenderer(staffBusy), http.StatusConflict, "timetable.reopen_staff_busy", "", nil},
 		{"uncoded conflict", operationErrorRenderer(timetable.ErrTimetableOperationConflict), http.StatusConflict, "timetable.operation_stale", "", nil},
 		{"no staff profile", operationErrorRenderer(timetable.ErrNoStaffProfile), http.StatusForbidden, "timetable.no_staff_profile", "", nil},
-		{"plain forbidden", operationErrorRenderer(timetable.ErrTimetableOperationForbidden), http.StatusForbidden, "general.permission", "", nil},
+		{"not planned", operationErrorRenderer(timetable.ErrTimetableOperationForbidden), http.StatusForbidden, "timetable.operation_not_planned", "", nil},
 		{"not checked in", operationErrorRenderer(notCheckedIn), http.StatusNotFound, "timetable.student_not_checked_in", "", nil},
 		{"operation not found", operationErrorRenderer(timetable.ErrTimetableOperationNotFound), http.StatusNotFound, "timetable.instance_not_found", "", nil},
 		{"weekend", operationErrorRenderer(timetable.ErrInstanceWeekend), http.StatusBadRequest, "timetable.instance_weekend", "", nil},

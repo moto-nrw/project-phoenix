@@ -1676,10 +1676,16 @@ describe("BetreuungsplanView", () => {
     fireEvent.click(screen.getByText("detail-reopen"));
 
     // Name und Belegung kommen aus den Details, nie aus dem Satz des Servers.
-    const expected = catalogText("presence.room_capacity_exceeded", "")
-      .replace("{room_name}", "Turnhalle")
-      .replace("{current_occupancy}", "30")
-      .replace("{max_capacity}", "30");
+    const expected = Object.entries({
+      room_name: "Turnhalle",
+      current_occupancy: 30,
+      max_capacity: 30,
+      incoming_students: 1,
+      free_slots: 0,
+    }).reduce(
+      (text, [key, value]) => text.replace(`{${key}}`, String(value)),
+      catalogText("presence.room_capacity_exceeded", ""),
+    );
     await waitFor(() =>
       expect(mockToastError).toHaveBeenCalledWith(expected, undefined),
     );

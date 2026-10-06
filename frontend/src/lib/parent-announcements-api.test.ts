@@ -454,3 +454,41 @@ describe("updateAnnouncementReminder (#3162)", () => {
     expect(JSON.parse(seenBody)).toEqual({ reminder_at: null });
   });
 });
+
+// #2517: the client keeps the error identity; screens show the catalog text.
+describe("error identity", () => {
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("keeps code, field errors and request ID of a rejected save", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        {
+          error: "title is required",
+          code: "general.input",
+          errors: [{ field: "title", reason: "required" }],
+          instance: "req-42",
+        },
+        { status: 400 },
+      ),
+    );
+
+    await expect(createAnnouncement(validInput)).rejects.toMatchObject({
+      status: 400,
+      code: "general.input",
+      errors: [{ field: "title", reason: "required" }],
+      requestId: "req-42",
+    });
+  });
+
+  it("turns a request that never reaches the API into unavailable", async () => {
+    mockFetch(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+
+    await expect(fetchAnnouncements()).rejects.toMatchObject({
+      code: "general.unavailable",
+    });
+  });
+});

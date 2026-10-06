@@ -8,7 +8,7 @@
  * Tests that can share this header belong here.
  */
 import {
-  render,
+  render as rtlRender,
   screen,
   waitFor,
   cleanup,
@@ -312,6 +312,16 @@ import { useSWRAuth } from "~/lib/swr";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useNFCEnabled } from "~/lib/tenant-context";
 import MeinRaumPage from "./page";
+
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+// Aktionen melden Fehler als Toast oder im Dialog (#2517); der Provider
+// zeigt den Toast echt an.
+function render(ui: Parameters<typeof rtlRender>[0]) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 const defaultPageHeader = vi
   .mocked(PageHeaderWithSearch)
@@ -3911,7 +3921,7 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: null,
       isLoading: false,
-      error: new Error("BFF request failed: 403"),
+      error: new ApiError("BFF request failed: 403", 403),
       mutate: mockMutate,
       isValidating: false,
     } as never);
@@ -3935,7 +3945,7 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: null,
       isLoading: false,
-      error: new Error("BFF request failed: 403"),
+      error: new ApiError("BFF request failed: 403", 403),
       mutate: mockMutate,
       isValidating: false,
     } as never);
@@ -4624,7 +4634,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     // the fetcher's group_id retry failed too, so mutate rejects. Unlike the
     // former silently-swallowed per-room 403 (#2096), the page now surfaces
     // the permission problem.
-    mockMutate.mockRejectedValue(new Error("Request failed: 403"));
+    mockMutate.mockRejectedValue(new ApiError("Request failed: 403", 403));
 
     const dashboardData = {
       supervisedGroups: [
@@ -4693,7 +4703,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          'Keine Berechtigung für "Raum B". Kontaktieren Sie einen Administrator.',
+          catalogText("general.permission", "die Aufsicht in „Raum B“"),
         ),
       ).toBeInTheDocument();
     });
@@ -4702,7 +4712,9 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
 
   it("handles non-403 error when switching rooms", async () => {
     // A generic aggregate failure while switching surfaces the load error.
-    mockMutate.mockRejectedValue(new Error("Network timeout"));
+    mockMutate.mockRejectedValue(
+      new ApiError("Network timeout", 503, { code: "general.unavailable" }),
+    );
 
     const dashboardData = {
       supervisedGroups: [
@@ -4769,7 +4781,9 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     // Generic error should appear
     await waitFor(() => {
       expect(
-        screen.getByText("Fehler beim Laden der Raumdaten."),
+        screen.getByText(
+          catalogText("general.unavailable", "die Aufsicht in „Raum B“"),
+        ),
       ).toBeInTheDocument();
     });
   });
@@ -5441,7 +5455,7 @@ describe("ID-based selection coverage: forbidden-session 403 handling", () => {
   it("shows permission error for 403 and clears students", async () => {
     // The aggregate's mutate rejects with 403 for a session outside the
     // caller's scope (#2096) — switchToRoom shows the permission notice.
-    mockMutate.mockRejectedValue(new Error("Request failed: 403"));
+    mockMutate.mockRejectedValue(new ApiError("Request failed: 403", 403));
 
     const dashboardData = {
       supervisedGroups: [
@@ -5510,7 +5524,10 @@ describe("ID-based selection coverage: forbidden-session 403 handling", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          'Keine Berechtigung für "Restricted Room". Kontaktieren Sie einen Administrator.',
+          catalogText(
+            "general.permission",
+            "die Aufsicht in „Restricted Room“",
+          ),
         ),
       ).toBeInTheDocument();
     });

@@ -204,6 +204,16 @@ func ErrorUnauthorizedWithCode(err error, code string) render.Renderer {
 	return resp
 }
 
+// ErrorUnauthorizedOnField returns a 401 with a stable code that names the
+// field a credential check refused (the current password), so the form can
+// mark it (#2517).
+func ErrorUnauthorizedOnField(err error, code, field string) render.Renderer {
+	resp := newErrResponse(http.StatusUnauthorized, err)
+	resp.Code = code
+	resp.Errors = []FieldError{{Field: field, Reason: resp.ErrorText}}
+	return resp
+}
+
 // ErrorForbidden returns a 403 Forbidden error response
 func ErrorForbidden(err error) render.Renderer {
 	return newErrResponse(http.StatusForbidden, err)
@@ -446,6 +456,13 @@ func ErrorTooManyRequests(err error) render.Renderer {
 	return newErrResponse(http.StatusTooManyRequests, err)
 }
 
+// ErrorTooManyRequestsWithCode returns a 429 with a stable error code.
+func ErrorTooManyRequestsWithCode(err error, code string) render.Renderer {
+	resp := newErrResponse(http.StatusTooManyRequests, err)
+	resp.Code = code
+	return resp
+}
+
 // ErrorRequestTimeout returns a 408 Request Timeout response for request
 // contexts whose deadline expired before the handler could complete.
 func ErrorRequestTimeout(err error) render.Renderer {
@@ -531,6 +548,13 @@ func IsConstraintViolation(err error) bool {
 // ErrorGone returns a 410 Gone error response
 func ErrorGone(err error) render.Renderer {
 	return newErrResponse(http.StatusGone, err)
+}
+
+// ErrorGoneWithCode returns a 410 Gone with a stable error code.
+func ErrorGoneWithCode(err error, code string) render.Renderer {
+	resp := newErrResponse(http.StatusGone, err)
+	resp.Code = code
+	return resp
 }
 
 // RequireDependency writes a 503 response built from unavailableErr when ok

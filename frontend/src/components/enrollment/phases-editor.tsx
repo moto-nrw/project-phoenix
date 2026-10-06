@@ -295,13 +295,13 @@ export function PhasesEditor() {
   const toast = useToast();
   const tenantMutate = useTenantMutate();
   const refreshPhaseExpiryWarnings = useCallback(() => {
+    // Bewusst still: die eigentliche Änderung ist gespeichert und bestätigt.
+    // Die Hinweise zu ablaufenden Phasen laden beim nächsten Öffnen neu; bis
+    // dahin bleibt nur dieser Hinweiskasten veraltet.
     void tenantMutate("enrollment-phase-expiry-warnings").catch(
-      (refreshError: unknown) => {
+      (err: unknown) => {
         logger.error("phase_expiry_warning_refresh_failed", {
-          error:
-            refreshError instanceof Error
-              ? refreshError.message
-              : String(refreshError),
+          error: err instanceof Error ? err.message : String(err),
         });
       },
     );

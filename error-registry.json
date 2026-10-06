@@ -475,6 +475,12 @@
       "legacy": "declaration_has_submissions"
     },
     {
+      "code": "communication.notifications_disabled",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.notifications_disabled"
+    },
+    {
       "code": "communication.parent_news_disabled",
       "class": "permission",
       "parameters": [],
@@ -497,6 +503,12 @@
       "class": "permission",
       "parameters": [],
       "legacy": "staff_messaging_disabled"
+    },
+    {
+      "code": "communication.staff_notice_outdated",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.staff_notice_outdated"
     },
     {
       "code": "communication.system_announcement_immutable",
@@ -789,6 +801,32 @@
       "legacy": "attachment_limit_reached"
     },
     {
+      "code": "files.file_missing",
+      "class": "input",
+      "parameters": [],
+      "legacy": "files.file_missing"
+    },
+    {
+      "code": "files.file_too_large",
+      "class": "input",
+      "parameters": [
+        "max_mb"
+      ],
+      "legacy": "files.file_too_large"
+    },
+    {
+      "code": "files.file_type_not_allowed",
+      "class": "input",
+      "parameters": [],
+      "legacy": "files.file_type_not_allowed"
+    },
+    {
+      "code": "files.file_unreadable",
+      "class": "input",
+      "parameters": [],
+      "legacy": "files.file_unreadable"
+    },
+    {
       "code": "files.folder_name_taken",
       "class": "business_rejection",
       "parameters": [],
@@ -921,6 +959,12 @@
       "legacy": "identity.email_already_exists"
     },
     {
+      "code": "identity.role_name_taken",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.role_name_taken"
+    },
+    {
       "code": "identity.invitation_account_login_required",
       "class": "permission",
       "parameters": [],
@@ -975,10 +1019,128 @@
       "legacy": "use_school_portal"
     },
     {
+      "code": "identity.invalid_credentials",
+      "class": "input",
+      "parameters": [],
+      "legacy": "identity.invalid_credentials"
+    },
+    {
+      "code": "identity.current_password_wrong",
+      "class": "input",
+      "parameters": [],
+      "legacy": "identity.current_password_wrong"
+    },
+    {
+      "code": "identity.password_too_weak",
+      "class": "input",
+      "parameters": [],
+      "legacy": "identity.password_too_weak"
+    },
+    {
+      "code": "identity.password_reset_link_invalid",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.password_reset_link_invalid"
+    },
+    {
+      "code": "identity.password_reset_rate_limited",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "identity.password_reset_rate_limited"
+    },
+    {
+      "code": "identity.mfa_code_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "identity.mfa_code_invalid"
+    },
+    {
+      "code": "identity.mfa_blocked",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "identity.mfa_blocked"
+    },
+    {
+      "code": "identity.invitation_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "identity.invitation_not_found"
+    },
+    {
+      "code": "identity.invitation_expired",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.invitation_expired"
+    },
+    {
+      "code": "identity.passkey_login_failed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.passkey_login_failed"
+    },
+    {
+      "code": "identity.tenant_access_denied",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "identity.tenant_access_denied"
+    },
+    {
       "code": "import.import_batch_failed",
       "class": "server",
       "parameters": [],
       "legacy": "import_batch_failed"
+    },
+    {
+      "code": "import.file_columns_missing",
+      "class": "input",
+      "parameters": [
+        "columns"
+      ],
+      "legacy": "import.file_columns_missing"
+    },
+    {
+      "code": "import.file_missing",
+      "class": "input",
+      "parameters": [],
+      "legacy": "import.file_missing"
+    },
+    {
+      "code": "import.file_no_rows",
+      "class": "input",
+      "parameters": [],
+      "legacy": "import.file_no_rows"
+    },
+    {
+      "code": "import.file_row_invalid",
+      "class": "input",
+      "parameters": [
+        "row"
+      ],
+      "legacy": "import.file_row_invalid"
+    },
+    {
+      "code": "import.file_too_large",
+      "class": "input",
+      "parameters": [],
+      "legacy": "import.file_too_large"
+    },
+    {
+      "code": "import.file_type_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "import.file_type_invalid"
+    },
+    {
+      "code": "import.file_unreadable",
+      "class": "input",
+      "parameters": [],
+      "legacy": "import.file_unreadable"
+    },
+    {
+      "code": "import.mode_forbidden",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "import.mode_forbidden"
     },
     {
       "code": "iot.activity_capacity_exceeded",
@@ -1001,6 +1163,12 @@
         "deviation_minutes"
       ],
       "legacy": "deviation_reason_required"
+    },
+    {
+      "code": "iot.device_id_taken",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "iot.device_id_taken"
     },
     {
       "code": "iot.invalid_rfid_tag",
@@ -1186,7 +1354,8 @@
         "activity_name",
         "current_occupancy",
         "max_participants",
-        "incoming_students"
+        "incoming_students",
+        "free_slots"
       ],
       "legacy": "presence.activity_participant_limit_reached"
     },
@@ -1198,9 +1367,16 @@
         "room_name",
         "current_occupancy",
         "max_capacity",
-        "incoming_students"
+        "incoming_students",
+        "free_slots"
       ],
       "legacy": "presence.room_capacity_exceeded"
+    },
+    {
+      "code": "presence.statistics_range_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "presence.statistics_range_invalid"
     },
     {
       "code": "rollover.duplicate_name",
@@ -1243,6 +1419,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "color_already_in_use"
+    },
+    {
+      "code": "rooms.not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "rooms.not_found"
     },
     {
       "code": "rooms.not_released",
@@ -1513,6 +1695,42 @@
       "legacy": "students.deletion_constraints_changed"
     },
     {
+      "code": "students.class_list_entry_assign_mismatch",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.class_list_entry_assign_mismatch"
+    },
+    {
+      "code": "students.class_list_entry_duplicate",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.class_list_entry_duplicate"
+    },
+    {
+      "code": "students.class_list_entry_student_exists",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.class_list_entry_student_exists"
+    },
+    {
+      "code": "students.class_list_entry_student_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.class_list_entry_student_not_found"
+    },
+    {
+      "code": "students.day_log_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "students.day_log_disabled"
+    },
+    {
+      "code": "students.day_log_no_groups",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "students.day_log_no_groups"
+    },
+    {
       "code": "students.deletion_invalid_reason",
       "class": "input",
       "parameters": [],
@@ -1550,6 +1768,24 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "guardian_access_revoked"
+    },
+    {
+      "code": "students.guardian_account_holder_too_long",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.guardian_account_holder_too_long"
+    },
+    {
+      "code": "students.guardian_email_taken",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.guardian_email_taken"
+    },
+    {
+      "code": "students.guardian_iban_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.guardian_iban_invalid"
     },
     {
       "code": "students.offering_change_capacity_full",
@@ -1736,6 +1972,24 @@
       "class": "input",
       "parameters": [],
       "legacy": "self_assignment"
+    },
+    {
+      "code": "timetable.activity_not_owner",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "timetable.activity_not_owner"
+    },
+    {
+      "code": "timetable.activity_system_protected",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "timetable.activity_system_protected"
+    },
+    {
+      "code": "timetable.activity_template_protected",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "timetable.activity_template_protected"
     },
     {
       "code": "timetable.ambiguous_template_instance_delete",
@@ -2140,6 +2394,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "ONLY_SUPERVISOR_REPLACEMENT_REQUIRED"
+    },
+    {
+      "code": "timetable.operation_not_planned",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "timetable.operation_not_planned"
     },
     {
       "code": "timetable.operation_stale",
@@ -2934,6 +3194,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "workforce.shift_type_inactive"
+    },
+    {
+      "code": "workforce.staff_profile_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.staff_profile_missing"
     },
     {
       "code": "workforce.stammdaten_invalid",

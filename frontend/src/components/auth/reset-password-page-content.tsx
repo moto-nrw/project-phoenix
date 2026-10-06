@@ -1,20 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
+  AuthFieldError,
   AuthShell,
-  authInputClassName,
+  authInputClass,
   authPrimaryButtonClassName,
   type AuthTestimonialPanelCopy,
 } from "~/components/auth/auth-shell";
+import { credentialError } from "~/components/auth/credential-error";
+import { formErrorMessage } from "~/components/ui/form-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Loading } from "~/components/ui/loading";
+import { useApiFormError } from "~/contexts/ToastContext";
 import Link from "next/link";
 import { CheckIcon, SpinnerIcon } from "~/components/ui/icons";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
-import { confirmPasswordReset, type ApiError } from "~/lib/auth-api";
+import { confirmPasswordReset } from "~/lib/auth-api";
+import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { useTenantSafe } from "~/lib/tenant-context";
 import { loginImageSrc } from "~/lib/tenant-api";
@@ -41,17 +47,24 @@ interface ResetPasswordPageContentProps {
 
 export interface ResetPasswordPageCopy {
   readonly missingToken: string;
-  readonly invalidToken: string;
+  /**
+   * The noun phrase the shared error path puts into its catalog text, for
+   * example "das Zurücksetzen des Passworts" (#2517).
+   */
+  readonly errorObject?: string;
+  // No longer shown: server errors use the catalog text of their code
+  // (#2517). Kept optional until the portals stop passing them.
+  readonly invalidToken?: string;
   readonly passwordTooShort: string;
   readonly passwordMissingUppercase: string;
   readonly passwordMissingLowercase: string;
   readonly passwordMissingNumber: string;
   readonly passwordMissingSpecial: string;
   readonly passwordMismatch: string;
-  readonly genericError: string;
-  readonly invalidRequest: string;
-  readonly expiredLink: string;
-  readonly notFoundLink: string;
+  readonly genericError?: string;
+  readonly invalidRequest?: string;
+  readonly expiredLink?: string;
+  readonly notFoundLink?: string;
   readonly successEyebrow: string;
   readonly successTitle: string;
   readonly successSubtitle: string;
@@ -69,10 +82,11 @@ export interface ResetPasswordPageCopy {
   readonly submit: string;
 }
 
+const DEFAULT_ERROR_OBJECT = "das Zurücksetzen des Passworts";
+
 const DEFAULT_RESET_PASSWORD_PAGE_COPY: ResetPasswordPageCopy = {
   missingToken:
-    "Ungültiger oder fehlender Reset-Token. Bitte fordern Sie einen neuen Link an.",
-  invalidToken: "Ungültiger Reset-Token.",
+    "Der Link ist unvollständig. Bitte fordern Sie einen neuen Link an.",
   passwordTooShort: "Das Passwort muss mindestens 8 Zeichen lang sein.",
   passwordMissingUppercase:
     "Das Passwort muss mindestens einen Großbuchstaben enthalten.",
@@ -82,13 +96,6 @@ const DEFAULT_RESET_PASSWORD_PAGE_COPY: ResetPasswordPageCopy = {
   passwordMissingSpecial:
     "Das Passwort muss mindestens ein Sonderzeichen enthalten.",
   passwordMismatch: "Die Passwörter stimmen nicht überein.",
-  genericError: "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-  invalidRequest:
-    "Bitte prüfen Sie den Link und die Passwort-Anforderungen und versuchen Sie es erneut.",
-  expiredLink:
-    "Dieser Passwort-Reset-Link ist abgelaufen. Bitte fordere einen neuen Link an.",
-  notFoundLink:
-    "Wir konnten diesen Passwort-Reset-Link nicht finden. Bitte fordere einen neuen Link an.",
   successEyebrow: "Passwort geändert",
   successTitle: "Passwort erfolgreich geändert",
   successSubtitle: "Sie werden automatisch zur Anmeldeseite weitergeleitet.",
@@ -113,6 +120,10 @@ const DEFAULT_RESET_PASSWORD_PAGE_COPY: ResetPasswordPageCopy = {
 
 interface PasswordFieldProps {
   readonly id: string;
+  /** Field name of the backend, so a server field error marks it. */
+  readonly name: string;
+  /** Marks the field; an empty string marks it without a caption. */
+  readonly error: string | undefined;
   readonly label: string;
   readonly value: string;
   readonly onChange: (value: string) => void;
@@ -125,6 +136,8 @@ interface PasswordFieldProps {
 
 function PasswordField({
   id,
+  name,
+  error,
   label,
   value,
   onChange,
@@ -145,13 +158,15 @@ function PasswordField({
       <div className="relative">
         <input
           id={id}
-          name={id}
+          name={name}
           type={visible ? "text" : "password"}
           autoComplete="new-password"
           required
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className={`${authInputClassName} pr-10`}
+          aria-invalid={error !== undefined}
+          aria-describedby={error ? `${id}-error` : undefined}
+          className={`${authInputClass(error !== undefined)} pr-10`}
           disabled={disabled}
         />
         <PasswordToggleButton
@@ -161,6 +176,7 @@ function PasswordField({
           hideLabel={hidePasswordLabel}
         />
       </div>
+      <AuthFieldError id={`${id}-error`} message={error} />
     </div>
   );
 }
@@ -177,7 +193,12 @@ export function ResetPasswordPageContent({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [error, setError] = useState("");
+  // Fehler über den gemeinsamen Weg (#2517): Katalogtext je Code, Feldfehler
+  // am Feld. Vor der Anmeldung heißt 401 "abgelehnt", nicht "abgelaufen".
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { invalid: showInvalid } = formErrors;
+  const latestSubmitRef = useRef<() => void>(() => undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [token, setToken] = useState<string | null>(null);
@@ -197,14 +218,16 @@ export function ResetPasswordPageContent({
     />
   ) : null;
 
+  // Keyed by the token value: invalid() sets state, so an effect keyed by
+  // the searchParams object would run again on every render.
+  const tokenParam = searchParams.get("token");
   useEffect(() => {
-    const tokenParam = searchParams.get("token");
     if (tokenParam) {
       setToken(tokenParam);
     } else {
-      setError(copy.missingToken);
+      showInvalid(copy.missingToken);
     }
-  }, [copy.missingToken, searchParams]);
+  }, [copy.missingToken, tokenParam, showInvalid]);
 
   const validatePassword = (pwd: string): string | null => {
     if (pwd.length < 8) {
@@ -225,26 +248,26 @@ export function ResetPasswordPageContent({
     return null;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-
+  const submit = async () => {
     if (!token) {
-      setError(copy.invalidToken);
+      formErrors.invalid(copy.missingToken);
       return;
     }
 
     const passwordError = validatePassword(password);
     if (passwordError) {
-      setError(passwordError);
+      formErrors.invalid(passwordError, { new_password: passwordError });
       return;
     }
 
     if (password !== confirmPassword) {
-      setError(copy.passwordMismatch);
+      formErrors.invalid(copy.passwordMismatch, {
+        confirm_password: copy.passwordMismatch,
+      });
       return;
     }
 
+    formErrors.clear();
     setIsLoading(true);
 
     try {
@@ -255,33 +278,44 @@ export function ResetPasswordPageContent({
         router.push(successRedirectPath);
       }, 3000);
     } catch (err) {
-      const apiError = err as ApiError | undefined;
-      const status = apiError?.status;
-      if (status === 410 || status === 404) {
-        logger.warn("password_reset_failed", {
-          error: err instanceof Error ? err.message : String(err),
-          status,
-        });
+      // Ein abgelaufener Link oder ein zu schwaches Passwort ist kein Defekt.
+      const status = errorStatus(err);
+      const context = {
+        error: err instanceof Error ? err.message : String(err),
+        status,
+      };
+      if (status !== undefined && status >= 400 && status < 500) {
+        logger.warn("password_reset_failed", context);
       } else {
-        logger.error("password_reset_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
+        logger.error("password_reset_failed", context);
       }
-      let message = copy.genericError;
-
-      if (apiError?.status === 410) {
-        message = copy.expiredLink;
-      } else if (apiError?.status === 404) {
-        message = copy.notFoundLink;
-      } else if (apiError?.status === 400) {
-        message = copy.invalidRequest;
-      }
-
-      setError(message);
+      void formErrors.show(credentialError(err), {
+        object: copy.errorObject ?? DEFAULT_ERROR_OBJECT,
+        retry: () => latestSubmitRef.current(),
+      });
     } finally {
       setIsLoading(false);
     }
   };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void submit();
+  };
+
+  // A check names one field; its sentence already stands in the alert, so
+  // the field is only marked, not captioned twice.
+  const fieldHint = (name: string): string | undefined => {
+    const hint = formErrors.fieldError(name);
+    return hint !== undefined && hint === formErrorMessage(formErrors.error)
+      ? ""
+      : hint;
+  };
+
+  // „Wiederholen“ sendet den Stand, der dann im Formular steht.
+  useLayoutEffect(() => {
+    latestSubmitRef.current = () => void submit();
+  });
 
   if (isSuccess) {
     return (
@@ -317,31 +351,19 @@ export function ResetPasswordPageContent({
       brand={brand}
       testimonialPanelCopy={testimonialPanelCopy}
     >
-      <form onSubmit={handleSubmit} noValidate className="space-y-4">
-        {error && (
-          <div className="border-moto-red/20 bg-moto-red-soft rounded-xl border p-4">
-            <div className="flex items-start gap-3">
-              <svg
-                className="text-moto-red mt-0.5 h-5 w-5 flex-shrink-0"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-              <p className="text-moto-red-strong text-sm">{error}</p>
-            </div>
-          </div>
-        )}
+      <form
+        ref={formRef}
+        onSubmit={handleSubmit}
+        noValidate
+        className="space-y-4"
+      >
+        <FormErrorAlert message={formErrors.error} />
 
         <div className="space-y-4">
           <PasswordField
             id="password"
+            name="new_password"
+            error={fieldHint("new_password")}
             label={copy.passwordLabel}
             value={password}
             onChange={setPassword}
@@ -353,6 +375,8 @@ export function ResetPasswordPageContent({
           />
           <PasswordField
             id="confirmPassword"
+            name="confirm_password"
+            error={fieldHint("confirm_password")}
             label={copy.confirmPasswordLabel}
             value={confirmPassword}
             onChange={setConfirmPassword}

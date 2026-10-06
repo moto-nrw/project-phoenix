@@ -105,12 +105,20 @@ export const ERROR_CATALOG = {
         "Das Datum für {object} liegt in der Vergangenheit. Bitte wählen Sie ein anderes Datum.",
       "classday.school_write_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "communication.announcement_reminder_sent":
+        "Die Erinnerung ist schon verschickt. Sie lässt sich nicht mehr ändern.",
+      "communication.declaration_has_submissions":
+        "Auf dieses Einverständnis haben Eltern schon geantwortet. Deshalb lässt es sich nicht löschen. Sie können es zurückziehen, dann sehen Eltern es nicht mehr.",
+      "communication.notifications_disabled":
+        "Ihre Schule hat Benachrichtigungen ausgeschaltet. Eine Testbenachrichtigung ist deshalb nicht möglich.",
       "communication.parent_news_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.poll_not_open":
         "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.staff_messaging_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "communication.staff_notice_outdated":
+        "Diese Tagesinformation hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
       "enrollment.approval_care_offering_exactly_one":
         "Für dieses Kind muss genau ein Betreuungsangebot gebucht sein. Die Familie muss die Auswahl ändern.",
       "enrollment.approval_care_offering_missing":
@@ -195,14 +203,36 @@ export const ERROR_CATALOG = {
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "enrollment.window_closed":
         "Die Anmeldefrist ist vorbei oder hat noch nicht begonnen. Bitte wenden Sie sich an die Schule.",
+      "files.announcement_published":
+        "Die Mitteilung ist schon veröffentlicht. Ihre Anhänge lassen sich nicht mehr ändern.",
       "files.attachment_limit_reached":
-        "Für {object} sind zu viele Dateien ausgewählt. Bitte entfernen Sie einen Anhang.",
+        "Eine Mitteilung kann höchstens 5 Anhänge haben. Bitte entfernen Sie einen Anhang.",
+      "files.file_missing":
+        "Es wurde keine Datei ausgewählt. Bitte wählen Sie eine Datei aus.",
+      "files.file_too_large":
+        "Diese Datei ist zu groß. Erlaubt sind bis zu {max_mb} MB.",
+      "files.file_type_not_allowed":
+        "Diese Dateiart ist hier nicht erlaubt. Bitte wählen Sie eine andere Datei.",
+      "files.file_unreadable":
+        "Die Datei lässt sich nicht lesen. Bitte prüfen Sie die Datei und laden Sie sie erneut hoch.",
       "files.folder_name_taken":
-        "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
+        "Es gibt schon einen Ordner mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
+      "files.quota_exceeded":
+        "Der Speicherplatz der Dateiablage ist voll. Bitte löschen Sie Dateien, die Sie nicht mehr brauchen.",
+      "grade_transition.graduates_checked_in":
+        "Es sind noch Kinder mit Abgang eingecheckt. Bitte buchen Sie diese Kinder zuerst nach Hause. Wenden Sie den Jahrgangswechsel danach erneut an.",
+      "grade_transition.not_applied":
+        "Der Jahrgangswechsel ist inzwischen schon zurückgesetzt. Die Liste ist neu geladen.",
+      "grade_transition.not_draft":
+        "Der Jahrgangswechsel wurde inzwischen von einer anderen Person angewendet oder geändert. Bitte prüfen Sie die Liste.",
+      "grade_transition.not_latest_transition":
+        "Inzwischen gibt es einen neueren Jahrgangswechsel. Er muss zuerst zurückgesetzt werden.",
       "grade_transition.preview_stale":
-        "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
+        "Klassen oder Zuordnungen haben sich seit dem Öffnen geändert. Die Vorschau ist neu geladen. Bitte prüfen Sie sie noch einmal.",
       "identity.account_already_has_tenant_access":
         "Diese Person hat schon Zugang zu dieser Schule. Sie finden sie in der Personalliste.",
+      "identity.account_inactive":
+        "Ihr Konto ist gesperrt. Bitte wenden Sie sich an moto.",
       "identity.demo_access_expired":
         "Der Demo-Zugang ist abgelaufen. Bitte fordern Sie einen neuen Zugang an.",
       "identity.demo_access_invalid":
@@ -217,14 +247,61 @@ export const ERROR_CATALOG = {
         "Die Demo-Schule wird gerade vorbereitet. Bitte versuchen Sie es gleich noch einmal.",
       "identity.email_already_exists":
         "Für diese E-Mail-Adresse gibt es schon ein Konto. Bitte verwenden Sie eine andere Adresse.",
+      "identity.role_name_taken":
+        "Eine Rolle mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
       "identity.invitation_account_login_required":
-        "Für {object} müssen Sie angemeldet sein. Bitte melden Sie sich an.",
+        "Für diese E-Mail-Adresse gibt es schon ein Konto. Bitte melden Sie sich zuerst damit an und öffnen Sie dann die Einladung erneut.",
+      "identity.invitation_account_mismatch":
+        "Sie sind mit einem anderen Konto angemeldet. Bitte melden Sie sich mit der eingeladenen E-Mail-Adresse an.",
       "identity.preview_token_invalid":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+      "identity.read_only_preview":
+        "In der Vorschau können Sie nur lesen. Bitte beenden Sie die Vorschau, um etwas zu ändern.",
+      "identity.session_account_inactive":
+        "Ihr Konto ist ausgeschaltet. Bitte wenden Sie sich an die Leitung Ihrer Schule.",
+      "identity.invalid_credentials":
+        "Die E-Mail-Adresse oder das Passwort stimmt nicht. Bitte prüfen Sie Ihre Eingabe.",
+      "identity.current_password_wrong":
+        "Das aktuelle Passwort stimmt nicht. Bitte prüfen Sie Ihre Eingabe.",
+      "identity.password_too_weak":
+        "Das Passwort ist zu schwach. Es braucht mindestens 8 Zeichen, Groß- und Kleinbuchstaben, eine Zahl und ein Sonderzeichen.",
+      "identity.password_reset_link_invalid":
+        "Der Link ist abgelaufen oder wurde schon benutzt. Bitte fordern Sie einen neuen Link an.",
+      "identity.password_reset_rate_limited":
+        "Sie haben zu oft einen Link angefordert. Bitte warten Sie etwas und versuchen Sie es dann erneut.",
+      "identity.mfa_code_invalid":
+        "Der Code stimmt nicht oder ist abgelaufen. Bitte geben Sie ihn erneut ein oder fordern Sie einen neuen Code an.",
+      "identity.mfa_blocked":
+        "Das waren zu viele Versuche. Bitte warten Sie einige Minuten und versuchen Sie es dann erneut.",
+      "identity.invitation_not_found":
+        "Diese Einladung gibt es nicht. Bitte prüfen Sie den Link in der E-Mail.",
+      "identity.invitation_expired":
+        "Diese Einladung ist abgelaufen oder wurde schon benutzt. Bitte fragen Sie Ihre Schule nach einer neuen Einladung.",
+      "identity.passkey_login_failed":
+        "Die Anmeldung mit Passkey hat nicht geklappt. Bitte melden Sie sich mit E-Mail-Adresse und Passwort an.",
+      "identity.tenant_access_denied":
+        "Ihr Konto hat keinen Zugang zu dieser Schule. Bitte melden Sie sich neu an.",
+      "import.file_columns_missing":
+        "In der Datei fehlen Spalten: {columns}. Bitte nutzen Sie die Vorlage.",
+      "import.file_missing": "Bitte wählen Sie eine Datei aus.",
+      "import.file_no_rows":
+        "Die Datei enthält keine Datenzeilen. Vielleicht haben Sie die leere Vorlage hochgeladen.",
+      "import.file_row_invalid":
+        "Zeile {row} der Datei enthält einen ungültigen Wert. Bitte prüfen Sie diese Zeile.",
+      "import.file_too_large":
+        "Die Datei ist zu groß. Bitte laden Sie eine Datei bis 10 MB hoch.",
+      "import.file_type_invalid":
+        "Diese Datei passt nicht. Bitte laden Sie eine CSV- oder Excel-Datei hoch.",
+      "import.file_unreadable":
+        "Die Datei konnte nicht gelesen werden. Bitte nutzen Sie die Vorlage.",
+      "import.mode_forbidden":
+        "Bestehende Einträge dürfen Sie nicht ändern. Bitte wählen Sie „Nur neue anlegen“ oder fragen Sie die Leitung.",
       "iot.activity_capacity_exceeded":
         "Im Angebot {activity_name} ist kein Platz mehr. Bitte wählen Sie ein anderes Angebot.",
       "iot.deviation_reason_required":
         "{object} weicht vom Plan ab. Bitte geben Sie einen Grund an.",
+      "iot.device_id_taken":
+        "Diese Geräte-ID ist schon vergeben. Bitte geben Sie eine andere ein.",
       "iot.invalid_staff_clock_request":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "iot.invalid_staff_clock_state":
@@ -258,9 +335,11 @@ export const ERROR_CATALOG = {
       "pickup.resolution_required":
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
       "presence.activity_participant_limit_reached":
-        "Im Angebot {activity_name} ist kein Platz mehr. Bitte wählen Sie ein anderes Angebot.",
+        "Die Aktivität {activity_name}: {current_occupancy} von {max_participants} Kindern sind da. Freie Plätze: {free_slots}. Es sollen {incoming_students} Kinder dazukommen.",
       "presence.room_capacity_exceeded":
-        "Der Raum {room_name} ist voll ({current_occupancy} von {max_capacity} Plätzen).",
+        "Der Raum {room_name}: {current_occupancy} von {max_capacity} Plätzen sind belegt. Freie Plätze: {free_slots}. Es sollen {incoming_students} Kinder dazukommen.",
+      "presence.statistics_range_invalid":
+        "Der Zeitraum passt nicht. Er darf höchstens ein Jahr lang sein und nicht in der Zukunft enden.",
       "rollover.duplicate_name":
         "Es gibt schon eine Phase mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
       "rollover.invalid_request":
@@ -275,6 +354,10 @@ export const ERROR_CATALOG = {
         "Die Ausgangsphase gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "rooms.color_already_in_use":
         "Diese Farbe hat schon ein anderer Raum. Bitte wählen Sie eine andere Farbe.",
+      "rooms.not_found":
+        "Diesen Raum gibt es nicht mehr. Bitte wählen Sie ihn in der Liste neu aus.",
+      "rooms.not_released":
+        "Dieser Raum ist nicht mehr freigegeben. Bitte wählen Sie einen anderen Raum.",
       "school.setup_completed":
         "Die Einrichtung der Schule ist schon abgeschlossen. Bitte laden Sie die Seite neu.",
       "school.setup_incomplete":
@@ -349,6 +432,18 @@ export const ERROR_CATALOG = {
         "Gerade ändert jemand anderes die Laufgemeinschaft. Bitte versuchen Sie es gleich noch einmal.",
       "students.deletion_constraints_changed":
         "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
+      "students.class_list_entry_assign_mismatch":
+        "Das gewählte Kind passt nicht zum Eintrag. Name und Klasse müssen gleich sein.",
+      "students.class_list_entry_duplicate":
+        "Ein Eintrag mit diesem Namen steht schon in dieser Klasse.",
+      "students.class_list_entry_student_exists":
+        "Ein Kind mit diesem Namen ist in dieser Klasse schon in moto angelegt.",
+      "students.class_list_entry_student_not_found":
+        "Das gewählte Kind gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "students.day_log_disabled":
+        "Das Anwesenheitsprotokoll ist für Ihre Schule ausgeschaltet. Ihre Leitung kann es in den Einstellungen unter Datenschutz einschalten.",
+      "students.day_log_no_groups":
+        "Für Ihr Konto ist keine Gruppe sichtbar. Bitte wenden Sie sich an Ihre Leitung.",
       "students.deletion_invalid_reason":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "students.deletion_preview_changed":
@@ -359,6 +454,12 @@ export const ERROR_CATALOG = {
         "Die Auswahl umfasst {total} Kinder. Eine Liste darf höchstens {limit} Kinder haben. Bitte grenzen Sie die Auswahl ein, zum Beispiel nach Gruppe oder Klasse.",
       "students.guardian_access_revoked":
         "Die anfragende Person hat keinen Zugriff mehr auf das Kind. Bitte lehnen Sie {object} ab.",
+      "students.guardian_account_holder_too_long":
+        "Der Name des Kontoinhabers ist zu lang. Bitte kürzen Sie ihn.",
+      "students.guardian_email_taken":
+        "Diese E-Mail-Adresse gehört schon zu einer anderen Person. Bitte wählen Sie die vorhandene Person über die Suche aus.",
+      "students.guardian_iban_invalid":
+        "Die IBAN ist nicht gültig. Bitte prüfen Sie die Eingabe.",
       "students.offering_change_capacity_full":
         "In einem der Angebote ist kein Platz mehr frei. Bitte prüfen Sie die Belegung.",
       "students.offering_change_date_out_of_range":
@@ -403,6 +504,12 @@ export const ERROR_CATALOG = {
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "substitutions.invalid_target":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+      "timetable.activity_not_owner":
+        "Sie können nur Aktivitäten ändern, die Sie angelegt haben oder betreuen.",
+      "timetable.activity_system_protected":
+        "Diese Aktivität gehört fest zu moto. Sie lässt sich nicht umbenennen oder löschen.",
+      "timetable.activity_template_protected":
+        "Diese Aktivität ist ein Regeltermin. Bitte ändern Sie sie im Betreuungsplan.",
       "timetable.ambiguous_template_instance_delete":
         "Dieser Termin lässt sich nicht einzeln löschen. Die Serie hat an diesem Tag mehrere Termine.",
       "timetable.attendance_entry_not_found":
@@ -524,6 +631,8 @@ export const ERROR_CATALOG = {
         "Bitte wählen Sie höchstens {max} Angebote aus.",
       "timetable.only_supervisor_replacement_required":
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
+      "timetable.operation_not_planned":
+        "Sie sind für diese Aktivität nicht eingeplant. Nur eingeplante Betreuungskräfte können hier etwas eintragen oder ändern.",
       "timetable.operation_stale":
         "Der Termin wurde gerade geändert. Bitte laden Sie die Seite neu.",
       "timetable.pickup_extension_block_gone":
@@ -764,6 +873,8 @@ export const ERROR_CATALOG = {
         "Dieser Kalenderzeitraum hat keine Woche A und B. Bitte wählen Sie „Jede Woche“.",
       "workforce.shift_type_inactive":
         "Diese Schichtart ist ausgeschaltet. Bitte wählen Sie eine andere.",
+      "workforce.staff_profile_missing":
+        "Für Ihr Konto gibt es keinen Personaldatensatz. Diese Einstellung gilt nur für Personal.",
       "workforce.stammdaten_invalid":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "workforce.target_override_hours_invalid":
@@ -987,6 +1098,10 @@ export const ERROR_CATALOG = {
         "This person already has access to this school. You can find them in the staff list.",
       "identity.email_already_exists":
         "There is already an account for this email address. Please use a different address.",
+      "identity.password_reset_rate_limited":
+        "{object} could not be changed. Please check its current status.",
+      "identity.mfa_blocked":
+        "{object} could not be changed. Please check its current status.",
       "students.export_selection_too_large":
         "The selection has {total} children. A list can have at most {limit} children. Please narrow the selection, for example by group or class.",
       "students.staff_profile_required":
@@ -1105,6 +1220,10 @@ export const ERROR_CATALOG = {
         "У этого человека уже есть доступ к этой школе. Он есть в списке сотрудников.",
       "identity.email_already_exists":
         "Для этого адреса электронной почты уже есть учётная запись. Укажите другой адрес.",
+      "identity.password_reset_rate_limited":
+        "Не удалось изменить: {object}. Проверьте текущее состояние.",
+      "identity.mfa_blocked":
+        "Не удалось изменить: {object}. Проверьте текущее состояние.",
       "students.export_selection_too_large":
         "Выбрано детей: {total}. В списке может быть не больше {limit} детей. Сузьте выбор, например по группе или классу.",
       "students.staff_profile_required":
@@ -1222,6 +1341,10 @@ export const ERROR_CATALOG = {
         "Ky person ka tashmë qasje në këtë shkollë. E gjeni në listën e personelit.",
       "identity.email_already_exists":
         "Për këtë adresë email ka tashmë një llogari. Ju lutemi përdorni një adresë tjetër.",
+      "identity.password_reset_rate_limited":
+        "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+      "identity.mfa_blocked":
+        "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
       "students.export_selection_too_large":
         "Përzgjedhja ka {total} fëmijë. Një listë mund të ketë më së shumti {limit} fëmijë. Ju lutemi ngushtoni përzgjedhjen, p.sh. sipas grupit ose klasës.",
       "students.staff_profile_required":
@@ -1345,6 +1468,10 @@ export const ERROR_CATALOG = {
         "Ta osoba ma już dostęp do tej szkoły. Znajdziesz ją na liście personelu.",
       "identity.email_already_exists":
         "Dla tego adresu e-mail istnieje już konto. Użyj innego adresu.",
+      "identity.password_reset_rate_limited":
+        "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+      "identity.mfa_blocked":
+        "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
       "students.export_selection_too_large":
         "Wybrano {total} dzieci. Lista może mieć najwyżej {limit} dzieci. Zawęź wybór, na przykład według grupy lub klasy.",
       "students.staff_profile_required":
@@ -1460,6 +1587,10 @@ export const ERROR_CATALOG = {
         "Bu kişinin bu okula zaten erişimi var. Kişiyi personel listesinde bulabilirsiniz.",
       "identity.email_already_exists":
         "Bu e-posta adresi için zaten bir hesap var. Lütfen başka bir adres kullanın.",
+      "identity.password_reset_rate_limited":
+        "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+      "identity.mfa_blocked":
+        "{object} değiştirilemedi. Güncel durumu kontrol edin.",
       "students.export_selection_too_large":
         "Seçimde {total} çocuk var. Bir liste en fazla {limit} çocuk içerebilir. Lütfen seçimi daraltın, örneğin gruba veya sınıfa göre.",
       "students.staff_profile_required":
@@ -1579,6 +1710,10 @@ export const ERROR_CATALOG = {
         "Ця особа вже має доступ до цієї школи. Її можна знайти в списку персоналу.",
       "identity.email_already_exists":
         "Для цієї адреси електронної пошти вже є обліковий запис. Укажіть іншу адресу.",
+      "identity.password_reset_rate_limited":
+        "Не вдалося змінити: {object}. Перевірте поточний стан.",
+      "identity.mfa_blocked":
+        "Не вдалося змінити: {object}. Перевірте поточний стан.",
       "students.export_selection_too_large":
         "Вибрано дітей: {total}. У списку може бути не більше {limit} дітей. Звузьте вибір, наприклад за групою або класом.",
       "students.staff_profile_required":

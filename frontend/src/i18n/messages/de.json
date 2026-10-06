@@ -153,10 +153,7 @@
     "excel": "Excel",
     "pdfDownloadStatus": "PDF wird heruntergeladen.",
     "excelDownloadStatus": "Excel wird heruntergeladen.",
-    "downloadError": "Die Tagesliste konnte nicht heruntergeladen werden. Bitte versuchen Sie es noch einmal.",
-    "loadErrorTitle": "Tagesliste nicht geladen",
-    "loadErrorMessage": "Bitte versuchen Sie es erneut.",
-    "retry": "Erneut versuchen",
+    "errorObject": "die Tagesliste",
     "caption": "Mittagessen am {date}",
     "emptyTitle": "Keine Anmeldungen für diesen Tag",
     "emptyDescription": "Für diesen Tag steht kein Kind auf der Küchenliste."
@@ -1946,7 +1943,7 @@
     "linkLabel": "Abo-Link (zum Kopieren)",
     "copy": "Kopieren",
     "copiedButton": "Kopiert",
-    "copied": "Link kopiert.",
+    "copied": "Der Link ist kopiert.",
     "copyFailed": "Kopieren nicht möglich. Bitte markieren Sie den Link von Hand.",
     "linkOnce": "Aus Sicherheitsgründen sehen Sie diesen Link nur jetzt. Kopieren Sie ihn gleich in Ihren Kalender.",
     "howToTitle": "So geht es:",
@@ -1954,9 +1951,9 @@
     "howToApple": "iPhone/iPad: Einstellungen, Kalender, Accounts, Account hinzufügen, Andere, Kalenderabo hinzufügen, dann den Link einfügen.",
     "howToAndroid": "Android: In Google Kalender am Computer, Weitere Kalender, Per URL, dann den Link einfügen. Der Kalender wird danach auch auf dem Handy angezeigt.",
     "regenerate": "Link neu erstellen",
-    "regenerated": "Neuer Abo-Link erstellt. Der alte Link gilt nicht mehr.",
-    "loadError": "Der Abo-Link konnte nicht geladen werden.",
-    "rotateError": "Der Abo-Link konnte nicht erneuert werden.",
+    "regenerated": "Der neue Abo-Link ist erstellt. Der alte Link gilt nicht mehr.",
+    "loadObject": "das Anzeigen des Abo-Links",
+    "rotateObject": "das Erneuern des Abo-Links",
     "alreadyActive": "Ihr Abo-Link ist bereits aktiv. Aus Sicherheitsgründen wird er nicht erneut angezeigt. Wenn Sie ihn nicht mehr haben, erstellen Sie einen neuen Link; der bisherige gilt dann nicht mehr.",
     "createNew": "Neuen Abo-Link erstellen"
   },
@@ -1965,15 +1962,15 @@
     "createNew": "Neue Zugangsdaten erstellen",
     "regenerate": "Zugangsdaten neu erstellen",
     "alreadyActive": "Ihre Zugangsdaten sind bereits aktiv. Sie werden nur einmal gezeigt. Wenn Sie sie nicht mehr haben, erstellen Sie neue. Das bisherige Kalender-Abo endet dann ebenfalls.",
-    "regenerated": "Neue Zugangsdaten erstellt. Die bisherigen gelten nicht mehr.",
+    "regenerated": "Die neuen Zugangsdaten sind erstellt. Die bisherigen gelten nicht mehr.",
     "caldavTitle": "Mit einem Kalenderprogramm verbinden",
     "caldavDescription": "Zeigen Sie Ihren moto-Kalender zum Beispiel in Thunderbird. Dort können Sie die Termine nur ansehen. Kalenderprogramme nennen diesen Zugang CalDAV.",
     "caldavAddress": "Adresse",
     "caldavUsername": "Benutzername",
     "caldavPassword": "App-Passwort",
-    "addressCopied": "Adresse kopiert.",
-    "usernameCopied": "Benutzername kopiert.",
-    "passwordCopied": "App-Passwort kopiert.",
+    "addressCopied": "Die Adresse ist kopiert.",
+    "usernameCopied": "Der Benutzername ist kopiert.",
+    "passwordCopied": "Das App-Passwort ist kopiert.",
     "passwordOnce": "Sie sehen das App-Passwort nur jetzt. Speichern Sie es gleich im Kalenderprogramm.",
     "passwordHidden": "Das App-Passwort wurde bereits gezeigt. Wenn Sie es nicht mehr haben, erstellen Sie neue Zugangsdaten.",
     "caldavUnavailable": "Die Verbindung ist gerade nicht verfügbar. Bitte versuchen Sie es noch einmal."
@@ -2080,12 +2077,14 @@
       "communication": {
         "announcement_not_published": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
         "announcement_published_immutable": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
-        "announcement_reminder_sent": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
-        "declaration_has_submissions": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
+        "announcement_reminder_sent": "Die Erinnerung ist schon verschickt. Sie lässt sich nicht mehr ändern.",
+        "declaration_has_submissions": "Auf dieses Einverständnis haben Eltern schon geantwortet. Deshalb lässt es sich nicht löschen. Sie können es zurückziehen, dann sehen Eltern es nicht mehr.",
+        "notifications_disabled": "Ihre Schule hat Benachrichtigungen ausgeschaltet. Eine Testbenachrichtigung ist deshalb nicht möglich.",
         "parent_news_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
         "poll_not_open": "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
         "staff_counterpart_unavailable": "{object} ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
         "staff_messaging_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+        "staff_notice_outdated": "Diese Tagesinformation hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
         "system_announcement_immutable": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand."
       },
       "enrollment": {
@@ -2201,10 +2200,14 @@
         "withdraw_not_allowed": "Diese Anmeldung kann nicht mehr zurückgezogen werden. Bitte wenden Sie sich an die Schule."
       },
       "files": {
-        "announcement_published": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
-        "attachment_limit_reached": "Für {object} sind zu viele Dateien ausgewählt. Bitte entfernen Sie einen Anhang.",
-        "folder_name_taken": "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
-        "quota_exceeded": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand."
+        "announcement_published": "Die Mitteilung ist schon veröffentlicht. Ihre Anhänge lassen sich nicht mehr ändern.",
+        "attachment_limit_reached": "Eine Mitteilung kann höchstens 5 Anhänge haben. Bitte entfernen Sie einen Anhang.",
+        "file_missing": "Es wurde keine Datei ausgewählt. Bitte wählen Sie eine Datei aus.",
+        "file_too_large": "Diese Datei ist zu groß. Erlaubt sind bis zu {max_mb} MB.",
+        "file_type_not_allowed": "Diese Dateiart ist hier nicht erlaubt. Bitte wählen Sie eine andere Datei.",
+        "file_unreadable": "Die Datei lässt sich nicht lesen. Bitte prüfen Sie die Datei und laden Sie sie erneut hoch.",
+        "folder_name_taken": "Es gibt schon einen Ordner mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
+        "quota_exceeded": "Der Speicherplatz der Dateiablage ist voll. Bitte löschen Sie Dateien, die Sie nicht mehr brauchen."
       },
       "general": {
         "business_rejection": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
@@ -2214,15 +2217,16 @@
         "unavailable": "{object} ist gerade nicht erreichbar. Bitte versuchen Sie es erneut."
       },
       "grade_transition": {
-        "graduates_checked_in": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
-        "not_applied": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
-        "not_draft": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
-        "not_latest_transition": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
-        "preview_stale": "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu."
+        "graduates_checked_in": "Es sind noch Kinder mit Abgang eingecheckt. Bitte buchen Sie diese Kinder zuerst nach Hause. Wenden Sie den Jahrgangswechsel danach erneut an.",
+        "not_applied": "Der Jahrgangswechsel ist inzwischen schon zurückgesetzt. Die Liste ist neu geladen.",
+        "not_draft": "Der Jahrgangswechsel wurde inzwischen von einer anderen Person angewendet oder geändert. Bitte prüfen Sie die Liste.",
+        "not_latest_transition": "Inzwischen gibt es einen neueren Jahrgangswechsel. Er muss zuerst zurückgesetzt werden.",
+        "preview_stale": "Klassen oder Zuordnungen haben sich seit dem Öffnen geändert. Die Vorschau ist neu geladen. Bitte prüfen Sie sie noch einmal."
       },
       "identity": {
         "account_already_has_tenant_access": "Diese Person hat schon Zugang zu dieser Schule. Sie finden sie in der Personalliste.",
-        "account_inactive": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+        "account_inactive": "Ihr Konto ist gesperrt. Bitte wenden Sie sich an moto.",
+        "current_password_wrong": "Das aktuelle Passwort stimmt nicht. Bitte prüfen Sie Ihre Eingabe.",
         "demo_access_expired": "Der Demo-Zugang ist abgelaufen. Bitte fordern Sie einen neuen Zugang an.",
         "demo_access_invalid": "Der Demo-Link ist ungültig. Bitte fordern Sie einen neuen Link an.",
         "demo_access_rate_limited": "Das waren zu viele Versuche. Bitte warten Sie kurz und versuchen Sie es dann erneut.",
@@ -2231,22 +2235,42 @@
         "demo_school_preparing": "Die Demo-Schule wird gerade vorbereitet. Bitte versuchen Sie es gleich noch einmal.",
         "demo_session": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "email_already_exists": "Für diese E-Mail-Adresse gibt es schon ein Konto. Bitte verwenden Sie eine andere Adresse.",
-        "invitation_account_login_required": "Für {object} müssen Sie angemeldet sein. Bitte melden Sie sich an.",
-        "invitation_account_mismatch": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+        "invalid_credentials": "Die E-Mail-Adresse oder das Passwort stimmt nicht. Bitte prüfen Sie Ihre Eingabe.",
+        "invitation_account_login_required": "Für diese E-Mail-Adresse gibt es schon ein Konto. Bitte melden Sie sich zuerst damit an und öffnen Sie dann die Einladung erneut.",
+        "invitation_account_mismatch": "Sie sind mit einem anderen Konto angemeldet. Bitte melden Sie sich mit der eingeladenen E-Mail-Adresse an.",
+        "invitation_expired": "Diese Einladung ist abgelaufen oder wurde schon benutzt. Bitte fragen Sie Ihre Schule nach einer neuen Einladung.",
+        "invitation_not_found": "Diese Einladung gibt es nicht. Bitte prüfen Sie den Link in der E-Mail.",
+        "mfa_blocked": "Das waren zu viele Versuche. Bitte warten Sie einige Minuten und versuchen Sie es dann erneut.",
+        "mfa_code_invalid": "Der Code stimmt nicht oder ist abgelaufen. Bitte geben Sie ihn erneut ein oder fordern Sie einen neuen Code an.",
+        "passkey_login_failed": "Die Anmeldung mit Passkey hat nicht geklappt. Bitte melden Sie sich mit E-Mail-Adresse und Passwort an.",
+        "password_reset_link_invalid": "Der Link ist abgelaufen oder wurde schon benutzt. Bitte fordern Sie einen neuen Link an.",
+        "password_reset_rate_limited": "Sie haben zu oft einen Link angefordert. Bitte warten Sie etwas und versuchen Sie es dann erneut.",
+        "password_too_weak": "Das Passwort ist zu schwach. Es braucht mindestens 8 Zeichen, Groß- und Kleinbuchstaben, eine Zahl und ein Sonderzeichen.",
         "preview_target_not_previewable": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "preview_target_school_portal": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "preview_token_invalid": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
-        "read_only_preview": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
-        "session_account_inactive": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+        "read_only_preview": "In der Vorschau können Sie nur lesen. Bitte beenden Sie die Vorschau, um etwas zu ändern.",
+        "role_name_taken": "Eine Rolle mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
+        "session_account_inactive": "Ihr Konto ist ausgeschaltet. Bitte wenden Sie sich an die Leitung Ihrer Schule.",
+        "tenant_access_denied": "Ihr Konto hat keinen Zugang zu dieser Schule. Bitte melden Sie sich neu an.",
         "use_parent_portal": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "use_school_portal": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule."
       },
       "import": {
-        "import_batch_failed": "{object} konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut."
+        "file_columns_missing": "In der Datei fehlen Spalten: {columns}. Bitte nutzen Sie die Vorlage.",
+        "file_missing": "Bitte wählen Sie eine Datei aus.",
+        "file_no_rows": "Die Datei enthält keine Datenzeilen. Vielleicht haben Sie die leere Vorlage hochgeladen.",
+        "file_row_invalid": "Zeile {row} der Datei enthält einen ungültigen Wert. Bitte prüfen Sie diese Zeile.",
+        "file_too_large": "Die Datei ist zu groß. Bitte laden Sie eine Datei bis 10 MB hoch.",
+        "file_type_invalid": "Diese Datei passt nicht. Bitte laden Sie eine CSV- oder Excel-Datei hoch.",
+        "file_unreadable": "Die Datei konnte nicht gelesen werden. Bitte nutzen Sie die Vorlage.",
+        "import_batch_failed": "{object} konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+        "mode_forbidden": "Bestehende Einträge dürfen Sie nicht ändern. Bitte wählen Sie „Nur neue anlegen“ oder fragen Sie die Leitung."
       },
       "iot": {
         "activity_capacity_exceeded": "Im Angebot {activity_name} ist kein Platz mehr. Bitte wählen Sie ein anderes Angebot.",
         "deviation_reason_required": "{object} weicht vom Plan ab. Bitte geben Sie einen Grund an.",
+        "device_id_taken": "Diese Geräte-ID ist schon vergeben. Bitte geben Sie eine andere ein.",
         "invalid_rfid_tag": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
         "invalid_staff_clock_request": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "invalid_staff_clock_state": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
@@ -2280,8 +2304,9 @@
         "resolution_required": "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld."
       },
       "presence": {
-        "activity_participant_limit_reached": "Im Angebot {activity_name} ist kein Platz mehr. Bitte wählen Sie ein anderes Angebot.",
-        "room_capacity_exceeded": "Der Raum {room_name} ist voll ({current_occupancy} von {max_capacity} Plätzen)."
+        "activity_participant_limit_reached": "Die Aktivität {activity_name}: {current_occupancy} von {max_participants} Kindern sind da. Freie Plätze: {free_slots}. Es sollen {incoming_students} Kinder dazukommen.",
+        "room_capacity_exceeded": "Der Raum {room_name}: {current_occupancy} von {max_capacity} Plätzen sind belegt. Freie Plätze: {free_slots}. Es sollen {incoming_students} Kinder dazukommen.",
+        "statistics_range_invalid": "Der Zeitraum passt nicht. Er darf höchstens ein Jahr lang sein und nicht in der Zukunft enden."
       },
       "rollover": {
         "deadline_required": "Bitte geben Sie eine Frist für die Rückmeldung ein.",
@@ -2294,7 +2319,8 @@
       },
       "rooms": {
         "color_already_in_use": "Diese Farbe hat schon ein anderer Raum. Bitte wählen Sie eine andere Farbe.",
-        "not_released": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand."
+        "not_found": "Diesen Raum gibt es nicht mehr. Bitte wählen Sie ihn in der Liste neu aus.",
+        "not_released": "Dieser Raum ist nicht mehr freigegeben. Bitte wählen Sie einen anderen Raum."
       },
       "school": {
         "no_school_portal_role": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
@@ -2331,11 +2357,17 @@
         "checkin_care_ended": "Die Betreuung dieses Kindes ist beendet. Bitte laden Sie die Seite neu.",
         "checkout_note_too_long": "Die Notiz ist zu lang. Bitte kürzen Sie sie.",
         "child_quota_reached": "Das Kinderkontingent Ihrer Schule ist voll ({occupied_places} von {booked_places} Kindern). Bitte melden Sie sich beim moto-Team.",
+        "class_list_entry_assign_mismatch": "Das gewählte Kind passt nicht zum Eintrag. Name und Klasse müssen gleich sein.",
+        "class_list_entry_duplicate": "Ein Eintrag mit diesem Namen steht schon in dieser Klasse.",
+        "class_list_entry_student_exists": "Ein Kind mit diesem Namen ist in dieser Klasse schon in moto angelegt.",
+        "class_list_entry_student_not_found": "Das gewählte Kind gibt es nicht mehr. Bitte laden Sie die Seite neu.",
         "companion_lock_busy": "Gerade ändert jemand anderes die Laufgemeinschaft. Bitte versuchen Sie es gleich noch einmal.",
         "companion_would_lose_departure": "Ein verknüpftes Kind hätte dann keinen Heimweg mehr. Bitte passen Sie zuerst dessen Heimweg an.",
         "companions_changed": "Die Laufgemeinschaft wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
         "conflict_kind_unsupported": "Diese Anfragen lassen sich nicht gemeinsam entscheiden. Bitte entscheiden Sie sie einzeln.",
         "correction_unsupported": "Diese Entscheidung lässt sich nicht zurücknehmen. Bitte ändern Sie den Eintrag direkt beim Kind.",
+        "day_log_disabled": "Das Anwesenheitsprotokoll ist für Ihre Schule ausgeschaltet. Ihre Leitung kann es in den Einstellungen unter Datenschutz einschalten.",
+        "day_log_no_groups": "Für Ihr Konto ist keine Gruppe sichtbar. Bitte wenden Sie sich an Ihre Leitung.",
         "deletion_acknowledgement_required": "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
         "deletion_alumnus": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
         "deletion_companion_blocked": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
@@ -2348,6 +2380,9 @@
         "excused_request_status_conflict": "Für einen der Tage gibt es schon einen neueren Eintrag. Bitte prüfen Sie die Tage.",
         "export_selection_too_large": "Die Auswahl umfasst {total} Kinder. Eine Liste darf höchstens {limit} Kinder haben. Bitte grenzen Sie die Auswahl ein, zum Beispiel nach Gruppe oder Klasse.",
         "guardian_access_revoked": "Die anfragende Person hat keinen Zugriff mehr auf das Kind. Bitte lehnen Sie {object} ab.",
+        "guardian_account_holder_too_long": "Der Name des Kontoinhabers ist zu lang. Bitte kürzen Sie ihn.",
+        "guardian_email_taken": "Diese E-Mail-Adresse gehört schon zu einer anderen Person. Bitte wählen Sie die vorhandene Person über die Suche aus.",
+        "guardian_iban_invalid": "Die IBAN ist nicht gültig. Bitte prüfen Sie die Eingabe.",
         "offering_change_capacity_full": "In einem der Angebote ist kein Platz mehr frei. Bitte prüfen Sie die Belegung.",
         "offering_change_date_out_of_range": "Zu diesem Datum kann die Änderung nicht gelten. Bitte wählen Sie ein anderes Datum.",
         "offering_changes_no_enrollment": "Für das Kind gibt es keine gültige Anmeldung mehr. Bitte lehnen Sie {object} ab.",
@@ -2383,6 +2418,9 @@
         "self_assignment": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben."
       },
       "timetable": {
+        "activity_not_owner": "Sie können nur Aktivitäten ändern, die Sie angelegt haben oder betreuen.",
+        "activity_system_protected": "Diese Aktivität gehört fest zu moto. Sie lässt sich nicht umbenennen oder löschen.",
+        "activity_template_protected": "Diese Aktivität ist ein Regeltermin. Bitte ändern Sie sie im Betreuungsplan.",
         "ambiguous_template_instance_delete": "Dieser Termin lässt sich nicht einzeln löschen. Die Serie hat an diesem Tag mehrere Termine.",
         "attendance_entry_not_found": "Diesen Eintrag gibt es nicht mehr. Bitte laden Sie die Seite neu.",
         "attendance_frozen": "Der Termin ist abgeschlossen. Bitte ändern Sie die Anwesenheit über die Korrektur.",
@@ -2444,6 +2482,7 @@
         "offering_source_outside_period": "Die Anmeldephase von „{offering}“ passt nicht zum Zeitraum. Bitte wählen Sie ein anderes Angebot.",
         "offering_source_too_many": "Bitte wählen Sie höchstens {max} Angebote aus.",
         "only_supervisor_replacement_required": "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
+        "operation_not_planned": "Sie sind für diese Aktivität nicht eingeplant. Nur eingeplante Betreuungskräfte können hier etwas eintragen oder ändern.",
         "operation_stale": "Der Termin wurde gerade geändert. Bitte laden Sie die Seite neu.",
         "pickup_extension_block_gone": "Der Termin hat sich inzwischen geändert. Bitte wählen Sie noch einmal.",
         "pickup_extension_invalid": "Diese Auswahl passt nicht. Bitte laden Sie die Seite neu und wählen Sie noch einmal.",
@@ -2569,6 +2608,7 @@
         "shift_series_outside_period": "Die Serie liegt außerhalb des Kalenderzeitraums. Bitte prüfen Sie „Gültig ab“ und „Gültig bis“.",
         "shift_series_week_cycle_missing": "Dieser Kalenderzeitraum hat keine Woche A und B. Bitte wählen Sie „Jede Woche“.",
         "shift_type_inactive": "Diese Schichtart ist ausgeschaltet. Bitte wählen Sie eine andere.",
+        "staff_profile_missing": "Für Ihr Konto gibt es keinen Personaldatensatz. Diese Einstellung gilt nur für Personal.",
         "stammdaten_invalid": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "target_override_hours_invalid": "Die Stunden pro Tag müssen zwischen 0 und {max_hours} liegen.",
         "target_override_overlap": "Vom {start_date} bis {end_date} gibt es schon eine Sonderarbeitszeit. Bitte löschen Sie diese zuerst oder wählen Sie andere Tage.",

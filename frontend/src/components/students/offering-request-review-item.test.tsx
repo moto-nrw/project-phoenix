@@ -162,7 +162,7 @@ describe("OfferingRequestReviewItem", () => {
       ),
     );
     expect(onDecided).toHaveBeenCalledWith(
-      "Änderung übernommen, gültig ab 01.02.2027. Die angezeigten Folgeänderungen wurden übernommen.",
+      "Die Änderung ist übernommen und gilt ab 01.02.2027. Die angezeigten Folgeänderungen sind auch übernommen.",
     );
   });
 
@@ -199,7 +199,9 @@ describe("OfferingRequestReviewItem", () => {
         undefined,
       ),
     );
-    expect(onDecided).toHaveBeenCalledWith("Angebots-Anfrage abgelehnt");
+    expect(onDecided).toHaveBeenCalledWith(
+      "Die Anfrage zum Angebot ist abgelehnt.",
+    );
   });
 
   it("names the capacity conflict and keeps the card pending", async () => {
@@ -906,7 +908,7 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
       ),
     );
     expect(onDecided).toHaveBeenCalledWith(
-      "Änderung übernommen, gültig ab 01.03.2027. Die angezeigten Folgeänderungen wurden übernommen.",
+      "Die Änderung ist übernommen und gilt ab 01.03.2027. Die angezeigten Folgeänderungen sind auch übernommen.",
     );
   });
 

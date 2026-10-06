@@ -1,7 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useTranslations } from "next-intl";
 import { PushInstallSteps } from "~/components/settings/push-install-steps";
 import { Alert } from "~/components/ui/alert";
@@ -15,6 +22,7 @@ import {
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { RotateCcw, Send } from "lucide-react";
+import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import { createLogger } from "~/lib/logger";
 import { sendTestNotification } from "~/lib/notification-api";
@@ -80,8 +88,14 @@ export function PushNotificationSection({
   const [state, setState] = useState<PushState>("loading");
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const toast = useToast();
+  // Einschalten, Ausschalten und Testen sind Aktionen ohne Formular: Erfolg
+  // und Fehler kommen als Toast (#2517). Das Elternportal behält seine
+  // übersetzten Sätze, bis #2518 die Fehlerobjekte übersetzt.
+  const { show: showActionError } = useApiErrorDisplay();
+  const latestEnableRef = useRef<() => void>(() => undefined);
+  const latestDisableRef = useRef<() => void>(() => undefined);
+  const latestTestRef = useRef<() => void>(() => undefined);
   const [installAccepted, setInstallAccepted] = useState(false);
   const [installed, setInstalled] = useState<boolean | null>(null);
   const [permission, setPermission] = useState<NotificationPermission | null>(
@@ -118,6 +132,7 @@ export function PushNotificationSection({
         await verifyPushConfiguration(portal);
         setState("needs-install-ios");
       } catch (err) {
+        // Without a working server configuration the card hides itself.
         if (!isPushConfigurationMissing(err)) {
           logger.error("push_configuration_check_failed", {
             error: err instanceof Error ? err.message : String(err),
@@ -141,6 +156,7 @@ export function PushNotificationSection({
         await verifyPushConfiguration(portal);
         setState("needs-install-android");
       } catch (err) {
+        // Without a working server configuration the card hides itself.
         if (!isPushConfigurationMissing(err)) {
           logger.error("push_configuration_check_failed", {
             error: err instanceof Error ? err.message : String(err),
@@ -158,6 +174,8 @@ export function PushNotificationSection({
       const subscription = await syncExistingPushSubscription(portal);
       setState(subscription ? "subscribed" : "unsubscribed");
     } catch (err) {
+      // Status check while the card opens: without a known subscription the
+      // card offers "Aktivieren", which repeats the check with a message.
       if (isPushConfigurationMissing(err)) {
         setState("disabled");
         return;
@@ -173,19 +191,45 @@ export function PushNotificationSection({
     void refresh();
   }, [refresh]);
 
+  const reportError = (
+    err: unknown,
+    parentMessage: string,
+    object: string,
+    retry: () => void,
+  ) => {
+    if (portal === "parent") {
+      toast.error(parentMessage);
+      return;
+    }
+    void showActionError(err, { object, retry });
+  };
+
   const enable = async () => {
     setBusy(true);
-    setError(null);
-    setMessage(null);
     try {
       await subscribePush(portal);
-      setMessage(t("enabledMessage"));
+      toast.success(t("enabledMessage"));
       await refresh();
     } catch (err) {
       logger.error("push_subscribe_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(t("enableError"));
+      // Hat das Gerät nicht zugestimmt, ist das kein Fehler von moto: die
+      // Karte zeigt danach den Zustand (blockiert oder noch nicht erlaubt),
+      // der Satz sagt, dass es nicht geklappt hat.
+      if (
+        typeof Notification !== "undefined" &&
+        Notification.permission !== "granted"
+      ) {
+        toast.error(t("enableError"));
+      } else {
+        reportError(
+          err,
+          t("enableError"),
+          "das Einschalten der Benachrichtigungen",
+          () => latestEnableRef.current(),
+        );
+      }
       await refresh();
     } finally {
       setBusy(false);
@@ -194,7 +238,6 @@ export function PushNotificationSection({
 
   const install = async () => {
     setBusy(true);
-    setError(null);
     try {
       const outcome = await triggerInstallPrompt();
       if (outcome === "accepted") {
@@ -204,7 +247,8 @@ export function PushNotificationSection({
       logger.warn("parent_app_install_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(setupT("installError"));
+      // Kein API-Fehler: der Browser hat die Installation nicht angeboten.
+      toast.error(setupT("installError"));
     } finally {
       setBusy(false);
     }
@@ -212,17 +256,20 @@ export function PushNotificationSection({
 
   const disable = async () => {
     setBusy(true);
-    setError(null);
-    setMessage(null);
     try {
       await unsubscribePush(portal);
-      setMessage(t("disabledMessage"));
+      toast.success(t("disabledMessage"));
       await refresh();
     } catch (err) {
       logger.error("push_unsubscribe_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(t("disableError"));
+      reportError(
+        err,
+        t("disableError"),
+        "das Ausschalten der Benachrichtigungen",
+        () => latestDisableRef.current(),
+      );
     } finally {
       setBusy(false);
     }
@@ -231,21 +278,27 @@ export function PushNotificationSection({
   const sendTest = async () => {
     setBusy(true);
     setTesting(true);
-    setError(null);
-    setMessage(null);
     try {
       await sendTestNotification(portal === "school" ? "school" : "tenant");
-      setMessage(t("testSent"));
+      toast.success(t("testSent"));
     } catch (err) {
       logger.error("test_notification_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(err instanceof Error ? err.message : t("testError"));
+      reportError(err, t("testError"), "die Testbenachrichtigung", () =>
+        latestTestRef.current(),
+      );
     } finally {
       setTesting(false);
       setBusy(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestEnableRef.current = () => void enable();
+    latestDisableRef.current = () => void disable();
+    latestTestRef.current = () => void sendTest();
+  });
 
   if (state === "loading") return <PushNotificationSkeleton />;
   if (state === "disabled") return null;
@@ -354,8 +407,6 @@ export function PushNotificationSection({
 
   // Ohne Karteninhalt darf der Kopf keinen Abstand nach unten aufspannen.
   const hasBody =
-    error != null ||
-    message != null ||
     testing ||
     state === "needs-install-ios" ||
     state === "needs-install-android" ||
@@ -382,16 +433,6 @@ export function PushNotificationSection({
       {testing && (
         <div className="mb-3">
           <Alert type="info" message={t("testing")} />
-        </div>
-      )}
-      {error && (
-        <div className="mb-3">
-          <Alert type="error" message={error} />
-        </div>
-      )}
-      {message && (
-        <div className="mb-3">
-          <Alert type="success" message={message} />
         </div>
       )}
 

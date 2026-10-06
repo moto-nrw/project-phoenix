@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
-import { useFormError } from "~/components/ui/form-error";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { TimeField } from "~/components/ui/time-field";
+import { useApiFormError } from "~/contexts/ToastContext";
 import {
   berlinClockFromISO,
   berlinDateTimeISO,
@@ -107,8 +107,11 @@ export function AnnouncementReminderDialog({
   // (BAUARTEN-SPEC Bauart 2 Regel 6): the click opens the question, the
   // request runs from its confirmation.
   const [confirmRemove, setConfirmRemove] = useState(false);
-  const [removeError, setRemoveError] = useState("");
-  const [error, setError] = useFormError();
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  // Fehler beim Entfernen bleiben im offenen Bestätigungsdialog.
+  const removeErrors = useApiFormError();
+  const latestSubmitRef = useRef<(remove: boolean) => void>(() => undefined);
 
   const expiresAt = announcement.expires_at
     ? new Date(announcement.expires_at)
@@ -116,19 +119,21 @@ export function AnnouncementReminderDialog({
 
   const submit = async (remove: boolean) => {
     if (!remove && !day) {
-      setError("Bitte einen Tag für die Erinnerung wählen.");
+      formErrors.invalid("Bitte prüfen Sie die markierten Felder.", {
+        reminder_at: "Bitte wählen Sie einen Tag für die Erinnerung.",
+      });
       return;
     }
     if (!remove) {
       const problem = reminderError(day, time, expiresAt);
       if (problem) {
-        setError(problem);
+        formErrors.invalid(problem, { reminder_at: problem });
         return;
       }
     }
     setPending(remove ? "remove" : "save");
-    setError("");
-    setRemoveError("");
+    formErrors.clear();
+    removeErrors.clear();
     try {
       await updateAnnouncementReminder(announcement.id, {
         reminder_at: remove || !day ? null : berlinDateTimeISO(day, time),
@@ -138,20 +143,24 @@ export function AnnouncementReminderDialog({
       setConfirmRemove(false);
       onClose();
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Erinnerung konnte nicht gespeichert werden";
-      if (remove) {
-        setRemoveError(message);
-      } else {
-        setError(message);
-      }
-      logger.error("announcement_reminder_update_failed", { error: message });
+      logger.error("announcement_reminder_update_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await (remove ? removeErrors : formErrors).show(err, {
+        object: remove
+          ? "das Entfernen der Erinnerung"
+          : "das Speichern der Erinnerung",
+        retry: () => latestSubmitRef.current(remove),
+      });
     } finally {
       setPending(null);
     }
   };
+  // „Wiederholen“ sendet den Stand, der dann im Formular steht.
+  useLayoutEffect(() => {
+    latestSubmitRef.current = (remove) => void submit(remove);
+  });
+  const reminderAtError = formErrors.fieldError("reminder_at");
 
   return (
     <>
@@ -162,7 +171,7 @@ export function AnnouncementReminderDialog({
         size="md"
         closeDisabled={pending !== null}
         suspended={confirmRemove}
-        error={error}
+        error={formErrors.error}
         footer={
           <div className="flex flex-wrap justify-end gap-2">
             {hasReminder && (
@@ -199,7 +208,7 @@ export function AnnouncementReminderDialog({
           </div>
         }
       >
-        <div className="space-y-4">
+        <div ref={formRef} className="space-y-4">
           <p className="text-sm text-gray-600">
             moto schickt „{announcement.title}“ zu diesem Zeitpunkt noch einmal
             an alle Empfänger, auch wenn sie schon{" "}
@@ -214,10 +223,23 @@ export function AnnouncementReminderDialog({
                 Erinnern am
               </span>
               <DatePicker
+                name="reminder_at"
                 value={day}
                 onChange={setDay}
                 placeholder="Tag wählen"
+                invalid={Boolean(reminderAtError)}
+                ariaDescribedBy={
+                  reminderAtError ? "announcement-reminder-at-error" : undefined
+                }
               />
+              {reminderAtError ? (
+                <p
+                  id="announcement-reminder-at-error"
+                  className="text-moto-red-strong mt-1 text-xs"
+                >
+                  {reminderAtError}
+                </p>
+              ) : null}
             </div>
             <TimeField
               label="Uhrzeit"
@@ -226,6 +248,7 @@ export function AnnouncementReminderDialog({
               hint="Uhrzeit im Format 08:00"
               placeholder="08:00"
               required
+              invalid={Boolean(reminderAtError)}
             />
           </div>
           <div>
@@ -237,6 +260,7 @@ export function AnnouncementReminderDialog({
             </label>
             <textarea
               id="announcement-reminder-dialog-text"
+              name="reminder_text"
               value={text}
               onChange={(e) => setText(e.target.value)}
               rows={3}
@@ -271,10 +295,10 @@ export function AnnouncementReminderDialog({
         onConfirm={() => submit(true)}
         onClose={() => {
           setConfirmRemove(false);
-          setRemoveError("");
+          removeErrors.clear();
         }}
         loading={pending === "remove"}
-        error={removeError}
+        error={removeErrors.error}
       />
     </>
   );

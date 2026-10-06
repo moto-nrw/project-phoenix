@@ -937,7 +937,7 @@ export function StudentCreateModal({
           onClose={() => setCarePlanModalOpen(false)}
           initialArrivalSchedules={arrivalSchedules}
           initialPickupSchedules={pickupSchedules}
-          successMessage="Betreuungszeiten übernommen"
+          successMessage="Die Betreuungszeiten sind übernommen."
           onSubmit={async ({ arrivalSchedules: nextArrival, pickupData }) => {
             setArrivalSchedules(nextArrival);
             setPickupSchedules(pickupData.schedules);

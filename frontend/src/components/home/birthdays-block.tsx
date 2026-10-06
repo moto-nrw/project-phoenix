@@ -8,8 +8,8 @@ import {
 } from "~/components/dashboard/birthday-list";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import { useHomeCardRows } from "~/components/home/home-card-rows";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { SectionCard } from "~/components/ui/section-card";
@@ -19,6 +19,7 @@ import {
   type BirthdayOverview,
 } from "~/lib/birthdays-api";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
 
 /**
@@ -43,10 +44,13 @@ export function BirthdaysBlock({
   current,
   currentLoading,
   currentError,
+  onRetryCurrent,
 }: {
   readonly current: BirthdayOverview | undefined;
   readonly currentLoading: boolean;
-  readonly currentError?: Error;
+  readonly currentError?: unknown;
+  /** Lädt die laufende Woche neu (Wiederholen am Ladefehler). */
+  readonly onRetryCurrent?: () => unknown;
 }) {
   // null heißt: die laufende Woche.
   const [weekStart, setWeekStart] = useState<string | null>(null);
@@ -57,8 +61,25 @@ export function BirthdaysBlock({
     () => fetchBirthdayOverviewClient(weekStart),
   );
 
+  // Ein Fehler beim Nachladen lässt die geladene Woche stehen; nur eine Woche
+  // ohne Daten zeigt den Ladefehler statt einer leeren Liste.
+  const failure = weekStart
+    ? other.data
+      ? undefined
+      : other.error
+    : current
+      ? undefined
+      : currentError;
+  const loadError = useSwrLoadError(failure, "die Liste der Geburtstage", () =>
+    weekStart ? other.mutate() : onRetryCurrent?.(),
+  );
+
   const shown = weekStart ? other.data : current;
-  const isLoading = weekStart ? other.isLoading && !other.data : currentLoading;
+  // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett stehen:
+  // sonst blitzt „Keine Geburtstage in dieser Woche“ auf.
+  const isLoading =
+    (weekStart ? other.isLoading && !other.data : currentLoading) ||
+    failure !== undefined;
   const bounds = shown ?? current;
   const currentWeekStart = current?.weekStart ?? null;
 
@@ -115,11 +136,8 @@ export function BirthdaysBlock({
             withoutContextRow
           />
         )}
-        {(weekStart && other.error) || (!current && currentError) ? (
-          <Alert
-            type="error"
-            message="Die Geburtstage konnten nicht geladen werden. Bitte versuchen Sie es noch einmal."
-          />
+        {loadError ? (
+          <LoadErrorAlert error={loadError} />
         ) : (
           <div className="min-h-0">
             <BirthdayList

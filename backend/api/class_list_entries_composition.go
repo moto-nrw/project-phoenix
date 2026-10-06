@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -45,12 +46,38 @@ func newClassListEntriesResource(entries schoolMembershipModule.ClassListEntries
 func renderClassListEntryFailure(w http.ResponseWriter, r *http.Request, kind classListHTTP.FailureKind, err error) {
 	switch kind {
 	case classListHTTP.FailureInvalidRequest:
+		if code := classListEntryRefusalCode(err); code != "" {
+			apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequestWithCode(err, code))
+			return
+		}
 		apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
 	case classListHTTP.FailureNotFound:
 		apiCommon.RenderError(w, r, apiCommon.ErrorNotFound(err))
 	default:
 		apiCommon.RenderError(w, r, apiCommon.ErrorInternalServer(err))
 	}
+}
+
+// classListEntryRefusals names the registered code of each refusal the
+// class-list screen words itself (#2517). The status stays the owner's
+// classification; a rejected field without its own code keeps the class code.
+var classListEntryRefusals = []struct {
+	err  error
+	code string
+}{
+	{schoolMembershipModule.ErrClassListEntryDuplicate, apiCommon.CodeStudentsClassListEntryDuplicate},
+	{schoolMembershipModule.ErrClassListEntryStudentExists, apiCommon.CodeStudentsClassListEntryStudentExists},
+	{schoolMembershipModule.ErrClassListEntryStudentNotFound, apiCommon.CodeStudentsClassListEntryStudentNotFound},
+	{schoolMembershipModule.ErrClassListEntryAssignMismatch, apiCommon.CodeStudentsClassListEntryAssignMismatch},
+}
+
+func classListEntryRefusalCode(err error) string {
+	for _, refusal := range classListEntryRefusals {
+		if errors.Is(err, refusal.err) {
+			return refusal.code
+		}
+	}
+	return ""
 }
 
 // classListEntryStudentsReader adapts the owner capability to the narrow

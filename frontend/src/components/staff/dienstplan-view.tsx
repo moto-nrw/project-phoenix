@@ -520,14 +520,18 @@ function DienstplanContent() {
   // auf dem Telefon eine Zeile, die nichts sagte.
   const displayedShiftCount =
     view === "person" ? personShiftCount : allShifts.length;
-  const statusLine = [
-    view !== "halbjahr"
-      ? `${displayedShiftCount} ${displayedShiftCount === 1 ? "Dienst" : "Dienste"}`
-      : null,
-    `${sortedStaff.length} ${sortedStaff.length === 1 ? "Person" : "Personen"}`,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  // Ohne geladenen Wochenplan steht keine "0 Dienste · 0 Personen" neben
+  // dem Ladefehler (#2517).
+  const statusLine = scheduleError
+    ? null
+    : [
+        view !== "halbjahr"
+          ? `${displayedShiftCount} ${displayedShiftCount === 1 ? "Dienst" : "Dienste"}`
+          : null,
+        `${sortedStaff.length} ${sortedStaff.length === 1 ? "Person" : "Personen"}`,
+      ]
+        .filter(Boolean)
+        .join(" · ");
 
   return (
     <TenantPage

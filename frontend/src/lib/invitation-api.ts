@@ -1,4 +1,8 @@
-import { type ApiError, apiErrorFromBody } from "~/lib/api-error";
+import {
+  type ApiError,
+  apiErrorFromBody,
+  transportFetch,
+} from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "InvitationAPI" });
@@ -83,7 +87,7 @@ const extractData = <T>(payload: unknown): T => {
 export async function validateInvitation(
   token: string,
 ): Promise<InvitationValidation> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/invitations/validate?token=${encodeURIComponent(token)}`,
   );
   if (!response.ok) {
@@ -106,7 +110,7 @@ export async function acceptInvitation(
   token: string,
   data: InvitationAcceptRequest,
 ): Promise<AcceptInvitationResult> {
-  const response = await fetch("/api/invitations/accept", {
+  const response = await transportFetch("/api/invitations/accept", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -134,7 +138,7 @@ export async function acceptInvitation(
 export async function createInvitation(
   data: CreateInvitationRequest,
 ): Promise<PendingInvitation> {
-  const response = await fetch("/api/invitations", {
+  const response = await transportFetch("/api/invitations", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -156,7 +160,7 @@ export async function createInvitation(
 }
 
 export async function listPendingInvitations(): Promise<PendingInvitation[]> {
-  const response = await fetch("/api/invitations", {
+  const response = await transportFetch("/api/invitations", {
     credentials: "include",
   });
   if (!response.ok) {
@@ -174,7 +178,7 @@ export async function listPendingInvitations(): Promise<PendingInvitation[]> {
 }
 
 export async function resendInvitation(id: number): Promise<void> {
-  const response = await fetch(`/api/invitations/${id}/resend`, {
+  const response = await transportFetch(`/api/invitations/${id}/resend`, {
     method: "POST",
     credentials: "include",
   });
@@ -187,7 +191,7 @@ export async function resendInvitation(id: number): Promise<void> {
 }
 
 export async function revokeInvitation(id: number): Promise<void> {
-  const response = await fetch(`/api/invitations/${id}`, {
+  const response = await transportFetch(`/api/invitations/${id}`, {
     method: "DELETE",
     credentials: "include",
   });

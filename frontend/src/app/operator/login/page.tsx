@@ -166,9 +166,7 @@ export default function OperatorLoginPage() {
       }
       return germanMFAErrorMessage(err);
     }
-    return err instanceof Error
-      ? err.message
-      : "Anmeldefehler. Bitte versuchen Sie es erneut.";
+    return "Anmeldefehler. Bitte versuchen Sie es erneut.";
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

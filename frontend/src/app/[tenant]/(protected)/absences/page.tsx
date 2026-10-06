@@ -23,11 +23,11 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { dayLogSourceLabel } from "~/lib/day-log-api";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
   fetchStatusDayOverview,
-  StatusDayOverviewForbiddenError,
   type StatusDayOverview,
   type StatusDayOverviewEntry,
   type StudentStatusKind,
@@ -163,6 +163,7 @@ export default function AbsencesPage() {
     isLoading,
     isValidating,
     error: swrError,
+    mutate,
   } = useSWRAuth<StatusDayOverview>(
     effectiveFromIso && effectiveToIso
       ? `student-status-days-overview-${effectiveFromIso}-${effectiveToIso}-${page}-${deferredQuery}-${statusFilter}-${groupFilter}`
@@ -179,11 +180,11 @@ export default function AbsencesPage() {
   const entries = overview?.entries ?? null;
   const displayedPage = overview?.page ?? page;
   const hasMore = overview?.has_more ?? false;
-  const error = swrError
-    ? swrError instanceof StatusDayOverviewForbiddenError
-      ? swrError.message
-      : "Abwesenheiten konnten nicht geladen werden."
-    : null;
+  // Ladefehler über den gemeinsamen Fehlerweg (#2517): Katalogtext nach Code
+  // und Klasse, auch für fehlende Rechte, mit Wiederholen.
+  const error = useSwrLoadError(swrError, "die Liste der Abwesenheiten", () =>
+    mutate(),
+  );
 
   useEffect(() => {
     if (!swrError) return;
@@ -275,7 +276,7 @@ export default function AbsencesPage() {
     : null;
 
   const isEmpty =
-    error === null &&
+    !swrError &&
     !isLoading &&
     entries !== null &&
     entries.length === 0 &&

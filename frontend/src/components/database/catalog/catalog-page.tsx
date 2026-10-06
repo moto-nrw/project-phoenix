@@ -148,6 +148,20 @@ interface CatalogPageProps<T extends CatalogItem> {
   readonly headAction?: React.ReactNode;
 }
 
+/**
+ * Erfolg als ganzer Satz (moto-einfache-sprache): „Die Schichtart „Früh“ ist
+ * angelegt.“ Alle Kataloge heißen feminin, siehe `errorObject`.
+ */
+function successSentence(
+  singular: string,
+  name: unknown,
+  verb: "angelegt" | "gespeichert",
+): string {
+  return typeof name === "string" && name.trim()
+    ? `Die ${singular} „${name.trim()}“ ist ${verb}.`
+    : `Die ${singular} ist ${verb}.`;
+}
+
 export function CatalogPage<T extends CatalogItem>({
   config,
   items,
@@ -276,7 +290,9 @@ export function CatalogPage<T extends CatalogItem>({
       await config.create(values);
       setCreateOpen(false);
       if (await refreshAfterWrite()) {
-        toast.success(`${config.singular} angelegt`);
+        toast.success(
+          successSentence(config.singular, values.name, "angelegt"),
+        );
       }
     },
     [config, refreshAfterWrite, toast],
@@ -288,7 +304,13 @@ export function CatalogPage<T extends CatalogItem>({
       await config.update(selected, values);
       if (await refreshAfterWrite()) {
         setFormGeneration((generation) => generation + 1);
-        toast.success("Änderungen gespeichert");
+        toast.success(
+          successSentence(
+            config.singular,
+            values.name ?? config.toRow(selected).name,
+            "gespeichert",
+          ),
+        );
       }
     },
     [config, refreshAfterWrite, selected, toast],

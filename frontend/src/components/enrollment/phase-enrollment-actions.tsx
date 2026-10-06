@@ -248,6 +248,8 @@ export function ManualApprovedEnrollmentModal({
       })
       .catch((err: unknown) => {
         if (cancelled) return;
+        // Die Belegung ist nur ein Hinweis: ohne sie meldet erst das Speichern
+        // ein volles Angebot. Das Formular bleibt bedienbar.
         setBookingStats({});
         logger.warn("manual_enrollment_booking_stats_failed", {
           error: err instanceof Error ? err.message : String(err),

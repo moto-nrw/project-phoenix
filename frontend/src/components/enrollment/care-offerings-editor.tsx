@@ -409,10 +409,11 @@ export function CareOfferingsEditor({
   /**
    * Meldet Gesamtzahl und aktive Angebote an den Seitenkopf, damit dessen
    * Statuszeile aus denselben Daten lebt statt aus einem zweiten Request.
-   * `null` heißt: noch am Laden.
+   * `null` heißt: noch am Laden; `"unavailable"`: der Katalog konnte nicht
+   * geladen werden, es gibt nichts zu zählen (#2517).
    */
   readonly onSummaryChange?: (
-    summary: { total: number; active: number } | null,
+    summary: { total: number; active: number } | "unavailable" | null,
   ) => void;
 } = {}) {
   const { tenant } = useTenant();
@@ -434,6 +435,9 @@ export function CareOfferingsEditor({
   const [metadataStatus, setMetadataStatus] =
     useState<PlannerMetadataStatus>("loading");
   const [loading, setLoading] = useState(true);
+  // Set at once when the catalog load fails, so the page header never counts
+  // the emptied list as "0 Angebote" (#2517).
+  const [catalogFailed, setCatalogFailed] = useState(false);
   // A failed catalog load stands where the catalog would be (#2515).
   const catalogLoad = useApiLoadError();
   const showCatalogError = catalogLoad.show;
@@ -468,9 +472,19 @@ export function CareOfferingsEditor({
   // Statuszeile des Seitenkopfs: derselbe Katalog, den die Tabelle zeigt.
   useEffect(() => {
     onSummaryChange?.(
-      loading ? null : { total: offerings.length, active: activeOfferingCount },
+      loading
+        ? null
+        : catalogFailed
+          ? "unavailable"
+          : { total: offerings.length, active: activeOfferingCount },
     );
-  }, [loading, offerings.length, activeOfferingCount, onSummaryChange]);
+  }, [
+    loading,
+    catalogFailed,
+    offerings.length,
+    activeOfferingCount,
+    onSummaryChange,
+  ]);
 
   const selectableDaysCount = new Set(
     offerings.flatMap((offering) => offering.available_days),
@@ -572,12 +586,14 @@ export function CareOfferingsEditor({
         selectedPhaseIdRef.current = phaseId;
         setSelectedPhaseId(phaseId);
         setOfferings(offeringsData);
+        setCatalogFailed(false);
       } catch (err) {
         if (catalogLoadSeq.current !== requestSeq) return;
         logger.error("care_offerings_load_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
         setOfferings([]);
+        setCatalogFailed(true);
         await showCatalogError(err, {
           object: "die Liste der Betreuungsangebote",
           retry: () => void latestLoadAll.current(selectedPhaseIdRef.current),

@@ -624,6 +624,8 @@ describe("VertretungView", () => {
     ).toHaveTextContent("req-week");
     expect(screen.queryByTestId("day-list")).not.toBeInTheDocument();
     expect(screen.queryByTestId("calendar-grid")).not.toBeInTheDocument();
+    // #2517: keine Zählung aus einer Woche, die nie geladen wurde.
+    expect(screen.queryByText(/0 Termine/)).not.toBeInTheDocument();
     // Ladefehler nie als Toast: niemand hat eine Aktion ausgelöst.
     expect(mockToastError).not.toHaveBeenCalled();
   });
@@ -689,7 +691,7 @@ describe("VertretungView", () => {
     await waitFor(() =>
       expect(mockApplyDeviations).toHaveBeenCalledWith("42", { cancel: true }),
     );
-    expect(mockToastSuccess).toHaveBeenCalledWith("Block abgesagt");
+    expect(mockToastSuccess).toHaveBeenCalledWith("Der Block ist abgesagt.");
     // Cache-Refresh nach dem committeten Save.
     await waitFor(() => expect(mockTenantMutate).toHaveBeenCalled());
     // block und verlauf sind aus der URL entfernt.

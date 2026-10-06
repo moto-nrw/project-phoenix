@@ -19,6 +19,22 @@ describe("presentError", () => {
     expect(result.retryable).toBe(false);
   });
 
+  it("explains the remaining capacity for a partial bulk admission", () => {
+    const error = new ApiError("capacity", 409, {
+      code: "presence.room_capacity_exceeded",
+      details: {
+        room_name: "Turnhalle",
+        current_occupancy: 29,
+        max_capacity: 30,
+        incoming_students: 2,
+      },
+    });
+
+    expect(presentError(error, "die Anwesenheit").message).toBe(
+      "Der Raum Turnhalle: 29 von 30 Plätzen sind belegt. Freie Plätze: 1. Es sollen 2 Kinder dazukommen.",
+    );
+  });
+
   it("falls back to the German class text when a code is unknown", () => {
     const error = new ApiError("English diagnostic", 503, {
       code: "future.unknown",
@@ -29,6 +45,22 @@ describe("presentError", () => {
     expect(result.message).not.toContain("English diagnostic");
     expect(result.requestId).toBe("req-18");
     expect(result.retryable).toBe(true);
+  });
+
+  it.each([
+    "identity.mfa_blocked",
+    "identity.password_reset_rate_limited",
+  ] as const)("makes %s retryable after its cooldown", (code) => {
+    const error = new ApiError("rate limited", 429, {
+      code,
+      instance: "req-429",
+    });
+
+    expect(presentError(error, "die Anmeldung")).toMatchObject({
+      errorClass: "unavailable",
+      retryable: true,
+      requestId: "req-429",
+    });
   });
 
   it("uses the class text when a known code has no runtime override", () => {

@@ -1,23 +1,52 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+/** Text of a FormErrorInput, as the shared kit components render it. */
+function errorText(error: unknown): string | null {
+  if (!error) return null;
+  return typeof error === "string"
+    ? error
+    : (error as { message: string }).message;
+}
+
+interface MockErrorPath {
+  error: unknown;
+  show: (error: unknown, options: { object: string }) => unknown;
+  clear: () => void;
+}
 
 vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
+// Mirrors DatabaseForm in production: a rejected save goes to the owner's
+// error path, whose text the form renders.
 vi.mock("~/components/ui/database/database-form", () => ({
   DatabaseForm: ({
     onSubmit,
     onCancel,
+    errorPath,
+    errorObject,
   }: {
     onSubmit: (data: { name: string }) => Promise<void>;
     onCancel: () => void;
+    errorPath: MockErrorPath;
+    errorObject?: string;
   }) => (
     <div data-testid="database-form">
+      {errorText(errorPath.error) ? (
+        <span data-testid="form-error">{errorText(errorPath.error)}</span>
+      ) : null}
       <button
         type="button"
-        onClick={() => void onSubmit({ name: "Updated Group" })}
+        onClick={() =>
+          void onSubmit({ name: "Updated Group" }).catch((err: unknown) => {
+            void errorPath.show(err, { object: errorObject ?? "" });
+          })
+        }
       >
         Save
       </button>
@@ -98,6 +127,32 @@ describe("GroupsMasterDetail", () => {
 
     fireEvent.click(screen.getByText("Save"));
     expect(onSaveGroup).toHaveBeenCalledWith({ name: "Updated Group" });
+  });
+
+  it("shows a failed save with the catalog text of the group in the form", async () => {
+    onSaveGroup.mockRejectedValueOnce(
+      new ApiError("conflict", 409, { code: "general.business_rejection" }),
+    );
+    render(
+      <GroupsMasterDetail
+        groups={[baseGroup, groupWithoutRoom]}
+        selectedId="1"
+        selectedGroup={baseGroup}
+        onSelect={onSelect}
+        onSaveGroup={onSaveGroup}
+        onDeleteClick={onDeleteClick}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Save"));
+
+    expect(await screen.findByTestId("form-error")).toHaveTextContent(
+      catalogText("general.business_rejection", "die Gruppe"),
+    );
+
+    // Abbrechen setzt den Entwurf und den Fehler zurück.
+    fireEvent.click(screen.getByText("Cancel"));
+    expect(screen.queryByTestId("form-error")).not.toBeInTheDocument();
   });
 
   it("renders supervisors joined as the Gruppenleitung field", () => {

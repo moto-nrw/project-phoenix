@@ -18,7 +18,7 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormModal } from "~/components/ui/form-modal";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { apiErrorFromResponse } from "~/lib/api-error";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { getCachedSession } from "~/lib/session-cache";
 
@@ -127,7 +127,7 @@ export function AttendanceCorrectionModal({
 
   const loadHistory = useCallback(async () => {
     try {
-      const response = await fetch(
+      const response = await transportFetch(
         `/api/timetable/instances/${slot.instanceId}/students/${studentId}/corrections`,
         { credentials: "include", headers: await authorizedHeaders() },
       );
@@ -184,7 +184,7 @@ export function AttendanceCorrectionModal({
           ? { note: note.trim() === "" ? null : note.trim() }
           : {}),
       };
-      const response = await fetch(
+      const response = await transportFetch(
         `/api/timetable/instances/${slot.instanceId}/students/${studentId}/correction`,
         {
           method: "POST",

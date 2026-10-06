@@ -153,10 +153,7 @@
     "excel": "Excel",
     "pdfDownloadStatus": "Trwa pobieranie PDF.",
     "excelDownloadStatus": "Trwa pobieranie pliku Excel.",
-    "downloadError": "Nie udało się pobrać listy dziennej. Proszę spróbować jeszcze raz.",
-    "loadErrorTitle": "Lista dzienna nie została wczytana",
-    "loadErrorMessage": "Proszę spróbować ponownie.",
-    "retry": "Spróbuj ponownie",
+    "errorObject": "lista dzienna",
     "caption": "Obiad w dniu {date}",
     "emptyTitle": "Brak zapisów na ten dzień",
     "emptyDescription": "Na ten dzień żadne dziecko nie jest na liście dla kuchni."
@@ -1955,8 +1952,8 @@
     "howToAndroid": "Android: W Kalendarzu Google na komputerze: Inne kalendarze, Z adresu URL, potem wkleić link. Kalendarz pojawi się potem także na telefonie.",
     "regenerate": "Utwórz nowy link",
     "regenerated": "Utworzono nowy link subskrypcji. Stary link już nie działa.",
-    "loadError": "Nie udało się wczytać linku subskrypcji.",
-    "rotateError": "Nie udało się odnowić linku subskrypcji.",
+    "loadObject": "link subskrypcji",
+    "rotateObject": "link subskrypcji",
     "alreadyActive": "Państwa link subskrypcji jest już aktywny. Ze względów bezpieczeństwa nie zostanie pokazany ponownie. Jeśli już go Państwo nie mają, proszę utworzyć nowy link. Dotychczasowy przestanie wtedy działać.",
     "createNew": "Utwórz nowy link subskrypcji"
   },
@@ -2082,10 +2079,12 @@
         "announcement_published_immutable": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "announcement_reminder_sent": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "declaration_has_submissions": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "notifications_disabled": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "parent_news_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "poll_not_open": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "staff_counterpart_unavailable": "{object} jest teraz niedostępne. Spróbuj ponownie.",
         "staff_messaging_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "staff_notice_outdated": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "system_announcement_immutable": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "enrollment": {
@@ -2203,6 +2202,10 @@
       "files": {
         "announcement_published": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "attachment_limit_reached": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "file_missing": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_too_large": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_type_not_allowed": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_unreadable": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "folder_name_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "quota_exceeded": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
@@ -2223,6 +2226,7 @@
       "identity": {
         "account_already_has_tenant_access": "Ta osoba ma już dostęp do tej szkoły. Znajdziesz ją na liście personelu.",
         "account_inactive": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "current_password_wrong": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "demo_access_expired": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "demo_access_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "demo_access_rate_limited": "{object} jest teraz niedostępne. Spróbuj ponownie.",
@@ -2231,22 +2235,42 @@
         "demo_school_preparing": "{object} jest teraz niedostępne. Spróbuj ponownie.",
         "demo_session": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "email_already_exists": "Dla tego adresu e-mail istnieje już konto. Użyj innego adresu.",
+        "invalid_credentials": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "invitation_account_login_required": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "invitation_account_mismatch": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "invitation_expired": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "invitation_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "mfa_blocked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "mfa_code_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "passkey_login_failed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "password_reset_link_invalid": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "password_reset_rate_limited": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "password_too_weak": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "preview_target_not_previewable": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "preview_target_school_portal": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "preview_token_invalid": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "read_only_preview": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "role_name_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "session_account_inactive": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "tenant_access_denied": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "use_parent_portal": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "use_school_portal": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
       },
       "import": {
-        "import_batch_failed": "Nie udało się przetworzyć: {object}. Spróbuj ponownie później."
+        "file_columns_missing": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_missing": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_no_rows": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_row_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_too_large": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_type_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_unreadable": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "import_batch_failed": "Nie udało się przetworzyć: {object}. Spróbuj ponownie później.",
+        "mode_forbidden": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
       },
       "iot": {
         "activity_capacity_exceeded": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "deviation_reason_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "device_id_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "invalid_rfid_tag": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "invalid_staff_clock_request": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "invalid_staff_clock_state": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2281,7 +2305,8 @@
       },
       "presence": {
         "activity_participant_limit_reached": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-        "room_capacity_exceeded": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+        "room_capacity_exceeded": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "statistics_range_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
       },
       "rollover": {
         "deadline_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
@@ -2294,6 +2319,7 @@
       },
       "rooms": {
         "color_already_in_use": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "not_released": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "school": {
@@ -2331,11 +2357,17 @@
         "checkin_care_ended": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "checkout_note_too_long": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "child_quota_reached": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "class_list_entry_assign_mismatch": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "class_list_entry_duplicate": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "class_list_entry_student_exists": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "class_list_entry_student_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "companion_lock_busy": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "companion_would_lose_departure": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "companions_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "conflict_kind_unsupported": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "correction_unsupported": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "day_log_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "day_log_no_groups": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "deletion_acknowledgement_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "deletion_alumnus": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "deletion_companion_blocked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2348,6 +2380,9 @@
         "excused_request_status_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "export_selection_too_large": "Wybrano {total} dzieci. Lista może mieć najwyżej {limit} dzieci. Zawęź wybór, na przykład według grupy lub klasy.",
         "guardian_access_revoked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "guardian_account_holder_too_long": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "guardian_email_taken": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "guardian_iban_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "offering_change_capacity_full": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "offering_change_date_out_of_range": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "offering_changes_no_enrollment": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
@@ -2383,6 +2418,9 @@
         "self_assignment": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
       },
       "timetable": {
+        "activity_not_owner": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "activity_system_protected": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "activity_template_protected": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "ambiguous_template_instance_delete": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "attendance_entry_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "attendance_frozen": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2444,6 +2482,7 @@
         "offering_source_outside_period": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "offering_source_too_many": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "only_supervisor_replacement_required": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "operation_not_planned": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "operation_stale": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "pickup_extension_block_gone": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "pickup_extension_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
@@ -2569,6 +2608,7 @@
         "shift_series_outside_period": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "shift_series_week_cycle_missing": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "shift_type_inactive": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "staff_profile_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "stammdaten_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "target_override_hours_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "target_override_overlap": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

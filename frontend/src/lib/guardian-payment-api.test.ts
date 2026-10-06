@@ -100,10 +100,17 @@ describe("guardian-payment-api", () => {
     });
   });
 
-  it("surfaces the backend message instead of a bare status", async () => {
+  // #2517: the code, field errors and request ID reach the shared error
+  // display; the backend sentence is no longer the user's message.
+  it("throws an ApiError carrying the wire envelope", async () => {
     sessionFetch.mockResolvedValue(
       jsonResponse(
-        { error: "invalid payment value: malformed IBAN" },
+        {
+          error: "invalid payment value: malformed IBAN",
+          code: "general.input",
+          errors: [{ field: "iban", reason: "malformed" }],
+          instance: "req-7",
+        },
         {
           status: 400,
         },
@@ -112,7 +119,13 @@ describe("guardian-payment-api", () => {
 
     await expect(
       updateGuardianPayment("42", { iban: "DE00", accountHolder: null }),
-    ).rejects.toThrow("malformed IBAN");
+    ).rejects.toMatchObject({
+      name: "ApiError",
+      status: 400,
+      code: "general.input",
+      errors: [{ field: "iban", reason: "malformed" }],
+      requestId: "req-7",
+    });
   });
 
   it("clears the payer with a null guardian id", async () => {

@@ -208,12 +208,15 @@ export function useStudentData(studentId: string): UseStudentDataResult {
       // Fetch student data and user context in parallel
       const [studentResponse, groups, supervisedGroups] = await Promise.all([
         studentService.getStudent(studentId),
+        // Own groups only refine access hints on the page; without them the
+        // child still loads, just without the "my group" shortcuts.
         userContextService.getMyEducationalGroups().catch((err) => {
           logger.debug("fetch_educational_groups_failed", {
             error: err instanceof Error ? err.message : String(err),
           });
           return [];
         }),
+        // Same for supervised rooms: optional context, not the child itself.
         userContextService.getMySupervisedGroups().catch((err) => {
           logger.debug("fetch_supervised_groups_failed", {
             error: err instanceof Error ? err.message : String(err),
@@ -282,6 +285,8 @@ export function useStudentData(studentId: string): UseStudentDataResult {
 
   // refreshData now uses SWR's mutate
   const refreshData = useCallback(() => {
+    // A failed reload lands in SWR's error state and from there on the
+    // page's load error path; this catch only keeps the promise handled.
     mutate().catch((err) => {
       logger.debug("swr_revalidation_failed", {
         error: err instanceof Error ? err.message : String(err),

@@ -149,7 +149,7 @@ func (rs *Resource) uploadAnnouncementAttachment(w http.ResponseWriter, r *http.
 	}
 	upload, closeUpload, err := parseUpload(w, r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(common.GermanUploadError(err, maxFile)))
+		common.RenderError(w, r, common.ErrorUpload(err, maxFile))
 		return
 	}
 	defer closeUpload()

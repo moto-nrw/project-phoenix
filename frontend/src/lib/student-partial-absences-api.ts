@@ -1,4 +1,8 @@
-import { apiErrorFromBody, apiErrorFromResponse } from "~/lib/api-error";
+import {
+  apiErrorFromBody,
+  apiErrorFromResponse,
+  transportFetch,
+} from "~/lib/api-error";
 
 export interface StudentPartialAbsence {
   id: string;
@@ -67,7 +71,7 @@ export async function fetchStudentPartialAbsences(
   from: string,
   to: string,
 ): Promise<StudentPartialAbsence[]> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/partial-absences?from=${from}&to=${to}`,
   );
   const rows = await parseData<BackendPartialAbsence[]>(
@@ -84,7 +88,7 @@ export async function saveStudentPartialAbsence(
   fromTime: string,
   reason?: string,
 ): Promise<StudentPartialAbsence> {
-  const response = await fetch(
+  const response = await transportFetch(
     partialAbsenceId
       ? `/api/students/${studentId}/partial-absences/${partialAbsenceId}`
       : `/api/students/${studentId}/partial-absences`,
@@ -109,7 +113,7 @@ export async function deleteStudentPartialAbsence(
   studentId: string,
   partialAbsenceId: string,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/partial-absences/${partialAbsenceId}`,
     { method: "DELETE" },
   );

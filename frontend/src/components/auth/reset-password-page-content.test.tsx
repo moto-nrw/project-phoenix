@@ -13,6 +13,8 @@ import {
   ResetPasswordPageContent,
   type ResetPasswordPageCopy,
 } from "./reset-password-page-content";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -57,19 +59,17 @@ vi.mock("next/image", () => ({
 // unrelated UI text and each copy-driven branch is unambiguous.
 // ---------------------------------------------------------------------------
 
+const ERROR_OBJECT = "ERROR_OBJECT";
+
 const COPY: ResetPasswordPageCopy = {
   missingToken: "MISSING_TOKEN",
-  invalidToken: "INVALID_TOKEN",
+  errorObject: ERROR_OBJECT,
   passwordTooShort: "TOO_SHORT",
   passwordMissingUppercase: "NO_UPPERCASE",
   passwordMissingLowercase: "NO_LOWERCASE",
   passwordMissingNumber: "NO_NUMBER",
   passwordMissingSpecial: "NO_SPECIAL",
   passwordMismatch: "MISMATCH",
-  genericError: "GENERIC_ERROR",
-  invalidRequest: "INVALID_REQUEST",
-  expiredLink: "EXPIRED_LINK",
-  notFoundLink: "NOT_FOUND_LINK",
   successEyebrow: "SUCCESS_EYEBROW",
   successTitle: "SUCCESS_TITLE",
   successSubtitle: "SUCCESS_SUBTITLE",
@@ -269,38 +269,72 @@ describe("ResetPasswordPageContent — successful reset", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Submission failure — status-to-message mapping
+// Submission failure — catalog text per code (#2517)
 // ---------------------------------------------------------------------------
 
-describe("ResetPasswordPageContent — error mapping", () => {
-  it.each([
-    [410, COPY.expiredLink],
-    [404, COPY.notFoundLink],
-    [400, COPY.invalidRequest],
-    [500, COPY.genericError],
-  ])(
-    "maps a %s response to its specific copy",
-    async (status, expectedMessage) => {
-      vi.spyOn(console, "error").mockImplementation(() => undefined);
-      vi.spyOn(console, "warn").mockImplementation(() => undefined);
+describe("ResetPasswordPageContent — error display", () => {
+  it.each<[string, ApiError, string]>([
+    [
+      "an expired or used link",
+      new ApiError("invalid or expired reset token", 400, {
+        code: "identity.password_reset_link_invalid",
+      }),
+      catalogText("identity.password_reset_link_invalid", ERROR_OBJECT),
+    ],
+    [
+      "a weak password",
+      new ApiError("password too weak", 400, {
+        code: "identity.password_too_weak",
+        errors: [{ field: "new_password", reason: "too weak" }],
+      }),
+      catalogText("identity.password_too_weak", ERROR_OBJECT),
+    ],
+    [
+      "a server error",
+      new ApiError("boom", 500),
+      catalogText("general.server", ERROR_OBJECT),
+    ],
+  ])("shows the catalog text for %s", async (_label, error, expected) => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
-      const confirmReset = vi
-        .fn()
-        .mockRejectedValue(Object.assign(new Error("boom"), { status }));
-      renderContent({ confirmReset });
+    const confirmReset = vi.fn().mockRejectedValue(error);
+    renderContent({ confirmReset });
 
-      fillPasswords(VALID_PASSWORD);
-      submit();
+    fillPasswords(VALID_PASSWORD);
+    submit();
 
-      expect(await screen.findByText(expectedMessage)).toBeInTheDocument();
-      // The form is shown again (not the success screen) so the user can retry.
-      expect(
-        screen.getByRole("button", { name: COPY.submit }),
-      ).toBeInTheDocument();
-    },
-  );
+    expect(await screen.findByText(expected)).toBeInTheDocument();
+    // The form is shown again (not the success screen) so the user can retry.
+    expect(
+      screen.getByRole("button", { name: COPY.submit }),
+    ).toBeInTheDocument();
+  });
 
-  it("falls back to the generic error when the rejection has no status", async () => {
+  it("marks the password field the backend refused", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const confirmReset = vi.fn().mockRejectedValue(
+      new ApiError("password too weak", 400, {
+        code: "identity.password_too_weak",
+        errors: [{ field: "new_password", reason: "too weak" }],
+      }),
+    );
+    renderContent({ confirmReset });
+
+    fillPasswords(VALID_PASSWORD);
+    submit();
+
+    await screen.findByText(
+      catalogText("identity.password_too_weak", ERROR_OBJECT),
+    );
+    expect(screen.getByLabelText(COPY.passwordLabel)).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+  });
+
+  it("shows the general text when the rejection is no API error", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     const confirmReset = vi.fn().mockRejectedValue(new Error("network down"));
@@ -309,21 +343,27 @@ describe("ResetPasswordPageContent — error mapping", () => {
     fillPasswords(VALID_PASSWORD);
     submit();
 
-    expect(await screen.findByText(COPY.genericError)).toBeInTheDocument();
+    expect(
+      await screen.findByText(catalogText("general.server", ERROR_OBJECT)),
+    ).toBeInTheDocument();
   });
 
   it("re-enables the submit button after a failed attempt", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
-    const confirmReset = vi
-      .fn()
-      .mockRejectedValue(Object.assign(new Error("boom"), { status: 400 }));
+    const confirmReset = vi.fn().mockRejectedValue(
+      new ApiError("invalid or expired reset token", 400, {
+        code: "identity.password_reset_link_invalid",
+      }),
+    );
     renderContent({ confirmReset });
 
     fillPasswords(VALID_PASSWORD);
     submit();
 
-    await screen.findByText(COPY.invalidRequest);
+    await screen.findByText(
+      catalogText("identity.password_reset_link_invalid", ERROR_OBJECT),
+    );
     await waitFor(() =>
       expect(screen.getByRole("button", { name: COPY.submit })).toBeEnabled(),
     );

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "./api-error";
 import {
   DAY_LOG_STATUS_COLORS,
   DAY_LOG_STATUS_ORDER,
-  DayLogError,
   dayLogExportUrl,
   dayLogSourceLabel,
   fetchDayLog,
@@ -91,7 +91,7 @@ describe("fetchDayLog", () => {
     );
   });
 
-  it("keeps the legacy display code while carrying the backend code", async () => {
+  it("carries the backend code, details, field errors and request ID", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(
         {
@@ -106,9 +106,8 @@ describe("fetchDayLog", () => {
     );
 
     const failure = fetchDayLog("2026-07-24");
-    await expect(failure).rejects.toBeInstanceOf(DayLogError);
+    await expect(failure).rejects.toBeInstanceOf(ApiError);
     await expect(failure).rejects.toMatchObject({
-      legacyCode: "feature_disabled",
       code: "students.day_log_disabled",
       details: { setting: "day_log" },
       errors: [{ field: "date", reason: "unavailable" }],
@@ -117,45 +116,53 @@ describe("fetchDayLog", () => {
     });
   });
 
-  it("maps not_group_supervisor and no_permitted_groups", async () => {
+  it("reads the state codes, never the error text", async () => {
     fetchMock
       .mockResolvedValueOnce(
-        jsonResponse({ error: "not_group_supervisor" }, { status: 403 }),
+        jsonResponse(
+          { error: "no_permitted_groups", code: "students.day_log_no_groups" },
+          { status: 403 },
+        ),
       )
       .mockResolvedValueOnce(
-        jsonResponse({ error: "no_permitted_groups" }, { status: 403 }),
+        // A text alone no longer selects a state: it is the class code.
+        jsonResponse({ error: "feature_disabled" }, { status: 403 }),
       );
 
-    await expect(fetchDayLog("2026-07-24", "9")).rejects.toMatchObject({
-      legacyCode: "not_group_supervisor",
-      code: "general.permission",
+    await expect(fetchDayLog("2026-07-24")).rejects.toMatchObject({
+      code: "students.day_log_no_groups",
     });
     await expect(fetchDayLog("2026-07-24")).rejects.toMatchObject({
-      legacyCode: "no_permitted_groups",
       code: "general.permission",
     });
   });
 
-  it("falls back to the unknown code for unrecognized error bodies", async () => {
+  it("falls back to the class code for unrecognized error bodies", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({ error: "failed to load day log" }, { status: 500 }),
     );
 
     await expect(fetchDayLog("2026-07-24")).rejects.toMatchObject({
-      legacyCode: "unknown",
       code: "general.server",
     });
   });
 
-  it("falls back to the unknown code for non-JSON error bodies", async () => {
+  it("falls back to the class code for non-JSON error bodies", async () => {
     fetchMock.mockResolvedValueOnce(
       new Response("<html>gateway timeout</html>", { status: 504 }),
     );
 
     await expect(fetchDayLog("2026-07-24")).rejects.toMatchObject({
-      legacyCode: "unknown",
       code: "general.unavailable",
       message: "day log request failed (504)",
+    });
+  });
+
+  it("turns a request that never reached the API into general.unavailable", async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    await expect(fetchDayLog("2026-07-24")).rejects.toMatchObject({
+      code: "general.unavailable",
     });
   });
 });
@@ -188,16 +195,6 @@ describe("dayLogSourceLabel", () => {
   it("stays empty for staff-entered or missing sources", () => {
     expect(dayLogSourceLabel("staff")).toBe("");
     expect(dayLogSourceLabel(undefined)).toBe("");
-  });
-});
-
-describe("DayLogError", () => {
-  it("uses the code as the default message", () => {
-    const error = new DayLogError("invalid_request");
-    expect(error.name).toBe("DayLogError");
-    expect(error.message).toBe("invalid_request");
-    expect(error.legacyCode).toBe("invalid_request");
-    expect(error.code).toBeUndefined();
   });
 });
 

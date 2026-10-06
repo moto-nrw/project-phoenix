@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { ApiError, enrichApiError, transportFetch } from "./api-error";
 import {
   browserSupportsWebAuthn,
   startAuthentication,
@@ -70,7 +70,9 @@ async function requestJson<T>(
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const response = await fetch(url, {
+  // A request that never reaches the API is general.unavailable (#2517);
+  // an AbortError stays an AbortError.
+  const response = await transportFetch(url, {
     method,
     headers,
     credentials: "include",

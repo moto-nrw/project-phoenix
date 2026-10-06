@@ -3,9 +3,19 @@
 // Jahrgangsstufenwechsel admin flow (#405): list of transitions, draft
 // editor, preview + apply, revert. Consumes /api/admin/grade-transitions.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Pencil, Play, RotateCcw, Trash2, Users } from "lucide-react";
-import { Alert } from "~/components/ui/alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -15,7 +25,12 @@ import {
 } from "~/components/ui/page-header/OverflowMenu";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { LOCATION_COLORS } from "~/lib/location-helper";
@@ -204,7 +219,19 @@ export function GradeTransitionsManager({
   const [transitions, setTransitions] = useState<GradeTransition[] | null>(
     null,
   );
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // Ladefehler vor Ort, Fehler in offenen Dialogen im Dialog, sonst als
+  // Toast (#2517). Codes steuern nur, was danach passiert; den Text liefert
+  // der Katalog.
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  const revertErrors = useApiFormError();
+  const deleteErrors = useApiFormError();
+  const { show: showActionError } = useApiErrorDisplay();
+  const latestRevertRef = useRef<() => void>(() => undefined);
+  const latestDeleteRef = useRef<() => void>(() => undefined);
   const [editorDraft, setEditorDraft] = useState<GradeTransition | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [previewFor, setPreviewFor] = useState<GradeTransition | null>(null);
@@ -226,16 +253,19 @@ export function GradeTransitionsManager({
     try {
       const list = await listGradeTransitions();
       setTransitions(list);
-      setLoadError(null);
+      clearLoadError();
       return list;
     } catch (error) {
       logger.error("transitions_load_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
-      setLoadError("Jahrgangswechsel konnten nicht geladen werden.");
+      void showLoadError(error, {
+        object: "die Liste der Jahrgangswechsel",
+        retry: () => void refresh(),
+      });
       return null;
     }
-  }, []);
+  }, [clearLoadError, showLoadError]);
 
   useEffect(() => {
     void refresh();
@@ -261,7 +291,7 @@ export function GradeTransitionsManager({
     setPreviewFor(null);
     setEditorDraft(null);
     toast.success(
-      `Jahrgangswechsel angewendet: ${result.studentsPromoted} Kinder versetzt, ${result.studentsGraduated} Abgänge.`,
+      `Der Jahrgangswechsel ist angewendet: ${result.studentsPromoted} Kinder versetzt, ${result.studentsGraduated} Abgänge.`,
     );
     void refresh();
   };
@@ -269,18 +299,19 @@ export function GradeTransitionsManager({
   const handleRevert = async () => {
     if (!revertTarget) return;
     setBusy(true);
+    revertErrors.clear();
     try {
       const result = await revertGradeTransition(revertTarget.id);
       const summary = `${result.studentsPromoted} Kinder zurückversetzt, ${result.studentsGraduated} Abgänge wiederhergestellt`;
       if (result.warnings.length > 0) {
         toast.warning(
-          `Jahrgangswechsel nur teilweise zurückgesetzt: ${summary}. ${result.warnings
+          `Der Jahrgangswechsel ist nur teilweise zurückgesetzt: ${summary}. ${result.warnings
             .map(describeRevertWarning)
             .join(" ")}`,
           { duration: 12000 },
         );
       } else {
-        toast.success(`Jahrgangswechsel zurückgesetzt: ${summary}.`);
+        toast.success(`Der Jahrgangswechsel ist zurückgesetzt: ${summary}.`);
       }
       setRevertTarget(null);
       void refresh();
@@ -301,11 +332,10 @@ export function GradeTransitionsManager({
         const list = await refresh();
         const latest = list ? pickLatestRevertable(list) : null;
         setRevertTarget(latest);
-        toast.error(
-          latest
-            ? `Inzwischen wurde ein neuerer Jahrgangswechsel angewendet. Es muss zuerst ${latest.academicYear} zurückgesetzt werden - die Auswahl wurde entsprechend angepasst.`
-            : "Inzwischen wurde ein neuerer Jahrgangswechsel angewendet. Die Liste wurde neu geladen.",
-        );
+        // Der Dialog zeigt jetzt den neuesten; der Grund steht darin.
+        void (latest ? revertErrors.show : showActionError)(error, {
+          object: "das Zurücksetzen des Jahrgangswechsels",
+        });
       } else if (
         error instanceof TransitionRequestError &&
         error.code === NOT_APPLIED_CODE
@@ -316,11 +346,15 @@ export function GradeTransitionsManager({
         // suggesting a retry (#405 review).
         setRevertTarget(null);
         void refresh();
-        toast.error(
-          "Der Jahrgangswechsel wurde inzwischen bereits zurückgesetzt. Die Liste wurde neu geladen.",
-        );
+        void showActionError(error, {
+          object: "das Zurücksetzen des Jahrgangswechsels",
+        });
       } else {
-        toast.error("Zurücksetzen fehlgeschlagen. Bitte erneut versuchen.");
+        // Der Dialog bleibt offen und nennt den Grund.
+        void revertErrors.show(error, {
+          object: "das Zurücksetzen des Jahrgangswechsels",
+          retry: () => latestRevertRef.current(),
+        });
       }
     } finally {
       setBusy(false);
@@ -330,9 +364,12 @@ export function GradeTransitionsManager({
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setBusy(true);
+    deleteErrors.clear();
     try {
       await deleteGradeTransition(deleteTarget.id);
-      toast.success("Entwurf gelöscht.");
+      toast.success(
+        `Der Entwurf für ${deleteTarget.academicYear} ist gelöscht.`,
+      );
       setDeleteTarget(null);
       void refresh();
     } catch (error) {
@@ -349,11 +386,13 @@ export function GradeTransitionsManager({
       ) {
         setDeleteTarget(null);
         void refresh();
-        toast.error(
-          "Der Entwurf wurde inzwischen angewendet und kann nicht mehr gelöscht werden. Die Liste wurde neu geladen.",
-        );
+        void showActionError(error, { object: "das Löschen des Entwurfs" });
       } else {
-        toast.error("Löschen fehlgeschlagen. Bitte erneut versuchen.");
+        // Der Dialog bleibt offen und nennt den Grund.
+        void deleteErrors.show(error, {
+          object: "das Löschen des Entwurfs",
+          retry: () => latestDeleteRef.current(),
+        });
       }
     } finally {
       setBusy(false);
@@ -484,12 +523,18 @@ export function GradeTransitionsManager({
     [openEditorFor, permissions, latestRevertableId],
   );
 
+  // Wiederholen läuft gegen das Ziel, das dann im Dialog steht.
+  useLayoutEffect(() => {
+    latestRevertRef.current = () => void handleRevert();
+    latestDeleteRef.current = () => void handleDelete();
+  });
+
   return (
     // Flex-Spalte: als Editor-Wurzel einer Tenant-Seite reicht sie den
     // Platz an die Liste weiter, die dann bis zur Unterkante des
     // Bildschirms wächst (`.moto-tenant-body`).
     <div className="flex flex-col space-y-4">
-      {loadError && <Alert type="error" message={loadError} />}
+      <LoadErrorAlert error={loadError} />
 
       {/* Titel, Erklärung und Aktion stehen in der Kopfzeile derselben Karte,
           die die Tabelle trägt: kein zweiter Seitenkopf und keine eigene
@@ -571,13 +616,17 @@ export function GradeTransitionsManager({
 
       <ConfirmationModal
         isOpen={revertTarget !== null}
-        onClose={() => setRevertTarget(null)}
+        onClose={() => {
+          setRevertTarget(null);
+          revertErrors.clear();
+        }}
         onConfirm={handleRevert}
         title="Jahrgangswechsel zurücksetzen"
         confirmText="Ja, zurücksetzen"
         cancelText="Abbrechen"
         isConfirmLoading={busy}
       >
+        <FormErrorAlert message={revertErrors.error} className="mb-3" />
         <p>
           Den Jahrgangswechsel {revertTarget?.academicYear} wirklich
           zurücksetzen? Versetzte Kinder kehren in ihre alte Klasse zurück,
@@ -596,9 +645,12 @@ export function GradeTransitionsManager({
         }
         gate={{ mode: "twoStep" }}
         onConfirm={handleDelete}
-        onClose={() => setDeleteTarget(null)}
+        onClose={() => {
+          setDeleteTarget(null);
+          deleteErrors.clear();
+        }}
         loading={busy}
-        error=""
+        error={deleteErrors.error}
       />
     </div>
   );

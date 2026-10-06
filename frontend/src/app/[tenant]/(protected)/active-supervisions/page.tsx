@@ -16,6 +16,7 @@ import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -123,8 +124,7 @@ function MeinRaumPageContent() {
     currentOpenRoom,
     selectedTimetableInstanceId,
     students,
-    error,
-    setError,
+    loadError,
     mutateDashboard,
     refresh,
   } = dashboard;
@@ -162,7 +162,6 @@ function MeinRaumPageContent() {
     refresh,
     adoptSession: dashboard.adoptSession,
     setSelectedTimetableInstanceId: dashboard.setSelectedTimetableInstanceId,
-    setError,
     router,
     reopenableInstanceId: reopen.reopenableInstanceId,
     rememberReopenable: reopen.rememberReopenable,
@@ -185,7 +184,6 @@ function MeinRaumPageContent() {
       ? undefined
       : spontaneousStartBlockedReason,
     refresh,
-    setError,
   });
 
   // The Schulhof's own supervision offer (#2161) belongs to the Schulhof room,
@@ -577,7 +575,6 @@ function MeinRaumPageContent() {
             adoptSession: dashboard.adoptSession,
             setSelectedTimetableInstanceId:
               dashboard.setSelectedTimetableInstanceId,
-            setError,
             router,
             reopenableInstanceId: reopen.reopenableInstanceId,
             rememberReopenable: reopen.rememberReopenable,
@@ -722,6 +719,7 @@ function MeinRaumPageContent() {
             isOpen={actions.showCompleteConfirmation}
             roster={currentTimetableRoster}
             isCompleting={actions.isCompletingInstance}
+            error={actions.completeError}
             onClose={() => actions.setShowCompleteConfirmation(false)}
             onConfirm={() => void actions.confirmCompleteTimetableInstance()}
           />
@@ -733,6 +731,7 @@ function MeinRaumPageContent() {
               schulhof.handleReleaseSupervision().catch(() => undefined)
             }
             isConfirmLoading={schulhof.isReleasingSupervision}
+            error={schulhof.releaseError}
           />
           {addSupervisorTarget ? (
             <AddSupervisorModal
@@ -745,11 +744,10 @@ function MeinRaumPageContent() {
         </>
       }
     >
-      {/* Fehler der Seite stehen als Alert oben im Inhalt und nicht im
-          `error`-Zustand des Geruests: hier meldet auch eine misslungene
-          Einzelaktion (Kind hinzufuegen, Aufsicht wechseln), und die Flaeche
-          darunter muss bedienbar bleiben, damit man es erneut versuchen kann. */}
-      {error && !hasNoAccess ? <Alert type="error" message={error} /> : null}
+      {/* Ein Ladefehler steht oben im Inhalt und nicht im `error`-Zustand des
+          Geruests: der zuletzt geladene Stand bleibt darunter bedienbar.
+          Einzelaktionen melden sich als Toast oder in ihrem Dialog (#2517). */}
+      {!hasNoAccess ? <LoadErrorAlert error={loadError} /> : null}
       {showUnclaimedOnly ? (
         <>
           {reopenBanner}

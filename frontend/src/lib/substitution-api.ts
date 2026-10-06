@@ -249,9 +249,7 @@ async function substitutionError(response: Response): Promise<ApiError> {
 
 /** A 2xx answer without the expected shape counts as a server failure. */
 function invalidResponseError(what: string): ApiError {
-  return new ApiError(`invalid ${what} response`, 502, {
-    code: "general.server",
-  });
+  return new ApiError(`invalid ${what} response`, 500);
 }
 
 export const substitutionService = new SubstitutionService();

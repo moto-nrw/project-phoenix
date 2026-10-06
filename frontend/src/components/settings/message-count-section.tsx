@@ -1,12 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { MessageCircle } from "lucide-react";
-import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { Radio } from "~/components/ui/radio";
 import { Skeleton } from "~/components/ui/skeleton";
 import { SectionCard } from "~/components/ui/section-card";
+import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
+import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import {
   fetchMessageCountSetting,
@@ -50,7 +58,7 @@ const NO_GROUP_HINT =
  * Self-service like the birthday switch: a colleague who does not answer
  * parent messages turns the number off here instead of clearing it every day.
  * The card hides itself while the school has messaging off, and for accounts
- * the backend does not answer (no staff read access).
+ * the backend refuses (no read access to messages, general.permission).
  */
 export function MessageCountSection() {
   const messagingEnabled = useTenantSafe()?.tenant?.messagingEnabled === true;
@@ -59,30 +67,60 @@ export function MessageCountSection() {
   const [loading, setLoading] = useState(true);
   const [available, setAvailable] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  // Laden: Fehler vor Ort mit Wiederholen. Die Auswahl speichert sofort,
+  // ohne Formular: ein Fehler kommt als Toast (#2517).
+  const { error: loadError, show: showLoadError, clear } = useApiLoadError();
+  const { show: showSaveError } = useApiErrorDisplay();
+  const latestLoadRef = useRef<() => void>(() => undefined);
+  const latestChooseRef = useRef<(next: MessageCountScope) => void>(
+    () => undefined,
+  );
+
+  const load = useCallback(
+    async (isCancelled: () => boolean = () => false) => {
+      setLoading(true);
+      setLoadFailed(false);
+      clear();
+      try {
+        const setting = await fetchMessageCountSetting();
+        if (isCancelled()) return;
+        setScope(setting.scope);
+        setHasOwnGroups(setting.hasOwnGroups);
+      } catch (err) {
+        if (isCancelled()) return;
+        // Ohne Leserecht für Nachrichten gibt es keine Zahl, die man
+        // einstellen könnte: die Karte blendet sich aus.
+        if (
+          err instanceof ApiError &&
+          wireErrorCode(err.code) === "general.permission"
+        ) {
+          setAvailable(false);
+          return;
+        }
+        setLoadFailed(true);
+        logger.error("message_count_scope_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        void showLoadError(err, {
+          object: "die Einstellung zur Zahl bei Nachrichten",
+          retry: () => latestLoadRef.current(),
+        });
+      } finally {
+        if (!isCancelled()) setLoading(false);
+      }
+    },
+    [clear, showLoadError],
+  );
 
   useEffect(() => {
     if (!messagingEnabled) return;
     let cancelled = false;
-    void (async () => {
-      try {
-        const setting = await fetchMessageCountSetting();
-        if (cancelled) return;
-        setScope(setting.scope);
-        setHasOwnGroups(setting.hasOwnGroups);
-      } catch (err) {
-        if (!cancelled) setAvailable(false);
-        logger.info("message_count_scope_unavailable", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+    void load(() => cancelled);
     return () => {
       cancelled = true;
     };
-  }, [messagingEnabled]);
+  }, [load, messagingEnabled]);
 
   const choose = async (next: MessageCountScope) => {
     if (next === scope || busy) return;
@@ -90,7 +128,6 @@ export function MessageCountSection() {
     const previous = scope;
     setBusy(true);
     setScope(next);
-    setError(null);
     try {
       await saveMessageCountScope(next);
       window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
@@ -99,11 +136,19 @@ export function MessageCountSection() {
         error: err instanceof Error ? err.message : String(err),
       });
       setScope(previous);
-      setError("Die Einstellung konnte nicht gespeichert werden.");
+      void showSaveError(err, {
+        object: "die Einstellung zur Zahl bei Nachrichten",
+        retry: () => latestChooseRef.current(next),
+      });
     } finally {
       setBusy(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestLoadRef.current = () => void load();
+    latestChooseRef.current = (next) => void choose(next);
+  });
 
   if (!messagingEnabled || !available) return null;
 
@@ -114,14 +159,11 @@ export function MessageCountSection() {
       title="Zahl bei Nachrichten"
       description="Die Zahl bei „Nachrichten“ zeigt neue Nachrichten von Eltern. Die Einstellung gilt nur für Sie."
     >
-      {error && (
-        <div className="mb-3">
-          <Alert type="error" message={error} />
-        </div>
-      )}
-
-      {loading ? (
+      {/* Bis der Text eines Ladefehlers da ist, bleibt das Skelett stehen. */}
+      {loading || (loadFailed && !loadError) ? (
         <Skeleton className="h-36 w-full" />
+      ) : loadFailed ? (
+        <LoadErrorAlert error={loadError} />
       ) : (
         <fieldset className="space-y-2">
           <legend className="sr-only">Was die Zahl zählt</legend>

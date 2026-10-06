@@ -21,7 +21,7 @@ interface DatabaseFormModalProps<T> {
   /** Nachgeladene Felder dürfen einen offenen Entwurf nicht ersetzen. */
   readonly preserveDraftOnSectionsChange?: boolean;
   /** Shared API error path and its `{object}`, see `DatabaseForm`. */
-  readonly errorPath?: DatabaseFormErrorPath;
+  readonly errorPath: DatabaseFormErrorPath;
   readonly errorObject?: string;
 }
 

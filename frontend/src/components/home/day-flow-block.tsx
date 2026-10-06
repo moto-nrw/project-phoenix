@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "~/components/ui/navigation-link";
-import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
@@ -12,6 +12,7 @@ import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
 import { useSWRAuth } from "~/lib/swr";
 import { useDayPlanHref, useDayPlanLabel } from "~/lib/hooks/use-day-plan-href";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
   HomeCardLink,
   HomeMoreRow,
@@ -42,7 +43,9 @@ export function DayFlowBlock() {
   // führt der Weiterlink in den Betreuungsplan im Planungsbereich.
   const dayPlanHref = useDayPlanHref();
   const dayPlanLabel = useDayPlanLabel();
-  const { data, error, isLoading } = useSWRAuth<PlannedTimetableInstance[]>(
+  const { data, error, isLoading, mutate } = useSWRAuth<
+    PlannedTimetableInstance[]
+  >(
     "home-day-flow",
     () =>
       timetableOperationsApi.plannedNow({
@@ -50,6 +53,9 @@ export function DayFlowBlock() {
         includeRoster: false,
       }),
     { refreshInterval: 5 * 60 * 1000 },
+  );
+  const loadError = useSwrLoadError(error, "die Karte „Ablauf des Tages“", () =>
+    mutate(),
   );
 
   const now = useBerlinClock();
@@ -84,15 +90,10 @@ export function DayFlowBlock() {
       }
     >
       {(() => {
-        if (error) {
-          return (
-            <Alert
-              type="error"
-              message="Der Ablauf des Tages konnte nicht geladen werden. Bitte die Seite neu laden."
-            />
-          );
-        }
-        if (isLoading && data === undefined) {
+        // Bis der Katalogtext da ist, bleibt das Skelett stehen: ein
+        // Ladefehler ist nie „Gerade steht nichts an“.
+        if (loadError) return <LoadErrorAlert error={loadError} />;
+        if ((isLoading && data === undefined) || error) {
           return (
             <div className="space-y-2" aria-hidden="true">
               {[1, 2, 3].map((i) => (

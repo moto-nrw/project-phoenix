@@ -153,10 +153,7 @@
     "excel": "Excel",
     "pdfDownloadStatus": "PDF is being downloaded.",
     "excelDownloadStatus": "Excel is being downloaded.",
-    "downloadError": "The daily list could not be downloaded. Please try again.",
-    "loadErrorTitle": "Daily list not loaded",
-    "loadErrorMessage": "Please try again.",
-    "retry": "Try again",
+    "errorObject": "the daily list",
     "caption": "Lunch on {date}",
     "emptyTitle": "No registrations for this day",
     "emptyDescription": "No child is on the kitchen list for this day."
@@ -1955,8 +1952,8 @@
     "howToAndroid": "Android: In Google Calendar on a computer, Other calendars, From URL, then paste the link. The calendar then also shows on the phone.",
     "regenerate": "Create a new link",
     "regenerated": "New subscription link created. The old link no longer works.",
-    "loadError": "The subscription link could not be loaded.",
-    "rotateError": "The subscription link could not be renewed.",
+    "loadObject": "the subscription link",
+    "rotateObject": "the subscription link",
     "alreadyActive": "Your subscription link is already active. For security reasons it is not shown again. If you no longer have it, create a new link; the old one then stops working.",
     "createNew": "Create a new subscription link"
   },
@@ -2082,10 +2079,12 @@
         "announcement_published_immutable": "{object} could not be changed. Please check its current status.",
         "announcement_reminder_sent": "{object} could not be changed. Please check its current status.",
         "declaration_has_submissions": "{object} could not be changed. Please check its current status.",
+        "notifications_disabled": "{object} could not be changed. Please check its current status.",
         "parent_news_disabled": "You cannot access {object}. Please contact the school.",
         "poll_not_open": "{object} could not be changed. Please check its current status.",
         "staff_counterpart_unavailable": "{object} is unavailable right now. Please try again.",
         "staff_messaging_disabled": "You cannot access {object}. Please contact the school.",
+        "staff_notice_outdated": "{object} could not be changed. Please check its current status.",
         "system_announcement_immutable": "{object} could not be changed. Please check its current status."
       },
       "enrollment": {
@@ -2203,6 +2202,10 @@
       "files": {
         "announcement_published": "{object} could not be changed. Please check its current status.",
         "attachment_limit_reached": "{object} could not be changed. Please check its current status.",
+        "file_missing": "{object} could not be saved. Please check your entries.",
+        "file_too_large": "{object} could not be saved. Please check your entries.",
+        "file_type_not_allowed": "{object} could not be saved. Please check your entries.",
+        "file_unreadable": "{object} could not be saved. Please check your entries.",
         "folder_name_taken": "{object} could not be changed. Please check its current status.",
         "quota_exceeded": "{object} could not be changed. Please check its current status."
       },
@@ -2223,6 +2226,7 @@
       "identity": {
         "account_already_has_tenant_access": "This person already has access to this school. You can find them in the staff list.",
         "account_inactive": "You cannot access {object}. Please contact the school.",
+        "current_password_wrong": "{object} could not be saved. Please check your entries.",
         "demo_access_expired": "{object} could not be changed. Please check its current status.",
         "demo_access_invalid": "{object} could not be saved. Please check your entries.",
         "demo_access_rate_limited": "{object} is unavailable right now. Please try again.",
@@ -2231,22 +2235,42 @@
         "demo_school_preparing": "{object} is unavailable right now. Please try again.",
         "demo_session": "You cannot access {object}. Please contact the school.",
         "email_already_exists": "There is already an account for this email address. Please use a different address.",
+        "invalid_credentials": "{object} could not be saved. Please check your entries.",
         "invitation_account_login_required": "You cannot access {object}. Please contact the school.",
         "invitation_account_mismatch": "You cannot access {object}. Please contact the school.",
+        "invitation_expired": "{object} could not be changed. Please check its current status.",
+        "invitation_not_found": "{object} could not be saved. Please check your entries.",
+        "mfa_blocked": "{object} could not be changed. Please check its current status.",
+        "mfa_code_invalid": "{object} could not be saved. Please check your entries.",
+        "passkey_login_failed": "{object} could not be changed. Please check its current status.",
+        "password_reset_link_invalid": "{object} could not be changed. Please check its current status.",
+        "password_reset_rate_limited": "{object} could not be changed. Please check its current status.",
+        "password_too_weak": "{object} could not be saved. Please check your entries.",
         "preview_target_not_previewable": "You cannot access {object}. Please contact the school.",
         "preview_target_school_portal": "You cannot access {object}. Please contact the school.",
         "preview_token_invalid": "You cannot access {object}. Please contact the school.",
         "read_only_preview": "You cannot access {object}. Please contact the school.",
+        "role_name_taken": "{object} could not be changed. Please check its current status.",
         "session_account_inactive": "You cannot access {object}. Please contact the school.",
+        "tenant_access_denied": "You cannot access {object}. Please contact the school.",
         "use_parent_portal": "You cannot access {object}. Please contact the school.",
         "use_school_portal": "You cannot access {object}. Please contact the school."
       },
       "import": {
-        "import_batch_failed": "{object} could not be processed. Please try again later."
+        "file_columns_missing": "{object} could not be saved. Please check your entries.",
+        "file_missing": "{object} could not be saved. Please check your entries.",
+        "file_no_rows": "{object} could not be saved. Please check your entries.",
+        "file_row_invalid": "{object} could not be saved. Please check your entries.",
+        "file_too_large": "{object} could not be saved. Please check your entries.",
+        "file_type_invalid": "{object} could not be saved. Please check your entries.",
+        "file_unreadable": "{object} could not be saved. Please check your entries.",
+        "import_batch_failed": "{object} could not be processed. Please try again later.",
+        "mode_forbidden": "You cannot access {object}. Please contact the school."
       },
       "iot": {
         "activity_capacity_exceeded": "{object} could not be changed. Please check its current status.",
         "deviation_reason_required": "{object} could not be saved. Please check your entries.",
+        "device_id_taken": "{object} could not be changed. Please check its current status.",
         "invalid_rfid_tag": "{object} could not be saved. Please check your entries.",
         "invalid_staff_clock_request": "{object} could not be saved. Please check your entries.",
         "invalid_staff_clock_state": "{object} could not be changed. Please check its current status.",
@@ -2281,7 +2305,8 @@
       },
       "presence": {
         "activity_participant_limit_reached": "{object} could not be changed. Please check its current status.",
-        "room_capacity_exceeded": "{object} could not be changed. Please check its current status."
+        "room_capacity_exceeded": "{object} could not be changed. Please check its current status.",
+        "statistics_range_invalid": "{object} could not be saved. Please check your entries."
       },
       "rollover": {
         "deadline_required": "{object} could not be saved. Please check your entries.",
@@ -2294,6 +2319,7 @@
       },
       "rooms": {
         "color_already_in_use": "{object} could not be changed. Please check its current status.",
+        "not_found": "{object} could not be changed. Please check its current status.",
         "not_released": "{object} could not be changed. Please check its current status."
       },
       "school": {
@@ -2331,11 +2357,17 @@
         "checkin_care_ended": "{object} could not be changed. Please check its current status.",
         "checkout_note_too_long": "{object} could not be saved. Please check your entries.",
         "child_quota_reached": "{object} could not be changed. Please check its current status.",
+        "class_list_entry_assign_mismatch": "{object} could not be changed. Please check its current status.",
+        "class_list_entry_duplicate": "{object} could not be changed. Please check its current status.",
+        "class_list_entry_student_exists": "{object} could not be changed. Please check its current status.",
+        "class_list_entry_student_not_found": "{object} could not be changed. Please check its current status.",
         "companion_lock_busy": "{object} could not be changed. Please check its current status.",
         "companion_would_lose_departure": "{object} could not be saved. Please check your entries.",
         "companions_changed": "{object} could not be changed. Please check its current status.",
         "conflict_kind_unsupported": "{object} could not be saved. Please check your entries.",
         "correction_unsupported": "{object} could not be changed. Please check its current status.",
+        "day_log_disabled": "You cannot access {object}. Please contact the school.",
+        "day_log_no_groups": "You cannot access {object}. Please contact the school.",
         "deletion_acknowledgement_required": "{object} could not be saved. Please check your entries.",
         "deletion_alumnus": "{object} could not be changed. Please check its current status.",
         "deletion_companion_blocked": "{object} could not be changed. Please check its current status.",
@@ -2348,6 +2380,9 @@
         "excused_request_status_conflict": "{object} could not be changed. Please check its current status.",
         "export_selection_too_large": "The selection has {total} children. A list can have at most {limit} children. Please narrow the selection, for example by group or class.",
         "guardian_access_revoked": "{object} could not be changed. Please check its current status.",
+        "guardian_account_holder_too_long": "{object} could not be saved. Please check your entries.",
+        "guardian_email_taken": "{object} could not be saved. Please check your entries.",
+        "guardian_iban_invalid": "{object} could not be saved. Please check your entries.",
         "offering_change_capacity_full": "{object} could not be changed. Please check its current status.",
         "offering_change_date_out_of_range": "{object} could not be saved. Please check your entries.",
         "offering_changes_no_enrollment": "You cannot access {object}. Please contact the school.",
@@ -2383,6 +2418,9 @@
         "self_assignment": "{object} could not be saved. Please check your entries."
       },
       "timetable": {
+        "activity_not_owner": "You cannot access {object}. Please contact the school.",
+        "activity_system_protected": "You cannot access {object}. Please contact the school.",
+        "activity_template_protected": "{object} could not be changed. Please check its current status.",
         "ambiguous_template_instance_delete": "{object} could not be changed. Please check its current status.",
         "attendance_entry_not_found": "{object} could not be changed. Please check its current status.",
         "attendance_frozen": "{object} could not be changed. Please check its current status.",
@@ -2444,6 +2482,7 @@
         "offering_source_outside_period": "{object} could not be changed. Please check its current status.",
         "offering_source_too_many": "{object} could not be saved. Please check your entries.",
         "only_supervisor_replacement_required": "{object} could not be changed. Please check its current status.",
+        "operation_not_planned": "You cannot access {object}. Please contact the school.",
         "operation_stale": "{object} could not be changed. Please check its current status.",
         "pickup_extension_block_gone": "{object} could not be changed. Please check its current status.",
         "pickup_extension_invalid": "{object} could not be saved. Please check your entries.",
@@ -2569,6 +2608,7 @@
         "shift_series_outside_period": "{object} could not be saved. Please check your entries.",
         "shift_series_week_cycle_missing": "{object} could not be saved. Please check your entries.",
         "shift_type_inactive": "{object} could not be changed. Please check its current status.",
+        "staff_profile_missing": "{object} could not be changed. Please check its current status.",
         "stammdaten_invalid": "{object} could not be saved. Please check your entries.",
         "target_override_hours_invalid": "{object} could not be saved. Please check your entries.",
         "target_override_overlap": "{object} could not be changed. Please check its current status.",

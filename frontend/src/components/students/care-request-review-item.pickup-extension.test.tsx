@@ -127,7 +127,7 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
       await screen.findByText("Längere Betreuung eintragen"),
     ).toBeInTheDocument();
     expect(mockFetch).toHaveBeenCalledWith("42");
-    expect(onDecided).toHaveBeenCalledWith("Abholzeit übernommen");
+    expect(onDecided).toHaveBeenCalledWith("Die Abholzeit ist übernommen.");
 
     fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
 
@@ -317,7 +317,7 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     approve();
 
     await waitFor(() =>
-      expect(onDecided).toHaveBeenCalledWith("Abholzeit übernommen"),
+      expect(onDecided).toHaveBeenCalledWith("Die Abholzeit ist übernommen."),
     );
     expect(screen.queryByText("Längere Betreuung eintragen")).toBeNull();
   });
@@ -331,7 +331,7 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     approve();
 
     await waitFor(() =>
-      expect(onDecided).toHaveBeenCalledWith("Abholzeit übernommen"),
+      expect(onDecided).toHaveBeenCalledWith("Die Abholzeit ist übernommen."),
     );
     expect(mockFetch).not.toHaveBeenCalled();
   });
@@ -350,7 +350,9 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     approve();
 
     await waitFor(() =>
-      expect(onDecided).toHaveBeenCalledWith("Betreuungszeiten übernommen"),
+      expect(onDecided).toHaveBeenCalledWith(
+        "Die Betreuungszeiten sind übernommen.",
+      ),
     );
     expect(mockFetch).not.toHaveBeenCalled();
   });
@@ -370,7 +372,9 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ablehnen" }));
 
     await waitFor(() =>
-      expect(onDecided).toHaveBeenCalledWith("Abholzeit-Anfrage abgelehnt"),
+      expect(onDecided).toHaveBeenCalledWith(
+        "Die Anfrage zur Abholzeit ist abgelehnt.",
+      ),
     );
     expect(mockFetch).not.toHaveBeenCalled();
   });
@@ -387,7 +391,7 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     approve();
 
     await waitFor(() =>
-      expect(onDecided).toHaveBeenCalledWith("Abholzeit übernommen"),
+      expect(onDecided).toHaveBeenCalledWith("Die Abholzeit ist übernommen."),
     );
   });
 });

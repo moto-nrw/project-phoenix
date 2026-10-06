@@ -1,7 +1,7 @@
 "use client";
 
-import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import Link from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -20,6 +20,7 @@ import {
   type HomeMissingArrival,
   type HomePickup,
 } from "~/lib/hooks/use-home-group";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { isAtSchoolLocation, LOCATION_COLORS } from "~/lib/location-helper";
 import type { OgsLiveWireStudent } from "~/lib/ogs-group-live-api";
 import { ONLY_IF_LESSON_CANCELLED_LABEL } from "~/lib/student-time-status";
@@ -64,6 +65,11 @@ export function MyGroupBlock() {
     isLoading,
     error,
   } = snapshot;
+  const loadError = useSwrLoadError(
+    error,
+    "die Karte „Meine Gruppe heute“",
+    snapshot.retry,
+  );
   const missingIds = new Set(missing.map((entry) => entry.student.id));
   const rows: GroupRow[] = [
     ...missing.map((arrival): GroupRow => ({ kind: "missing", arrival })),
@@ -98,15 +104,9 @@ export function MyGroupBlock() {
       }
     >
       {(() => {
-        if (error) {
-          return (
-            <Alert
-              type="error"
-              message="Ihre Gruppe konnte nicht geladen werden. Bitte die Seite neu laden."
-            />
-          );
-        }
-        if (isLoading && !group) {
+        if (loadError) return <LoadErrorAlert error={loadError} />;
+        // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett.
+        if ((isLoading && !group) || error) {
           return (
             <div className="space-y-2" aria-hidden="true">
               <Skeleton className="h-4 w-3/5 rounded" />

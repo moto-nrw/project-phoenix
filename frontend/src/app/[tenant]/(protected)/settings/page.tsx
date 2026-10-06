@@ -6,6 +6,7 @@ import { redirect, useSearchParams } from "next/navigation";
 import { Alert } from "~/components/ui/alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSettingsTabs } from "~/components/settings/settings-page";
 import { useTenantRouter } from "~/lib/tenant-router";
 
@@ -17,7 +18,20 @@ function SettingsContent() {
   const settingsTabs = useSettingsTabs();
   const router = useTenantRouter();
   const searchParams = useSearchParams();
-  const { data: schema, isLoading: schemaLoading } = useSettingsSchema();
+  const {
+    data: schema,
+    isLoading: schemaLoading,
+    error: schemaError,
+    mutate: reloadSchema,
+  } = useSettingsSchema();
+  // Ein gescheitertes Laden des Schemas ist ein Ladefehler des Gerüsts mit
+  // Katalogtext und Wiederholen, nie "0 Bereiche" oder der Leerzustand
+  // (#2517).
+  const schemaLoadError = useSwrLoadError(
+    schemaError,
+    "die Liste der Einstellungen",
+    () => reloadSchema(),
+  );
 
   const requestedTab = searchParams.get("tab");
   const requestedTabId = requestedTab ? `settings-${requestedTab}` : null;
@@ -68,6 +82,20 @@ function SettingsContent() {
 
   if (!session?.user) {
     redirect("/");
+  }
+
+  // Liegt noch ein früher geladenes Schema vor, bleibt die Seite stehen; ohne
+  // Schema gibt es weder Bereiche noch Abweichungen zu zählen. Bis der
+  // Katalogtext da ist, bleibt das Skelett stehen.
+  if (schemaError && !schema) {
+    return (
+      <TenantPage
+        title="Einstellungen"
+        statsLoading={!schemaLoadError}
+        loading={!schemaLoadError}
+        error={schemaLoadError}
+      />
+    );
   }
 
   if (!settingsTabs || flatTabItems.length === 0) {

@@ -5,7 +5,7 @@
 // die Historie unverändert stehen. Die endgültige Löschung (student-api.ts)
 // bleibt daneben bestehen und ist strenger geschützt.
 
-import { apiErrorFromBody } from "./api-error";
+import { apiErrorFromBody, transportFetch } from "./api-error";
 
 /** Austrittsgründe. Nur "other" trägt einen Freitext. */
 export type CareExitReason = "moved_away" | "no_care_needed" | "other";
@@ -133,7 +133,7 @@ async function request<T>(
   method: "GET" | "POST",
   body?: unknown,
 ): Promise<T> {
-  const response = await fetch(url, {
+  const response = await transportFetch(url, {
     method,
     credentials: "include",
     cache: "no-store",

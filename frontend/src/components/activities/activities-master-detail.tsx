@@ -16,6 +16,9 @@ import { useGroupedItems } from "~/components/database/use-grouped-items";
 import { DatabaseForm } from "~/components/ui/database/database-form";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { isSystemActivity, type Activity } from "@/lib/activity-helpers";
 import { buildActivityFormSections } from "./activity-form-sections";
@@ -25,6 +28,9 @@ interface ActivitiesMasterDetailProps {
   selectedId: string | null;
   selectedActivity: Activity | null;
   detailLoading: boolean;
+  /** Ladefehler des Details (aus `useApiLoadError`); ohne ihn stünde ein
+   *  veralteter Stand im Formular. */
+  detailError?: FormErrorInput;
   onSelect: (id: string | null) => void;
   onSaveActivity: (data: Partial<Activity>) => Promise<void>;
   onResetForm: () => void;
@@ -45,6 +51,7 @@ export function ActivitiesMasterDetail({
   selectedId,
   selectedActivity,
   detailLoading,
+  detailError = null,
   onSelect,
   onSaveActivity,
   onResetForm,
@@ -84,6 +91,7 @@ export function ActivitiesMasterDetail({
     <ActivityDetailContent
       activity={selectedActivity}
       loading={detailLoading}
+      detailError={detailError}
       onSaveActivity={onSaveActivity}
       onResetForm={onResetForm}
       onDeleteClick={onDeleteClick}
@@ -111,6 +119,7 @@ export function ActivitiesMasterDetail({
 interface ActivityDetailContentProps {
   activity: Activity;
   loading: boolean;
+  detailError: FormErrorInput;
   onSaveActivity: (data: Partial<Activity>) => Promise<void>;
   onResetForm: () => void;
   onDeleteClick: () => void;
@@ -120,6 +129,7 @@ interface ActivityDetailContentProps {
 function ActivityDetailContent({
   activity,
   loading,
+  detailError,
   onSaveActivity,
   onResetForm,
   onDeleteClick,
@@ -138,8 +148,11 @@ function ActivityDetailContent({
       label: "Stammdaten",
       content: (
         <ActivityStammdatenTab
+          // Eine andere Aktivität beginnt ohne den Fehler der vorigen.
+          key={activity.id}
           activity={activity}
           loading={loading}
+          detailError={detailError}
           onSaveActivity={onSaveActivity}
           onResetForm={onResetForm}
           formResetKey={formResetKey}
@@ -174,6 +187,7 @@ function ActivityDetailContent({
 interface ActivityStammdatenTabProps {
   activity: Activity;
   loading: boolean;
+  detailError: FormErrorInput;
   onSaveActivity: (data: Partial<Activity>) => Promise<void>;
   onResetForm: () => void;
   formResetKey: string;
@@ -182,6 +196,7 @@ interface ActivityStammdatenTabProps {
 function ActivityStammdatenTab({
   activity,
   loading,
+  detailError,
   onSaveActivity,
   onResetForm,
   formResetKey,
@@ -190,9 +205,16 @@ function ActivityStammdatenTab({
     () => buildActivityFormSections(activity),
     [activity],
   );
+  // Speicherfehler im Formular, Feldfehler am Feld (#2517).
+  const saveErrors = useApiFormError();
 
   if (loading) {
     return <DetailLoadingSpinner label="Aktivitätsdaten werden geladen..." />;
+  }
+
+  // Ohne frisches Detail kein Formular mit veraltetem Stand.
+  if (detailError) {
+    return <LoadErrorAlert error={detailError} />;
   }
 
   return (
@@ -203,9 +225,14 @@ function ActivityStammdatenTab({
         sections={sections}
         initialData={activity}
         onSubmit={onSaveActivity}
-        onCancel={onResetForm}
+        onCancel={() => {
+          saveErrors.clear();
+          onResetForm();
+        }}
         submitLabel="Speichern"
         stickyActions
+        errorPath={saveErrors}
+        errorObject="die Aktivität"
       />
     </div>
   );

@@ -393,6 +393,8 @@ func renderNoticeServiceError(w http.ResponseWriter, r *http.Request, err error)
 	switch {
 	case errors.Is(err, timetable.ErrStaffNoticeNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
+	case errors.Is(err, timetable.ErrStaffNoticeOutdated):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCommunicationStaffNoticeOutdated))
 	case errors.Is(err, timetable.ErrStaffNoticeInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:

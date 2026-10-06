@@ -1,7 +1,21 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
+import { catalogText } from "~/test/error-catalog-text";
+
+// Ein gescheitertes Starten kommt als Toast (#2517).
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 const swr = vi.hoisted(() => ({
   data: undefined as PlannedTimetableInstance[] | undefined,
@@ -213,17 +227,19 @@ describe("MyDayBlock (#2180)", () => {
   });
 
   it("sagt es, wenn das Starten scheitert, und lädt neu", async () => {
-    api.start.mockRejectedValue(new Error("boom"));
+    api.start.mockRejectedValue(
+      new ApiError("conflict", 409, { code: "general.business_rejection" }),
+    );
 
     render(<MyDayBlock />);
 
     fireEvent.click(screen.getByRole("button", { name: "Starten" }));
 
-    await waitFor(() =>
-      expect(
-        screen.getByText(/konnte nicht gestartet werden/),
-      ).toBeInTheDocument(),
-    );
+    expect(
+      await screen.findByText(
+        catalogText("general.business_rejection", "das Starten des Blocks"),
+      ),
+    ).toBeInTheDocument();
     expect(swr.mutate).toHaveBeenCalled();
     expect(router.push).not.toHaveBeenCalled();
   });
@@ -272,12 +288,21 @@ describe("MyDayBlock (#2180)", () => {
     ).toBeInTheDocument();
   });
 
-  it("unterscheidet einen Ladefehler von einem leeren Tag", () => {
+  it("unterscheidet einen Ladefehler von einem leeren Tag", async () => {
     swr.data = undefined;
-    swr.error = new Error("boom");
+    swr.error = new ApiError("boom", 503, { code: "general.unavailable" });
 
     render(<MyDayBlock />);
 
-    expect(screen.getByText(/konnte nicht geladen werden/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Karte „Mein Tag“"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Heute sind Sie für keinen Block eingeteilt"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(swr.mutate).toHaveBeenCalled();
   });
 });

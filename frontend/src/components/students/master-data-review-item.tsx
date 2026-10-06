@@ -143,7 +143,11 @@ export function MasterDataReviewItem({
         // Nur mitschicken, wenn die Liste eine Fassung kennt.
         ...(expectedVersion ? ([expectedVersion] as const) : ([] as const)),
       );
-      onDecided(approve ? "Änderung übernommen" : "Änderung abgelehnt");
+      onDecided(
+        approve
+          ? "Die Änderung ist übernommen."
+          : "Die Änderung ist abgelehnt.",
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.warn("master_data_review_decide_failed", {

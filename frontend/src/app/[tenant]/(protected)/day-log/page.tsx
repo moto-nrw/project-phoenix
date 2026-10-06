@@ -12,8 +12,7 @@
 
 import { ArrowRight, Download, FileSpreadsheet, Printer } from "lucide-react";
 import Link from "~/components/ui/navigation-link";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert } from "~/components/ui/alert";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -29,14 +28,19 @@ import {
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
+import {
+  apiErrorFromResponse,
+  ApiError,
+  transportFetch,
+  wireErrorCode,
+} from "~/lib/api-error";
 import {
   DAY_LOG_STATUS_COLORS,
   DAY_LOG_STATUS_ORDER,
-  DayLogError,
   dayLogExportUrl,
   dayLogSourceLabel,
   fetchDayLog,
-  type DayLogErrorCode,
   type DayLogGroup,
   type DayLogResponse,
   type DayLogStatus,
@@ -55,17 +59,33 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "DayLogPage" });
 
-const ERROR_MESSAGES: Record<DayLogErrorCode, string> = {
-  feature_disabled:
-    "Das Anwesenheitsprotokoll ist für Ihre Schule nicht eingeschaltet. Ihre Leitung kann es in den Einstellungen unter Datenschutz einschalten.",
-  not_group_supervisor:
-    "Ihr Konto ist keinem Personaleintrag zugeordnet. Bitte wenden Sie sich an Ihre Administration.",
-  no_permitted_groups:
-    "Ihr Konto ist keinem Personaleintrag zugeordnet. Bitte wenden Sie sich an Ihre Administration.",
-  invalid_request:
-    "Die Tagesauswertung ist nur für den aktuellen Tag verfügbar.",
-  unknown: "Die Tagesauswertung konnte nicht geladen werden.",
-};
+/**
+ * Ausgeschaltete Funktion und Konto ohne sichtbare Gruppe sind Zustände, kein
+ * Fehler: sie stehen als Leerzustand mit dem nächsten Schritt. Erkannt am
+ * Code, nie am Text (#2517).
+ */
+type DayLogState = "disabled" | "no_groups";
+
+const STATE_EMPTY: Record<DayLogState, { title: string; description: string }> =
+  {
+    disabled: {
+      title: "Anwesenheitsprotokoll ist ausgeschaltet",
+      description:
+        "Ihre Leitung kann es in den Einstellungen unter Datenschutz einschalten.",
+    },
+    no_groups: {
+      title: "Noch keine Gruppen für Ihr Konto",
+      description:
+        "Für Ihr Konto ist keine Gruppe sichtbar. Bitte wenden Sie sich an Ihre Leitung.",
+    },
+  };
+
+function dayLogState(error: unknown): DayLogState | null {
+  const code = error instanceof ApiError ? wireErrorCode(error.code) : null;
+  if (code === "students.day_log_disabled") return "disabled";
+  if (code === "students.day_log_no_groups") return "no_groups";
+  return null;
+}
 
 const STATUS_LABELS: Record<DayLogStatus, string> = {
   present: "Anwesend",
@@ -86,13 +106,6 @@ const MODAL_SECTION_TITLES: Record<DayLogStatus, string> = {
 };
 
 type ExportFormat = "pdf" | "xlsx";
-
-// Ladefehler gehören in den Fehlerzustand des Gerüsts. Ausgeschaltete Funktion
-// und fehlender Personaleintrag sind Zustände und werden als Leerzustand mit
-// dem nächsten Schritt gezeigt.
-function isLoadError(code: DayLogErrorCode): boolean {
-  return code === "unknown" || code === "invalid_request";
-}
 
 function counterFor(
   counters: DayLogGroup["counters"],
@@ -290,10 +303,18 @@ export default function DayLogPage() {
   const [dateISO, setDateISO] = useState<string>(() => berlinTodayISO());
   const [data, setData] = useState<DayLogResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [errorCode, setErrorCode] = useState<DayLogErrorCode | null>(null);
+  const [state, setState] = useState<DayLogState | null>(null);
+  // Ladefehler stehen im Gerüst, mit Wiederholen (#2517).
+  const load = useApiLoadError();
+  const { show: showLoadError, clear: clearLoadError } = load;
+  const [reloadKey, setReloadKey] = useState(0);
+  // Bis der Katalogtext da ist, bleibt das Skelett stehen.
+  const [failed, setFailed] = useState(false);
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<string | null>(null);
-  const [exportError, setExportError] = useState<string | null>(null);
+  // Export und Drucken sind Aktionen ohne Formular: Fehler als Toast.
+  const { show: showActionError } = useApiErrorDisplay();
+  const retryExportRef = useRef<() => void>(() => undefined);
 
   // Keep an open page on the Berlin calendar day. The backend only accepts
   // today's roster, so a tab spanning midnight must refetch rather than retain
@@ -305,7 +326,9 @@ export default function DayLogPage() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setErrorCode(null);
+    setState(null);
+    setFailed(false);
+    clearLoadError();
     fetchDayLog(dateISO)
       .then((response) => {
         if (!cancelled) setData(response);
@@ -313,12 +336,19 @@ export default function DayLogPage() {
       .catch((error: unknown) => {
         if (cancelled) return;
         setData(null);
-        setErrorCode(
-          error instanceof DayLogError ? error.legacyCode : "unknown",
-        );
+        const pageState = dayLogState(error);
+        if (pageState) {
+          setState(pageState);
+          return;
+        }
         logger.error("day_log_fetch_failed", {
           date: dateISO,
           error: error instanceof Error ? error.message : String(error),
+        });
+        setFailed(true);
+        void showLoadError(error, {
+          object: "die Tagesauswertung",
+          retry: () => setReloadKey((key) => key + 1),
         });
       })
       .finally(() => {
@@ -327,7 +357,7 @@ export default function DayLogPage() {
     return () => {
       cancelled = true;
     };
-  }, [dateISO]);
+  }, [dateISO, reloadKey, showLoadError, clearLoadError]);
 
   const openGroup = useMemo(
     () => data?.groups.find((group) => group.group_id === openGroupId) ?? null,
@@ -342,12 +372,12 @@ export default function DayLogPage() {
   const downloadExport = useCallback(
     async (format: ExportFormat, groupId?: string) => {
       setExporting(`${format}-${groupId ?? "all"}`);
-      setExportError(null);
       try {
-        const res = await fetch(dayLogExportUrl(dateISO, format, groupId));
+        const res = await transportFetch(
+          dayLogExportUrl(dateISO, format, groupId),
+        );
         if (!res.ok) {
-          setExportError("Export fehlgeschlagen. Bitte erneut versuchen.");
-          return;
+          throw await apiErrorFromResponse(res, "day log export failed");
         }
         const blob = await res.blob();
         const disposition = res.headers.get("Content-Disposition") ?? "";
@@ -366,12 +396,16 @@ export default function DayLogPage() {
         logger.error("day_log_export_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
-        setExportError("Export fehlgeschlagen. Bitte erneut versuchen.");
+        retryExportRef.current = () => void downloadExport(format, groupId);
+        void showActionError(error, {
+          object: "die Exportdatei",
+          retry: () => retryExportRef.current(),
+        });
       } finally {
         setExporting(null);
       }
     },
-    [dateISO],
+    [dateISO, showActionError],
   );
 
   // Drucken: open the PDF in a new tab (blob URL, so the browser's viewer
@@ -386,15 +420,12 @@ export default function DayLogPage() {
       const tab = window.open("", "_blank");
       if (tab) tab.opener = null;
       setExporting(`print-${groupId ?? "all"}`);
-      setExportError(null);
       try {
-        const res = await fetch(dayLogExportUrl(dateISO, "pdf", groupId));
+        const res = await transportFetch(
+          dayLogExportUrl(dateISO, "pdf", groupId),
+        );
         if (!res.ok) {
-          tab?.close();
-          setExportError(
-            "Druckansicht fehlgeschlagen. Bitte erneut versuchen.",
-          );
-          return;
+          throw await apiErrorFromResponse(res, "day log print failed");
         }
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
@@ -412,12 +443,16 @@ export default function DayLogPage() {
         logger.error("day_log_print_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
-        setExportError("Druckansicht fehlgeschlagen. Bitte erneut versuchen.");
+        retryExportRef.current = () => void printPdf(groupId);
+        void showActionError(error, {
+          object: "die Druckansicht",
+          retry: () => retryExportRef.current(),
+        });
       } finally {
         setExporting(null);
       }
     },
-    [dateISO],
+    [dateISO, showActionError],
   );
 
   // Eine sichtbare Aktion neben dem Titel, alles Weitere im Menü: Drucken ist
@@ -477,25 +512,15 @@ export default function DayLogPage() {
       title="Tagesauswertung"
       stats={statusLine}
       statsLoading={loading}
-      loading={loading}
+      loading={loading || (failed && load.error === null)}
       // Ein Ladefehler ist `error`. Eine ausgeschaltete Funktion oder ein
       // fehlender Personaleintrag ist dagegen ein Zustand, kein Fehler: er
       // steht als Leerzustand mit dem nächsten Schritt.
-      error={
-        errorCode !== null && isLoadError(errorCode)
-          ? ERROR_MESSAGES[errorCode]
-          : null
-      }
+      error={load.error}
       empty={
-        errorCode !== null && !isLoadError(errorCode)
-          ? {
-              title:
-                errorCode === "feature_disabled"
-                  ? "Anwesenheitsprotokoll ist ausgeschaltet"
-                  : "Noch keine Gruppen für Ihr Konto",
-              description: ERROR_MESSAGES[errorCode],
-            }
-          : errorCode === null && data !== null && data.groups.length === 0
+        state !== null
+          ? STATE_EMPTY[state]
+          : load.error === null && data !== null && data.groups.length === 0
             ? {
                 title: "Keine Gruppe für diesen Tag",
                 description:
@@ -575,12 +600,6 @@ export default function DayLogPage() {
       {/* Inhaltskarte ohne eigenen Kopf: Titel, Datum und Exporte trägt die
           Kopfkarte darüber, hier stehen nur Zahlen und Gruppen. */}
       <SectionCard>
-        {exportError && (
-          <div className="mb-4">
-            <Alert type="error" message={exportError} />
-          </div>
-        )}
-
         {data && (
           <>
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-7">

@@ -45,19 +45,24 @@ func (rs *MFAResource) requireMFA(w http.ResponseWriter, r *http.Request) bool {
 	return common.RequireDependency(w, r, rs.mfaService != nil, errOperatorMFAServiceUnavailable)
 }
 
+// operatorMFAError is an operator error body that also carries its code.
+func operatorMFAError(status int, message, code string) render.Renderer {
+	return &common.ErrResponse{HTTPStatusCode: status, Status: "error", ErrorText: message, Code: code}
+}
+
 // mapOperatorMFAError translates known MFA-service errors into HTTP responses.
 // Account and operator MFA answer with the same error identities, so one
 // errors.Is table serves both surfaces.
 func mapOperatorMFAError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, ErrMFAChallengeTokenInvalid):
-		common.RenderError(w, r, common.OperatorUnauthorized())
-	case errors.Is(err, ErrMFACodeInvalid):
-		common.RenderError(w, r, common.OperatorUnauthorized())
+	// The texts stay; the codes let the shared code form name the reason
+	// (#2517).
+	case errors.Is(err, ErrMFAChallengeTokenInvalid), errors.Is(err, ErrMFACodeInvalid):
+		common.RenderError(w, r, operatorMFAError(http.StatusUnauthorized, "Unauthorized", common.CodeIdentityMfaCodeInvalid))
 	case errors.Is(err, ErrMFALocked):
-		common.RenderError(w, r, common.OperatorTooManyRequests("MFA temporarily locked"))
+		common.RenderError(w, r, operatorMFAError(http.StatusTooManyRequests, "MFA temporarily locked", common.CodeIdentityMfaBlocked))
 	case errors.Is(err, ErrMFARateLimited):
-		common.RenderError(w, r, common.OperatorTooManyRequests("Too many MFA emails — try again later"))
+		common.RenderError(w, r, operatorMFAError(http.StatusTooManyRequests, "Too many MFA emails — try again later", common.CodeIdentityMfaBlocked))
 	case errors.Is(err, ErrMFANotEnrolled):
 		common.RenderError(w, r, common.OperatorForbidden("MFA is not enrolled for this operator"))
 	case errors.Is(err, ErrMFAAlreadyEnrolled):

@@ -43,6 +43,8 @@ import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
 import { substitutionService } from "~/lib/substitution-api";
 import type { Substitution } from "~/lib/substitution-helpers";
 import { useApiLoadError, useToast } from "~/contexts/ToastContext";
+import { ApiError, wireErrorCode } from "~/lib/api-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 
@@ -203,7 +205,9 @@ function useGroupTransferModal(
     if (!group) return;
     await assignGroupForToday(group.id, targetStaffId);
     await data.reload();
-    success(`Gruppe "${group.name}" an ${targetName} übergeben`);
+    success(
+      `Die Gruppe „${group.name}“ ist für heute an ${targetName} übergeben.`,
+    );
   };
   const cancel = async (substitutionId: string) => {
     if (!group) return;
@@ -212,7 +216,11 @@ function useGroupTransferModal(
     );
     await substitutionService.deleteSubstitution(substitutionId);
     await data.reload();
-    success(`Übergabe an ${transfer?.targetName ?? "Betreuer"} zurückgenommen`);
+    success(
+      transfer?.targetName
+        ? `Die Übergabe an ${transfer.targetName} ist zurückgenommen.`
+        : "Die Übergabe ist zurückgenommen.",
+    );
   };
   return { ...data, open, setOpen, transfer, cancel };
 }
@@ -389,7 +397,6 @@ function OGSGroupPageContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [attendanceFilter, setAttendanceFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [roomStatus, setRoomStatus] = useState<
     Record<string, { in_group_room: boolean; current_room_id?: string }>
   >({});
@@ -421,6 +428,7 @@ function OGSGroupPageContent() {
     data: liveData,
     isLoading: isLiveLoading,
     error: liveError,
+    mutate: reloadLive,
   } = useSWRAuth<OgsLiveViewData>(
     session?.user?.token ? `ogs-students-${selectedGroupId ?? "auto"}` : null,
     async () => {
@@ -550,7 +558,6 @@ function OGSGroupPageContent() {
       setStudents(mappedStudents);
       setRoomStatus(liveData.roomStatus);
       setPickupTimes(liveData.pickupTimes);
-      setError(null);
       setIsLoading(false);
     }
   }, [liveData, selectedGroupId, setGroupAttendanceCount, tenantMutate]);
@@ -593,20 +600,22 @@ function OGSGroupPageContent() {
 
   // Handle live-view error. The backend fails the whole aggregate instead of
   // degrading sections to empty arrays, so any error here means the page must
-  // show an error state — never a plausible-looking empty view.
+  // show an error state — never a plausible-looking empty view. A refusal
+  // (no group led) is the page's own "no group" view, identified by its code.
+  const liveNoAccess =
+    liveError instanceof ApiError &&
+    wireErrorCode(liveError.code) === "general.permission";
+  const error = useSwrLoadError(
+    liveNoAccess ? null : liveError,
+    "die Liste Ihrer OGS-Gruppe",
+    () => reloadLive(),
+  );
   useEffect(() => {
     if (liveError) {
-      if (liveError.message.includes("403")) {
-        setError(
-          "Sie haben keine Berechtigung für den Zugriff auf OGS-Gruppendaten.",
-        );
-        setHasAccess(false);
-      } else {
-        setError("Fehler beim Laden der OGS-Gruppendaten.");
-      }
+      if (liveNoAccess) setHasAccess(false);
       setIsLoading(false);
     }
-  }, [liveError]);
+  }, [liveError, liveNoAccess]);
 
   // Derive loading state from SWR
   useEffect(() => {

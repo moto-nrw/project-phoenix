@@ -1,4 +1,10 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render as rtlRender,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import RoomsPage from "./page";
 
@@ -127,6 +133,13 @@ import { useSession } from "next-auth/react";
 // eslint-disable-next-line no-restricted-imports -- test mock
 import { useRouter } from "next/navigation";
 import { useSWRAuth } from "~/lib/swr";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 const mockRooms = [
   {
@@ -258,20 +271,55 @@ describe("RoomsPage", () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
-  it("shows error message when rooms fetch fails", () => {
+  it("shows the catalog load error with retry when rooms fetch fails", async () => {
+    const mutate = vi.fn();
     vi.mocked(useSWRAuth).mockReturnValue({
       data: [],
       isLoading: false,
-      error: new Error("Network error"),
+      error: new ApiError("down", 503, { code: "general.unavailable" }),
+      mutate,
     } as never);
 
     render(<RoomsPage />);
 
     expect(
-      screen.getByText(
-        "Fehler beim Laden der Raumdaten. Bitte versuchen Sie es später erneut.",
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Räume"),
       ),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mutate).toHaveBeenCalled();
+  });
+
+  it("shows a failed export as a toast with retry", async () => {
+    mockExportRoomSnapshot.mockRejectedValueOnce(
+      new ApiError("boom", 500, { code: "general.server" }),
+    );
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: mockRooms,
+      isLoading: false,
+      error: null,
+    } as never);
+
+    render(<RoomsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: /Wer ist wo als Excel/ }),
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Liste „Wer ist wo“"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => {
+      expect(mockExportRoomSnapshot).toHaveBeenCalledTimes(2);
+    });
+    expect(mockExportRoomSnapshot).toHaveBeenLastCalledWith(
+      expect.objectContaining({ format: "xlsx" }),
+    );
   });
 
   it("shows empty state when no rooms match filters", async () => {

@@ -6,6 +6,8 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import ActivitiesPage from "./page";
 
 const { mockToastSuccess, mockPush, mockRedirect } = vi.hoisted(() => ({
@@ -37,7 +39,9 @@ vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: mockPush, replace: vi.fn() }),
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+// Nur die Toasts ersetzen; der Fehlerweg (Katalogtexte) bleibt echt.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: mockToastSuccess,
   }),
@@ -379,19 +383,26 @@ describe("ActivitiesPage", () => {
     ).toBe("");
   });
 
-  it("shows error state when fetch fails", () => {
+  it("shows the catalog load error with retry when fetch fails", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: null,
       isLoading: false,
-      error: new Error("Fetch failed"),
+      error: new ApiError("down", 503, { code: "general.unavailable" }),
       mutate: mockMutate,
     } as never);
 
     render(<ActivitiesPage />);
 
     expect(
-      screen.getByText("Fehler beim Laden der Aktivitäten"),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Aktivitäten"),
+      ),
     ).toBeInTheDocument();
+    // #2517: keine Zählung aus einer Liste, die nie geladen wurde.
+    expect(screen.queryByText(/0 Aktivitäten/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/0 Kategorien/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mockMutate).toHaveBeenCalled();
   });
 
   it("shows empty state when no activities exist", () => {
