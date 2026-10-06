@@ -39,10 +39,10 @@ func (s *Intake) lateInviteTokenHash(token string) string {
 func normalizeGuardianEmail(email string) (string, error) {
 	trimmed := strings.ToLower(strings.TrimSpace(email))
 	if trimmed == "" {
-		return "", fmt.Errorf("%w: guardian email is required", enrollment.ErrInvalidSubmission)
+		return "", enrollment.InvalidInput(enrollment.CodeGuardianEmailRequired, "guardian_email", fmt.Errorf("%w: guardian email is required", enrollment.ErrInvalidSubmission))
 	}
 	if err := contact.ValidateOptionalEmail(trimmed); err != nil {
-		return "", enrollment.ErrInvalidGuardianEmail
+		return "", enrollment.InvalidInput(enrollment.CodeInvalidEmail, "guardian_email", enrollment.ErrInvalidGuardianEmail)
 	}
 	return trimmed, nil
 }

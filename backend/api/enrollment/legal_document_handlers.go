@@ -31,8 +31,11 @@ type legalDocumentReferenceRepository interface {
 func (rs *Resource) uploadLegalDocument(w http.ResponseWriter, r *http.Request) {
 	uploaded, err := common.ParsePDFWithLimits(w, r, "document", maxEnrollmentLegalDocumentSize, maxEnrollmentLegalDocumentBody)
 	if err != nil {
+		// Size, missing file and wrong type share one code; the text names
+		// the allowed format and limit (#2515).
 		render.Status(r, http.StatusBadRequest)
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentLegalDocumentInvalid,
+			map[string]any{"max_mb": maxEnrollmentLegalDocumentSize / (1024 * 1024)}))
 		return
 	}
 	defer common.CloseFile(uploaded.File)

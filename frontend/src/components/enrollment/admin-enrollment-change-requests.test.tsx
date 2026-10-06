@@ -1,6 +1,20 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as renderComponent,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
+
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+// Errors and success messages run through the real display path (#2515).
+const render = (ui: ReactElement) =>
+  renderComponent(ui, { wrapper: ToastProvider });
 
 const mocks = vi.hoisted(() => ({
   approveEnrollmentChangeRequest: vi.fn(),
@@ -207,5 +221,66 @@ describe("AdminEnrollmentChangeRequestDetail", () => {
     );
     expect(refreshListener).toHaveBeenCalledTimes(1);
     window.removeEventListener("change-requests-refresh", refreshListener);
+  });
+
+  it("shows a failed load where the request is missing", async () => {
+    mocks.getAdminEnrollmentChangeRequest.mockRejectedValueOnce(
+      new ApiError("load failed", 503, { code: "general.unavailable" }),
+    );
+
+    render(<AdminEnrollmentChangeRequestDetail changeRequestId="42" />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Änderungsanfrage"),
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("Die Änderungsanfrage wurde nicht gefunden."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the note and shows a refused decision in the decision box", async () => {
+    mocks.getAdminEnrollmentChangeRequest.mockResolvedValueOnce(
+      baseChangeRequest,
+    );
+    mocks.rejectEnrollmentChangeRequest.mockRejectedValueOnce(
+      new ApiError("conflict", 409, { code: "general.business_rejection" }),
+    );
+
+    render(<AdminEnrollmentChangeRequestDetail changeRequestId="42" />);
+    await screen.findByText("Änderungsanfrage prüfen");
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Nicht nachvollziehbar." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ablehnen" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      catalogText("general.business_rejection", "die Entscheidung"),
+    );
+    expect(screen.getByLabelText("Begründung")).toHaveValue(
+      "Nicht nachvollziehbar.",
+    );
+  });
+
+  it("confirms a sent question", async () => {
+    mocks.getAdminEnrollmentChangeRequest.mockResolvedValueOnce(
+      baseChangeRequest,
+    );
+    mocks.askEnrollmentChangeRequestQuestion.mockResolvedValueOnce(
+      baseChangeRequest,
+    );
+
+    render(<AdminEnrollmentChangeRequestDetail changeRequestId="42" />);
+    await screen.findByText("Änderungsanfrage prüfen");
+    fireEvent.change(screen.getByLabelText("Nachricht an Eltern"), {
+      target: { value: "Welche Klasse?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Rückfrage senden/ }));
+
+    expect(
+      await screen.findByText("Die Rückfrage wurde gesendet."),
+    ).toBeVisible();
+    expect(screen.getByLabelText("Nachricht an Eltern")).toHaveValue("");
   });
 });

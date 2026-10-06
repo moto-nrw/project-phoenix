@@ -21,6 +21,8 @@ import {
   type FormSchema,
   type PublicFormSchema,
 } from "~/lib/enrollment-form-schema-api";
+import { useApiLoadError } from "~/contexts/ToastContext";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 
 export default function EnrollmentPreviewPage() {
   return (
@@ -43,7 +45,15 @@ function EnrollmentPreviewPageContent() {
   const [assignedPhaseCount, setAssignedPhaseCount] = useState(0);
   const [activeAssignedPhaseCount, setActiveAssignedPhaseCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Without a template in the address there is nothing to load: a fixed
+  // hint, not an API error.
+  const [missingSchema, setMissingSchema] = useState(false);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const previewProfileFetcher = useCallback(() => Promise.resolve(null), []);
 
   useEffect(() => {
@@ -51,13 +61,14 @@ function EnrollmentPreviewPageContent() {
     async function load() {
       if (!schemaId) {
         if (!isBasePreview) {
-          setError("Keine Formularvorlage ausgewählt.");
+          setMissingSchema(true);
           setLoading(false);
           return;
         }
       }
       setLoading(true);
-      setError(null);
+      setMissingSchema(false);
+      clearLoadError();
       try {
         const result = await fetchEnrollmentPreviewBootstrap({
           schemaId,
@@ -69,11 +80,10 @@ function EnrollmentPreviewPageContent() {
         setActiveAssignedPhaseCount(result.active_assigned_phase_count);
       } catch (err) {
         if (cancelled) return;
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Die Vorschau konnte nicht geladen werden.",
-        );
+        void showLoadError(err, {
+          object: "die Vorschau",
+          retry: () => setLoadAttempt((n) => n + 1),
+        });
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -82,7 +92,7 @@ function EnrollmentPreviewPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [isBasePreview, schemaId]);
+  }, [isBasePreview, schemaId, loadAttempt, clearLoadError, showLoadError]);
 
   const previewSchema = useMemo<PublicFormSchema | null>(() => {
     if (!schema) return null;
@@ -162,10 +172,15 @@ function EnrollmentPreviewPageContent() {
             <div className="moto-content-surface rounded-2xl border p-6 text-sm font-medium text-gray-600 shadow-sm">
               Vorschau wird geladen…
             </div>
-          ) : error || gradeLevelMax === null ? (
-            <div className="moto-content-surface border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-6 text-sm font-medium shadow-sm">
-              {error ?? "Die Klassenstufen-Konfiguration ist nicht verfügbar."}
-            </div>
+          ) : loadError || missingSchema || gradeLevelMax === null ? (
+            <LoadErrorAlert
+              error={
+                loadError ??
+                (missingSchema
+                  ? "Keine Formularvorlage ausgewählt."
+                  : "Die Klassenstufen sind für diese Schule nicht eingerichtet.")
+              }
+            />
           ) : (
             <EnrollmentForm
               gradeLevelMax={gradeLevelMax}

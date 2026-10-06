@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
@@ -34,7 +41,7 @@ import {
 } from "~/lib/care-offering-booking-stats";
 import { TranslationsSection } from "~/components/enrollment/translations-section";
 import { Alert } from "~/components/ui/alert";
-import { useFormError } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
 import { ToggleChip } from "~/components/ui/toggle-chip";
@@ -51,13 +58,16 @@ import {
 import { type Phase, listPhases } from "~/lib/enrollment-phase-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
-import { CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE } from "~/lib/enrollment-error-messages";
 import { createLogger } from "~/lib/logger";
 import { timetableService } from "~/lib/timetable-api";
 import type { TimetableTemplate } from "~/lib/timetable-types";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
 import { useTenant } from "~/lib/tenant-context";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import {
   copyStableObjectKey,
   getStableObjectKey,
@@ -118,11 +128,13 @@ const CARE_OFFERING_TEMPLATE_UNLINKED_MESSAGE =
 const PLANNER_METADATA_UNAVAILABLE_MESSAGE =
   "Regeltermine und Planungsperioden konnten nicht geladen werden. Die Betreuungsangebote bleiben nutzbar; bestehende Verknüpfungen können beibehalten oder entfernt werden. Neue oder geänderte Verknüpfungen sind bis zum erneuten Laden gesperrt.";
 const UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE =
-  "Die neue Regeltermin-Verknüpfung kann derzeit nicht geprüft werden. Entferne die Verknüpfung oder lade Regeltermine und Planungsperioden erneut.";
+  "Die neue Verknüpfung mit dem Regeltermin lässt sich gerade nicht prüfen. Bitte entfernen Sie die Verknüpfung oder laden Sie die Regeltermine erneut.";
 const INACTIVE_TEMPLATE_PERIOD_MESSAGE =
-  "Ein aktives Betreuungsangebot braucht einen aktiven Planungszeitraum. Aktiviere den Zeitraum, wähle einen anderen Regeltermin oder deaktiviere das Angebot.";
+  "Ein aktives Betreuungsangebot braucht einen aktiven Planungszeitraum. Bitte schalten Sie den Zeitraum ein, wählen Sie einen anderen Regeltermin oder schalten Sie das Angebot aus.";
+const CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE =
+  "Der Planungszeitraum des Regeltermins muss den ganzen Betreuungszeitraum der Anmeldephase abdecken. Bitte wählen Sie einen passenden Regeltermin oder entfernen Sie die Verknüpfung.";
 const CARE_OFFERING_DAYS_REQUIRED_MESSAGE =
-  "Bitte wähle mindestens einen Wochentag für das Angebot aus.";
+  "Bitte wählen Sie mindestens einen Wochentag für das Angebot aus.";
 
 function missingRequiredPickupDays(offering: {
   is_active: boolean;
@@ -210,20 +222,6 @@ function formatDays(days: string[]): string {
   const visibleDays = days.filter((day) => WEEKDAY_KEYS.includes(day));
   if (visibleDays.length === 0) return "Keine Wochentage";
   return visibleDays.map((day) => DAY_LABELS[day] ?? day).join(", ");
-}
-
-function safeCareOfferingSaveMessage(err: unknown, creating: boolean): string {
-  if (
-    err instanceof Error &&
-    typeof (err as Error & { status?: unknown }).status === "number"
-  ) {
-    // API errors are localized and sanitized by readEnrollmentError. Plain
-    // runtime/network errors are not safe UI copy and stay in structured logs.
-    return err.message;
-  }
-  return creating
-    ? "Betreuungsangebot konnte nicht angelegt werden"
-    : "Betreuungsangebot konnte nicht gespeichert werden";
 }
 
 function templateLabel(template: TimetableTemplate): string {
@@ -328,7 +326,7 @@ function linkedTemplateWeekdayError(
   if (missingDays.length === 0) return null;
 
   const labels = missingDays.map((day) => DAY_LABELS[day] ?? day).join(", ");
-  return `Der Regeltermin deckt die ausgewählten Angebotstage ${labels} nicht ab. Entferne die Verknüpfung oder ergänze passende Slots.`;
+  return `Der Regeltermin deckt die Angebotstage ${labels} nicht ab. Bitte entfernen Sie die Verknüpfung oder ergänzen Sie diese Tage im Regeltermin.`;
 }
 
 const GERMAN_WEEKDAY_NAME_PATTERNS: ReadonlyArray<[string, RegExp]> = [
@@ -436,22 +434,31 @@ export function CareOfferingsEditor({
   const [metadataStatus, setMetadataStatus] =
     useState<PlannerMetadataStatus>("loading");
   const [loading, setLoading] = useState(true);
-  const [catalogError, setCatalogError] = useState<string | null>(null);
-  const [error, setError] = useFormError();
+  // A failed catalog load stands where the catalog would be (#2515).
+  const catalogLoad = useApiLoadError();
+  const showCatalogError = catalogLoad.show;
+  const clearCatalogError = catalogLoad.clear;
+  // Saving, cloning: alert in the slide-over, field errors at the field.
+  const formErrors = useApiFormError();
+  const clearFormErrors = formErrors.clear;
+  // Deleting: the error stays in the open dialog.
+  const deleteErrors = useApiFormError();
+  const clearDeleteErrors = deleteErrors.clear;
+  const showDeleteError = deleteErrors.show;
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<CareOfferingInput | null>(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [cloneSource, setCloneSource] = useState<CareOffering | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CareOffering | null>(null);
-  const [deleteError, setDeleteError] = useState("");
   // Booking stats are display-only (#2186): the availability-rule editor uses
   // them to say how many existing bookings a rule would contradict. A failure
-  // to load them must never block catalog editing, so it is logged and the
-  // hint simply stays absent.
+  // to load them must never block catalog editing; the rule editor then says
+  // the count is unknown instead of reading as "no conflicts".
   const [bookingStats, setBookingStats] = useState<
     Record<string, CareOfferingBookingStats>
   >({});
+  const [bookingStatsUnavailable, setBookingStatsUnavailable] = useState(false);
   const toast = useToast();
 
   const hasNoPhases = phases.length === 0;
@@ -545,8 +552,7 @@ export function CareOfferingsEditor({
     async (preferredPhaseId?: string) => {
       const requestSeq = ++catalogLoadSeq.current;
       setLoading(true);
-      setError(null);
-      setCatalogError(null);
+      clearCatalogError();
       try {
         const phasesData = await listPhases();
         if (catalogLoadSeq.current !== requestSeq) return;
@@ -568,18 +574,25 @@ export function CareOfferingsEditor({
         setOfferings(offeringsData);
       } catch (err) {
         if (catalogLoadSeq.current !== requestSeq) return;
-        const message =
-          err instanceof Error ? err.message : "Unbekannter Fehler";
-        logger.error("care_offerings_load_failed", { error: message });
+        logger.error("care_offerings_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         setOfferings([]);
-        setCatalogError(message);
-        toast.error(message);
+        await showCatalogError(err, {
+          object: "die Liste der Betreuungsangebote",
+          retry: () => void latestLoadAll.current(selectedPhaseIdRef.current),
+        });
       } finally {
         if (catalogLoadSeq.current === requestSeq) setLoading(false);
       }
     },
-    [loadPlannerMetadata, setError, toast],
+    [loadPlannerMetadata, showCatalogError, clearCatalogError],
   );
+  // „Wiederholen“ lädt mit der aktuellen Fassung neu.
+  const latestLoadAll = useRef(loadAll);
+  useLayoutEffect(() => {
+    latestLoadAll.current = loadAll;
+  });
 
   useEffect(() => {
     void loadAll();
@@ -589,16 +602,20 @@ export function CareOfferingsEditor({
   useEffect(() => {
     if (!selectedPhaseId) {
       setBookingStats({});
+      setBookingStatsUnavailable(false);
       return;
     }
     let cancelled = false;
     void fetchCareOfferingBookingStats(selectedPhaseId)
       .then((stats) => {
-        if (!cancelled) setBookingStats(stats);
+        if (cancelled) return;
+        setBookingStats(stats);
+        setBookingStatsUnavailable(false);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
         setBookingStats({});
+        setBookingStatsUnavailable(true);
         logger.warn("care_offering_booking_stats_load_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
@@ -613,7 +630,7 @@ export function CareOfferingsEditor({
     setDraft(blankInput(Number(selectedPhaseId)));
     setEditingId("new");
     setCloneSource(null);
-    setError(null);
+    clearFormErrors();
   };
 
   // Stabil, weil die Spaltendefinition der Tabelle (useMemo) darauf zeigt.
@@ -622,9 +639,9 @@ export function CareOfferingsEditor({
       setDraft(offeringToInput(offering));
       setEditingId(offering.id);
       setCloneSource(null);
-      setError(null);
+      clearFormErrors();
     },
-    [setError],
+    [clearFormErrors],
   );
 
   const cancelFocusMode = () => {
@@ -633,17 +650,16 @@ export function CareOfferingsEditor({
     setCloneSource(null);
   };
 
-  const handleSave = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const save = async () => {
     if (!draft) return;
+    formErrors.clear();
     if (draft.available_days.length === 0) {
-      setError(CARE_OFFERING_DAYS_REQUIRED_MESSAGE);
+      formErrors.invalid(CARE_OFFERING_DAYS_REQUIRED_MESSAGE);
       return;
     }
     const missingPickupDays = missingRequiredPickupDays(draft);
     if (missingPickupDays.length > 0) {
-      const message = missingPickupTimesMessage(missingPickupDays);
-      setError(message);
+      formErrors.invalid(missingPickupTimesMessage(missingPickupDays));
       return;
     }
     const originalActivityGroupID =
@@ -658,7 +674,7 @@ export function CareOfferingsEditor({
         metadataStatus,
       )
     ) {
-      setError(UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE);
+      formErrors.invalid(UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE);
       return;
     }
     if (
@@ -670,15 +686,16 @@ export function CareOfferingsEditor({
         metadataStatus,
       ) === "incompatible"
     ) {
-      const message = draftUsesInactiveTemplatePeriod(
-        draft,
-        templates,
-        periods,
-        metadataStatus,
-      )
-        ? INACTIVE_TEMPLATE_PERIOD_MESSAGE
-        : CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE;
-      setError(message);
+      formErrors.invalid(
+        draftUsesInactiveTemplatePeriod(
+          draft,
+          templates,
+          periods,
+          metadataStatus,
+        )
+          ? INACTIVE_TEMPLATE_PERIOD_MESSAGE
+          : CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE,
+      );
       return;
     }
     const weekdayError = linkedTemplateWeekdayError(
@@ -687,77 +704,96 @@ export function CareOfferingsEditor({
       metadataStatus,
     );
     if (weekdayError) {
-      setError(weekdayError);
+      formErrors.invalid(weekdayError);
       return;
     }
     setSaving(true);
-    setError(null);
     try {
       if (editingId === "new") {
         const savedOffering = await createCareOffering(draft);
-        toast.success(`Betreuungsangebot „${savedOffering.name}" erstellt.`);
+        toast.success(
+          `Das Betreuungsangebot „${savedOffering.name}“ ist angelegt.`,
+        );
       } else if (editingId) {
         const savedOffering = await updateCareOffering(editingId, draft);
-        toast.success(`Betreuungsangebot „${savedOffering.name}" gespeichert.`);
+        toast.success(
+          `Das Betreuungsangebot „${savedOffering.name}“ ist gespeichert.`,
+        );
       }
       cancelFocusMode();
       await loadAll();
     } catch (err) {
-      const technicalMessage =
-        err instanceof Error ? err.message : "Unbekannter Speicherfehler";
-      logger.error("care_offering_save_failed", { error: technicalMessage });
-      const message = safeCareOfferingSaveMessage(err, editingId === "new");
-      setError(message);
+      logger.error("care_offering_save_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await formErrors.show(err, {
+        object: "das Betreuungsangebot",
+        retry: () => void latestSave.current(),
+      });
     } finally {
       setSaving(false);
     }
+  };
+  // „Wiederholen“ sendet den aktuellen Entwurf.
+  const latestSave = useRef(save);
+  useLayoutEffect(() => {
+    latestSave.current = save;
+  });
+  const handleSave = (event: React.FormEvent) => {
+    event.preventDefault();
+    void save();
   };
 
   const handleDelete = useCallback(async () => {
     const offering = deleteTarget;
     if (!offering) return;
     setDeletingId(offering.id);
-    setDeleteError("");
-    setError(null);
+    clearDeleteErrors();
     try {
       await deleteCareOffering(offering.id);
-      toast.success(`Betreuungsangebot „${offering.name}" gelöscht.`);
+      toast.success(`Das Betreuungsangebot „${offering.name}“ ist gelöscht.`);
       setDeleteTarget(null);
       await loadAll();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Löschen fehlgeschlagen";
-      logger.error("care_offering_delete_failed", { error: message });
-      const hint =
-        "Wenn das Betreuungsangebot bereits in Anmeldungen verwendet wird, deaktivieren Sie es stattdessen über Bearbeiten.";
-      setDeleteError(`${message}. ${hint}`);
-      setError(`${message}. ${hint}`);
-      toast.error(message);
+      logger.error("care_offering_delete_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // Der Fehler bleibt im offenen Dialog; dessen Knopf wiederholt. Der
+      // Hinweis zum Ausschalten steht dort schon im Warnbereich.
+      await showDeleteError(err, { object: "das Betreuungsangebot" });
     } finally {
       setDeletingId(null);
     }
-  }, [deleteTarget, loadAll, setError, toast]);
+  }, [deleteTarget, loadAll, clearDeleteErrors, showDeleteError, toast]);
 
-  const handleClone = async (targetPhaseId: string) => {
+  const clone = async (targetPhaseId: string) => {
     if (!cloneSource) return;
     setSaving(true);
-    setError(null);
+    formErrors.clear();
     try {
       const cloned = await cloneCareOffering(cloneSource.id, {
         target_phase_id: Number(targetPhaseId),
       });
-      toast.success(`Betreuungsangebot „${cloned.name}" dupliziert.`);
+      toast.success(`Das Betreuungsangebot „${cloned.name}“ ist dupliziert.`);
       setCloneSource(null);
       await loadAll();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Klonen fehlgeschlagen";
-      logger.error("care_offering_clone_failed", { error: message });
-      setError(message);
+      logger.error("care_offering_clone_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await formErrors.show(err, {
+        object: "das Betreuungsangebot",
+        retry: () => void latestClone.current(targetPhaseId),
+      });
     } finally {
       setSaving(false);
     }
   };
+  const latestClone = useRef(clone);
+  useLayoutEffect(() => {
+    latestClone.current = clone;
+  });
+  const handleClone = (targetPhaseId: string) => clone(targetPhaseId);
 
   const columns = useMemo<DataTableColumn<CareOffering>[]>(
     () => [
@@ -861,17 +897,24 @@ export function CareOfferingsEditor({
               setCloneSource(offering);
               setDraft(null);
               setEditingId(null);
-              setError(null);
+              clearFormErrors();
             }}
             onDelete={() => {
-              setDeleteError("");
+              clearDeleteErrors();
               setDeleteTarget(offering);
             }}
           />
         ),
       },
     ],
-    [beginEdit, deletingId, gradeLevelMax, saving, setError],
+    [
+      beginEdit,
+      deletingId,
+      gradeLevelMax,
+      saving,
+      clearFormErrors,
+      clearDeleteErrors,
+    ],
   );
 
   const panelOpen = Boolean(draft ?? cloneSource);
@@ -881,13 +924,6 @@ export function CareOfferingsEditor({
     // Platz an die Tabelle weiter, die dann bis zur Unterkante des
     // Bildschirms wächst (`.moto-tenant-body`).
     <div className="flex flex-col space-y-4">
-      {/* Fehler einer Listenaktion stehen über der Liste. Ist das Panel
-          offen, trägt dessen Rumpf den Fehler (Bauart 2 Regel 5); hier
-          stünde er sonst hinter dem Panel und doppelt. */}
-      {error && !panelOpen ? (
-        <Alert type="error" message={error.message} />
-      ) : null}
-
       {metadataStatus === "unavailable" ? (
         <PlannerMetadataNotice onRetry={() => void loadPlannerMetadata()} />
       ) : null}
@@ -900,11 +936,9 @@ export function CareOfferingsEditor({
           loadingRowCount={6}
           getRowKey={(offering) => offering.id}
         />
-      ) : catalogError ? (
-        <CareOfferingCatalogError
-          message={catalogError}
-          onRetry={() => void loadAll(selectedPhaseIdRef.current)}
-        />
+      ) : catalogLoad.error ? (
+        // Ein Ladefehler steht an Stelle des Katalogs, nie ein Leerzustand.
+        <LoadErrorAlert error={catalogLoad.error} />
       ) : hasNoPhases ? (
         <NoPhaseState />
       ) : (
@@ -943,7 +977,7 @@ export function CareOfferingsEditor({
                       : "Betreuungsangebot bearbeiten"}
                 </SlideOverTitle>
               </SlideOverHeader>
-              <SlideOverBody error={error}>
+              <SlideOverBody error={formErrors.error}>
                 {cloneSource ? (
                   <CloneOfferingForm
                     source={cloneSource}
@@ -972,6 +1006,8 @@ export function CareOfferingsEditor({
                     }
                     gradeLevelMax={gradeLevelMax}
                     bookingStats={bookingStats}
+                    bookingStatsUnavailable={bookingStatsUnavailable}
+                    fieldError={formErrors.fieldError}
                     saving={saving}
                     onChange={setDraft}
                     onSubmit={handleSave}
@@ -1031,10 +1067,10 @@ export function CareOfferingsEditor({
         onConfirm={handleDelete}
         onClose={() => {
           setDeleteTarget(null);
-          setDeleteError("");
+          clearDeleteErrors();
         }}
         loading={deletingId !== null}
-        error={deleteError}
+        error={deleteErrors.error}
       />
     </div>
   );
@@ -1167,20 +1203,25 @@ function PlannerMetadataNotice({ onRetry }: Readonly<{ onRetry: () => void }>) {
   );
 }
 
-function CareOfferingCatalogError({
+/** `aria-invalid` and `aria-describedby` for a raw input with a field error. */
+function fieldErrorProps(id: string, message: string | undefined) {
+  return message
+    ? { "aria-invalid": true, "aria-describedby": `${id}-error` }
+    : {};
+}
+
+function FieldErrorHint({
+  id,
   message,
-  onRetry,
-}: Readonly<{ message: string; onRetry: () => void }>) {
+}: Readonly<{ id: string; message: string | undefined }>) {
+  if (!message) return null;
   return (
-    <section className="moto-content-surface space-y-3 rounded-2xl border p-4 shadow-sm sm:p-6">
-      <h2 className="text-base font-semibold text-gray-900">
-        Betreuungsangebote konnten nicht geladen werden
-      </h2>
-      <Alert type="error" message={message} />
-      <Button type="button" variant="outline" size="md" onClick={onRetry}>
-        Betreuungsangebote erneut laden
-      </Button>
-    </section>
+    <span
+      id={`${id}-error`}
+      className="text-moto-red-strong mt-1 block text-xs"
+    >
+      {message}
+    </span>
   );
 }
 
@@ -1347,6 +1388,10 @@ interface CareOfferingFormProps {
    * contradict; absent for a new offering, which has none.
    */
   readonly bookingStats: Record<string, CareOfferingBookingStats>;
+  /** The booking stats failed to load: conflicts are unknown, not zero. */
+  readonly bookingStatsUnavailable: boolean;
+  /** Hint for a field the last save rejected. */
+  readonly fieldError: (name: string) => string | undefined;
   readonly saving: boolean;
   readonly onChange: (draft: CareOfferingInput) => void;
   readonly onSubmit: (event: React.FormEvent) => void;
@@ -1839,11 +1884,14 @@ function CareOfferingAvailabilityFields({
   draft,
   gradeLevelMax,
   bookingGradeCounts,
+  bookingCountUnknown,
   onChange,
 }: Readonly<{
   draft: CareOfferingInput;
   gradeLevelMax: number | null;
   bookingGradeCounts: CareOfferingBookingGradeCounts | null;
+  /** The bookings could not be loaded: say so instead of showing no hint. */
+  bookingCountUnknown: boolean;
   onChange: (patch: Partial<CareOfferingInput>) => void;
 }>) {
   const rule = draft.availability_rule;
@@ -2100,6 +2148,16 @@ function CareOfferingAvailabilityFields({
               gilt nur für neue Auswahlen.
             </p>
           ) : null}
+          {!error && bookingCountUnknown ? (
+            <p
+              role="status"
+              className="border-moto-amber/40 bg-moto-amber/10 text-moto-amber-strong rounded-lg border px-3 py-2 text-xs leading-5"
+            >
+              Ob bestehende Buchungen diese Bedingung erfüllen, lässt sich
+              gerade nicht prüfen. Bestehende Buchungen bleiben in jedem Fall
+              bestehen.
+            </p>
+          ) : null}
         </div>
       ) : null}
     </fieldset>
@@ -2112,9 +2170,11 @@ function nullableNumber(value: string): number | null {
 
 function CareOfferingCommercialFields({
   draft,
+  fieldError,
   onChange,
 }: Readonly<{
   draft: CareOfferingInput;
+  fieldError: (name: string) => string | undefined;
   onChange: (patch: Partial<CareOfferingInput>) => void;
 }>) {
   return (
@@ -2133,7 +2193,12 @@ function CareOfferingCommercialFields({
           placeholder={
             draft.is_required ? "Unbegrenzt (Pflicht)" : "Unbegrenzt"
           }
+          {...fieldErrorProps("care-offering-capacity", fieldError("capacity"))}
           className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+        />
+        <FieldErrorHint
+          id="care-offering-capacity"
+          message={fieldError("capacity")}
         />
         {draft.is_required ? (
           <span className="mt-1 block text-xs text-gray-500">
@@ -2152,7 +2217,12 @@ function CareOfferingCommercialFields({
             onChange({ price_cents: nullableNumber(event.target.value) })
           }
           placeholder="Optional"
+          {...fieldErrorProps("care-offering-price", fieldError("price_cents"))}
           className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        />
+        <FieldErrorHint
+          id="care-offering-price"
+          message={fieldError("price_cents")}
         />
       </label>
       <label className="block">
@@ -2273,6 +2343,8 @@ function CareOfferingForm({
   originalActivityGroupID,
   gradeLevelMax,
   bookingStats,
+  bookingStatsUnavailable,
+  fieldError,
   saving,
   onChange,
   onSubmit,
@@ -2318,7 +2390,12 @@ function CareOfferingForm({
             onChange={(event) => update({ name: event.target.value })}
             placeholder="z. B. Regelbetreuung"
             aria-required="true"
+            {...fieldErrorProps("care-offering-name", fieldError("name"))}
             className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          />
+          <FieldErrorHint
+            id="care-offering-name"
+            message={fieldError("name")}
           />
         </label>
         <label className="block" htmlFor="care-offering-form-phase">
@@ -2446,6 +2523,9 @@ function CareOfferingForm({
             ? (bookingStats[editingId] ?? null)
             : null
         }
+        bookingCountUnknown={
+          bookingStatsUnavailable && Boolean(editingId && editingId !== "new")
+        }
         onChange={update}
       />
 
@@ -2457,7 +2537,11 @@ function CareOfferingForm({
         onChange={update}
       />
 
-      <CareOfferingCommercialFields draft={draft} onChange={update} />
+      <CareOfferingCommercialFields
+        draft={draft}
+        fieldError={fieldError}
+        onChange={update}
+      />
 
       <CareOfferingDisplayFields draft={draft} onChange={update} />
 

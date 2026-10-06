@@ -1,5 +1,19 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as renderComponent,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+// Errors and success messages run through the real display path (#2515).
+const render = (ui: ReactElement) =>
+  renderComponent(ui, { wrapper: ToastProvider });
 
 import {
   type AdminRequestChild,
@@ -360,14 +374,23 @@ describe("AdminEnrollmentDetail Kinderkontingent (#3570)", () => {
       ...request,
       children: [{ ...heldChild, review_reason: null }],
     });
-    const message =
-      "Das Kinderkontingent Ihrer Schule ist voll. Die Kontingentzahl beträgt 50 von 50 Kindern. Für weitere Kinder melden Sie sich bitte beim moto-Team.";
-    mocks.decideAdminChild.mockRejectedValue(new Error(message));
+    mocks.decideAdminChild.mockRejectedValue(
+      new ApiError("child quota reached", 409, {
+        code: "students.child_quota_reached",
+        details: { booked_places: 50, occupied_places: 50 },
+      }),
+    );
 
     render(<AdminEnrollmentDetail requestId="request-1" />);
     fireEvent.click(await screen.findByRole("button", { name: "Bestätigen" }));
 
-    expect(await screen.findByText(message)).toBeVisible();
+    // Der Kasten steht an der Entscheidung des Kindes, mit den Zahlen aus
+    // den Details.
+    expect(
+      await screen.findByText(
+        /Kinderkontingent Ihrer Schule ist voll \(50 von 50 Kindern\)/,
+      ),
+    ).toBeVisible();
   });
 });
 
@@ -454,7 +477,9 @@ describe("AdminEnrollmentDetail data correction", () => {
     const correctedChild = { ...child, last_name: "Richtig" };
     mocks.getAdminRequest
       .mockResolvedValueOnce(request)
-      .mockRejectedValueOnce(new Error("Refetch fehlgeschlagen"));
+      .mockRejectedValueOnce(
+        new ApiError("refetch failed", 503, { code: "general.unavailable" }),
+      );
     mocks.correctAdminChildData.mockResolvedValue({
       request: { ...request, children: [correctedChild] },
     });
@@ -477,7 +502,11 @@ describe("AdminEnrollmentDetail data correction", () => {
     expect(
       await screen.findAllByRole("heading", { name: "Lina Richtig" }),
     ).not.toHaveLength(0);
-    expect(screen.getByText("Refetch fehlgeschlagen")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Anmeldung"),
+      ),
+    ).toBeInTheDocument();
   });
 });
 
@@ -618,9 +647,9 @@ describe("AdminEnrollmentDetail restore (#2157)", () => {
   it("surfaces the error message when the restore fails", async () => {
     mocks.getAdminRequest.mockResolvedValueOnce(withdrawnRequest);
     mocks.restoreAdminRequest.mockRejectedValue(
-      new Error(
-        "Für mindestens ein Kind dieser Anmeldung existiert bereits eine andere aktive Anmeldung in dieser Phase. Bitte prüfe die vorhandenen Anmeldungen, bevor du wiederherstellst.",
-      ),
+      new ApiError("restore duplicate", 409, {
+        code: "enrollment.restore_duplicate",
+      }),
     );
     vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
 
@@ -630,8 +659,14 @@ describe("AdminEnrollmentDetail restore (#2157)", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Wiederherstellen" }));
 
+    // Der Fehler steht im noch offenen Dialog.
     expect(
-      await screen.findByText(/bereits eine andere aktive Anmeldung/),
+      await screen.findByText(
+        catalogText("enrollment.restore_duplicate", "die Anmeldung"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Anmeldung wiederherstellen" }),
     ).toBeInTheDocument();
     // The action stays available for a retry once the conflict is resolved.
     expect(
@@ -883,7 +918,7 @@ describe("ChildOfferings", () => {
   });
 
   it("renders nothing for a child that simply has no bookings", () => {
-    const { container } = render(<ChildOfferings offerings={[]} />);
+    const { container } = renderComponent(<ChildOfferings offerings={[]} />);
 
     expect(container).toBeEmptyDOMElement();
   });
@@ -981,7 +1016,7 @@ describe("ChildOfferingAdjustment", () => {
   it("keeps the edit state and shows a failed save in the alert", async () => {
     mocks.listCareOfferings.mockResolvedValue([catalogOffering()]);
     mocks.updateAdminChildOfferings.mockRejectedValue(
-      new Error("Speichern kaputt"),
+      new ApiError("save failed", 500, { code: "general.server" }),
     );
     renderAdjustment(adjustmentChild());
 
@@ -993,7 +1028,7 @@ describe("ChildOfferingAdjustment", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Speichern kaputt",
+      catalogText("general.server", "die Angebotsänderung"),
     );
     expect(screen.getByLabelText("Begründung")).toHaveValue("Testgrund");
     expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
@@ -1010,9 +1045,15 @@ describe("ChildOfferingAdjustment", () => {
     await screen.findByRole("checkbox", { name: /Ganztag/ });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Bitte eine Begründung eintragen.",
+    expect(
+      await screen.findByText("Bitte tragen Sie eine Begründung ein."),
+    ).toBeVisible();
+    // Das Feld selbst ist markiert und nennt, was fehlt.
+    expect(screen.getByLabelText("Begründung")).toHaveAttribute(
+      "aria-invalid",
+      "true",
     );
+    expect(screen.getByText("Die Begründung fehlt.")).toBeVisible();
     expect(mocks.updateAdminChildOfferings).not.toHaveBeenCalled();
   });
 
@@ -1024,7 +1065,7 @@ describe("ChildOfferingAdjustment", () => {
       catalogOffering({ counts_as_care: true }),
     ]);
     mocks.updateAdminChildOfferings.mockRejectedValueOnce(
-      Object.assign(new Error("confirmation required"), {
+      new ApiError("confirmation required", 409, {
         code: "enrollment.complete_withdrawal_confirmation_required",
       }),
     );
@@ -1076,7 +1117,7 @@ describe("ChildOfferingAdjustment", () => {
     ]);
     mocks.updateAdminChildOfferings
       .mockRejectedValueOnce(
-        Object.assign(new Error("confirmation required"), {
+        new ApiError("confirmation required", 409, {
           code: "enrollment.complete_withdrawal_confirmation_required",
         }),
       )
@@ -1657,7 +1698,9 @@ describe("ChildOfferingAdjustment", () => {
   });
 
   it("blocks saving when the care-offering catalog failed to load", async () => {
-    mocks.listCareOfferings.mockRejectedValue(new Error("Katalog kaputt"));
+    mocks.listCareOfferings.mockRejectedValue(
+      new ApiError("catalog failed", 503, { code: "general.unavailable" }),
+    );
 
     render(
       <ChildOfferingAdjustment
@@ -1688,7 +1731,7 @@ describe("ChildOfferingAdjustment", () => {
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Katalog kaputt",
+      catalogText("general.unavailable", "die Angebotsliste"),
     );
     const save = screen.getByRole("button", { name: "Speichern" });
     expect(save).toBeDisabled();
@@ -1883,7 +1926,7 @@ describe("ChildExtraFields companion note (#1694)", () => {
   });
 
   it("renders nothing when neither schema fields nor a companion note are present", () => {
-    const { container } = render(
+    const { container } = renderComponent(
       <ChildExtraFields child={child({})} schemaFields={[departureField]} />,
     );
     expect(container.firstChild).toBeNull();

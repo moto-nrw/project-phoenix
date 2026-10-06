@@ -1,4 +1,4 @@
-import { ApiError } from "./api-error";
+import { ApiError, unavailableApiError } from "./api-error";
 /**
  * Parent-portal client API. Symmetric to the operator-api / tenant
  * api-helpers split. Every call goes through a Next.js proxy route
@@ -14,7 +14,7 @@ import type { ConsentRecord, ConsentState } from "~/lib/consent-types";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import type { ChatMessage, RequestDiffEntry } from "~/lib/messaging-status";
-import { readEnrollmentError } from "~/lib/enrollment-error-messages";
+import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import type {
   MeProfileResponse,
   SubmitEnrollmentPayload,
@@ -635,6 +635,21 @@ export async function updateParentPortalLocale(
 }
 
 /**
+ * `fetch` for the embedded enrollment form: a broken connection becomes
+ * `general.unavailable` (#2515), like the public form's client.
+ */
+async function fetchEnrollmentEndpoint(
+  input: string,
+  init: RequestInit,
+): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (cause) {
+    throw unavailableApiError(cause);
+  }
+}
+
+/**
  * Fetches the parent's autofill payload for the embedded enrollment
  * form, scoped to a specific tenant slug. Returns null on 401 so the
  * form can render without prefill rather than failing. This matches the
@@ -643,7 +658,7 @@ export async function updateParentPortalLocale(
 export async function fetchParentEnrollmentProfile(
   tenantSlug: string,
 ): Promise<MeProfileResponse | null> {
-  const response = await fetch(
+  const response = await fetchEnrollmentEndpoint(
     `/api/parent/enrollments/${encodeURIComponent(tenantSlug)}/profile`,
     { cache: "no-store" },
   );
@@ -651,19 +666,12 @@ export async function fetchParentEnrollmentProfile(
     return null;
   }
   if (!response.ok) {
-    let message = `Profile request failed (${response.status})`;
-    try {
-      const body = (await response.json()) as { error?: string };
-      if (body.error) message = body.error;
-    } catch {
-      // Body was not JSON, keep the generic message.
-    }
-    logger.error("parent_profile_request_failed", {
-      tenant_slug: tenantSlug,
-      status: response.status,
-      message,
-    });
-    throw new Error(message);
+    throw await readEnrollmentError(
+      response,
+      "Profil konnte nicht geladen werden",
+      logger,
+      "parent_profile_request_failed",
+    );
   }
   const json = (await response.json()) as { data?: MeProfileResponse };
   return (json.data ?? (json as unknown as MeProfileResponse)) || null;
@@ -680,7 +688,7 @@ export async function submitParentEnrollment(
   tenantSlug: string,
   payload: SubmitEnrollmentPayload,
 ): Promise<SubmitEnrollmentResult> {
-  const response = await fetch(
+  const response = await fetchEnrollmentEndpoint(
     `/api/parent/enrollments/${encodeURIComponent(tenantSlug)}/submit`,
     {
       method: "POST",

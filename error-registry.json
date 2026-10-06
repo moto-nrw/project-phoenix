@@ -2346,6 +2346,404 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "work_session_overlap"
+    },
+    {
+      "code": "enrollment.phase_name_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.phase_name_required"
+    },
+    {
+      "code": "enrollment.phase_service_period_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.phase_service_period_invalid"
+    },
+    {
+      "code": "enrollment.phase_window_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.phase_window_invalid"
+    },
+    {
+      "code": "enrollment.phase_school_classes_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.phase_school_classes_invalid"
+    },
+    {
+      "code": "enrollment.phase_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.phase_not_found"
+    },
+    {
+      "code": "enrollment.care_offering_name_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.care_offering_name_required"
+    },
+    {
+      "code": "enrollment.care_offering_capacity_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.care_offering_capacity_invalid"
+    },
+    {
+      "code": "enrollment.care_offering_price_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.care_offering_price_invalid"
+    },
+    {
+      "code": "enrollment.care_offering_selection_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.care_offering_selection_invalid"
+    },
+    {
+      "code": "enrollment.care_offering_pickup_time_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.care_offering_pickup_time_invalid"
+    },
+    {
+      "code": "enrollment.care_offering_auto_add_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.care_offering_auto_add_invalid"
+    },
+    {
+      "code": "enrollment.care_offering_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.care_offering_not_found"
+    },
+    {
+      "code": "enrollment.schema_name_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.schema_name_required"
+    },
+    {
+      "code": "enrollment.schema_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.schema_not_found"
+    },
+    {
+      "code": "enrollment.form_grade_collection_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.form_grade_collection_required"
+    },
+    {
+      "code": "enrollment.form_field_key_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.form_field_key_invalid"
+    },
+    {
+      "code": "enrollment.form_field_key_duplicate",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.form_field_key_duplicate"
+    },
+    {
+      "code": "enrollment.form_field_label_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.form_field_label_required"
+    },
+    {
+      "code": "enrollment.form_field_content_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.form_field_content_required"
+    },
+    {
+      "code": "enrollment.form_field_options_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.form_field_options_invalid"
+    },
+    {
+      "code": "enrollment.form_field_allowed_times_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.form_field_allowed_times_invalid"
+    },
+    {
+      "code": "enrollment.form_field_target_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.form_field_target_invalid"
+    },
+    {
+      "code": "enrollment.form_field_target_duplicate",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.form_field_target_duplicate"
+    },
+    {
+      "code": "enrollment.form_field_visibility_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.form_field_visibility_invalid"
+    },
+    {
+      "code": "enrollment.legal_block_key_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.legal_block_key_invalid"
+    },
+    {
+      "code": "enrollment.legal_block_key_duplicate",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.legal_block_key_duplicate"
+    },
+    {
+      "code": "enrollment.legal_block_incomplete",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.legal_block_incomplete"
+    },
+    {
+      "code": "enrollment.legal_block_required_not_allowed",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.legal_block_required_not_allowed"
+    },
+    {
+      "code": "enrollment.legal_document_invalid",
+      "class": "input",
+      "parameters": [
+        "max_mb"
+      ],
+      "legacy": "enrollment.legal_document_invalid"
+    },
+    {
+      "code": "enrollment.request_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.request_not_found"
+    },
+    {
+      "code": "enrollment.restore_nothing_withdrawn",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.restore_nothing_withdrawn"
+    },
+    {
+      "code": "enrollment.decision_already_final",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.decision_already_final"
+    },
+    {
+      "code": "enrollment.approval_data_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.approval_data_invalid"
+    },
+    {
+      "code": "enrollment.offering_adjustment_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.offering_adjustment_invalid"
+    },
+    {
+      "code": "enrollment.deletion_reason_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.deletion_reason_invalid"
+    },
+    {
+      "code": "enrollment.export_too_large",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.export_too_large"
+    },
+    {
+      "code": "enrollment.change_request_note_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.change_request_note_required"
+    },
+    {
+      "code": "enrollment.correction_reason_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.correction_reason_required"
+    },
+    {
+      "code": "enrollment.correction_school_class_mismatch",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.correction_school_class_mismatch"
+    },
+    {
+      "code": "rollover.deadline_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "rollover.deadline_required"
+    },
+    {
+      "code": "enrollment.form_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.form_not_found"
+    },
+    {
+      "code": "enrollment.status_link_invalid",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.status_link_invalid"
+    },
+    {
+      "code": "enrollment.edit_not_allowed",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "enrollment.edit_not_allowed"
+    },
+    {
+      "code": "enrollment.withdraw_not_allowed",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "enrollment.withdraw_not_allowed"
+    },
+    {
+      "code": "enrollment.captcha_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.captcha_required"
+    },
+    {
+      "code": "enrollment.captcha_failed",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.captcha_failed"
+    },
+    {
+      "code": "enrollment.submission_rate_limited",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "enrollment.submission_rate_limited"
+    },
+    {
+      "code": "enrollment.request_duplicate",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.request_duplicate"
+    },
+    {
+      "code": "enrollment.child_already_requested",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.child_already_requested"
+    },
+    {
+      "code": "enrollment.care_offering_closed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.care_offering_closed"
+    },
+    {
+      "code": "enrollment.consent_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.consent_required"
+    },
+    {
+      "code": "enrollment.child_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.child_required"
+    },
+    {
+      "code": "enrollment.child_name_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.child_name_required"
+    },
+    {
+      "code": "enrollment.child_birth_date_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.child_birth_date_invalid"
+    },
+    {
+      "code": "enrollment.child_grade_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.child_grade_required"
+    },
+    {
+      "code": "enrollment.guardian_name_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.guardian_name_required"
+    },
+    {
+      "code": "enrollment.guardian_email_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.guardian_email_required"
+    },
+    {
+      "code": "enrollment.guardian_phone_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.guardian_phone_required"
+    },
+    {
+      "code": "enrollment.field_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.field_required"
+    },
+    {
+      "code": "enrollment.companion_note_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.companion_note_required"
+    },
+    {
+      "code": "enrollment.message_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.message_required"
+    },
+    {
+      "code": "enrollment.change_request_guardian_linked",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.change_request_guardian_linked"
+    },
+    {
+      "code": "enrollment.change_request_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.change_request_not_found"
+    },
+    {
+      "code": "enrollment.change_request_not_allowed",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "enrollment.change_request_not_allowed"
+    },
+    {
+      "code": "enrollment.change_request_status_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.change_request_status_changed"
+    },
+    {
+      "code": "enrollment.phase_eligibility_setting_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.phase_eligibility_setting_required"
     }
   ]
 }

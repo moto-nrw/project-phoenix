@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // Captcha verifies a parent-submitted captcha token against the configured
@@ -58,7 +60,7 @@ func (s *Captcha) Verify(ctx context.Context, token, remoteIP string) error {
 	}
 	token = strings.TrimSpace(token)
 	if token == "" {
-		return fmt.Errorf("captcha token is required")
+		return enrollment.ErrCaptchaRequired
 	}
 
 	success, errorCodes, err := s.provider.SiteVerify(ctx, secret, token, remoteIP)
@@ -69,7 +71,7 @@ func (s *Captcha) Verify(ctx context.Context, token, remoteIP string) error {
 		s.logger.Warn("captcha verification failed",
 			slog.Any("error_codes", errorCodes),
 			slog.String("remote_ip", remoteIP))
-		return fmt.Errorf("captcha verification failed")
+		return enrollment.ErrCaptchaFailed
 	}
 	return nil
 }

@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { usePathname } from "next/navigation";
 import { AlertTriangle, Check, Clock, Pencil } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -19,6 +26,17 @@ import {
   type StatusResponse,
 } from "~/lib/enrollment-submission-api";
 import { createLogger } from "~/lib/logger";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import type { FormError } from "~/components/ui/form-error";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -134,14 +152,31 @@ export function EnrollmentStatusView({
   duplicateWarning = false,
 }: Props) {
   const t = useTranslations("enrollmentStatus");
+  const toast = useToast();
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [changeRequests, setChangeRequests] = useState<
     EnrollmentChangeRequest[]
   >([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // One display path for every failure (#2515): loads stay where the data
+  // is missing, the two forms report in their own alert, the buttons
+  // without a form (confirm, withdraw) in a toast.
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  const {
+    error: requestsLoadError,
+    show: showRequestsLoadError,
+    clear: clearRequestsLoadError,
+  } = useApiLoadError();
+  const editError = useApiFormError();
+  const replyError = useApiFormError();
+  const withdrawError = useApiFormError();
+  const [replyErrorId, setReplyErrorId] = useState<string | null>(null);
+  const { show: showActionError } = useApiErrorDisplay();
 
   const [editing, setEditing] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -161,16 +196,23 @@ export function EnrollmentStatusView({
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    clearLoadError();
+    clearRequestsLoadError();
     setNotFound(false);
     try {
       const [result, requestChanges] = await Promise.all([
         fetchStatus(token),
-        listEnrollmentChangeRequests(token).catch((err) => {
+        // A failed list must not read as "no change requests yet": the
+        // panel shows the load error instead of its empty text.
+        listEnrollmentChangeRequests(token).catch((err: unknown) => {
           logger.warn("change_requests_load_failed", {
             error: err instanceof Error ? err.message : String(err),
           });
-          return [] as EnrollmentChangeRequest[];
+          void showRequestsLoadError(err, {
+            object: t("errorObjectChangeRequests"),
+            retry: () => void loadRef.current(),
+          });
+          return null;
         }),
       ]);
       if (!result) {
@@ -179,112 +221,168 @@ export function EnrollmentStatusView({
         return;
       }
       setStatus(result);
-      setChangeRequests(requestChanges);
+      setChangeRequests(requestChanges ?? []);
       setEditFirstName(result.guardian_first_name);
       setEditLastName(result.guardian_last_name);
       setEditPhone(result.guardian_phone ?? "");
     } catch (err) {
-      const message = err instanceof Error ? err.message : t("unknownError");
-      logger.error("status_load_failed", { error: message });
-      setError(message);
+      logger.error("status_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showLoadError(err, {
+        object: t("errorObject"),
+        retry: () => void loadRef.current(),
+      });
     } finally {
       setLoading(false);
     }
-  }, [token, t]);
+  }, [
+    token,
+    t,
+    clearLoadError,
+    clearRequestsLoadError,
+    showLoadError,
+    showRequestsLoadError,
+  ]);
+  // Retries call the latest load, not the one of the failed attempt.
+  const loadRef = useRef(load);
+  useLayoutEffect(() => {
+    loadRef.current = load;
+  });
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const handleChangeRequestReply = async (changeRequestId: string) => {
+  const replyToChangeRequest = async (changeRequestId: string) => {
     const body = (replyDrafts[changeRequestId] ?? "").trim();
     if (!body) return;
     setReplyingChangeRequest(changeRequestId);
-    setError(null);
-    setInfo(null);
+    replyError.clear();
+    setReplyErrorId(changeRequestId);
     try {
       await replyEnrollmentChangeRequest(token, changeRequestId, body);
       setReplyDrafts((prev) => ({ ...prev, [changeRequestId]: "" }));
-      setInfo(t("changeRequestReplySaved"));
+      toast.success(t("changeRequestReplySaved"));
       await load();
     } catch (err) {
-      const message = err instanceof Error ? err.message : t("unknownError");
-      logger.error("change_request_reply_failed", { error: message });
-      setError(message);
+      logger.error("change_request_reply_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void replyError.show(err, {
+        object: t("errorObjectReply"),
+        // Sends the answer as it reads now, not the failed draft.
+        retry: () => void replyRef.current(changeRequestId),
+      });
     } finally {
       setReplyingChangeRequest(null);
     }
   };
+  const replyRef = useRef(replyToChangeRequest);
+  useLayoutEffect(() => {
+    replyRef.current = replyToChangeRequest;
+  });
 
-  const handleEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const saveEdit = async () => {
     if (!status) return;
     setSavingEdit(true);
-    setError(null);
-    setInfo(null);
+    editError.clear();
     try {
       await patchStatus(token, {
         guardian_first_name: editFirstName.trim(),
         guardian_last_name: editLastName.trim(),
         guardian_phone: editPhone.trim() || undefined,
       });
-      setInfo(t("editSaved"));
+      toast.success(t("editSaved"));
       setEditing(false);
       await load();
     } catch (err) {
-      const message = err instanceof Error ? err.message : t("unknownError");
-      logger.error("status_edit_failed", { error: message });
-      setError(message);
+      logger.error("status_edit_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void editError.show(err, {
+        object: t("errorObjectEdit"),
+        retry: () => void saveEditRef.current(),
+      });
     } finally {
       setSavingEdit(false);
     }
+  };
+  const saveEditRef = useRef(saveEdit);
+  useLayoutEffect(() => {
+    saveEditRef.current = saveEdit;
+  });
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await saveEdit();
+  };
+  const cancelEdit = () => {
+    editError.clear();
+    setEditing(false);
   };
 
   const handleConfirmRenewal = async () => {
     if (!status) return;
     setConfirmingRenewal(true);
-    setError(null);
-    setInfo(null);
     try {
       const confirmed = await confirmRenewal(token);
-      setInfo(
+      toast.success(
         confirmed === 1
           ? t("renewalConfirmedOne")
           : t("renewalConfirmedMany", { count: confirmed }),
       );
       await load();
     } catch (err) {
-      const message = err instanceof Error ? err.message : t("unknownError");
-      logger.error("status_confirm_renewal_failed", { error: message });
-      setError(message);
+      logger.error("status_confirm_renewal_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showActionError(err, {
+        object: t("errorObject"),
+        retry: () => void confirmRenewalRef.current(),
+      });
     } finally {
       setConfirmingRenewal(false);
     }
   };
+  const confirmRenewalRef = useRef(handleConfirmRenewal);
+  useLayoutEffect(() => {
+    confirmRenewalRef.current = handleConfirmRenewal;
+  });
 
   const requestWithdraw = (childID?: string) => {
     if (!status) return;
+    withdrawError.clear();
     setWithdrawTarget({ childID });
+  };
+
+  const closeWithdraw = () => {
+    withdrawError.clear();
+    setWithdrawTarget(null);
+  };
+
+  const withdraw = async (childID: string | undefined) => {
+    setWithdrawingChild(childID ?? "__all__");
+    withdrawError.clear();
+    try {
+      await withdrawStatus(token, childID);
+      setWithdrawTarget(null);
+      toast.success(childID ? t("withdrawnChild") : t("withdrawnAll"));
+      await load();
+    } catch (err) {
+      logger.error("status_withdraw_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // The error stays in the open dialog; its confirm button tries again,
+      // so a retry still passes the confirmation.
+      void withdrawError.show(err, { object: t("errorObject") });
+    } finally {
+      setWithdrawingChild(null);
+    }
   };
 
   const confirmWithdraw = async () => {
     if (!status || !withdrawTarget) return;
-    const childID = withdrawTarget.childID;
-    setWithdrawingChild(childID ?? "__all__");
-    setError(null);
-    setInfo(null);
-    try {
-      await withdrawStatus(token, childID);
-      setInfo(childID ? t("withdrawnChild") : t("withdrawnAll"));
-      await load();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : t("unknownError");
-      logger.error("status_withdraw_failed", { error: message });
-      setError(message);
-    } finally {
-      setWithdrawTarget(null);
-      setWithdrawingChild(null);
-    }
+    await withdraw(withdrawTarget.childID);
   };
 
   if (loading) {
@@ -312,11 +410,7 @@ export function EnrollmentStatusView({
   }
 
   if (!status) {
-    return (
-      <div className="moto-content-surface border-moto-red/30 bg-moto-red/5 text-moto-red-strong rounded-xl border p-5 text-sm shadow-sm sm:p-6">
-        {error ?? t("loadFallback")}
-      </div>
-    );
+    return <LoadErrorAlert error={loadError ?? t("loadFallback")} />;
   }
 
   return (
@@ -329,8 +423,14 @@ export function EnrollmentStatusView({
         editLastName={editLastName}
         editPhone={editPhone}
         editing={editing}
-        error={error}
-        info={info}
+        errors={{
+          load: loadError,
+          requests: requestsLoadError,
+          edit: editError.error,
+          editField: editError.fieldError,
+          reply: replyError.error,
+          replyId: replyErrorId,
+        }}
         justSubmitted={justSubmitted}
         replyDrafts={replyDrafts}
         replyingChangeRequest={replyingChangeRequest}
@@ -338,9 +438,10 @@ export function EnrollmentStatusView({
         status={status}
         token={token}
         withdrawingChild={withdrawingChild}
-        onChangeRequestReply={handleChangeRequestReply}
+        onChangeRequestReply={replyToChangeRequest}
         onConfirmRenewal={handleConfirmRenewal}
         onEdit={handleEdit}
+        onCancelEdit={cancelEdit}
         onWithdraw={requestWithdraw}
         setEditFirstName={setEditFirstName}
         setEditLastName={setEditLastName}
@@ -350,7 +451,7 @@ export function EnrollmentStatusView({
       />
       <ConfirmationModal
         isOpen={withdrawTarget !== null}
-        onClose={() => setWithdrawTarget(null)}
+        onClose={closeWithdraw}
         onConfirm={confirmWithdraw}
         title={
           withdrawTarget?.childID
@@ -371,9 +472,21 @@ export function EnrollmentStatusView({
             ? t("withdrawModalBodyChild")
             : t("withdrawModalBodyAll")}
         </p>
+        <FormErrorAlert message={withdrawError.error} className="mt-3" />
       </ConfirmationModal>
     </>
   );
+}
+
+/** What failed on the status page, each shown where it belongs (#2515). */
+interface StatusErrors {
+  readonly load: FormError | null;
+  readonly requests: FormError | null;
+  readonly edit: FormError | null;
+  readonly editField: (name: string) => string | undefined;
+  readonly reply: FormError | null;
+  /** The change request whose answer form shows `reply`. */
+  readonly replyId: string | null;
 }
 
 interface EnrollmentStatusContentProps {
@@ -384,8 +497,7 @@ interface EnrollmentStatusContentProps {
   readonly editLastName: string;
   readonly editPhone: string;
   readonly editing: boolean;
-  readonly error: string | null;
-  readonly info: string | null;
+  readonly errors: StatusErrors;
   readonly justSubmitted: boolean;
   readonly replyDrafts: Record<string, string>;
   readonly replyingChangeRequest: string | null;
@@ -396,6 +508,7 @@ interface EnrollmentStatusContentProps {
   readonly onChangeRequestReply: (changeRequestId: string) => Promise<void>;
   readonly onConfirmRenewal: () => Promise<void>;
   readonly onEdit: (event: React.FormEvent) => Promise<void>;
+  readonly onCancelEdit: () => void;
   readonly onWithdraw: (childId?: string) => void;
   readonly setEditFirstName: (value: string) => void;
   readonly setEditLastName: (value: string) => void;
@@ -414,8 +527,7 @@ function EnrollmentStatusContent({
   editLastName,
   editPhone,
   editing,
-  error,
-  info,
+  errors,
   justSubmitted,
   replyDrafts,
   replyingChangeRequest,
@@ -426,6 +538,7 @@ function EnrollmentStatusContent({
   onChangeRequestReply,
   onConfirmRenewal,
   onEdit,
+  onCancelEdit,
   onWithdraw,
   setEditFirstName,
   setEditLastName,
@@ -500,16 +613,7 @@ function EnrollmentStatusContent({
       />
       <EnrollmentStatusSummary status={status} submittedDate={submittedDate} />
 
-      {error ? (
-        <div className="border-moto-red/30 bg-moto-red/5 text-moto-red-strong rounded-2xl border p-4 text-sm">
-          {error}
-        </div>
-      ) : null}
-      {info ? (
-        <div className="border-moto-green/30 bg-moto-green/5 text-moto-green-vivid rounded-2xl border p-4 text-sm">
-          {info}
-        </div>
-      ) : null}
+      <LoadErrorAlert error={errors.load} />
 
       {allLocked ? (
         <section className="moto-content-surface space-y-2 rounded-2xl border p-5 shadow-sm sm:p-6">
@@ -558,11 +662,14 @@ function EnrollmentStatusContent({
         </SectionCard>
       ) : null}
 
-      {canRequestChange || changeRequests.length > 0 ? (
+      {canRequestChange || changeRequests.length > 0 || errors.requests ? (
         <ChangeRequestsPanel
           canCreate={canRequestChange}
           editHref={editHref}
           requests={changeRequests}
+          loadError={errors.requests}
+          replyError={errors.reply}
+          replyErrorId={errors.replyId}
           replyDrafts={replyDrafts}
           replyingId={replyingChangeRequest}
           onReply={onChangeRequestReply}
@@ -602,7 +709,10 @@ function EnrollmentStatusContent({
         editing={editing}
         savingEdit={savingEdit}
         status={status}
+        editError={errors.edit}
+        editFieldError={errors.editField}
         onEdit={onEdit}
+        onCancelEdit={onCancelEdit}
         setEditFirstName={setEditFirstName}
         setEditLastName={setEditLastName}
         setEditPhone={setEditPhone}
@@ -1022,7 +1132,10 @@ interface GuardianSectionProps {
   readonly editing: boolean;
   readonly savingEdit: boolean;
   readonly status: StatusResponse;
+  readonly editError: FormError | null;
+  readonly editFieldError: (name: string) => string | undefined;
   readonly onEdit: (event: React.FormEvent) => Promise<void>;
+  readonly onCancelEdit: () => void;
   readonly setEditFirstName: (value: string) => void;
   readonly setEditLastName: (value: string) => void;
   readonly setEditPhone: (value: string) => void;
@@ -1038,7 +1151,10 @@ function GuardianSection({
   editing,
   savingEdit,
   status,
+  editError,
+  editFieldError,
   onEdit,
+  onCancelEdit,
   setEditFirstName,
   setEditLastName,
   setEditPhone,
@@ -1046,7 +1162,7 @@ function GuardianSection({
 }: GuardianSectionProps) {
   const t = useTranslations("enrollmentStatus");
   const handleCancel = () => {
-    setEditing(false);
+    onCancelEdit();
     setEditFirstName(status.guardian_first_name);
     setEditLastName(status.guardian_last_name);
     setEditPhone(status.guardian_phone ?? "");
@@ -1078,43 +1194,101 @@ function GuardianSection({
         <GuardianDetails status={status} />
       ) : (
         <form onSubmit={onEdit} className="space-y-4 text-sm">
+          <FormErrorAlert message={editError} />
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block">
-              <span className="text-sm font-semibold text-gray-700">
-                {t("firstNameLabel")}
-              </span>
-              <input
-                type="text"
-                value={editFirstName}
-                onChange={(event) => setEditFirstName(event.target.value)}
-                required
-                className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-              />
-            </label>
-            <label className="block">
-              <span className="text-sm font-semibold text-gray-700">
-                {t("lastNameLabel")}
-              </span>
-              <input
-                type="text"
-                value={editLastName}
-                onChange={(event) => setEditLastName(event.target.value)}
-                required
-                className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-              />
-            </label>
+            <div>
+              <label className="block">
+                <span className="text-sm font-semibold text-gray-700">
+                  {t("firstNameLabel")}
+                </span>
+                <input
+                  type="text"
+                  name="guardian_first_name"
+                  value={editFirstName}
+                  onChange={(event) => setEditFirstName(event.target.value)}
+                  aria-describedby={
+                    editFieldError("guardian_first_name")
+                      ? "status-edit-guardian_first_name-error"
+                      : undefined
+                  }
+                  aria-invalid={
+                    editFieldError("guardian_first_name") ? true : undefined
+                  }
+                  required
+                  className={`mt-2 h-10 w-full rounded-lg border ${editFieldError("guardian_first_name") ? "border-moto-red" : "border-gray-200"} bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none`}
+                />
+              </label>
+              {editFieldError("guardian_first_name") ? (
+                <p
+                  id="status-edit-guardian_first_name-error"
+                  className="text-moto-red mt-1 text-xs"
+                >
+                  {editFieldError("guardian_first_name")}
+                </p>
+              ) : null}
+            </div>
+            <div>
+              <label className="block">
+                <span className="text-sm font-semibold text-gray-700">
+                  {t("lastNameLabel")}
+                </span>
+                <input
+                  type="text"
+                  name="guardian_last_name"
+                  value={editLastName}
+                  onChange={(event) => setEditLastName(event.target.value)}
+                  aria-describedby={
+                    editFieldError("guardian_last_name")
+                      ? "status-edit-guardian_last_name-error"
+                      : undefined
+                  }
+                  aria-invalid={
+                    editFieldError("guardian_last_name") ? true : undefined
+                  }
+                  required
+                  className={`mt-2 h-10 w-full rounded-lg border ${editFieldError("guardian_last_name") ? "border-moto-red" : "border-gray-200"} bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none`}
+                />
+              </label>
+              {editFieldError("guardian_last_name") ? (
+                <p
+                  id="status-edit-guardian_last_name-error"
+                  className="text-moto-red mt-1 text-xs"
+                >
+                  {editFieldError("guardian_last_name")}
+                </p>
+              ) : null}
+            </div>
           </div>
-          <label className="block">
-            <span className="text-sm font-semibold text-gray-700">
-              {t("phoneOptionalLabel")}
-            </span>
-            <input
-              type="tel"
-              value={editPhone}
-              onChange={(event) => setEditPhone(event.target.value)}
-              className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-            />
-          </label>
+          <div>
+            <label className="block">
+              <span className="text-sm font-semibold text-gray-700">
+                {t("phoneOptionalLabel")}
+              </span>
+              <input
+                type="tel"
+                name="guardian_phone"
+                value={editPhone}
+                onChange={(event) => setEditPhone(event.target.value)}
+                aria-describedby={
+                  editFieldError("guardian_phone")
+                    ? "status-edit-guardian_phone-error"
+                    : undefined
+                }
+                aria-invalid={
+                  editFieldError("guardian_phone") ? true : undefined
+                }
+                className={`mt-2 h-10 w-full rounded-lg border ${editFieldError("guardian_phone") ? "border-moto-red" : "border-gray-200"} bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none`}
+              />
+            </label>
+            {editFieldError("guardian_phone") ? (
+              <p
+                id="status-edit-guardian_phone-error"
+                className="text-moto-red mt-1 text-xs"
+              >
+                {editFieldError("guardian_phone")}
+              </p>
+            ) : null}
+          </div>
           <p className="text-sm text-gray-500">{t("emailImmutable")}</p>
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <button
@@ -1251,10 +1425,16 @@ function ChangeRequestsPanel({
   replyDrafts,
   replyingId,
   requests,
+  loadError,
+  replyError,
+  replyErrorId,
 }: {
   readonly canCreate: boolean;
   readonly editHref: string;
   readonly requests: EnrollmentChangeRequest[];
+  readonly loadError: FormError | null;
+  readonly replyError: FormError | null;
+  readonly replyErrorId: string | null;
   readonly replyDrafts: Record<string, string>;
   readonly replyingId: string | null;
   readonly onReplyDraftChange: (id: string, value: string) => void;
@@ -1352,7 +1532,9 @@ function ChangeRequestsPanel({
         ) : null}
       </div>
 
-      {requests.length === 0 ? (
+      {loadError ? (
+        <LoadErrorAlert error={loadError} />
+      ) : requests.length === 0 ? (
         <p className="moto-content-surface rounded-xl border p-4 text-sm text-gray-600 shadow-sm">
           {t("changeRequestsEmpty")}
         </p>
@@ -1439,11 +1621,15 @@ function ChangeRequestsPanel({
                       onReply(request.id);
                     }}
                   >
+                    {replyErrorId === request.id ? (
+                      <FormErrorAlert message={replyError} />
+                    ) : null}
                     <label className="block">
                       <span className="text-sm font-semibold text-gray-700">
                         {t("changeRequestReplyLabel")}
                       </span>
                       <textarea
+                        name="body"
                         value={replyDrafts[request.id] ?? ""}
                         onChange={(event) =>
                           onReplyDraftChange(request.id, event.target.value)

@@ -1,5 +1,6 @@
+import { unavailableApiError, type ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
-import { readEnrollmentError } from "~/lib/enrollment-error-messages";
+import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import type { ChildStatus } from "~/lib/enrollment-admin-api";
 
 const logger = createLogger({ component: "EnrollmentReportAPI" });
@@ -117,7 +118,19 @@ async function readJSON<T>(response: Response): Promise<T> {
   return raw as unknown as T;
 }
 
-async function readError(response: Response, fallback: string): Promise<Error> {
+/** A request that never reached the API counts as unavailable (#2515). */
+async function send(input: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    throw unavailableApiError(error);
+  }
+}
+
+async function readError(
+  response: Response,
+  fallback: string,
+): Promise<ApiError> {
   return readEnrollmentError(
     response,
     fallback,
@@ -134,7 +147,7 @@ export async function getCareUsageReport(
     globalThis.window?.location.origin ?? "http://localhost",
   );
   appendCareUsageParams(url, filters);
-  const response = await fetch(`${url.pathname}${url.search}`, {
+  const response = await send(`${url.pathname}${url.search}`, {
     cache: "no-store",
   });
   if (!response.ok) {
@@ -148,7 +161,7 @@ export async function exportCareUsageReport(
   format: EnrollmentReportFormat,
   layout: EnrollmentReportLayout = "detailed",
 ): Promise<void> {
-  const response = await fetch(
+  const response = await send(
     "/api/enrollment/admin/reports/care-usage/export",
     {
       method: "POST",
@@ -185,7 +198,7 @@ export async function exportPhaseClassRoster(
   schoolClass: string | null,
   format: EnrollmentReportFormat,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await send(
     "/api/enrollment/admin/reports/class-roster/export",
     {
       method: "POST",

@@ -400,14 +400,33 @@ func TestMapSubmitError_RateLimited429WithRetryAfter(t *testing.T) {
 func TestMapSubmitError_CaptchaErrorMappedAs400(t *testing.T) {
 	t.Parallel()
 
-	// Captcha errors are constructed with fmt.Errorf("captcha ...") in
-	// the submit handler, not as a sentinel error. The mapper sniffs
-	// the message and re-routes to 400 instead of falling through to a
-	// 500. This branch is the parent-portal-vs-public path divergence.
+	// The submit handler wraps the captcha refusal as "captcha: %w". The
+	// mapper reads the sentinel, never the text (ADR 0006, #2515): a missing
+	// or failed captcha is the parent's to fix and answers 400 with its code.
+	for _, tc := range []struct {
+		err  error
+		code string
+	}{
+		{capability.ErrCaptchaRequired, common.CodeEnrollmentCaptchaRequired},
+		{capability.ErrCaptchaFailed, common.CodeEnrollmentCaptchaFailed},
+	} {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/x", nil)
+		MapSubmitError(w, r, fmt.Errorf("captcha: %w", tc.err))
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), `"code":"`+tc.code+`"`)
+	}
+}
+
+func TestMapSubmitError_UncheckableCaptchaIsServerError(t *testing.T) {
+	t.Parallel()
+
+	// A captcha the server cannot check (no secret, provider down) is not
+	// the parent's mistake, even though its text mentions the captcha.
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
-	MapSubmitError(w, r, fmt.Errorf("captcha verification failed"))
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	MapSubmitError(w, r, fmt.Errorf("captcha: %w", errors.New("captcha secret key not configured")))
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestMapSubmitError_UnknownError500(t *testing.T) {

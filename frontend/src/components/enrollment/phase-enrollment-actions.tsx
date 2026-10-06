@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import {
   createLateInvite,
   createManualApprovedEnrollment,
@@ -12,7 +19,13 @@ import type {
 } from "~/lib/enrollment-submission-api";
 import type { Phase } from "~/lib/enrollment-phase-api";
 import { Button } from "~/components/ui/button";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { Modal } from "~/components/ui/modal";
 import {
   SlideOver,
@@ -48,23 +61,27 @@ export function LateInviteModal({
   const [guardianEmail, setGuardianEmail] = useState("");
   const [reason, setReason] = useState("");
   const [generatedUrl, setGeneratedUrl] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const errors = useApiFormError();
+  const clearErrors = errors.clear;
+  // „Wiederholen“ sendet den aktuellen Stand, nicht den vom Fehler.
+  const latestCreateRef = useRef<() => Promise<void>>(async () => undefined);
 
   useEffect(() => {
     if (!isOpen) return;
     setGuardianEmail("");
     setReason("");
     setGeneratedUrl("");
-    setError(null);
+    clearErrors();
     setLoading(false);
-  }, [isOpen]);
+  }, [isOpen, clearErrors]);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError(null);
+  const create = async () => {
+    errors.clear();
     if (!phaseUrl) {
-      setError("Der öffentliche Phasenlink konnte nicht ermittelt werden.");
+      errors.invalid(
+        "Der Link zur Anmeldephase fehlt. Bitte laden Sie die Seite neu.",
+      );
       return;
     }
     setLoading(true);
@@ -75,14 +92,24 @@ export function LateInviteModal({
       });
       setGeneratedUrl(buildLateInviteUrl(phaseUrl, result.token));
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Nachzügler-Link konnte nicht erstellt werden",
-      );
+      logger.warn("late_invite_create_failed", {
+        error: err instanceof Error ? err.message : "unknown",
+      });
+      await errors.show(err, {
+        object: "die Einladung",
+        retry: () => void latestCreateRef.current(),
+      });
     } finally {
       setLoading(false);
     }
+  };
+  useLayoutEffect(() => {
+    latestCreateRef.current = create;
+  });
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void create();
   };
 
   return (
@@ -92,31 +119,26 @@ export function LateInviteModal({
           {phase.name}: Der Link erlaubt genau dieser E-Mail-Adresse eine
           Anmeldung, auch wenn die Frist geschlossen ist.
         </p>
-        {error ? (
-          <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border px-3 py-2 text-sm">
-            {error}
-          </div>
-        ) : null}
+        <FormErrorAlert message={errors.error} />
         <Input
-          name="late_invite_guardian_email"
+          name="guardian_email"
+          error={errors.fieldError("guardian_email")}
           type="email"
           label="E-Mail der erziehungsberechtigten Person"
           value={guardianEmail}
           onChange={(event) => setGuardianEmail(event.target.value)}
           required
         />
-        <label className="block">
-          <span className="mb-2 block text-sm font-medium text-gray-700">
-            Interner Grund
-          </span>
-          <textarea
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            rows={3}
-            className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
-            placeholder="z. B. Frist verpasst, telefonisch geklärt"
-          />
-        </label>
+        <Textarea
+          id="late-invite-reason"
+          name="reason"
+          label="Interner Grund"
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          rows={3}
+          placeholder="z. B. Frist verpasst, telefonisch geklärt"
+          error={errors.fieldError("reason")}
+        />
 
         {generatedUrl ? (
           <div className="border-moto-green/30 bg-moto-green/10 rounded-xl border p-3">
@@ -180,11 +202,17 @@ export function ManualApprovedEnrollmentModal({
     useState(false);
   const [sendNotification, setSendNotification] = useState(false);
   const [statusUrl, setStatusUrl] = useState("");
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const loadError = useApiLoadError();
+  const showLoadError = loadError.show;
+  const clearLoadError = loadError.clear;
+  const checks = useApiFormError();
+  const clearChecks = checks.clear;
+  const reload = useCallback(() => setAttempt((value) => value + 1), []);
   const configurationError =
     gradeLevelMax === null
-      ? "Die Klassenstufen-Konfiguration ist nicht verfügbar."
+      ? "Die Klassenstufen der Schule fehlen. Bitte laden Sie die Seite neu."
       : null;
 
   useEffect(() => {
@@ -196,19 +224,19 @@ export function ManualApprovedEnrollmentModal({
     setExternalConsentConfirmed(false);
     setSendNotification(false);
     setStatusUrl("");
-    setLoadError(null);
+    clearLoadError();
+    clearChecks();
     setLoading(true);
     void fetchManualEnrollmentBootstrap(phase.id)
       .then((bootstrap) => {
         if (!cancelled) setPrefetchedData(toManualPrefetchedData(bootstrap));
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
+        logger.warn("manual_enrollment_bootstrap_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         if (!cancelled) {
-          setLoadError(
-            err instanceof Error
-              ? err.message
-              : "Formularvorlage konnte nicht geladen werden",
-          );
+          void showLoadError(err, { object: "das Formular", retry: reload });
         }
       })
       .finally(() => {
@@ -228,20 +256,36 @@ export function ManualApprovedEnrollmentModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, phase.id]);
+  }, [
+    isOpen,
+    phase.id,
+    attempt,
+    reload,
+    clearLoadError,
+    clearChecks,
+    showLoadError,
+  ]);
 
   const submitter = async (
     payload: SubmitEnrollmentPayload,
-  ): Promise<SubmitEnrollmentResult> => {
+  ): Promise<SubmitEnrollmentResult | null> => {
     const trimmedReason = reason.trim();
+    // Grund und Einwilligung stehen über dem Formular. Der Kasten hier sagt,
+    // was fehlt; `null` hält das Formular davon ab, Erfolg oder einen
+    // zweiten Fehler zu melden.
     if (!trimmedReason) {
-      throw new Error("Bitte einen internen Grund angeben.");
+      checks.invalid("Bitte geben Sie einen internen Grund an.", {
+        reason: "Bitte geben Sie einen Grund an.",
+      });
+      return null;
     }
     if (!externalConsentConfirmed) {
-      throw new Error(
-        "Bitte bestätigen, dass die Einwilligung extern vorliegt.",
+      checks.invalid(
+        "Bitte bestätigen Sie, dass die Einwilligung der Eltern vorliegt.",
       );
+      return null;
     }
+    checks.clear();
     const result = await createManualApprovedEnrollment(phase.id, {
       ...payload,
       external_consent_confirmed: true,
@@ -274,11 +318,8 @@ export function ManualApprovedEnrollmentModal({
             Betreuungsangebote und dieselbe Freigabe-Logik wie die
             Online-Anmeldung. Nach dem Absenden wird das Kind direkt bestätigt.
           </p>
-          {loadError || configurationError ? (
-            <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border px-3 py-2 text-sm">
-              {loadError ?? configurationError}
-            </div>
-          ) : null}
+          <LoadErrorAlert error={loadError.error ?? configurationError} />
+          <FormErrorAlert message={checks.error} />
           {statusUrl ? (
             <div className="border-moto-green/30 bg-moto-green/10 rounded-xl border p-3">
               <p className="text-moto-green-strong text-sm font-medium">
@@ -300,18 +341,16 @@ export function ManualApprovedEnrollmentModal({
             </div>
           ) : null}
           <div className="moto-content-surface grid gap-3 rounded-xl border p-4 shadow-sm sm:grid-cols-[minmax(0,1fr)_16rem]">
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-gray-700">
-                Interner Grund
-              </span>
-              <textarea
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-                rows={3}
-                className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
-                placeholder="z. B. verspätete Rückmeldung telefonisch bestätigt"
-              />
-            </label>
+            <Textarea
+              id="manual-enrollment-reason"
+              name="reason"
+              label="Interner Grund"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              rows={3}
+              placeholder="z. B. verspätete Rückmeldung telefonisch bestätigt"
+              error={checks.fieldError("reason")}
+            />
             <div className="space-y-3 text-sm text-gray-700">
               <label className="flex items-start gap-2">
                 <input

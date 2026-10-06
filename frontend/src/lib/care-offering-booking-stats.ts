@@ -5,8 +5,9 @@
 //
 // Aggregate-only by design: counts per grade level, never child identities.
 
+import { unavailableApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
-import { readEnrollmentError } from "~/lib/enrollment-error-messages";
+import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import type { CareOfferingBookingGradeCounts } from "~/lib/care-offering-availability";
 
 const logger = createLogger({ component: "CareOfferingBookingStatsAPI" });
@@ -28,6 +29,15 @@ interface BackendEnvelope<T> {
   data?: T;
 }
 
+/** A request that never reached the API counts as unavailable (#2515). */
+async function send(input: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (cause) {
+    throw unavailableApiError(cause);
+  }
+}
+
 /**
  * Loads booking stats for every offering of a phase. Returns them keyed by
  * offering id, which is how every consumer looks them up.
@@ -35,7 +45,7 @@ interface BackendEnvelope<T> {
 export async function fetchCareOfferingBookingStats(
   phaseId: string,
 ): Promise<Record<string, CareOfferingBookingStats>> {
-  const response = await fetch(
+  const response = await send(
     `/api/enrollment/care-offerings/booking-stats?phase_id=${encodeURIComponent(phaseId)}`,
     { cache: "no-store" },
   );

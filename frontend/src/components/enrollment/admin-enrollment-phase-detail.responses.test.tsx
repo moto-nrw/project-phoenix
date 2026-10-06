@@ -32,8 +32,13 @@ vi.mock("~/lib/enrollment-report-api", async (importOriginal) => {
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: (key: string | null) =>
     key?.startsWith("enrollment-phase-responses-")
-      ? { data: mocks.responses, error: mocks.responseError, isLoading: false }
-      : { data: ["1a"], error: undefined, isLoading: false },
+      ? {
+          data: mocks.responses,
+          error: mocks.responseError,
+          isLoading: false,
+          mutate: vi.fn(),
+        }
+      : { data: ["1a"], error: undefined, isLoading: false, mutate: vi.fn() },
 }));
 
 vi.mock("~/lib/tenant-context", () => ({
@@ -46,8 +51,11 @@ vi.mock("~/components/ui/mobile-back-button", () => ({
   MobileBackButton: () => null,
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+// Load errors run through the real hooks (#2515).
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   useToast: () => ({ error: vi.fn(), success: vi.fn() }),
+  useApiErrorDisplay: () => ({ show: vi.fn() }),
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({
@@ -68,6 +76,8 @@ vi.mock("~/components/enrollment/phase-response-overview", () => ({
   ),
 }));
 
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { AdminEnrollmentPhaseDetail } from "./admin-enrollment-phase-detail";
 
 const phase = {
@@ -162,14 +172,15 @@ describe("AdminEnrollmentPhaseDetail: Rücklauf (#3379)", () => {
 
   it("shows the response error while keeping the registrations available", async () => {
     mocks.responses = undefined;
-    mocks.responseError = new Error("Rücklauf konnte nicht geladen werden");
+    mocks.responseError = new ApiError("responses failed", 503, {
+      code: "general.unavailable",
+    });
     render(<AdminEnrollmentPhaseDetail phaseId="1" />);
 
     expect(await screen.findByText("Anmeldung 2027/2028")).toBeInTheDocument();
-    expect(screen.getByText("Rücklauf nicht geladen")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Der Rücklauf konnte nicht geladen werden. Die Anmeldungen bleiben verfügbar.",
+      await screen.findByText(
+        catalogText("general.unavailable", "die Rücklaufübersicht"),
       ),
     ).toBeInTheDocument();
     expect(

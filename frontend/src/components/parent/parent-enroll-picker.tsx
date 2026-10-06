@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -9,6 +16,8 @@ import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { useLocale, useTranslations } from "next-intl";
 import { type EnrollablePhase, listEnrollableSchools } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
+import { useApiLoadError } from "~/contexts/ToastContext";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   formatLocalizedDate,
   formatLocalizedDateTime,
@@ -51,21 +60,36 @@ export function ParentEnrollPicker() {
   const locale = useLocale();
   const [phases, setPhases] = useState<EnrollablePhase[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // A failed load replaces the list (#2515), so it never reads as "no
+  // phase open".
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    clearLoadError();
     try {
       setPhases(await listEnrollableSchools());
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      logger.warn("parent_enrollable_schools_load_failed", { error: message });
-      setError(message);
+      logger.warn("parent_enrollable_schools_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showLoadError(err, {
+        object: t("errorObject"),
+        retry: () => void loadRef.current(),
+      });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clearLoadError, showLoadError, t]);
+  // The retry runs the latest load, not the one of the failed attempt.
+  const loadRef = useRef(load);
+  useLayoutEffect(() => {
+    loadRef.current = load;
+  });
 
   useEffect(() => {
     void load();
@@ -89,10 +113,8 @@ export function ParentEnrollPicker() {
 
       {loading ? (
         <ParentEnrollSkeleton />
-      ) : error ? (
-        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-5 text-sm shadow-sm">
-          {t("loadError")}
-        </div>
+      ) : loadError ? (
+        <LoadErrorAlert error={loadError} />
       ) : phases.length === 0 ? (
         <EmptyPhases />
       ) : (

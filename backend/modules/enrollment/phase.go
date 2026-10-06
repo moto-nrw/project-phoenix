@@ -211,7 +211,7 @@ type Phase struct {
 func (p *Phase) Validate() error {
 	p.Name = strings.TrimSpace(p.Name)
 	if p.Name == "" {
-		return errors.New("phase name is required")
+		return invalidInput(CodePhaseNameRequired, "name", errors.New("phase name is required"))
 	}
 	if p.Kind == "" {
 		p.Kind = PhaseKindSchoolYear
@@ -220,17 +220,17 @@ func (p *Phase) Validate() error {
 		return fmt.Errorf("phase kind must be one of school_year/holiday/custom, got %q", p.Kind)
 	}
 	if p.ServiceStartDate.IsZero() {
-		return errors.New("service_start_date is required")
+		return invalidInput(CodePhaseServicePeriodInvalid, "service_start_date", errors.New("service_start_date is required"))
 	}
 	if p.ServiceEndDate.IsZero() {
-		return errors.New("service_end_date is required")
+		return invalidInput(CodePhaseServicePeriodInvalid, "service_end_date", errors.New("service_end_date is required"))
 	}
 	if p.ServiceEndDate.Before(p.ServiceStartDate) {
-		return errors.New("service_end_date must be on or after service_start_date")
+		return invalidInput(CodePhaseServicePeriodInvalid, "service_end_date", errors.New("service_end_date must be on or after service_start_date"))
 	}
 	if p.EnrollmentOpenAt != nil && p.EnrollmentCloseAt != nil &&
 		!p.EnrollmentCloseAt.After(*p.EnrollmentOpenAt) {
-		return errors.New("enrollment_close_at must be after enrollment_open_at")
+		return invalidInput(CodePhaseWindowInvalid, "enrollment_close_at", errors.New("enrollment_close_at must be after enrollment_open_at"))
 	}
 	if p.CareOverflowMode == "" {
 		p.CareOverflowMode = PhaseCareOverflowWaitlist
@@ -262,7 +262,7 @@ func (p *Phase) Validate() error {
 	// unsatisfiable: the submit validator rejects both an empty value and
 	// any value not in the (empty) offered list. Issue #1833.
 	if p.RequireSchoolClass && !hasNonEmptySchoolClass(p.AvailableSchoolClasses) {
-		return errors.New("require_school_class needs at least one available_school_class")
+		return invalidInput(CodePhaseSchoolClassesInvalid, "available_school_classes", errors.New("require_school_class needs at least one available_school_class"))
 	}
 	if p.Audience == "" {
 		p.Audience = PhaseAudienceOpen
@@ -313,7 +313,7 @@ func (p *Phase) Validate() error {
 		// satisfiable. The available-membership check below is what keeps every
 		// eligible class — grade 1 included — one the form actually presents.
 		if _, ok := availableClasses[trimmed]; !ok {
-			return fmt.Errorf("eligible_school_classes entry %q must also be listed in available_school_classes; the form can only offer available classes, so a restriction to a class it never presents rejects every submission", c)
+			return invalidInputf(CodePhaseSchoolClassesInvalid, "eligible_school_classes", "eligible_school_classes entry %q must also be listed in available_school_classes; the form can only offer available classes, so a restriction to a class it never presents rejects every submission", c)
 		}
 	}
 	// Grade-level eligibility: same NOT NULL jsonb coalescing, plus the shared
@@ -343,7 +343,7 @@ func (p *Phase) Validate() error {
 				continue
 			}
 			if _, ok := eligibleGrades[prefix]; !ok {
-				return fmt.Errorf("eligible_school_classes entry %q belongs to grade %s, which is not in eligible_grade_levels; a child cannot satisfy both restrictions at once", c, prefix)
+				return invalidInputf(CodePhaseSchoolClassesInvalid, "eligible_school_classes", "eligible_school_classes entry %q belongs to grade %s, which is not in eligible_grade_levels; a child cannot satisfy both restrictions at once", c, prefix)
 			}
 		}
 	}

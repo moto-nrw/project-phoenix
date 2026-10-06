@@ -61,7 +61,7 @@ import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 
 import { StaffExportButton } from "./staff-export-button";
 import { StaffSessionTable } from "./staff-session-table";
-import { useSwrLoadError } from "./use-swr-load-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { KpiCards, ViewToggle, type ViewMode } from "./staff-time-views";
 
 const logger = createLogger({ component: "ZeiterfassungTab" });
