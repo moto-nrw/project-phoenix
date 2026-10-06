@@ -2044,7 +2044,8 @@
         "staff_counterpart_unavailable": "{object} is unavailable right now. Please try again.",
         "staff_messaging_disabled": "You cannot access {object}. Please contact the school.",
         "staff_notice_outdated": "{object} could not be changed. Please check its current status.",
-        "system_announcement_immutable": "{object} could not be changed. Please check its current status."
+        "system_announcement_immutable": "{object} could not be changed. Please check its current status.",
+        "announcement_not_found": "{object} could not be changed. Please check its current status."
       },
       "enrollment": {
         "approval_care_offering_exactly_one": "{object} could not be changed. Please check its current status.",
@@ -2213,7 +2214,22 @@
         "session_account_inactive": "Your account is switched off. Please contact your school's management.",
         "tenant_access_denied": "You cannot access {object}. Please contact the school.",
         "use_parent_portal": "You cannot access {object}. Please contact the school.",
-        "use_school_portal": "You cannot access {object}. Please contact the school."
+        "use_school_portal": "You cannot access {object}. Please contact the school.",
+        "username_taken": "{object} could not be changed. Please check its current status.",
+        "password_mismatch": "{object} could not be saved. Please check your entries.",
+        "operator_invitation_invalid": "{object} could not be changed. Please check its current status.",
+        "invitation_rate_limited": "{object} is unavailable right now. Please try again.",
+        "email_change_rate_limited": "{object} is unavailable right now. Please try again.",
+        "email_change_same_email": "{object} could not be saved. Please check your entries.",
+        "email_change_link_invalid": "{object} could not be changed. Please check its current status.",
+        "mfa_not_enrolled": "{object} could not be changed. Please check its current status.",
+        "mfa_already_enrolled": "{object} could not be changed. Please check its current status.",
+        "passkey_not_found": "{object} could not be changed. Please check its current status.",
+        "account_not_found": "{object} could not be changed. Please check its current status.",
+        "tenant_access_not_found": "{object} could not be changed. Please check its current status.",
+        "account_not_in_school": "{object} could not be changed. Please check its current status.",
+        "lehrkraft_role_immutable": "{object} could not be changed. Please check its current status.",
+        "access_name_required": "{object} could not be saved. Please check your entries."
       },
       "import": {
         "file_columns_missing": "{object} could not be saved. Please check your entries.",
@@ -2580,6 +2596,48 @@
         "vacation_quota_reason_required": "{object} could not be saved. Please check your entries.",
         "vacation_request_in_past": "{object} could not be saved. Please check your entries.",
         "work_session_overlap": "{object} could not be changed. Please check its current status."
+      },
+      "provisioning": {
+        "organization_slug_taken": "{object} could not be changed. Please check its current status.",
+        "school_subdomain_taken": "{object} could not be changed. Please check its current status.",
+        "school_slug_taken": "{object} could not be changed. Please check its current status.",
+        "device_api_key_taken": "{object} could not be changed. Please check its current status.",
+        "device_id_taken": "{object} could not be changed. Please check its current status.",
+        "organization_not_found": "{object} could not be changed. Please check its current status.",
+        "organization_already_deleted": "{object} could not be changed. Please check its current status.",
+        "organization_not_deleted": "{object} could not be changed. Please check its current status.",
+        "organization_has_schools": "{object} could not be changed. Please check its current status.",
+        "organization_deleted": "{object} could not be changed. Please check its current status.",
+        "school_not_found": "{object} could not be changed. Please check its current status.",
+        "school_inactive": "{object} could not be changed. Please check its current status.",
+        "school_already_deleted": "{object} could not be changed. Please check its current status.",
+        "school_not_deleted": "{object} could not be changed. Please check its current status.",
+        "device_not_found": "{object} could not be changed. Please check its current status.",
+        "device_in_use": "{object} could not be changed. Please check its current status.",
+        "device_protected": "You cannot access {object}. Please contact the school.",
+        "device_transfer_protected": "You cannot access {object}. Please contact the school.",
+        "device_online": "{object} could not be changed. Please check its current status.",
+        "device_active_session": "{object} could not be changed. Please check its current status.",
+        "device_other_organization": "You cannot access {object}. Please contact the school.",
+        "device_same_school": "{object} could not be changed. Please check its current status.",
+        "person_not_found": "{object} could not be changed. Please check its current status.",
+        "person_has_supervisions": "{object} could not be changed. Please check its current status.",
+        "caregiver_capability_blocked": "{object} could not be changed. Please check its current status."
+      },
+      "settings": {
+        "not_found": "{object} could not be changed. Please check its current status.",
+        "admin_only": "You cannot access {object}. Please contact the school.",
+        "managed_by_upload": "{object} could not be changed. Please check its current status.",
+        "invalid_value": "{object} could not be saved. Please check your entries.",
+        "presence_mode_switch_blocked": "{object} could not be changed. Please check its current status.",
+        "booking_authority_blocked": "{object} could not be changed. Please check its current status."
+      },
+      "devices": {
+        "tag_scan_not_found": "{object} could not be changed. Please check its current status.",
+        "tag_scan_already_resolved": "{object} could not be changed. Please check its current status."
+      },
+      "billing": {
+        "invalid_key_day": "{object} could not be saved. Please check your entries."
       }
     },
     "actions": {

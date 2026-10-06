@@ -12,7 +12,24 @@ func (e *InvalidProvisioningDataError) Error() string { return fmt.Sprintf("inva
 func (e *InvalidProvisioningDataError) Unwrap() error { return e.Err }
 
 // ProvisioningConflictError rejects a write that collides with existing data.
-type ProvisioningConflictError struct{ Err error }
+// Kind names the colliding value, so the HTTP layer answers with its code
+// without reading the text (#2519).
+type ProvisioningConflictError struct {
+	Kind ProvisioningConflictKind
+	Err  error
+}
+
+// ProvisioningConflictKind is the value a provisioning write collided with.
+type ProvisioningConflictKind int
+
+const (
+	ConflictUnspecified ProvisioningConflictKind = iota
+	ConflictOrganizationSlug
+	ConflictSchoolSubdomain
+	ConflictSchoolSlug
+	ConflictDeviceAPIKey
+	ConflictDeviceID
+)
 
 func (e *ProvisioningConflictError) Error() string { return fmt.Sprintf("conflict: %v", e.Err) }
 func (e *ProvisioningConflictError) Unwrap() error { return e.Err }
