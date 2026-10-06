@@ -127,6 +127,8 @@ const runningInstance = {
   rosterPreview: [],
 } as unknown as PlannedTimetableInstance;
 
+const SCHOOL_CAPACITY_HINT = "Mehr Plätze kann die OGS freigeben.";
+
 function codedError(code: ErrorCode, details: Record<string, unknown>) {
   return new ApiError("conflict", 409, { code, details });
 }
@@ -152,7 +154,9 @@ async function checkInAndFindError(err: unknown, expected: string) {
   mocks.checkIn.mockRejectedValueOnce(err);
   render(<SchoolSupervisionsView />);
   fireEvent.click(screen.getByRole("button", { name: "Einchecken" }));
-  return screen.findByText(expected);
+  const shown = await screen.findByRole("alert");
+  expect(shown).toHaveTextContent(expected);
+  return shown;
 }
 
 describe("SchoolSupervisionsView: Fehler beim Einchecken (#3633)", () => {
@@ -185,6 +189,7 @@ describe("SchoolSupervisionsView: Fehler beim Einchecken (#3633)", () => {
     expect(shown).toBeInTheDocument();
     expect(expected).toContain("45 von 45");
     expect(expected).not.toContain("Datenverwaltung");
+    expect(screen.getByRole("alert")).toHaveTextContent(SCHOOL_CAPACITY_HINT);
     expect(mocks.checkIn).toHaveBeenCalledWith("11", "7");
   });
 
@@ -204,6 +209,7 @@ describe("SchoolSupervisionsView: Fehler beim Einchecken (#3633)", () => {
     expect(shown).toBeInTheDocument();
     expect(expected).toContain("Turnhalle");
     expect(expected).not.toContain("Datenverwaltung");
+    expect(screen.getByRole("alert")).toHaveTextContent(SCHOOL_CAPACITY_HINT);
   });
 
   it("zeigt bei anderen Fehlern den Katalogtext mit Wiederholen", async () => {

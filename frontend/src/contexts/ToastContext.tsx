@@ -422,6 +422,8 @@ export function ToastProvider({
 interface ApiErrorDisplayOptions {
   /** Localized noun phrase with article, for example "die Gruppe". */
   object: string;
+  /** Optional localized sentence with context specific to the current portal. */
+  messageSuffix?: string;
   retry?: () => void;
 }
 
@@ -508,7 +510,14 @@ function useApiErrorCore(
           options.object,
         );
         deliver(
-          { message: message.charAt(0).toUpperCase() + message.slice(1) },
+          {
+            message: [
+              message.charAt(0).toUpperCase() + message.slice(1),
+              options.messageSuffix,
+            ]
+              .filter(Boolean)
+              .join(" "),
+          },
           locale,
         );
         return;
@@ -532,7 +541,9 @@ function useApiErrorCore(
       );
       deliver(
         {
-          message: presentation.message,
+          message: [presentation.message, options.messageSuffix]
+            .filter(Boolean)
+            .join(" "),
           retry:
             presentation.retryable && options.retry
               ? { label: labels.retry, onClick: options.retry }

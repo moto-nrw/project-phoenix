@@ -32,6 +32,7 @@ import {
   type RosterAction,
 } from "~/components/active-supervisions/timetable-roster";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { schoolSupervisionsApi } from "~/lib/school-supervisions-api";
@@ -57,6 +58,19 @@ import {
 } from "./view-model";
 
 const logger = createLogger({ component: "SchoolSupervisionsView" });
+
+const SCHOOL_CAPACITY_HINT = "Mehr Plätze kann die OGS freigeben.";
+
+function schoolCapacityHint(error: unknown) {
+  if (
+    error instanceof ApiError &&
+    (error.code === "presence.activity_participant_limit_reached" ||
+      error.code === "presence.room_capacity_exceeded")
+  ) {
+    return SCHOOL_CAPACITY_HINT;
+  }
+  return undefined;
+}
 
 /**
  * Eine Aufsicht, die nicht läuft: ein Satz, was als Nächstes passiert, und
@@ -231,7 +245,11 @@ export function SchoolSupervisionsView() {
       logger.error(event, {
         error: err instanceof Error ? err.message : String(err),
       });
-      void showActionError(err, { object, retry });
+      void showActionError(err, {
+        object,
+        messageSuffix: schoolCapacityHint(err),
+        retry,
+      });
     },
     [showActionError],
   );
