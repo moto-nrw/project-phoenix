@@ -14,6 +14,39 @@ import {
 } from "./provisioning-shared";
 
 describe("FormField", () => {
+  // #2519: a field error from the shared error path stays at the field.
+  it("ties a field error to the control", () => {
+    render(
+      <FormField
+        label="Slug"
+        htmlFor="org-slug"
+        error="Bitte prüfen Sie dieses Feld."
+      >
+        <input id="org-slug" name="slug" />
+      </FormField>,
+    );
+
+    const input = screen.getByLabelText("Slug");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAttribute("aria-describedby", "org-slug-error");
+    expect(screen.getByText("Bitte prüfen Sie dieses Feld.")).toHaveAttribute(
+      "id",
+      "org-slug-error",
+    );
+  });
+
+  it("leaves the control untouched without an error", () => {
+    render(
+      <FormField label="Slug" htmlFor="org-slug">
+        <input id="org-slug" name="slug" />
+      </FormField>,
+    );
+
+    const input = screen.getByLabelText("Slug");
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(input).not.toHaveAttribute("aria-describedby");
+  });
+
   it("should render label text", () => {
     render(
       <FormField label="Email" htmlFor="email">

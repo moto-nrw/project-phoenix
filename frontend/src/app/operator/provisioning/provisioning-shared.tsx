@@ -1,20 +1,35 @@
-import { Children, isValidElement } from "react";
+import { Children, cloneElement, isValidElement } from "react";
 import { Inbox, Plus } from "lucide-react";
 import { Skeleton } from "~/components/ui/skeleton";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState as UIEmptyState } from "~/components/ui/empty-state";
 
+/**
+ * Label, control and its field error (#2519). With `error` the single child
+ * control gets `aria-invalid` and `aria-describedby`, so a screen reader
+ * reads the hint with the field.
+ */
 export function FormField({
   label,
   htmlFor,
   required,
+  error,
   children,
 }: {
   readonly label: string;
   readonly htmlFor: string;
   readonly required?: boolean;
+  readonly error?: string;
   readonly children: React.ReactNode;
 }) {
+  const errorId = `${htmlFor}-error`;
+  const control =
+    error && isValidElement<Record<string, unknown>>(children)
+      ? cloneElement(children, {
+          "aria-invalid": true,
+          "aria-describedby": errorId,
+        })
+      : children;
   return (
     <div>
       <label
@@ -25,7 +40,12 @@ export function FormField({
         {label}
         {required && <span className="text-moto-red ml-0.5">*</span>}
       </label>
-      {children}
+      {control}
+      {error ? (
+        <p id={errorId} className="text-moto-red mt-1 text-xs">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

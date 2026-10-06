@@ -104,30 +104,7 @@ describe("SettingsField", () => {
   });
 
   it("does not expand editing when saving the visibility prerequisite fails", async () => {
-    const onSave = vi.fn().mockResolvedValue("Speichern fehlgeschlagen.");
-    const setting = scopeSetting(attendanceKey, "own");
-    const { getByRole } = renderWithProviders(
-      <SettingsField
-        setting={setting}
-        categoryItems={[setting, scopeSetting(visibilityKey, "own")]}
-        onSave={onSave}
-        onReset={vi.fn()}
-      />,
-    );
-    fireEvent.click(getByRole("combobox"));
-    fireEvent.click(getByRole("option", { name: "Alle Gruppen und Blöcke" }));
-    fireEvent.click(getByRole("button", { name: "Beides erweitern" }));
-    await waitFor(() =>
-      expect(document.body.textContent).toContain("Speichern fehlgeschlagen."),
-    );
-    expect(onSave).toHaveBeenCalledExactlyOnceWith(visibilityKey, "all_staff");
-  });
-
-  it("keeps the approved visibility change when the second write fails", async () => {
-    const onSave = vi
-      .fn()
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce("Bearbeitung konnte nicht gespeichert werden.");
+    const onSave = vi.fn().mockRejectedValue(new ApiError("boom", 500));
     const setting = scopeSetting(attendanceKey, "own");
     const { getByRole } = renderWithProviders(
       <SettingsField
@@ -142,7 +119,32 @@ describe("SettingsField", () => {
     fireEvent.click(getByRole("button", { name: "Beides erweitern" }));
     await waitFor(() =>
       expect(document.body.textContent).toContain(
-        "Bearbeitung konnte nicht gespeichert werden.",
+        catalogText("general.server", "die Einstellung „Test Setting“"),
+      ),
+    );
+    expect(onSave).toHaveBeenCalledExactlyOnceWith(visibilityKey, "all_staff");
+  });
+
+  it("keeps the approved visibility change when the second write fails", async () => {
+    const onSave = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new ApiError("boom", 500));
+    const setting = scopeSetting(attendanceKey, "own");
+    const { getByRole } = renderWithProviders(
+      <SettingsField
+        setting={setting}
+        categoryItems={[setting, scopeSetting(visibilityKey, "own")]}
+        onSave={onSave}
+        onReset={vi.fn()}
+      />,
+    );
+    fireEvent.click(getByRole("combobox"));
+    fireEvent.click(getByRole("option", { name: "Alle Gruppen und Blöcke" }));
+    fireEvent.click(getByRole("button", { name: "Beides erweitern" }));
+    await waitFor(() =>
+      expect(document.body.textContent).toContain(
+        catalogText("general.server", "die Einstellung „Test Setting“"),
       ),
     );
     expect(onSave.mock.calls).toEqual([
@@ -336,7 +338,7 @@ describe("SettingsField", () => {
   );
 
   it("stops the restriction at the first failed dependent write", async () => {
-    const onSave = vi.fn().mockResolvedValue("Speichern fehlgeschlagen.");
+    const onSave = vi.fn().mockRejectedValue(new ApiError("boom", 500));
     const setting = scopeSetting(visibilityKey, "all_staff");
     const { getByRole } = renderWithProviders(
       <SettingsField
@@ -353,7 +355,9 @@ describe("SettingsField", () => {
     pickOption(getByRole, "Eigene Zuständigkeiten");
     fireEvent.click(getByRole("button", { name: "Alles begrenzen" }));
     await waitFor(() =>
-      expect(document.body.textContent).toContain("Speichern fehlgeschlagen."),
+      expect(document.body.textContent).toContain(
+        catalogText("general.server", "die Einstellung „Test Setting“"),
+      ),
     );
     expect(onSave).toHaveBeenCalledExactlyOnceWith(attendanceKey, "own");
   });
@@ -742,22 +746,26 @@ describe("SettingsField", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
-  it("shows error message from failed save", async () => {
-    const onSave = vi.fn().mockResolvedValue("Ungültiger Wert.");
-    const { getByRole, container } = renderWithProviders(
+  it("shows the error of a rejected save", async () => {
+    const onSave = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError("invalid value", 400, { code: "general.input" }),
+      );
+    const { getByRole, findByText } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ type: "boolean", value: false })}
         onSave={onSave}
-        onReset={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(undefined)}
       />,
     );
 
     fireEvent.click(getByRole("switch"));
-    await waitFor(() => {
-      const errorText = container.querySelector(".text-moto-red");
-      expect(errorText).not.toBeNull();
-      expect(errorText!.textContent).toBe("Ungültiger Wert.");
-    });
+    expect(
+      await findByText(
+        catalogText("general.input", "die Einstellung „Test Setting“"),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("warns when an enabled enrollment legal block has no text", () => {

@@ -1,9 +1,18 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR from "swr";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   createOperatorInvitation,
@@ -16,7 +25,6 @@ import type {
   PendingOperatorInvitation,
   OperatorInfo,
 } from "~/lib/operator/operator-invitation-helpers";
-import { isOperatorApiError } from "~/lib/operator/api-helpers";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { createLogger } from "~/lib/logger";
 import {
@@ -42,6 +50,11 @@ export default function OperatorOperatorsPage() {
     () => listOperatorInvitations(),
     { revalidateOnFocus: false },
   );
+  const loadError = useSwrLoadError(
+    fetchError,
+    "die Liste der Operatoren",
+    () => void mutate(),
+  );
 
   return (
     <div className="space-y-8 p-6">
@@ -53,13 +66,7 @@ export default function OperatorOperatorsPage() {
 
       <InviteForm onCreated={() => void mutate()} />
 
-      {fetchError && (
-        <div className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong rounded-lg border p-4 text-sm">
-          {isOperatorApiError(fetchError)
-            ? fetchError.message
-            : "Daten konnten nicht geladen werden."}
-        </div>
-      )}
+      <LoadErrorAlert error={loadError} />
 
       {isLoading && (
         <SkeletonRegion label="Operatoren werden geladen">
@@ -88,7 +95,9 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { show: showFormError, clear: clearFormError } = formErrors;
   const { success: toastSuccess } = useToast();
 
   const handleSubmit = useCallback(
@@ -97,7 +106,7 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
       if (!email.trim() || isSubmitting) return;
 
       setIsSubmitting(true);
-      setError(null);
+      clearFormError();
 
       try {
         await createOperatorInvitation({
@@ -109,18 +118,23 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
         setDisplayName("");
         onCreated();
       } catch (err) {
-        const message = isOperatorApiError(err)
-          ? err.message
-          : "Einladung konnte nicht gesendet werden.";
-        setError(message);
         logger.error("create_invitation_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        void showFormError(err, { object: "die Einladung" });
       } finally {
         setIsSubmitting(false);
       }
     },
-    [email, displayName, isSubmitting, onCreated, toastSuccess],
+    [
+      email,
+      displayName,
+      isSubmitting,
+      onCreated,
+      toastSuccess,
+      showFormError,
+      clearFormError,
+    ],
   );
 
   return (
@@ -130,7 +144,12 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
         icon={<MotoConceptIcon concept="operators" size={22} />}
         className="mb-4"
       />
-      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+      <form
+        ref={formRef}
+        onSubmit={(e) => void handleSubmit(e)}
+        className="space-y-4"
+      >
+        <FormErrorAlert message={formErrors.error} />
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label
@@ -141,13 +160,25 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
             </label>
             <input
               id="invite-email"
+              name="email"
               type="email"
+              aria-invalid={formErrors.fieldError("email") ? true : undefined}
+              aria-describedby={
+                formErrors.fieldError("email")
+                  ? "invite-email-error"
+                  : undefined
+              }
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="operator@example.com"
               className="focus:ring-moto-purple w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
             />
+            {formErrors.fieldError("email") ? (
+              <p id="invite-email-error" className="text-moto-red mt-1 text-xs">
+                {formErrors.fieldError("email")}
+              </p>
+            ) : null}
           </div>
           <div>
             <label
@@ -158,6 +189,7 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
             </label>
             <input
               id="invite-display-name"
+              name="display_name"
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
@@ -166,8 +198,6 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
             />
           </div>
         </div>
-
-        {error && <p className="text-moto-red text-sm">{error}</p>}
 
         <button
           type="submit"
@@ -193,33 +223,44 @@ function PendingInvitationsList({
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [revokeTarget, setRevokeTarget] =
     useState<PendingOperatorInvitation | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const { success: toastSuccess } = useToast();
+  const { show: showResendError } = useApiErrorDisplay();
+  const revokeErrors = useApiFormError();
+  const { show: showRevokeError, clear: clearRevokeError } = revokeErrors;
 
   const handleResend = useCallback(
     async (id: string) => {
-      setError(null);
       setActionLoading(id);
       try {
         await resendOperatorInvitation(id);
         toastSuccess("Einladung wurde erneut gesendet.");
         onMutate();
       } catch (err) {
-        setError(
-          isOperatorApiError(err)
-            ? err.message
-            : "Einladung konnte nicht erneut gesendet werden.",
-        );
+        logger.error("resend_invitation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        void showResendError(err, {
+          object: "das erneute Senden der Einladung",
+          retry: () => void handleResend(id),
+        });
       } finally {
         setActionLoading(null);
       }
     },
-    [onMutate, toastSuccess],
+    [onMutate, toastSuccess, showResendError],
+  );
+
+  const openRevoke = useCallback(
+    (invitation: PendingOperatorInvitation) => {
+      clearRevokeError();
+      setRevokeTarget(invitation);
+    },
+    [clearRevokeError],
   );
 
   const handleRevoke = useCallback(async () => {
     if (!revokeTarget) return;
-    setError(null);
+    clearRevokeError();
     setActionLoading(revokeTarget.id);
     try {
       await revokeOperatorInvitation(revokeTarget.id);
@@ -227,15 +268,14 @@ function PendingInvitationsList({
       setRevokeTarget(null);
       onMutate();
     } catch (err) {
-      setError(
-        isOperatorApiError(err)
-          ? err.message
-          : "Einladung konnte nicht widerrufen werden.",
-      );
+      logger.error("revoke_invitation_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showRevokeError(err, { object: "das Widerrufen der Einladung" });
     } finally {
       setActionLoading(null);
     }
-  }, [revokeTarget, onMutate, toastSuccess]);
+  }, [revokeTarget, onMutate, toastSuccess, showRevokeError, clearRevokeError]);
 
   return (
     <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
@@ -244,8 +284,6 @@ function PendingInvitationsList({
         icon={<MotoConceptIcon concept="operators" size={22} />}
         className="mb-4"
       />
-
-      {error && <p className="text-moto-red mb-4 text-sm">{error}</p>}
 
       <div className="space-y-3">
         {invitations.map((inv) => (
@@ -283,7 +321,7 @@ function PendingInvitationsList({
               <button
                 type="button"
                 disabled={actionLoading === inv.id}
-                onClick={() => setRevokeTarget(inv)}
+                onClick={() => openRevoke(inv)}
                 className="bg-moto-red/15 text-moto-red-strong hover:bg-moto-red/25 rounded-full px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50"
               >
                 Widerrufen
@@ -305,6 +343,7 @@ function PendingInvitationsList({
           Möchtest du die Einladung an{" "}
           <strong>{revokeTarget?.email ?? ""}</strong> wirklich widerrufen?
         </p>
+        <FormErrorAlert message={revokeErrors.error} className="mt-3" />
       </ConfirmationModal>
     </div>
   );

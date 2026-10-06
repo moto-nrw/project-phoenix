@@ -23,7 +23,11 @@ import {
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { resolveOperatorBackHref } from "~/lib/operator/back-href";
 import { SettingsCategory } from "~/components/settings/settings-category";
-import { Alert } from "~/components/ui/alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useBookingAuthorityImpact } from "./use-booking-authority-impact";
@@ -86,11 +90,12 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
   const [schema, setSchema] = useState<SettingsSchema | null>(null);
   const [schoolName, setSchoolName] = useState<string>("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const schemaLoad = useApiLoadError();
+  const { show: showSchemaError, clear: clearSchemaError } = schemaLoad;
 
   const loadSchema = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    clearSchemaError();
     try {
       const data = await fetchOperatorSettingsSchema(schoolId);
       setSchema(data);
@@ -99,11 +104,33 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
         school_id: schoolId,
         error: err instanceof Error ? err.message : String(err),
       });
-      setError("Einstellungen konnten nicht geladen werden.");
+      void showSchemaError(err, {
+        object: "die Liste der Einstellungen",
+        retry: () => void loadSchema(),
+      });
     } finally {
       setLoading(false);
     }
-  }, [schoolId]);
+  }, [schoolId, showSchemaError, clearSchemaError]);
+
+  // After a save the schema is read again for the server state and DependsOn.
+  // A failed refresh keeps the shown values and reports the stale list.
+  const refreshSchema = useCallback(async () => {
+    try {
+      const fresh = await fetchOperatorSettingsSchema(schoolId);
+      clearSchemaError();
+      if (fresh) setSchema(fresh);
+    } catch (err) {
+      logger.warn("operator_settings_refresh_failed", {
+        school_id: schoolId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showSchemaError(err, {
+        object: "die Liste der Einstellungen",
+        retry: () => void loadSchema(),
+      });
+    }
+  }, [schoolId, showSchemaError, clearSchemaError, loadSchema]);
 
   useEffect(() => {
     if (sessionStatus !== "authenticated") return;
@@ -122,41 +149,24 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
       });
   }, [sessionStatus, schoolId, loadSchema]);
 
+  // Save and reset throw the ApiError of a failed request; the field shows
+  // it on the shared error path (#2519).
   const handleSave = useCallback(
-    async (key: string, value: unknown): Promise<string | null> => {
-      const errorMsg = await setOperatorSettingValue(schoolId, key, value);
-      if (!errorMsg) {
-        logger.info("operator_setting_saved", { school_id: schoolId, key });
-        // Re-fetch to reflect the server state and re-evaluate DependsOn
-        void fetchOperatorSettingsSchema(schoolId)
-          .then((fresh) => {
-            if (fresh) setSchema(fresh);
-          })
-          .catch(() => {
-            // Ignore - the optimistic save already succeeded
-          });
-      }
-      return errorMsg;
+    async (key: string, value: unknown): Promise<void> => {
+      await setOperatorSettingValue(schoolId, key, value);
+      logger.info("operator_setting_saved", { school_id: schoolId, key });
+      void refreshSchema();
     },
-    [schoolId],
+    [schoolId, refreshSchema],
   );
 
   const handleReset = useCallback(
-    async (key: string): Promise<string | null> => {
-      const errorMsg = await resetOperatorSettingValue(schoolId, key);
-      if (!errorMsg) {
-        logger.info("operator_setting_reset", { school_id: schoolId, key });
-        void fetchOperatorSettingsSchema(schoolId)
-          .then((fresh) => {
-            if (fresh) setSchema(fresh);
-          })
-          .catch(() => {
-            // Ignore
-          });
-      }
-      return errorMsg;
+    async (key: string): Promise<void> => {
+      await resetOperatorSettingValue(schoolId, key);
+      logger.info("operator_setting_reset", { school_id: schoolId, key });
+      void refreshSchema();
     },
-    [schoolId],
+    [schoolId, refreshSchema],
   );
 
   const handleReveal = useCallback(
@@ -197,11 +207,7 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
         />
       </div>
 
-      {error && (
-        <div className="mb-4">
-          <Alert type="error" message={error} />
-        </div>
-      )}
+      <LoadErrorAlert error={schemaLoad.error} className="mb-4" />
 
       {loading && (
         <div className="space-y-6">
@@ -259,7 +265,7 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
           bookingAuthority.state.isLoading ||
           bookingAuthority.state.impact === null ||
           bookingAuthorityBlockers.length > 0 ||
-          bookingAuthority.state.error !== null
+          bookingAuthority.loadError !== null
         }
       >
         <div className="space-y-4 text-sm text-gray-700">
@@ -270,9 +276,8 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
           {bookingAuthority.state.isLoading ? (
             <p>Auswirkungen werden geprüft …</p>
           ) : null}
-          {bookingAuthority.state.error ? (
-            <Alert type="error" message={bookingAuthority.state.error} />
-          ) : null}
+          <LoadErrorAlert error={bookingAuthority.loadError} />
+          <FormErrorAlert message={bookingAuthority.saveError} />
           {bookingAuthority.state.impact &&
           bookingAuthorityBlockers.length > 0 ? (
             <div>

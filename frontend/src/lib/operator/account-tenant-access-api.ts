@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "../api-error";
+import { ApiError, enrichApiError, transportFetch } from "../api-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AccountTenantAccessAPI" });
@@ -116,7 +116,7 @@ async function request(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<AccountTenantAccess[]> {
-  const response = await fetch(endpoint, {
+  const response = await transportFetch(endpoint, {
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
@@ -138,7 +138,7 @@ async function request(
 async function requestRoles(
   endpoint: string,
 ): Promise<{ id: string; name: string; isSystem: boolean }[]> {
-  const response = await fetch(endpoint, {
+  const response = await transportFetch(endpoint, {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
   });

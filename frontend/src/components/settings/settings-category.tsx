@@ -15,8 +15,8 @@ import {
 interface SettingsCategoryProps {
   readonly category: SchemaCategory;
   readonly highlightKey?: string | null;
-  readonly onSave: (key: string, value: unknown) => Promise<string | null>;
-  readonly onReset: (key: string) => Promise<string | null>;
+  readonly onSave: (key: string, value: unknown) => Promise<void>;
+  readonly onReset: (key: string) => Promise<void>;
   readonly onSchemaRefresh?: () => void;
   readonly onBookingAuthorityEnable?: () => Promise<void>;
   // audience identifies who is viewing the settings page. Controls the

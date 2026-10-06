@@ -263,12 +263,11 @@ interface SettingsFieldProps {
   readonly highlighted?: boolean;
   /**
    * Saves one value. Throws the ApiError of a failed save, which the field
-   * shows on the shared error path (#2517). The operator page still resolves
-   * with its own sentence instead (legacy path until #2519); null is success.
+   * shows on the shared error path (#2517, #2519).
    */
-  readonly onSave: (key: string, value: unknown) => Promise<string | null>;
+  readonly onSave: (key: string, value: unknown) => Promise<void>;
   /** Same contract as onSave. */
-  readonly onReset: (key: string) => Promise<string | null>;
+  readonly onReset: (key: string) => Promise<void>;
   readonly onSchemaRefresh?: () => void;
   readonly onBookingAuthorityEnable?: () => Promise<void>;
   // audience controls the "auch von {other side} änderbar" hint shown
@@ -298,7 +297,7 @@ export function SettingsField({
   audience = "admin",
   revealFn,
 }: SettingsFieldProps) {
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
   const [localValue, setLocalValue] = useState<unknown>(setting.value);
   const [isDirty, setIsDirty] = useState(false);
   // Hint from a check before sending (range, missing legal text, a setting
@@ -425,21 +424,12 @@ export function SettingsField({
     };
   }, [setting.key]);
 
-  /**
-   * Shows a failed field save: the operator portal still answers with its
-   * own sentence (legacy path until #2519), everything else is an API error
-   * on the shared path.
-   */
+  /** Shows a failed field save on the shared error path. */
   const reportFieldFailure = useCallback(
     (outcome: SaveFailure, retry?: () => void) => {
-      if (outcome.legacy !== undefined) {
-        setHint(outcome.legacy);
-        toastError(outcome.legacy);
-        return;
-      }
       void showFieldError(outcome.error, { object: settingObject, retry });
     },
-    [settingObject, showFieldError, toastError],
+    [settingObject, showFieldError],
   );
 
   const doSave = useCallback(
@@ -469,10 +459,6 @@ export function SettingsField({
       outcome: SaveFailure,
       retry: () => void,
     ) => {
-      if (outcome.legacy !== undefined) {
-        errors.invalid(outcome.legacy);
-        return;
-      }
       void errors.show(outcome.error, { object: settingObject, retry });
     },
     [settingObject],
@@ -831,8 +817,8 @@ export function SettingsField({
       }
       let outcome: SaveOutcome;
       try {
-        const legacy = await onReset(setting.key);
-        outcome = legacy ? { ok: false, legacy } : { ok: true };
+        await onReset(setting.key);
+        outcome = { ok: true };
       } catch (error) {
         outcome = { ok: false, error };
       }
@@ -1574,22 +1560,20 @@ async function deleteEnrollmentLegalAGBDocument(): Promise<void> {
 
 type SaveOutcome = { readonly ok: true } | SaveFailure;
 
-/**
- * A failed save: `error` from the shared API path, or `legacy`, the sentence
- * the operator settings page still returns instead of throwing (#2519).
- */
-type SaveFailure =
-  | { readonly ok: false; readonly error: unknown; readonly legacy?: never }
-  | { readonly ok: false; readonly legacy: string; readonly error?: never };
+/** A failed save, shown on the shared API error path. */
+interface SaveFailure {
+  readonly ok: false;
+  readonly error: unknown;
+}
 
 async function persistSetting(
-  onSave: (key: string, value: unknown) => Promise<string | null>,
+  onSave: (key: string, value: unknown) => Promise<void>,
   key: string,
   value: unknown,
 ): Promise<SaveOutcome> {
   try {
-    const legacy = await onSave(key, value);
-    return legacy ? { ok: false, legacy } : { ok: true };
+    await onSave(key, value);
+    return { ok: true };
   } catch (error) {
     return { ok: false, error };
   }
