@@ -42,6 +42,7 @@ import {
   apiErrorFromBody,
   apiErrorFromText,
   transportFetch,
+  unavailableApiError,
 } from "./api-error";
 
 // Generic API response interface
@@ -205,9 +206,13 @@ function buildAxiosApiError(
   error: AxiosError<ApiErrorResponseBody>,
   fallbackMessage: string,
 ): ApiError {
+  if (!error.response) {
+    return unavailableApiError(error);
+  }
+
   let message = fallbackMessage;
 
-  const data = error.response?.data;
+  const data = error.response.data;
   if (data) {
     if (typeof data === "string") {
       message = data;
@@ -220,12 +225,11 @@ function buildAxiosApiError(
 
   const apiError = apiErrorFromBody(
     message,
-    error.response?.status ?? 500,
+    error.response.status,
     typeof data === "object" ? data : undefined,
   );
 
-  const headers = error.response?.headers as
-    Record<string, unknown> | undefined;
+  const headers = error.response.headers as Record<string, unknown> | undefined;
   const retryAfterHeader = headers ? headers["retry-after"] : undefined;
   let retryAfterValue: string | null = null;
   if (Array.isArray(retryAfterHeader)) {

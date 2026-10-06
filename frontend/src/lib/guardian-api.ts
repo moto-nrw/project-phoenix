@@ -103,8 +103,9 @@ async function guardianApiError(
  * the call needs. Nothing about it is the user's input, so it counts as a
  * server failure.
  */
-function bodyError(message: string | undefined, fallback: string) {
-  return new GuardianApiError(message ?? fallback, 500);
+function bodyError(body: unknown, fallback: string) {
+  const message = isErrorResponse(body) ? body.error : fallback;
+  return enrichApiError(new GuardianApiError(message, 500), body);
 }
 
 // Backend student type (minimal representation for guardian relationships)
@@ -190,7 +191,7 @@ export async function fetchStudentGuardians(
   >;
 
   if (result.status === "error") {
-    throw bodyError(result.error, "Failed to fetch guardians");
+    throw bodyError(result, "Failed to fetch guardians");
   }
 
   return (result.data ?? []).map(mapGuardianWithRelationshipResponse);
@@ -217,7 +218,7 @@ export async function fetchGuardianStudents(
   const result = (await response.json()) as ApiResponse<BackendStudent[]>;
 
   if (result.status === "error") {
-    throw bodyError(result.error, "Failed to fetch students");
+    throw bodyError(result, "Failed to fetch students");
   }
 
   return result.data ?? [];
@@ -250,7 +251,7 @@ export async function createGuardian(
   const result = (await response.json()) as ApiResponse<BackendGuardianProfile>;
 
   if (result.status === "error" || !result.data) {
-    throw bodyError(result.error, "Failed to create guardian");
+    throw bodyError(result, "Failed to create guardian");
   }
 
   return mapGuardianResponse(result.data);
@@ -284,7 +285,7 @@ export async function updateGuardian(
   const result = (await response.json()) as ApiResponse<BackendGuardianProfile>;
 
   if (result.status === "error" || !result.data) {
-    throw bodyError(result.error, "Failed to update guardian");
+    throw bodyError(result, "Failed to update guardian");
   }
 
   return mapGuardianResponse(result.data);
@@ -339,7 +340,7 @@ export async function deleteGuardian(
   const result = (await response.json()) as ApiResponse<null>;
 
   if (result.status === "error") {
-    throw bodyError(result.error, "Failed to delete guardian");
+    throw bodyError(result, "Failed to delete guardian");
   }
 }
 
@@ -388,7 +389,7 @@ export async function fetchGuardianDeletePreview(
   }>;
 
   if (result.status === "error" || !result.data) {
-    throw bodyError(result.error, "Failed to load delete preview");
+    throw bodyError(result, "Failed to load delete preview");
   }
 
   return {
@@ -432,7 +433,7 @@ export async function linkGuardianToStudent(
   const result = (await response.json()) as ApiResponse<null>;
 
   if (result.status === "error") {
-    throw bodyError(result.error, "Failed to link guardian");
+    throw bodyError(result, "Failed to link guardian");
   }
 }
 
@@ -532,7 +533,7 @@ export async function createStudentGuardians(
   const result = (await response.json()) as ApiResponse<null>;
 
   if (result.status === "error") {
-    throw bodyError(result.error, "Failed to create guardians");
+    throw bodyError(result, "Failed to create guardians");
   }
 }
 
@@ -589,7 +590,7 @@ export async function updateStudentGuardianRelationship(
   const result = (await response.json()) as ApiResponse<null>;
 
   if (result.status === "error") {
-    throw bodyError(result.error, "Failed to update relationship");
+    throw bodyError(result, "Failed to update relationship");
   }
 }
 
@@ -624,7 +625,7 @@ export async function removeGuardianFromStudent(
   const result = (await response.json()) as ApiResponse<null>;
 
   if (result.status === "error") {
-    throw bodyError(result.error, "Failed to remove guardian");
+    throw bodyError(result, "Failed to remove guardian");
   }
 }
 
@@ -688,7 +689,7 @@ export async function inviteGuardianToStudent(
 
   const result = (await response.json()) as ApiResponse<InviteGuardianResult>;
   if (result.status === "error" || !result.data) {
-    throw bodyError(result.error, "Failed to invite guardian");
+    throw bodyError(result, "Failed to invite guardian");
   }
   return result.data;
 }
@@ -721,7 +722,7 @@ export async function searchGuardians(query: string): Promise<Guardian[]> {
     (await response.json()) as PaginatedResponse<BackendGuardianPickerResponse>;
 
   if (result.status === "error") {
-    throw bodyError(result.error, "Failed to search guardians");
+    throw bodyError(result, "Failed to search guardians");
   }
 
   return (result.data ?? []).map(mapGuardianPickerResponse);
@@ -752,7 +753,7 @@ export async function fetchGuardianPhoneNumbers(
   const result = (await response.json()) as ApiResponse<BackendPhoneNumber[]>;
 
   if (result.status === "error") {
-    throw bodyError(result.error, "Failed to fetch phone numbers");
+    throw bodyError(result, "Failed to fetch phone numbers");
   }
 
   return (result.data ?? []).map(mapPhoneNumberResponse);
@@ -789,7 +790,7 @@ export async function addGuardianPhoneNumber(
   const result = (await response.json()) as ApiResponse<BackendPhoneNumber>;
 
   if (result.status === "error" || !result.data) {
-    throw bodyError(result.error, "Failed to add phone number");
+    throw bodyError(result, "Failed to add phone number");
   }
 
   return mapPhoneNumberResponse(result.data);
@@ -827,7 +828,7 @@ export async function updateGuardianPhoneNumber(
   const result = (await response.json()) as ApiResponse<null>;
 
   if (result.status === "error") {
-    throw bodyError(result.error, "Failed to update phone number");
+    throw bodyError(result, "Failed to update phone number");
   }
 }
 
@@ -861,7 +862,7 @@ export async function deleteGuardianPhoneNumber(
   const result = (await response.json()) as ApiResponse<null>;
 
   if (result.status === "error") {
-    throw bodyError(result.error, "Failed to delete phone number");
+    throw bodyError(result, "Failed to delete phone number");
   }
 }
 
@@ -890,7 +891,7 @@ export async function setGuardianPrimaryPhone(
   const result = (await response.json()) as ApiResponse<null>;
 
   if (result.status === "error") {
-    throw bodyError(result.error, "Failed to set primary phone");
+    throw bodyError(result, "Failed to set primary phone");
   }
 }
 
@@ -958,7 +959,7 @@ export async function listPendingApprovals(): Promise<PendingApproval[]> {
     BackendPendingApproval[]
   >;
   if (result.status === "error") {
-    throw bodyError(result.error, "Failed to load approvals");
+    throw bodyError(result, "Failed to load approvals");
   }
   return (result.data ?? []).map(mapPendingApproval);
 }
@@ -981,7 +982,7 @@ async function postInvitationAction(
   if (response.status === 204) return;
   const result = (await response.json()) as ApiResponse<null>;
   if (result.status === "error") {
-    throw bodyError(result.error, `Failed to ${action} invitation`);
+    throw bodyError(result, `Failed to ${action} invitation`);
   }
 }
 

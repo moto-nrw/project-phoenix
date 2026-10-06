@@ -406,6 +406,20 @@ describe("authService", () => {
         expect(result.message).toBe("Password reset successfully");
       });
 
+      it("classifies a server-side network failure as unavailable", async () => {
+        mockedApiPost.mockRejectedValueOnce({
+          isAxiosError: true,
+          message: "Network Error",
+        });
+
+        await expect(
+          authService.resetPassword(confirmRequest),
+        ).rejects.toMatchObject({
+          status: 503,
+          code: "general.unavailable",
+        });
+      });
+
       it("confirms password reset in browser context", async () => {
         vi.stubGlobal("window", {});
 

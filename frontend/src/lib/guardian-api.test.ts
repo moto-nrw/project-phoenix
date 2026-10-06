@@ -343,6 +343,10 @@ describe("guardian-api functions", () => {
           Promise.resolve({
             status: "error",
             error: "validation failed",
+            code: "students.guardian_email_taken",
+            details: { existing_guardian_id: "42" },
+            errors: [{ field: "email", reason: "already_taken" }],
+            instance: "req-guardian-1",
           }),
       });
 
@@ -350,6 +354,10 @@ describe("guardian-api functions", () => {
         name: "GuardianApiError",
         message: "validation failed",
         status: 500,
+        code: "students.guardian_email_taken",
+        details: { existing_guardian_id: "42" },
+        errors: [{ field: "email", reason: "already_taken" }],
+        requestId: "req-guardian-1",
       });
     });
 

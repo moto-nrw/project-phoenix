@@ -185,6 +185,14 @@ type uploadRefusal struct {
 
 func (e uploadRefusal) Error() string { return e.text }
 
+func uploadLimitMB(maxFileSize int64) int64 {
+	const megabyte = 1024 * 1024
+	if maxFileSize <= 0 {
+		return 0
+	}
+	return (maxFileSize-1)/megabyte + 1
+}
+
 // ErrorUpload renders a refused upload as a 400 with its code; the size
 // refusal names the limit in details. Other errors keep the plain 400.
 func ErrorUpload(err error, maxFileSize int64) render.Renderer {
@@ -194,7 +202,7 @@ func ErrorUpload(err error, maxFileSize int64) render.Renderer {
 	}
 	shown := GermanUploadError(err, maxFileSize)
 	if refusal.code == CodeFilesFileTooLarge {
-		return ErrorInvalidRequestWithDetails(shown, refusal.code, map[string]any{"max_mb": maxFileSize / (1024 * 1024)})
+		return ErrorInvalidRequestWithDetails(shown, refusal.code, map[string]any{"max_mb": uploadLimitMB(maxFileSize)})
 	}
 	return ErrorInvalidRequestWithCode(shown, refusal.code)
 }
@@ -215,7 +223,7 @@ func GermanUploadError(err error, maxFileSize int64) error {
 	switch err.Error() {
 	case "file too large":
 		//nolint:staticcheck // ST1005: user-facing German message
-		return fmt.Errorf("Diese Datei ist zu groß. Erlaubt sind bis zu %d MB.", maxFileSize/(1024*1024))
+		return fmt.Errorf("Diese Datei ist zu groß. Erlaubt sind bis zu %d MB.", uploadLimitMB(maxFileSize))
 	case "no file uploaded":
 		//nolint:staticcheck // ST1005: user-facing German message
 		return errors.New("Es wurde keine Datei ausgewählt.")
