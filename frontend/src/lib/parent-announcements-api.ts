@@ -392,7 +392,7 @@ async function throwApiError(
 
 /** A success answer without the expected body: the API broke its contract. */
 function missingBody(message: string): ApiError {
-  return new ApiError(message, 502, { code: "general.server" });
+  return new ApiError(message, 500);
 }
 
 async function request<T>(

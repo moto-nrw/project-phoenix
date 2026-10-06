@@ -339,7 +339,7 @@ export default function ClassListImportPage() {
           file.name.endsWith(".csv") ||
           file.name.endsWith(".xlsx"))
       ) {
-        handleFileUpload(file).catch(() => undefined);
+        void handleFileUpload(file);
       } else {
         importErrors.invalid(
           "Diese Datei passt nicht. Bitte laden Sie eine CSV- oder Excel-Datei hoch.",
@@ -461,7 +461,7 @@ export default function ClassListImportPage() {
               type="button"
               variant="primary"
               size="sm"
-              onClick={() => handleDownloadTemplate().catch(() => undefined)}
+              onClick={() => void handleDownloadTemplate()}
               className="h-10 w-full gap-2"
             >
               <Download className="h-5 w-5" aria-hidden="true" />
@@ -480,7 +480,7 @@ export default function ClassListImportPage() {
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
-        onFileSelect={(file) => handleFileUpload(file).catch(() => undefined)}
+        onFileSelect={(file) => void handleFileUpload(file)}
       />
 
       {/* Preview Section */}

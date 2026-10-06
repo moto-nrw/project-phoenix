@@ -49,9 +49,13 @@ import {
   TableSkeleton,
 } from "~/components/ui/page-skeletons";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { errorAlertActions } from "~/components/ui/form-error-alert";
+import {
+  errorAlertActions,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import {
   useApiErrorDisplay,
+  useApiLoadError,
   useApiFormError,
   useToast,
 } from "~/contexts/ToastContext";
@@ -431,6 +435,7 @@ function StaffCalendarPageInner() {
     null,
   );
   const [overviewLoading, setOverviewLoading] = useState(false);
+  const [overviewFailed, setOverviewFailed] = useState(false);
   const [frequency, setFrequency] = useState<RecurrenceFrequency>("none");
   const [intervalCount, setIntervalCount] = useState(1);
   const [weeklyDays, setWeeklyDays] = useState<string[]>([]);
@@ -448,9 +453,13 @@ function StaffCalendarPageInner() {
   const formRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formRef);
   const clearFormErrors = formErrors.clear;
-  // Aktionen ohne eigene Fläche (Termin öffnen, Antworten, Teilnehmer,
-  // Absagen): Toast mit Katalogtext und Wiederholen (#2517).
+  // Aktionen ohne eigene Fläche (Termin öffnen, Antworten, Absagen): Toast
+  // mit Katalogtext und Wiederholen (#2517).
   const { show: showActionError } = useApiErrorDisplay();
+  // Die Teilnehmerübersicht lädt in ihrem Dialog; ihr Ladefehler steht dort
+  // mit Wiederholen, statt den Dialog zu schließen (#2517).
+  const overviewLoadError = useApiLoadError();
+  const { clear: clearOverviewError } = overviewLoadError;
   // Fehler beim Löschen bleibt im geöffneten Dialog stehen.
   const deleteErrors = useApiFormError();
   const clearDeleteErrors = deleteErrors.clear;
@@ -670,13 +679,16 @@ function StaffCalendarPageInner() {
     // Clear any previous appointment's attendees so a failed/slow request
     // can't leave the old overview visible under a different appointment.
     setOverview(null);
+    clearOverviewError();
+    setOverviewFailed(false);
     setOverviewLoading(true);
     try {
       setOverview(await getStaffAppointmentOverview(appointmentId));
     } catch (err) {
       setOverview(null);
+      setOverviewFailed(true);
       logFailure("calendar_appointment_overview_failed", err);
-      void showActionError(err, {
+      void overviewLoadError.show(err, {
         object: "die Teilnehmerübersicht",
         retry: () => latestOverviewRef.current(appointmentId),
       });
@@ -1391,9 +1403,12 @@ function StaffCalendarPageInner() {
           </SlideOver>
 
           <Modal
-            isOpen={overview !== null || overviewLoading}
+            isOpen={overview !== null || overviewLoading || overviewFailed}
             onClose={() => {
-              if (!overviewLoading) setOverview(null);
+              if (overviewLoading) return;
+              setOverview(null);
+              setOverviewFailed(false);
+              clearOverviewError();
             }}
             title="Teilnehmer"
             widthClass="mx-4 w-[calc(100%-2rem)] max-w-xl"
@@ -1404,6 +1419,12 @@ function StaffCalendarPageInner() {
               </SkeletonRegion>
             ) : overview ? (
               <CalendarOverviewList overview={overview} />
+            ) : overviewLoadError.error ? (
+              <LoadErrorAlert error={overviewLoadError.error} />
+            ) : overviewFailed ? (
+              <SkeletonRegion label="Teilnehmer werden geladen…">
+                <ListSkeleton rows={4} avatar={false} />
+              </SkeletonRegion>
             ) : null}
           </Modal>
 

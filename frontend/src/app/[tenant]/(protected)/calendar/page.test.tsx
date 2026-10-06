@@ -3,6 +3,7 @@ import {
   render as rtlRender,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -27,11 +28,13 @@ const {
   mockToastWarning,
   mockMutate,
   mockUseSession,
+  mockGetStaffAppointmentOverview,
 } = vi.hoisted(() => ({
   mockUseSWRAuth: vi.fn(),
   mockCreateStaffAppointment: vi.fn(),
   mockUpdateStaffAppointment: vi.fn(),
   mockGetStaffAppointmentDetail: vi.fn(),
+  mockGetStaffAppointmentOverview: vi.fn(),
   mockRespondStaffCalendar: vi.fn(),
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
@@ -87,6 +90,7 @@ vi.mock("~/lib/personal-calendar-api", async () => {
     updateStaffAppointment: mockUpdateStaffAppointment,
     getStaffAppointmentDetail: mockGetStaffAppointmentDetail,
     respondStaffCalendar: mockRespondStaffCalendar,
+    getStaffAppointmentOverview: mockGetStaffAppointmentOverview,
   };
 });
 
@@ -371,6 +375,53 @@ describe("StaffCalendarPage", () => {
       expect(mockToastSuccess).toHaveBeenCalledWith(
         "Ihre Zusage ist gespeichert.",
       ),
+    );
+  });
+
+  // #2517: die Teilnehmerübersicht lädt in ihrem Dialog; ein Ladefehler
+  // bleibt dort stehen, mit Wiederholen, statt den Dialog zu schließen.
+  it("keeps the participant dialog open with its load error", async () => {
+    const withOverview: CalendarResponse = {
+      ...calendarResponse,
+      events: calendarResponse.events.map((event) => ({
+        ...event,
+        appointment_id: "1",
+        can_view_overview: true,
+      })),
+    };
+    mockUseSWRAuth.mockImplementation((key: unknown) =>
+      typeof key === "string" && key.startsWith("staff-calendar")
+        ? {
+            data: withOverview,
+            error: null,
+            isLoading: false,
+            mutate: mockMutate,
+          }
+        : { data: undefined, error: null, isLoading: false, mutate: vi.fn() },
+    );
+    mockGetStaffAppointmentOverview
+      .mockRejectedValueOnce(
+        new ApiError("overview kaputt", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce({ appointment_id: "1", recipients: [] });
+    render(<StaffCalendarPage />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Teamplanung/ })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Teilnehmer" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Teilnehmer" });
+    expect(
+      await within(dialog).findByText(
+        catalogText("general.unavailable", "die Teilnehmerübersicht"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/overview kaputt/)).not.toBeInTheDocument();
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Wiederholen" }),
+    );
+    await waitFor(() =>
+      expect(mockGetStaffAppointmentOverview).toHaveBeenCalledTimes(2),
     );
   });
 

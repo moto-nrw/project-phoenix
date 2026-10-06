@@ -155,7 +155,7 @@ async function unwrap<T>(
 
 /** A success response without the expected payload. */
 function missingData(fallback: string): ApiError {
-  return new ApiError(fallback, 500, { code: "general.server" });
+  return new ApiError(fallback, 500);
 }
 
 async function getEnvelope<T>(

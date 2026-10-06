@@ -255,6 +255,8 @@ async function throwResponseError(
   response: Response,
   fallback: string,
 ): Promise<never> {
+  // Ein Rumpf ohne JSON klassifiziert sich allein über den Status; der
+  // Ausfall des Parsens hat deshalb keine eigene Folge.
   const body: unknown = await response.json().catch(() => undefined);
   const message = isErrorResponse(body) && body.error ? body.error : fallback;
   throw enrichApiError(

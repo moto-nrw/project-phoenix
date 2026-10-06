@@ -133,8 +133,8 @@ describe("teacher-api", () => {
         statusText: "Internal Server Error",
       } as Response);
 
-      await expect(teacherService.getTeachers()).rejects.toThrow(
-        "Failed to fetch teachers: Internal Server Error",
+      await expect(teacherService.getTeachers()).rejects.toBeInstanceOf(
+        ApiError,
       );
     });
 
@@ -363,7 +363,7 @@ describe("teacher-api", () => {
           password: "SecurePass123!",
           role_id: 1,
         }),
-      ).rejects.toThrow("kein Mitarbeiter-Datensatz");
+      ).rejects.toBeInstanceOf(ApiError);
       expect(consoleSpies.error).toHaveBeenCalledWith(
         "account created without school identity",
         undefined,
@@ -397,9 +397,7 @@ describe("teacher-api", () => {
           password: "SecurePass123!",
           role_id: 1,
         }),
-      ).rejects.toThrow(
-        "Failed to create teacher: Bad Request - Invalid staff data",
-      );
+      ).rejects.toBeInstanceOf(ApiError);
     });
 
     it("throws error when account ID is not returned", async () => {
@@ -416,7 +414,7 @@ describe("teacher-api", () => {
           password: "SecurePass123!",
           role_id: 1,
         }),
-      ).rejects.toThrow("Failed to get account ID from response");
+      ).rejects.toBeInstanceOf(ApiError);
       expect(consoleSpies.error).toHaveBeenCalledWith(
         "failed to get account ID from response",
         undefined,
@@ -1041,9 +1039,7 @@ describe("teacher-api", () => {
           role_id: 1,
           linkExisting: true,
         }),
-      ).rejects.toThrow(
-        "Der Mitarbeiter-Datensatz konnte nicht aus der Verknüpfungs-Antwort gelesen werden.",
-      );
+      ).rejects.toBeInstanceOf(ApiError);
     });
   });
 });

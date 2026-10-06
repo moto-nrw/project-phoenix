@@ -56,7 +56,7 @@ export async function fetchProfile(): Promise<Profile> {
  * shows it as general.server (#2517).
  */
 function unsuccessfulResult(message: string): ApiError {
-  return new ApiError(message, 500, { code: "general.server" });
+  return new ApiError(message, 500);
 }
 
 /**

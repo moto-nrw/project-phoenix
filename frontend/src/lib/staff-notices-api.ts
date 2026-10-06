@@ -103,7 +103,7 @@ async function throwApiError(
 
 /** Erfolgsantwort ohne die erwarteten Daten. */
 function missingData(fallback: string): ApiError {
-  return new ApiError(fallback, 500, { code: "general.server" });
+  return new ApiError(fallback, 500);
 }
 
 async function request<T>(

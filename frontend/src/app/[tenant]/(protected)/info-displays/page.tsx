@@ -197,7 +197,7 @@ function InfoDisplaysPageContent() {
       "display_regenerate_failed",
       (err) =>
         void showActionError(err, {
-          object: "der neue Link für das Display",
+          object: "das Erneuern des Display-Links",
           retry: () => void handleRegenerate(display),
         }),
     );

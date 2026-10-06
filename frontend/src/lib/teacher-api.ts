@@ -2,6 +2,7 @@
 
 import { sessionFetch } from "./session-cache";
 import {
+  ApiError,
   apiErrorFromResponse,
   apiErrorFromText,
   wireErrorCode,
@@ -191,7 +192,10 @@ class TeacherService {
         credentials: "include",
       });
       if (!response.ok) {
-        throw new Error(`Failed to fetch teachers: ${response.statusText}`);
+        throw await apiErrorFromResponse(
+          response,
+          `teacher list failed (${response.status})`,
+        );
       }
 
       const data = (await response.json()) as Teacher[] | { data: Teacher[] };
@@ -362,15 +366,15 @@ class TeacherService {
     const data = (await response.json()) as AccountWithIdentityResponse;
     if (!extractIdFromResponse(data)) {
       logger.error("failed to get account ID from response");
-      throw new Error("Failed to get account ID from response");
+      throw new ApiError("account response without id", 500);
     }
 
     const identityIds = extractSchoolIdentity(data);
     if (!identityIds) {
       logger.error("account created without school identity");
-      throw new Error(
-        "Das Konto wurde angelegt, aber kein Mitarbeiter-Datensatz. Bitte erneut versuchen.",
-      );
+      // Eine 2xx-Antwort ohne Personaldatensatz ist ein Serverfehler. Ein
+      // erneutes Anlegen erkennt das Konto und bietet das Verknüpfen an.
+      throw new ApiError("account created without school identity", 500);
     }
 
     return { status: "created" as const, identity: identityIds };
@@ -405,9 +409,7 @@ class TeacherService {
     const identityIds = extractSchoolIdentity(data);
 
     if (!identityIds) {
-      throw new Error(
-        "Der Mitarbeiter-Datensatz konnte nicht aus der Verknüpfungs-Antwort gelesen werden.",
-      );
+      throw new ApiError("account link response without school identity", 500);
     }
 
     return identityIds;
@@ -449,10 +451,10 @@ class TeacherService {
     });
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => "");
-      const suffix = errorText ? ` - ${errorText}` : "";
-      throw new Error(
-        `Failed to create teacher: ${response.statusText}${suffix}`,
+      // Code, Feldfehler und Vorgangskennung aus dem Umschlag (#2517).
+      throw await apiErrorFromResponse(
+        response,
+        `staff create failed (${response.status})`,
       );
     }
 

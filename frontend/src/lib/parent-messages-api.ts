@@ -86,7 +86,7 @@ async function throwApiError(
 
 /** A success response without the expected payload. */
 function missingData(fallback: string): ApiError {
-  return new ApiError(fallback, 500, { code: "general.server" });
+  return new ApiError(fallback, 500);
 }
 
 /** GET a /api/messages route, surfacing the backend error on failure. */

@@ -327,7 +327,7 @@ describe("DeclarationStatusPanel (#3430)", () => {
 
     expect(
       await screen.findByText(
-        catalogText("general.unavailable", "der Stand der Antworten"),
+        catalogText("general.unavailable", "die Übersicht der Antworten"),
       ),
     ).toBeInTheDocument();
 
@@ -335,7 +335,7 @@ describe("DeclarationStatusPanel (#3430)", () => {
     expect(await screen.findByText("Kinder mit Antwort")).toBeInTheDocument();
     expect(
       screen.queryByText(
-        catalogText("general.unavailable", "der Stand der Antworten"),
+        catalogText("general.unavailable", "die Übersicht der Antworten"),
       ),
     ).not.toBeInTheDocument();
   });

@@ -131,7 +131,7 @@ export function LetterStatusPanel({
       });
       setLoadFailed(true);
       void showLoadError(error, {
-        object: "der Stand des Elternbriefs",
+        object: "die Übersicht zum Elternbrief",
         retry: () => latestLoadRef.current(),
       });
     }

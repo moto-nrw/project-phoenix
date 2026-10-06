@@ -170,7 +170,7 @@ export function DeclarationStatusPanel({
       });
       setLoadFailed(true);
       void showLoadError(error, {
-        object: "der Stand der Antworten",
+        object: "die Übersicht der Antworten",
         retry: () => latestLoadRef.current(),
       });
     }

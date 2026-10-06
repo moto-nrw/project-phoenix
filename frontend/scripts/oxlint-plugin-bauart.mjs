@@ -308,7 +308,7 @@ const ROW_ACTION_BASELINE = new Map(
     // Formular-intern (Eintrag eines Formularwerts, kein gespeichertes
     // Objekt): fest an die bestehende Stelle gebunden, damit keine neue
     // Zeilenaktion dieselbe Ausnahme nutzen kann.
-    "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1277"],
+    "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1289"],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
       "Gericht entfernen@770",
     ],
@@ -1584,7 +1584,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // kennt für sie noch keine Bauart (Entscheidung in #3119 offen gelassen).
     // Bis sie eine bekommen, bleibt der Bestand stehen und wächst nicht.
     "src/app/[tenant]/(protected)/calendar/page.tsx": [
-      "Termin bearbeiten Termin erstellen@990",
+      "Termin bearbeiten Termin erstellen@1002",
     ],
     "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
       "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@604",

@@ -146,7 +146,7 @@ export function TransitionEditor({
           error: error instanceof Error ? error.message : String(error),
         });
         void showLoadError(error, {
-          object: "die Vorschläge",
+          object: "die Liste der Vorschläge",
           retry: () => setSuggestionsKey((key) => key + 1),
         });
       });
