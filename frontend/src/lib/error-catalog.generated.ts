@@ -207,8 +207,16 @@ export const ERROR_CATALOG = {
         "Es gibt schon einen Ordner mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
       "files.quota_exceeded":
         "Der Speicherplatz der Dateiablage ist voll. Bitte löschen Sie Dateien, die Sie nicht mehr brauchen.",
+      "grade_transition.graduates_checked_in":
+        "Es sind noch Kinder mit Abgang eingecheckt. Bitte buchen Sie diese Kinder zuerst nach Hause. Wenden Sie den Jahrgangswechsel danach erneut an.",
+      "grade_transition.not_applied":
+        "Der Jahrgangswechsel ist inzwischen schon zurückgesetzt. Die Liste ist neu geladen.",
+      "grade_transition.not_draft":
+        "Der Jahrgangswechsel wurde inzwischen von einer anderen Person angewendet oder geändert. Bitte prüfen Sie die Liste.",
+      "grade_transition.not_latest_transition":
+        "Inzwischen gibt es einen neueren Jahrgangswechsel. Er muss zuerst zurückgesetzt werden.",
       "grade_transition.preview_stale":
-        "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
+        "Klassen oder Zuordnungen haben sich seit dem Öffnen geändert. Die Vorschau ist neu geladen. Bitte prüfen Sie sie noch einmal.",
       "identity.account_already_has_tenant_access":
         "Diese Person hat schon Zugang zu dieser Schule. Sie finden sie in der Personalliste.",
       "identity.demo_access_expired":
@@ -380,6 +388,14 @@ export const ERROR_CATALOG = {
         "Gerade ändert jemand anderes die Laufgemeinschaft. Bitte versuchen Sie es gleich noch einmal.",
       "students.deletion_constraints_changed":
         "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
+      "students.class_list_entry_assign_mismatch":
+        "Das gewählte Kind passt nicht zum Eintrag. Name und Klasse müssen gleich sein.",
+      "students.class_list_entry_duplicate":
+        "Ein Eintrag mit diesem Namen steht schon in dieser Klasse.",
+      "students.class_list_entry_student_exists":
+        "Ein Kind mit diesem Namen ist in dieser Klasse schon in moto angelegt.",
+      "students.class_list_entry_student_not_found":
+        "Das gewählte Kind gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "students.day_log_disabled":
         "Das Anwesenheitsprotokoll ist für Ihre Schule ausgeschaltet. Ihre Leitung kann es in den Einstellungen unter Datenschutz einschalten.",
       "students.day_log_no_groups":

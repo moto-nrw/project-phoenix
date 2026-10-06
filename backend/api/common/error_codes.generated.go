@@ -313,6 +313,10 @@ const (
 	CodeStudentsCheckinCareEnded                         = "students.checkin_care_ended"
 	CodeStudentsCheckoutNoteTooLong                      = "students.checkout_note_too_long"
 	CodeStudentsChildQuotaReached                        = "students.child_quota_reached"
+	CodeStudentsClassListEntryAssignMismatch             = "students.class_list_entry_assign_mismatch"
+	CodeStudentsClassListEntryDuplicate                  = "students.class_list_entry_duplicate"
+	CodeStudentsClassListEntryStudentExists              = "students.class_list_entry_student_exists"
+	CodeStudentsClassListEntryStudentNotFound            = "students.class_list_entry_student_not_found"
 	CodeStudentsCompanionLockBusy                        = "students.companion_lock_busy"
 	CodeStudentsCompanionWouldLoseDeparture              = "students.companion_would_lose_departure"
 	CodeStudentsCompanionsChanged                        = "students.companions_changed"
@@ -876,6 +880,10 @@ var errorClassByCode = map[string]string{
 	"students.checkin_care_ended":                          "business_rejection",
 	"students.checkout_note_too_long":                      "input",
 	"students.child_quota_reached":                         "business_rejection",
+	"students.class_list_entry_assign_mismatch":            "business_rejection",
+	"students.class_list_entry_duplicate":                  "business_rejection",
+	"students.class_list_entry_student_exists":             "business_rejection",
+	"students.class_list_entry_student_not_found":          "business_rejection",
 	"students.companion_lock_busy":                         "business_rejection",
 	"students.companion_would_lose_departure":              "input",
 	"students.companions_changed":                          "business_rejection",

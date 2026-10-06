@@ -1583,6 +1583,30 @@
       "legacy": "students.deletion_constraints_changed"
     },
     {
+      "code": "students.class_list_entry_assign_mismatch",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.class_list_entry_assign_mismatch"
+    },
+    {
+      "code": "students.class_list_entry_duplicate",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.class_list_entry_duplicate"
+    },
+    {
+      "code": "students.class_list_entry_student_exists",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.class_list_entry_student_exists"
+    },
+    {
+      "code": "students.class_list_entry_student_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.class_list_entry_student_not_found"
+    },
+    {
       "code": "students.day_log_disabled",
       "class": "permission",
       "parameters": [],

@@ -4,8 +4,12 @@
 // happen (per-class counts, Abgänge, unmapped classes) and requires an
 // explicit second confirmation before applying.
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
@@ -16,11 +20,10 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   applyGradeTransition,
-  GRADUATES_CHECKED_IN_CODE,
-  NOT_DRAFT_CODE,
   PREVIEW_STALE_CODE,
   TransitionRequestError,
   previewGradeTransition,
@@ -53,13 +56,26 @@ export function TransitionPreviewModal({
   onApplied,
 }: TransitionPreviewModalProps) {
   const [preview, setPreview] = useState<TransitionPreview | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // Ladefehler und Anwendefehler bleiben im Panel, mit Katalogtext und
+  // Wiederholen (#2517).
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  const [reloadKey, setReloadKey] = useState(0);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [applyError, setApplyError] = useState<string | null>(null);
+  const {
+    error: applyError,
+    show: showApplyError,
+    clear: clearApplyError,
+  } = useApiFormError();
+  const latestApplyRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     let cancelled = false;
+    clearLoadError();
     previewGradeTransition(transition.id)
       .then((data) => {
         if (!cancelled) setPreview(data);
@@ -70,12 +86,15 @@ export function TransitionPreviewModal({
           transition_id: transition.id,
           error: error instanceof Error ? error.message : String(error),
         });
-        setLoadError("Vorschau konnte nicht geladen werden.");
+        void showLoadError(error, {
+          object: "die Vorschau",
+          retry: () => setReloadKey((key) => key + 1),
+        });
       });
     return () => {
       cancelled = true;
     };
-  }, [transition.id]);
+  }, [transition.id, reloadKey, clearLoadError, showLoadError]);
 
   // Reloads the preview after the backend refused a stale confirmation, so the
   // admin decides again on what is true NOW instead of on the numbers that were
@@ -88,14 +107,17 @@ export function TransitionPreviewModal({
         transition_id: transition.id,
         error: error instanceof Error ? error.message : String(error),
       });
-      setLoadError("Vorschau konnte nicht geladen werden.");
+      void showLoadError(error, {
+        object: "die Vorschau",
+        retry: () => setReloadKey((key) => key + 1),
+      });
     }
   };
 
   const handleApply = async () => {
     if (!preview) return;
     setApplying(true);
-    setApplyError(null);
+    clearApplyError();
     try {
       // Bind the apply to exactly the cohort this modal displayed: the backend
       // refuses it if the affected children or mappings changed in between,
@@ -110,42 +132,28 @@ export function TransitionPreviewModal({
         transition_id: transition.id,
         error: error instanceof Error ? error.message : String(error),
       });
+      // Den Text liefert der Katalog (grade_transition.*). Eine veraltete
+      // Vorschau wird neu geladen, damit über den aktuellen Stand entschieden
+      // wird (#405).
+      void showApplyError(error, {
+        object: "das Anwenden des Jahrgangswechsels",
+        retry: () => latestApplyRef.current(),
+      });
       if (
-        error instanceof TransitionRequestError &&
-        error.code === GRADUATES_CHECKED_IN_CODE
-      ) {
-        // Actionable safety condition, not a transient failure: retrying alone
-        // cannot succeed until the children are checked out (#405).
-        setApplyError(
-          "Es sind noch Abgangs-Kinder eingecheckt. Bitte zuerst alle betroffenen Kinder auschecken (nach Hause buchen) und den Jahrgangswechsel danach erneut anwenden.",
-        );
-      } else if (
         error instanceof TransitionRequestError &&
         error.code === PREVIEW_STALE_CODE
       ) {
-        setApplyError(
-          "Die Daten haben sich seit dem Öffnen dieser Vorschau geändert (Klassen oder Zuordnungen). Die Vorschau wurde neu geladen. Bitte erneut prüfen und dann bestätigen.",
-        );
         await reloadPreview();
-      } else if (
-        error instanceof TransitionRequestError &&
-        error.code === NOT_DRAFT_CODE
-      ) {
-        // The draft was applied (or reverted) by another admin since this
-        // modal opened. Retrying can never succeed, so say what happened
-        // instead of offering a hopeless retry (#405 review).
-        setApplyError(
-          "Der Jahrgangswechsel wurde inzwischen von einer anderen Person angewendet oder verändert. Bitte das Fenster schließen und die Liste aktualisieren.",
-        );
-      } else {
-        setApplyError(
-          "Der Jahrgangswechsel konnte nicht angewendet werden. Bitte erneut versuchen.",
-        );
       }
       setApplying(false);
       setConfirmOpen(false);
     }
   };
+
+  // Wiederholen wendet mit der Vorschau an, die dann gilt.
+  useLayoutEffect(() => {
+    latestApplyRef.current = () => void handleApply();
+  });
 
   return (
     <>
@@ -170,7 +178,7 @@ export function TransitionPreviewModal({
                 <ListSkeleton rows={4} avatar={false} />
               </SkeletonRegion>
             )}
-            {loadError && <p className="text-moto-red text-sm">{loadError}</p>}
+            <LoadErrorAlert error={loadError} />
 
             {preview && (
               <div className="space-y-4">
@@ -244,9 +252,7 @@ export function TransitionPreviewModal({
                   </div>
                 )}
 
-                {applyError && (
-                  <p className="text-moto-red text-sm">{applyError}</p>
-                )}
+                <FormErrorAlert message={applyError} />
               </div>
             )}
           </div>

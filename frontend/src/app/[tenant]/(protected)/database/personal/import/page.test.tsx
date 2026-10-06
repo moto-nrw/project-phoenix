@@ -1,11 +1,19 @@
 import {
-  render,
+  render as rtlRender,
   screen,
   fireEvent,
   waitFor,
   cleanup,
 } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { catalogText } from "~/test/error-catalog-text";
+
+// Fehler einer Aktion ohne Formular kommen als Toast (#2517).
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 import StaffImportPage from "./page";
 
 // Mock next-auth/react. The default session may change existing records
@@ -37,7 +45,8 @@ const mockToast = {
   warning: vi.fn(),
   info: vi.fn(),
 };
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => mockToast,
 }));
 
@@ -80,8 +89,19 @@ vi.mock("~/components/ui/button", () => ({
 
 // Mock Alert component
 vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ message, type }: { message: string; type: string }) => (
-    <div data-testid={`alert-${type}`}>{message}</div>
+  Alert: ({
+    message,
+    type,
+    action,
+  }: {
+    message: string;
+    type: string;
+    action?: import("react").ReactNode;
+  }) => (
+    <div data-testid={`alert-${type}`}>
+      {message}
+      {action}
+    </div>
   ),
 }));
 
@@ -253,6 +273,7 @@ describe("StaffImportPage", () => {
   it("handles download error gracefully", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: false,
+      status: 503,
     });
 
     render(<StaffImportPage />);
@@ -260,9 +281,11 @@ describe("StaffImportPage", () => {
       screen.getByRole("button", { name: /Vorlage herunterladen/ }),
     );
 
-    await waitFor(() => {
-      expect(screen.getByTestId("alert-error")).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Vorlage"),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("posts to the teacher preview endpoint on file upload", async () => {
@@ -294,33 +317,60 @@ describe("StaffImportPage", () => {
   it("displays error when preview fails", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: false,
-      json: () => Promise.resolve({ message: "API Error" }),
+      status: 400,
+      json: () =>
+        Promise.resolve({
+          error: "Datei-Fehler: keine Zeilen",
+          code: "import.file_no_rows",
+        }),
     });
 
     render(<StaffImportPage />);
     fireEvent.click(screen.getByTestId("file-select-trigger"));
 
-    await waitFor(() => {
-      expect(screen.getByTestId("alert-error")).toBeInTheDocument();
-      expect(screen.getByText("API Error")).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(catalogText("import.file_no_rows", "die Datei")),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Datei-Fehler/)).not.toBeInTheDocument();
   });
 
-  it("allows closing the error alert", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: false,
-      json: () => Promise.resolve({ message: "Test Error" }),
-    });
+  it("retries the preview with the same file", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: () => Promise.resolve({ code: "general.unavailable" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              TotalRows: 1,
+              CreatedCount: 1,
+              UpdatedCount: 0,
+              ErrorCount: 0,
+              Errors: [],
+            },
+          }),
+      });
 
     render(<StaffImportPage />);
     fireEvent.click(screen.getByTestId("file-select-trigger"));
 
-    await waitFor(() => {
-      expect(screen.getByTestId("alert-error")).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(catalogText("general.unavailable", "die Datei")),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 
-    fireEvent.click(screen.getByLabelText("Fehler schließen"));
-    expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByText(catalogText("general.unavailable", "die Datei")),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("shows a summary row when the preview has no issues", async () => {
@@ -528,7 +578,7 @@ describe("StaffImportPage", () => {
         expect.objectContaining({ method: "POST" }),
       );
       expect(mockToast.success).toHaveBeenCalledWith(
-        "3 angelegt, 0 aktualisiert",
+        "Der Import ist fertig: 3 angelegt, 0 aktualisiert.",
       );
     });
   });
@@ -590,7 +640,7 @@ describe("StaffImportPage", () => {
 
     await waitFor(() => {
       expect(mockToast.warning).toHaveBeenCalledWith(
-        "2 angelegt, 0 aktualisiert, 1 übersprungen",
+        "Der Import ist fertig: 2 angelegt, 0 aktualisiert, 1 übersprungen.",
       );
       expect(mockToast.success).not.toHaveBeenCalled();
     });
@@ -613,7 +663,8 @@ describe("StaffImportPage", () => {
       })
       .mockResolvedValueOnce({
         ok: false,
-        json: () => Promise.resolve({ message: "Import fehlgeschlagen" }),
+        status: 500,
+        json: () => Promise.resolve({ error: "Import fehlgeschlagen" }),
       });
 
     render(<StaffImportPage />);
@@ -625,9 +676,12 @@ describe("StaffImportPage", () => {
 
     fireEvent.click(screen.getByText("2 Mitarbeiter anlegen"));
 
-    await waitFor(() => {
-      expect(screen.getByText("Import fehlgeschlagen")).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "das Importieren der Datei"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Import fehlgeschlagen")).not.toBeInTheDocument();
   });
 
   it("shows saved rows and the blocking row on import_batch_failed", async () => {
@@ -874,7 +928,7 @@ describe("StaffImportPage", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          "Bitte nur CSV- oder Excel-Dateien (.csv, .xlsx) hochladen",
+          "Diese Datei passt nicht. Bitte laden Sie eine CSV- oder Excel-Datei hoch.",
         ),
       ).toBeInTheDocument();
     });
@@ -895,6 +949,11 @@ describe("StaffImportPage", () => {
   });
 
   it("handles a missing token gracefully", async () => {
+    // Ohne Token ist die Anmeldung abgelaufen: der gemeinsame Fehlerweg
+    // schickt zur Anmeldung (#2517).
+    const assign = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => undefined);
     const useSession = await import("next-auth/react");
     vi.mocked(useSession.useSession).mockReturnValueOnce({
       data: { user: { token: undefined } },
@@ -906,8 +965,10 @@ describe("StaffImportPage", () => {
     fireEvent.click(screen.getByTestId("file-select-trigger"));
 
     await waitFor(() => {
-      expect(screen.getByText("Keine Authentifizierung")).toBeInTheDocument();
+      expect(assign).toHaveBeenCalledWith("/?error=SessionExpired");
     });
+    expect(global.fetch).not.toHaveBeenCalled();
+    assign.mockRestore();
   });
 
   it("keeps a create-only user in create mode and says so (#2906)", async () => {

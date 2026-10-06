@@ -3,7 +3,7 @@
 // Editor for a Jahrgangswechsel draft: one row per class with the target
 // class or "Abgang" (child leaves the OGS, soft-deactivated as alumnus).
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
@@ -17,13 +17,16 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   createGradeTransition,
   fetchSuggestedMappings,
   fetchTransitionClasses,
-  NOT_DRAFT_CODE,
-  TransitionRequestError,
   updateGradeTransition,
   type GradeTransition,
   type MappingInput,
@@ -78,8 +81,20 @@ export function TransitionEditor({
   const [rows, setRows] = useState<EditorRow[] | null>(
     existingDraft ? rowsFromTransition(existingDraft) : null,
   );
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  // Lade- und Speicherfehler bleiben im Panel, mit Katalogtext und
+  // Wiederholen (#2517).
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  const [suggestionsKey, setSuggestionsKey] = useState(0);
+  const {
+    error: saveError,
+    show: showSaveError,
+    clear: clearSaveError,
+  } = useApiFormError();
+  const latestContinueRef = useRef<() => void>(() => undefined);
   const [saving, setSaving] = useState(false);
   const [allClasses, setAllClasses] = useState<string[]>([]);
   const [classToAdd, setClassToAdd] = useState("");
@@ -94,6 +109,8 @@ export function TransitionEditor({
       })
       .catch((error: unknown) => {
         if (cancelled) return;
+        // Bewusst still: die Liste dient nur dem Wieder-Hinzufügen einer
+        // entfernten Zeile. Die Vorschläge und das Speichern gehen ohne sie.
         logger.error("classes_load_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
@@ -109,6 +126,7 @@ export function TransitionEditor({
     fetchSuggestedMappings()
       .then((suggestions) => {
         if (cancelled) return;
+        clearLoadError();
         setRows(
           suggestions.map((s) => ({
             fromClass: s.fromClass,
@@ -127,14 +145,15 @@ export function TransitionEditor({
         logger.error("suggestions_load_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
-        setLoadError(
-          "Vorschläge konnten nicht geladen werden. Bitte erneut versuchen.",
-        );
+        void showLoadError(error, {
+          object: "die Vorschläge",
+          retry: () => setSuggestionsKey((key) => key + 1),
+        });
       });
     return () => {
       cancelled = true;
     };
-  }, [rows]);
+  }, [rows, suggestionsKey, showLoadError, clearLoadError]);
 
   const updateRow = (index: number, patch: Partial<EditorRow>) => {
     setRows((current) =>
@@ -192,7 +211,7 @@ export function TransitionEditor({
   const handleContinue = async () => {
     if (validationError || !rows) return;
     setSaving(true);
-    setSaveError(null);
+    clearSaveError();
 
     const mappings: MappingInput[] = rows.map((row) => ({
       fromClass: row.fromClass,
@@ -218,17 +237,21 @@ export function TransitionEditor({
       logger.error("draft_save_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
-      // A grade_transition.not_draft conflict means another admin applied this draft since the
-      // editor loaded: retrying can never succeed, so say what happened
-      // instead of suggesting a retry (#405 review).
-      setSaveError(
-        error instanceof TransitionRequestError && error.code === NOT_DRAFT_CODE
-          ? "Der Entwurf wurde inzwischen angewendet oder gelöscht und kann nicht mehr bearbeitet werden. Bitte das Fenster schließen und die Liste aktualisieren."
-          : "Der Entwurf konnte nicht gespeichert werden. Bitte erneut versuchen.",
-      );
+      // grade_transition.not_draft (jemand hat den Entwurf inzwischen
+      // angewendet) erklärt der Katalog; Wiederholen bietet er nur bei
+      // Server- und Verbindungsfehlern an (#405 review).
+      void showSaveError(error, {
+        object: "das Speichern des Entwurfs",
+        retry: () => latestContinueRef.current(),
+      });
       setSaving(false);
     }
   };
+
+  // Wiederholen speichert den aktuellen Stand des Entwurfs.
+  useLayoutEffect(() => {
+    latestContinueRef.current = () => void handleContinue();
+  });
 
   return (
     <SlideOver
@@ -290,7 +313,7 @@ export function TransitionEditor({
             machen.
           </p>
 
-          {loadError && <p className="text-moto-red text-sm">{loadError}</p>}
+          <LoadErrorAlert error={loadError} />
           {rows === null && !loadError && (
             <SkeletonRegion label="Klassenvorschläge werden geladen">
               <ListSkeleton rows={5} avatar={false} />
@@ -392,7 +415,7 @@ export function TransitionEditor({
           {validationError && rows !== null && rows.length > 0 && (
             <p className="text-moto-orange text-sm">{validationError}</p>
           )}
-          {saveError && <p className="text-moto-red text-sm">{saveError}</p>}
+          <FormErrorAlert message={saveError} />
         </div>
         <SlideOverFooter className="flex-row justify-end gap-2">
           <Button type="button" variant="outline" size="md" onClick={onClose}>

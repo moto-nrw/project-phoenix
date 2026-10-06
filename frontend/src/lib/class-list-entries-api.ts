@@ -4,7 +4,7 @@
 // ("Keine Betreuung"); Anwesenheit, Betreuungsplanung und Elternportal
 // kennen sie strukturell nicht.
 
-import { apiErrorFromBody } from "./api-error";
+import { apiErrorFromBody, transportFetch } from "./api-error";
 
 export interface ClassListEntry {
   id: string;
@@ -59,7 +59,7 @@ async function request<T>(
   method: "GET" | "POST" | "PUT" | "DELETE",
   body?: unknown,
 ): Promise<T> {
-  const response = await fetch(url, {
+  const response = await transportFetch(url, {
     method,
     credentials: "include",
     cache: "no-store",

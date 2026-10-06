@@ -1587,10 +1587,10 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Termin bearbeiten Termin erstellen@990",
     ],
     "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
-      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@538",
+      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@591",
     ],
     "src/components/database/grade-transitions/transition-editor.tsx": [
-      "Jahrgangswechsel bearbeiten Neuer Jahrgangswechsel@243",
+      "Jahrgangswechsel bearbeiten Neuer Jahrgangswechsel@266",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
       "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@972",
@@ -1618,7 +1618,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Zwei-Faktor-Authentifizierung verwalten@314",
     ],
     "src/components/teachers/caregiver-capability-modal.tsx": [
-      "resolve Zuordnungen auflösen: Betreuung verwalten:@268",
+      "resolve Zuordnungen auflösen: Betreuung verwalten:@330",
     ],
   }),
 );

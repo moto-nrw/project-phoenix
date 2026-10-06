@@ -12,11 +12,14 @@
 // section, uppercase kicker, gray-50 stats, no colored dashboards.
 
 import Link from "~/components/ui/navigation-link";
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Pencil, Trash2, Upload, UserRoundCheck } from "lucide-react";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
-import { Alert } from "~/components/ui/alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -32,7 +35,9 @@ import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { formatCount } from "~/lib/format-utils";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
   assignClassListEntry,
   createClassListEntry,
@@ -64,17 +69,23 @@ const EMPTY_FORM: EntryFormState = {
 };
 
 function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : "Unbekannter Fehler";
+  return err instanceof Error ? err.message : String(err);
 }
 
+// Bewusst still: die Klassen sind nur Vorschläge im Eingabefeld. Ohne sie
+// tippt man die Klasse selbst; Speichern und Liste hängen nicht daran.
 async function fetchClassSuggestions(): Promise<string[]> {
-  const response = await fetch("/api/students/school-classes", {
-    credentials: "include",
-    cache: "no-store",
-  });
-  if (!response.ok) return [];
-  const payload = (await response.json()) as { data?: string[] };
-  return payload.data ?? [];
+  try {
+    const response = await fetch("/api/students/school-classes", {
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (!response.ok) return [];
+    const payload = (await response.json()) as { data?: string[] };
+    return payload.data ?? [];
+  } catch {
+    return [];
+  }
 }
 
 // Minimal projection of a regular student for the roster view: this page
@@ -115,13 +126,14 @@ async function fetchRosterStudents(): Promise<RosterStudent[]> {
   let page = 1;
   let totalPages = 1;
   while (page <= totalPages) {
-    const response = await fetch(
+    const response = await transportFetch(
       `/api/students?page=${page}&page_size=${ROSTER_PAGE_SIZE}`,
       { credentials: "include", cache: "no-store" },
     );
     if (!response.ok) {
-      throw new Error(
-        `Kinderliste konnte nicht geladen werden (Seite ${page}, Status ${response.status})`,
+      throw await apiErrorFromResponse(
+        response,
+        `Roster students failed (page ${page}, status ${response.status})`,
       );
     }
     // The route wrapper wraps GET results, so the paginated list arrives as
@@ -186,10 +198,14 @@ export default function ClassListEntriesPage() {
   const canDelete = hasPermission(session, "users:delete");
   const {
     data: entries,
-    error: loadError,
+    error: entriesError,
     isLoading,
     mutate,
   } = useSWRAuth(SWR_KEY, fetchClassListEntries);
+  // Ladefehler mit Katalogtext und Wiederholen (#2517).
+  const loadError = useSwrLoadError(entriesError, "die Klassenliste", () =>
+    mutate(),
+  );
   const { data: classSuggestions } = useSWRAuth(
     "class-list-class-suggestions",
     fetchClassSuggestions,
@@ -203,6 +219,11 @@ export default function ClassListEntriesPage() {
     error: studentsError,
     mutate: mutateStudents,
   } = useSWRAuth("class-list-roster-students", fetchRosterStudents);
+  const studentsLoadError = useSwrLoadError(
+    studentsError,
+    "die Liste der angelegten Kinder",
+    () => mutateStudents(),
+  );
   const [classFilter, setClassFilter] = useState("all");
 
   const [modal, setModal] = useState<
@@ -213,7 +234,14 @@ export default function ClassListEntriesPage() {
     | null
   >(null);
   const [form, setForm] = useState<EntryFormState>(EMPTY_FORM);
-  const [modalError, setModalError] = useState<string | null>(null);
+  // Fehler bleiben im offenen Dialog, Feldfehler am Feld (#2517).
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const deleteErrors = useApiFormError();
+  const assignErrors = useApiFormError();
+  const latestSubmitRef = useRef<() => void>(() => undefined);
+  const latestDeleteRef = useRef<() => void>(() => undefined);
+  const latestAssignRef = useRef<() => void>(() => undefined);
   const [saving, setSaving] = useState(false);
   // Das Zuordnungs-Ziel: bei genau einem Kandidaten vorbelegt, bei mehreren
   // gleichnamigen Kindern MUSS die Person bewusst wählen, sonst könnte der
@@ -289,16 +317,22 @@ export default function ClassListEntriesPage() {
     },
   ];
 
+  const clearModalErrors = () => {
+    formErrors.clear();
+    deleteErrors.clear();
+    assignErrors.clear();
+  };
+
   const closeModal = () => {
     setModal(null);
-    setModalError(null);
+    clearModalErrors();
     setForm(EMPTY_FORM);
     setAssignTarget(null);
   };
 
   const openCreate = () => {
     setForm(EMPTY_FORM);
-    setModalError(null);
+    clearModalErrors();
     setModal({ kind: "create" });
   };
 
@@ -308,21 +342,22 @@ export default function ClassListEntriesPage() {
       lastName: entry.lastName,
       schoolClass: entry.schoolClass,
     });
-    setModalError(null);
+    clearModalErrors();
     setModal({ kind: "edit", entry });
   };
 
   const submitForm = async () => {
     if (modal?.kind !== "create" && modal?.kind !== "edit") return;
     setSaving(true);
-    setModalError(null);
+    formErrors.clear();
+    const name = `${form.firstName.trim()} ${form.lastName.trim()}`;
     try {
       if (modal.kind === "create") {
         await createClassListEntry(form);
-        toast.success("Eintrag angelegt");
+        toast.success(`Der Eintrag „${name}“ ist angelegt.`);
       } else {
         await updateClassListEntry(modal.entry.id, form);
-        toast.success("Eintrag gespeichert");
+        toast.success(`Der Eintrag „${name}“ ist gespeichert.`);
       }
       await mutate();
       closeModal();
@@ -330,7 +365,10 @@ export default function ClassListEntriesPage() {
       logger.error("class_list_entry_save_failed", {
         error: errorMessage(err),
       });
-      setModalError(errorMessage(err));
+      void formErrors.show(err, {
+        object: "das Speichern des Eintrags",
+        retry: () => latestSubmitRef.current(),
+      });
     } finally {
       setSaving(false);
     }
@@ -339,16 +377,22 @@ export default function ClassListEntriesPage() {
   const confirmDelete = async () => {
     if (modal?.kind !== "delete") return;
     setSaving(true);
+    deleteErrors.clear();
     try {
       await deleteClassListEntry(modal.entry.id);
-      toast.success("Eintrag gelöscht");
+      toast.success(
+        `Der Eintrag „${modal.entry.firstName} ${modal.entry.lastName}“ ist gelöscht.`,
+      );
       await mutate();
       closeModal();
     } catch (err) {
       logger.error("class_list_entry_delete_failed", {
         error: errorMessage(err),
       });
-      setModalError(errorMessage(err));
+      void deleteErrors.show(err, {
+        object: "das Löschen des Eintrags",
+        retry: () => latestDeleteRef.current(),
+      });
     } finally {
       setSaving(false);
     }
@@ -359,20 +403,33 @@ export default function ClassListEntriesPage() {
     const studentId = assignTarget;
     if (!studentId) return;
     setSaving(true);
+    assignErrors.clear();
     try {
       await assignClassListEntry(modal.entry.id, studentId);
-      toast.success("Eintrag zugeordnet und aus der Klassenliste entfernt");
+      toast.success(
+        "Der Eintrag ist dem Kind zugeordnet und steht nicht mehr extra auf der Klassenliste.",
+      );
       await Promise.all([mutate(), mutateStudents()]);
       closeModal();
     } catch (err) {
       logger.error("class_list_entry_assign_failed", {
         error: errorMessage(err),
       });
-      setModalError(errorMessage(err));
+      void assignErrors.show(err, {
+        object: "das Zuordnen des Eintrags",
+        retry: () => latestAssignRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+
+  // Wiederholen sendet den Stand, der dann im Dialog steht.
+  useLayoutEffect(() => {
+    latestSubmitRef.current = () => void submitForm();
+    latestDeleteRef.current = () => void confirmDelete();
+    latestAssignRef.current = () => void confirmAssign();
+  });
 
   const columns: DataTableColumn<RosterRow>[] = [
     {
@@ -455,7 +512,7 @@ export default function ClassListEntriesPage() {
                   label: "Zuordnen",
                   icon: <UserRoundCheck className="h-4 w-4" aria-hidden />,
                   onClick: () => {
-                    setModalError(null);
+                    clearModalErrors();
                     setAssignTarget(
                       entry.matchingStudentIds.length === 1
                         ? (entry.matchingStudentIds[0] ?? null)
@@ -482,7 +539,7 @@ export default function ClassListEntriesPage() {
                   icon: <Trash2 className="h-4 w-4" aria-hidden />,
                   destructive: true,
                   onClick: () => {
-                    setModalError(null);
+                    clearModalErrors();
                     setModal({ kind: "delete", entry });
                   },
                 },
@@ -508,11 +565,7 @@ export default function ClassListEntriesPage() {
       statsLoading={isLoading && entries === undefined}
       // Ein Ladefehler ist ein Fehlerzustand des Geruests, kein Kasten im
       // Inhalt (BAUARTEN-SPEC, Querregel „Zustaende").
-      error={
-        loadError
-          ? "Die Klassenlisteneinträge konnten nicht geladen werden."
-          : null
-      }
+      error={loadError}
       filters={filterConfigs}
       actions={
         canCreate ? (
@@ -544,8 +597,8 @@ export default function ClassListEntriesPage() {
                 : "Klassenlisteneintrag anlegen"
             }
           >
-            <div className="space-y-4">
-              {modalError ? <Alert type="error" message={modalError} /> : null}
+            <div ref={formRef} className="space-y-4">
+              <FormErrorAlert message={formErrors.error} />
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label
@@ -556,6 +609,8 @@ export default function ClassListEntriesPage() {
                   </label>
                   <Input
                     id="entry-first-name"
+                    name="first_name"
+                    error={formErrors.fieldError("first_name")}
                     value={form.firstName}
                     onChange={(e) =>
                       setForm((prev) => ({
@@ -575,6 +630,8 @@ export default function ClassListEntriesPage() {
                   </label>
                   <Input
                     id="entry-last-name"
+                    name="last_name"
+                    error={formErrors.fieldError("last_name")}
                     value={form.lastName}
                     onChange={(e) =>
                       setForm((prev) => ({ ...prev, lastName: e.target.value }))
@@ -592,6 +649,8 @@ export default function ClassListEntriesPage() {
                 </label>
                 <Input
                   id="entry-school-class"
+                  name="school_class"
+                  error={formErrors.fieldError("school_class")}
                   value={form.schoolClass}
                   onChange={(e) =>
                     setForm((prev) => ({
@@ -663,7 +722,7 @@ export default function ClassListEntriesPage() {
             }
             gate={{ mode: "twoStep" }}
             loading={saving}
-            error={modalError ?? ""}
+            error={deleteErrors.error}
           />
 
           <ConfirmationModal
@@ -677,9 +736,7 @@ export default function ClassListEntriesPage() {
           >
             {modal?.kind === "assign" ? (
               <div className="space-y-3">
-                {modalError ? (
-                  <Alert type="error" message={modalError} />
-                ) : null}
+                <FormErrorAlert message={assignErrors.error} />
                 <p className="text-sm text-gray-600">
                   <span className="font-medium text-gray-900">
                     {modal.entry.firstName} {modal.entry.lastName} (
@@ -735,14 +792,9 @@ export default function ClassListEntriesPage() {
         title="Kinder im Klassenverband"
         description={`Reguläre Kinder werden in der Kinder-Datenbank gepflegt. Hier kommen nur Kinder ohne OGS-Betreuung dazu. ${formatCount(studentCount)} davon sind in moto angelegt und verteilen sich auf ${formatCount(classCount)} ${classCount === 1 ? "Klasse" : "Klassen"}.`}
       >
-        {studentsError ? (
-          <div className="mb-4">
-            <Alert
-              type="error"
-              message="Die regulär angelegten Kinder konnten nicht vollständig geladen werden. Die Liste ist unvollständig, bitte laden Sie die Seite neu."
-            />
-          </div>
-        ) : null}
+        {/* Ohne die angelegten Kinder ist die Liste unvollständig: der Fehler
+            steht über ihr, mit Wiederholen. */}
+        <LoadErrorAlert error={studentsLoadError} className="mb-4" />
 
         <DataTable
           columns={columns}

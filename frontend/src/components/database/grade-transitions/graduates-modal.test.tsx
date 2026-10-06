@@ -4,17 +4,32 @@
 // (#405).
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  render as rtlRender,
+  screen,
+  waitFor,
+  fireEvent,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { GraduatesModal } from "./graduates-modal";
 import type {
   GradeTransition,
   TransitionHistoryEntry,
 } from "~/lib/grade-transition-api";
 
+// Fehler einer Aktion ohne Formular kommen als Toast (#2517).
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
+
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: toastSuccess,
     error: toastError,
@@ -202,7 +217,9 @@ describe("GraduatesModal", () => {
     expect(api.purgeGraduatedStudent).not.toHaveBeenCalledWith("200");
 
     await waitFor(() => {
-      expect(toastSuccess).toHaveBeenCalledWith("1 Kind endgültig gelöscht.");
+      expect(toastSuccess).toHaveBeenCalledWith(
+        "1 Kind ist endgültig gelöscht.",
+      );
     });
     // The transition list behind the modal counts Abgänge, so it has to refetch.
     expect(onPurged).toHaveBeenCalled();
@@ -223,7 +240,9 @@ describe("GraduatesModal", () => {
     // strand another child's Laufgemeinschaft.
     api.purgeGraduatedStudent.mockImplementation(async (id: string) => {
       if (id === "500") {
-        throw new Error("Kind kann nicht gelöscht werden: verknüpfte Daten");
+        throw new ApiError("Kind kann nicht gelöscht werden", 409, {
+          code: "general.business_rejection",
+        });
       }
     });
     renderModal();
@@ -246,11 +265,18 @@ describe("GraduatesModal", () => {
     });
     // One failure must not swallow the success, nor the other way round.
     await waitFor(() => {
-      expect(toastSuccess).toHaveBeenCalledWith("1 Kind endgültig gelöscht.");
+      expect(toastSuccess).toHaveBeenCalledWith(
+        "1 Kind ist endgültig gelöscht.",
+      );
     });
-    expect(toastError).toHaveBeenCalledWith(
-      expect.stringContaining("Bodo Begleiter"),
-    );
+    expect(
+      await screen.findByText(
+        catalogText(
+          "general.business_rejection",
+          "das Löschen von Bodo Begleiter",
+        ),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("hides the deletion entirely without the permission", async () => {
@@ -272,13 +298,18 @@ describe("GraduatesModal", () => {
   });
 
   it("surfaces a failed load instead of looking empty", async () => {
-    api.fetchTransitionHistory.mockRejectedValue(new Error("boom"));
+    api.fetchTransitionHistory.mockRejectedValue(
+      new ApiError("boom", 503, { code: "general.unavailable" }),
+    );
     renderModal();
 
     // An empty list and a broken request must not look the same: the first
     // means "nobody left", the second means "we do not know".
     expect(
-      await screen.findByText(/konnten nicht geladen werden/i),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Abgänge"),
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/keine Abgänge/i)).not.toBeInTheDocument();
   });
 });

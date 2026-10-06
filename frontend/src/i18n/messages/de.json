@@ -2214,11 +2214,11 @@
         "unavailable": "{object} ist gerade nicht erreichbar. Bitte versuchen Sie es erneut."
       },
       "grade_transition": {
-        "graduates_checked_in": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
-        "not_applied": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
-        "not_draft": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
-        "not_latest_transition": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
-        "preview_stale": "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu."
+        "graduates_checked_in": "Es sind noch Kinder mit Abgang eingecheckt. Bitte buchen Sie diese Kinder zuerst nach Hause. Wenden Sie den Jahrgangswechsel danach erneut an.",
+        "not_applied": "Der Jahrgangswechsel ist inzwischen schon zurückgesetzt. Die Liste ist neu geladen.",
+        "not_draft": "Der Jahrgangswechsel wurde inzwischen von einer anderen Person angewendet oder geändert. Bitte prüfen Sie die Liste.",
+        "not_latest_transition": "Inzwischen gibt es einen neueren Jahrgangswechsel. Er muss zuerst zurückgesetzt werden.",
+        "preview_stale": "Klassen oder Zuordnungen haben sich seit dem Öffnen geändert. Die Vorschau ist neu geladen. Bitte prüfen Sie sie noch einmal."
       },
       "identity": {
         "account_already_has_tenant_access": "Diese Person hat schon Zugang zu dieser Schule. Sie finden sie in der Personalliste.",
@@ -2342,6 +2342,10 @@
         "checkin_care_ended": "Die Betreuung dieses Kindes ist beendet. Bitte laden Sie die Seite neu.",
         "checkout_note_too_long": "Die Notiz ist zu lang. Bitte kürzen Sie sie.",
         "child_quota_reached": "Das Kinderkontingent Ihrer Schule ist voll ({occupied_places} von {booked_places} Kindern). Bitte melden Sie sich beim moto-Team.",
+        "class_list_entry_assign_mismatch": "Das gewählte Kind passt nicht zum Eintrag. Name und Klasse müssen gleich sein.",
+        "class_list_entry_duplicate": "Ein Eintrag mit diesem Namen steht schon in dieser Klasse.",
+        "class_list_entry_student_exists": "Ein Kind mit diesem Namen ist in dieser Klasse schon in moto angelegt.",
+        "class_list_entry_student_not_found": "Das gewählte Kind gibt es nicht mehr. Bitte laden Sie die Seite neu.",
         "companion_lock_busy": "Gerade ändert jemand anderes die Laufgemeinschaft. Bitte versuchen Sie es gleich noch einmal.",
         "companion_would_lose_departure": "Ein verknüpftes Kind hätte dann keinen Heimweg mehr. Bitte passen Sie zuerst dessen Heimweg an.",
         "companions_changed": "Die Laufgemeinschaft wurde inzwischen geändert. Bitte laden Sie die Seite neu.",

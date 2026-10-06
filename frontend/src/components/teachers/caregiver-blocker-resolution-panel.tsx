@@ -1,9 +1,13 @@
 "use client";
 
-import { wireErrorCode } from "~/lib/api-error";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowRightLeft, Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -14,7 +18,11 @@ import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import type {
   BlockerActivity,
   BlockerGroup,
@@ -39,7 +47,7 @@ interface CaregiverBlockerResolutionPanelProps {
 }
 
 async function endActiveSupervision(id: string): Promise<void> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/active/supervisors/${encodeURIComponent(id)}/end`,
     {
       method: "POST",
@@ -47,23 +55,19 @@ async function endActiveSupervision(id: string): Promise<void> {
     },
   );
   if (!response.ok) {
-    throw new Error(
-      `Gruppenaufsicht konnte nicht beendet werden (${response.status})`,
-    );
+    throw await apiErrorFromResponse(response, "End supervision failed");
   }
 }
 
 async function endGroupHandover(id: string): Promise<void> {
-  const response = await fetch("/api/substitutions/end", {
+  const response = await transportFetch("/api/substitutions/end", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
     body: JSON.stringify({ type: "group_handover", id: Number(id) }),
   });
   if (!response.ok) {
-    throw new Error(
-      `Gruppenübergabe konnte nicht beendet werden (${response.status})`,
-    );
+    throw await apiErrorFromResponse(response, "End group handover failed");
   }
 }
 
@@ -77,31 +81,17 @@ async function removeActivitySupervisor(
     searchParams.set("replacement_staff_id", replacementStaffId);
   }
 
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/activities/${encodeURIComponent(activityId)}/supervisors/${encodeURIComponent(supervisorId)}${searchParams.size > 0 ? `?${searchParams.toString()}` : ""}`,
     { method: "DELETE", credentials: "include" },
   );
   if (!response.ok) {
-    let errorMessage = replacementStaffId
-      ? `Aktivitätsleitung konnte nicht übertragen werden (${response.status})`
-      : `Aktivitätsleitung konnte nicht entfernt werden (${response.status})`;
-    let errorCode: string | undefined;
-
-    try {
-      const payload = (await response.json()) as {
-        error?: string;
-        code?: string;
-      };
-      errorMessage = payload.error ?? errorMessage;
-      errorCode = payload.code;
-    } catch {
-      // Fall back to the generic status-based message when the proxy did not
-      // return structured JSON.
-    }
-
-    const error = new Error(errorMessage) as Error & { code?: string };
-    error.code = errorCode;
-    throw error;
+    // Code (etwa timetable.only_supervisor_replacement_required), Felder und
+    // Vorgangskennung reisen mit; der Text ist nur Diagnose.
+    throw await apiErrorFromResponse(
+      response,
+      "Remove activity supervisor failed",
+    );
   }
 }
 
@@ -110,16 +100,17 @@ async function updateGroupTeachers(
   groupName: string,
   teacherIds: number[],
 ): Promise<void> {
-  const response = await fetch(`/api/groups/${encodeURIComponent(groupId)}`, {
-    method: "PUT",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: groupName, teacher_ids: teacherIds }),
-  });
+  const response = await transportFetch(
+    `/api/groups/${encodeURIComponent(groupId)}`,
+    {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: groupName, teacher_ids: teacherIds }),
+    },
+  );
   if (!response.ok) {
-    throw new Error(
-      `Gruppenleitung konnte nicht aktualisiert werden (${response.status})`,
-    );
+    throw await apiErrorFromResponse(response, "Update group teachers failed");
   }
 }
 
@@ -162,7 +153,13 @@ export function CaregiverBlockerResolutionPanel({
     StaffGroupLeaderCandidate[]
   >([]);
   const [loadingStaff, setLoadingStaff] = useState(false);
-  const [staffLoadError, setStaffLoadError] = useState("");
+  // Ladefehler der Ersatzkräfte vor Ort, Fehler beim Auflösen im Panel des
+  // Dialogs, beide mit Katalogtext (#2517).
+  const {
+    error: staffLoadError,
+    show: showStaffLoadError,
+    clear: clearStaffLoadError,
+  } = useApiLoadError();
 
   const [supervisions, setSupervisions] = useState<BlockerSupervision[]>([]);
   const [substitutions, setSubstitutions] = useState<BlockerSubstitution[]>([]);
@@ -177,7 +174,8 @@ export function CaregiverBlockerResolutionPanel({
   >({});
 
   const [processing, setProcessing] = useState<Record<string, boolean>>({});
-  const [errorMessage, setErrorMessage] = useState("");
+  const actionErrors = useApiFormError();
+  const { clear: clearActionErrors } = actionErrors;
   // Entfernen ohne Ersatz und das Beenden einer Übergabe laufen erst nach der
   // Rückfrage (Bauart 2 Regel 6, #3109). Ein Übertragen an eine Ersatzkraft
   // läuft direkt: die Zuordnung bleibt bestehen, nur die Person wechselt.
@@ -284,18 +282,19 @@ export function CaregiverBlockerResolutionPanel({
       setLoadingStaff(true);
       const staff = await fetchGroupLeaderCandidates();
       setAvailableStaff(staff.filter((s) => s.id !== state.staffId));
-      setStaffLoadError("");
+      clearStaffLoadError();
     } catch (error) {
       logger.error("failed to load available staff", {
         error: error instanceof Error ? error.message : String(error),
       });
-      setStaffLoadError(
-        "Ersatzkräfte konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
-      );
+      void showStaffLoadError(error, {
+        object: "die Liste der Ersatzkräfte",
+        retry: () => void loadStaff(),
+      });
     } finally {
       setLoadingStaff(false);
     }
-  }, [state.staffId]);
+  }, [state.staffId, clearStaffLoadError, showStaffLoadError]);
 
   useEffect(() => {
     if (!active) return;
@@ -305,9 +304,9 @@ export function CaregiverBlockerResolutionPanel({
     setGroups(state.groupAssignments);
     setActivityReplacements({});
     setGroupReplacements({});
-    setErrorMessage("");
+    clearActionErrors();
     void loadStaff();
-  }, [active, state, loadStaff]);
+  }, [active, state, loadStaff, clearActionErrors]);
 
   function setItemProcessing(key: string, value: boolean) {
     setProcessing((prev) => ({ ...prev, [key]: value }));
@@ -317,20 +316,19 @@ export function CaregiverBlockerResolutionPanel({
     const key = `sup-${item.id}`;
     try {
       setItemProcessing(key, true);
-      setErrorMessage("");
+      actionErrors.clear();
       await endActiveSupervision(item.id);
       setSupervisions((prev) => prev.filter((s) => s.id !== item.id));
-      toastSuccess(`Gruppenaufsicht für "${item.groupName}" beendet.`);
+      toastSuccess(`Die Gruppenaufsicht für „${item.groupName}“ ist beendet.`);
     } catch (error) {
       logger.error("failed to end supervision", {
         id: item.id,
         error: String(error),
       });
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Fehler beim Beenden der Aufsicht.",
-      );
+      void actionErrors.show(error, {
+        object: `das Beenden der Aufsicht für „${item.groupName}“`,
+        retry: () => void handleEndSupervision(item),
+      });
     } finally {
       setItemProcessing(key, false);
     }
@@ -340,20 +338,19 @@ export function CaregiverBlockerResolutionPanel({
     const key = `sub-${item.id}`;
     try {
       setItemProcessing(key, true);
-      setErrorMessage("");
+      actionErrors.clear();
       await endGroupHandover(item.id);
       setSubstitutions((prev) => prev.filter((s) => s.id !== item.id));
-      toastSuccess(`Gruppenübergabe für "${item.groupName}" beendet.`);
+      toastSuccess(`Die Gruppenübergabe für „${item.groupName}“ ist beendet.`);
     } catch (error) {
       logger.error("failed to end substitution", {
         id: item.id,
         error: String(error),
       });
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Fehler beim Beenden der Gruppenübergabe.",
-      );
+      void actionErrors.show(error, {
+        object: `das Beenden der Übergabe für „${item.groupName}“`,
+        retry: () => void handleEndSubstitution(item),
+      });
     } finally {
       setItemProcessing(key, false);
     }
@@ -364,7 +361,7 @@ export function CaregiverBlockerResolutionPanel({
     const key = `act-${item.id}`;
     try {
       setItemProcessing(key, true);
-      setErrorMessage("");
+      actionErrors.clear();
       await removeActivitySupervisor(
         item.activityId,
         item.id,
@@ -373,27 +370,20 @@ export function CaregiverBlockerResolutionPanel({
       setActivities((prev) => prev.filter((a) => a.id !== item.id));
       toastSuccess(
         replacementStaffId
-          ? `Aktivitätsleitung für "${item.activityName}" übertragen.`
-          : `Aktivitätsleitung für "${item.activityName}" entfernt.`,
+          ? `Die Leitung von „${item.activityName}“ ist übertragen.`
+          : `Die Leitung von „${item.activityName}“ ist entfernt.`,
       );
     } catch (error) {
-      const errorCode =
-        error instanceof Error && "code" in error
-          ? (error as Error & { code?: string }).code
-          : undefined;
       logger.error("failed to resolve activity", {
         id: item.id,
         error: String(error),
-        errorCode,
       });
-      setErrorMessage(
-        wireErrorCode(errorCode) ===
-          "timetable.only_supervisor_replacement_required"
-          ? `"${item.activityName}": Einzige Leitung — bitte Ersatzkraft auswählen.`
-          : error instanceof Error
-            ? error.message
-            : "Fehler bei der Aktivitätsleitung.",
-      );
+      // timetable.only_supervisor_replacement_required (einzige Leitung)
+      // erklärt der Katalog.
+      void actionErrors.show(error, {
+        object: `die Leitung von „${item.activityName}“`,
+        retry: () => void handleResolveActivity(item),
+      });
     } finally {
       setItemProcessing(key, false);
     }
@@ -404,34 +394,34 @@ export function CaregiverBlockerResolutionPanel({
     const key = `grp-${item.id}`;
     try {
       setItemProcessing(key, true);
-      setErrorMessage("");
+      actionErrors.clear();
       const replacementTeacherId = replacementStaffId
         ? availableStaff.find((staff) => staff.id === replacementStaffId)
             ?.teacherId
         : undefined;
       if (replacementStaffId && !replacementTeacherId) {
-        throw new Error(
-          "Die ausgewählte Ersatzkraft kann keiner Stammgruppe zugeordnet werden.",
+        actionErrors.invalid(
+          "Diese Ersatzkraft kann keine Stammgruppe leiten. Bitte wählen Sie eine andere Person.",
         );
+        return;
       }
       const newTeacherIds = buildUpdatedTeacherIds(item, replacementTeacherId);
       await updateGroupTeachers(item.groupId, item.groupName, newTeacherIds);
       setGroups((prev) => prev.filter((g) => g.id !== item.id));
       toastSuccess(
         replacementStaffId
-          ? `Gruppenleitung für "${item.groupName}" übertragen.`
-          : `Gruppenleitung für "${item.groupName}" entfernt.`,
+          ? `Die Gruppenleitung für „${item.groupName}“ ist übertragen.`
+          : `Die Gruppenleitung für „${item.groupName}“ ist entfernt.`,
       );
     } catch (error) {
       logger.error("failed to resolve group", {
         id: item.id,
         error: String(error),
       });
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Fehler bei der Gruppenleitung.",
-      );
+      void actionErrors.show(error, {
+        object: `die Gruppenleitung für „${item.groupName}“`,
+        retry: () => void handleResolveGroup(item),
+      });
     } finally {
       setItemProcessing(key, false);
     }
@@ -673,7 +663,8 @@ export function CaregiverBlockerResolutionPanel({
         </InfoSection>
       ) : null}
 
-      <Alert type="error" message={errorMessage || staffLoadError} />
+      <LoadErrorAlert error={staffLoadError} />
+      <FormErrorAlert message={actionErrors.error} />
 
       <ConfirmationModal
         isOpen={
