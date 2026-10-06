@@ -88,49 +88,114 @@ const (
 	CodeCommunicationSystemAnnouncementImmutable         = "communication.system_announcement_immutable"
 	CodeEnrollmentApprovalCareOfferingExactlyOne         = "enrollment.approval_care_offering_exactly_one"
 	CodeEnrollmentApprovalCareOfferingMissing            = "enrollment.approval_care_offering_missing"
+	CodeEnrollmentApprovalDataInvalid                    = "enrollment.approval_data_invalid"
+	CodeEnrollmentCaptchaFailed                          = "enrollment.captcha_failed"
+	CodeEnrollmentCaptchaRequired                        = "enrollment.captcha_required"
+	CodeEnrollmentCareOfferingAutoAddInvalid             = "enrollment.care_offering_auto_add_invalid"
+	CodeEnrollmentCareOfferingCapacityInvalid            = "enrollment.care_offering_capacity_invalid"
+	CodeEnrollmentCareOfferingClosed                     = "enrollment.care_offering_closed"
 	CodeEnrollmentCareOfferingDaysRequired               = "enrollment.care_offering_days_required"
 	CodeEnrollmentCareOfferingExactlyOne                 = "enrollment.care_offering_exactly_one"
 	CodeEnrollmentCareOfferingFull                       = "enrollment.care_offering_full"
 	CodeEnrollmentCareOfferingInUse                      = "enrollment.care_offering_in_use"
 	CodeEnrollmentCareOfferingMissing                    = "enrollment.care_offering_missing"
+	CodeEnrollmentCareOfferingNameRequired               = "enrollment.care_offering_name_required"
+	CodeEnrollmentCareOfferingNotFound                   = "enrollment.care_offering_not_found"
+	CodeEnrollmentCareOfferingPickupTimeInvalid          = "enrollment.care_offering_pickup_time_invalid"
 	CodeEnrollmentCareOfferingPickupTimesRequired        = "enrollment.care_offering_pickup_times_required"
+	CodeEnrollmentCareOfferingPriceInvalid               = "enrollment.care_offering_price_invalid"
+	CodeEnrollmentCareOfferingSelectionInvalid           = "enrollment.care_offering_selection_invalid"
 	CodeEnrollmentCareOfferingTemplatePeriodMismatch     = "enrollment.care_offering_template_period_mismatch"
 	CodeEnrollmentCareOfferingUnavailable                = "enrollment.care_offering_unavailable"
 	CodeEnrollmentCareOfferingsDisabled                  = "enrollment.care_offerings_disabled"
 	CodeEnrollmentChangeRequestChildLocked               = "enrollment.change_request_child_locked"
 	CodeEnrollmentChangeRequestConflict                  = "enrollment.change_request_conflict"
+	CodeEnrollmentChangeRequestGuardianLinked            = "enrollment.change_request_guardian_linked"
+	CodeEnrollmentChangeRequestNotAllowed                = "enrollment.change_request_not_allowed"
+	CodeEnrollmentChangeRequestNotFound                  = "enrollment.change_request_not_found"
+	CodeEnrollmentChangeRequestNoteRequired              = "enrollment.change_request_note_required"
+	CodeEnrollmentChangeRequestStatusChanged             = "enrollment.change_request_status_changed"
 	CodeEnrollmentChildAlreadyEnrolled                   = "enrollment.child_already_enrolled"
+	CodeEnrollmentChildAlreadyRequested                  = "enrollment.child_already_requested"
 	CodeEnrollmentChildAmbiguous                         = "enrollment.child_ambiguous"
+	CodeEnrollmentChildBirthDateInvalid                  = "enrollment.child_birth_date_invalid"
 	CodeEnrollmentChildDeletionNotAllowed                = "enrollment.child_deletion_not_allowed"
+	CodeEnrollmentChildGradeRequired                     = "enrollment.child_grade_required"
+	CodeEnrollmentChildNameRequired                      = "enrollment.child_name_required"
 	CodeEnrollmentChildNotEnrolled                       = "enrollment.child_not_enrolled"
 	CodeEnrollmentChildNotPermitted                      = "enrollment.child_not_permitted"
+	CodeEnrollmentChildRequired                          = "enrollment.child_required"
 	CodeEnrollmentClassNotEligible                       = "enrollment.class_not_eligible"
+	CodeEnrollmentCompanionNoteRequired                  = "enrollment.companion_note_required"
 	CodeEnrollmentCompleteWithdrawalConfirmationRequired = "enrollment.complete_withdrawal_confirmation_required"
+	CodeEnrollmentConsentRequired                        = "enrollment.consent_required"
+	CodeEnrollmentCorrectionReasonRequired               = "enrollment.correction_reason_required"
+	CodeEnrollmentCorrectionSchoolClassMismatch          = "enrollment.correction_school_class_mismatch"
 	CodeEnrollmentDaySelectionNotAllowed                 = "enrollment.day_selection_not_allowed"
 	CodeEnrollmentDaySelectionRequired                   = "enrollment.day_selection_required"
+	CodeEnrollmentDecisionAlreadyFinal                   = "enrollment.decision_already_final"
+	CodeEnrollmentDeletionReasonInvalid                  = "enrollment.deletion_reason_invalid"
 	CodeEnrollmentDepartureModeLimit                     = "enrollment.departure_mode_limit"
 	CodeEnrollmentDisabled                               = "enrollment.disabled"
 	CodeEnrollmentDuplicateDetected                      = "enrollment.duplicate_detected"
+	CodeEnrollmentEditNotAllowed                         = "enrollment.edit_not_allowed"
+	CodeEnrollmentExportTooLarge                         = "enrollment.export_too_large"
+	CodeEnrollmentFieldRequired                          = "enrollment.field_required"
+	CodeEnrollmentFormFieldAllowedTimesInvalid           = "enrollment.form_field_allowed_times_invalid"
+	CodeEnrollmentFormFieldContentRequired               = "enrollment.form_field_content_required"
+	CodeEnrollmentFormFieldKeyDuplicate                  = "enrollment.form_field_key_duplicate"
+	CodeEnrollmentFormFieldKeyInvalid                    = "enrollment.form_field_key_invalid"
+	CodeEnrollmentFormFieldLabelRequired                 = "enrollment.form_field_label_required"
+	CodeEnrollmentFormFieldOptionsInvalid                = "enrollment.form_field_options_invalid"
+	CodeEnrollmentFormFieldTargetDuplicate               = "enrollment.form_field_target_duplicate"
+	CodeEnrollmentFormFieldTargetInvalid                 = "enrollment.form_field_target_invalid"
+	CodeEnrollmentFormFieldVisibilityInvalid             = "enrollment.form_field_visibility_invalid"
+	CodeEnrollmentFormGradeCollectionRequired            = "enrollment.form_grade_collection_required"
+	CodeEnrollmentFormNotFound                           = "enrollment.form_not_found"
 	CodeEnrollmentGradeNotEligible                       = "enrollment.grade_not_eligible"
 	CodeEnrollmentGuardianAccountMismatch                = "enrollment.guardian_account_mismatch"
+	CodeEnrollmentGuardianEmailRequired                  = "enrollment.guardian_email_required"
+	CodeEnrollmentGuardianNameRequired                   = "enrollment.guardian_name_required"
+	CodeEnrollmentGuardianPhoneRequired                  = "enrollment.guardian_phone_required"
 	CodeEnrollmentInvalidEmail                           = "enrollment.invalid_email"
 	CodeEnrollmentInvalidPhone                           = "enrollment.invalid_phone"
 	CodeEnrollmentLateInviteInvalid                      = "enrollment.late_invite_invalid"
+	CodeEnrollmentLegalBlockIncomplete                   = "enrollment.legal_block_incomplete"
+	CodeEnrollmentLegalBlockKeyDuplicate                 = "enrollment.legal_block_key_duplicate"
+	CodeEnrollmentLegalBlockKeyInvalid                   = "enrollment.legal_block_key_invalid"
+	CodeEnrollmentLegalBlockRequiredNotAllowed           = "enrollment.legal_block_required_not_allowed"
+	CodeEnrollmentLegalDocumentInvalid                   = "enrollment.legal_document_invalid"
+	CodeEnrollmentMessageRequired                        = "enrollment.message_required"
+	CodeEnrollmentOfferingAdjustmentInvalid              = "enrollment.offering_adjustment_invalid"
 	CodeEnrollmentPhaseCareOfferingConflict              = "enrollment.phase_care_offering_conflict"
+	CodeEnrollmentPhaseEligibilitySettingRequired        = "enrollment.phase_eligibility_setting_required"
 	CodeEnrollmentPhaseNameExists                        = "enrollment.phase_name_exists"
+	CodeEnrollmentPhaseNameRequired                      = "enrollment.phase_name_required"
 	CodeEnrollmentPhaseNotEligible                       = "enrollment.phase_not_eligible"
+	CodeEnrollmentPhaseNotFound                          = "enrollment.phase_not_found"
+	CodeEnrollmentPhaseSchoolClassesInvalid              = "enrollment.phase_school_classes_invalid"
+	CodeEnrollmentPhaseServicePeriodInvalid              = "enrollment.phase_service_period_invalid"
+	CodeEnrollmentPhaseWindowInvalid                     = "enrollment.phase_window_invalid"
 	CodeEnrollmentPickupTimeNotAllowed                   = "enrollment.pickup_time_not_allowed"
+	CodeEnrollmentRequestDuplicate                       = "enrollment.request_duplicate"
+	CodeEnrollmentRequestNotFound                        = "enrollment.request_not_found"
 	CodeEnrollmentRequiredCareOfferingMissing            = "enrollment.required_care_offering_missing"
 	CodeEnrollmentRestoreDuplicate                       = "enrollment.restore_duplicate"
+	CodeEnrollmentRestoreNothingWithdrawn                = "enrollment.restore_nothing_withdrawn"
 	CodeEnrollmentRestoreOfferingClosed                  = "enrollment.restore_offering_closed"
 	CodeEnrollmentRestorePhaseInactive                   = "enrollment.restore_phase_inactive"
 	CodeEnrollmentSchemaHasPhases                        = "enrollment.schema_has_phases"
 	CodeEnrollmentSchemaHasRequests                      = "enrollment.schema_has_requests"
 	CodeEnrollmentSchemaNameExists                       = "enrollment.schema_name_exists"
+	CodeEnrollmentSchemaNameRequired                     = "enrollment.schema_name_required"
+	CodeEnrollmentSchemaNotFound                         = "enrollment.schema_not_found"
 	CodeEnrollmentSelectedDayNotAvailable                = "enrollment.selected_day_not_available"
+	CodeEnrollmentStatusLinkInvalid                      = "enrollment.status_link_invalid"
 	CodeEnrollmentStudentExists                          = "enrollment.student_exists"
+	CodeEnrollmentSubmissionRateLimited                  = "enrollment.submission_rate_limited"
 	CodeEnrollmentWaitlistDisabled                       = "enrollment.waitlist_disabled"
 	CodeEnrollmentWindowClosed                           = "enrollment.window_closed"
+	CodeEnrollmentWithdrawNotAllowed                     = "enrollment.withdraw_not_allowed"
 	CodeFilesAnnouncementPublished                       = "files.announcement_published"
 	CodeFilesAttachmentLimitReached                      = "files.attachment_limit_reached"
 	CodeFilesFolderNameTaken                             = "files.folder_name_taken"
@@ -196,6 +261,7 @@ const (
 	CodePickupResolutionRequired                         = "pickup.resolution_required"
 	CodePresenceActivityParticipantLimitReached          = "presence.activity_participant_limit_reached"
 	CodePresenceRoomCapacityExceeded                     = "presence.room_capacity_exceeded"
+	CodeRolloverDeadlineRequired                         = "rollover.deadline_required"
 	CodeRolloverDuplicateName                            = "rollover.duplicate_name"
 	CodeRolloverInvalidRequest                           = "rollover.invalid_request"
 	CodeRolloverReviewInvalid                            = "rollover.review_invalid"
@@ -569,49 +635,114 @@ var errorClassByCode = map[string]string{
 	"communication.system_announcement_immutable":          "business_rejection",
 	"enrollment.approval_care_offering_exactly_one":        "business_rejection",
 	"enrollment.approval_care_offering_missing":            "business_rejection",
+	"enrollment.approval_data_invalid":                     "input",
+	"enrollment.captcha_failed":                            "input",
+	"enrollment.captcha_required":                          "input",
+	"enrollment.care_offering_auto_add_invalid":            "input",
+	"enrollment.care_offering_capacity_invalid":            "input",
+	"enrollment.care_offering_closed":                      "business_rejection",
 	"enrollment.care_offering_days_required":               "input",
 	"enrollment.care_offering_exactly_one":                 "input",
 	"enrollment.care_offering_full":                        "business_rejection",
 	"enrollment.care_offering_in_use":                      "business_rejection",
 	"enrollment.care_offering_missing":                     "input",
+	"enrollment.care_offering_name_required":               "input",
+	"enrollment.care_offering_not_found":                   "business_rejection",
+	"enrollment.care_offering_pickup_time_invalid":         "input",
 	"enrollment.care_offering_pickup_times_required":       "input",
+	"enrollment.care_offering_price_invalid":               "input",
+	"enrollment.care_offering_selection_invalid":           "input",
 	"enrollment.care_offering_template_period_mismatch":    "input",
 	"enrollment.care_offering_unavailable":                 "business_rejection",
 	"enrollment.care_offerings_disabled":                   "permission",
 	"enrollment.change_request_child_locked":               "permission",
 	"enrollment.change_request_conflict":                   "business_rejection",
+	"enrollment.change_request_guardian_linked":            "input",
+	"enrollment.change_request_not_allowed":                "permission",
+	"enrollment.change_request_not_found":                  "business_rejection",
+	"enrollment.change_request_note_required":              "input",
+	"enrollment.change_request_status_changed":             "business_rejection",
 	"enrollment.child_already_enrolled":                    "business_rejection",
+	"enrollment.child_already_requested":                   "business_rejection",
 	"enrollment.child_ambiguous":                           "input",
+	"enrollment.child_birth_date_invalid":                  "input",
 	"enrollment.child_deletion_not_allowed":                "business_rejection",
+	"enrollment.child_grade_required":                      "input",
+	"enrollment.child_name_required":                       "input",
 	"enrollment.child_not_enrolled":                        "business_rejection",
 	"enrollment.child_not_permitted":                       "permission",
+	"enrollment.child_required":                            "input",
 	"enrollment.class_not_eligible":                        "input",
+	"enrollment.companion_note_required":                   "input",
 	"enrollment.complete_withdrawal_confirmation_required": "input",
+	"enrollment.consent_required":                          "input",
+	"enrollment.correction_reason_required":                "input",
+	"enrollment.correction_school_class_mismatch":          "input",
 	"enrollment.day_selection_not_allowed":                 "input",
 	"enrollment.day_selection_required":                    "input",
+	"enrollment.decision_already_final":                    "business_rejection",
+	"enrollment.deletion_reason_invalid":                   "input",
 	"enrollment.departure_mode_limit":                      "input",
 	"enrollment.disabled":                                  "business_rejection",
 	"enrollment.duplicate_detected":                        "business_rejection",
+	"enrollment.edit_not_allowed":                          "permission",
+	"enrollment.export_too_large":                          "input",
+	"enrollment.field_required":                            "input",
+	"enrollment.form_field_allowed_times_invalid":          "input",
+	"enrollment.form_field_content_required":               "input",
+	"enrollment.form_field_key_duplicate":                  "input",
+	"enrollment.form_field_key_invalid":                    "input",
+	"enrollment.form_field_label_required":                 "input",
+	"enrollment.form_field_options_invalid":                "input",
+	"enrollment.form_field_target_duplicate":               "input",
+	"enrollment.form_field_target_invalid":                 "input",
+	"enrollment.form_field_visibility_invalid":             "input",
+	"enrollment.form_grade_collection_required":            "input",
+	"enrollment.form_not_found":                            "business_rejection",
 	"enrollment.grade_not_eligible":                        "input",
 	"enrollment.guardian_account_mismatch":                 "business_rejection",
+	"enrollment.guardian_email_required":                   "input",
+	"enrollment.guardian_name_required":                    "input",
+	"enrollment.guardian_phone_required":                   "input",
 	"enrollment.invalid_email":                             "input",
 	"enrollment.invalid_phone":                             "input",
 	"enrollment.late_invite_invalid":                       "input",
+	"enrollment.legal_block_incomplete":                    "input",
+	"enrollment.legal_block_key_duplicate":                 "input",
+	"enrollment.legal_block_key_invalid":                   "input",
+	"enrollment.legal_block_required_not_allowed":          "input",
+	"enrollment.legal_document_invalid":                    "input",
+	"enrollment.message_required":                          "input",
+	"enrollment.offering_adjustment_invalid":               "input",
 	"enrollment.phase_care_offering_conflict":              "business_rejection",
+	"enrollment.phase_eligibility_setting_required":        "input",
 	"enrollment.phase_name_exists":                         "business_rejection",
+	"enrollment.phase_name_required":                       "input",
 	"enrollment.phase_not_eligible":                        "permission",
+	"enrollment.phase_not_found":                           "business_rejection",
+	"enrollment.phase_school_classes_invalid":              "input",
+	"enrollment.phase_service_period_invalid":              "input",
+	"enrollment.phase_window_invalid":                      "input",
 	"enrollment.pickup_time_not_allowed":                   "input",
+	"enrollment.request_duplicate":                         "business_rejection",
+	"enrollment.request_not_found":                         "business_rejection",
 	"enrollment.required_care_offering_missing":            "input",
 	"enrollment.restore_duplicate":                         "business_rejection",
+	"enrollment.restore_nothing_withdrawn":                 "business_rejection",
 	"enrollment.restore_offering_closed":                   "business_rejection",
 	"enrollment.restore_phase_inactive":                    "business_rejection",
 	"enrollment.schema_has_phases":                         "business_rejection",
 	"enrollment.schema_has_requests":                       "business_rejection",
 	"enrollment.schema_name_exists":                        "business_rejection",
+	"enrollment.schema_name_required":                      "input",
+	"enrollment.schema_not_found":                          "business_rejection",
 	"enrollment.selected_day_not_available":                "input",
+	"enrollment.status_link_invalid":                       "business_rejection",
 	"enrollment.student_exists":                            "business_rejection",
+	"enrollment.submission_rate_limited":                   "unavailable",
 	"enrollment.waitlist_disabled":                         "business_rejection",
 	"enrollment.window_closed":                             "business_rejection",
+	"enrollment.withdraw_not_allowed":                      "permission",
 	"files.announcement_published":                         "business_rejection",
 	"files.attachment_limit_reached":                       "business_rejection",
 	"files.folder_name_taken":                              "business_rejection",
@@ -677,6 +808,7 @@ var errorClassByCode = map[string]string{
 	"pickup.resolution_required":                           "input",
 	"presence.activity_participant_limit_reached":          "business_rejection",
 	"presence.room_capacity_exceeded":                      "business_rejection",
+	"rollover.deadline_required":                           "input",
 	"rollover.duplicate_name":                              "business_rejection",
 	"rollover.invalid_request":                             "input",
 	"rollover.review_invalid":                              "input",

@@ -1,7 +1,14 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -52,7 +59,12 @@ import { createLogger } from "~/lib/logger";
 import { RolloverForm } from "./rollover-form";
 import { useTenant } from "~/lib/tenant-context";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
@@ -69,8 +81,6 @@ import {
 } from "~/components/ui/slide-over";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
-import { Alert } from "~/components/ui/alert";
-import { useFormError } from "~/components/ui/form-error";
 import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
 import {
   DataTable,
@@ -237,7 +247,14 @@ export function PhasesEditor() {
   const [schemas, setSchemas] = useState<FormSchema[]>([]);
   const [periods, setPeriods] = useState<CalendarPeriod[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useFormError();
+  const pageLoad = useApiLoadError();
+  const showLoadError = pageLoad.show;
+  const clearLoadError = pageLoad.clear;
+  // Saving the slide-over form: alert in the panel, field errors at the field.
+  const formErrors = useApiFormError();
+  const clearFormErrors = formErrors.clear;
+  // List actions without a form (aktivieren, ausschalten): toast.
+  const { show: showActionError } = useApiErrorDisplay();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<PhaseInput | null>(null);
@@ -253,9 +270,14 @@ export function PhasesEditor() {
   const [impactLoading, setImpactLoading] = useState(false);
   // Preview-load failure (hard-blocks confirmation) vs. delete-call failure
   // (retryable) are tracked separately so a failed delete doesn't permanently
-  // gate a retry, and a failed preview never lets the delete through.
-  const [impactError, setImpactError] = useState("");
-  const [deleteError, setDeleteError] = useState("");
+  // gate a retry, and a failed preview never lets the delete through. Both
+  // stay in the open dialog.
+  const impactLoad = useApiLoadError();
+  const showImpactError = impactLoad.show;
+  const clearImpactError = impactLoad.clear;
+  const deleteErrors = useApiFormError();
+  const clearDeleteErrors = deleteErrors.clear;
+  const showDeleteError = deleteErrors.show;
   // Monotonic id of the in-flight delete-impact request. Stale responses
   // (admin opened phase A, then phase B before A resolved) are ignored by
   // comparing against the latest id.
@@ -299,29 +321,48 @@ export function PhasesEditor() {
     return names;
   }, [schemas]);
 
+  // „Wiederholen“ lädt mit der aktuellen Fassung neu.
+  const latestLoadAll = useRef<() => Promise<void>>(async () => undefined);
   const loadAll = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
       const [phasesData, schemasData, periodsData] = await Promise.all([
         listPhases(),
-        listSchemas().catch(() => [] as FormSchema[]),
+        // Without the templates the form column and the template picker
+        // would claim „Eigene Vorlage“ / none; the load fails as a whole.
+        listSchemas(),
         // Calendar periods are optional context for the phase form —
-        // a load failure must not block phase management.
-        calendarPeriodService.list().catch(() => [] as CalendarPeriod[]),
+        // a load failure must not block phase management. Deliberately
+        // silent beyond the log: the form then offers no period to link.
+        calendarPeriodService.list().catch((periodError: unknown) => {
+          logger.warn("phase_calendar_periods_load_failed", {
+            error:
+              periodError instanceof Error
+                ? periodError.message
+                : String(periodError),
+          });
+          return [] as CalendarPeriod[];
+        }),
       ]);
       setPhases(phasesData);
       setSchemas(schemasData);
       setPeriods(periodsData);
+      clearLoadError();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("phases_load_failed", { error: message });
-      setError(message);
-      toast.error(message);
+      logger.error("phases_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await showLoadError(err, {
+        object: "die Liste der Anmeldephasen",
+        retry: () => void latestLoadAll.current(),
+      });
     } finally {
       setLoading(false);
     }
-  }, [setError, toast]);
+  }, [showLoadError, clearLoadError]);
+  useLayoutEffect(() => {
+    latestLoadAll.current = loadAll;
+  });
 
   useEffect(() => {
     void loadAll();
@@ -352,8 +393,8 @@ export function PhasesEditor() {
     });
     setSchemaSource(assignSchema ? "reuse" : "base");
     setHighlightFormSection(Boolean(assignSchema));
-    setError(null);
-  }, [assignSchema, setError]);
+    clearFormErrors();
+  }, [assignSchema, clearFormErrors]);
 
   const startEdit = useCallback(
     (phase: Phase, forceFormHighlight = false) => {
@@ -364,9 +405,9 @@ export function PhasesEditor() {
       });
       setSchemaSource(assignSchema || phase.form_schema_id ? "reuse" : "base");
       setHighlightFormSection(Boolean(assignSchema) || forceFormHighlight);
-      setError(null);
+      clearFormErrors();
     },
-    [assignSchema, setError],
+    [assignSchema, clearFormErrors],
   );
 
   const cancelEdit = () => {
@@ -374,137 +415,174 @@ export function PhasesEditor() {
     setDraft(null);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const save = async () => {
     if (!draft) return;
-    setSaving(true);
-    setError(null);
-    try {
-      // Normalise schema_source to form_schema_id.
-      const payload: PhaseInput = {
-        ...draft,
-        name: draft.name.trim(),
-        form_schema_id: schemaSource === "base" ? null : draft.form_schema_id,
-      };
-      if (!payload.name) {
-        throw new Error("Bitte gib einen Namen für die Anmeldephase ein.");
-      }
-      if (schemaSource === "reuse" && !payload.form_schema_id) {
-        throw new Error("Bitte ein Formular auswählen oder Basis wählen.");
-      }
-      if (!payload.service_start_date || !payload.service_end_date) {
-        throw new Error(
-          "Bitte Beginn und Ende des Betreuungszeitraums angeben.",
-        );
-      }
-      if (
-        payload.service_start_date &&
-        payload.service_end_date &&
-        payload.service_end_date < payload.service_start_date
-      ) {
-        throw new Error(
-          "Ende des Betreuungszeitraums muss nach dem Beginn liegen.",
-        );
-      }
-      if (
-        payload.enrollment_open_at &&
-        payload.enrollment_close_at &&
-        new Date(payload.enrollment_close_at) <=
-          new Date(payload.enrollment_open_at)
-      ) {
-        throw new Error(
-          "Schließung des Anmeldefensters muss nach der Öffnung liegen.",
-        );
-      }
-      // A "Nur für Klassen" restriction can only be met with a class the form
-      // actually offers, and the form offers exactly the "Konkrete Klassen"
-      // (available_school_classes) list. So every eligible class must also be
-      // an offered one — the backend rejects a phase where it isn't — and the
-      // class pick must be mandatory, otherwise the form shows "Klasse offen"
-      // and every such submission fails server-side with class_not_eligible
-      // after the parent completed the whole form (#1663). The tenant-wide
-      // Klassen-Abfrage must still be active for the pick to appear —
-      // surfaced in the field hint, not enforceable here.
-      const eligibleClasses = withNonEmptyClasses(
-        payload.eligible_school_classes ?? [],
+    formErrors.clear();
+    // Normalise schema_source to form_schema_id.
+    const payload: PhaseInput = {
+      ...draft,
+      name: draft.name.trim(),
+      form_schema_id: schemaSource === "base" ? null : draft.form_schema_id,
+    };
+    if (!payload.name) {
+      formErrors.invalid("Bitte geben Sie der Anmeldephase einen Namen.", {
+        name: "Bitte geben Sie einen Namen ein.",
+      });
+      return;
+    }
+    if (schemaSource === "reuse" && !payload.form_schema_id) {
+      formErrors.invalid(
+        "Bitte wählen Sie eine Formularvorlage oder das Basisformular.",
+        { form_schema_id: "Bitte wählen Sie eine Vorlage." },
       );
-      // Grade-1 classes ("1a") are supported (#1663): when a phase offers a
-      // grade-1 class the form collects it (grade 1 is no longer restricted to
-      // grade-level only), so a grade-1 eligibility restriction is satisfiable.
-      //
-      // The editor already keeps the two lists in sync while typing; this stays
-      // as the safety net for a draft loaded from a phase whose stored lists
-      // drifted apart (an older editor build, or a direct API write).
-      if (eligibleClasses.length > 0) {
-        payload.available_school_classes = mergeOfferedClasses(
-          payload.available_school_classes ?? [],
-          eligibleClasses,
+      return;
+    }
+    if (!payload.service_start_date || !payload.service_end_date) {
+      formErrors.invalid(
+        "Bitte geben Sie Beginn und Ende des Betreuungszeitraums an.",
+        {
+          ...(payload.service_start_date
+            ? {}
+            : { service_start_date: "Bitte wählen Sie den Beginn." }),
+          ...(payload.service_end_date
+            ? {}
+            : { service_end_date: "Bitte wählen Sie das Ende." }),
+        },
+      );
+      return;
+    }
+    if (payload.service_end_date < payload.service_start_date) {
+      formErrors.invalid(
+        "Das Ende des Betreuungszeitraums liegt vor dem Beginn.",
+        { service_end_date: "Bitte wählen Sie ein späteres Ende." },
+      );
+      return;
+    }
+    if (
+      payload.enrollment_open_at &&
+      payload.enrollment_close_at &&
+      new Date(payload.enrollment_close_at) <=
+        new Date(payload.enrollment_open_at)
+    ) {
+      formErrors.invalid(
+        "Die Schließung des Anmeldefensters muss nach der Öffnung liegen.",
+        { enrollment_close_at: "Bitte wählen Sie eine spätere Schließung." },
+      );
+      return;
+    }
+    // A "Nur für Klassen" restriction can only be met with a class the form
+    // actually offers, and the form offers exactly the "Konkrete Klassen"
+    // (available_school_classes) list. So every eligible class must also be
+    // an offered one — the backend rejects a phase where it isn't — and the
+    // class pick must be mandatory, otherwise the form shows "Klasse offen"
+    // and every such submission fails server-side with class_not_eligible
+    // after the parent completed the whole form (#1663). The tenant-wide
+    // Klassen-Abfrage must still be active for the pick to appear —
+    // surfaced in the field hint, not enforceable here.
+    const eligibleClasses = withNonEmptyClasses(
+      payload.eligible_school_classes ?? [],
+    );
+    // Grade-1 classes ("1a") are supported (#1663): when a phase offers a
+    // grade-1 class the form collects it (grade 1 is no longer restricted to
+    // grade-level only), so a grade-1 eligibility restriction is satisfiable.
+    //
+    // The editor already keeps the two lists in sync while typing; this stays
+    // as the safety net for a draft loaded from a phase whose stored lists
+    // drifted apart (an older editor build, or a direct API write).
+    if (eligibleClasses.length > 0) {
+      payload.available_school_classes = mergeOfferedClasses(
+        payload.available_school_classes ?? [],
+        eligibleClasses,
+      );
+      payload.require_school_class = true;
+    }
+    // Both restrictions apply together, so a class outside the selected
+    // grades can never be declared — the child would have to be in two
+    // grades at once. The backend rejects the pair; catch it here with a
+    // concrete message naming the offending class (#1663).
+    const eligibleGrades = payload.eligible_grade_levels ?? [];
+    if (eligibleGrades.length > 0) {
+      const conflicting = eligibleClasses.find((cls) => {
+        const prefix = /(\d+)/.exec(cls)?.[1];
+        return prefix !== undefined && !eligibleGrades.includes(Number(prefix));
+      });
+      if (conflicting) {
+        formErrors.invalid(
+          `Die Klasse „${conflicting}“ passt nicht zu den gewählten Klassenstufen. Entfernen Sie die Klasse oder ergänzen Sie ihre Klassenstufe.`,
         );
-        payload.require_school_class = true;
+        return;
       }
-      // Both restrictions apply together, so a class outside the selected
-      // grades can never be declared — the child would have to be in two
-      // grades at once. The backend rejects the pair; catch it here with a
-      // concrete message naming the offending class (#1663).
-      const eligibleGrades = payload.eligible_grade_levels ?? [];
-      if (eligibleGrades.length > 0) {
-        const conflicting = eligibleClasses.find((cls) => {
-          const prefix = /(\d+)/.exec(cls)?.[1];
-          return (
-            prefix !== undefined && !eligibleGrades.includes(Number(prefix))
-          );
-        });
-        if (conflicting) {
-          throw new Error(
-            `Die Klasse „${conflicting}“ passt nicht zu den gewählten Klassenstufen. Entfernen Sie die Klasse oder ergänzen Sie ihre Klassenstufe.`,
-          );
-        }
-      }
+    }
+    setSaving(true);
+    try {
       if (editingId === "new") {
         const created = await createPhase(payload);
-        toast.success(`Anmeldephase „${created.name}“ erstellt.`);
+        toast.success(`Die Anmeldephase „${created.name}“ ist angelegt.`);
       } else if (editingId) {
         const updated = await updatePhase(editingId, payload);
-        toast.success(`Anmeldephase „${updated.name}“ gespeichert.`);
+        toast.success(`Die Anmeldephase „${updated.name}“ ist gespeichert.`);
       }
       cancelEdit();
       await loadAll();
       refreshPhaseExpiryWarnings();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("phase_save_failed", { error: message });
-      setError(message);
+      logger.error("phase_save_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await formErrors.show(err, {
+        object: "die Anmeldephase",
+        retry: () => void latestSave.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+  // „Wiederholen“ sendet den aktuellen Entwurf.
+  const latestSave = useRef(save);
+  useLayoutEffect(() => {
+    latestSave.current = save;
+  });
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    void save();
+  };
 
   // Opens the confirmation modal and fetches the delete blast radius so
   // the admin sees exactly what will be removed vs kept before confirming.
-  const requestDelete = useCallback((phase: Phase) => {
-    setDeleteTarget(phase);
-    setDeleteImpact(null);
-    setImpactError("");
-    setDeleteError("");
-    setImpactLoading(true);
-    const requestId = ++impactRequestRef.current;
-    getPhaseDeleteImpact(phase.id)
-      .then((impact) => {
-        if (impactRequestRef.current !== requestId) return;
-        setDeleteImpact(impact);
-      })
-      .catch((err) => {
-        if (impactRequestRef.current !== requestId) return;
-        const message =
-          err instanceof Error ? err.message : "Unbekannter Fehler";
-        logger.error("phase_delete_impact_failed", { error: message });
-        setImpactError(message);
-      })
-      .finally(() => {
-        if (impactRequestRef.current !== requestId) return;
-        setImpactLoading(false);
-      });
-  }, []);
+  const requestDelete = useCallback(
+    (phase: Phase) => {
+      setDeleteTarget(phase);
+      setDeleteImpact(null);
+      clearImpactError();
+      clearDeleteErrors();
+      setImpactLoading(true);
+      const requestId = ++impactRequestRef.current;
+      getPhaseDeleteImpact(phase.id)
+        .then((impact) => {
+          if (impactRequestRef.current !== requestId) return;
+          setDeleteImpact(impact);
+        })
+        .catch(async (err: unknown) => {
+          if (impactRequestRef.current !== requestId) return;
+          logger.error("phase_delete_impact_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          await showImpactError(err, {
+            object: "die Löschvorschau",
+            retry: () => latestRequestDelete.current(phase),
+          });
+        })
+        .finally(() => {
+          if (impactRequestRef.current !== requestId) return;
+          setImpactLoading(false);
+        });
+    },
+    [clearImpactError, clearDeleteErrors, showImpactError],
+  );
+  const latestRequestDelete = useRef(requestDelete);
+  useLayoutEffect(() => {
+    latestRequestDelete.current = requestDelete;
+  });
 
   const closeDelete = useCallback(() => {
     // Invalidate any in-flight preview so a late response can't populate the
@@ -512,30 +590,31 @@ export function PhasesEditor() {
     impactRequestRef.current++;
     setDeleteTarget(null);
     setDeleteImpact(null);
-    setImpactError("");
-    setDeleteError("");
+    clearImpactError();
+    clearDeleteErrors();
     setImpactLoading(false);
-  }, []);
+  }, [clearImpactError, clearDeleteErrors]);
 
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
     // Hard guard mirroring the modal's confirmDisabled gate: never delete
     // until the blast-radius preview has loaded successfully.
-    if (impactLoading || !deleteImpact || impactError) return;
+    if (impactLoading || !deleteImpact || impactLoad.error) return;
     const phase = deleteTarget;
     setDeletingId(phase.id);
-    setDeleteError("");
+    clearDeleteErrors();
     try {
       await deletePhase(phase.id);
-      toast.success(`Anmeldephase „${phase.name}“ gelöscht.`);
+      toast.success(`Die Anmeldephase „${phase.name}“ ist gelöscht.`);
       closeDelete();
       await loadAll();
       refreshPhaseExpiryWarnings();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("phase_delete_failed", { error: message });
-      setDeleteError(message);
-      toast.error(message);
+      logger.error("phase_delete_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // Der Fehler bleibt im offenen Dialog; dessen Knopf wiederholt.
+      await showDeleteError(err, { object: "die Anmeldephase" });
     } finally {
       setDeletingId(null);
     }
@@ -543,7 +622,9 @@ export function PhasesEditor() {
     deleteTarget,
     deleteImpact,
     impactLoading,
-    impactError,
+    impactLoad.error,
+    clearDeleteErrors,
+    showDeleteError,
     closeDelete,
     loadAll,
     refreshPhaseExpiryWarnings,
@@ -555,23 +636,24 @@ export function PhasesEditor() {
       setRolloverSource(phase);
       setEditingId(null);
       setDraft(null);
-      setError(null);
+      clearFormErrors();
     },
-    [setError],
+    [clearFormErrors],
   );
 
   const startRolloverByID = useCallback(
     (sourcePhaseID: string) => {
       const source = phases.find((phase) => phase.id === sourcePhaseID);
       if (!source) {
-        setError(
-          "Die Anmeldephase wurde nicht gefunden. Laden Sie die Seite neu.",
+        // Folge eines Klicks (Hinweis oder Link): eine Meldung ohne Formular.
+        toast.error(
+          "Die Anmeldephase wurde nicht gefunden. Bitte laden Sie die Seite neu.",
         );
         return;
       }
       startRollover(source);
     },
-    [phases, setError, startRollover],
+    [phases, toast, startRollover],
   );
 
   useEffect(() => {
@@ -614,16 +696,18 @@ export function PhasesEditor() {
     }
     const detail = summaryBits.length > 0 ? ` (${summaryBits.join(", ")})` : "";
     toast.success(
-      `Anschlussphase „${result.phase.name}“ wurde erstellt${detail}.`,
+      `Die Anschlussphase „${result.phase.name}“ ist angelegt${detail}.`,
     );
     void loadAll();
     refreshPhaseExpiryWarnings();
   };
 
+  const latestToggleActive = useRef<(phase: Phase) => Promise<void>>(
+    async () => undefined,
+  );
   const handleToggleActive = useCallback(
     async (phase: Phase) => {
       setSaving(true);
-      setError(null);
       try {
         const updated = await updatePhase(phase.id, {
           ...phaseToInput(phase),
@@ -631,23 +715,28 @@ export function PhasesEditor() {
         });
         toast.success(
           updated.is_active
-            ? `Anmeldephase „${updated.name}“ ist jetzt aktiv.`
-            : `Anmeldephase „${updated.name}“ wurde deaktiviert.`,
+            ? `Die Anmeldephase „${updated.name}“ ist jetzt aktiv.`
+            : `Die Anmeldephase „${updated.name}“ ist jetzt nicht mehr aktiv.`,
         );
         await loadAll();
         refreshPhaseExpiryWarnings();
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Unbekannter Fehler";
-        logger.error("phase_toggle_active_failed", { error: message });
-        setError(message);
-        toast.error(message);
+        logger.error("phase_toggle_active_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        await showActionError(err, {
+          object: "die Anmeldephase",
+          retry: () => void latestToggleActive.current(phase),
+        });
       } finally {
         setSaving(false);
       }
     },
-    [loadAll, refreshPhaseExpiryWarnings, setError, toast],
+    [loadAll, refreshPhaseExpiryWarnings, showActionError, toast],
   );
+  useLayoutEffect(() => {
+    latestToggleActive.current = handleToggleActive;
+  });
 
   const activePhaseCount = phases.filter((phase) => phase.is_active).length;
   const periodNameById = useMemo(
@@ -782,7 +871,12 @@ export function PhasesEditor() {
       // Die Kopfkarte lebt hier und nicht in page.tsx, weil „Neue
       // Anmeldephase“ an den Editor-Zustand gebunden ist (beim Bearbeiten
       // oder Übertragen wird die Aktion ausgeblendet).
-      stats={`${activePhaseCount} aktiv · ${Math.max(phases.length - activePhaseCount, 0)} in Vorbereitung`}
+      // Ohne geladene Liste keine Zahlen: ein Ladefehler ist keine „0 aktiv“.
+      stats={
+        pageLoad.error
+          ? undefined
+          : `${activePhaseCount} aktiv · ${Math.max(phases.length - activePhaseCount, 0)} in Vorbereitung`
+      }
       statsLoading={loading}
       actions={
         <Button
@@ -801,10 +895,10 @@ export function PhasesEditor() {
         </Button>
       }
       loading={loading}
+      // Ein Ladefehler steht an Stelle der Liste, nie ein Leerzustand.
+      error={pageLoad.error}
       empty={
-        // Ein Speicherfehler steht als Alert über der Liste; er darf nicht
-        // hinter dem Leerzustand verschwinden.
-        !loading && phases.length === 0 && !error
+        !loading && phases.length === 0
           ? {
               title: "Noch keine Anmeldephase angelegt",
               description:
@@ -859,7 +953,7 @@ export function PhasesEditor() {
                       : "Anmeldephase bearbeiten"}
                 </SlideOverTitle>
               </SlideOverHeader>
-              <SlideOverBody error={rolloverSource ? null : error}>
+              <SlideOverBody error={rolloverSource ? null : formErrors.error}>
                 {rolloverSource ? (
                   <RolloverForm
                     source={rolloverSource}
@@ -880,6 +974,7 @@ export function PhasesEditor() {
                     gradeLevelMax={gradeLevelMax}
                     onSubmit={handleSave}
                     onCancel={cancelEdit}
+                    fieldError={formErrors.fieldError}
                   />
                 ) : null}
               </SlideOverBody>
@@ -908,12 +1003,10 @@ export function PhasesEditor() {
                       <p className="mt-1 text-xs">
                         Löschvorschau wird geladen…
                       </p>
-                    ) : impactError ? (
+                    ) : impactLoad.error ? (
                       <p className="mt-1 text-xs">
-                        Die Löschvorschau konnte nicht geladen werden. Das
-                        Löschen ist erst möglich, sobald die Vorschau vorliegt.
-                        Bitte schließen Sie den Dialog und versuchen Sie es
-                        erneut.
+                        Das Löschen ist erst möglich, sobald die Vorschau
+                        vorliegt.
                       </p>
                     ) : deleteImpact ? (
                       <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
@@ -945,12 +1038,12 @@ export function PhasesEditor() {
               }
               gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
               confirmDisabled={
-                impactLoading || !deleteImpact || Boolean(impactError)
+                impactLoading || !deleteImpact || Boolean(impactLoad.error)
               }
               onConfirm={confirmDelete}
               onClose={closeDelete}
               loading={deletingId === deleteTarget.id}
-              error={impactError || deleteError}
+              error={impactLoad.error ?? deleteErrors.error}
             />
           )}
         </>
@@ -960,13 +1053,6 @@ export function PhasesEditor() {
       {/* Flex-Spalte statt Block: so wächst die Tabelle als letzte Fläche
           bis zur Unterkante des Bildschirms (`.moto-tenant-body`). */}
       <div className="hidden space-y-4 lg:flex lg:flex-col">
-        {/* Fehler einer Listenaktion (Aktivieren, Laden) stehen über der
-            Liste. Ist das Bearbeiten-Panel offen, trägt dessen Rumpf den
-            Speicherfehler (Bauart 2 Regel 5); hier stünde er sonst hinter dem
-            Panel und doppelt. */}
-        {error && !(editingId && draft) ? (
-          <Alert type="error" message={error.message} />
-        ) : null}
         <div className="grid gap-2 sm:grid-cols-3">
           <EnrollmentStatTile
             leading={
@@ -1019,6 +1105,8 @@ interface PhaseFormProps {
   readonly gradeLevelMax: number | null;
   readonly onSubmit: (e: React.FormEvent) => void;
   readonly onCancel: () => void;
+  /** Hint for a field the last save or local check rejected. */
+  readonly fieldError: (name: string) => string | undefined;
 }
 
 function EnrollmentWindowCell({
@@ -1097,7 +1185,7 @@ function PhaseActions({
   const { copy } = useClipboardCopy(`PhaseActions:${phase.id}`);
   const copyPhaseUrl = async (url: string) => {
     if (await copy(url)) {
-      toast.success("Elternlink kopiert.");
+      toast.success("Der Elternlink ist kopiert.");
     } else {
       toast.error(
         "Der Link konnte nicht kopiert werden. Bitte versuchen Sie es noch einmal.",
@@ -1256,6 +1344,7 @@ function PhaseForm(props: PhaseFormProps) {
     gradeLevelMax,
     onSubmit,
     onCancel,
+    fieldError,
   } = props;
   const formSectionRef = useRef<HTMLFieldSetElement>(null);
 
@@ -1304,8 +1393,24 @@ function PhaseForm(props: PhaseFormProps) {
             onChange={(e) => update({ name: e.target.value })}
             placeholder="z. B. Schuljahr 2026/27"
             aria-required="true"
-            className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            aria-invalid={fieldError("name") ? true : undefined}
+            aria-describedby={
+              fieldError("name") ? "phase-name-error" : undefined
+            }
+            className={`mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+              fieldError("name")
+                ? "border-moto-red bg-moto-red/5"
+                : "border-gray-200 hover:border-gray-300"
+            }`}
           />
+          {fieldError("name") ? (
+            <span
+              id="phase-name-error"
+              className="text-moto-red-strong mt-1 block text-xs"
+            >
+              {fieldError("name")}
+            </span>
+          ) : null}
         </label>
 
         <label className="block" htmlFor="phase-kind" id="phase-kind-label">
@@ -1412,6 +1517,7 @@ function PhaseForm(props: PhaseFormProps) {
               controlSize="md"
               ariaLabel="Beginn"
               value={draft.service_start_date}
+              error={fieldError("service_start_date")}
               className="mt-1"
               calendarLayout="popover"
               hideClearButton
@@ -1445,6 +1551,7 @@ function PhaseForm(props: PhaseFormProps) {
               min={draft.service_start_date || undefined}
               value={draft.service_end_date}
               onChange={(next) => update({ service_end_date: next })}
+              error={fieldError("service_end_date")}
               className="mt-1"
               calendarLayout="popover"
               hideClearButton
@@ -1478,6 +1585,7 @@ function PhaseForm(props: PhaseFormProps) {
               timeAriaLabel="Öffnung Uhrzeit"
               className="mt-1"
               value={toLocalInputValue(draft.enrollment_open_at)}
+              invalid={Boolean(fieldError("enrollment_open_at"))}
               onChange={(nextLocal) => {
                 const nextOpen = fromLocalInputValue(nextLocal);
                 setDraft((prev) => {
@@ -1512,6 +1620,7 @@ function PhaseForm(props: PhaseFormProps) {
               className="mt-1"
               min={toLocalInputValue(draft.enrollment_open_at) || undefined}
               value={toLocalInputValue(draft.enrollment_close_at)}
+              invalid={Boolean(fieldError("enrollment_close_at"))}
               // A closing date picked without a time should end the day, not
               // start it — otherwise the window shuts at midnight.
               defaultTime="23:59"
@@ -1579,6 +1688,8 @@ function PhaseForm(props: PhaseFormProps) {
               die Fragen aus dieser Formularvorlage.
               {schemaSource === "reuse" && (
                 <CustomSelect
+                  name="form_schema_id"
+                  invalid={Boolean(fieldError("form_schema_id"))}
                   value={draft.form_schema_id ?? ""}
                   onChange={(value) =>
                     update({ form_schema_id: value || null })

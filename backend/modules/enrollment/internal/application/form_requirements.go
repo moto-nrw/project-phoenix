@@ -24,7 +24,7 @@ func validateRequiredCustomFields(schema *enrollment.FormSchema, req SubmitReque
 	// from the schema's core_requirements.
 	if schema.CoreRequirements.Required(enrollment.CoreRequirementGuardianPhone) {
 		if req.GuardianPhone == nil || strings.TrimSpace(*req.GuardianPhone) == "" {
-			return fmt.Errorf("%w: guardian phone is required", enrollment.ErrInvalidSubmission)
+			return enrollment.InvalidInput(enrollment.CodeGuardianPhoneRequired, "guardian_phone", fmt.Errorf("%w: guardian phone is required", enrollment.ErrInvalidSubmission))
 		}
 	}
 	byKey := buildFieldsByKey(schema)
@@ -35,7 +35,7 @@ func validateRequiredCustomFields(schema *enrollment.FormSchema, req SubmitReque
 			continue
 		}
 		if !customAnswerSatisfiesRequired(*f, req.CustomData) {
-			return fmt.Errorf("%w: field %q is required", enrollment.ErrInvalidSubmission, f.Key)
+			return enrollment.InvalidInput(enrollment.CodeFieldRequired, customDataField(-1, f.Key), fmt.Errorf("%w: field %q is required", enrollment.ErrInvalidSubmission, f.Key))
 		}
 	}
 	for idx := range req.Children {
@@ -54,7 +54,7 @@ func validateRequiredChildFields(schema *enrollment.FormSchema, guardianAnswers 
 			continue
 		}
 		if !childAnswerSatisfiesRequired(*f, child, openByID) {
-			return fmt.Errorf("%w: child %d field %q is required", enrollment.ErrInvalidSubmission, idx, f.Key)
+			return enrollment.InvalidInput(enrollment.CodeFieldRequired, customDataField(idx, f.Key), fmt.Errorf("%w: child %d field %q is required", enrollment.ErrInvalidSubmission, idx, f.Key))
 		}
 	}
 	return nil
@@ -88,7 +88,8 @@ func validateAccompaniedCompanionNote(schema *enrollment.FormSchema, req SubmitR
 			continue
 		}
 		if strings.TrimSpace(stringValue(child.CustomData[enrollment.TargetStudentDepartureCompanionNote])) == "" {
-			return fmt.Errorf("%w: child %d accompanied departure requires a companion note", enrollment.ErrInvalidSubmission, idx)
+			return enrollment.InvalidInput(enrollment.CodeCompanionNoteRequired, customDataField(idx, enrollment.TargetStudentDepartureCompanionNote),
+				fmt.Errorf("%w: child %d accompanied departure requires a companion note", enrollment.ErrInvalidSubmission, idx))
 		}
 	}
 	return nil
@@ -203,9 +204,9 @@ func checkAllowedPickupTimes(f *enrollment.FormField, answers map[string]any, ch
 	}
 	if err := sched.ValidateAllowed(f.AllowedTimes); err != nil {
 		if childIdx >= 0 {
-			return fmt.Errorf("%w: child %d field %q: %v", enrollment.ErrPickupTimeNotAllowed, childIdx, f.Key, err)
+			return enrollment.InvalidInput(enrollment.CodePickupTimeNotAllowed, customDataField(childIdx, f.Key), fmt.Errorf("%w: child %d field %q: %v", enrollment.ErrPickupTimeNotAllowed, childIdx, f.Key, err))
 		}
-		return fmt.Errorf("%w: field %q: %v", enrollment.ErrPickupTimeNotAllowed, f.Key, err)
+		return enrollment.InvalidInput(enrollment.CodePickupTimeNotAllowed, customDataField(childIdx, f.Key), fmt.Errorf("%w: field %q: %v", enrollment.ErrPickupTimeNotAllowed, f.Key, err))
 	}
 	return nil
 }
@@ -236,7 +237,7 @@ func checkSingleModeDeparture(f *enrollment.FormField, answers map[string]any, c
 		return fmt.Errorf("%w: child %d field %q: invalid departure modes", enrollment.ErrInvalidSubmission, childIdx, f.Key)
 	}
 	if err := modes.ValidateSingleSelection(); err != nil {
-		return fmt.Errorf("%w: child %d field %q: %v", enrollment.ErrDepartureModeLimitExceeded, childIdx, f.Key, err)
+		return enrollment.InvalidInput(enrollment.CodeDepartureModeLimit, customDataField(childIdx, f.Key), fmt.Errorf("%w: child %d field %q: %v", enrollment.ErrDepartureModeLimitExceeded, childIdx, f.Key, err))
 	}
 	return nil
 }
@@ -429,4 +430,14 @@ func scheduleHasAnyTime(value any) bool {
 		}
 	}
 	return false
+}
+
+// customDataField is the JSON key path of a custom answer: the guardian's
+// ("custom_data.<key>") for childIdx < 0, otherwise the child's
+// ("children.<n>.custom_data.<key>").
+func customDataField(childIdx int, key string) string {
+	if childIdx < 0 {
+		return "custom_data." + key
+	}
+	return fmt.Sprintf("children.%d.custom_data.%s", childIdx, key)
 }

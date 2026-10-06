@@ -343,18 +343,18 @@ const formFieldKeyMaxLength = 64
 func (f *FormField) Validate() error {
 	f.Key = strings.TrimSpace(f.Key)
 	if f.Key == "" {
-		return errors.New("form field key is required")
+		return invalidInput(CodeFormFieldKeyInvalid, "key", errors.New("form field key is required"))
 	}
 	if len(f.Key) > formFieldKeyMaxLength {
-		return errors.New("form field key must be at most 64 characters")
+		return invalidInput(CodeFormFieldKeyInvalid, "key", errors.New("form field key must be at most 64 characters"))
 	}
 	for _, r := range f.Key {
 		if !keyAllowedRunes(r) {
-			return fmt.Errorf("form field key %q must be lowercase letters, digits, or underscores", f.Key)
+			return invalidInputf(CodeFormFieldKeyInvalid, "key", "form field key %q must be lowercase letters, digits, or underscores", f.Key)
 		}
 	}
 	if CoreFieldKeys[f.Key] {
-		return fmt.Errorf("form field key %q is reserved for a core field", f.Key)
+		return invalidInputf(CodeFormFieldKeyInvalid, "key", "form field key %q is reserved for a core field", f.Key)
 	}
 
 	if !validFormFieldTypes[f.Type] {
@@ -374,7 +374,7 @@ func (f *FormField) Validate() error {
 
 	if f.VisibleWhen != nil {
 		if err := f.VisibleWhen.Validate(f.AppliesToCh); err != nil {
-			return fmt.Errorf("form field %q visibility: %w", f.Key, err)
+			return invalidInput(CodeFormFieldVisibilityInvalid, "visible_when", fmt.Errorf("form field %q visibility: %w", f.Key, err))
 		}
 	}
 
@@ -387,7 +387,7 @@ func (f *FormField) Validate() error {
 // label (heading) is optional.
 func (f *FormField) validateInfo() error {
 	if f.Content == "" {
-		return fmt.Errorf("information field %q requires content text", f.Key)
+		return invalidInputf(CodeFormFieldContentRequired, "content", "information field %q requires content text", f.Key)
 	}
 	if f.Required {
 		return fmt.Errorf("information field %q cannot be required", f.Key)
@@ -430,17 +430,17 @@ func (f *FormField) SingleModeAppliesTo(grade *int16) bool {
 // (every type except FormFieldInfo).
 func (f *FormField) validateQuestion() error {
 	if f.Label == "" {
-		return errors.New("form field label is required")
+		return invalidInput(CodeFormFieldLabelRequired, "label", errors.New("form field label is required"))
 	}
 	if f.Content != "" {
 		return fmt.Errorf("only information fields may declare content (field %q)", f.Key)
 	}
 
 	if f.Type == FormFieldSelect && len(f.Options) == 0 {
-		return fmt.Errorf("select field %q must declare at least one option", f.Key)
+		return invalidInputf(CodeFormFieldOptionsInvalid, "options", "select field %q must declare at least one option", f.Key)
 	}
 	if f.Type != FormFieldSelect && len(f.Options) > 0 {
-		return fmt.Errorf("non-select field %q must not declare options", f.Key)
+		return invalidInputf(CodeFormFieldOptionsInvalid, "options", "non-select field %q must not declare options", f.Key)
 	}
 
 	// AllowedTimes (fixed pickup times) is only meaningful on the pickup
@@ -456,13 +456,13 @@ func (f *FormField) validateQuestion() error {
 		for i, t := range f.AllowedTimes {
 			t = strings.TrimSpace(t)
 			if t == "" {
-				return fmt.Errorf("field %q: allowed_times must not contain empty entries", f.Key)
+				return invalidInputf(CodeFormFieldAllowedTimesInvalid, "allowed_times", "field %q: allowed_times must not contain empty entries", f.Key)
 			}
 			if _, err := time.Parse("15:04", t); err != nil {
-				return fmt.Errorf("field %q: allowed_times entry %q must be HH:MM", f.Key, t)
+				return invalidInputf(CodeFormFieldAllowedTimesInvalid, "allowed_times", "field %q: allowed_times entry %q must be HH:MM", f.Key, t)
 			}
 			if seen[t] {
-				return fmt.Errorf("field %q: duplicate allowed_times entry %q", f.Key, t)
+				return invalidInputf(CodeFormFieldAllowedTimesInvalid, "allowed_times", "field %q: duplicate allowed_times entry %q", f.Key, t)
 			}
 			seen[t] = true
 			f.AllowedTimes[i] = t
@@ -491,7 +491,7 @@ func (f *FormField) validateQuestion() error {
 	// canonical target. They have no free-form variant — admins can't
 	// invent a "phone_list" with their own semantics.
 	if isStructuredFieldType(f.Type) && f.Target == "" {
-		return fmt.Errorf("field type %q must declare a target", f.Type)
+		return invalidInputf(CodeFormFieldTargetInvalid, "target", "field type %q must declare a target", f.Type)
 	}
 
 	// Target consistency: when set, the target dictates the type so
@@ -502,10 +502,10 @@ func (f *FormField) validateQuestion() error {
 	if f.Target != "" {
 		spec, ok := ReservedTargets[f.Target]
 		if !ok {
-			return fmt.Errorf("unknown form field target %q", f.Target)
+			return invalidInputf(CodeFormFieldTargetInvalid, "target", "unknown form field target %q", f.Target)
 		}
 		if spec.Type != f.Type {
-			return fmt.Errorf("target %q requires type %q, got %q", f.Target, spec.Type, f.Type)
+			return invalidInputf(CodeFormFieldTargetInvalid, "target", "target %q requires type %q, got %q", f.Target, spec.Type, f.Type)
 		}
 	}
 
@@ -822,14 +822,14 @@ func (b *FormLegalBlock) Validate() error {
 	b.DocumentURL = strings.TrimSpace(b.DocumentURL)
 
 	if b.Key == "" {
-		return errors.New("legal block key is required")
+		return invalidInput(CodeLegalBlockKeyInvalid, "key", errors.New("legal block key is required"))
 	}
 	if len(b.Key) > formFieldKeyMaxLength {
-		return errors.New("legal block key must be at most 64 characters")
+		return invalidInput(CodeLegalBlockKeyInvalid, "key", errors.New("legal block key must be at most 64 characters"))
 	}
 	for _, r := range b.Key {
 		if !keyAllowedRunes(r) {
-			return fmt.Errorf("legal block key %q must be lowercase letters, digits, or underscores", b.Key)
+			return invalidInputf(CodeLegalBlockKeyInvalid, "key", "legal block key %q must be lowercase letters, digits, or underscores", b.Key)
 		}
 	}
 	if b.Source == "" {
@@ -846,19 +846,19 @@ func (b *FormLegalBlock) Validate() error {
 		return fmt.Errorf("standard legal block key %q is not recognized", b.Key)
 	}
 	if b.Source == LegalBlockSourceCustom && standardLegalBlockKeys[b.Key] {
-		return fmt.Errorf("custom legal block key %q is reserved for a standard block", b.Key)
+		return invalidInputf(CodeLegalBlockKeyInvalid, "key", "custom legal block key %q is reserved for a standard block", b.Key)
 	}
 	if !validLegalBlockKinds[b.Kind] {
 		return fmt.Errorf("legal block %q has unknown kind %q", b.Key, b.Kind)
 	}
 	if b.Enabled && b.Label == "" {
-		return fmt.Errorf("enabled legal block %q requires a label", b.Key)
+		return invalidInputf(CodeLegalBlockIncomplete, "label", "enabled legal block %q requires a label", b.Key)
 	}
 	if b.Enabled && b.Title == "" {
-		return fmt.Errorf("enabled legal block %q requires a title", b.Key)
+		return invalidInputf(CodeLegalBlockIncomplete, "title", "enabled legal block %q requires a title", b.Key)
 	}
 	if b.Kind == LegalBlockKindNotice && b.Required {
-		return fmt.Errorf("notice legal block %q cannot be required", b.Key)
+		return invalidInputf(CodeLegalBlockRequiredNotAllowed, "required", "notice legal block %q cannot be required", b.Key)
 	}
 	// Consent is only valid when freely given (Art. 7 Abs. 4 DSGVO), so a
 	// consent block must never gate the submit. A required checkbox is a
@@ -866,7 +866,7 @@ func (b *FormLegalBlock) Validate() error {
 	// accordingly. Already-persisted schema versions are only read, never
 	// re-validated, so legacy consent+required rows keep resolving.
 	if b.Kind == LegalBlockKindConsent && b.Required {
-		return fmt.Errorf("consent legal block %q cannot be required", b.Key)
+		return invalidInputf(CodeLegalBlockRequiredNotAllowed, "required", "consent legal block %q cannot be required", b.Key)
 	}
 	if err := b.validateDisplayMode(); err != nil {
 		return err
@@ -901,7 +901,7 @@ type FormSchema struct {
 // Validate checks fields for duplicate keys + per-field validity.
 func (s *FormSchema) Validate() error {
 	if s.Name == "" {
-		return errors.New("form schema name is required")
+		return invalidInput(CodeSchemaNameRequired, "name", errors.New("form schema name is required"))
 	}
 	if s.Version <= 0 {
 		return errors.New("form schema version must be positive")
@@ -923,10 +923,10 @@ func (s *FormSchema) Validate() error {
 	legalByKey := make(map[string]bool, len(s.LegalBlocks))
 	for i := range s.LegalBlocks {
 		if err := s.LegalBlocks[i].Validate(); err != nil {
-			return fmt.Errorf("legal block %d: %w", i, err)
+			return NestInput(err, fmt.Sprintf("legal_blocks.%d", i), "legal block %d", i)
 		}
 		if legalByKey[s.LegalBlocks[i].Key] {
-			return fmt.Errorf("duplicate legal block key %q", s.LegalBlocks[i].Key)
+			return invalidInputf(CodeLegalBlockKeyDuplicate, fmt.Sprintf("legal_blocks.%d.key", i), "duplicate legal block key %q", s.LegalBlocks[i].Key)
 		}
 		legalByKey[s.LegalBlocks[i].Key] = true
 	}
@@ -934,10 +934,10 @@ func (s *FormSchema) Validate() error {
 	seenTarget := make(map[string]string, len(s.Fields))
 	for i := range s.Fields {
 		if err := s.Fields[i].Validate(); err != nil {
-			return fmt.Errorf("field %d: %w", i, err)
+			return NestInput(err, fmt.Sprintf("fields.%d", i), "field %d", i)
 		}
 		if _, dup := byKey[s.Fields[i].Key]; dup {
-			return fmt.Errorf("duplicate form field key %q", s.Fields[i].Key)
+			return invalidInputf(CodeFormFieldKeyDuplicate, fmt.Sprintf("fields.%d.key", i), "duplicate form field key %q", s.Fields[i].Key)
 		}
 		byKey[s.Fields[i].Key] = &s.Fields[i]
 		// A reserved target writes one specific Stammdaten column on approval, so
@@ -947,7 +947,7 @@ func (s *FormSchema) Validate() error {
 		// target) may repeat. Keep in sync with the editor's reserved-targets picker.
 		if t := s.Fields[i].Target; t != "" {
 			if firstKey, dup := seenTarget[t]; dup {
-				return fmt.Errorf("duplicate field target %q on fields %q and %q", t, firstKey, s.Fields[i].Key)
+				return invalidInputf(CodeFormFieldTargetDuplicate, fmt.Sprintf("fields.%d.target", i), "duplicate field target %q on fields %q and %q", t, firstKey, s.Fields[i].Key)
 			}
 			seenTarget[t] = s.Fields[i].Key
 		}
@@ -958,7 +958,7 @@ func (s *FormSchema) Validate() error {
 	// boolean/select field that the owning field can actually observe.
 	for i := range s.Fields {
 		if err := validateFieldVisibility(&s.Fields[i], byKey); err != nil {
-			return err
+			return NestInput(err, fmt.Sprintf("fields.%d", i), "field %d", i)
 		}
 	}
 	return nil
@@ -975,17 +975,17 @@ func validateFieldVisibility(f *FormField, byKey map[string]*FormField) error {
 	}
 	ref := strings.TrimSpace(f.VisibleWhen.Field)
 	if ref == f.Key {
-		return fmt.Errorf("field %q cannot depend on itself", f.Key)
+		return invalidInputf(CodeFormFieldVisibilityInvalid, "visible_when", "field %q cannot depend on itself", f.Key)
 	}
 	controller, ok := byKey[ref]
 	if !ok {
-		return fmt.Errorf("field %q depends on unknown field %q", f.Key, ref)
+		return invalidInputf(CodeFormFieldVisibilityInvalid, "visible_when", "field %q depends on unknown field %q", f.Key, ref)
 	}
 	if controller.Type != FormFieldBoolean && controller.Type != FormFieldSelect {
-		return fmt.Errorf("field %q can only depend on a yes/no or selection field, but %q is %q", f.Key, ref, controller.Type)
+		return invalidInputf(CodeFormFieldVisibilityInvalid, "visible_when", "field %q can only depend on a yes/no or selection field, but %q is %q", f.Key, ref, controller.Type)
 	}
 	if !f.AppliesToCh && controller.AppliesToCh {
-		return fmt.Errorf("parent-level field %q cannot depend on per-child field %q", f.Key, ref)
+		return invalidInputf(CodeFormFieldVisibilityInvalid, "visible_when", "parent-level field %q cannot depend on per-child field %q", f.Key, ref)
 	}
 	return nil
 }

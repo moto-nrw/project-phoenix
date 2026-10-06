@@ -71,7 +71,7 @@ export const nodeLogicTestFiles = [
   "src/lib/day-planning-helper.issue-2379.test.ts",
   "src/lib/device-label.test.ts",
   "src/lib/enrollment-change-request-diff.test.ts",
-  "src/lib/enrollment-error-messages.test.ts",
+  "src/lib/enrollment-api-error.test.ts",
   "src/lib/enrollment-field-visibility.test.ts",
   "src/lib/enrollment-translations.test.ts",
   "src/lib/env-validation.test.ts",

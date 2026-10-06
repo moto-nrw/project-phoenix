@@ -55,7 +55,7 @@ import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-moda
 import { StammdatenTab } from "~/components/staff/stammdaten-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
-import { useSwrLoadError } from "~/components/staff/use-swr-load-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { staffAbsenceService } from "~/lib/staff-api";
 import { isValidISODate } from "~/lib/date-helpers";
 import { DetailSkeleton } from "~/components/ui/page-skeletons";

@@ -1,7 +1,7 @@
 "use client";
 
-import { wireErrorCode } from "~/lib/api-error";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { Check } from "lucide-react";
 import {
   createRollover,
@@ -20,7 +20,10 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { DateTimePicker } from "~/components/ui/date-time-picker";
-import { Alert } from "~/components/ui/alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -107,10 +110,13 @@ export function RolloverForm({
     rfc3339ToLocal(draft.rollover_deadline),
   );
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [nameError, setNameError] = useState<string | null>(null);
+  const formErrors = useApiFormError();
   const [preview, setPreview] = useState<RolloverPreview | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
+  const previewLoad = useApiLoadError();
+  const showPreviewError = previewLoad.show;
+  const clearPreviewError = previewLoad.clear;
+  // Bumped by „Wiederholen“ to load the preview again.
+  const [previewAttempt, setPreviewAttempt] = useState(0);
   const [loadingPreview, setLoadingPreview] = useState(true);
 
   const update = <K extends keyof RolloverInput>(
@@ -118,9 +124,6 @@ export function RolloverForm({
     value: RolloverInput[K],
   ) => {
     setDraft((d) => ({ ...d, [key]: value }));
-    if (key === "name" && nameError !== null) {
-      setNameError(null);
-    }
   };
 
   useEffect(() => {
@@ -130,17 +133,18 @@ export function RolloverForm({
       .then((result) => {
         if (cancelled) return;
         setPreview(result);
-        setPreviewError(null);
+        clearPreviewError();
       })
-      .catch((err: unknown) => {
+      .catch(async (err: unknown) => {
         if (cancelled) return;
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Vorschau konnte nicht geladen werden";
-        logger.warn("rollover_preview_failed", { error: message });
+        logger.warn("rollover_preview_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         setPreview(null);
-        setPreviewError(message);
+        await showPreviewError(err, {
+          object: "die Vorschau",
+          retry: () => setPreviewAttempt((current) => current + 1),
+        });
       })
       .finally(() => {
         if (!cancelled) setLoadingPreview(false);
@@ -148,7 +152,13 @@ export function RolloverForm({
     return () => {
       cancelled = true;
     };
-  }, [source.id, draft.rollover_bumps_grade]);
+  }, [
+    source.id,
+    draft.rollover_bumps_grade,
+    previewAttempt,
+    showPreviewError,
+    clearPreviewError,
+  ]);
 
   const excludedDetails = preview
     ? Object.entries(preview.excluded_by_status)
@@ -167,20 +177,30 @@ export function RolloverForm({
         .join(" · ")
     : "";
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async () => {
+    formErrors.clear();
+    if (!draft.service_start_date || !draft.service_end_date) {
+      formErrors.invalid(
+        "Bitte geben Sie Beginn und Ende des Betreuungszeitraums an.",
+        {
+          ...(draft.service_start_date
+            ? {}
+            : { service_start_date: "Bitte wählen Sie den Beginn." }),
+          ...(draft.service_end_date
+            ? {}
+            : { service_end_date: "Bitte wählen Sie das Ende." }),
+        },
+      );
+      return;
+    }
+    if (!deadlineLocal) {
+      formErrors.invalid("Bitte geben Sie eine Frist für die Eltern an.", {
+        rollover_deadline: "Bitte wählen Sie eine Frist.",
+      });
+      return;
+    }
     setSubmitting(true);
-    setError(null);
-    setNameError(null);
     try {
-      if (!draft.service_start_date || !draft.service_end_date) {
-        throw new Error(
-          "Bitte Beginn und Ende des Betreuungszeitraums angeben.",
-        );
-      }
-      if (!deadlineLocal) {
-        throw new Error("Bitte eine Frist für die Eltern-Antwort angeben.");
-      }
       const payload: RolloverInput = {
         ...draft,
         rollover_deadline: localToRFC3339(deadlineLocal),
@@ -188,17 +208,27 @@ export function RolloverForm({
       const result = await createRollover(source.id, payload);
       onSuccess(result);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      const code = wireErrorCode((err as { code?: unknown } | undefined)?.code);
-      logger.error("rollover_create_failed", { error: message, code });
-      if (code === "rollover.duplicate_name") {
-        setNameError(message);
-      } else {
-        setError(message);
-      }
+      logger.error("rollover_create_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        code: (err as { code?: unknown } | undefined)?.code,
+      });
+      await formErrors.show(err, {
+        object: "die Anschlussphase",
+        retry: () => void latestSubmit.current(),
+      });
     } finally {
       setSubmitting(false);
     }
+  };
+  // „Wiederholen“ sendet den aktuellen Entwurf.
+  const latestSubmit = useRef(submit);
+  useLayoutEffect(() => {
+    latestSubmit.current = submit;
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void submit();
   };
 
   const title = `Anschlussphase für „${source.name}“ erstellen`;
@@ -207,6 +237,7 @@ export function RolloverForm({
   // ohnehin lädt.
   const statusLine = [
     `Quelle: ${source.name}`,
+    // Ohne Vorschau keine Zahlen: ein Ladefehler ist keine „0“.
     preview ? `${preview.carried_count} werden übernommen` : null,
     preview ? `${preview.review_count} zu prüfen` : null,
   ]
@@ -225,14 +256,14 @@ export function RolloverForm({
         </header>
       ) : null}
 
-      {error ? <Alert type="error" message={error} /> : null}
+      <FormErrorAlert message={formErrors.error} />
 
       {loadingPreview ? (
         <InfoCard title="Vorschau" icon={<Check className="h-5 w-5" />} loading>
           {null}
         </InfoCard>
-      ) : previewError !== null ? (
-        <Alert type="warning" message={previewError} />
+      ) : previewLoad.error ? (
+        <LoadErrorAlert error={previewLoad.error} />
       ) : preview ? (
         <InfoCard title="Vorschau" icon={<Check className="h-5 w-5" />}>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -274,13 +305,14 @@ export function RolloverForm({
       <div className="grid gap-4 md:grid-cols-2">
         <Input
           id="rollover-name"
+          name="name"
           label="Name der neuen Phase"
           type="text"
           controlSize="compact"
           required
           value={draft.name}
           onChange={(e) => update("name", e.target.value)}
-          error={nameError ?? undefined}
+          error={formErrors.fieldError("name")}
         />
         <label
           className="block"
@@ -321,6 +353,7 @@ export function RolloverForm({
               ariaLabel="Betreuung von"
               value={draft.service_start_date}
               onChange={(next) => update("service_start_date", next)}
+              error={formErrors.fieldError("service_start_date")}
               className="mt-1"
               calendarLayout="popover"
               // The required picker prevents deselection in the calendar; the
@@ -343,6 +376,7 @@ export function RolloverForm({
               min={draft.service_start_date || undefined}
               value={draft.service_end_date}
               onChange={(next) => update("service_end_date", next)}
+              error={formErrors.fieldError("service_end_date")}
               className="mt-1"
               calendarLayout="popover"
               hideClearButton
@@ -401,6 +435,7 @@ export function RolloverForm({
               className="mt-1"
               value={deadlineLocal}
               onChange={setDeadlineLocal}
+              invalid={Boolean(formErrors.fieldError("rollover_deadline"))}
               // A deadline without an explicit time should run to the end of the
               // chosen day, not expire at midnight.
               defaultTime="23:59"

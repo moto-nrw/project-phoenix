@@ -1,6 +1,18 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import {
+  render as renderComponent,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
+
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+const render = (ui: ReactElement) =>
+  renderComponent(ui, { wrapper: ToastProvider });
 
 const mocks = vi.hoisted(() => ({
   fetchSettingsSchema: vi.fn(),
@@ -159,7 +171,7 @@ describe("AdminEnrollmentsList setup guide", () => {
 
   it("shows an unknown state when change requests fail to load", async () => {
     mocks.listAdminEnrollmentChangeRequests.mockRejectedValue(
-      new Error("Nicht angemeldet"),
+      new ApiError("forbidden", 403, { code: "general.permission" }),
     );
 
     render(<AdminEnrollmentsList />);
@@ -169,10 +181,12 @@ describe("AdminEnrollmentsList setup guide", () => {
     });
 
     expect(
-      screen.getByText(
-        "Änderungsanfragen konnten nicht geladen werden. Die Zahlen sind unbekannt.",
+      await screen.findByText(
+        catalogText("general.permission", "die Liste der Änderungsanfragen"),
       ),
     ).toBeVisible();
+    // Keine Zählkacheln: 0 offen wäre falsch.
+    expect(screen.queryByText("Offen")).not.toBeInTheDocument();
     expect(
       screen.queryByText(
         "Aktuell wartet keine Änderungsanfrage auf Bearbeitung.",
@@ -181,5 +195,44 @@ describe("AdminEnrollmentsList setup guide", () => {
     expect(
       screen.getByRole("link", { name: /Anfragen prüfen/ }),
     ).toHaveAttribute("href", "/demo/anfragen");
+  });
+
+  it("shows only the load error when the overview cannot load", async () => {
+    mocks.listAdminRequests.mockRejectedValue(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
+    const onSummaryChange = vi.fn();
+
+    render(<AdminEnrollmentsList onSummaryChange={onSummaryChange} />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Übersicht der Anmeldungen"),
+      ),
+    ).toBeVisible();
+    // Kein Einrichtungsleitfaden mit falschen Schritten, kein Leerzustand.
+    expect(
+      screen.queryByText("Online-Anmeldung vorbereiten"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Noch keine Anmeldephase"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Wiederholen" })).toBeVisible();
+    expect(onSummaryChange).toHaveBeenLastCalledWith("unavailable");
+  });
+
+  it("fails the whole overview instead of guessing setup steps", async () => {
+    mocks.fetchSettingsSchema.mockRejectedValue(
+      new ApiError("down", 500, { code: "general.server" }),
+    );
+
+    render(<AdminEnrollmentsList />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Übersicht der Anmeldungen"),
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText("Ausgeschaltet")).not.toBeInTheDocument();
   });
 });

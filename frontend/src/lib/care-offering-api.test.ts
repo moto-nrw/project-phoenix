@@ -145,9 +145,12 @@ describe("createCareOffering", () => {
         { status: 400 },
       ),
     );
-    await expect(createCareOffering(validInput)).rejects.toThrow(
-      /Bitte gib einen Namen für das Betreuungsangebot ein/,
+    const error = await createCareOffering(validInput).catch(
+      (err: unknown) => err,
     );
+    expect(error).toMatchObject({ status: 400, code: "general.input" });
+    // Der Backend-Satz bleibt Diagnose im Log (#2515).
+    expect((error as Error).message).not.toContain("care offering name");
   });
 });
 
@@ -184,7 +187,7 @@ describe("updateCareOffering", () => {
     );
   });
 
-  it("maps the template-period mismatch code to a German explanation", async () => {
+  it("keeps the template-period mismatch code for the catalog", async () => {
     mockFetch(async () =>
       jsonResponse(
         {
@@ -196,9 +199,10 @@ describe("updateCareOffering", () => {
       ),
     );
 
-    await expect(updateCareOffering("1234", validInput)).rejects.toThrow(
-      /Planungszeitraum.*gesamten Betreuungszeitraum/,
-    );
+    await expect(updateCareOffering("1234", validInput)).rejects.toMatchObject({
+      status: 400,
+      code: "enrollment.care_offering_template_period_mismatch",
+    });
   });
 });
 

@@ -25,6 +25,13 @@ func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Rendere
 	if errResp, ok := renderer.(*ErrResponse); ok && errResp.HTTPStatusCode >= 500 && IsBusinessRejection(errResp.Err) {
 		renderer = ErrorBusinessRejection(errResp.Err)
 	}
+	// A rejected input value is never a server error either: it keeps its
+	// 400, code and field (#2515).
+	if errResp, ok := renderer.(*ErrResponse); ok && errResp.HTTPStatusCode >= 500 {
+		if _, rejected := asInputRejection(errResp.Err); rejected {
+			renderer = ErrorInputRejection(errResp.Err)
+		}
+	}
 	// A rejected operation may already have written its first rows (a person
 	// before the refused membership). The request transaction commits every
 	// non-5xx answer, so the rejection asks for its rollback explicitly.
@@ -141,11 +148,10 @@ func newErrResponse(status int, err error) *ErrResponse {
 }
 
 // ErrorInvalidRequest returns a 400 Bad Request error response. A failed
-// ozzo-validation Bind also lists its fields in `errors`.
+// ozzo-validation Bind also lists its fields in `errors`; an InputRejection
+// in the chain adds its code and field.
 func ErrorInvalidRequest(err error) render.Renderer {
-	resp := newErrResponse(http.StatusBadRequest, err)
-	resp.Errors = validationFieldErrors(err)
-	return resp
+	return ErrorInputRejection(err)
 }
 
 // ErrorInvalidRequestWithCode returns a 400 Bad Request with a stable
@@ -155,6 +161,7 @@ func ErrorInvalidRequestWithCode(err error, code string) render.Renderer {
 	resp := newErrResponse(http.StatusBadRequest, err)
 	resp.Code = code
 	resp.Errors = validationFieldErrors(err)
+	applyInputRejection(resp, err)
 	return resp
 }
 

@@ -34,7 +34,7 @@ import {
   type StaffDocumentList,
 } from "~/lib/staff-documents-api";
 import { useSWRAuth } from "~/lib/swr";
-import { useSwrLoadError } from "./use-swr-load-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 
 // Dokumente tab (#1424, phase 1): flat file list per staff member with
 // upload, download, audited delete and category filter. The backend already

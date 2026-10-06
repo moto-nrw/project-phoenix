@@ -111,54 +111,90 @@ export const ERROR_CATALOG = {
         "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.staff_messaging_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "enrollment.approval_care_offering_exactly_one":
+        "Für dieses Kind muss genau ein Betreuungsangebot gebucht sein. Die Familie muss die Auswahl ändern.",
       "enrollment.approval_care_offering_missing":
-        "Für {object} fehlt ein Betreuungsangebot. Bitte wählen Sie eines aus.",
+        "Für dieses Kind ist kein Betreuungsangebot gebucht. Die Familie muss zuerst ein Angebot ergänzen.",
       "enrollment.care_offering_days_required":
-        "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
+        "Bitte wählen Sie mindestens einen Wochentag für das Angebot.",
+      "enrollment.care_offering_exactly_one":
+        "Bitte wählen Sie für jedes Kind genau ein Betreuungsangebot.",
+      "enrollment.care_offering_full":
+        "Ein gewähltes Betreuungsangebot ist schon voll. Bitte wählen Sie ein anderes Angebot oder fragen Sie die Schule.",
       "enrollment.care_offering_in_use":
         "{object} wird bereits verwendet. Bitte prüfen Sie den aktuellen Stand.",
       "enrollment.care_offering_missing":
-        "Für {object} fehlt ein Betreuungsangebot. Bitte wählen Sie eines aus.",
+        "Bitte wählen Sie für jedes Kind mindestens ein Betreuungsangebot.",
       "enrollment.care_offering_pickup_times_required":
-        "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
+        "Bitte tragen Sie für jeden Betreuungstag eine Gehzeit ein.",
+      "enrollment.care_offering_template_period_mismatch":
+        "Der Regeltermin muss den ganzen Betreuungszeitraum abdecken. Bitte wählen Sie einen passenden Regeltermin.",
+      "enrollment.care_offering_unavailable":
+        "Ein gewähltes Angebot gibt es nicht für die Klassenstufe des Kindes. Bitte prüfen Sie Klassenstufe und Auswahl.",
       "enrollment.care_offerings_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "enrollment.change_request_child_locked":
+        "Dieses Kind ist schon in der Betreuung. Änderungen machen Sie bitte in der Eltern-App.",
       "enrollment.change_request_conflict":
         "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+      "enrollment.child_already_enrolled":
+        "Dieses Kind ist an der Schule schon angemeldet. Diese Anmeldung ist nur für neue Kinder.",
+      "enrollment.child_ambiguous":
+        "Wir konnten das Kind nicht eindeutig zuordnen. Bitte wenden Sie sich an die Schule.",
+      "enrollment.child_not_enrolled":
+        "Dieses Kind ist an der Schule noch nicht angemeldet. Diese Anmeldung ist nur für Kinder der Schule.",
+      "enrollment.child_not_permitted":
+        "Sie dürfen dieses Kind nicht erneut anmelden. Bitte wenden Sie sich an die Schule.",
       "enrollment.class_not_eligible":
-        "{object} erfüllt die Voraussetzungen nicht. Bitte fragen Sie Ihre Ansprechperson.",
+        "Diese Anmeldung gilt nur für bestimmte Klassen. Bitte prüfen Sie die Klasse Ihres Kindes.",
       "enrollment.complete_withdrawal_confirmation_required":
         "{object} kann noch nicht abgemeldet werden. Bitte bestätigen Sie mit {confirmation}.",
+      "enrollment.day_selection_not_allowed":
+        "Bei diesem Angebot stehen die Tage fest. Sie können keine Tage auswählen.",
       "enrollment.day_selection_required":
-        "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
+        "Bitte wählen Sie für dieses Angebot mindestens einen Wochentag.",
+      "enrollment.departure_mode_limit":
+        "Bitte wählen Sie pro Wochentag nur einen Heimweg.",
+      "enrollment.disabled":
+        "Die Online-Anmeldung ist an dieser Schule gerade nicht möglich. Bitte wenden Sie sich an die Schule.",
       "enrollment.grade_not_eligible":
-        "{object} erfüllt die Voraussetzungen nicht. Bitte fragen Sie Ihre Ansprechperson.",
+        "Diese Anmeldung gilt nur für bestimmte Klassenstufen. Bitte prüfen Sie die Klassenstufe Ihres Kindes.",
       "enrollment.invalid_email":
-        "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+        "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
       "enrollment.invalid_phone":
-        "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+        "Bitte geben Sie eine gültige Telefonnummer ein.",
       "enrollment.late_invite_invalid":
-        "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+        "Dieser Link ist ungültig, abgelaufen oder schon benutzt. Bitte wenden Sie sich an die Schule.",
       "enrollment.phase_care_offering_conflict":
-        "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+        "Die Änderung passt nicht zu einem Betreuungsangebot der Phase. Bitte prüfen Sie die Angebote.",
       "enrollment.phase_name_exists":
-        "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
+        "Es gibt schon eine Anmeldephase mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
       "enrollment.phase_not_eligible":
-        "{object} erfüllt die Voraussetzungen nicht. Bitte fragen Sie Ihre Ansprechperson.",
+        "Diese Anmeldung ist für Ihr Konto nicht freigegeben. Bitte melden Sie sich in der Eltern-App an oder fragen Sie die Schule.",
+      "enrollment.pickup_time_not_allowed":
+        "Bitte wählen Sie nur Abholzeiten aus der Liste. Die markierte Zeit gibt es nicht mehr.",
       "enrollment.required_care_offering_missing":
-        "Für {object} fehlt ein Betreuungsangebot. Bitte wählen Sie eines aus.",
+        "Bitte wählen Sie für jedes Kind das Pflichtangebot aus.",
       "enrollment.restore_duplicate":
-        "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
+        "Für ein Kind gibt es in dieser Phase schon eine andere aktive Anmeldung. Bitte prüfen Sie die Anmeldungen.",
       "enrollment.restore_offering_closed":
-        "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
+        "Ein gewähltes Betreuungsangebot ist inzwischen ausgeschaltet. Bitte prüfen Sie die Angebote der Phase.",
+      "enrollment.restore_phase_inactive":
+        "Die Anmeldephase ist nicht mehr aktiv. Die Anmeldung kann nicht wiederhergestellt werden.",
+      "enrollment.schema_has_phases":
+        "Diese Formularvorlage wird noch in einer Anmeldephase genutzt. Darum kann sie nicht gelöscht werden.",
+      "enrollment.schema_has_requests":
+        "Mit dieser Formularvorlage gibt es schon Anmeldungen. Darum kann sie nicht gelöscht werden.",
       "enrollment.schema_name_exists":
-        "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
+        "Es gibt schon eine Formularvorlage mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
+      "enrollment.selected_day_not_available":
+        "Dieser Wochentag ist für das Angebot nicht möglich. Bitte wählen Sie nur die angezeigten Tage.",
       "enrollment.student_exists":
         "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
       "enrollment.waitlist_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "enrollment.window_closed":
-        "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
+        "Die Anmeldefrist ist vorbei oder hat noch nicht begonnen. Bitte wenden Sie sich an die Schule.",
       "files.attachment_limit_reached":
         "Für {object} sind zu viele Dateien ausgewählt. Bitte entfernen Sie einen Anhang.",
       "files.folder_name_taken":
@@ -225,10 +261,18 @@ export const ERROR_CATALOG = {
         "Im Angebot {activity_name} ist kein Platz mehr. Bitte wählen Sie ein anderes Angebot.",
       "presence.room_capacity_exceeded":
         "Der Raum {room_name} ist voll ({current_occupancy} von {max_capacity} Plätzen).",
+      "rollover.duplicate_name":
+        "Es gibt schon eine Phase mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
       "rollover.invalid_request":
-        "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+        "Die Angaben sind unvollständig. Bitte prüfen Sie alle Pflichtfelder.",
       "rollover.review_invalid":
-        "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+        "Diese Aktion ist bei diesem Eintrag gerade nicht möglich.",
+      "rollover.review_not_found":
+        "Diesen Eintrag in der Prüfliste gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "rollover.source_already_rolled":
+        "Aus dieser Phase gibt es schon eine Anschlussphase. Bitte löschen Sie zuerst die bestehende Anschlussphase.",
+      "rollover.source_not_found":
+        "Die Ausgangsphase gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "rooms.color_already_in_use":
         "Diese Farbe hat schon ein anderer Raum. Bitte wählen Sie eine andere Farbe.",
       "school.setup_completed":
@@ -744,6 +788,135 @@ export const ERROR_CATALOG = {
         "Urlaub können Sie nur ab heute beantragen. Bitte wählen Sie ein anderes Datum.",
       "workforce.work_session_overlap":
         "Die Zeit überschneidet sich mit einem anderen Eintrag an diesem Tag. Bitte prüfen Sie Beginn und Ende.",
+      "enrollment.phase_name_required":
+        "Bitte geben Sie einen Namen für die Anmeldephase ein.",
+      "enrollment.phase_service_period_invalid":
+        "Der Betreuungszeitraum ist unvollständig oder endet vor dem Beginn. Bitte prüfen Sie Beginn und Ende.",
+      "enrollment.phase_window_invalid":
+        "Das Anmeldefenster endet vor seinem Start. Bitte prüfen Sie Öffnung und Schließung.",
+      "enrollment.phase_school_classes_invalid":
+        "Die angebotenen und die zugelassenen Klassen passen nicht zusammen. Bitte prüfen Sie die Klassen.",
+      "enrollment.phase_not_found":
+        "Diese Anmeldephase gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "enrollment.care_offering_name_required":
+        "Bitte geben Sie einen Namen für das Betreuungsangebot ein.",
+      "enrollment.care_offering_capacity_invalid":
+        "Bitte prüfen Sie die Zahl der Plätze. Ein Pflichtangebot hat keine Platzgrenze.",
+      "enrollment.care_offering_price_invalid":
+        "Der Preis darf nicht kleiner als 0 sein.",
+      "enrollment.care_offering_selection_invalid":
+        "Bitte prüfen Sie die Auswahlregel. Alle Angebote einer Auswahlgruppe brauchen dieselbe Regel.",
+      "enrollment.care_offering_pickup_time_invalid":
+        "Bitte geben Sie die Gehzeit als Uhrzeit ein, zum Beispiel 15:30.",
+      "enrollment.care_offering_auto_add_invalid":
+        "Die automatische Zubuchung passt so nicht. Bitte prüfen Sie die auslösenden Angebote und die Tagesauswahl.",
+      "enrollment.care_offering_not_found":
+        "Dieses Betreuungsangebot gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "enrollment.schema_name_required":
+        "Bitte geben Sie einen Namen für die Formularvorlage ein.",
+      "enrollment.schema_not_found":
+        "Diese Formularvorlage gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "enrollment.form_grade_collection_required":
+        "Die Heimweg-Beschränkung braucht die Abfrage der Klassenstufe. Bitte schalten Sie sie in den Einstellungen ein.",
+      "enrollment.form_field_key_invalid":
+        "Diese Frage lässt sich so nicht speichern. Bitte ändern Sie ihren Text.",
+      "enrollment.form_field_key_duplicate":
+        "Zwei Fragen haben denselben Text. Bitte ändern Sie den Text der markierten Frage.",
+      "enrollment.form_field_label_required":
+        "Bitte geben Sie jedem Feld eine Beschriftung.",
+      "enrollment.form_field_content_required":
+        "Bitte geben Sie für den Hinweistext einen Text ein.",
+      "enrollment.form_field_options_invalid":
+        "Auswahlfelder brauchen mindestens eine Option. Andere Felder haben keine Optionen.",
+      "enrollment.form_field_allowed_times_invalid":
+        "Bitte prüfen Sie die Abholzeiten. Jede Uhrzeit darf nur einmal vorkommen, zum Beispiel 15:30.",
+      "enrollment.form_field_target_invalid":
+        "Dieses Feld passt nicht zu seiner Zuordnung. Bitte wählen Sie die Zuordnung neu.",
+      "enrollment.form_field_target_duplicate":
+        "Diese Zuordnung gibt es im Formular schon. Jede Zuordnung darf nur einmal vorkommen.",
+      "enrollment.form_field_visibility_invalid":
+        "Die Anzeigebedingung passt nicht. Bitte wählen Sie als Bedingung eine Ja-Nein-Frage oder eine Auswahlfrage.",
+      "enrollment.legal_block_key_invalid":
+        "Dieser Rechtstext lässt sich so nicht speichern. Bitte entfernen Sie ihn und legen Sie ihn neu an.",
+      "enrollment.legal_block_key_duplicate":
+        "Ein Rechtstext kommt doppelt vor. Bitte entfernen Sie den doppelten Rechtstext.",
+      "enrollment.legal_block_incomplete":
+        "Bitte geben Sie jedem eingeschalteten Rechtstext einen Titel und eine Beschriftung.",
+      "enrollment.legal_block_required_not_allowed":
+        "Hinweise und Einwilligungen dürfen keine Pflicht sein. Bitte nehmen Sie den Haken bei Pflicht heraus.",
+      "enrollment.legal_document_invalid":
+        "Bitte wählen Sie eine PDF-Datei mit höchstens {max_mb} MB.",
+      "enrollment.request_not_found":
+        "Diese Anmeldung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "enrollment.restore_nothing_withdrawn":
+        "In dieser Anmeldung ist kein Kind abgemeldet. Es gibt nichts wiederherzustellen.",
+      "enrollment.decision_already_final":
+        "Über dieses Kind wurde schon entschieden. Bitte laden Sie die Seite neu.",
+      "enrollment.approval_data_invalid":
+        "Die Angaben dieser Anmeldung sind unvollständig. Bitte korrigieren Sie die Daten des Kindes.",
+      "enrollment.offering_adjustment_invalid":
+        "Diese Änderung der Angebote ist so nicht möglich. Bitte prüfen Sie Angebote und Datum.",
+      "enrollment.deletion_reason_invalid":
+        "Bitte geben Sie einen Grund mit 3 bis 500 Zeichen ein.",
+      "enrollment.export_too_large":
+        "Diese Anmeldephase hat zu viele Anmeldungen für einen Export. Bitte melden Sie sich beim moto-Team.",
+      "enrollment.change_request_note_required":
+        "Bitte schreiben Sie eine kurze Begründung für die Familie.",
+      "enrollment.correction_reason_required":
+        "Bitte geben Sie einen Grund für die Korrektur ein.",
+      "enrollment.correction_school_class_mismatch":
+        "Die Klasse passt nicht zur Klassenstufe. Bitte wählen Sie eine passende Klasse.",
+      "rollover.deadline_required":
+        "Bitte geben Sie eine Frist für die Rückmeldung ein.",
+      "enrollment.form_not_found":
+        "Dieses Anmeldeformular gibt es nicht. Bitte prüfen Sie den Link oder fragen Sie die Schule.",
+      "enrollment.status_link_invalid":
+        "Dieser Link ist ungültig oder abgelaufen. Bitte nutzen Sie den Link aus Ihrer E-Mail.",
+      "enrollment.edit_not_allowed":
+        "Diese Anmeldung kann nicht mehr geändert werden. Bitte wenden Sie sich an die Schule.",
+      "enrollment.withdraw_not_allowed":
+        "Diese Anmeldung kann nicht mehr zurückgezogen werden. Bitte wenden Sie sich an die Schule.",
+      "enrollment.captcha_required":
+        "Bitte bestätigen Sie die Sicherheitsabfrage.",
+      "enrollment.captcha_failed":
+        "Die Sicherheitsabfrage hat nicht geklappt. Bitte versuchen Sie es noch einmal.",
+      "enrollment.submission_rate_limited":
+        "Es wurden zu viele Anmeldungen gesendet. Bitte versuchen Sie es in einer Stunde noch einmal.",
+      "enrollment.request_duplicate":
+        "Für dieses Kind gibt es in dieser Anmeldephase schon eine Anmeldung.",
+      "enrollment.child_already_requested":
+        "Eine andere Person hat dieses Kind schon angemeldet. Bitte wenden Sie sich an die Schule.",
+      "enrollment.care_offering_closed":
+        "Ein gewähltes Betreuungsangebot nimmt gerade keine Anmeldungen an. Bitte wählen Sie ein anderes Angebot.",
+      "enrollment.consent_required":
+        "Bitte bestätigen Sie alle Pflicht-Zustimmungen.",
+      "enrollment.child_required": "Bitte fügen Sie mindestens ein Kind hinzu.",
+      "enrollment.child_name_required":
+        "Bitte geben Sie Vor- und Nachnamen des Kindes ein.",
+      "enrollment.child_birth_date_invalid":
+        "Bitte geben Sie das Geburtsdatum des Kindes ein.",
+      "enrollment.child_grade_required":
+        "Bitte wählen Sie die Klassenstufe des Kindes.",
+      "enrollment.guardian_name_required":
+        "Bitte geben Sie Vor- und Nachnamen ein.",
+      "enrollment.guardian_email_required":
+        "Bitte geben Sie eine E-Mail-Adresse ein.",
+      "enrollment.guardian_phone_required":
+        "Bitte geben Sie eine Telefonnummer ein.",
+      "enrollment.field_required": "Bitte füllen Sie alle Pflichtfelder aus.",
+      "enrollment.companion_note_required":
+        "Bitte geben Sie an, mit wem das Kind nach Hause geht.",
+      "enrollment.message_required": "Bitte schreiben Sie eine Nachricht.",
+      "enrollment.change_request_guardian_linked":
+        "Diese Angaben ändern Sie bitte in der Eltern-App.",
+      "enrollment.change_request_not_found":
+        "Diese Änderungsanfrage gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "enrollment.change_request_not_allowed":
+        "Diese Anmeldung kann gerade nicht geändert werden. Bitte wenden Sie sich an die Schule.",
+      "enrollment.change_request_status_changed":
+        "Der Stand dieser Änderungsanfrage hat sich geändert. Bitte laden Sie die Seite neu.",
+      "enrollment.phase_eligibility_setting_required":
+        "Für eine Einschränkung nach Klasse oder Klassenstufe muss die passende Abfrage eingeschaltet sein. Bitte schalten Sie sie in den Einstellungen ein.",
     },
   },
   en: {
@@ -766,6 +939,50 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "The password is not correct. Please try again.",
       "care.declaration_password_required": "Please enter your password.",
+      "enrollment.care_offering_exactly_one":
+        "Please choose exactly one care option for each child.",
+      "enrollment.care_offering_full":
+        "A selected care option is already full. Please choose another option or ask the school.",
+      "enrollment.care_offering_missing":
+        "Please choose at least one care option for each child.",
+      "enrollment.care_offering_unavailable":
+        "A selected option is not available for the child's grade. Please check the grade and your choice.",
+      "enrollment.change_request_child_locked":
+        "This child is already in care. Please make changes in the parent app.",
+      "enrollment.child_already_enrolled":
+        "This child is already enrolled at the school. This enrollment is only for new children.",
+      "enrollment.child_ambiguous":
+        "We could not clearly identify the child. Please contact the school.",
+      "enrollment.child_not_enrolled":
+        "This child is not enrolled at the school yet. This enrollment is only for children of the school.",
+      "enrollment.child_not_permitted":
+        "You are not allowed to enroll this child again. Please contact the school.",
+      "enrollment.class_not_eligible":
+        "This enrollment is only for certain classes. Please check your child's class.",
+      "enrollment.day_selection_not_allowed":
+        "The days for this option are fixed. You cannot choose days.",
+      "enrollment.day_selection_required":
+        "Please choose at least one weekday for this option.",
+      "enrollment.departure_mode_limit":
+        "Please choose only one way home per weekday.",
+      "enrollment.disabled":
+        "Online enrollment is not available at this school right now. Please contact the school.",
+      "enrollment.grade_not_eligible":
+        "This enrollment is only for certain grades. Please check your child's grade.",
+      "enrollment.invalid_email": "Please enter a valid email address.",
+      "enrollment.invalid_phone": "Please enter a valid phone number.",
+      "enrollment.late_invite_invalid":
+        "This link is invalid, has expired or was already used. Please contact the school.",
+      "enrollment.phase_not_eligible":
+        "This enrollment is not available for your account. Please sign in to the parent app or ask the school.",
+      "enrollment.pickup_time_not_allowed":
+        "Please only choose pick-up times from the list. The marked time is no longer available.",
+      "enrollment.required_care_offering_missing":
+        "Please select the required care option for each child.",
+      "enrollment.selected_day_not_available":
+        "This weekday is not available for this option. Please only choose the days shown.",
+      "enrollment.window_closed":
+        "The enrollment period has ended or has not started yet. Please contact the school.",
       "identity.account_already_has_tenant_access":
         "This person already has access to this school. You can find them in the staff list.",
       "identity.email_already_exists":
@@ -776,6 +993,48 @@ export const ERROR_CATALOG = {
         "The parents set this time. Only someone with a staff profile can change it.",
       "students.status_day_conflict":
         "Some days already have an entry. These days were not changed.",
+      "enrollment.form_not_found":
+        "This enrollment form does not exist. Please check the link or ask the school.",
+      "enrollment.status_link_invalid":
+        "This link is invalid or has expired. Please use the link from your email.",
+      "enrollment.edit_not_allowed":
+        "This enrollment can no longer be changed. Please contact the school.",
+      "enrollment.withdraw_not_allowed":
+        "This enrollment can no longer be withdrawn. Please contact the school.",
+      "enrollment.captcha_required": "Please complete the security check.",
+      "enrollment.captcha_failed":
+        "The security check did not work. Please try again.",
+      "enrollment.submission_rate_limited":
+        "Too many enrollments were sent. Please try again in an hour.",
+      "enrollment.request_duplicate":
+        "This child already has an enrollment in this enrollment period.",
+      "enrollment.child_already_requested":
+        "Another person has already enrolled this child. Please contact the school.",
+      "enrollment.care_offering_closed":
+        "A selected care option is not accepting enrollments right now. Please choose another option.",
+      "enrollment.consent_required": "Please confirm all required consents.",
+      "enrollment.child_required": "Please add at least one child.",
+      "enrollment.child_name_required":
+        "Please enter the child's first and last name.",
+      "enrollment.child_birth_date_invalid":
+        "Please enter the child's date of birth.",
+      "enrollment.child_grade_required": "Please select the child's grade.",
+      "enrollment.guardian_name_required":
+        "Please enter the first and last name.",
+      "enrollment.guardian_email_required": "Please enter an email address.",
+      "enrollment.guardian_phone_required": "Please enter a phone number.",
+      "enrollment.field_required": "Please fill in all required fields.",
+      "enrollment.companion_note_required":
+        "Please state who the child goes home with.",
+      "enrollment.message_required": "Please write a message.",
+      "enrollment.change_request_guardian_linked":
+        "Please change these details in the parent app.",
+      "enrollment.change_request_not_found":
+        "This change request no longer exists. Please reload the page.",
+      "enrollment.change_request_not_allowed":
+        "This enrollment cannot be changed right now. Please contact the school.",
+      "enrollment.change_request_status_changed":
+        "The status of this change request has changed. Please reload the page.",
     },
   },
   ru: {
@@ -798,6 +1057,50 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Пароль неверный. Пожалуйста, попробуйте ещё раз.",
       "care.declaration_password_required": "Пожалуйста, введите пароль.",
+      "enrollment.care_offering_exactly_one":
+        "Выберите ровно одну программу присмотра для каждого ребёнка.",
+      "enrollment.care_offering_full":
+        "Выбранная программа присмотра уже заполнена. Выберите другую или обратитесь в школу.",
+      "enrollment.care_offering_missing":
+        "Выберите хотя бы одну программу присмотра для каждого ребёнка.",
+      "enrollment.care_offering_unavailable":
+        "Выбранная программа недоступна для класса ребёнка. Проверьте класс и выбор.",
+      "enrollment.change_request_child_locked":
+        "Этот ребёнок уже посещает присмотр. Вносите изменения в приложении для родителей.",
+      "enrollment.child_already_enrolled":
+        "Этот ребёнок уже записан в школу. Эта запись только для новых детей.",
+      "enrollment.child_ambiguous":
+        "Не удалось однозначно определить ребёнка. Обратитесь в школу.",
+      "enrollment.child_not_enrolled":
+        "Этот ребёнок ещё не записан в школу. Эта запись только для детей школы.",
+      "enrollment.child_not_permitted":
+        "Вы не можете повторно записать этого ребёнка. Обратитесь в школу.",
+      "enrollment.class_not_eligible":
+        "Эта запись только для определённых классов. Проверьте класс ребёнка.",
+      "enrollment.day_selection_not_allowed":
+        "Дни этой программы заданы заранее. Выбрать дни нельзя.",
+      "enrollment.day_selection_required":
+        "Выберите хотя бы один день недели для этой программы.",
+      "enrollment.departure_mode_limit":
+        "Выберите только один способ возвращения домой на каждый день недели.",
+      "enrollment.disabled":
+        "Онлайн-запись в этой школе сейчас недоступна. Обратитесь в школу.",
+      "enrollment.grade_not_eligible":
+        "Эта запись только для определённых годов обучения. Проверьте класс ребёнка.",
+      "enrollment.invalid_email": "Укажите правильный адрес электронной почты.",
+      "enrollment.invalid_phone": "Укажите правильный номер телефона.",
+      "enrollment.late_invite_invalid":
+        "Эта ссылка недействительна, устарела или уже использована. Обратитесь в школу.",
+      "enrollment.phase_not_eligible":
+        "Эта запись недоступна для вашего аккаунта. Войдите в приложение для родителей или обратитесь в школу.",
+      "enrollment.pickup_time_not_allowed":
+        "Выбирайте время забора только из списка. Отмеченного времени больше нет.",
+      "enrollment.required_care_offering_missing":
+        "Выберите обязательную программу для каждого ребёнка.",
+      "enrollment.selected_day_not_available":
+        "Этот день недели недоступен для программы. Выбирайте только показанные дни.",
+      "enrollment.window_closed":
+        "Срок записи истёк или ещё не начался. Обратитесь в школу.",
       "identity.account_already_has_tenant_access":
         "У этого человека уже есть доступ к этой школе. Он есть в списке сотрудников.",
       "identity.email_already_exists":
@@ -808,6 +1111,45 @@ export const ERROR_CATALOG = {
         "Это время установили родители. Изменить его может только сотрудник с профилем персонала.",
       "students.status_day_conflict":
         "На некоторые дни уже есть запись. Эти дни не изменены.",
+      "enrollment.form_not_found":
+        "Эта форма записи не найдена. Проверьте ссылку или обратитесь в школу.",
+      "enrollment.status_link_invalid":
+        "Эта ссылка недействительна или устарела. Используйте ссылку из вашего письма.",
+      "enrollment.edit_not_allowed":
+        "Эту запись больше нельзя изменить. Обратитесь в школу.",
+      "enrollment.withdraw_not_allowed":
+        "Эту запись больше нельзя отозвать. Обратитесь в школу.",
+      "enrollment.captcha_required": "Пройдите проверку безопасности.",
+      "enrollment.captcha_failed":
+        "Проверка безопасности не пройдена. Попробуйте ещё раз.",
+      "enrollment.submission_rate_limited":
+        "Отправлено слишком много заявок. Попробуйте снова через час.",
+      "enrollment.request_duplicate":
+        "Для этого ребёнка уже есть заявка в этот период записи.",
+      "enrollment.child_already_requested":
+        "Другой человек уже записал этого ребёнка. Обратитесь в школу.",
+      "enrollment.care_offering_closed":
+        "Выбранная программа присмотра сейчас не принимает заявки. Выберите другую.",
+      "enrollment.consent_required": "Подтвердите все обязательные согласия.",
+      "enrollment.child_required": "Добавьте хотя бы одного ребёнка.",
+      "enrollment.child_name_required": "Укажите имя и фамилию ребёнка.",
+      "enrollment.child_birth_date_invalid": "Укажите дату рождения ребёнка.",
+      "enrollment.child_grade_required": "Выберите класс ребёнка.",
+      "enrollment.guardian_name_required": "Укажите имя и фамилию.",
+      "enrollment.guardian_email_required": "Укажите адрес электронной почты.",
+      "enrollment.guardian_phone_required": "Укажите номер телефона.",
+      "enrollment.field_required": "Заполните все обязательные поля.",
+      "enrollment.companion_note_required":
+        "Укажите, с кем ребёнок идёт домой.",
+      "enrollment.message_required": "Напишите сообщение.",
+      "enrollment.change_request_guardian_linked":
+        "Измените эти данные в приложении для родителей.",
+      "enrollment.change_request_not_found":
+        "Этого запроса на изменение больше нет. Обновите страницу.",
+      "enrollment.change_request_not_allowed":
+        "Эту запись сейчас нельзя изменить. Обратитесь в школу.",
+      "enrollment.change_request_status_changed":
+        "Статус этого запроса на изменение изменился. Обновите страницу.",
     },
   },
   sq: {
@@ -830,6 +1172,52 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Fjalëkalimi nuk është i saktë. Ju lutemi provoni përsëri.",
       "care.declaration_password_required": "Ju lutemi shkruani fjalëkalimin.",
+      "enrollment.care_offering_exactly_one":
+        "Ju lutemi zgjidhni saktësisht një ofertë kujdesi për çdo fëmijë.",
+      "enrollment.care_offering_full":
+        "Një ofertë kujdesi e zgjedhur është plot. Zgjidhni një tjetër ose pyesni shkollën.",
+      "enrollment.care_offering_missing":
+        "Ju lutemi zgjidhni të paktën një ofertë kujdesi për çdo fëmijë.",
+      "enrollment.care_offering_unavailable":
+        "Një ofertë e zgjedhur nuk ofrohet për klasën e fëmijës. Kontrolloni klasën dhe zgjedhjen.",
+      "enrollment.change_request_child_locked":
+        "Ky fëmijë është tashmë në kujdes. Ju lutemi bëni ndryshimet në aplikacionin për prindër.",
+      "enrollment.child_already_enrolled":
+        "Ky fëmijë është i regjistruar tashmë në shkollë. Ky regjistrim është vetëm për fëmijë të rinj.",
+      "enrollment.child_ambiguous":
+        "Nuk mundëm ta identifikojmë qartë fëmijën. Ju lutemi kontaktoni shkollën.",
+      "enrollment.child_not_enrolled":
+        "Ky fëmijë nuk është ende i regjistruar në shkollë. Ky regjistrim është vetëm për fëmijët e shkollës.",
+      "enrollment.child_not_permitted":
+        "Nuk keni leje ta regjistroni përsëri këtë fëmijë. Ju lutemi kontaktoni shkollën.",
+      "enrollment.class_not_eligible":
+        "Ky regjistrim vlen vetëm për disa klasa. Kontrolloni klasën e fëmijës suaj.",
+      "enrollment.day_selection_not_allowed":
+        "Ditët e kësaj oferte janë të caktuara. Nuk mund të zgjidhni ditë.",
+      "enrollment.day_selection_required":
+        "Ju lutemi zgjidhni të paktën një ditë për këtë ofertë.",
+      "enrollment.departure_mode_limit":
+        "Ju lutemi zgjidhni vetëm një mënyrë kthimi në shtëpi për çdo ditë.",
+      "enrollment.disabled":
+        "Regjistrimi online nuk është i mundur tani në këtë shkollë. Ju lutemi kontaktoni shkollën.",
+      "enrollment.grade_not_eligible":
+        "Ky regjistrim vlen vetëm për disa nivele klase. Kontrolloni nivelin e klasës së fëmijës.",
+      "enrollment.invalid_email":
+        "Ju lutemi shkruani një adresë emaili të vlefshme.",
+      "enrollment.invalid_phone":
+        "Ju lutemi shkruani një numër telefoni të vlefshëm.",
+      "enrollment.late_invite_invalid":
+        "Kjo lidhje nuk është e vlefshme, ka skaduar ose është përdorur. Ju lutemi kontaktoni shkollën.",
+      "enrollment.phase_not_eligible":
+        "Ky regjistrim nuk është i hapur për llogarinë tuaj. Hyni në aplikacionin për prindër ose pyesni shkollën.",
+      "enrollment.pickup_time_not_allowed":
+        "Ju lutemi zgjidhni vetëm orë marrjeje nga lista. Ora e shënuar nuk ofrohet më.",
+      "enrollment.required_care_offering_missing":
+        "Ju lutemi zgjidhni ofertën e detyrueshme për çdo fëmijë.",
+      "enrollment.selected_day_not_available":
+        "Kjo ditë nuk ofrohet për këtë ofertë. Ju lutemi zgjidhni vetëm ditët e treguara.",
+      "enrollment.window_closed":
+        "Afati i regjistrimit ka mbaruar ose nuk ka filluar ende. Ju lutemi kontaktoni shkollën.",
       "identity.account_already_has_tenant_access":
         "Ky person ka tashmë qasje në këtë shkollë. E gjeni në listën e personelit.",
       "identity.email_already_exists":
@@ -840,6 +1228,53 @@ export const ERROR_CATALOG = {
         "Këtë orë e kanë vendosur prindërit. Vetëm dikush me profil stafi mund ta ndryshojë.",
       "students.status_day_conflict":
         "Disa ditë kanë tashmë një regjistrim. Këto ditë nuk u ndryshuan.",
+      "enrollment.form_not_found":
+        "Ky formular regjistrimi nuk ekziston. Kontrolloni lidhjen ose pyesni shkollën.",
+      "enrollment.status_link_invalid":
+        "Kjo lidhje nuk është e vlefshme ose ka skaduar. Përdorni lidhjen nga emaili juaj.",
+      "enrollment.edit_not_allowed":
+        "Ky regjistrim nuk mund të ndryshohet më. Ju lutemi kontaktoni shkollën.",
+      "enrollment.withdraw_not_allowed":
+        "Ky regjistrim nuk mund të tërhiqet më. Ju lutemi kontaktoni shkollën.",
+      "enrollment.captcha_required":
+        "Ju lutemi plotësoni kontrollin e sigurisë.",
+      "enrollment.captcha_failed":
+        "Kontrolli i sigurisë nuk funksionoi. Ju lutemi provoni përsëri.",
+      "enrollment.submission_rate_limited":
+        "U dërguan shumë regjistrime. Ju lutemi provoni përsëri pas një ore.",
+      "enrollment.request_duplicate":
+        "Për këtë fëmijë ka tashmë një regjistrim në këtë periudhë.",
+      "enrollment.child_already_requested":
+        "Një person tjetër e ka regjistruar tashmë këtë fëmijë. Ju lutemi kontaktoni shkollën.",
+      "enrollment.care_offering_closed":
+        "Një ofertë kujdesi e zgjedhur nuk pranon regjistrime tani. Ju lutemi zgjidhni një tjetër.",
+      "enrollment.consent_required":
+        "Ju lutemi konfirmoni të gjitha pëlqimet e detyrueshme.",
+      "enrollment.child_required": "Ju lutemi shtoni të paktën një fëmijë.",
+      "enrollment.child_name_required":
+        "Ju lutemi shkruani emrin dhe mbiemrin e fëmijës.",
+      "enrollment.child_birth_date_invalid":
+        "Ju lutemi shkruani datëlindjen e fëmijës.",
+      "enrollment.child_grade_required": "Ju lutemi zgjidhni klasën e fëmijës.",
+      "enrollment.guardian_name_required":
+        "Ju lutemi shkruani emrin dhe mbiemrin.",
+      "enrollment.guardian_email_required":
+        "Ju lutemi shkruani një adresë emaili.",
+      "enrollment.guardian_phone_required":
+        "Ju lutemi shkruani një numër telefoni.",
+      "enrollment.field_required":
+        "Ju lutemi plotësoni të gjitha fushat e detyrueshme.",
+      "enrollment.companion_note_required":
+        "Ju lutemi shkruani me kë shkon fëmija në shtëpi.",
+      "enrollment.message_required": "Ju lutemi shkruani një mesazh.",
+      "enrollment.change_request_guardian_linked":
+        "Ju lutemi ndryshoni këto të dhëna në aplikacionin për prindër.",
+      "enrollment.change_request_not_found":
+        "Kjo kërkesë për ndryshim nuk ekziston më. Ju lutemi ringarkoni faqen.",
+      "enrollment.change_request_not_allowed":
+        "Ky regjistrim nuk mund të ndryshohet tani. Ju lutemi kontaktoni shkollën.",
+      "enrollment.change_request_status_changed":
+        "Gjendja e kësaj kërkese për ndryshim ka ndryshuar. Ju lutemi ringarkoni faqen.",
     },
   },
   pl: {
@@ -862,6 +1297,50 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Hasło jest nieprawidłowe. Spróbuj ponownie.",
       "care.declaration_password_required": "Wpisz swoje hasło.",
+      "enrollment.care_offering_exactly_one":
+        "Wybierz dokładnie jedną ofertę opieki dla każdego dziecka.",
+      "enrollment.care_offering_full":
+        "Wybrana oferta opieki jest już pełna. Wybierz inną lub zapytaj szkołę.",
+      "enrollment.care_offering_missing":
+        "Wybierz co najmniej jedną ofertę opieki dla każdego dziecka.",
+      "enrollment.care_offering_unavailable":
+        "Wybrana oferta nie jest dostępna dla klasy dziecka. Sprawdź klasę i wybór.",
+      "enrollment.change_request_child_locked":
+        "To dziecko jest już pod opieką. Zmiany wprowadzaj w aplikacji dla rodziców.",
+      "enrollment.child_already_enrolled":
+        "To dziecko jest już zapisane do szkoły. Ten zapis jest tylko dla nowych dzieci.",
+      "enrollment.child_ambiguous":
+        "Nie udało się jednoznacznie przypisać dziecka. Skontaktuj się ze szkołą.",
+      "enrollment.child_not_enrolled":
+        "To dziecko nie jest jeszcze zapisane do szkoły. Ten zapis jest tylko dla dzieci tej szkoły.",
+      "enrollment.child_not_permitted":
+        "Nie możesz ponownie zapisać tego dziecka. Skontaktuj się ze szkołą.",
+      "enrollment.class_not_eligible":
+        "Ten zapis dotyczy tylko wybranych klas. Sprawdź klasę dziecka.",
+      "enrollment.day_selection_not_allowed":
+        "Dni tej oferty są ustalone. Nie możesz wybierać dni.",
+      "enrollment.day_selection_required":
+        "Wybierz co najmniej jeden dzień tygodnia dla tej oferty.",
+      "enrollment.departure_mode_limit":
+        "Wybierz tylko jeden sposób powrotu do domu na każdy dzień tygodnia.",
+      "enrollment.disabled":
+        "Zapis online w tej szkole jest teraz niedostępny. Skontaktuj się ze szkołą.",
+      "enrollment.grade_not_eligible":
+        "Ten zapis dotyczy tylko wybranych roczników. Sprawdź klasę dziecka.",
+      "enrollment.invalid_email": "Wpisz prawidłowy adres e-mail.",
+      "enrollment.invalid_phone": "Wpisz prawidłowy numer telefonu.",
+      "enrollment.late_invite_invalid":
+        "Ten link jest nieprawidłowy, wygasł lub został już użyty. Skontaktuj się ze szkołą.",
+      "enrollment.phase_not_eligible":
+        "Ten zapis nie jest dostępny dla Twojego konta. Zaloguj się w aplikacji dla rodziców lub zapytaj szkołę.",
+      "enrollment.pickup_time_not_allowed":
+        "Wybieraj tylko godziny odbioru z listy. Zaznaczona godzina nie jest już dostępna.",
+      "enrollment.required_care_offering_missing":
+        "Wybierz obowiązkową ofertę dla każdego dziecka.",
+      "enrollment.selected_day_not_available":
+        "Ten dzień tygodnia nie jest dostępny dla oferty. Wybieraj tylko pokazane dni.",
+      "enrollment.window_closed":
+        "Termin zapisów minął lub jeszcze się nie zaczął. Skontaktuj się ze szkołą.",
       "identity.account_already_has_tenant_access":
         "Ta osoba ma już dostęp do tej szkoły. Znajdziesz ją na liście personelu.",
       "identity.email_already_exists":
@@ -872,6 +1351,45 @@ export const ERROR_CATALOG = {
         "Ten czas ustawili rodzice. Zmienić go może tylko osoba z profilem pracownika.",
       "students.status_day_conflict":
         "Niektóre dni mają już wpis. Tych dni nie zmieniono.",
+      "enrollment.form_not_found":
+        "Ten formularz zapisu nie istnieje. Sprawdź link lub zapytaj szkołę.",
+      "enrollment.status_link_invalid":
+        "Ten link jest nieprawidłowy lub wygasł. Użyj linku z e-maila.",
+      "enrollment.edit_not_allowed":
+        "Tego zapisu nie można już zmienić. Skontaktuj się ze szkołą.",
+      "enrollment.withdraw_not_allowed":
+        "Tego zapisu nie można już wycofać. Skontaktuj się ze szkołą.",
+      "enrollment.captcha_required": "Potwierdź weryfikację bezpieczeństwa.",
+      "enrollment.captcha_failed":
+        "Weryfikacja bezpieczeństwa nie powiodła się. Spróbuj ponownie.",
+      "enrollment.submission_rate_limited":
+        "Wysłano zbyt wiele zapisów. Spróbuj ponownie za godzinę.",
+      "enrollment.request_duplicate":
+        "To dziecko ma już zapis w tym okresie zapisów.",
+      "enrollment.child_already_requested":
+        "Inna osoba już zapisała to dziecko. Skontaktuj się ze szkołą.",
+      "enrollment.care_offering_closed":
+        "Wybrana oferta opieki nie przyjmuje teraz zapisów. Wybierz inną ofertę.",
+      "enrollment.consent_required": "Potwierdź wszystkie wymagane zgody.",
+      "enrollment.child_required": "Dodaj co najmniej jedno dziecko.",
+      "enrollment.child_name_required": "Wpisz imię i nazwisko dziecka.",
+      "enrollment.child_birth_date_invalid": "Wpisz datę urodzenia dziecka.",
+      "enrollment.child_grade_required": "Wybierz klasę dziecka.",
+      "enrollment.guardian_name_required": "Wpisz imię i nazwisko.",
+      "enrollment.guardian_email_required": "Wpisz adres e-mail.",
+      "enrollment.guardian_phone_required": "Wpisz numer telefonu.",
+      "enrollment.field_required": "Wypełnij wszystkie wymagane pola.",
+      "enrollment.companion_note_required":
+        "Podaj, z kim dziecko wraca do domu.",
+      "enrollment.message_required": "Napisz wiadomość.",
+      "enrollment.change_request_guardian_linked":
+        "Zmień te dane w aplikacji dla rodziców.",
+      "enrollment.change_request_not_found":
+        "Ta prośba o zmianę już nie istnieje. Odśwież stronę.",
+      "enrollment.change_request_not_allowed":
+        "Tego zapisu nie można teraz zmienić. Skontaktuj się ze szkołą.",
+      "enrollment.change_request_status_changed":
+        "Stan tej prośby o zmianę się zmienił. Odśwież stronę.",
     },
   },
   tr: {
@@ -894,6 +1412,50 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Şifre doğru değil. Lütfen tekrar deneyin.",
       "care.declaration_password_required": "Lütfen şifrenizi girin.",
+      "enrollment.care_offering_exactly_one":
+        "Lütfen her çocuk için tam olarak bir bakım hizmeti seçin.",
+      "enrollment.care_offering_full":
+        "Seçilen bakım hizmeti dolu. Lütfen başka bir hizmet seçin veya okula sorun.",
+      "enrollment.care_offering_missing":
+        "Lütfen her çocuk için en az bir bakım hizmeti seçin.",
+      "enrollment.care_offering_unavailable":
+        "Seçilen hizmet çocuğun sınıf düzeyi için sunulmuyor. Sınıf düzeyini ve seçimi kontrol edin.",
+      "enrollment.change_request_child_locked":
+        "Bu çocuk zaten bakımda. Değişiklikleri lütfen veli uygulamasında yapın.",
+      "enrollment.child_already_enrolled":
+        "Bu çocuk okulda zaten kayıtlı. Bu kayıt yalnızca yeni çocuklar içindir.",
+      "enrollment.child_ambiguous":
+        "Çocuğu kesin olarak eşleştiremedik. Lütfen okulla iletişime geçin.",
+      "enrollment.child_not_enrolled":
+        "Bu çocuk henüz okula kayıtlı değil. Bu kayıt yalnızca okulun çocukları içindir.",
+      "enrollment.child_not_permitted":
+        "Bu çocuğu yeniden kaydetme izniniz yok. Lütfen okulla iletişime geçin.",
+      "enrollment.class_not_eligible":
+        "Bu kayıt yalnızca belirli sınıflar içindir. Lütfen çocuğunuzun sınıfını kontrol edin.",
+      "enrollment.day_selection_not_allowed":
+        "Bu hizmetin günleri sabittir. Gün seçemezsiniz.",
+      "enrollment.day_selection_required":
+        "Lütfen bu hizmet için en az bir gün seçin.",
+      "enrollment.departure_mode_limit":
+        "Lütfen her gün için yalnızca bir eve dönüş yolu seçin.",
+      "enrollment.disabled":
+        "Bu okulda çevrim içi kayıt şu anda mümkün değil. Lütfen okulla iletişime geçin.",
+      "enrollment.grade_not_eligible":
+        "Bu kayıt yalnızca belirli sınıf düzeyleri içindir. Lütfen çocuğunuzun sınıf düzeyini kontrol edin.",
+      "enrollment.invalid_email": "Lütfen geçerli bir e-posta adresi girin.",
+      "enrollment.invalid_phone": "Lütfen geçerli bir telefon numarası girin.",
+      "enrollment.late_invite_invalid":
+        "Bu bağlantı geçersiz, süresi dolmuş veya kullanılmış. Lütfen okulla iletişime geçin.",
+      "enrollment.phase_not_eligible":
+        "Bu kayıt hesabınız için açık değil. Lütfen veli uygulamasına giriş yapın veya okula sorun.",
+      "enrollment.pickup_time_not_allowed":
+        "Lütfen yalnızca listedeki alma saatlerini seçin. İşaretli saat artık yok.",
+      "enrollment.required_care_offering_missing":
+        "Lütfen her çocuk için zorunlu hizmeti seçin.",
+      "enrollment.selected_day_not_available":
+        "Bu gün bu hizmet için mümkün değil. Lütfen yalnızca gösterilen günleri seçin.",
+      "enrollment.window_closed":
+        "Kayıt süresi bitti veya henüz başlamadı. Lütfen okulla iletişime geçin.",
       "identity.account_already_has_tenant_access":
         "Bu kişinin bu okula zaten erişimi var. Kişiyi personel listesinde bulabilirsiniz.",
       "identity.email_already_exists":
@@ -904,6 +1466,49 @@ export const ERROR_CATALOG = {
         "Bu saati veliler belirledi. Yalnızca personel profili olan biri değiştirebilir.",
       "students.status_day_conflict":
         "Bazı günlerde zaten bir kayıt var. Bu günler değiştirilmedi.",
+      "enrollment.form_not_found":
+        "Bu kayıt formu bulunamadı. Bağlantıyı kontrol edin veya okula sorun.",
+      "enrollment.status_link_invalid":
+        "Bu bağlantı geçersiz veya süresi dolmuş. Lütfen e-postanızdaki bağlantıyı kullanın.",
+      "enrollment.edit_not_allowed":
+        "Bu kayıt artık değiştirilemez. Lütfen okulla iletişime geçin.",
+      "enrollment.withdraw_not_allowed":
+        "Bu kayıt artık geri çekilemez. Lütfen okulla iletişime geçin.",
+      "enrollment.captcha_required":
+        "Lütfen güvenlik doğrulamasını tamamlayın.",
+      "enrollment.captcha_failed":
+        "Güvenlik doğrulaması başarısız oldu. Lütfen tekrar deneyin.",
+      "enrollment.submission_rate_limited":
+        "Çok fazla kayıt gönderildi. Lütfen bir saat sonra tekrar deneyin.",
+      "enrollment.request_duplicate":
+        "Bu çocuk için bu kayıt döneminde zaten bir kayıt var.",
+      "enrollment.child_already_requested":
+        "Bu çocuğu başka bir kişi zaten kaydetti. Lütfen okulla iletişime geçin.",
+      "enrollment.care_offering_closed":
+        "Seçilen bakım hizmeti şu anda kayıt kabul etmiyor. Lütfen başka bir hizmet seçin.",
+      "enrollment.consent_required": "Lütfen tüm zorunlu onayları verin.",
+      "enrollment.child_required": "Lütfen en az bir çocuk ekleyin.",
+      "enrollment.child_name_required":
+        "Lütfen çocuğun adını ve soyadını girin.",
+      "enrollment.child_birth_date_invalid":
+        "Lütfen çocuğun doğum tarihini girin.",
+      "enrollment.child_grade_required": "Lütfen çocuğun sınıf düzeyini seçin.",
+      "enrollment.guardian_name_required": "Lütfen adı ve soyadı girin.",
+      "enrollment.guardian_email_required": "Lütfen bir e-posta adresi girin.",
+      "enrollment.guardian_phone_required":
+        "Lütfen bir telefon numarası girin.",
+      "enrollment.field_required": "Lütfen tüm zorunlu alanları doldurun.",
+      "enrollment.companion_note_required":
+        "Lütfen çocuğun eve kiminle gittiğini belirtin.",
+      "enrollment.message_required": "Lütfen bir mesaj yazın.",
+      "enrollment.change_request_guardian_linked":
+        "Lütfen bu bilgileri veli uygulamasında değiştirin.",
+      "enrollment.change_request_not_found":
+        "Bu değişiklik talebi artık yok. Lütfen sayfayı yenileyin.",
+      "enrollment.change_request_not_allowed":
+        "Bu kayıt şu anda değiştirilemez. Lütfen okulla iletişime geçin.",
+      "enrollment.change_request_status_changed":
+        "Bu değişiklik talebinin durumu değişti. Lütfen sayfayı yenileyin.",
     },
   },
   uk: {
@@ -926,6 +1531,50 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Пароль неправильний. Будь ласка, спробуйте ще раз.",
       "care.declaration_password_required": "Будь ласка, введіть пароль.",
+      "enrollment.care_offering_exactly_one":
+        "Оберіть рівно одну програму догляду для кожної дитини.",
+      "enrollment.care_offering_full":
+        "Обрана програма догляду вже заповнена. Оберіть іншу або зверніться до школи.",
+      "enrollment.care_offering_missing":
+        "Оберіть хоча б одну програму догляду для кожної дитини.",
+      "enrollment.care_offering_unavailable":
+        "Обрана програма недоступна для класу дитини. Перевірте клас і вибір.",
+      "enrollment.change_request_child_locked":
+        "Ця дитина вже під доглядом. Вносьте зміни в застосунку для батьків.",
+      "enrollment.child_already_enrolled":
+        "Ця дитина вже записана до школи. Цей запис лише для нових дітей.",
+      "enrollment.child_ambiguous":
+        "Не вдалося однозначно визначити дитину. Зверніться до школи.",
+      "enrollment.child_not_enrolled":
+        "Ця дитина ще не записана до школи. Цей запис лише для дітей школи.",
+      "enrollment.child_not_permitted":
+        "Ви не можете повторно записати цю дитину. Зверніться до школи.",
+      "enrollment.class_not_eligible":
+        "Цей запис лише для певних класів. Перевірте клас дитини.",
+      "enrollment.day_selection_not_allowed":
+        "Дні цієї програми визначені заздалегідь. Обрати дні не можна.",
+      "enrollment.day_selection_required":
+        "Оберіть хоча б один день тижня для цієї програми.",
+      "enrollment.departure_mode_limit":
+        "Оберіть лише один спосіб повернення додому на кожен день тижня.",
+      "enrollment.disabled":
+        "Онлайн-запис у цій школі зараз недоступний. Зверніться до школи.",
+      "enrollment.grade_not_eligible":
+        "Цей запис лише для певних років навчання. Перевірте клас дитини.",
+      "enrollment.invalid_email": "Вкажіть правильну адресу електронної пошти.",
+      "enrollment.invalid_phone": "Вкажіть правильний номер телефону.",
+      "enrollment.late_invite_invalid":
+        "Це посилання недійсне, застаріле або вже використане. Зверніться до школи.",
+      "enrollment.phase_not_eligible":
+        "Цей запис недоступний для вашого облікового запису. Увійдіть у застосунок для батьків або зверніться до школи.",
+      "enrollment.pickup_time_not_allowed":
+        "Обирайте час забирання лише зі списку. Позначеного часу більше немає.",
+      "enrollment.required_care_offering_missing":
+        "Оберіть обов'язкову програму для кожної дитини.",
+      "enrollment.selected_day_not_available":
+        "Цей день тижня недоступний для програми. Обирайте лише показані дні.",
+      "enrollment.window_closed":
+        "Термін запису минув або ще не почався. Зверніться до школи.",
       "identity.account_already_has_tenant_access":
         "Ця особа вже має доступ до цієї школи. Її можна знайти в списку персоналу.",
       "identity.email_already_exists":
@@ -936,6 +1585,44 @@ export const ERROR_CATALOG = {
         "Цей час встановили батьки. Змінити його може лише працівник із профілем персоналу.",
       "students.status_day_conflict":
         "На деякі дні вже є запис. Ці дні не змінено.",
+      "enrollment.form_not_found":
+        "Цієї форми запису не існує. Перевірте посилання або зверніться до школи.",
+      "enrollment.status_link_invalid":
+        "Це посилання недійсне або застаріле. Скористайтеся посиланням з вашого листа.",
+      "enrollment.edit_not_allowed":
+        "Цей запис більше не можна змінити. Зверніться до школи.",
+      "enrollment.withdraw_not_allowed":
+        "Цей запис більше не можна відкликати. Зверніться до школи.",
+      "enrollment.captcha_required": "Пройдіть перевірку безпеки.",
+      "enrollment.captcha_failed":
+        "Перевірка безпеки не вдалася. Спробуйте ще раз.",
+      "enrollment.submission_rate_limited":
+        "Надіслано забагато заявок. Спробуйте ще раз через годину.",
+      "enrollment.request_duplicate":
+        "Для цієї дитини вже є заявка в цей період запису.",
+      "enrollment.child_already_requested":
+        "Інша людина вже записала цю дитину. Зверніться до школи.",
+      "enrollment.care_offering_closed":
+        "Обрана програма догляду зараз не приймає заявки. Оберіть іншу.",
+      "enrollment.consent_required": "Підтвердіть усі обов'язкові згоди.",
+      "enrollment.child_required": "Додайте хоча б одну дитину.",
+      "enrollment.child_name_required": "Вкажіть ім'я та прізвище дитини.",
+      "enrollment.child_birth_date_invalid": "Вкажіть дату народження дитини.",
+      "enrollment.child_grade_required": "Оберіть клас дитини.",
+      "enrollment.guardian_name_required": "Вкажіть ім'я та прізвище.",
+      "enrollment.guardian_email_required": "Вкажіть адресу електронної пошти.",
+      "enrollment.guardian_phone_required": "Вкажіть номер телефону.",
+      "enrollment.field_required": "Заповніть усі обов'язкові поля.",
+      "enrollment.companion_note_required": "Вкажіть, з ким дитина йде додому.",
+      "enrollment.message_required": "Напишіть повідомлення.",
+      "enrollment.change_request_guardian_linked":
+        "Змініть ці дані в застосунку для батьків.",
+      "enrollment.change_request_not_found":
+        "Цього запиту на зміну більше немає. Оновіть сторінку.",
+      "enrollment.change_request_not_allowed":
+        "Цей запис зараз не можна змінити. Зверніться до школи.",
+      "enrollment.change_request_status_changed":
+        "Статус цього запиту на зміну змінився. Оновіть сторінку.",
     },
   },
 } as const;

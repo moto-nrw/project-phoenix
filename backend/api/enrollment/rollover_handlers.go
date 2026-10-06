@@ -296,11 +296,11 @@ func parseRolloverCreateRequest(sourceID int64, body *RolloverCreateRequest, adm
 
 	start, err := parseDateField("service_start_date", body.ServiceStartDate)
 	if err != nil {
-		return out, err
+		return out, capability.InvalidInput(common.CodeEnrollmentPhaseServicePeriodInvalid, "service_start_date", err)
 	}
 	end, err := parseDateField("service_end_date", body.ServiceEndDate)
 	if err != nil {
-		return out, err
+		return out, capability.InvalidInput(common.CodeEnrollmentPhaseServicePeriodInvalid, "service_end_date", err)
 	}
 	out.ServiceStartDate = start
 	out.ServiceEndDate = end
@@ -308,21 +308,21 @@ func parseRolloverCreateRequest(sourceID int64, body *RolloverCreateRequest, adm
 	if body.EnrollmentOpenAt != nil && *body.EnrollmentOpenAt != "" {
 		t, err := parseDateTimeField("enrollment_open_at", *body.EnrollmentOpenAt)
 		if err != nil {
-			return out, err
+			return out, capability.InvalidInput(common.CodeEnrollmentPhaseWindowInvalid, "enrollment_open_at", err)
 		}
 		out.EnrollmentOpenAt = &t
 	}
 	if body.EnrollmentCloseAt != nil && *body.EnrollmentCloseAt != "" {
 		t, err := parseDateTimeField("enrollment_close_at", *body.EnrollmentCloseAt)
 		if err != nil {
-			return out, err
+			return out, capability.InvalidInput(common.CodeEnrollmentPhaseWindowInvalid, "enrollment_close_at", err)
 		}
 		out.EnrollmentCloseAt = &t
 	}
 
 	deadline, err := parseDateTimeField("rollover_deadline", body.RolloverDeadline)
 	if err != nil {
-		return out, err
+		return out, capability.InvalidInput(common.CodeRolloverDeadlineRequired, "rollover_deadline", err)
 	}
 	out.RolloverDeadline = deadline
 
@@ -366,6 +366,9 @@ func (rs *Resource) mapRolloverError(w http.ResponseWriter, r *http.Request, err
 	switch {
 	case errors.Is(err, capability.ErrRolloverSourceNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeRolloverSourceNotFound))
+	case errors.Is(err, capability.ErrRolloverInvalidRequest) && common.HasInputRejection(err):
+		// A rejected value names its own code and field (#2515).
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, capability.ErrRolloverInvalidRequest):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeRolloverInvalidRequest))
 	case errors.Is(err, capability.ErrRolloverReviewInvalid):
@@ -373,7 +376,7 @@ func (rs *Resource) mapRolloverError(w http.ResponseWriter, r *http.Request, err
 	case errors.Is(err, capability.ErrRolloverReviewNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeRolloverReviewNotFound))
 	case errors.Is(err, capability.ErrRolloverDuplicateName):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeRolloverDuplicateName))
+		common.RenderError(w, r, common.ErrorConflictOnField(err, common.CodeRolloverDuplicateName, "name"))
 	case errors.Is(err, capability.ErrRolloverSourceAlreadyRolled):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeRolloverSourceAlreadyRolled))
 	default:

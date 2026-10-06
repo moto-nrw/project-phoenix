@@ -197,7 +197,7 @@ describe("getCareUsageReport", () => {
     );
   });
 
-  it("falls back to the operation message when the backend error is not translatable", async () => {
+  it("never carries the backend sentence and classifies the failure", async () => {
     mockFetch(async () =>
       jsonResponse({ error: "backend exploded in english" }, { status: 500 }),
     );
@@ -205,18 +205,37 @@ describe("getCareUsageReport", () => {
     await expect(getCareUsageReport({ phase_id: "42" })).rejects.toMatchObject({
       message: "Auswertung konnte nicht geladen werden (HTTP 500)",
       status: 500,
-      rawMessage: "backend exploded in english",
+      code: "general.server",
     });
   });
 
-  it("uses translated enrollment validation errors on non-ok responses", async () => {
+  it("keeps the field errors of a rejected request for the form", async () => {
     mockFetch(async () =>
-      jsonResponse({ error: "phase_id is required" }, { status: 400 }),
+      jsonResponse(
+        {
+          error: "phase_id is required",
+          errors: [{ field: "phase_id", reason: "required" }],
+        },
+        { status: 400 },
+      ),
     );
 
-    await expect(getCareUsageReport({ phase_id: "" })).rejects.toThrow(
-      "Bitte wähle eine Anmeldephase aus.",
-    );
+    await expect(getCareUsageReport({ phase_id: "" })).rejects.toMatchObject({
+      status: 400,
+      code: "general.input",
+      errors: [{ field: "phase_id", reason: "required" }],
+    });
+  });
+
+  it("reports a request that never reached the API as unavailable", async () => {
+    mockFetch(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+
+    await expect(getCareUsageReport({ phase_id: "42" })).rejects.toMatchObject({
+      status: 503,
+      code: "general.unavailable",
+    });
   });
 });
 
@@ -392,7 +411,7 @@ describe("exportCareUsageReport", () => {
     expect(anchor.download).toBe("anmelde-auswertung.docx");
   });
 
-  it("throws translated backend errors and skips the browser download", async () => {
+  it("throws the coded error and skips the browser download", async () => {
     mockFetch(async () =>
       jsonResponse(
         { code: "enrollment.window_closed", error: "window closed" },
@@ -403,11 +422,8 @@ describe("exportCareUsageReport", () => {
     await expect(
       exportCareUsageReport({ phase_id: "42" }, "xlsx"),
     ).rejects.toMatchObject({
-      message:
-        "Die Anmeldefrist für diese Anmeldephase ist abgelaufen oder noch nicht geöffnet. Bitte wende dich an die Schule.",
       status: 403,
       code: "enrollment.window_closed",
-      rawMessage: "window closed",
     });
     expect(anchor.click).not.toHaveBeenCalled();
     expect(URL.createObjectURL).not.toHaveBeenCalled();
