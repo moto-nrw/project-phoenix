@@ -41,6 +41,8 @@ function OperatorUnregisteredTagsPageContent() {
     filteredSchools,
     handleOrgFilterChange,
     handleSchoolFilterChange,
+    organizationsLoadError,
+    schoolsLoadError,
   } = useOrgSchoolFilter("/operator/unregistered-tags");
 
   const [resolvedFilter, setResolvedFilter] =
@@ -182,6 +184,8 @@ function OperatorUnregisteredTagsPageContent() {
         onSchoolChange={handleSchoolFilterChange}
       />
 
+      <LoadErrorAlert error={organizationsLoadError} className="mb-4" />
+      <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
       <LoadErrorAlert error={scansLoadError} className="mb-4" />
 
       {!isLoading && scans?.length === 0 ? (

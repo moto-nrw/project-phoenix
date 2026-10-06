@@ -24,7 +24,6 @@ vi.mock("~/components/operator/transfer-device-modal", () => ({
   TransferDeviceModal: () => null,
 }));
 import { Suspense } from "react";
-import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 
@@ -284,11 +283,9 @@ async function renderPage() {
   let result!: ReturnType<typeof render>;
   await act(async () => {
     result = render(
-      <ToastProvider>
-        <Suspense fallback={<div data-testid="suspense-fallback" />}>
-          <OperatorSchoolDetailPage {...schoolPageProps} />
-        </Suspense>
-      </ToastProvider>,
+      <Suspense fallback={<div data-testid="suspense-fallback" />}>
+        <OperatorSchoolDetailPage {...schoolPageProps} />
+      </Suspense>,
     );
   });
   return result;

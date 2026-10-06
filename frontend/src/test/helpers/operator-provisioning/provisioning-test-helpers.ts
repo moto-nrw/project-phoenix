@@ -57,6 +57,9 @@ export interface SetupSWROptions {
   schools?: unknown[] | undefined;
   orgsLoading?: boolean;
   schoolsLoading?: boolean;
+  /** Failed load of the filter lists (#2519). */
+  orgsError?: unknown;
+  schoolsError?: unknown;
   schoolAccounts?: unknown[];
   orgAccounts?: unknown[];
   allAccounts?: unknown[];
@@ -84,6 +87,8 @@ export function setupSWR(opts: SetupSWROptions): void {
     schools = [mockSchool],
     orgsLoading = false,
     schoolsLoading = false,
+    orgsError,
+    schoolsError,
     schoolAccounts,
     orgAccounts,
     allAccounts,
@@ -105,7 +110,8 @@ export function setupSWR(opts: SetupSWROptions): void {
       key === "operator-organization-summaries"
     ) {
       return {
-        data: orgsLoading ? undefined : orgs,
+        data: orgsLoading || orgsError ? undefined : orgs,
+        error: orgsError,
         isLoading: orgsLoading,
         mutate: mutateOrgs,
       };
@@ -125,7 +131,8 @@ export function setupSWR(opts: SetupSWROptions): void {
     }
     if (key === "operator-schools" || key === "operator-school-summaries") {
       return {
-        data: schoolsLoading ? undefined : schools,
+        data: schoolsLoading || schoolsError ? undefined : schools,
+        error: schoolsError,
         isLoading: schoolsLoading,
         mutate: mutateSchools,
       };

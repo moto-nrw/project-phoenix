@@ -577,4 +577,26 @@ describe("OperatorPersonsPage", () => {
       ).toBe("");
     });
   });
+
+  // #2519: a failed filter list is shown, not an empty filter.
+  it("shows failed loads of the filter lists", async () => {
+    withDefaultSWR({
+      schoolPersons: [],
+      orgsError: new ApiError("down", 503),
+      schoolsError: new ApiError("boom", 500),
+    });
+
+    render(<OperatorPersonsPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Träger"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Liste der Schulen"),
+      ),
+    ).toBeInTheDocument();
+  });
 });

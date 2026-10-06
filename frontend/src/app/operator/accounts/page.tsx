@@ -38,6 +38,8 @@ function OperatorAccountsPageContent() {
     filteredSchools,
     handleOrgFilterChange,
     handleSchoolFilterChange,
+    organizationsLoadError,
+    schoolsLoadError,
   } = useOrgSchoolFilter("/operator/accounts");
 
   const [caregiverAccount, setCaregiverAccount] = useState<
@@ -196,6 +198,8 @@ function OperatorAccountsPageContent() {
         onSchoolChange={handleSchoolFilterChange}
       />
 
+      <LoadErrorAlert error={organizationsLoadError} className="mb-4" />
+      <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
       <LoadErrorAlert error={accountsLoadError} className="mb-4" />
 
       {!selectedSchool && filterOrgId && (

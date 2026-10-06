@@ -39,6 +39,8 @@ function OperatorDevicesPageContent() {
     filteredSchools,
     handleOrgFilterChange,
     handleSchoolFilterChange,
+    organizationsLoadError,
+    schoolsLoadError,
   } = useOrgSchoolFilter("/operator/devices");
 
   const [createDeviceOpen, setCreateDeviceOpen] = useState(false);
@@ -183,6 +185,8 @@ function OperatorDevicesPageContent() {
         onSchoolChange={handleSchoolFilterChange}
       />
 
+      <LoadErrorAlert error={organizationsLoadError} className="mb-4" />
+      <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
       <LoadErrorAlert error={devicesLoadError} className="mb-4" />
 
       {!selectedSchool && filterOrgId && (

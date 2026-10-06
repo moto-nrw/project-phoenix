@@ -11,6 +11,8 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { catalogText } from "~/test/error-catalog-text";
+import { ApiError } from "~/lib/api-error";
 import { ToastProvider } from "~/contexts/ToastContext";
 
 function render(ui: React.ReactElement) {
@@ -608,5 +610,27 @@ describe("OperatorDevicesPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("modal")).toBeInTheDocument();
     });
+  });
+
+  // #2519: a failed filter list is shown, not an empty filter.
+  it("shows failed loads of the filter lists", async () => {
+    withDefaultSWR({
+      allDevices: [],
+      orgsError: new ApiError("down", 503),
+      schoolsError: new ApiError("boom", 500),
+    });
+
+    render(<OperatorDevicesPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Träger"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Liste der Schulen"),
+      ),
+    ).toBeInTheDocument();
   });
 });

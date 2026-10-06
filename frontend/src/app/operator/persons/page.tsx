@@ -30,6 +30,8 @@ function OperatorPersonsPageContent() {
     filteredSchools,
     handleOrgFilterChange,
     handleSchoolFilterChange,
+    organizationsLoadError,
+    schoolsLoadError,
   } = useOrgSchoolFilter("/operator/persons");
 
   const [deletePersonTarget, setDeletePersonTarget] =
@@ -87,6 +89,8 @@ function OperatorPersonsPageContent() {
         onSchoolChange={handleSchoolFilterChange}
       />
 
+      <LoadErrorAlert error={organizationsLoadError} className="mb-4" />
+      <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
       <LoadErrorAlert error={personsLoadError} className="mb-4" />
 
       {!selectedSchool ? (

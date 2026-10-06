@@ -7,6 +7,8 @@
  */
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { catalogText } from "~/test/error-catalog-text";
+import { ApiError } from "~/lib/api-error";
 
 const {
   mockUseSession,
@@ -595,5 +597,27 @@ describe("OperatorAccountsPage", () => {
   it("mock data fixtures match expected ids", () => {
     expect(mockOrg.id).toBe("1");
     expect(mockSchool.id).toBe("10");
+  });
+
+  // #2519: a failed filter list is shown, not an empty filter.
+  it("shows failed loads of the filter lists", async () => {
+    withDefaultSWR({
+      allAccounts: [],
+      orgsError: new ApiError("down", 503),
+      schoolsError: new ApiError("boom", 500),
+    });
+
+    render(<OperatorAccountsPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Träger"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Liste der Schulen"),
+      ),
+    ).toBeInTheDocument();
   });
 });
