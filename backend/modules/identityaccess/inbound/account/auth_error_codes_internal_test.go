@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,12 +39,12 @@ func TestLoginRefusalsCarryCodes(t *testing.T) {
 		status int
 		code   string
 	}{
-		{"wrong password", wrap(identityaccess.ErrInvalidCredentials), http.StatusUnauthorized, common.CodeIdentityInvalidCredentials},
-		{"unknown address", wrap(identityaccess.ErrAccountNotFound), http.StatusUnauthorized, common.CodeIdentityInvalidCredentials},
-		{"no access to this school", wrap(identityaccess.ErrTenantAccessDenied), http.StatusUnauthorized, common.CodeIdentityInvalidCredentials},
-		{"account switched off", wrap(identityaccess.ErrAccountInactive), http.StatusUnauthorized, common.CodeIdentitySessionAccountInactive},
-		{"too many code requests", wrap(identityaccess.ErrMFARateLimited), http.StatusTooManyRequests, common.CodeIdentityMfaBlocked},
-		{"locked after wrong codes", wrap(identityaccess.ErrMFALocked), http.StatusTooManyRequests, common.CodeIdentityMfaBlocked},
+		{"wrong password", wrap(identityaccess.ErrInvalidCredentials), http.StatusUnauthorized, "identity.invalid_credentials"},
+		{"unknown address", wrap(identityaccess.ErrAccountNotFound), http.StatusUnauthorized, "identity.invalid_credentials"},
+		{"no access to this school", wrap(identityaccess.ErrTenantAccessDenied), http.StatusUnauthorized, "identity.invalid_credentials"},
+		{"account switched off", wrap(identityaccess.ErrAccountInactive), http.StatusUnauthorized, "identity.session_account_inactive"},
+		{"too many code requests", wrap(identityaccess.ErrMFARateLimited), http.StatusTooManyRequests, "identity.mfa_blocked"},
+		{"locked after wrong codes", wrap(identityaccess.ErrMFALocked), http.StatusTooManyRequests, "identity.mfa_blocked"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -65,11 +64,11 @@ func TestMFARefusalsCarryCodes(t *testing.T) {
 		err  error
 		code string
 	}{
-		{identityaccess.ErrMFAChallengeTokenInvalid, common.CodeIdentityMfaCodeInvalid},
-		{identityaccess.ErrMFACodeInvalid, common.CodeIdentityMfaCodeInvalid},
-		{identityaccess.ErrMFAUnsupportedScope, common.CodeIdentityMfaCodeInvalid},
-		{identityaccess.ErrMFALocked, common.CodeIdentityMfaBlocked},
-		{identityaccess.ErrMFARateLimited, common.CodeIdentityMfaBlocked},
+		{identityaccess.ErrMFAChallengeTokenInvalid, "identity.mfa_code_invalid"},
+		{identityaccess.ErrMFACodeInvalid, "identity.mfa_code_invalid"},
+		{identityaccess.ErrMFAUnsupportedScope, "identity.mfa_code_invalid"},
+		{identityaccess.ErrMFALocked, "identity.mfa_blocked"},
+		{identityaccess.ErrMFARateLimited, "identity.mfa_blocked"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.err.Error(), func(t *testing.T) {
@@ -95,7 +94,7 @@ func TestPasskeyLoginRefusalsShareOneCode(t *testing.T) {
 			rr := httptest.NewRecorder()
 			mapPasskeyLoginError(rr, httptest.NewRequest(http.MethodPost, "/", nil), err)
 			assert.Equal(t, http.StatusUnauthorized, rr.Code)
-			assert.Equal(t, common.CodeIdentityPasskeyLoginFailed, decodeWireError(t, rr).Code)
+			assert.Equal(t, "identity.passkey_login_failed", decodeWireError(t, rr).Code)
 		})
 	}
 }
@@ -108,9 +107,9 @@ func TestInvitationRefusalsCarryCodes(t *testing.T) {
 		status int
 		code   string
 	}{
-		{identityaccess.ErrInvitationNotFound, http.StatusNotFound, common.CodeIdentityInvitationNotFound},
-		{identityaccess.ErrInvitationExpired, http.StatusGone, common.CodeIdentityInvitationExpired},
-		{identityaccess.ErrInvitationUsed, http.StatusGone, common.CodeIdentityInvitationExpired},
+		{identityaccess.ErrInvitationNotFound, http.StatusNotFound, "identity.invitation_not_found"},
+		{identityaccess.ErrInvitationExpired, http.StatusGone, "identity.invitation_expired"},
+		{identityaccess.ErrInvitationUsed, http.StatusGone, "identity.invitation_expired"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.err.Error(), func(t *testing.T) {
@@ -130,7 +129,7 @@ func TestInvitationWeakPasswordMarksThePasswordField(t *testing.T) {
 	require.True(t, renderAcceptError(rr, httptest.NewRequest(http.MethodPost, "/", nil), identityaccess.ErrPasswordTooWeak))
 	body := decodeWireError(t, rr)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
-	assert.Equal(t, common.CodeIdentityPasswordTooWeak, body.Code)
+	assert.Equal(t, "identity.password_too_weak", body.Code)
 	require.Len(t, body.Errors, 1)
 	assert.Equal(t, "password", body.Errors[0].Field)
 }
@@ -143,7 +142,7 @@ func TestPasswordResetRateLimitCarriesCode(t *testing.T) {
 	require.True(t, renderPasswordResetRateLimit(rr, httptest.NewRequest(http.MethodPost, "/", nil), limited))
 	assert.Equal(t, http.StatusTooManyRequests, rr.Code)
 	assert.NotEmpty(t, rr.Header().Get("Retry-After"))
-	assert.Equal(t, common.CodeIdentityPasswordResetRateLimited, decodeWireError(t, rr).Code)
+	assert.Equal(t, "identity.password_reset_rate_limited", decodeWireError(t, rr).Code)
 }
 
 func TestRegistrationRefusalsCarryCodes(t *testing.T) {
@@ -157,8 +156,8 @@ func TestRegistrationRefusalsCarryCodes(t *testing.T) {
 		field string
 	}{
 		// The staff form offers to link the existing account on this code.
-		{"address already registered", wrap(identityaccess.ErrEmailAlreadyExists), common.CodeIdentityEmailAlreadyExists, "email"},
-		{"password too weak", wrap(identityaccess.ErrPasswordTooWeak), common.CodeIdentityPasswordTooWeak, "password"},
+		{"address already registered", wrap(identityaccess.ErrEmailAlreadyExists), "identity.email_already_exists", "email"},
+		{"password too weak", wrap(identityaccess.ErrPasswordTooWeak), "identity.password_too_weak", "password"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

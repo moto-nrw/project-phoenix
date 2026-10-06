@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -27,7 +26,11 @@ import (
 func renderPeopleDirectoryFailure(w http.ResponseWriter, r *http.Request, kind usersAPI.FailureKind, err error) {
 	for _, rule := range guardianInputCodes {
 		if kind == usersAPI.FailureInvalidRequest && errors.Is(err, rule.sentinel) {
-			apiCommon.RenderError(w, r, guardianInputError(err, rule.code, rule.field))
+			if rule.field == "" {
+				apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequestWithCode(err, rule.code))
+			} else {
+				apiCommon.RenderError(w, r, apiCommon.ErrorInvalidOnField(err, rule.code, rule.field))
+			}
 			return
 		}
 	}
@@ -57,13 +60,6 @@ var guardianInputCodes = []struct {
 	{peopleModule.ErrGuardianEmailTaken, apiCommon.CodeStudentsGuardianEmailTaken, ""},
 	{peopleModule.ErrGuardianIBANInvalid, apiCommon.CodeStudentsGuardianIbanInvalid, "iban"},
 	{peopleModule.ErrGuardianAccountHolderTooLong, apiCommon.CodeStudentsGuardianAccountHolderTooLong, "account_holder"},
-}
-
-func guardianInputError(err error, code, field string) render.Renderer {
-	if field == "" {
-		return apiCommon.ErrorInvalidRequestWithCode(err, code)
-	}
-	return apiCommon.ErrorInvalidOnField(err, code, field)
 }
 
 func guardianFailureKind(kind services.GuardianFailureKind) usersAPI.FailureKind {

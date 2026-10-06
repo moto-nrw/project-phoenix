@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -414,7 +413,7 @@ func TestGuardianComposition_CreateGuardianDuplicateEmailIsBadRequest(t *testing
 	testutil.AssertBadRequest(t, rr)
 	assert.Contains(t, errorText(t, rr.Body.String()), "bereits vergeben")
 	// The form explains the duplicate through its own code (#2517).
-	assert.Contains(t, rr.Body.String(), `"code":"`+common.CodeStudentsGuardianEmailTaken+`"`)
+	assert.Contains(t, rr.Body.String(), `"code":"`+"students.guardian_email_taken"+`"`)
 	assert.Equal(t, 1, ctx.guardianEmailCount(email))
 }
 
@@ -952,7 +951,7 @@ func TestGuardianComposition_BatchDuplicateEmailCarriesItsCode(t *testing.T) {
 	})
 	testutil.AssertBadRequest(t, rr)
 	// The form explains the duplicate through its own code (#2517).
-	assert.Contains(t, rr.Body.String(), `"code":"`+common.CodeStudentsGuardianEmailTaken+`"`)
+	assert.Contains(t, rr.Body.String(), `"code":"`+"students.guardian_email_taken"+`"`)
 	assert.Empty(t, ctx.studentGuardians(t, studentID))
 }
 

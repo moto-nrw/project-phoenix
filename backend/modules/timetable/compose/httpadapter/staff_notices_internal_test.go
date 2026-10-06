@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,5 +39,5 @@ func TestRenderNoticeServiceErrorCodesAnOutdatedView(t *testing.T) {
 		fmt.Errorf("%w: notice does not apply today", timetable.ErrStaffNoticeOutdated))
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
-	assert.Contains(t, rr.Body.String(), `"code":"`+common.CodeCommunicationStaffNoticeOutdated+`"`)
+	assert.Contains(t, rr.Body.String(), `"code":"`+"communication.staff_notice_outdated"+`"`)
 }

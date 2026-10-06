@@ -2,7 +2,7 @@ package httpadapter
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,9 +10,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/api/common"
-	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 )
 
 // Protected activities answer with their own code (#2517), so the web shows
@@ -23,18 +20,18 @@ func TestActivityErrorRulesNameProtectedActivities(t *testing.T) {
 
 	cases := []struct {
 		name       string
-		err        error
+		renderer   func(error) render.Renderer
 		wantStatus int
 		wantCode   string
 	}{
-		{"system activity", fmt.Errorf("delete group: %w", activitiesSvc.ErrSystemActivityProtected), http.StatusForbidden, common.CodeTimetableActivitySystemProtected},
-		{"timetable template", fmt.Errorf("delete group: %w", activitiesSvc.ErrTimetableTemplateProtected), http.StatusConflict, common.CodeTimetableActivityTemplateProtected},
+		{"system activity", systemActivityForbidden, http.StatusForbidden, "timetable.activity_system_protected"},
+		{"timetable template", timetableTemplateConflict, http.StatusConflict, "timetable.activity_template_protected"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			w := httptest.NewRecorder()
-			require.NoError(t, render.Render(w, httptest.NewRequest(http.MethodDelete, "/", nil), ErrorRenderer(tc.err)))
+			require.NoError(t, render.Render(w, httptest.NewRequest(http.MethodDelete, "/", nil), tc.renderer(errors.New("delete group: protected"))))
 			var body struct {
 				Code string `json:"code"`
 			}
