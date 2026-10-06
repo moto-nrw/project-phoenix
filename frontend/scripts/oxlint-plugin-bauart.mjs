@@ -324,8 +324,8 @@ const ROW_ACTION_BASELINE = new Map(
       "Auswahlzeit entfernen@3436",
     ],
     "src/components/guardians/guardian-form-modal.tsx": [
-      "Entfernen@585",
-      "Telefonnummer entfernen@844",
+      "Entfernen@589",
+      "Telefonnummer entfernen@848",
     ],
     "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1312"],
     "src/components/staff/stammdaten-section-forms.tsx": [

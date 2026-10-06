@@ -32,6 +32,7 @@ import {
 } from "~/components/guardians/guardian-relationship-fields";
 import { ParentVisibleBadge } from "~/components/ui/parent-visible-badge";
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
+import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "GuardianForm" });
@@ -518,8 +519,11 @@ export default function GuardianFormModal({
       await onSubmit(submitData, removeEntry);
       onClose();
     } catch (err) {
+      // Code und Status statt des Texts: der Diagnosetext einer doppelten
+      // E-Mail nennt die Adresse, und Browser-Logs gehen nach Loki (#2108).
       logger.error("guardian_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
+        code: err instanceof ApiError ? err.code : undefined,
+        status: err instanceof ApiError ? err.status : undefined,
         mode,
       });
       await formErrors.show(err, {

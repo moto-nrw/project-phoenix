@@ -464,10 +464,11 @@ function RoomsPageContent() {
       : null;
 
   // Statuszeile unter dem Seitentitel, allein aus der geladenen Raumliste.
+  // Ohne geladene Liste steht keine "0 Räume" da (#2517).
   const roomSummary = (() => {
-    const rooms = roomsData ?? [];
-    const occupied = rooms.filter((room) => room.isOccupied).length;
-    return `${rooms.length} ${rooms.length === 1 ? "Raum" : "Räume"} · ${occupied} belegt`;
+    if (!roomsData) return null;
+    const occupied = roomsData.filter((room) => room.isOccupied).length;
+    return `${roomsData.length} ${roomsData.length === 1 ? "Raum" : "Räume"} · ${occupied} belegt`;
   })();
 
   return (
