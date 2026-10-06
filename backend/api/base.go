@@ -82,7 +82,6 @@ import (
 	meAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me"
 	identityOperatorAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
@@ -1234,20 +1233,6 @@ func parsePositiveInt(valueStr string, defaultValue int) int {
 // initializeAPIResources composes the HTTP resources; workforce is the
 // Workforce module the staff administration reads schedules from.
 
-func (api *API) requestReviewGroupIDs(ctx context.Context) ([]int64, error) {
-	groups, err := api.Services.UserContext.GetMyGroups(ctx)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]int64, 0, len(groups))
-	for _, group := range groups {
-		if group != nil {
-			ids = append(ids, group.ID)
-		}
-	}
-	return ids, nil
-}
-
 // requestReviewDependencies binds native owner capabilities for the staff projection.
 func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (requestreviewcompose.ProjectionDependencies, carePlanModule.CareScheduleReviewQuery, error) {
 	reviewStudents, err := requestreviewcompose.NewStudentDirectory(db, modules.persons, func(observation requestreviewcompose.DirectoryObservation) {
@@ -1256,15 +1241,11 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review student directory: %w", err)
 	}
-	reviewPolicy, err := reviewidentity.New(reviewidentity.Dependencies{
-		Principal: studentsAPI.RequestReviewPrincipal,
-		GroupLeaderEnabled: func(ctx context.Context) (bool, error) {
-			return api.Services.Settings.ResolveBool(ctx, reviewsettings.GroupLeaderEnabled)
-		},
-		GroupIDs: api.requestReviewGroupIDs,
-	})
-	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review policy: %w", err)
+	// The staff projection lists exactly what the decisions accept: one
+	// Identity & Access review policy serves both (#3804).
+	reviewScope := func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
+		schoolWide, groupIDs, err := api.Services.RequestReviewPolicy.Scope(ctx, projectJWT.PermissionsFromCtx(ctx))
+		return carePlanCompose.ReviewScope{SchoolWide: schoolWide, GroupIDs: groupIDs}, err
 	}
 	// Report the union of ordinary and absence-review rights, as the
 	// navigation capability does. Each native queue keeps its own scope.
@@ -1275,10 +1256,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review access: %w", err)
 	}
 	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(db, modules.persons,
-		func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
-			scope, err := reviewPolicy.Scope(ctx)
-			return carePlanCompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
-		}, carePlanCompose.Today, func(observation requestreviewcompose.CareObservation) {
+		reviewScope, carePlanCompose.Today, func(observation requestreviewcompose.CareObservation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		})
 	if err != nil {
@@ -1286,10 +1264,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 	}
 	careReviews, err := requestreviewcompose.NewScheduleReviews(db, requestreviewcompose.ScheduleReviewDependencies{
 		People: modules.persons,
-		Scope: func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
-			scope, err := reviewPolicy.Scope(ctx)
-			return carePlanCompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
-		},
+		Scope:  reviewScope,
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return api.Services.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
 		},
@@ -1311,11 +1286,8 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 	}
 	offeringReviews, err := requestreviewcompose.NewOfferingReviews(db, requestreviewcompose.OfferingReviewDependencies{
 		People: modules.persons,
-		Scope: func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
-			scope, err := reviewPolicy.Scope(ctx)
-			return carePlanCompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
-		},
-		Today: carePlanCompose.Today,
+		Scope:  reviewScope,
+		Today:  carePlanCompose.Today,
 		ObserveCare: func(observation requestreviewcompose.CareObservation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		},

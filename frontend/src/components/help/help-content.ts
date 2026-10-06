@@ -1624,11 +1624,9 @@ function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
     icon: "ListChecks",
     requirements: [
       "Ihr Konto darf Kinderdaten bearbeiten.",
-      // Ohne feste Gruppen gibt es keine Gruppenzuordnung, an der ein
-      // Zugriff haengen koennte.
-      ...(groupMode === "open_care"
-        ? []
-        : ["Sie haben Zugriff auf die Gruppe des Kindes."]),
+      // Wer freigibt, legt die Leitung fest (#3804): Admins, zustaendige
+      // Gruppenleitungen oder das berechtigte Team.
+      "Ihre OGS lässt Sie diese Anfragen freigeben. Das legt die Leitung fest.",
     ],
     steps: [
       "Öffnen Sie `Anfragen` in der Seitenleiste.",
@@ -1643,7 +1641,13 @@ function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
     differences: [
       "Bei einer geänderten Abholzeit zeigt moto vorher betroffene Termine an.",
       "Anmeldungsänderungen öffnen Sie über `Prüfen`. Dafür brauchen Sie ein zusätzliches Recht.",
-      "Fehlt eine Anfrage? Sie sehen nur Kinder, auf die Sie Zugriff haben.",
+      // Ohne feste Gruppen gibt es keine Gruppenleitung, an der die
+      // Freigabe haengen koennte.
+      ...(groupMode === "open_care"
+        ? []
+        : [
+            "Fehlt eine Anfrage? Je nach Einstellung Ihrer OGS sehen Sie nur Kinder Ihrer Gruppen.",
+          ]),
     ],
     notes: [
       "Über `Historie` sehen Sie bereits entschiedene oder zurückgezogene Anfragen.",
@@ -5313,6 +5317,8 @@ function parentVisibilityTopic(): HelpTopic {
     notes: [
       "Einzeln schaltbar sind zum Beispiel `Nachrichten von Eltern`, `Abholzeit für einen Tag ändern (Eltern)` und `Stammdaten bearbeiten (Eltern)`.",
       "Wählen Sie bei `Krankmeldungen durch Eltern` die Möglichkeit `Erst bestätigen`, wenn Ihr Team jede Meldung freigeben soll.",
+      "Bei `Wer gibt Änderungswünsche von Eltern frei?` wählen Sie, wer Anfragen zu Stammdaten, Abholung und Angeboten freigibt.",
+      "`Berechtigtes Team` heißt: alle, die Kinderdaten bearbeiten dürfen. Das passt auch für ein gemeinsames Tablet.",
       "Der Essensplan ist ein eigener Schalter.",
     ],
     differences: [
