@@ -1718,4 +1718,43 @@ describe("Fehlerweg der Dialoge (#2518)", () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.loadError).toBe(failure);
   });
+
+  it("überlässt einen fehlgeschlagenen Wochenplan seinen eigenen Hinweisen", async () => {
+    vi.spyOn(parentApi, "listSickDays").mockResolvedValue([]);
+    vi.spyOn(parentApi, "listExcusedRequests").mockResolvedValue([]);
+    vi.spyOn(parentApi, "listCareExceptions").mockResolvedValue([]);
+    vi.spyOn(parentApi, "listPickupChangeRequests").mockResolvedValue([]);
+    vi.spyOn(parentApi, "getChildCareSchedule").mockRejectedValue(
+      new ApiError("diag", 503, { code: "general.unavailable" }),
+    );
+    vi.spyOn(parentApi, "getChildFeatures").mockResolvedValue({
+      sick_note_enabled: false,
+      excused_note_enabled: false,
+
+      notes_enabled: false,
+
+      request_submit_enabled: false,
+      pickup_change_enabled: false,
+      pickup_manage_allowed: false,
+      guardian_contact_manage_allowed: false,
+
+      related_accounts_invite_enabled: false,
+      related_accounts_remove_enabled: false,
+      master_data_edit_enabled: false,
+      master_data_contact_edit_enabled: false,
+      master_data_request_enabled: false,
+      meal_plan_enabled: false,
+      meal_registration_enabled: false,
+
+      has_open_change_request: false,
+
+      parent_news_enabled: false,
+    });
+
+    const { result } = renderHook(() => useChildCare("1"));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    // Heute card and the care-schedule section report it; no third box.
+    expect(result.current.loadError).toBeNull();
+  });
 });

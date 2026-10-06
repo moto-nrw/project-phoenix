@@ -434,9 +434,11 @@ export function useChildCare(studentId: string): ChildCare {
             failures.push(err);
             return [] as PickupChangeRequest[];
           }),
-          getChildCareSchedule(studentId).catch((err: unknown) => {
+          // Not part of loadError: the Heute card says the pickup time is
+          // unavailable, and the care-schedule section shows its own load
+          // error with retry. A third box would repeat the same outage.
+          getChildCareSchedule(studentId).catch(() => {
             weekPlanOk = false;
-            failures.push(err);
             return null;
           }),
           // Approval settings have no safe fallback: keep them unknown when
