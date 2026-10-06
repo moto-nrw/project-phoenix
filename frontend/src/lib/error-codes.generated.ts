@@ -1286,7 +1286,7 @@ export const ERROR_CODE_CLASSES: Record<ErrorCode, ErrorClass> = {
 
 export const ERROR_CODE_PARAMETERS: Record<ErrorCode, readonly string[]> = {
   "attendance.web_disabled": [],
-  "billing.invalid_key_day": ["min_day", "max_day"],
+  "billing.invalid_key_day": [],
   "care.announcement_ack_not_required": [],
   "care.announcement_not_a_poll": [],
   "care.announcement_stale": [],
