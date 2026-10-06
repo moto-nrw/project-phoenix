@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError, transportFetch } from "./api-error";
+import { apiErrorFromResponse, transportFetch } from "./api-error";
 // Tagesauswertung (#1456): client for GET /api/students/day-log.
 // The proxy route forwards to the Go backend, which enforces the
 // gdpr.attendance_log_enabled gate and group scope.
@@ -47,30 +47,6 @@ export interface DayLogResponse {
   counters: DayLogCounters;
 }
 
-export type DayLogErrorCode =
-  | "feature_disabled"
-  | "not_group_supervisor"
-  | "no_permitted_groups"
-  | "invalid_request"
-  | "unknown";
-
-export class DayLogError extends ApiError {
-  readonly legacyCode: DayLogErrorCode;
-
-  constructor(legacyCode: DayLogErrorCode, message?: string) {
-    super(message ?? legacyCode);
-    this.name = "DayLogError";
-    this.legacyCode = legacyCode;
-  }
-}
-
-const KNOWN_CODES: readonly DayLogErrorCode[] = [
-  "feature_disabled",
-  "not_group_supervisor",
-  "no_permitted_groups",
-  "invalid_request",
-];
-
 export async function fetchDayLog(
   dateISO: string,
   groupId?: string,
@@ -80,25 +56,14 @@ export async function fetchDayLog(
 
   const response = await transportFetch(
     `/api/students/day-log?${params.toString()}`,
-    {
-      cache: "no-store",
-    },
+    { cache: "no-store" },
   );
   if (!response.ok) {
-    let code: DayLogErrorCode = "unknown";
-    let payload: unknown;
-    try {
-      const body = (await response.json()) as { error?: string };
-      payload = body;
-      const match = KNOWN_CODES.find((known) => body.error === known);
-      if (match) code = match;
-    } catch {
-      // non-JSON error body — keep "unknown"
-    }
-    throw enrichApiError(
-      new DayLogError(code, `day log request failed (${response.status})`),
-      payload,
-      response.status,
+    // Ausgeschaltet oder ohne sichtbare Gruppe erkennt die Seite am Code
+    // (students.day_log_disabled, students.day_log_no_groups), nie am Text.
+    throw await apiErrorFromResponse(
+      response,
+      `day log request failed (${response.status})`,
     );
   }
 

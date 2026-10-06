@@ -226,12 +226,22 @@ const (
 	CodeIdentityPreviewTargetSchoolPortal                = "identity.preview_target_school_portal"
 	CodeIdentityPreviewTokenInvalid                      = "identity.preview_token_invalid"
 	CodeIdentityReadOnlyPreview                          = "identity.read_only_preview"
+	CodeIdentityRoleNameTaken                            = "identity.role_name_taken"
 	CodeIdentitySessionAccountInactive                   = "identity.session_account_inactive"
 	CodeIdentityUseParentPortal                          = "identity.use_parent_portal"
 	CodeIdentityUseSchoolPortal                          = "identity.use_school_portal"
+	CodeImportFileColumnsMissing                         = "import.file_columns_missing"
+	CodeImportFileMissing                                = "import.file_missing"
+	CodeImportFileNoRows                                 = "import.file_no_rows"
+	CodeImportFileRowInvalid                             = "import.file_row_invalid"
+	CodeImportFileTooLarge                               = "import.file_too_large"
+	CodeImportFileTypeInvalid                            = "import.file_type_invalid"
+	CodeImportFileUnreadable                             = "import.file_unreadable"
 	CodeImportImportBatchFailed                          = "import.import_batch_failed"
+	CodeImportModeForbidden                              = "import.mode_forbidden"
 	CodeIotActivityCapacityExceeded                      = "iot.activity_capacity_exceeded"
 	CodeIotDeviationReasonRequired                       = "iot.deviation_reason_required"
+	CodeIotDeviceIdTaken                                 = "iot.device_id_taken"
 	CodeIotInvalidRfidTag                                = "iot.invalid_rfid_tag"
 	CodeIotInvalidStaffClockRequest                      = "iot.invalid_staff_clock_request"
 	CodeIotInvalidStaffClockState                        = "iot.invalid_staff_clock_state"
@@ -261,6 +271,7 @@ const (
 	CodePickupResolutionRequired                         = "pickup.resolution_required"
 	CodePresenceActivityParticipantLimitReached          = "presence.activity_participant_limit_reached"
 	CodePresenceRoomCapacityExceeded                     = "presence.room_capacity_exceeded"
+	CodePresenceStatisticsRangeInvalid                   = "presence.statistics_range_invalid"
 	CodeRolloverDeadlineRequired                         = "rollover.deadline_required"
 	CodeRolloverDuplicateName                            = "rollover.duplicate_name"
 	CodeRolloverInvalidRequest                           = "rollover.invalid_request"
@@ -307,6 +318,8 @@ const (
 	CodeStudentsCompanionsChanged                        = "students.companions_changed"
 	CodeStudentsConflictKindUnsupported                  = "students.conflict_kind_unsupported"
 	CodeStudentsCorrectionUnsupported                    = "students.correction_unsupported"
+	CodeStudentsDayLogDisabled                           = "students.day_log_disabled"
+	CodeStudentsDayLogNoGroups                           = "students.day_log_no_groups"
 	CodeStudentsDeletionAcknowledgementRequired          = "students.deletion_acknowledgement_required"
 	CodeStudentsDeletionAlumnus                          = "students.deletion_alumnus"
 	CodeStudentsDeletionCompanionBlocked                 = "students.deletion_companion_blocked"
@@ -776,12 +789,22 @@ var errorClassByCode = map[string]string{
 	"identity.preview_target_school_portal":                "permission",
 	"identity.preview_token_invalid":                       "permission",
 	"identity.read_only_preview":                           "permission",
+	"identity.role_name_taken":                             "business_rejection",
 	"identity.session_account_inactive":                    "permission",
 	"identity.use_parent_portal":                           "permission",
 	"identity.use_school_portal":                           "permission",
+	"import.file_columns_missing":                          "input",
+	"import.file_missing":                                  "input",
+	"import.file_no_rows":                                  "input",
+	"import.file_row_invalid":                              "input",
+	"import.file_too_large":                                "input",
+	"import.file_type_invalid":                             "input",
+	"import.file_unreadable":                               "input",
 	"import.import_batch_failed":                           "server",
+	"import.mode_forbidden":                                "permission",
 	"iot.activity_capacity_exceeded":                       "business_rejection",
 	"iot.deviation_reason_required":                        "input",
+	"iot.device_id_taken":                                  "business_rejection",
 	"iot.invalid_rfid_tag":                                 "input",
 	"iot.invalid_staff_clock_request":                      "input",
 	"iot.invalid_staff_clock_state":                        "business_rejection",
@@ -811,6 +834,7 @@ var errorClassByCode = map[string]string{
 	"pickup.resolution_required":                           "input",
 	"presence.activity_participant_limit_reached":          "business_rejection",
 	"presence.room_capacity_exceeded":                      "business_rejection",
+	"presence.statistics_range_invalid":                    "input",
 	"rollover.deadline_required":                           "input",
 	"rollover.duplicate_name":                              "business_rejection",
 	"rollover.invalid_request":                             "input",
@@ -857,6 +881,8 @@ var errorClassByCode = map[string]string{
 	"students.companions_changed":                          "business_rejection",
 	"students.conflict_kind_unsupported":                   "input",
 	"students.correction_unsupported":                      "business_rejection",
+	"students.day_log_disabled":                            "permission",
+	"students.day_log_no_groups":                           "permission",
 	"students.deletion_acknowledgement_required":           "input",
 	"students.deletion_alumnus":                            "business_rejection",
 	"students.deletion_companion_blocked":                  "business_rejection",

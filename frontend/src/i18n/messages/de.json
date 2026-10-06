@@ -2237,16 +2237,26 @@
         "preview_target_school_portal": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "preview_token_invalid": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "read_only_preview": "In der Vorschau können Sie nur lesen. Bitte beenden Sie die Vorschau, um etwas zu ändern.",
+        "role_name_taken": "Eine Rolle mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
         "session_account_inactive": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "use_parent_portal": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "use_school_portal": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule."
       },
       "import": {
-        "import_batch_failed": "{object} konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut."
+        "file_columns_missing": "In der Datei fehlen Spalten: {columns}. Bitte nutzen Sie die Vorlage.",
+        "file_missing": "Bitte wählen Sie eine Datei aus.",
+        "file_no_rows": "Die Datei enthält keine Datenzeilen. Vielleicht haben Sie die leere Vorlage hochgeladen.",
+        "file_row_invalid": "Zeile {row} der Datei enthält einen ungültigen Wert. Bitte prüfen Sie diese Zeile.",
+        "file_too_large": "Die Datei ist zu groß. Bitte laden Sie eine Datei bis 10 MB hoch.",
+        "file_type_invalid": "Diese Datei passt nicht. Bitte laden Sie eine CSV- oder Excel-Datei hoch.",
+        "file_unreadable": "Die Datei konnte nicht gelesen werden. Bitte nutzen Sie die Vorlage.",
+        "import_batch_failed": "{object} konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+        "mode_forbidden": "Bestehende Einträge dürfen Sie nicht ändern. Bitte wählen Sie „Nur neue anlegen“ oder fragen Sie die Leitung."
       },
       "iot": {
         "activity_capacity_exceeded": "Im Angebot {activity_name} ist kein Platz mehr. Bitte wählen Sie ein anderes Angebot.",
         "deviation_reason_required": "{object} weicht vom Plan ab. Bitte geben Sie einen Grund an.",
+        "device_id_taken": "Diese Geräte-ID ist schon vergeben. Bitte geben Sie eine andere ein.",
         "invalid_rfid_tag": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
         "invalid_staff_clock_request": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "invalid_staff_clock_state": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
@@ -2281,7 +2291,8 @@
       },
       "presence": {
         "activity_participant_limit_reached": "Im Angebot {activity_name} ist kein Platz mehr. Bitte wählen Sie ein anderes Angebot.",
-        "room_capacity_exceeded": "Der Raum {room_name} ist voll ({current_occupancy} von {max_capacity} Plätzen)."
+        "room_capacity_exceeded": "Der Raum {room_name} ist voll ({current_occupancy} von {max_capacity} Plätzen).",
+        "statistics_range_invalid": "Der Zeitraum passt nicht. Er darf höchstens ein Jahr lang sein und nicht in der Zukunft enden."
       },
       "rollover": {
         "deadline_required": "Bitte geben Sie eine Frist für die Rückmeldung ein.",
@@ -2336,6 +2347,8 @@
         "companions_changed": "Die Laufgemeinschaft wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
         "conflict_kind_unsupported": "Diese Anfragen lassen sich nicht gemeinsam entscheiden. Bitte entscheiden Sie sie einzeln.",
         "correction_unsupported": "Diese Entscheidung lässt sich nicht zurücknehmen. Bitte ändern Sie den Eintrag direkt beim Kind.",
+        "day_log_disabled": "Das Anwesenheitsprotokoll ist für Ihre Schule ausgeschaltet. Ihre Leitung kann es in den Einstellungen unter Datenschutz einschalten.",
+        "day_log_no_groups": "Für Ihr Konto ist keine Gruppe sichtbar. Bitte wenden Sie sich an Ihre Leitung.",
         "deletion_acknowledgement_required": "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
         "deletion_alumnus": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
         "deletion_companion_blocked": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",

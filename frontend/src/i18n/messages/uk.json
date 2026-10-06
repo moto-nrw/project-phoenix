@@ -2237,16 +2237,26 @@
         "preview_target_school_portal": "У вас немає доступу до: {object}. Зверніться до школи.",
         "preview_token_invalid": "У вас немає доступу до: {object}. Зверніться до школи.",
         "read_only_preview": "У вас немає доступу до: {object}. Зверніться до школи.",
+        "role_name_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "session_account_inactive": "У вас немає доступу до: {object}. Зверніться до школи.",
         "use_parent_portal": "У вас немає доступу до: {object}. Зверніться до школи.",
         "use_school_portal": "У вас немає доступу до: {object}. Зверніться до школи."
       },
       "import": {
-        "import_batch_failed": "Не вдалося обробити: {object}. Спробуйте пізніше."
+        "file_columns_missing": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "file_missing": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "file_no_rows": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "file_row_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "file_too_large": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "file_type_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "file_unreadable": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "import_batch_failed": "Не вдалося обробити: {object}. Спробуйте пізніше.",
+        "mode_forbidden": "У вас немає доступу до: {object}. Зверніться до школи."
       },
       "iot": {
         "activity_capacity_exceeded": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "deviation_reason_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "device_id_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "invalid_rfid_tag": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "invalid_staff_clock_request": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "invalid_staff_clock_state": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -2281,7 +2291,8 @@
       },
       "presence": {
         "activity_participant_limit_reached": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-        "room_capacity_exceeded": "Не вдалося змінити: {object}. Перевірте поточний стан."
+        "room_capacity_exceeded": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "statistics_range_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані."
       },
       "rollover": {
         "deadline_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
@@ -2336,6 +2347,8 @@
         "companions_changed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "conflict_kind_unsupported": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "correction_unsupported": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "day_log_disabled": "У вас немає доступу до: {object}. Зверніться до школи.",
+        "day_log_no_groups": "У вас немає доступу до: {object}. Зверніться до школи.",
         "deletion_acknowledgement_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "deletion_alumnus": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "deletion_companion_blocked": "Не вдалося змінити: {object}. Перевірте поточний стан.",

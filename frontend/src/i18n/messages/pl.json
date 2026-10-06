@@ -2237,16 +2237,26 @@
         "preview_target_school_portal": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "preview_token_invalid": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "read_only_preview": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "role_name_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "session_account_inactive": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "use_parent_portal": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "use_school_portal": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
       },
       "import": {
-        "import_batch_failed": "Nie udało się przetworzyć: {object}. Spróbuj ponownie później."
+        "file_columns_missing": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_missing": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_no_rows": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_row_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_too_large": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_type_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_unreadable": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "import_batch_failed": "Nie udało się przetworzyć: {object}. Spróbuj ponownie później.",
+        "mode_forbidden": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
       },
       "iot": {
         "activity_capacity_exceeded": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "deviation_reason_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "device_id_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "invalid_rfid_tag": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "invalid_staff_clock_request": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "invalid_staff_clock_state": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2281,7 +2291,8 @@
       },
       "presence": {
         "activity_participant_limit_reached": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-        "room_capacity_exceeded": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+        "room_capacity_exceeded": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "statistics_range_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
       },
       "rollover": {
         "deadline_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
@@ -2336,6 +2347,8 @@
         "companions_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "conflict_kind_unsupported": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "correction_unsupported": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "day_log_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "day_log_no_groups": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "deletion_acknowledgement_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "deletion_alumnus": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "deletion_companion_blocked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

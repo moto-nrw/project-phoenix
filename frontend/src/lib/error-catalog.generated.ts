@@ -225,16 +225,35 @@ export const ERROR_CATALOG = {
         "Die Demo-Schule wird gerade vorbereitet. Bitte versuchen Sie es gleich noch einmal.",
       "identity.email_already_exists":
         "Für diese E-Mail-Adresse gibt es schon ein Konto. Bitte verwenden Sie eine andere Adresse.",
+      "identity.role_name_taken":
+        "Eine Rolle mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
       "identity.invitation_account_login_required":
         "Für {object} müssen Sie angemeldet sein. Bitte melden Sie sich an.",
       "identity.preview_token_invalid":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "identity.read_only_preview":
         "In der Vorschau können Sie nur lesen. Bitte beenden Sie die Vorschau, um etwas zu ändern.",
+      "import.file_columns_missing":
+        "In der Datei fehlen Spalten: {columns}. Bitte nutzen Sie die Vorlage.",
+      "import.file_missing": "Bitte wählen Sie eine Datei aus.",
+      "import.file_no_rows":
+        "Die Datei enthält keine Datenzeilen. Vielleicht haben Sie die leere Vorlage hochgeladen.",
+      "import.file_row_invalid":
+        "Zeile {row} der Datei enthält einen ungültigen Wert. Bitte prüfen Sie diese Zeile.",
+      "import.file_too_large":
+        "Die Datei ist zu groß. Bitte laden Sie eine Datei bis 10 MB hoch.",
+      "import.file_type_invalid":
+        "Diese Datei passt nicht. Bitte laden Sie eine CSV- oder Excel-Datei hoch.",
+      "import.file_unreadable":
+        "Die Datei konnte nicht gelesen werden. Bitte nutzen Sie die Vorlage.",
+      "import.mode_forbidden":
+        "Bestehende Einträge dürfen Sie nicht ändern. Bitte wählen Sie „Nur neue anlegen“ oder fragen Sie die Leitung.",
       "iot.activity_capacity_exceeded":
         "Im Angebot {activity_name} ist kein Platz mehr. Bitte wählen Sie ein anderes Angebot.",
       "iot.deviation_reason_required":
         "{object} weicht vom Plan ab. Bitte geben Sie einen Grund an.",
+      "iot.device_id_taken":
+        "Diese Geräte-ID ist schon vergeben. Bitte geben Sie eine andere ein.",
       "iot.invalid_staff_clock_request":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "iot.invalid_staff_clock_state":
@@ -271,6 +290,8 @@ export const ERROR_CATALOG = {
         "Im Angebot {activity_name} ist kein Platz mehr. Bitte wählen Sie ein anderes Angebot.",
       "presence.room_capacity_exceeded":
         "Der Raum {room_name} ist voll ({current_occupancy} von {max_capacity} Plätzen).",
+      "presence.statistics_range_invalid":
+        "Der Zeitraum passt nicht. Er darf höchstens ein Jahr lang sein und nicht in der Zukunft enden.",
       "rollover.duplicate_name":
         "Es gibt schon eine Phase mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
       "rollover.invalid_request":
@@ -359,6 +380,10 @@ export const ERROR_CATALOG = {
         "Gerade ändert jemand anderes die Laufgemeinschaft. Bitte versuchen Sie es gleich noch einmal.",
       "students.deletion_constraints_changed":
         "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
+      "students.day_log_disabled":
+        "Das Anwesenheitsprotokoll ist für Ihre Schule ausgeschaltet. Ihre Leitung kann es in den Einstellungen unter Datenschutz einschalten.",
+      "students.day_log_no_groups":
+        "Für Ihr Konto ist keine Gruppe sichtbar. Bitte wenden Sie sich an Ihre Leitung.",
       "students.deletion_invalid_reason":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "students.deletion_preview_changed":

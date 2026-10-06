@@ -458,7 +458,7 @@ const TINY_TEXT_BASELINE_FILES = new Set([
 ]);
 
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
-src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@169
+src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@182
 src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1335 text-[11px]@1335 text-[10px]@1339 text-[10px]@1348 text-[11px]@1348
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@231 text-[11px]@271

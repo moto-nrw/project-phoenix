@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -133,11 +132,9 @@ export function NowStrip({
     wantsDay && !day.error
       ? startableOwnBlock(day.data ?? [], new Date())
       : null;
-  const {
-    start,
-    busyId,
-    error: startError,
-  } = useStartOwnBlock({ onFailure: () => day.mutate() });
+  const { start, busyId } = useStartOwnBlock({
+    onFailure: () => day.mutate(),
+  });
   const actions = nowActions({
     isSupervising: ownSupervision === true,
     startable,
@@ -202,11 +199,6 @@ export function NowStrip({
           </div>
         )}
       </div>
-      {startError && (
-        <div className="mt-4">
-          <Alert type="error" message={startError} />
-        </div>
-      )}
     </SectionCard>
   );
 }

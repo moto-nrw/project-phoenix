@@ -2237,16 +2237,26 @@
         "preview_target_school_portal": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "preview_token_invalid": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "read_only_preview": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "role_name_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "session_account_inactive": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "use_parent_portal": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "use_school_portal": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       },
       "import": {
-        "import_batch_failed": "Nuk u përpunua: {object}. Provoni përsëri më vonë."
+        "file_columns_missing": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "file_missing": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "file_no_rows": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "file_row_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "file_too_large": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "file_type_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "file_unreadable": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "import_batch_failed": "Nuk u përpunua: {object}. Provoni përsëri më vonë.",
+        "mode_forbidden": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       },
       "iot": {
         "activity_capacity_exceeded": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "deviation_reason_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "device_id_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "invalid_rfid_tag": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "invalid_staff_clock_request": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "invalid_staff_clock_state": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -2281,7 +2291,8 @@
       },
       "presence": {
         "activity_participant_limit_reached": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "room_capacity_exceeded": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+        "room_capacity_exceeded": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "statistics_range_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
       },
       "rollover": {
         "deadline_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
@@ -2336,6 +2347,8 @@
         "companions_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "conflict_kind_unsupported": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "correction_unsupported": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "day_log_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "day_log_no_groups": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "deletion_acknowledgement_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "deletion_alumnus": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "deletion_companion_blocked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

@@ -921,6 +921,12 @@
       "legacy": "identity.email_already_exists"
     },
     {
+      "code": "identity.role_name_taken",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.role_name_taken"
+    },
+    {
       "code": "identity.invitation_account_login_required",
       "class": "permission",
       "parameters": [],
@@ -981,6 +987,58 @@
       "legacy": "import_batch_failed"
     },
     {
+      "code": "import.file_columns_missing",
+      "class": "input",
+      "parameters": [
+        "columns"
+      ],
+      "legacy": "import.file_columns_missing"
+    },
+    {
+      "code": "import.file_missing",
+      "class": "input",
+      "parameters": [],
+      "legacy": "import.file_missing"
+    },
+    {
+      "code": "import.file_no_rows",
+      "class": "input",
+      "parameters": [],
+      "legacy": "import.file_no_rows"
+    },
+    {
+      "code": "import.file_row_invalid",
+      "class": "input",
+      "parameters": [
+        "row"
+      ],
+      "legacy": "import.file_row_invalid"
+    },
+    {
+      "code": "import.file_too_large",
+      "class": "input",
+      "parameters": [],
+      "legacy": "import.file_too_large"
+    },
+    {
+      "code": "import.file_type_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "import.file_type_invalid"
+    },
+    {
+      "code": "import.file_unreadable",
+      "class": "input",
+      "parameters": [],
+      "legacy": "import.file_unreadable"
+    },
+    {
+      "code": "import.mode_forbidden",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "import.mode_forbidden"
+    },
+    {
       "code": "iot.activity_capacity_exceeded",
       "class": "business_rejection",
       "parameters": [
@@ -1001,6 +1059,12 @@
         "deviation_minutes"
       ],
       "legacy": "deviation_reason_required"
+    },
+    {
+      "code": "iot.device_id_taken",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "iot.device_id_taken"
     },
     {
       "code": "iot.invalid_rfid_tag",
@@ -1201,6 +1265,12 @@
         "incoming_students"
       ],
       "legacy": "presence.room_capacity_exceeded"
+    },
+    {
+      "code": "presence.statistics_range_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "presence.statistics_range_invalid"
     },
     {
       "code": "rollover.duplicate_name",
@@ -1511,6 +1581,18 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "students.deletion_constraints_changed"
+    },
+    {
+      "code": "students.day_log_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "students.day_log_disabled"
+    },
+    {
+      "code": "students.day_log_no_groups",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "students.day_log_no_groups"
     },
     {
       "code": "students.deletion_invalid_reason",

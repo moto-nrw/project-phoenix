@@ -2237,16 +2237,26 @@
         "preview_target_school_portal": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "preview_token_invalid": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "read_only_preview": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "role_name_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "session_account_inactive": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "use_parent_portal": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "use_school_portal": "{object} için erişim izniniz yok. Okulla iletişime geçin."
       },
       "import": {
-        "import_batch_failed": "{object} işlenemedi. Daha sonra yeniden deneyin."
+        "file_columns_missing": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "file_missing": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "file_no_rows": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "file_row_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "file_too_large": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "file_type_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "file_unreadable": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "import_batch_failed": "{object} işlenemedi. Daha sonra yeniden deneyin.",
+        "mode_forbidden": "{object} için erişim izniniz yok. Okulla iletişime geçin."
       },
       "iot": {
         "activity_capacity_exceeded": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "deviation_reason_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "device_id_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "invalid_rfid_tag": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "invalid_staff_clock_request": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "invalid_staff_clock_state": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -2281,7 +2291,8 @@
       },
       "presence": {
         "activity_participant_limit_reached": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "room_capacity_exceeded": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+        "room_capacity_exceeded": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "statistics_range_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
       },
       "rollover": {
         "deadline_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
@@ -2336,6 +2347,8 @@
         "companions_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "conflict_kind_unsupported": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "correction_unsupported": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "day_log_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "day_log_no_groups": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "deletion_acknowledgement_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "deletion_alumnus": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "deletion_companion_blocked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

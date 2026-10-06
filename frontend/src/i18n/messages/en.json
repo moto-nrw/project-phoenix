@@ -2237,16 +2237,26 @@
         "preview_target_school_portal": "You cannot access {object}. Please contact the school.",
         "preview_token_invalid": "You cannot access {object}. Please contact the school.",
         "read_only_preview": "You cannot access {object}. Please contact the school.",
+        "role_name_taken": "{object} could not be changed. Please check its current status.",
         "session_account_inactive": "You cannot access {object}. Please contact the school.",
         "use_parent_portal": "You cannot access {object}. Please contact the school.",
         "use_school_portal": "You cannot access {object}. Please contact the school."
       },
       "import": {
-        "import_batch_failed": "{object} could not be processed. Please try again later."
+        "file_columns_missing": "{object} could not be saved. Please check your entries.",
+        "file_missing": "{object} could not be saved. Please check your entries.",
+        "file_no_rows": "{object} could not be saved. Please check your entries.",
+        "file_row_invalid": "{object} could not be saved. Please check your entries.",
+        "file_too_large": "{object} could not be saved. Please check your entries.",
+        "file_type_invalid": "{object} could not be saved. Please check your entries.",
+        "file_unreadable": "{object} could not be saved. Please check your entries.",
+        "import_batch_failed": "{object} could not be processed. Please try again later.",
+        "mode_forbidden": "You cannot access {object}. Please contact the school."
       },
       "iot": {
         "activity_capacity_exceeded": "{object} could not be changed. Please check its current status.",
         "deviation_reason_required": "{object} could not be saved. Please check your entries.",
+        "device_id_taken": "{object} could not be changed. Please check its current status.",
         "invalid_rfid_tag": "{object} could not be saved. Please check your entries.",
         "invalid_staff_clock_request": "{object} could not be saved. Please check your entries.",
         "invalid_staff_clock_state": "{object} could not be changed. Please check its current status.",
@@ -2281,7 +2291,8 @@
       },
       "presence": {
         "activity_participant_limit_reached": "{object} could not be changed. Please check its current status.",
-        "room_capacity_exceeded": "{object} could not be changed. Please check its current status."
+        "room_capacity_exceeded": "{object} could not be changed. Please check its current status.",
+        "statistics_range_invalid": "{object} could not be saved. Please check your entries."
       },
       "rollover": {
         "deadline_required": "{object} could not be saved. Please check your entries.",
@@ -2336,6 +2347,8 @@
         "companions_changed": "{object} could not be changed. Please check its current status.",
         "conflict_kind_unsupported": "{object} could not be saved. Please check your entries.",
         "correction_unsupported": "{object} could not be changed. Please check its current status.",
+        "day_log_disabled": "You cannot access {object}. Please contact the school.",
+        "day_log_no_groups": "You cannot access {object}. Please contact the school.",
         "deletion_acknowledgement_required": "{object} could not be saved. Please check your entries.",
         "deletion_alumnus": "{object} could not be changed. Please check its current status.",
         "deletion_companion_blocked": "{object} could not be changed. Please check its current status.",

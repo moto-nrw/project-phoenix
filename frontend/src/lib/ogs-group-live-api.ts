@@ -3,6 +3,7 @@
 // GET /api/ogs-group-live returns everything the OGS-Gruppen page renders for
 // one supervised group in a single backend request. The wire DTO is minimal by
 // contract — it must never grow personal fields the page does not display.
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 
 // Wire types (Go DTOs from backend/api/students/ogs_group_live_handlers.go)
@@ -183,7 +184,7 @@ export async function fetchOgsGroupLive(
     const query = withGroupId
       ? `?group_id=${encodeURIComponent(withGroupId)}`
       : "";
-    return fetch(`/api/ogs-group-live${query}`, {
+    return transportFetch(`/api/ogs-group-live${query}`, {
       credentials: "include",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -198,7 +199,7 @@ export async function fetchOgsGroupLive(
     response = await load(null);
   }
   if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
+    throw await apiErrorFromResponse(response, `API error: ${response.status}`);
   }
 
   const json = (await response.json()) as {
