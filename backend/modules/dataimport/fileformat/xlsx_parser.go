@@ -90,7 +90,7 @@ func (p *XLSXParser) ParseStudents(reader io.Reader) ([]importModels.StudentImpo
 		mapper := NewColumnMapper(p.columnMapping, values)
 		row, err := MapStudentRow(mapper)
 		if err != nil {
-			return nil, fmt.Errorf("row %d: %w", rowNum, err)
+			return nil, rowError(rowNum, err)
 		}
 
 		studentRows = append(studentRows, row)
@@ -99,7 +99,7 @@ func (p *XLSXParser) ParseStudents(reader io.Reader) ([]importModels.StudentImpo
 	// Validate that we have at least one data row
 	// Empty files (only headers) likely indicate user uploaded the template by mistake
 	if len(studentRows) == 0 {
-		return nil, fmt.Errorf("die Excel-Datei enthält keine Datenzeilen. Möglicherweise haben Sie versehentlich die Vorlage hochgeladen")
+		return nil, noExcelDataRows()
 	}
 
 	return studentRows, nil

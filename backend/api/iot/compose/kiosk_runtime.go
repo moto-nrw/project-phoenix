@@ -53,7 +53,7 @@ func renderErrorReportFailure(w http.ResponseWriter, r *http.Request, status int
 }
 
 func devicesRuntime() devicesAPI.Runtime {
-	return devicesAPI.Runtime{ParseID: common.ParseIDParam, Permission: common.RequiresPermission, Success: common.Respond, Failure: renderDataFailure, ConstraintViolation: common.IsConstraintViolation}
+	return devicesAPI.Runtime{ParseID: common.ParseIDParam, Permission: common.RequiresPermission, Success: common.Respond, Failure: renderDataFailure, ConflictOnField: renderConflictOnField, ConstraintViolation: common.IsConstraintViolation}
 }
 
 func sessionRuntime() sessionsAPI.Runtime {
@@ -92,6 +92,10 @@ func dataRuntime() dataAPI.Runtime {
 		Success: common.Respond,
 		Failure: renderDataFailure,
 	}
+}
+
+func renderConflictOnField(w http.ResponseWriter, r *http.Request, err error, code, field string) {
+	common.RenderError(w, r, common.ErrorConflictOnField(err, code, field))
 }
 
 func renderDataFailure(w http.ResponseWriter, r *http.Request, status int, err error, clientMessage string) {

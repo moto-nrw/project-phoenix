@@ -60,6 +60,7 @@ func TestGetStudentsDayLog_FeatureDisabled(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "feature_disabled")
+	assert.Contains(t, rr.Body.String(), `"code":"students.day_log_disabled"`)
 }
 
 func TestGetStudentsDayLog_AdminSeesStatuses(t *testing.T) {
@@ -185,6 +186,7 @@ func TestGetStudentsDayLog_UnlinkedStaffAccountForbidden(t *testing.T) {
 	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
 	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "no_permitted_groups")
+	assert.Contains(t, rr.Body.String(), `"code":"students.day_log_no_groups"`)
 }
 
 func TestGetStudentsDayLog_FutureDateRejected(t *testing.T) {

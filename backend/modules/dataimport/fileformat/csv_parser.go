@@ -48,14 +48,14 @@ func (p *CSVParser) ParseStudents(reader io.Reader) ([]importModels.StudentImpor
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("row %d: %w", rowNum, err)
+			return nil, rowError(rowNum, err)
 		}
 
 		// Use shared mapping logic
 		mapper := NewColumnMapper(p.columnMapping, values)
 		row, err := MapStudentRow(mapper)
 		if err != nil {
-			return nil, fmt.Errorf("row %d: %w", rowNum, err)
+			return nil, rowError(rowNum, err)
 		}
 
 		rows = append(rows, row)
@@ -65,7 +65,7 @@ func (p *CSVParser) ParseStudents(reader io.Reader) ([]importModels.StudentImpor
 	// Validate that we have at least one data row
 	// Empty files (only headers) likely indicate user uploaded the template by mistake
 	if len(rows) == 0 {
-		return nil, fmt.Errorf("die CSV-Datei enthält keine Datenzeilen. Möglicherweise haben Sie versehentlich die Vorlage hochgeladen")
+		return nil, noCSVDataRows()
 	}
 
 	return rows, nil
