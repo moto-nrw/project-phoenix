@@ -1106,7 +1106,7 @@ describe("Form error handling", () => {
     global.fetch = originalFetch;
   });
 
-  it("shows generic error when fetch throws an Error", async () => {
+  it("shows an unavailable error when fetch throws an Error", async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
 
     render(<HomePage />);
@@ -1120,14 +1120,14 @@ describe("Form error handling", () => {
     });
 
     await waitFor(() => {
-      // Not an API error: the general text for the login, no raw message.
+      // Transport errors have no API response, so they are unavailable.
       expect(
-        screen.getByText(catalogText("general.server", "die Anmeldung")),
+        screen.getByText(catalogText("general.unavailable", "die Anmeldung")),
       ).toBeInTheDocument();
     });
   });
 
-  it("shows generic error when fetch throws a non-Error", async () => {
+  it("shows an unavailable error when fetch throws a non-Error", async () => {
     global.fetch = vi.fn().mockRejectedValue("unknown failure");
 
     render(<HomePage />);
@@ -1141,9 +1141,9 @@ describe("Form error handling", () => {
     });
 
     await waitFor(() => {
-      // Not an API error: the general text for the login, no raw message.
+      // Transport errors have no API response, so they are unavailable.
       expect(
-        screen.getByText(catalogText("general.server", "die Anmeldung")),
+        screen.getByText(catalogText("general.unavailable", "die Anmeldung")),
       ).toBeInTheDocument();
     });
   });
