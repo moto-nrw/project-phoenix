@@ -3,6 +3,7 @@ import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import type { NextRequest } from "next/server";
 import { createLogger } from "~/lib/logger";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { operatorErrorResponse } from "~/lib/operator/route-wrapper.server";
 import {
   operatorAuth,
   uncachedOperatorAuth,
@@ -36,7 +37,11 @@ async function proxyExport(query: string, token: string): Promise<Response> {
     return response;
   }
   if (!backendResponse.body) {
-    return new Response("No response body from backend", { status: 502 });
+    return operatorErrorResponse(
+      502,
+      "general.unavailable",
+      "No response body from backend",
+    );
   }
 
   const headers = new Headers({ "Cache-Control": "no-store" });
@@ -58,7 +63,7 @@ async function GETHandler(request: NextRequest) {
   try {
     const session = await operatorAuth();
     if (!session?.user?.token) {
-      return new Response("Unauthorized", { status: 401 });
+      return operatorErrorResponse(401, "general.permission", "Unauthorized");
     }
 
     const query = exportQuery(request);
@@ -80,7 +85,7 @@ async function GETHandler(request: NextRequest) {
     logger.error("operator billing export proxy failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return new Response("Internal server error", { status: 500 });
+    return operatorErrorResponse(500, "general.server", "Export proxy failed");
   }
 }
 

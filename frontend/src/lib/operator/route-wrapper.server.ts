@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { withOperatorAuth } from "~/server/auth/operator-route";
+import type { ErrorCode } from "~/lib/error-codes.generated";
 import { ApiResponseError, handleApiError } from "../api-helpers.server";
 import { forwardBackendResponse } from "../backend-proxy-response.server";
 import { recordBackendProxyMetric } from "../backend-proxy-metrics";
@@ -12,6 +13,19 @@ import {
   wrapInApiResponse,
   createUnauthorizedResponse,
 } from "../route-wrapper-utils.server";
+/**
+ * An error the operator BFF answers itself (#2519): a registered code for the
+ * client and an English diagnostic, never a UI sentence. The client shows the
+ * catalog text of the code.
+ */
+export function operatorErrorResponse(
+  status: number,
+  code: ErrorCode,
+  diagnostic: string,
+): NextResponse {
+  return NextResponse.json({ error: diagnostic, code }, { status });
+}
+
 /**
  * Checks if error is a 401 authentication error
  */
@@ -290,9 +304,10 @@ export function createOperatorProxyPostHandler(backendEndpoint: string) {
       try {
         body = await parseRequestBody(request);
       } catch {
-        return NextResponse.json(
-          { status: "error", error: "Ungültige Anfrage" },
-          { status: 400 },
+        return operatorErrorResponse(
+          400,
+          "general.input",
+          "Invalid JSON request body",
         );
       }
       const { getServerApiUrl } = await import("~/lib/server-api-url");
@@ -342,8 +357,8 @@ export function createOperatorProxyPostHandler(backendEndpoint: string) {
  * proxies it to a backend endpoint. For public invitation flows where the
  * token is carried in the request body, not the session.
  *
- * On parse failure: 400 with a German "Ungültige Anfrage" message.
- * On fetch failure: 500 with a generic German internal-error message
+ * On parse failure: 400 with `general.input`.
+ * On fetch failure: 503 with `general.unavailable`
  *                   (no error detail to prevent information leakage on public routes).
  */
 interface OperatorPublicProxyOptions {
@@ -368,9 +383,10 @@ export function createOperatorPublicProxyPostHandler(
       body = await parseRequestBody(request);
       body = (await options.transformBody?.(request, body)) ?? body;
     } catch {
-      return NextResponse.json(
-        { status: "error", error: "Ungültige Anfrage" },
-        { status: 400 },
+      return operatorErrorResponse(
+        400,
+        "general.input",
+        "Invalid JSON request body",
       );
     }
 
@@ -406,9 +422,10 @@ export function createOperatorPublicProxyPostHandler(
         durationMs: 0,
         outcome: "network_error",
       });
-      return NextResponse.json(
-        { status: "error", error: "Ein interner Fehler ist aufgetreten" },
-        { status: 500 },
+      return operatorErrorResponse(
+        503,
+        "general.unavailable",
+        "Backend request failed",
       );
     }
   };

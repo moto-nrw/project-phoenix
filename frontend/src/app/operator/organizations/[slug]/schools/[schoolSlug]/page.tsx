@@ -36,6 +36,9 @@ import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { formatCount } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
 import { PlusIcon } from "~/app/operator/provisioning/provisioning-shared";
@@ -102,7 +105,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   } | null>(null);
   const [editSchoolOpen, setEditSchoolOpen] = useState(false);
   const [childQuotaOpen, setChildQuotaOpen] = useState(false);
-  const [schoolToggleError, setSchoolToggleError] = useState("");
+  const { show: showToggleError } = useApiErrorDisplay();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [createAccountOpen, setCreateAccountOpen] = useState(false);
   const [createDeviceOpen, setCreateDeviceOpen] = useState(false);
@@ -130,7 +133,11 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     [pathname, router, searchParams],
   );
 
-  const { data: organizations, mutate: mutateOrganizations } = useSWR(
+  const {
+    data: organizations,
+    error: organizationsError,
+    mutate: mutateOrganizations,
+  } = useSWR(
     isAuthenticated ? "operator-organization-summaries" : null,
     () => operatorProvisioningService.listOrganizationSummaries(),
     { revalidateOnFocus: false, dedupingInterval: 5000 },
@@ -151,6 +158,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
 
   const {
     data: schools,
+    error: schoolsError,
     isLoading: schoolsLoading,
     mutate: mutateSchools,
   } = useSWR(
@@ -179,6 +187,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     activeTab === "konten" && isAuthenticated && school != null;
   const {
     data: schoolAccounts,
+    error: accountsError,
     isLoading: accountsLoading,
     mutate: mutateSchoolAccounts,
   } = useSWR(
@@ -191,6 +200,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     activeTab === "geraete" && isAuthenticated && school != null;
   const {
     data: schoolDevices,
+    error: devicesError,
     isLoading: devicesLoading,
     mutate: mutateSchoolDevices,
   } = useSWR(
@@ -203,6 +213,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     activeTab === "personen" && isAuthenticated && school != null;
   const {
     data: schoolPersons,
+    error: personsError,
     isLoading: personsLoading,
     mutate: mutateSchoolPersons,
   } = useSWR(
@@ -213,12 +224,44 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
 
   // PWA standalone usage (#2189): shown in the header, so it loads with the
   // page instead of a tab.
-  const { data: pwaUsage } = useSWR(
+  const {
+    data: pwaUsage,
+    error: pwaUsageError,
+    mutate: mutatePwaUsage,
+  } = useSWR(
     isAuthenticated && school != null
       ? ["operator-school-pwa-usage", school.id]
       : null,
     () => operatorProvisioningService.getSchoolPWAUsage(school?.id ?? ""),
     { revalidateOnFocus: false, dedupingInterval: 5000 },
+  );
+
+  // One alert for the page head: the provider and school lists it is built
+  // from, and the app usage it shows.
+  const headLoadError = useSwrLoadError(
+    organizationsError ?? schoolsError,
+    "die Übersicht der Schule",
+    () => void refreshSchoolDetail(),
+  );
+  const pwaUsageLoadError = useSwrLoadError(
+    pwaUsageError,
+    "die Auswertung der App-Nutzung",
+    () => void mutatePwaUsage(),
+  );
+  const accountsLoadError = useSwrLoadError(
+    accountsError,
+    "die Liste der Konten",
+    () => void mutateSchoolAccounts(),
+  );
+  const devicesLoadError = useSwrLoadError(
+    devicesError,
+    "die Liste der Geräte",
+    () => void mutateSchoolDevices(),
+  );
+  const personsLoadError = useSwrLoadError(
+    personsError,
+    "die Liste der Personen",
+    () => void mutateSchoolPersons(),
   );
 
   const selectedSchoolForTable = useMemo(
@@ -258,7 +301,6 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
 
   const handleToggleSchoolActive = useCallback(async () => {
     if (!school) return;
-    setSchoolToggleError("");
     try {
       const fresh = await mutateSchools();
       const current = fresh?.find((item) => item.id === school.id) ?? school;
@@ -279,14 +321,14 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       await refreshSchoolDetail();
       await revalidateTenantCache([current.subdomain]);
     } catch (error) {
-      setSchoolToggleError(
-        "Fehler beim Ändern des Status. Bitte versuchen Sie es erneut.",
-      );
-      logger.error("school_toggle_active_failed", {
+      logger.warn("school_toggle_active_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
+      // No retry: the toggle reads the current state again, so a repeat
+      // after an unknown outcome could switch the school back.
+      void showToggleError(error, { object: "die Änderung des Status" });
     }
-  }, [mutateSchools, refreshSchoolDetail, school]);
+  }, [mutateSchools, refreshSchoolDetail, school, showToggleError]);
 
   const schoolDelete = useSoftDeletable<SchoolSummary>({
     softDeleteFn: operatorProvisioningService.softDeleteSchool,
@@ -468,6 +510,21 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     return null;
   }, [activeTab]);
 
+  if (!school && headLoadError) {
+    return (
+      <div className="w-full">
+        <Link
+          href={`/operator/organizations/${encodeURIComponent(slug)}`}
+          className="mb-4 inline-flex items-center gap-2 text-sm text-gray-600 transition-colors hover:text-gray-900"
+        >
+          <span aria-hidden>←</span>
+          <span>Zurück zum Träger</span>
+        </Link>
+        <LoadErrorAlert error={headLoadError} />
+      </div>
+    );
+  }
+
   if ((!organizations || schoolsLoading) && !school) {
     return (
       <SkeletonRegion label="Schule wird geladen">
@@ -545,9 +602,8 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
         stats={headerStats}
       />
 
-      {schoolToggleError && (
-        <p className="text-moto-red-strong mt-3 text-sm">{schoolToggleError}</p>
-      )}
+      <LoadErrorAlert error={headLoadError} className="mt-3" />
+      <LoadErrorAlert error={pwaUsageLoadError} className="mt-3" />
 
       <div className="mt-6">
         <Tabs value={activeTab} onValueChange={handleTabValueChange}>
@@ -567,8 +623,8 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
           </div>
 
           <TabsPrimitive.Content value="konten" className="mt-4">
-            {!accountsLoading &&
-            (!schoolAccounts || schoolAccounts.length === 0) ? (
+            <LoadErrorAlert error={accountsLoadError} className="mb-4" />
+            {!accountsLoading && schoolAccounts?.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
                 Keine Konten für diese Schule.
               </div>
@@ -584,8 +640,8 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
           </TabsPrimitive.Content>
 
           <TabsPrimitive.Content value="geraete" className="mt-4">
-            {!devicesLoading &&
-            (!schoolDevices || schoolDevices.length === 0) ? (
+            <LoadErrorAlert error={devicesLoadError} className="mb-4" />
+            {!devicesLoading && schoolDevices?.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
                 Keine Geräte für diese Schule.
               </div>
@@ -601,8 +657,8 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
           </TabsPrimitive.Content>
 
           <TabsPrimitive.Content value="personen" className="mt-4">
-            {!personsLoading &&
-            (!schoolPersons || schoolPersons.length === 0) ? (
+            <LoadErrorAlert error={personsLoadError} className="mb-4" />
+            {!personsLoading && schoolPersons?.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
                 Keine Personen für diese Schule.
               </div>

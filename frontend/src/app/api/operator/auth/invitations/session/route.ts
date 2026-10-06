@@ -5,6 +5,7 @@ import {
   operatorInvitationCookieName,
   operatorInvitationCookieOptions,
 } from "~/lib/operator/operator-invitation-session.server";
+import { operatorErrorResponse } from "~/lib/operator/route-wrapper.server";
 
 const MAX_TOKEN_LENGTH = 4096;
 
@@ -13,9 +14,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { status: "error", error: "Ungültige Anfrage" },
-      { status: 400 },
+    return operatorErrorResponse(
+      400,
+      "general.input",
+      "Invalid JSON request body",
     );
   }
 
@@ -27,9 +29,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ? body.token.trim()
       : "";
   if (!token || token.length > MAX_TOKEN_LENGTH) {
-    return NextResponse.json(
-      { status: "error", error: "Ungültige Anfrage" },
-      { status: 400 },
+    return operatorErrorResponse(
+      400,
+      "general.input",
+      "Missing or oversized invitation token",
     );
   }
 

@@ -8,7 +8,7 @@ export const PUT = createOperatorJsonProxy({
     const accountId = params.accountId;
     if (typeof schoolId !== "string" || typeof accountId !== "string") {
       return NextResponse.json(
-        { error: "Invalid school or account parameter" },
+        { error: "Invalid school or account parameter", code: "general.input" },
         { status: 400 },
       );
     }

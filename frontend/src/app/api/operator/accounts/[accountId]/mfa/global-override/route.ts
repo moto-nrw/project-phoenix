@@ -9,7 +9,7 @@ const path = (
   const accountId = params.accountId;
   if (typeof accountId !== "string") {
     return NextResponse.json(
-      { error: "Invalid account parameter" },
+      { error: "Invalid account parameter", code: "general.input" },
       { status: 400 },
     );
   }

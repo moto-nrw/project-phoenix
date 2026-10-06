@@ -5,6 +5,8 @@ import { Suspense, useMemo, useState } from "react";
 import useSWR from "swr";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OperatorPerson } from "~/lib/operator/provisioning-helpers";
 import { PersonTags } from "~/components/operator/persons-table";
@@ -35,6 +37,7 @@ function OperatorPersonsPageContent() {
 
   const {
     data: schoolPersons,
+    error: schoolPersonsError,
     isLoading: schoolPersonsLoading,
     mutate: mutateSchoolPersons,
   } = useSWR(
@@ -47,6 +50,12 @@ function OperatorPersonsPageContent() {
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
+  );
+
+  const personsLoadError = useSwrLoadError(
+    schoolPersonsError,
+    "die Liste der Personen",
+    () => void mutateSchoolPersons(),
   );
 
   const tabs = useMemo(
@@ -78,6 +87,8 @@ function OperatorPersonsPageContent() {
         onSchoolChange={handleSchoolFilterChange}
       />
 
+      <LoadErrorAlert error={personsLoadError} className="mb-4" />
+
       {!selectedSchool ? (
         <SimpleEmptyState
           title="Keine Schule ausgewählt"
@@ -91,7 +102,7 @@ function OperatorPersonsPageContent() {
             className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
           />
         </SkeletonRegion>
-      ) : !schoolPersons || schoolPersons.length === 0 ? (
+      ) : !schoolPersons ? null : schoolPersons.length === 0 ? (
         <SimpleEmptyState
           title="Keine Personen"
           description={`Keine Personen in ${selectedSchool.name} vorhanden.`}

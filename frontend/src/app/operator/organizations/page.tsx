@@ -7,6 +7,8 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { formatCount } from "~/lib/format-utils";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OrganizationSummary } from "~/lib/operator/provisioning-helpers";
@@ -46,6 +48,7 @@ export default function OperatorOrganizationsPage() {
 
   const {
     data: organizations,
+    error: orgsError,
     isLoading: orgsLoading,
     mutate: mutateOrgs,
   } = useSWR(
@@ -58,7 +61,11 @@ export default function OperatorOrganizationsPage() {
     },
   );
 
-  const { data: stats, mutate: mutateStats } = useSWR(
+  const {
+    data: stats,
+    error: statsError,
+    mutate: mutateStats,
+  } = useSWR(
     isAuthenticated ? "operator-provisioning-stats" : null,
     () => operatorProvisioningService.getStats(),
     {
@@ -66,6 +73,16 @@ export default function OperatorOrganizationsPage() {
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
+  );
+  const orgsLoadError = useSwrLoadError(
+    orgsError,
+    "die Liste der Träger",
+    () => void mutateOrgs(),
+  );
+  const statsLoadError = useSwrLoadError(
+    statsError,
+    "die Übersicht der Zahlen",
+    () => void mutateStats(),
   );
 
   const refreshAll = useCallback(async () => {
@@ -205,6 +222,7 @@ export default function OperatorOrganizationsPage() {
         mobileActionButton={mobileActionButton}
       />
 
+      <LoadErrorAlert error={statsLoadError} className="mt-4" />
       {stats ? (
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
           <KpiCard label="Träger" value={stats.traegerCount} />
@@ -215,6 +233,7 @@ export default function OperatorOrganizationsPage() {
       ) : null}
 
       <div className="mt-6">
+        <LoadErrorAlert error={orgsLoadError} className="mb-4" />
         {deletedOrganizations.length > 0 && (
           <div className="mb-4 flex justify-end">
             <button
@@ -243,7 +262,9 @@ export default function OperatorOrganizationsPage() {
               />
             ))}
           </div>
-        ) : !orgsLoading && activeOrganizations.length === 0 ? (
+        ) : !orgsLoading &&
+          organizations !== undefined &&
+          activeOrganizations.length === 0 ? (
           <EmptyState
             title="Keine Träger"
             description="Erstellen Sie einen neuen Träger, um Schulen zu verwalten."

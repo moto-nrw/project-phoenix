@@ -20,6 +20,9 @@ vi.mock("~/components/operator/transfer-device-modal", () => ({
   TransferDeviceModal: () => null,
 }));
 import { Suspense } from "react";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 const {
   mockUseSession,
@@ -307,9 +310,11 @@ async function renderPage() {
   let result!: ReturnType<typeof render>;
   await act(async () => {
     result = render(
-      <Suspense fallback={<div data-testid="suspense-fallback" />}>
-        <OperatorOrganizationDetailPage {...orgPageProps} />
-      </Suspense>,
+      <ToastProvider>
+        <Suspense fallback={<div data-testid="suspense-fallback" />}>
+          <OperatorOrganizationDetailPage {...orgPageProps} />
+        </Suspense>
+      </ToastProvider>,
     );
   });
   return result;
@@ -354,6 +359,27 @@ describe("OperatorOrganizationDetailPage", () => {
     await renderPage();
 
     expect(await screen.findByText("Keine Schulen")).toBeInTheDocument();
+  });
+
+  // #2519: a failed load is shown with retry, never as "not found".
+  it("shows a failed organization load instead of 'not found'", async () => {
+    mockUseSWR.mockImplementation(() => ({
+      data: undefined,
+      error: new ApiError("down", 503),
+      isLoading: false,
+      mutate: mockMutateOrgs,
+    }));
+
+    await renderPage();
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Übersicht des Trägers"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Träger nicht gefunden.")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mockMutateOrgs).toHaveBeenCalled();
   });
 
   it("shows 'Träger nicht gefunden' when slug does not match", async () => {
@@ -746,19 +772,18 @@ describe("OperatorOrganizationDetailPage", () => {
 
   it("surfaces an error message when toggling the org status fails", async () => {
     setupSWR();
-    mockUpdateOrganization.mockRejectedValue(new Error("network down"));
+    mockUpdateOrganization.mockRejectedValue(new ApiError("network down", 503));
 
     await renderPage();
 
     fireEvent.click(await screen.findByLabelText("Deaktivieren"));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          "Fehler beim Ändern des Status. Bitte versuchen Sie es erneut.",
-        ),
-      ).toBeInTheDocument();
-    });
+    // #2519: catalog text by code in a toast, not a local sentence.
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Änderung des Status"),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("redirects to the new slug after editing the organization slug", async () => {

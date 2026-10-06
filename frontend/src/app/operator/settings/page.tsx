@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { Pencil } from "lucide-react";
 import { Avatar } from "~/components/ui/avatar";
@@ -8,7 +8,10 @@ import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
-import { useFormError } from "~/components/ui/form-error";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { PasswordChangeModal } from "~/components/ui/password-change-modal";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -18,10 +21,18 @@ import {
   SkeletonRegion,
 } from "~/components/ui/page-skeletons";
 import { SectionCard } from "~/components/ui/section-card";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
+import { apiErrorFromResponse } from "~/lib/api-error";
+import { createLogger } from "~/lib/logger";
 import { sessionFetch } from "~/lib/session-cache";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
 import { PasskeySettingsSection } from "~/components/settings/passkey-settings-section";
+
+const logger = createLogger({ component: "OperatorSettingsPage" });
 
 interface OperatorProfile {
   id: number;
@@ -47,7 +58,7 @@ const operatorSettingsLoadingFallback = (
 
 function OperatorSettingsContent() {
   const { data: session, status, update: updateSession } = useSession();
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
   const sessionName = session?.user?.name ?? "";
   const sessionEmail = session?.user?.email ?? "";
 
@@ -60,12 +71,22 @@ function OperatorSettingsContent() {
     email: "",
   });
   const [profileData, setProfileData] = useState<OperatorProfile | null>(null);
+  const profileLoad = useApiLoadError();
+  const { show: showProfileLoadError, clear: clearProfileLoadError } =
+    profileLoad;
+  const [profileReload, setProfileReload] = useState(0);
+  const profileFormRef = useRef<HTMLDivElement>(null);
+  const profileErrors = useApiFormError(profileFormRef);
+  const { show: showProfileError, clear: clearProfileError } = profileErrors;
 
   // E-Mail-Wechsel: eigener Ablauf mit Passwortabfrage und Bestätigungslink,
   // darum ein eigener Dialog, der unabhängig vom Bearbeiten-Zustand der
   // Stammdaten erreichbar ist (#3117).
   const [showEmailChangeDialog, setShowEmailChangeDialog] = useState(false);
-  const [emailChangeError, setEmailChangeError] = useFormError();
+  const emailFormRef = useRef<HTMLFormElement>(null);
+  const emailChangeErrors = useApiFormError(emailFormRef);
+  const { show: showEmailChangeError, clear: clearEmailChangeError } =
+    emailChangeErrors;
   const [emailChangeLoading, setEmailChangeLoading] = useState(false);
   const [emailChangeNewEmail, setEmailChangeNewEmail] = useState("");
   const [emailChangePassword, setEmailChangePassword] = useState("");
@@ -92,20 +113,34 @@ function OperatorSettingsContent() {
         const response = await sessionFetch("/api/operator/profile", {
           method: "GET",
         });
-        if (!response.ok) return;
+        if (!response.ok) {
+          throw await apiErrorFromResponse(
+            response,
+            `Operator profile load failed (${response.status})`,
+          );
+        }
 
         const data = (await response.json()) as { data?: OperatorProfile };
         const profile = data.data;
         if (!profile || ignore) return;
 
+        clearProfileLoadError();
         setProfileData(profile);
         setFormData({
           displayName: profile.display_name,
           email: profile.email,
         });
-      } catch {
+      } catch (err) {
+        if (ignore) return;
         // Keep the safe session fallback. The profile form should not surface
         // token subjects like "operator:2" as an email address.
+        logger.warn("operator_profile_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        void showProfileLoadError(err, {
+          object: "das Profil",
+          retry: () => setProfileReload((count) => count + 1),
+        });
       }
     };
 
@@ -114,7 +149,14 @@ function OperatorSettingsContent() {
     return () => {
       ignore = true;
     };
-  }, [status, sessionName, sessionEmail]);
+  }, [
+    status,
+    sessionName,
+    sessionEmail,
+    profileReload,
+    showProfileLoadError,
+    clearProfileLoadError,
+  ]);
 
   const resetFormFromProfile = useCallback(() => {
     if (profileData) {
@@ -132,6 +174,7 @@ function OperatorSettingsContent() {
 
   const handleSaveProfile = async () => {
     setIsSaving(true);
+    clearProfileError();
     try {
       const response = await sessionFetch("/api/operator/profile", {
         method: "PUT",
@@ -140,9 +183,9 @@ function OperatorSettingsContent() {
       });
 
       if (!response.ok) {
-        const data = (await response.json()) as { error?: string };
-        throw new Error(
-          data.error ?? "Profil konnte nicht aktualisiert werden",
+        throw await apiErrorFromResponse(
+          response,
+          `Operator profile update failed (${response.status})`,
         );
       }
 
@@ -164,8 +207,11 @@ function OperatorSettingsContent() {
 
       setIsEditing(false);
       toastSuccess("Profil erfolgreich aktualisiert", { duration: 3000 });
-    } catch {
-      toastError("Fehler beim Speichern des Profils", { duration: 3000 });
+    } catch (err) {
+      logger.warn("operator_profile_save_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showProfileError(err, { object: "das Profil" });
     } finally {
       setIsSaving(false);
     }
@@ -173,7 +219,7 @@ function OperatorSettingsContent() {
 
   const handleCloseEmailDialog = () => {
     setShowEmailChangeDialog(false);
-    setEmailChangeError(null);
+    clearEmailChangeError();
     setEmailChangeNewEmail("");
     setEmailChangePassword("");
   };
@@ -181,7 +227,7 @@ function OperatorSettingsContent() {
   const handleEmailChange = async () => {
     if (!emailChangeNewEmail || !emailChangePassword) return;
     setEmailChangeLoading(true);
-    setEmailChangeError(null);
+    clearEmailChangeError();
     try {
       const response = await sessionFetch(
         "/api/operator/profile/email-change",
@@ -195,16 +241,11 @@ function OperatorSettingsContent() {
         },
       );
 
-      const data = (await response.json()) as { error?: string };
       if (!response.ok) {
-        const errorMsg =
-          data.error ?? "Ein unbekannter Fehler ist aufgetreten.";
-        setEmailChangeError(
-          errorMsg.includes("aktuelle Passwort ist falsch")
-            ? "Falsches Passwort"
-            : errorMsg,
+        throw await apiErrorFromResponse(
+          response,
+          `Operator email change failed (${response.status})`,
         );
-        return;
       }
 
       const confirmedEmail = emailChangeNewEmail;
@@ -213,8 +254,13 @@ function OperatorSettingsContent() {
         `Eine Bestätigungs-E-Mail wird an ${confirmedEmail} gesendet. Bitte überprüfe dein Postfach.`,
         { duration: 3000 },
       );
-    } catch {
-      setEmailChangeError("Ein Netzwerkfehler ist aufgetreten.");
+    } catch (err) {
+      logger.warn("operator_email_change_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showEmailChangeError(err, {
+        object: "die Änderung der E-Mail-Adresse",
+      });
     } finally {
       setEmailChangeLoading(false);
     }
@@ -236,6 +282,8 @@ function OperatorSettingsContent() {
           <Avatar name={formData.displayName} size="xl" />
         </div>
 
+        <LoadErrorAlert error={profileLoad.error} />
+
         <SectionCard
           title="Persönliche Daten"
           actions={
@@ -253,10 +301,13 @@ function OperatorSettingsContent() {
           }
         >
           {isEditing ? (
-            <div className="space-y-4">
+            <div ref={profileFormRef} className="space-y-4">
+              <FormErrorAlert message={profileErrors.error} />
               <Input
+                id="settings-displayname"
                 label="Anzeigename"
-                name="settings-displayname"
+                name="display_name"
+                error={profileErrors.fieldError("display_name")}
                 type="text"
                 value={formData.displayName}
                 onChange={(e) =>
@@ -267,6 +318,7 @@ function OperatorSettingsContent() {
               <EditActions
                 onCancel={() => {
                   setIsEditing(false);
+                  clearProfileError();
                   resetFormFromProfile();
                 }}
                 onSave={() => void handleSaveProfile()}
@@ -341,7 +393,7 @@ function OperatorSettingsContent() {
         size="sm"
         mobilePosition="center"
         closeDisabled={emailChangeLoading}
-        error={emailChangeError}
+        error={emailChangeErrors.error}
         footer={
           <>
             <Button
@@ -368,6 +420,7 @@ function OperatorSettingsContent() {
         }
       >
         <form
+          ref={emailFormRef}
           id="operator-email-change-form"
           className="space-y-4"
           onSubmit={(e) => {
@@ -376,8 +429,10 @@ function OperatorSettingsContent() {
           }}
         >
           <Input
+            id="operator-new-email"
             label="Neue E-Mail-Adresse"
-            name="new-email"
+            name="new_email"
+            error={emailChangeErrors.fieldError("new_email")}
             type="email"
             required
             autoFocus
@@ -389,8 +444,10 @@ function OperatorSettingsContent() {
             placeholder="neue@email.de"
           />
           <Input
+            id="operator-current-password"
             label="Aktuelles Passwort"
-            name="confirm-password"
+            name="current_password"
+            error={emailChangeErrors.fieldError("current_password")}
             type="password"
             required
             autoComplete="current-password"

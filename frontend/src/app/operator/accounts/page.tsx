@@ -5,6 +5,8 @@ import { Suspense, useCallback, useMemo, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type {
   OrgAccount,
@@ -61,7 +63,11 @@ function OperatorAccountsPageContent() {
 
   const { mutate: globalMutate } = useSWRConfig();
 
-  const { data: schoolAccounts, isLoading: schoolAccountsLoading } = useSWR(
+  const {
+    data: schoolAccounts,
+    error: schoolAccountsError,
+    isLoading: schoolAccountsLoading,
+  } = useSWR(
     isAuthenticated && selectedSchool
       ? `operator-school-accounts-${selectedSchool.id}`
       : null,
@@ -73,7 +79,11 @@ function OperatorAccountsPageContent() {
     },
   );
 
-  const { data: orgAccounts, isLoading: orgAccountsLoading } = useSWR(
+  const {
+    data: orgAccounts,
+    error: orgAccountsError,
+    isLoading: orgAccountsLoading,
+  } = useSWR(
     isAuthenticated && filterOrgId && !selectedSchool
       ? `operator-org-accounts-${filterOrgId}`
       : null,
@@ -85,7 +95,11 @@ function OperatorAccountsPageContent() {
     },
   );
 
-  const { data: allAccounts, isLoading: allAccountsLoading } = useSWR(
+  const {
+    data: allAccounts,
+    error: allAccountsError,
+    isLoading: allAccountsLoading,
+  } = useSWR(
     isAuthenticated && !filterOrgId && !selectedSchool
       ? "operator-all-accounts"
       : null,
@@ -104,6 +118,17 @@ function OperatorAccountsPageContent() {
         ACCOUNT_SWR_PREFIXES.some((p) => key.startsWith(p)),
     );
   }, [globalMutate]);
+
+  // Only one of the three lists is active at a time.
+  const accountsLoadError = useSwrLoadError(
+    selectedSchool
+      ? schoolAccountsError
+      : filterOrgId
+        ? orgAccountsError
+        : allAccountsError,
+    "die Liste der Konten",
+    () => void refreshAccounts(),
+  );
 
   const openCaregiverModal = useCallback(
     (
@@ -170,6 +195,8 @@ function OperatorAccountsPageContent() {
         onOrgChange={handleOrgFilterChange}
         onSchoolChange={handleSchoolFilterChange}
       />
+
+      <LoadErrorAlert error={accountsLoadError} className="mb-4" />
 
       {!selectedSchool && filterOrgId && (
         <>

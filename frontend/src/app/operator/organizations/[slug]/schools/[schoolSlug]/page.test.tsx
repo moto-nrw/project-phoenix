@@ -19,6 +19,9 @@ vi.mock("~/components/operator/transfer-device-modal", () => ({
   TransferDeviceModal: () => null,
 }));
 import { Suspense } from "react";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 const {
   mockUseSession,
@@ -276,9 +279,11 @@ async function renderPage() {
   let result!: ReturnType<typeof render>;
   await act(async () => {
     result = render(
-      <Suspense fallback={<div data-testid="suspense-fallback" />}>
-        <OperatorSchoolDetailPage {...schoolPageProps} />
-      </Suspense>,
+      <ToastProvider>
+        <Suspense fallback={<div data-testid="suspense-fallback" />}>
+          <OperatorSchoolDetailPage {...schoolPageProps} />
+        </Suspense>
+      </ToastProvider>,
     );
   });
   return result;
@@ -791,19 +796,18 @@ describe("OperatorSchoolDetailPage", () => {
 
   it("surfaces an error message when toggling the school status fails", async () => {
     setupSWR();
-    mockUpdateSchool.mockRejectedValue(new Error("network down"));
+    mockUpdateSchool.mockRejectedValue(new ApiError("network down", 503));
 
     await renderPage();
 
     fireEvent.click(await screen.findByLabelText("Deaktivieren"));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          "Fehler beim Ändern des Status. Bitte versuchen Sie es erneut.",
-        ),
-      ).toBeInTheDocument();
-    });
+    // #2519: catalog text by code in a toast, not a local sentence.
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Änderung des Status"),
+      ),
+    ).toBeInTheDocument();
   });
 
   // --- School not found / org not found redirect branches ---

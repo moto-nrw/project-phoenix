@@ -18,6 +18,13 @@ import type { DataTableColumn } from "~/components/ui/data-table";
 import { ListPageSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { useApiFormError } from "~/contexts/ToastContext";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 
 const logger = createLogger({ component: "OperatorUnregisteredTagsPage" });
 
@@ -41,7 +48,8 @@ function OperatorUnregisteredTagsPageContent() {
   const [resolveTarget, setResolveTarget] =
     useState<UnregisteredTagScan | null>(null);
   const [resolutionNote, setResolutionNote] = useState("");
-  const [resolveError, setResolveError] = useState("");
+  const resolveErrors = useApiFormError();
+  const { show: showResolveError, clear: clearResolveError } = resolveErrors;
   const [resolving, setResolving] = useState(false);
 
   const swrKey = useMemo(() => {
@@ -53,6 +61,7 @@ function OperatorUnregisteredTagsPageContent() {
 
   const {
     data: scans,
+    error: scansError,
     isLoading,
     mutate,
   } = useSWR(
@@ -68,6 +77,12 @@ function OperatorUnregisteredTagsPageContent() {
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
+  );
+
+  const scansLoadError = useSwrLoadError(
+    scansError,
+    "die Liste der RFID-Scans",
+    () => void mutate(),
   );
 
   const tabs = useMemo(
@@ -105,22 +120,25 @@ function OperatorUnregisteredTagsPageContent() {
     [resolvedFilter],
   );
 
-  const openResolveModal = useCallback((scan: UnregisteredTagScan) => {
-    setResolveTarget(scan);
-    setResolutionNote("");
-    setResolveError("");
-  }, []);
+  const openResolveModal = useCallback(
+    (scan: UnregisteredTagScan) => {
+      setResolveTarget(scan);
+      setResolutionNote("");
+      clearResolveError();
+    },
+    [clearResolveError],
+  );
 
   const closeResolveModal = useCallback(() => {
     setResolveTarget(null);
     setResolutionNote("");
-    setResolveError("");
-  }, []);
+    clearResolveError();
+  }, [clearResolveError]);
 
   const handleResolve = useCallback(async () => {
     if (!resolveTarget) return;
     setResolving(true);
-    setResolveError("");
+    clearResolveError();
     try {
       await operatorProvisioningService.resolveUnregisteredTagScan(
         resolveTarget.id,
@@ -129,18 +147,21 @@ function OperatorUnregisteredTagsPageContent() {
       closeResolveModal();
       void mutate();
     } catch (err) {
-      logger.error("unregistered_tag_resolve_failed", {
+      logger.warn("unregistered_tag_resolve_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setResolveError(
-        err instanceof Error
-          ? err.message
-          : "RFID-Scan konnte nicht erledigt werden",
-      );
+      void showResolveError(err, { object: "das Erledigen des Scans" });
     } finally {
       setResolving(false);
     }
-  }, [closeResolveModal, mutate, resolutionNote, resolveTarget]);
+  }, [
+    clearResolveError,
+    closeResolveModal,
+    mutate,
+    resolutionNote,
+    resolveTarget,
+    showResolveError,
+  ]);
 
   return (
     <div className="-mt-1.5 w-full">
@@ -161,7 +182,9 @@ function OperatorUnregisteredTagsPageContent() {
         onSchoolChange={handleSchoolFilterChange}
       />
 
-      {!isLoading && (!scans || scans.length === 0) ? (
+      <LoadErrorAlert error={scansLoadError} className="mb-4" />
+
+      {!isLoading && scans?.length === 0 ? (
         <SimpleEmptyState
           title="Keine unbekannten RFID-Scans"
           description="Es liegen keine passenden Scanversuche vor."
@@ -178,7 +201,7 @@ function OperatorUnregisteredTagsPageContent() {
         <ResolveScanModal
           scan={resolveTarget}
           note={resolutionNote}
-          error={resolveError}
+          error={resolveErrors.error}
           loading={resolving}
           onNoteChange={setResolutionNote}
           onClose={closeResolveModal}
@@ -298,7 +321,7 @@ export function ResolveScanModal({
 }: Readonly<{
   scan: UnregisteredTagScan;
   note: string;
-  error: string;
+  error: FormErrorInput;
   loading: boolean;
   onNoteChange: (note: string) => void;
   onClose: () => void;
@@ -336,6 +359,7 @@ export function ResolveScanModal({
       isDismissDisabled={loading}
       isBackdropDismissDisabled
     >
+      <FormErrorAlert message={error} className="mb-3" />
       <p className="text-sm text-gray-600">
         <span className="font-mono font-medium">{scan.tagUid}</span> ·{" "}
         {scan.schoolName}
@@ -348,11 +372,11 @@ export function ResolveScanModal({
       </label>
       <textarea
         id="resolution-note"
+        name="resolution_note"
         value={note}
         onChange={(event) => onNoteChange(event.target.value)}
         className="mt-1 min-h-24 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:ring-2 focus:ring-gray-100 focus:outline-none"
       />
-      {error && <p className="text-moto-red-strong mt-3 text-sm">{error}</p>}
     </Modal>
   );
 }

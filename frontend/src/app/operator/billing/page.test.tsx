@@ -12,6 +12,9 @@ import {
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { SWRConfig } from "swr";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import type {
   BillingKeyDateCount,
   BillingKeyDay,
@@ -47,7 +50,8 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   useSetBreadcrumb: mockSetBreadcrumb,
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
 }));
 
@@ -92,9 +96,11 @@ function count(
 
 function renderPage() {
   return render(
-    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
-      <OperatorBillingPage />
-    </SWRConfig>,
+    <ToastProvider>
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <OperatorBillingPage />
+      </SWRConfig>
+    </ToastProvider>,
   );
 }
 
@@ -226,13 +232,39 @@ describe("OperatorBillingPage", () => {
 
   it("reports a failed download without leaving the page", async () => {
     mockListKeyDateCounts.mockResolvedValue([count()]);
-    mockDownload.mockRejectedValue(new Error("boom"));
+    mockDownload
+      .mockRejectedValueOnce(new ApiError("boom", 503))
+      .mockResolvedValueOnce(undefined);
     renderPage();
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Monat als CSV" }),
     );
-    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+    // #2519: catalog text by code in the toast, with retry.
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Datei mit den Stichtagszahlen"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mockDownload).toHaveBeenCalledTimes(2));
+  });
+
+  it("shows a failed counts load with retry", async () => {
+    mockListKeyDateCounts
+      .mockRejectedValueOnce(new ApiError("boom", 500))
+      .mockResolvedValueOnce([count()]);
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Liste der Stichtagszahlen"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect((await screen.findAllByText("OGS Am Berg")).length).toBeGreaterThan(
+      0,
+    );
   });
 
   it("changes the key day through the edit state", async () => {
@@ -259,7 +291,12 @@ describe("OperatorBillingPage", () => {
 
   it("keeps the edit state open and says so when saving fails", async () => {
     mockListKeyDateCounts.mockResolvedValue([]);
-    mockUpdateKeyDay.mockRejectedValue(new Error("boom"));
+    mockUpdateKeyDay.mockRejectedValue(
+      new ApiError("key day out of range", 400, {
+        code: "general.input",
+        errors: [{ field: "key_day", reason: "out_of_range" }],
+      }),
+    );
     renderPage();
 
     fireEvent.click(await screen.findByRole("button", { name: "Ändern" }));
@@ -269,9 +306,11 @@ describe("OperatorBillingPage", () => {
 
     expect(
       await screen.findByText(
-        "Der Stichtag konnte nicht gespeichert werden. Bitte versuchen Sie es noch einmal.",
+        catalogText("general.input", "die Änderung des Stichtags"),
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText("key day out of range")).toBeNull();
+    expect(mockToastError).not.toHaveBeenCalled();
     expect(
       screen.getByRole("button", { name: "Speichern" }),
     ).toBeInTheDocument();

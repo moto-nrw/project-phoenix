@@ -7,6 +7,8 @@ import useSWR from "swr";
 import { useSession } from "next-auth/react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
   operatorProvisioningService,
   revalidateTenantCache,
@@ -33,7 +35,11 @@ export default function OperatorSchoolsPage() {
 
   const [createSchoolOpen, setCreateSchoolOpen] = useState(false);
 
-  const { data: organizations } = useSWR(
+  const {
+    data: organizations,
+    error: organizationsError,
+    mutate: mutateOrganizations,
+  } = useSWR(
     isAuthenticated ? "operator-organizations" : null,
     () => operatorProvisioningService.listOrganizations(),
     {
@@ -45,6 +51,7 @@ export default function OperatorSchoolsPage() {
 
   const {
     data: schoolSummaries,
+    error: summariesError,
     isLoading: summariesLoading,
     mutate: mutateSummaries,
   } = useSWR(
@@ -55,6 +62,17 @@ export default function OperatorSchoolsPage() {
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
+  );
+  const summariesLoadError = useSwrLoadError(
+    summariesError,
+    "die Liste der Schulen",
+    () => void mutateSummaries(),
+  );
+  // The create form and the trash need the providers.
+  const organizationsLoadError = useSwrLoadError(
+    organizationsError,
+    "die Liste der Träger",
+    () => void mutateOrganizations(),
   );
 
   const refreshAll = useCallback(async () => {
@@ -185,6 +203,8 @@ export default function OperatorSchoolsPage() {
       />
 
       <div className="mt-6">
+        <LoadErrorAlert error={summariesLoadError} className="mb-4" />
+        <LoadErrorAlert error={organizationsLoadError} className="mb-4" />
         {deletedSummaries.length > 0 && (
           <div className="mb-4 flex justify-end">
             <button
@@ -225,7 +245,9 @@ export default function OperatorSchoolsPage() {
               );
             })}
           </div>
-        ) : !summariesLoading && activeSummaries.length === 0 ? (
+        ) : !summariesLoading &&
+          schoolSummaries !== undefined &&
+          activeSummaries.length === 0 ? (
           <EmptyState
             title="Keine Schulen"
             description="Erstellen Sie eine neue Schule unter einem Träger."

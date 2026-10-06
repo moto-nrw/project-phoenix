@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { catalogText } from "~/test/error-catalog-text";
 
 const {
   mockUseSession,
@@ -167,6 +168,28 @@ describe("OperatorSettingsPage", () => {
     expect(screen.queryByText("operator:2")).not.toBeInTheDocument();
   });
 
+  // #2519: a failed profile load is visible with retry instead of silent.
+  it("shows a failed profile load with retry", async () => {
+    mockSessionFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ code: "general.unavailable" }), {
+        status: 503,
+      }),
+    );
+
+    render(<OperatorSettingsPage />);
+
+    expect(
+      await screen.findByText(catalogText("general.unavailable", "das Profil")),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(
+      await screen.findByText("mail@yannickwenger.de"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(catalogText("general.unavailable", "das Profil")),
+    ).toBeNull();
+  });
+
   it("updates profile on save", async () => {
     render(<OperatorSettingsPage />);
 
@@ -206,10 +229,14 @@ describe("OperatorSettingsPage", () => {
             json: async () => ({ data: defaultProfile }),
           } as Response;
         }
-        return {
-          ok: false,
-          json: async () => ({ error: "Something went wrong" }),
-        } as Response;
+        return new Response(
+          JSON.stringify({
+            error: "Something went wrong",
+            code: "general.input",
+            errors: [{ field: "display_name", reason: "too_long" }],
+          }),
+          { status: 400 },
+        );
       },
     );
 
@@ -220,13 +247,16 @@ describe("OperatorSettingsPage", () => {
     const saveButton = screen.getByText("Speichern");
     fireEvent.click(saveButton);
 
-    await waitFor(() => {
-      expect(mockUpdateSession).not.toHaveBeenCalled();
-    });
-    expect(mockToastError).toHaveBeenCalledWith(
-      "Fehler beim Speichern des Profils",
-      { duration: 3000 },
+    expect(
+      await screen.findByText(catalogText("general.input", "das Profil")),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Anzeigename")).toHaveAttribute(
+      "aria-invalid",
+      "true",
     );
+    expect(mockUpdateSession).not.toHaveBeenCalled();
+    expect(screen.queryByText("Something went wrong")).toBeNull();
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 
   it("cancels editing and restores original values", async () => {
@@ -417,12 +447,14 @@ describe("OperatorSettingsPage", () => {
               json: async () => ({ data: defaultProfile }),
             } as Response;
           }
-          return {
-            ok: false,
-            json: async () => ({
+          return new Response(
+            JSON.stringify({
               error: "Das aktuelle Passwort ist falsch",
+              code: "identity.current_password_wrong",
+              errors: [{ field: "current_password", reason: "wrong" }],
             }),
-          } as Response;
+            { status: 400 },
+          );
         },
       );
 
@@ -460,6 +492,20 @@ describe("OperatorSettingsPage", () => {
 
       // Dialog stays open — error path does not close it
       expect(screen.getByText("E-Mail-Adresse ändern")).toBeInTheDocument();
+      // #2519: by code, no text matching on the backend sentence.
+      expect(
+        await screen.findByText(
+          catalogText(
+            "identity.current_password_wrong",
+            "die Änderung der E-Mail-Adresse",
+          ),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Aktuelles Passwort")).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
+      expect(screen.queryByText("Das aktuelle Passwort ist falsch")).toBeNull();
     });
 
     it("keeps dialog open on other API errors", async () => {
@@ -549,6 +595,11 @@ describe("OperatorSettingsPage", () => {
 
       // Dialog stays open on network error
       expect(screen.getByText("E-Mail-Adresse ändern")).toBeInTheDocument();
+      expect(
+        await screen.findByText(
+          catalogText("general.server", "die Änderung der E-Mail-Adresse"),
+        ),
+      ).toBeInTheDocument();
     });
 
     it("closes dialog and resets fields on cancel", async () => {

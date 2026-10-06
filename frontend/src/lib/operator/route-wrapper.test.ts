@@ -593,7 +593,10 @@ describe("createOperatorProxyPostHandler", () => {
 
     expect(response.status).toBe(400);
     const json = (await response.json()) as { status?: string; error?: string };
-    expect(json).toEqual({ status: "error", error: "Ungültige Anfrage" });
+    expect(json).toEqual({
+      error: "Invalid JSON request body",
+      code: "general.input",
+    });
     expect(mockFetch).not.toHaveBeenCalled();
   });
 });
@@ -622,7 +625,7 @@ describe("createOperatorPublicProxyPostHandler", () => {
     vi.clearAllMocks();
   });
 
-  it("returns 400 with German 'Ungültige Anfrage' on invalid JSON body", async () => {
+  it("returns 400 general.input on invalid JSON body", async () => {
     const request = new NextRequest(
       "http://localhost:3000/api/operator/public/test",
       {
@@ -636,7 +639,10 @@ describe("createOperatorPublicProxyPostHandler", () => {
 
     expect(response.status).toBe(400);
     const json = (await response.json()) as { status?: string; error?: string };
-    expect(json).toEqual({ status: "error", error: "Ungültige Anfrage" });
+    expect(json).toEqual({
+      error: "Invalid JSON request body",
+      code: "general.input",
+    });
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
@@ -780,16 +786,17 @@ describe("createOperatorPublicProxyPostHandler", () => {
     expect(await response.text()).toBe("");
   });
 
-  it("returns 500 with generic German message on fetch error", async () => {
+  // #2519: the BFF answers with a registered code, never a UI sentence.
+  it("returns 503 general.unavailable on fetch error", async () => {
     mockFetch.mockRejectedValue(new Error("Network error"));
 
     const response = await handler(makePublicRequest({ token: "abc" }));
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(503);
     const json = (await response.json()) as { status?: string; error?: string };
     expect(json).toEqual({
-      status: "error",
-      error: "Ein interner Fehler ist aufgetreten",
+      error: "Backend request failed",
+      code: "general.unavailable",
     });
   });
 });

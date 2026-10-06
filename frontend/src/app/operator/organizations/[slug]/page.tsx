@@ -33,6 +33,9 @@ import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { formatCount } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
 import {
@@ -97,7 +100,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     name: string;
   } | null>(null);
   const [editOrgOpen, setEditOrgOpen] = useState(false);
-  const [orgToggleError, setOrgToggleError] = useState("");
+  const { show: showToggleError } = useApiErrorDisplay();
   const [createSchoolOpen, setCreateSchoolOpen] = useState(false);
   const [createDeviceOpen, setCreateDeviceOpen] = useState(false);
   const [setKeyDevice, setSetKeyDevice] = useState<OperatorDevice | null>(null);
@@ -124,6 +127,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
 
   const {
     data: organizations,
+    error: organizationsError,
     isLoading,
     mutate: mutateOrganizations,
   } = useSWR(
@@ -154,6 +158,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
 
   const {
     data: organizationSchoolSummaries,
+    error: schoolsError,
     isLoading: schoolsLoading,
     mutate: mutateSchoolSummaries,
   } = useSWR(
@@ -193,6 +198,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     activeTab === "konten" && isAuthenticated && organization != null;
   const {
     data: orgAccounts,
+    error: accountsError,
     isLoading: accountsLoading,
     mutate: mutateOrgAccounts,
   } = useSWR(
@@ -208,6 +214,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     activeTab === "geraete" && isAuthenticated && organization != null;
   const {
     data: orgDevices,
+    error: devicesError,
     isLoading: devicesLoading,
     mutate: mutateOrgDevices,
   } = useSWR(
@@ -221,13 +228,44 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
 
   const personsActive =
     activeTab === "personen" && isAuthenticated && organization != null;
-  const { data: orgPersons, isLoading: personsLoading } = useSWR(
+  const {
+    data: orgPersons,
+    error: personsError,
+    isLoading: personsLoading,
+    mutate: mutateOrgPersons,
+  } = useSWR(
     personsActive ? ["operator-org-persons", organization?.id] : null,
     () =>
       operatorProvisioningService.listOrganizationPersons(
         organization?.id ?? "",
       ),
     { revalidateOnFocus: false, dedupingInterval: 5000 },
+  );
+
+  const organizationsLoadError = useSwrLoadError(
+    organizationsError,
+    "die Übersicht des Trägers",
+    () => void mutateOrganizations(),
+  );
+  const schoolsLoadError = useSwrLoadError(
+    schoolsError,
+    "die Liste der Schulen",
+    () => void mutateSchoolSummaries(),
+  );
+  const accountsLoadError = useSwrLoadError(
+    accountsError,
+    "die Liste der Konten",
+    () => void mutateOrgAccounts(),
+  );
+  const devicesLoadError = useSwrLoadError(
+    devicesError,
+    "die Liste der Geräte",
+    () => void mutateOrgDevices(),
+  );
+  const personsLoadError = useSwrLoadError(
+    personsError,
+    "die Liste der Personen",
+    () => void mutateOrgPersons(),
   );
 
   const handleSchoolClick = useCallback(
@@ -252,7 +290,6 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
 
   const handleToggleOrgActive = useCallback(async () => {
     if (!organization) return;
-    setOrgToggleError("");
     try {
       await operatorProvisioningService.updateOrganization(organization.id, {
         name: organization.name,
@@ -262,14 +299,21 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       await refreshOrganizationDrillIn();
       await revalidateTenantCache(activeSchools.map((item) => item.subdomain));
     } catch (error) {
-      setOrgToggleError(
-        "Fehler beim Ändern des Status. Bitte versuchen Sie es erneut.",
-      );
-      logger.error("organization_toggle_active_failed", {
+      logger.warn("organization_toggle_active_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
+      // The retry sets the same target state, so it is safe to repeat.
+      void showToggleError(error, {
+        object: "die Änderung des Status",
+        retry: () => void handleToggleOrgActive(),
+      });
     }
-  }, [activeSchools, organization, refreshOrganizationDrillIn]);
+  }, [
+    activeSchools,
+    organization,
+    refreshOrganizationDrillIn,
+    showToggleError,
+  ]);
 
   const orgDelete = useSoftDeletable<OrganizationSummary>({
     softDeleteFn: operatorProvisioningService.softDeleteOrganization,
@@ -455,6 +499,21 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     );
   }
 
+  if (!organization && organizationsLoadError) {
+    return (
+      <div className="w-full">
+        <Link
+          href="/operator/organizations"
+          className="mb-4 inline-flex items-center gap-2 text-sm text-gray-600 transition-colors hover:text-gray-900"
+        >
+          <span aria-hidden>←</span>
+          <span>Zurück zur Träger-Übersicht</span>
+        </Link>
+        <LoadErrorAlert error={organizationsLoadError} />
+      </div>
+    );
+  }
+
   if (!organization) {
     logger.warn("organization_not_found_by_slug", { slug });
     return (
@@ -492,9 +551,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         stats={headerStats}
       />
 
-      {orgToggleError && (
-        <p className="text-moto-red-strong mt-3 text-sm">{orgToggleError}</p>
-      )}
+      <LoadErrorAlert error={organizationsLoadError} className="mt-3" />
 
       <div className="mt-6">
         <Tabs value={activeTab} onValueChange={handleTabValueChange}>
@@ -514,6 +571,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
           </div>
 
           <TabsPrimitive.Content value="schulen" className="mt-4">
+            <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
             {schoolDelete.showTrash ? (
               <div className="space-y-4">
                 {deletedSchools.map((school) => (
@@ -533,7 +591,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
                   />
                 ))}
               </div>
-            ) : !schoolsLoading && activeSchools.length === 0 ? (
+            ) : !schoolsLoading &&
+              organizationSchoolSummaries !== undefined &&
+              activeSchools.length === 0 ? (
               <EmptyState
                 title="Keine Schulen"
                 description="Erstellen Sie eine neue Schule unter diesem Träger."
@@ -553,7 +613,8 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
           </TabsPrimitive.Content>
 
           <TabsPrimitive.Content value="konten" className="mt-4">
-            {!accountsLoading && (!orgAccounts || orgAccounts.length === 0) ? (
+            <LoadErrorAlert error={accountsLoadError} className="mb-4" />
+            {!accountsLoading && orgAccounts?.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
                 Keine Konten für diesen Träger.
               </div>
@@ -568,7 +629,8 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
           </TabsPrimitive.Content>
 
           <TabsPrimitive.Content value="geraete" className="mt-4">
-            {!devicesLoading && (!orgDevices || orgDevices.length === 0) ? (
+            <LoadErrorAlert error={devicesLoadError} className="mb-4" />
+            {!devicesLoading && orgDevices?.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
                 Keine Geräte für diesen Träger.
               </div>
@@ -585,7 +647,8 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
           </TabsPrimitive.Content>
 
           <TabsPrimitive.Content value="personen" className="mt-4">
-            {!personsLoading && (!orgPersons || orgPersons.length === 0) ? (
+            <LoadErrorAlert error={personsLoadError} className="mb-4" />
+            {!personsLoading && orgPersons?.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
                 Keine Personen für diesen Träger.
               </div>

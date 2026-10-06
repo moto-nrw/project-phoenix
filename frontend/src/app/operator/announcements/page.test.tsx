@@ -3,6 +3,8 @@
  * Tests the rendering, CRUD operations, and modal interactions for announcements
  */
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const originalScrollHeight = Object.getOwnPropertyDescriptor(
@@ -181,7 +183,8 @@ vi.mock("lucide-react", () => ({
   Check: () => <span>Check</span>,
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: mockToastSuccess,
     error: mockToastError,
@@ -760,13 +763,36 @@ describe("OperatorAnnouncementsPage", () => {
     const createButton = screen.getByText("Erstellen");
     fireEvent.click(createButton);
 
+    // #2519: the form's alert shows the catalog text, never the backend
+    // sentence.
     await waitFor(() => {
-      expect(consoleError).toHaveBeenCalledWith("announcement_save_failed", {
-        error: "API Error",
-      });
+      expect(screen.getByTestId("modal").textContent).toContain(
+        catalogText("general.server", "die Ankündigung"),
+      );
     });
+    expect(screen.queryByText("API Error")).toBeNull();
 
     consoleError.mockRestore();
+  });
+
+  it("shows a failed list load with retry", async () => {
+    mockUseSWR.mockReturnValue({
+      data: undefined,
+      error: new ApiError("down", 503),
+      isLoading: false,
+      mutate: mockMutate,
+    });
+
+    render(<OperatorAnnouncementsPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Ankündigungen"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Keine Ankündigungen")).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Wiederholen" })[0]!);
+    expect(mockMutate).toHaveBeenCalled();
   });
 
   describe("org/tenant targeting", () => {
@@ -1124,8 +1150,13 @@ describe("OperatorAnnouncementsPage", () => {
       });
     });
 
-    it("handleSave shows error toast on API failure", async () => {
-      mockCreate.mockRejectedValue(new Error("Server Error"));
+    it("handleSave shows the error in the form on API failure", async () => {
+      mockCreate.mockRejectedValue(
+        new ApiError("Server Error", 400, {
+          code: "general.input",
+          errors: [{ field: "title", reason: "too_long" }],
+        }),
+      );
       const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
         // noop
       });
@@ -1150,8 +1181,15 @@ describe("OperatorAnnouncementsPage", () => {
       fireEvent.click(screen.getByText("Erstellen"));
 
       await waitFor(() => {
-        expect(mockToastError).toHaveBeenCalledWith("Fehler: Server Error");
+        expect(screen.getByTestId("modal").textContent).toContain(
+          catalogText("general.input", "die Ankündigung"),
+        );
       });
+      expect(screen.getAllByRole("textbox")[0]).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
+      expect(mockToastError).not.toHaveBeenCalled();
 
       consoleError.mockRestore();
     });
@@ -1188,8 +1226,12 @@ describe("OperatorAnnouncementsPage", () => {
       });
     });
 
-    it("handleDelete shows error toast on failure", async () => {
-      mockDelete.mockRejectedValue(new Error("Delete failed"));
+    it("handleDelete keeps the error in the confirmation", async () => {
+      mockDelete.mockRejectedValue(
+        new ApiError("Delete failed", 409, {
+          code: "general.business_rejection",
+        }),
+      );
       const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
         // noop
       });
@@ -1215,11 +1257,18 @@ describe("OperatorAnnouncementsPage", () => {
         screen.getByRole("button", { name: "Endgültig löschen" }),
       );
 
-      await waitFor(() => {
-        expect(mockToastError).toHaveBeenCalledWith(
-          "Fehler beim Löschen: Delete failed",
-        );
-      });
+      // The error stays inside the delete confirmation.
+      expect(
+        await screen.findByText(
+          catalogText(
+            "general.business_rejection",
+            "das Löschen der Ankündigung",
+          ),
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Ankündigung löschen" }),
+      ).toBeInTheDocument();
 
       consoleError.mockRestore();
     });
@@ -1253,8 +1302,8 @@ describe("OperatorAnnouncementsPage", () => {
       });
     });
 
-    it("handlePublish shows error toast on failure", async () => {
-      mockPublish.mockRejectedValue(new Error("Publish failed"));
+    it("handlePublish keeps the error in the confirmation", async () => {
+      mockPublish.mockRejectedValue(new ApiError("Publish failed", 500));
       const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
         // noop
       });
@@ -1276,8 +1325,8 @@ describe("OperatorAnnouncementsPage", () => {
       fireEvent.click(screen.getByTestId("confirm-button"));
 
       await waitFor(() => {
-        expect(mockToastError).toHaveBeenCalledWith(
-          "Fehler beim Veröffentlichen: Publish failed",
+        expect(screen.getByTestId("confirmation-modal").textContent).toContain(
+          catalogText("general.server", "die Veröffentlichung der Ankündigung"),
         );
       });
 

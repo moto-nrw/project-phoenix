@@ -1,10 +1,13 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR from "swr";
-import { Alert } from "~/components/ui/alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -14,7 +17,12 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import {
   berlinClockFromISO,
@@ -123,29 +131,28 @@ function KeyDaySection({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const formRef = useRef<HTMLDivElement>(null);
+  const saveErrors = useApiFormError(formRef);
 
   const startEditing = () => {
     setDraft(String(keyDay?.keyDay ?? ""));
-    setError("");
+    saveErrors.clear();
     setEditing(true);
   };
 
   const save = async () => {
     setSaving(true);
-    setError("");
+    saveErrors.clear();
     try {
       const updated = await operatorBillingService.updateKeyDay(Number(draft));
       onSaved(updated);
       setEditing(false);
       toastSuccess(`Stichtag ist jetzt der ${updated.keyDay}. des Monats.`);
     } catch (saveError) {
-      logger.error("billing_key_day_update_failed", {
+      logger.warn("billing_key_day_update_failed", {
         error: saveError instanceof Error ? saveError.message : "unknown",
       });
-      setError(
-        "Der Stichtag konnte nicht gespeichert werden. Bitte versuchen Sie es noch einmal.",
-      );
+      void saveErrors.show(saveError, { object: "die Änderung des Stichtags" });
     } finally {
       setSaving(false);
     }
@@ -169,7 +176,8 @@ function KeyDaySection({
       }
     >
       {editing ? (
-        <div className="space-y-4">
+        <div ref={formRef} className="space-y-4">
+          <FormErrorAlert message={saveErrors.error} />
           <div className="max-w-xs space-y-1.5">
             <label
               id="billing-key-day-label"
@@ -180,6 +188,7 @@ function KeyDaySection({
             </label>
             <CustomSelect
               id="billing-key-day"
+              name="key_day"
               labelId="billing-key-day-label"
               value={draft}
               options={KEY_DAY_OPTIONS}
@@ -190,7 +199,11 @@ function KeyDaySection({
               sie sind. Höchstens der 28., damit jeder Monat den Tag hat.
             </p>
           </div>
-          <Alert type="error" message={error} />
+          {saveErrors.fieldError("key_day") ? (
+            <p className="text-moto-red text-xs">
+              {saveErrors.fieldError("key_day")}
+            </p>
+          ) : null}
           <EditActions
             onCancel={() => setEditing(false)}
             onSave={() => void save()}
@@ -239,22 +252,34 @@ function CountingRulesSection() {
 function OperatorBillingPageContent() {
   useSetBreadcrumb({ pageTitle: "Stichtagszahlen" });
   const { status } = useSession();
-  const { error: toastError } = useToast();
+  const { show: showDownloadError } = useApiErrorDisplay();
   const isAuthenticated = status === "authenticated";
 
   const {
     data: keyDay,
+    error: keyDayError,
     isLoading: keyDayLoading,
     mutate: mutateKeyDay,
   } = useSWR(isAuthenticated ? KEY_DAY_SWR_KEY : null, () =>
     operatorBillingService.getKeyDay(),
   );
+  const keyDayLoadError = useSwrLoadError(
+    keyDayError,
+    "die Einstellung des Stichtags",
+    () => void mutateKeyDay(),
+  );
   const {
     data: counts,
     isLoading: countsLoading,
     error: countsError,
+    mutate: mutateCounts,
   } = useSWR(isAuthenticated ? COUNTS_SWR_KEY : null, () =>
     operatorBillingService.listKeyDateCounts(),
+  );
+  const countsLoadError = useSwrLoadError(
+    countsError,
+    "die Liste der Stichtagszahlen",
+    () => void mutateCounts(),
   );
 
   const periods = useMemo(
@@ -283,13 +308,14 @@ function OperatorBillingPageContent() {
         scope === "month" && period ? billingMonth(period) : undefined,
       );
     } catch (downloadError) {
-      logger.error("billing_export_failed", {
+      logger.warn("billing_export_failed", {
         error:
           downloadError instanceof Error ? downloadError.message : "unknown",
       });
-      toastError(
-        "Die Datei konnte nicht erstellt werden. Bitte versuchen Sie es noch einmal.",
-      );
+      void showDownloadError(downloadError, {
+        object: "die Datei mit den Stichtagszahlen",
+        retry: () => void download(scope),
+      });
     } finally {
       setDownloading(null);
     }
@@ -308,6 +334,8 @@ function OperatorBillingPageContent() {
           onTabChange: () => undefined,
         }}
       />
+
+      <LoadErrorAlert error={keyDayLoadError} />
 
       <KeyDaySection
         keyDay={keyDay}
@@ -354,10 +382,7 @@ function OperatorBillingPageContent() {
         }
       >
         {countsError ? (
-          <Alert
-            type="error"
-            message="Die Stichtagszahlen konnten nicht geladen werden. Bitte laden Sie die Seite neu."
-          />
+          <LoadErrorAlert error={countsLoadError} />
         ) : !countsLoading && !hasCounts ? (
           <EmptyState
             title="Noch keine Stichtagszahlen"
