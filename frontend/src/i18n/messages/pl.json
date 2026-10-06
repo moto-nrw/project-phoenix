@@ -2319,6 +2319,7 @@
       },
       "rooms": {
         "color_already_in_use": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "not_released": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "school": {

@@ -2319,6 +2319,7 @@
       },
       "rooms": {
         "color_already_in_use": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "not_released": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "school": {

@@ -354,6 +354,8 @@ export const ERROR_CATALOG = {
         "Die Ausgangsphase gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "rooms.color_already_in_use":
         "Diese Farbe hat schon ein anderer Raum. Bitte wählen Sie eine andere Farbe.",
+      "rooms.not_found":
+        "Diesen Raum gibt es nicht mehr. Bitte wählen Sie ihn in der Liste neu aus.",
       "rooms.not_released":
         "Dieser Raum ist nicht mehr freigegeben. Bitte wählen Sie einen anderen Raum.",
       "school.setup_completed":

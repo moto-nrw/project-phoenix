@@ -387,6 +387,33 @@ describe("useRoomDetail (via harness)", () => {
     ).toBeInTheDocument();
   });
 
+  it("names a deleted or unknown room instead of asking to check the input (#2517)", async () => {
+    const body = {
+      status: "error",
+      error: "room not found",
+      code: "rooms.not_found",
+    };
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      json: async () => body,
+      text: async () => JSON.stringify(body),
+    });
+
+    render(
+      <Wrapper>
+        <RoomDetailHarness roomId="room-deleted" />
+      </Wrapper>,
+    );
+
+    expect(
+      await screen.findByText(catalogText("rooms.not_found", "die Raumseite")),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(catalogText("general.input", "die Raumseite")),
+    ).not.toBeInTheDocument();
+  });
+
   it("falls back through name → room_name → '' when name is missing", async () => {
     mockFetch
       .mockResolvedValueOnce(

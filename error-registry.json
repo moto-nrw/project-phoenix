@@ -1419,6 +1419,12 @@
       "legacy": "color_already_in_use"
     },
     {
+      "code": "rooms.not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "rooms.not_found"
+    },
+    {
       "code": "rooms.not_released",
       "class": "business_rejection",
       "parameters": [],

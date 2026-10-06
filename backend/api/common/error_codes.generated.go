@@ -297,6 +297,7 @@ const (
 	CodeRolloverSourceAlreadyRolled                      = "rollover.source_already_rolled"
 	CodeRolloverSourceNotFound                           = "rollover.source_not_found"
 	CodeRoomsColorAlreadyInUse                           = "rooms.color_already_in_use"
+	CodeRoomsNotFound                                    = "rooms.not_found"
 	CodeRoomsNotReleased                                 = "rooms.not_released"
 	CodeSchoolNoSchoolPortalRole                         = "school.no_school_portal_role"
 	CodeSchoolSetupCompleted                             = "school.setup_completed"
@@ -886,6 +887,7 @@ var errorClassByCode = map[string]string{
 	"rollover.source_already_rolled":                       "business_rejection",
 	"rollover.source_not_found":                            "business_rejection",
 	"rooms.color_already_in_use":                           "business_rejection",
+	"rooms.not_found":                                      "business_rejection",
 	"rooms.not_released":                                   "business_rejection",
 	"school.no_school_portal_role":                         "permission",
 	"school.setup_completed":                               "business_rejection",

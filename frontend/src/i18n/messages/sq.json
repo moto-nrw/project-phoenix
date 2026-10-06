@@ -2319,6 +2319,7 @@
       },
       "rooms": {
         "color_already_in_use": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "not_released": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "school": {
