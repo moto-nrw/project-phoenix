@@ -6,7 +6,7 @@ import { Suspense, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
 import { RoleGuard } from "~/components/auth/role-guard";
-import { useSwrLoadError } from "~/components/staff/use-swr-load-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";

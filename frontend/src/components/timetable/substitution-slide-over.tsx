@@ -39,7 +39,7 @@ import type {
   EnrichedInstance,
   InstanceStatus,
 } from "~/lib/timetable-types";
-import { useSwrLoadError } from "~/components/staff/use-swr-load-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import {

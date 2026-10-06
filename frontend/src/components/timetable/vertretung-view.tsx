@@ -68,7 +68,7 @@ import { VertretungContentSkeleton } from "~/components/timetable/vertretung-ske
 import { buildPlanningTrackLegend } from "~/components/timetable/planning-track-legend";
 import { VertretungWeekList } from "~/components/timetable/vertretung-week-list";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
-import { useSwrLoadError } from "~/components/staff/use-swr-load-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useToast } from "~/contexts/ToastContext";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import {

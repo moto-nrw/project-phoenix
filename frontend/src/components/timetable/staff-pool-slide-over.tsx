@@ -19,7 +19,7 @@
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { TriangleAlert, UserPlus } from "lucide-react";
 
-import { useSwrLoadError } from "~/components/staff/use-swr-load-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import {

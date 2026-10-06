@@ -56,7 +56,7 @@ import {
   useApiFormError,
   useToast,
 } from "~/contexts/ToastContext";
-import { useSwrLoadError } from "~/components/staff/use-swr-load-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import {
   ConflictWarningsBanner,

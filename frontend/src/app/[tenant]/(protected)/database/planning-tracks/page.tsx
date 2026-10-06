@@ -15,7 +15,7 @@ import {
   type CatalogConfig,
 } from "~/components/database/catalog/catalog-page";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
-import { useSwrLoadError } from "~/components/staff/use-swr-load-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { CatalogColorField } from "~/components/ui/database/catalog-color-field";
 import type { SectionConfig } from "~/lib/database/types";
 import { formatCount } from "~/lib/format-utils";
