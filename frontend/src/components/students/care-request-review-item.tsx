@@ -72,10 +72,12 @@ export function careTypeLabel(
 
 function decisionNotice(row: StaffCareRequest, approve: boolean): string {
   if (row.request_kind === "pickup_change")
-    return approve ? "Abholzeit übernommen" : "Abholzeit-Anfrage abgelehnt";
+    return approve
+      ? "Die Abholzeit ist übernommen."
+      : "Die Anfrage zur Abholzeit ist abgelehnt.";
   return approve
-    ? "Betreuungszeiten übernommen"
-    : "Betreuungszeit-Anfrage abgelehnt";
+    ? "Die Betreuungszeiten sind übernommen."
+    : "Die Anfrage zu den Betreuungszeiten ist abgelehnt.";
 }
 
 /**
@@ -137,6 +139,8 @@ async function openExtensionsAfterApproval(
   try {
     return await fetchPickupExtensions(row.student_id);
   } catch (err) {
+    // Die Freigabe ist schon gespeichert. Ohne Liste entfällt nur die
+    // Anschlussfrage; die Verlängerung lässt sich im Betreuungsplan zuordnen.
     logger.warn("care_request_review_extensions_failed", {
       error: err instanceof Error ? err.message : String(err),
       request_id: row.id,

@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { ApiError, enrichApiError, transportFetch } from "./api-error";
 // Tagesauswertung (#1456): client for GET /api/students/day-log.
 // The proxy route forwards to the Go backend, which enforces the
 // gdpr.attendance_log_enabled gate and group scope.
@@ -78,9 +78,12 @@ export async function fetchDayLog(
   const params = new URLSearchParams({ date: dateISO });
   if (groupId) params.set("group_id", groupId);
 
-  const response = await fetch(`/api/students/day-log?${params.toString()}`, {
-    cache: "no-store",
-  });
+  const response = await transportFetch(
+    `/api/students/day-log?${params.toString()}`,
+    {
+      cache: "no-store",
+    },
+  );
   if (!response.ok) {
     let code: DayLogErrorCode = "unknown";
     let payload: unknown;

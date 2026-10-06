@@ -7,7 +7,7 @@ import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
-import { apiErrorFromResponse } from "~/lib/api-error";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
@@ -103,7 +103,7 @@ function StudentChangeHistoryPageContent() {
 
   const fetchStudent = useCallback(async (): Promise<Student | null> => {
     try {
-      const res = await fetch(`/api/students/${studentId}`);
+      const res = await transportFetch(`/api/students/${studentId}`);
       // The name only decorates the header; without it the page still shows
       // the history under its generic title.
       if (!res.ok) return null;
@@ -121,7 +121,9 @@ function StudentChangeHistoryPageContent() {
 
   const fetchHistory = useCallback(async (): Promise<void> => {
     try {
-      const res = await fetch(`/api/students/${studentId}/change-history`);
+      const res = await transportFetch(
+        `/api/students/${studentId}/change-history`,
+      );
       if (res.status === 404) {
         setNotFound(true);
         setEntries(null);

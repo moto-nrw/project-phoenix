@@ -4,7 +4,7 @@
 // student_documents:legal, rest → users:update) and returns only what the
 // caller may see plus the caller's visible categories.
 
-import { ApiError, apiErrorFromResponse } from "./api-error";
+import { ApiError, apiErrorFromResponse, transportFetch } from "./api-error";
 import { getCachedSession, sessionFetch } from "./session-cache";
 
 interface StudentDocumentCategoryOption {
@@ -107,11 +107,14 @@ class StudentDocumentsService {
     // application/json, which would clobber the multipart boundary the
     // browser sets for FormData bodies (same pattern as the staff document
     // and student photo uploads).
-    const response = await fetch(`/api/students/${studentId}/documents`, {
-      method: "POST",
-      body: formData,
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await transportFetch(
+      `/api/students/${studentId}/documents`,
+      {
+        method: "POST",
+        body: formData,
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
     if (!response.ok) {
       await throwDocumentError(
         response,

@@ -42,6 +42,13 @@ export function datesSummary(dates: StaffExcusedRequest["dates"]): string {
   return sorted.map((d) => formatDate(d)).join(", ");
 }
 
+/** Satzanfang der Erfolgsmeldung nach der Entscheidung. */
+function decisionSubject(row: StaffExcusedRequest): string {
+  return row.absence_status === "sick"
+    ? "Die Krankmeldung"
+    : "Die entschuldigte Abmeldung";
+}
+
 function absenceLabel(row: StaffExcusedRequest): string {
   return row.absence_status === "sick"
     ? "Krankmeldung"
@@ -117,8 +124,8 @@ export function ExcusedRequestReviewItem({
       );
       onDecided(
         approve
-          ? `${absenceLabel(row)} bestätigt`
-          : `${absenceLabel(row)} abgelehnt`,
+          ? `${decisionSubject(row)} ist bestätigt.`
+          : `${decisionSubject(row)} ist abgelehnt.`,
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

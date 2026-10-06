@@ -37,6 +37,12 @@ function parents(count: number): string {
   return count === 1 ? "1 Elternteil" : `${count} Eltern`;
 }
 
+function invitedNotice(count: number): string {
+  return count === 1
+    ? "1 Elternteil ist eingeladen."
+    : `${count} Eltern sind eingeladen.`;
+}
+
 interface SelectionBulkInviteModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -116,7 +122,9 @@ export function SelectionBulkInviteModal({
       });
       setSent(result);
       success(
-        `${parents(result.invited + result.resent + result.linkedExistingAccount)} eingeladen`,
+        invitedNotice(
+          result.invited + result.resent + result.linkedExistingAccount,
+        ),
       );
     } catch (err) {
       logger.error("bulk_invite_failed", {

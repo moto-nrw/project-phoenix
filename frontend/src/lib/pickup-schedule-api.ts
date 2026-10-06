@@ -1,4 +1,9 @@
-import { ApiError, enrichApiError } from "./api-error";
+import {
+  ApiError,
+  apiErrorFromBody,
+  enrichApiError,
+  transportFetch,
+} from "./api-error";
 // Pickup Schedule API Client
 // Calls Next.js API routes which proxy to the Go backend
 
@@ -149,10 +154,12 @@ export async function bulkUpsertPickupSchedules(
     numericIds.length > 500 ||
     numericIds.some((id) => !Number.isSafeInteger(id) || id <= 0)
   ) {
-    throw new Error("Ungültige Kinderauswahl");
+    throw new ApiError("Ungültige Kinderauswahl", 400, {
+      code: "general.input",
+    });
   }
 
-  const response = await fetch("/api/students/pickup-schedules/bulk", {
+  const response = await transportFetch("/api/students/pickup-schedules/bulk", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -186,46 +193,11 @@ function isErrorResponse(value: unknown): value is ErrorResponse {
   );
 }
 
-// Error message translations (English backend -> German frontend)
-const errorTranslations: Record<string, string> = {
-  "pickup.resolution_required":
-    "Bitte wählen Sie ein Angebot. Oder übernehmen Sie die Zeiten als dauerhafte Ausnahme.",
-  "pickup.preview_stale":
-    "Die Daten haben sich geändert. Bitte prüfen Sie die Auswahl noch einmal.",
-  "pickup.future_manual_reset":
-    "Die dauerhafte Ausnahme gilt bereits. Wechseln Sie deshalb ab heute zum Angebot.",
-  "pickup.offering_capacity_full":
-    "Das gewählte Angebot hat keinen freien Platz mehr.",
-  "pickup.offerings_disabled":
-    "Die Angebote sind gerade nicht verfügbar. Bitte versuchen Sie es später noch einmal.",
-  "pickup.bulk_exception_confirmation_required":
-    "Bitte bestätigen Sie, dass die Gehzeiten als dauerhafte Ausnahmen gespeichert werden.",
-  "invalid weekday": "Ungültiger Wochentag",
-  "pickup_time is required": "Gehzeit ist erforderlich",
-  "invalid pickup_time format": "Ungültiges Zeitformat (erwartet HH:MM)",
-  "exception_date is required": "Datum ist erforderlich",
-  "invalid exception_date format":
-    "Ungültiges Datumsformat (erwartet JJJJ-MM-TT)",
-  "content is required": "Inhalt ist erforderlich",
-  "content too long": "Notiz darf maximal 500 Zeichen lang sein",
-  "content cannot exceed 500 characters":
-    "Notiz darf maximal 500 Zeichen lang sein",
-  "notes cannot exceed 500 characters":
-    "Notizen dürfen maximal 500 Zeichen lang sein",
-  "reason is required": "Grund ist erforderlich",
-  "exception already exists":
-    "Für dieses Datum existiert bereits eine Ausnahme",
-  "student not found": "Kind nicht gefunden",
-  unauthorized: "Keine Berechtigung",
-  forbidden: "Zugriff verweigert",
-  "full access required": "Vollzugriff erforderlich",
-};
-
 export async function previewStudentPickupAdjustment(
   studentId: string,
   payload: PickupAdjustmentPayload,
 ): Promise<PickupAdjustmentPreview> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/pickup-schedules/preview`,
     {
       method: "POST",
@@ -254,7 +226,7 @@ export async function applyStudentPickupAdjustment(
     complete_withdrawal_confirmed?: boolean;
   },
 ): Promise<{ resolution: PickupAdjustmentResolution }> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/pickup-schedules/apply`,
     {
       method: "POST",
@@ -275,47 +247,32 @@ export async function applyStudentPickupAdjustment(
 }
 
 /**
- * Translate backend error messages to user-friendly German messages
- */
-function translateApiError(errorMessage: string): string {
-  const lowerError = errorMessage.toLowerCase();
-
-  // The care-plan modal turns this backend code into the specific explanation
-  // for accounts that cannot replace a guardian-authored exception.
-  if (lowerError.includes("students.staff_profile_required")) {
-    return "students.staff_profile_required";
-  }
-
-  for (const [pattern, translation] of Object.entries(errorTranslations)) {
-    if (lowerError.includes(pattern)) {
-      return translation;
-    }
-  }
-
-  return "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.";
-}
-
-/**
- * Throw a translated error from a failed HTTP response.
+ * The failed response as an ApiError: code, field errors and request ID come
+ * from the envelope, so the screen shows the catalog text (#2517). The
+ * message stays developer diagnosis.
  */
 async function throwResponseError(
   response: Response,
   fallback: string,
 ): Promise<never> {
-  const error: unknown = await response
-    .json()
-    .catch(() => ({ error: fallback }));
-  const errorMessage = isErrorResponse(error)
-    ? translateApiError(error.code ?? error.error ?? fallback)
-    : translateApiError(`${fallback}: ${response.statusText}`);
+  const body: unknown = await response.json().catch(() => undefined);
+  const message = isErrorResponse(body) && body.error ? body.error : fallback;
   throw enrichApiError(
     new PickupScheduleApiError(
-      errorMessage,
-      isErrorResponse(error) ? error.code : undefined,
+      message,
+      isErrorResponse(body) ? body.code : undefined,
     ),
-    error,
+    body,
     response.status,
   );
+}
+
+/**
+ * A success status whose body still reports a failure (or lacks the data) is
+ * a server fault unless the body names its own code.
+ */
+function bodyError(message: string, body: unknown): ApiError {
+  return apiErrorFromBody(message, 500, body);
 }
 
 /**
@@ -328,7 +285,7 @@ async function parseApiResult<T>(
   const result = (await response.json()) as ApiResponse<T>;
 
   if (result.status === "error" || !result.data) {
-    throw new Error(translateApiError(result.error ?? fallback));
+    throw bodyError(result.error ?? fallback, result);
   }
 
   return result.data;
@@ -345,7 +302,7 @@ async function handleDeleteResponse(
 
   const result = (await response.json()) as ApiResponse<null>;
   if (result.status === "error") {
-    throw new Error(translateApiError(result.error ?? fallback));
+    throw bodyError(result.error ?? fallback, result);
   }
 }
 
@@ -362,7 +319,7 @@ export async function fetchStudentPickupData(
     query.set("to", range.to);
   }
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/pickup-schedules${suffix}`,
   );
 
@@ -373,9 +330,7 @@ export async function fetchStudentPickupData(
   const result = (await response.json()) as ApiResponse<BackendPickupData>;
 
   if (result.status === "error") {
-    throw new Error(
-      translateApiError(result.error ?? "Failed to fetch pickup schedules"),
-    );
+    throw bodyError(result.error ?? "Failed to fetch pickup schedules", result);
   }
 
   return mapPickupDataResponse(
@@ -392,11 +347,14 @@ export async function updateStudentPickupSchedules(
 ): Promise<PickupData> {
   const backendData = mapBulkPickupScheduleFormToBackend(data);
 
-  const response = await fetch(`/api/students/${studentId}/pickup-schedules`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(backendData),
-  });
+  const response = await transportFetch(
+    `/api/students/${studentId}/pickup-schedules`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(backendData),
+    },
+  );
 
   if (!response.ok) {
     await throwResponseError(response, "Failed to update pickup schedules");
@@ -417,7 +375,7 @@ export async function resetStudentPickupToOffering(
   weekday: number,
   date: string,
 ): Promise<PickupData> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/pickup-schedules/reset-offering`,
     {
       method: "POST",
@@ -445,11 +403,14 @@ export async function createStudentPickupException(
 ): Promise<PickupException> {
   const backendData = mapPickupExceptionFormToBackend(data);
 
-  const response = await fetch(`/api/students/${studentId}/pickup-exceptions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(backendData),
-  });
+  const response = await transportFetch(
+    `/api/students/${studentId}/pickup-exceptions`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(backendData),
+    },
+  );
 
   if (!response.ok) {
     await throwResponseError(response, "Failed to create pickup exception");
@@ -472,7 +433,7 @@ export async function updateStudentPickupException(
 ): Promise<PickupException> {
   const backendData = mapPickupExceptionFormToBackend(data);
 
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/pickup-exceptions/${exceptionId}`,
     {
       method: "PUT",
@@ -499,7 +460,7 @@ export async function deleteStudentPickupException(
   studentId: string,
   exceptionId: string,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/pickup-exceptions/${exceptionId}`,
     { method: "DELETE" },
   );
@@ -524,11 +485,14 @@ export async function createStudentPickupNote(
 ): Promise<PickupNote> {
   const backendData = mapPickupNoteFormToBackend(data);
 
-  const response = await fetch(`/api/students/${studentId}/pickup-notes`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(backendData),
-  });
+  const response = await transportFetch(
+    `/api/students/${studentId}/pickup-notes`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(backendData),
+    },
+  );
 
   if (!response.ok) {
     await throwResponseError(response, "Failed to create pickup note");
@@ -551,7 +515,7 @@ export async function updateStudentPickupNote(
 ): Promise<PickupNote> {
   const backendData = mapPickupNoteFormToBackend(data);
 
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/pickup-notes/${noteId}`,
     {
       method: "PUT",
@@ -578,7 +542,7 @@ export async function deleteStudentPickupNote(
   studentId: string,
   noteId: string,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/pickup-notes/${noteId}`,
     { method: "DELETE" },
   );
@@ -598,11 +562,14 @@ export async function replaceStudentWeekdayPickupNotes(
   studentId: string,
   notes: readonly WeekdayNoteEntry[],
 ): Promise<void> {
-  const response = await fetch(`/api/students/${studentId}/pickup-notes`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ notes }),
-  });
+  const response = await transportFetch(
+    `/api/students/${studentId}/pickup-notes`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes }),
+    },
+  );
 
   if (!response.ok) {
     await throwResponseError(response, "Failed to update pickup notes");
@@ -693,7 +660,7 @@ export async function fetchBulkPickupTimes(
     return new Map();
   }
 
-  const response = await fetch("/api/students/pickup-times/bulk", {
+  const response = await transportFetch("/api/students/pickup-times/bulk", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

@@ -67,6 +67,8 @@ export function CareResumeModal({
       try {
         await onResumed();
       } catch (refreshError) {
+        // Die Wiederaufnahme ist gespeichert. Ein fehlgeschlagenes Nachladen
+        // darf nicht als gescheiterte Wiederaufnahme mit Wiederholen erscheinen.
         logger.error("care_resume_success_callback_failed", {
           student_id: studentId,
           error:

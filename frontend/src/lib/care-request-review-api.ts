@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { ApiError, enrichApiError, transportFetch } from "./api-error";
 /**
  * Staff client for the parent care-schedule change-request review queue
  * (#1803). Calls the Next.js proxy routes under
@@ -103,7 +103,7 @@ export async function decideCareScheduleChangeRequest(
   impactToken: string,
   expectedVersion?: string,
 ): Promise<StaffCareRequest> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/care-schedule-change-requests/${encodeURIComponent(requestId)}/decide`,
     {
       method: "POST",
@@ -190,7 +190,7 @@ export interface StaffCareRequestDetail {
 export async function fetchCareScheduleChangeRequest(
   requestId: string,
 ): Promise<StaffCareRequestDetail> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/care-schedule-change-requests/${encodeURIComponent(requestId)}`,
   );
   if (!response.ok) {

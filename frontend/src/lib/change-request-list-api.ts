@@ -1,4 +1,8 @@
-import { ApiError, apiErrorFromResponse } from "~/lib/api-error";
+import {
+  ApiError,
+  apiErrorFromResponse,
+  transportFetch,
+} from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import type {
   StaffCareRequest,
@@ -259,7 +263,7 @@ async function fetchPage<T>(
   view: "open" | "history",
   params: AggregatedRequestParams,
 ): Promise<AggregatedRequestPage<T>> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/change-requests${buildQuery(view, params)}`,
     {
       cache: "no-store",
@@ -350,7 +354,7 @@ async function postLifecycle<T>(
   body: unknown,
   fallback: string,
 ): Promise<T> {
-  const response = await fetch(url, {
+  const response = await transportFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -485,7 +489,7 @@ export async function bulkApproveParentRequests(
   requests: readonly BulkApproveRequestRef[],
   reason: string,
 ): Promise<number> {
-  const response = await fetch("/api/students/change-requests", {
+  const response = await transportFetch("/api/students/change-requests", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ requests, reason }),
@@ -504,7 +508,7 @@ export async function setFamilyProtection(
   enabled: boolean,
   reason: string,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${encodeURIComponent(studentId)}/family-protection`,
     {
       method: "PUT",
@@ -525,7 +529,7 @@ export interface FamilyProtectionState {
 export async function getFamilyProtection(
   studentId: string,
 ): Promise<FamilyProtectionState> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${encodeURIComponent(studentId)}/family-protection`,
     { cache: "no-store" },
   );
@@ -570,7 +574,7 @@ export async function listEnrollmentChangeRequests(
   // Ohne Art-Filter: diese Quelle kennt nur eine Art. Und ohne Kind-Filter:
   // dieser Endpunkt kennt ihn nicht, würde also ungefiltert antworten.
   const { types: _types, studentId: _studentId, ...rest } = params;
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/enrollment/admin/change-requests/list${buildQuery(view, rest)}`,
     { cache: "no-store" },
   );

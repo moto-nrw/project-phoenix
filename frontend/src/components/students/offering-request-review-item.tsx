@@ -198,9 +198,9 @@ export function OfferingRequestReviewItem({
         approve
           ? approvalPreview &&
             approvalPreview.manual_planning_conflicts.length > 0
-            ? `Änderung übernommen, gültig ab ${formatDate(effectiveFrom)}. Bitte jetzt im Betreuungsplan prüfen: ${joinNames(approvalPreview.manual_planning_conflicts.map((conflict) => conflict.activity_group_name))}.`
-            : `Änderung übernommen, gültig ab ${formatDate(effectiveFrom)}. Die angezeigten Folgeänderungen wurden übernommen.`
-          : "Angebots-Anfrage abgelehnt",
+            ? `Die Änderung ist übernommen und gilt ab ${formatDate(effectiveFrom)}. Bitte prüfen Sie jetzt im Betreuungsplan: ${joinNames(approvalPreview.manual_planning_conflicts.map((conflict) => conflict.activity_group_name))}.`
+            : `Die Änderung ist übernommen und gilt ab ${formatDate(effectiveFrom)}. Die angezeigten Folgeänderungen sind auch übernommen.`
+          : "Die Anfrage zum Angebot ist abgelehnt.",
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

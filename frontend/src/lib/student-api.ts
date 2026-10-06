@@ -4,6 +4,7 @@ import {
   apiErrorFromText,
   enrichApiError,
   unavailableApiError,
+  transportFetch,
 } from "./api-error";
 // lib/student-api.ts
 import { getCachedSession, sessionFetch } from "./session-cache";
@@ -689,7 +690,7 @@ export async function fetchStudentDeletionImpact(
   const path = completionId
     ? `/api/students/care-withdrawals/${encodeURIComponent(completionId)}/deletion-impact`
     : `/api/students/${encodeURIComponent(id)}/delete-impact`;
-  const response = await fetch(path, { cache: "no-store" });
+  const response = await transportFetch(path, { cache: "no-store" });
   return studentDeletionResponse<StudentDeletionImpact>(
     response,
     "Auswirkungen der Löschung konnten nicht geladen werden.",
@@ -704,7 +705,7 @@ export async function deleteStudentWithData(
   const path = completionId
     ? `/api/students/care-withdrawals/${encodeURIComponent(completionId)}`
     : `/api/students/${encodeURIComponent(id)}`;
-  const response = await fetch(path, {
+  const response = await transportFetch(path, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),

@@ -502,6 +502,8 @@ function StudentDetailPageContent() {
   });
   const refreshDataAndHistory = useCallback(() => {
     refreshData();
+    // Best effort: the change history reloads with its own load error path
+    // when it is opened; a failed background refresh only leaves it stale.
     return mutate(`/api/students/${studentId}/change-history`).catch((err) => {
       logger.debug("change_history_revalidation_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -1964,10 +1966,11 @@ function FullAccessView({
     }),
     [studentId],
   );
-  const { groups: enrollmentExtraGroups } = useStudentEnrollmentExtraFields(
-    studentId,
-    true,
-  );
+  const {
+    groups: enrollmentExtraGroups,
+    error: enrollmentExtraError,
+    reload: reloadEnrollmentExtra,
+  } = useStudentEnrollmentExtraFields(studentId, true);
   // Lazy-mount the Nachrichten tab: ParentMessagesCard runs the inbox-projection
   // query (two correlated COUNT subqueries) on mount, and forceMount would fire
   // it for every student-detail load even when staff never open the tab — paging
@@ -2024,6 +2027,8 @@ function FullAccessView({
           <PersonalInfoReadOnly
             student={student}
             enrollmentExtraGroups={enrollmentExtraGroups}
+            enrollmentExtraError={enrollmentExtraError}
+            onRetryEnrollmentExtra={reloadEnrollmentExtra}
             showEditButton={hasWriteAccess}
             onEditClick={hasWriteAccess ? onOpenPersonalInfoEdit : undefined}
           />

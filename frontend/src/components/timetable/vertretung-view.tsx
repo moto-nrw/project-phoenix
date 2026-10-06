@@ -607,7 +607,7 @@ function VertretungContent() {
             );
         if (result.cancelled) {
           toast.success(
-            cancelledToast("Block abgesagt", result.guardianNotice),
+            cancelledToast("Der Block ist abgesagt.", result.guardianNotice),
           );
           updateUrlParams({ block: null, verlauf: null });
         } else {

@@ -689,7 +689,7 @@ describe("VertretungView", () => {
     await waitFor(() =>
       expect(mockApplyDeviations).toHaveBeenCalledWith("42", { cancel: true }),
     );
-    expect(mockToastSuccess).toHaveBeenCalledWith("Block abgesagt");
+    expect(mockToastSuccess).toHaveBeenCalledWith("Der Block ist abgesagt.");
     // Cache-Refresh nach dem committeten Save.
     await waitFor(() => expect(mockTenantMutate).toHaveBeenCalled());
     // block und verlauf sind aus der URL entfernt.
