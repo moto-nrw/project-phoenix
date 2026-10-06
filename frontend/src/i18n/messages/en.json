@@ -153,10 +153,7 @@
     "excel": "Excel",
     "pdfDownloadStatus": "PDF is being downloaded.",
     "excelDownloadStatus": "Excel is being downloaded.",
-    "downloadError": "The daily list could not be downloaded. Please try again.",
-    "loadErrorTitle": "Daily list not loaded",
-    "loadErrorMessage": "Please try again.",
-    "retry": "Try again",
+    "errorObject": "the daily list",
     "caption": "Lunch on {date}",
     "emptyTitle": "No registrations for this day",
     "emptyDescription": "No child is on the kitchen list for this day."
@@ -2403,6 +2400,9 @@
         "self_assignment": "{object} could not be saved. Please check your entries."
       },
       "timetable": {
+        "activity_not_owner": "You cannot access {object}. Please contact the school.",
+        "activity_system_protected": "You cannot access {object}. Please contact the school.",
+        "activity_template_protected": "{object} could not be changed. Please check its current status.",
         "ambiguous_template_instance_delete": "{object} could not be changed. Please check its current status.",
         "attendance_entry_not_found": "{object} could not be changed. Please check its current status.",
         "attendance_frozen": "{object} could not be changed. Please check its current status.",
@@ -2464,6 +2464,7 @@
         "offering_source_outside_period": "{object} could not be changed. Please check its current status.",
         "offering_source_too_many": "{object} could not be saved. Please check your entries.",
         "only_supervisor_replacement_required": "{object} could not be changed. Please check its current status.",
+        "operation_not_planned": "You cannot access {object}. Please contact the school.",
         "operation_stale": "{object} could not be changed. Please check its current status.",
         "pickup_extension_block_gone": "{object} could not be changed. Please check its current status.",
         "pickup_extension_invalid": "{object} could not be saved. Please check your entries.",

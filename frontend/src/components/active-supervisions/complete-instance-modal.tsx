@@ -1,5 +1,7 @@
 "use client";
 
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import type { TimetableRoster } from "~/lib/timetable-operations-types";
 
@@ -7,6 +9,8 @@ interface CompleteInstanceModalProps {
   readonly isOpen: boolean;
   readonly roster: TimetableRoster | null;
   readonly isCompleting: boolean;
+  /** A failed „Beenden“ stays in this dialog (Bauart 2 Regel 5). */
+  readonly error?: FormErrorInput;
   readonly onClose: () => void;
   readonly onConfirm: () => void;
 }
@@ -20,6 +24,7 @@ export function CompleteInstanceModal({
   isOpen,
   roster,
   isCompleting,
+  error,
   onClose,
   onConfirm,
 }: CompleteInstanceModalProps) {
@@ -35,6 +40,7 @@ export function CompleteInstanceModal({
       isDismissDisabled={isCompleting}
     >
       <div className="space-y-3 text-sm text-gray-700">
+        <FormErrorAlert message={error} />
         <p>
           <strong>{roster?.instance.title}</strong> endet laut Plan um{" "}
           {roster?.instance.endTime} Uhr.

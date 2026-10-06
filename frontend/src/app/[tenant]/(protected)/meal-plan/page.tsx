@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useSession } from "next-auth/react";
 import {
   ChevronLeft,
@@ -14,14 +21,18 @@ import {
 
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
-import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { SectionCard } from "~/components/ui/section-card";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { isoWeekNumber, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
@@ -161,9 +172,20 @@ export default function MealPlanPage() {
   // True when the displayed week failed to load. The grid is then NOT shown:
   // editing/saving against an unknown persisted state could overwrite real
   // meals based on a failed load, so we surface an error + retry instead.
-  const [loadError, setLoadError] = useState(false);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  const hasLoadError = Boolean(loadError);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useFormError();
+  const saveErrors = useApiFormError();
+  const { clear: clearSaveError } = saveErrors;
+  const { show: showActionError } = useApiErrorDisplay();
+  // „Wiederholen“ läuft mit dem aktuellen Stand der Seite (Woche, Entwürfe).
+  const reloadRef = useRef<() => void>(() => undefined);
+  const retrySaveRef = useRef<() => void>(() => undefined);
+  const retryCopyPrevRef = useRef<() => void>(() => undefined);
   const [copyingPrev, setCopyingPrev] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, DishDraft[]>>({});
   const [originals, setOriginals] = useState<Record<string, DishDraft[]>>({});
@@ -202,7 +224,7 @@ export default function MealPlanPage() {
   const load = useCallback(async () => {
     const token = ++loadTokenRef.current;
     setLoading(true);
-    setLoadError(false);
+    clearLoadError();
     try {
       const entries = await getMealPlanWeek(mondayISO);
       if (loadTokenRef.current !== token) return;
@@ -221,8 +243,10 @@ export default function MealPlanPage() {
       // against an unknown persisted state, and surface an error instead.
       setDrafts({});
       setOriginals({});
-      setLoadError(true);
-      toast.error("Essensplan konnte nicht geladen werden.");
+      void showLoadError(err, {
+        object: "die Woche im Essensplan",
+        retry: () => reloadRef.current(),
+      });
     } finally {
       // Only the most recent load owns the shared loading/loaded flags.
       if (loadTokenRef.current === token) {
@@ -230,7 +254,10 @@ export default function MealPlanPage() {
         setHasLoaded(true);
       }
     }
-  }, [mondayISO, weekDates, toast]);
+  }, [mondayISO, weekDates, showLoadError, clearLoadError]);
+  useLayoutEffect(() => {
+    reloadRef.current = () => void load();
+  });
 
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -309,7 +336,7 @@ export default function MealPlanPage() {
   // --- Per-day copy / paste / clear -------------------------------------
   const copyDay = (date: string) => {
     setClipboard(normalizeDay(drafts[date] ?? []).map((r) => ({ ...r })));
-    toast.success(`${weekdayLabel(date)} kopiert.`);
+    toast.success(`Die Gerichte vom ${weekdayLabel(date)} sind kopiert.`);
   };
 
   const pasteDay = (date: string) => {
@@ -373,16 +400,24 @@ export default function MealPlanPage() {
         });
         return next;
       });
-      toast.success("Vorwoche übernommen. Noch nicht gespeichert.");
+      toast.success(
+        "Die Gerichte der Vorwoche sind übernommen. Bitte speichern Sie den Plan.",
+      );
     } catch (err) {
       logger.error("meal_plan_copy_prev_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error("Vorwoche konnte nicht geladen werden.");
+      void showActionError(err, {
+        object: "die Vorwoche im Essensplan",
+        retry: () => retryCopyPrevRef.current(),
+      });
     } finally {
       setCopyingPrev(false);
     }
-  }, [mondayISO, weekDates, toast]);
+  }, [mondayISO, weekDates, toast, showActionError]);
+  useLayoutEffect(() => {
+    retryCopyPrevRef.current = () => void doCopyPreviousWeek();
+  });
 
   const requestCopyPreviousWeek = () => {
     if (weekDates.some((d) => dayHasContent(drafts[d]))) {
@@ -394,7 +429,7 @@ export default function MealPlanPage() {
 
   // --- Save / discard ---------------------------------------------------
   const discard = () => {
-    setSaveError(null);
+    clearSaveError();
     setDrafts((prev) => {
       const next = { ...prev };
       for (const date of weekDates) {
@@ -409,7 +444,7 @@ export default function MealPlanPage() {
 
   const handleSave = async () => {
     setSaving(true);
-    setSaveError(null);
+    clearSaveError();
     // Each setDay is its own backend transaction, so a mid-loop failure leaves
     // the already-sent days committed. Track what actually persisted and fold
     // it into originals on failure, so the dirty indicator and Verwerfen reflect
@@ -429,7 +464,7 @@ export default function MealPlanPage() {
         );
         persisted[date] = draft;
       }
-      toast.success("Essensplan gespeichert.");
+      toast.success("Der Essensplan ist gespeichert.");
       await load();
     } catch (err) {
       logger.error("meal_plan_save_failed", {
@@ -441,11 +476,17 @@ export default function MealPlanPage() {
       }
       // Der Fehler steht über dem Wochenplan (Bauart 2 Regel 5), nicht als
       // Toast: die noch ungespeicherten Tage bleiben sichtbar markiert.
-      setSaveError("Speichern fehlgeschlagen.");
+      void saveErrors.show(err, {
+        object: "die Woche im Essensplan",
+        retry: () => retrySaveRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+  useLayoutEffect(() => {
+    retrySaveRef.current = () => void handleSave();
+  });
 
   const weekNumber = isoWeekNumber(mondayISO);
   // A work week can straddle New Year (e.g. 28.12.2026 – 01.01.2027). Only
@@ -478,25 +519,7 @@ export default function MealPlanPage() {
       stats={statusLine}
       statsLoading={initialLoading}
       loading={initialLoading}
-      error={
-        loadError
-          ? {
-              message:
-                "Essensplan konnte nicht geladen werden. Bitte versuchen Sie es erneut.",
-              action: (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={() => void load()}
-                  disabled={loading}
-                >
-                  Erneut versuchen
-                </Button>
-              ),
-            }
-          : null
-      }
+      error={loadError}
       overlays={
         <>
           {/* Löschen läuft portalweit über dasselbe Bauteil. */}
@@ -624,7 +647,7 @@ export default function MealPlanPage() {
                 variant="outline"
                 size="md"
                 onClick={requestCopyPreviousWeek}
-                disabled={loading || saving || copyingPrev || loadError}
+                disabled={loading || saving || copyingPrev || hasLoadError}
                 isLoading={copyingPrev}
                 loadingText="Übernehmen…"
               >
@@ -636,7 +659,7 @@ export default function MealPlanPage() {
         }
       />
 
-      <FormErrorAlert message={saveError} />
+      <FormErrorAlert message={saveErrors.error} />
 
       <SectionCard
         className={`transition-opacity duration-200 ${
@@ -769,7 +792,7 @@ export default function MealPlanPage() {
       {canReadParticipants ? <MealParticipantList /> : null}
 
       {/* Sticky save bar — only while there are unsaved changes. */}
-      {canEdit && isDirty && !loading && !loadError && (
+      {canEdit && isDirty && !loading && !hasLoadError && (
         <div className="sticky bottom-4 z-20">
           <SectionCard className="shadow-lg" bodyClassName="">
             <div className="flex items-center justify-between gap-3">

@@ -153,10 +153,7 @@
     "excel": "Excel",
     "pdfDownloadStatus": "PDF завантажується.",
     "excelDownloadStatus": "Excel завантажується.",
-    "downloadError": "Не вдалося завантажити денний список. Спробуйте ще раз.",
-    "loadErrorTitle": "Денний список не завантажено",
-    "loadErrorMessage": "Спробуйте ще раз.",
-    "retry": "Спробувати ще раз",
+    "errorObject": "денний список",
     "caption": "Обід {date}",
     "emptyTitle": "На цей день немає записів",
     "emptyDescription": "На цей день у списку для кухні немає жодної дитини."
@@ -2403,6 +2400,9 @@
         "self_assignment": "Не вдалося зберегти: {object}. Перевірте введені дані."
       },
       "timetable": {
+        "activity_not_owner": "У вас немає доступу до: {object}. Зверніться до школи.",
+        "activity_system_protected": "У вас немає доступу до: {object}. Зверніться до школи.",
+        "activity_template_protected": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "ambiguous_template_instance_delete": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "attendance_entry_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "attendance_frozen": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -2464,6 +2464,7 @@
         "offering_source_outside_period": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "offering_source_too_many": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "only_supervisor_replacement_required": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "operation_not_planned": "У вас немає доступу до: {object}. Зверніться до школи.",
         "operation_stale": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "pickup_extension_block_gone": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "pickup_extension_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",

@@ -14,7 +14,8 @@ import {
   useSchoolWideAttendanceMoves,
 } from "~/lib/tenant-context";
 import { useOptionalSupervision } from "~/lib/supervision-context";
-import type { ApiError } from "~/lib/api-error";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import type { Room } from "~/lib/room-helpers";
 
 /** Default supervision context: no school-wide overview. */
@@ -86,7 +87,9 @@ vi.mock("~/lib/api", () => ({
 }));
 
 const mockToastSuccess = vi.fn();
-vi.mock("~/contexts/ToastContext", () => ({
+// Nur die Toasts ersetzen; der Fehlerweg (Katalogtexte) bleibt echt.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: mockToastSuccess,
   }),
@@ -458,7 +461,7 @@ describe("TransitStudentsSection", () => {
         "101",
       );
     });
-    expect(mockToastSuccess).toHaveBeenCalledWith("1 Kind zugewiesen.");
+    expect(mockToastSuccess).toHaveBeenCalledWith("1 Kind ist zugewiesen.");
     expect(mutateStudents).toHaveBeenCalledTimes(1);
     expect(mutateKey).toHaveBeenCalledWith("rooms-list");
     expect(mutateMatching).toHaveBeenCalledTimes(1);
@@ -515,21 +518,26 @@ describe("TransitStudentsSection", () => {
     });
   });
 
-  it("shows empty and error states", () => {
+  it("shows the load error instead of an empty state", async () => {
     mockTransitData({
       students: [],
       activeGroups: [],
-      studentsError: new Error("failed"),
+      studentsError: new ApiError("failed", 503, {
+        code: "general.unavailable",
+      }),
     });
 
     render(<TransitStudentsSection />);
 
     expect(
-      screen.getByText("Die Unterwegs-Daten konnten nicht geladen werden."),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Kinder unterwegs"),
+      ),
     ).toBeInTheDocument();
+    // A list that never loaded is not an empty list.
     expect(
-      screen.getByText("Aktuell keine Kinder unterwegs."),
-    ).toBeInTheDocument();
+      screen.queryByText("Aktuell keine Kinder unterwegs."),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("combobox")).toBeDisabled();
     expect(screen.getByRole("combobox")).toHaveTextContent(
       "Keine aktiven Räume",
@@ -687,7 +695,7 @@ describe("TransitStudentsSection booking into a released room", () => {
     });
     expect(activeService.assignTransitStudents).not.toHaveBeenCalled();
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      "1 Kind nach Sporthalle gesetzt.",
+      "1 Kind ist jetzt in Sporthalle.",
     );
     expect(mutateStudents).toHaveBeenCalledTimes(1);
     expect(mutateMatching).toHaveBeenCalledTimes(1);
@@ -712,17 +720,15 @@ describe("TransitStudentsSection booking into a released room", () => {
 
     await waitFor(() => {
       expect(mockToastSuccess).toHaveBeenCalledWith(
-        "1 Kind nach Sporthalle gesetzt, 1 übersprungen.",
+        "1 Kind ist jetzt in Sporthalle. 1 Kind wurde übersprungen.",
       );
     });
   });
 
   it("explains a release removed after the list loaded", async () => {
-    const stale = new Error(
-      "Move students to open room failed: 409",
-    ) as ApiError;
-    stale.status = 409;
-    stale.code = "rooms.not_released";
+    const stale = new ApiError("Move students to open room failed: 409", 409, {
+      code: "rooms.not_released",
+    });
     vi.mocked(activeService.moveStudentsToOpenRoom).mockRejectedValue(stale);
     render(<TransitStudentsSection />);
 
@@ -735,7 +741,7 @@ describe("TransitStudentsSection booking into a released room", () => {
 
     expect(
       await screen.findByText(
-        "Dieser Raum ist nicht mehr freigegeben. Bitte wählen Sie einen anderen Raum.",
+        catalogText("rooms.not_released", "das Zuweisen der Kinder"),
       ),
     ).toBeInTheDocument();
     expect(refreshRooms).toHaveBeenCalledTimes(1);
@@ -753,8 +759,6 @@ describe("TransitStudentsSection booking into a released room", () => {
         max_participants: 45,
         incoming_students: 1,
       },
-      message:
-        "Die Aktivität „Betreuung“ ist voll (45 von 45 Kindern). Die Grenze ändern Sie unter Datenverwaltung → Aktivitäten bei „Maximale Teilnehmer“.",
     },
     {
       kind: "room",
@@ -765,16 +769,19 @@ describe("TransitStudentsSection booking into a released room", () => {
         max_capacity: 30,
         incoming_students: 1,
       },
-      message:
-        "Der Raum „Aula“ ist voll (30 von 30 Plätzen). Die Grenze ändern Sie unter Datenverwaltung → Räume bei „Maximale Belegung“.",
     },
   ])(
     "says the $kind is full when the assignment is refused (#3633)",
-    async ({ code, details, message }) => {
-      const full = new Error("Assign transit students failed: 409") as ApiError;
-      full.status = 409;
-      full.code = code;
-      full.details = details;
+    async ({ code, details }) => {
+      const full = new ApiError("Assign transit students failed: 409", 409, {
+        code,
+        details,
+      });
+      // The catalog text names the full room or activity with its numbers.
+      const message = Object.entries(details).reduce(
+        (text, [key, value]) => text.replace(`{${key}}`, String(value)),
+        catalogText(code, ""),
+      );
       vi.mocked(activeService.assignTransitStudents).mockRejectedValue(full);
       render(<TransitStudentsSection />);
 
@@ -790,7 +797,9 @@ describe("TransitStudentsSection booking into a released room", () => {
 
   it("keeps the children unassigned when the booking fails", async () => {
     vi.mocked(activeService.moveStudentsToOpenRoom).mockRejectedValue(
-      new Error("Move students to open room failed: 500"),
+      new ApiError("Move students to open room failed: 500", 500, {
+        code: "general.server",
+      }),
     );
     render(<TransitStudentsSection />);
 
@@ -803,7 +812,7 @@ describe("TransitStudentsSection booking into a released room", () => {
 
     expect(
       await screen.findByText(
-        "Die ausgewählten Kinder konnten nicht zugewiesen werden.",
+        catalogText("general.server", "das Zuweisen der Kinder"),
       ),
     ).toBeInTheDocument();
     expect(refreshRooms).not.toHaveBeenCalled();

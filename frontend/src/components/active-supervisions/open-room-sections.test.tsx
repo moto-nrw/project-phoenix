@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { ToastProvider } from "~/contexts/ToastContext";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -106,7 +107,6 @@ function context(overviewEnabled: boolean): OpenRoomBlockContext {
     refresh: vi.fn(),
     adoptSession: vi.fn(() => "/active-supervisions"),
     setSelectedTimetableInstanceId: vi.fn(),
-    setError: vi.fn(),
     router: { push: vi.fn() },
     reopenableInstanceId: null,
     rememberReopenable: vi.fn(),
@@ -141,6 +141,7 @@ function renderRoom(
       }}
       blocks={context(overviewEnabled)}
     />,
+    { wrapper: ToastProvider },
   );
 }
 

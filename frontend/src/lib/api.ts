@@ -1,6 +1,12 @@
 import type { ErrorCode } from "~/lib/error-codes.generated";
 import type { AxiosError } from "axios";
-import { ApiError, apiErrorFromBody, enrichApiError } from "./api-error";
+import {
+  ApiError,
+  apiErrorFromBody,
+  apiErrorFromText,
+  enrichApiError,
+  transportFetch,
+} from "./api-error";
 import { clearSessionCache, getCachedSession } from "./session-cache";
 import { createLogger } from "~/lib/logger";
 import api from "./api-transport";
@@ -1938,7 +1944,7 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const response = await fetch(url, {
+        const response = await transportFetch(url, {
           method: "DELETE",
           credentials: "include",
           headers: await getAuthHeaders(),
@@ -1950,7 +1956,12 @@ export const roomService = {
             status: response.status,
             error_text: errorText.substring(0, 200), // Truncate long errors
           });
-          throw new Error(`API error: ${response.status}`);
+          // Code, Feldfehler und Vorgangskennung bleiben erhalten (#2517).
+          throw apiErrorFromText(
+            `API error: ${response.status}`,
+            response.status,
+            errorText,
+          );
         }
 
         return;

@@ -370,6 +370,9 @@ const (
 	CodeSubstitutionsNotFound                            = "substitutions.not_found"
 	CodeSubstitutionsNotRunning                          = "substitutions.not_running"
 	CodeSubstitutionsSelfAssignment                      = "substitutions.self_assignment"
+	CodeTimetableActivityNotOwner                        = "timetable.activity_not_owner"
+	CodeTimetableActivitySystemProtected                 = "timetable.activity_system_protected"
+	CodeTimetableActivityTemplateProtected               = "timetable.activity_template_protected"
 	CodeTimetableAmbiguousTemplateInstanceDelete         = "timetable.ambiguous_template_instance_delete"
 	CodeTimetableAttendanceEntryNotFound                 = "timetable.attendance_entry_not_found"
 	CodeTimetableAttendanceFrozen                        = "timetable.attendance_frozen"
@@ -431,6 +434,7 @@ const (
 	CodeTimetableOfferingSourceOutsidePeriod             = "timetable.offering_source_outside_period"
 	CodeTimetableOfferingSourceTooMany                   = "timetable.offering_source_too_many"
 	CodeTimetableOnlySupervisorReplacementRequired       = "timetable.only_supervisor_replacement_required"
+	CodeTimetableOperationNotPlanned                     = "timetable.operation_not_planned"
 	CodeTimetableOperationStale                          = "timetable.operation_stale"
 	CodeTimetablePickupExtensionBlockGone                = "timetable.pickup_extension_block_gone"
 	CodeTimetablePickupExtensionInvalid                  = "timetable.pickup_extension_invalid"
@@ -937,6 +941,9 @@ var errorClassByCode = map[string]string{
 	"substitutions.not_found":                              "business_rejection",
 	"substitutions.not_running":                            "business_rejection",
 	"substitutions.self_assignment":                        "input",
+	"timetable.activity_not_owner":                         "permission",
+	"timetable.activity_system_protected":                  "permission",
+	"timetable.activity_template_protected":                "business_rejection",
 	"timetable.ambiguous_template_instance_delete":         "business_rejection",
 	"timetable.attendance_entry_not_found":                 "business_rejection",
 	"timetable.attendance_frozen":                          "business_rejection",
@@ -998,6 +1005,7 @@ var errorClassByCode = map[string]string{
 	"timetable.offering_source_outside_period":             "business_rejection",
 	"timetable.offering_source_too_many":                   "input",
 	"timetable.only_supervisor_replacement_required":       "business_rejection",
+	"timetable.operation_not_planned":                      "permission",
 	"timetable.operation_stale":                            "business_rejection",
 	"timetable.pickup_extension_block_gone":                "business_rejection",
 	"timetable.pickup_extension_invalid":                   "input",

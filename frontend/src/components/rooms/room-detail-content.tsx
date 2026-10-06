@@ -14,7 +14,8 @@
 import { useSession } from "next-auth/react";
 import { BuildingsIcon, StackSimpleIcon, TagIcon } from "@phosphor-icons/react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { Alert } from "~/components/ui/alert";
+import type { FormError, FormErrorInput } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
@@ -23,6 +24,8 @@ import {
   DataGrid,
 } from "~/components/ui/detail-modal-components";
 import { useSWRAuth } from "~/lib/swr";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
   formatDate,
   formatTime,
@@ -124,7 +127,8 @@ export interface UseRoomDetailResult {
   room: Room | null;
   history: RoomHistoryEntry[];
   loading: boolean;
-  error: string | null;
+  /** Failed load of the room, for TenantPage `error` (retry, request ID). */
+  error: FormError | null;
   // True when the tenant has gdpr.attendance_log_enabled = false. The proxy
   // route (`/api/rooms/[id]/history`) translates the backend's 403 into
   // `status: "feature_disabled"` so the page can hide the
@@ -132,7 +136,7 @@ export interface UseRoomDetailResult {
   // letting it collapse incidentally on an empty history array.
   historyDisabled: boolean;
   /** Fehler beim separaten Laden der Belegungshistorie. */
-  historyError: string | null;
+  historyError: FormError | null;
 }
 
 /** SWR-Schlüssel der Raumseite; das globale SSE lädt darüber nach. */
@@ -154,28 +158,28 @@ export function useRoomDetail(roomId: string): UseRoomDetailResult {
   // window. If a future caller starts passing range params, fold them into
   // the cache key (e.g. `room-detail-${roomId}-${start}-${end}`) so
   // distinct windows don't share a cache slot.
-  const { data, error, isLoading } = useSWRAuth<{
+  const { data, error, isLoading, mutate } = useSWRAuth<{
     room: Room;
     history: RoomHistoryEntry[];
     historyDisabled: boolean;
-    historyError: string | null;
+    historyFailure: unknown;
   }>(roomDetailKey(roomId), async () => {
     const authHeaders = token
       ? { Authorization: `Bearer ${token}` }
       : undefined;
 
     const [roomResponse, historyResponse] = await Promise.all([
-      fetch(`/api/rooms/${roomId}`, {
+      transportFetch(`/api/rooms/${roomId}`, {
         credentials: "include",
         headers: { "Content-Type": "application/json", ...authHeaders },
       }),
-      fetch(`/api/rooms/${roomId}/history`, {
+      transportFetch(`/api/rooms/${roomId}/history`, {
         credentials: "include",
         headers: { "Content-Type": "application/json", ...authHeaders },
       }),
     ]);
     if (!roomResponse.ok) {
-      throw new Error("Fehler beim Laden der Raumdaten");
+      throw await apiErrorFromResponse(roomResponse, "room detail failed");
     }
     const roomResponseData = (await roomResponse.json()) as {
       data?: RoomPayload;
@@ -185,7 +189,7 @@ export function useRoomDetail(roomId: string): UseRoomDetailResult {
 
     let history: RoomHistoryEntry[] = [];
     let historyDisabled = false;
-    let historyError: string | null = null;
+    let historyFailure: unknown = null;
     if (!historyResponse.ok) {
       // A non-OK response is NOT the same as "no history". The proxy
       // maps the GDPR feature-disabled path to 200 + status:"feature_disabled"
@@ -198,8 +202,10 @@ export function useRoomDetail(roomId: string): UseRoomDetailResult {
         room_id: roomId,
         status: historyResponse.status,
       });
-      historyError =
-        "Die Belegungshistorie konnte nicht geladen werden. Bitte laden Sie die Seite neu.";
+      historyFailure = await apiErrorFromResponse(
+        historyResponse,
+        "room history failed",
+      );
     } else {
       const historyResponseData = (await historyResponse.json()) as
         | BackendRoomHistoryEntry[]
@@ -240,7 +246,7 @@ export function useRoomDetail(roomId: string): UseRoomDetailResult {
       history = backendHistoryEntries.map(mapBackendToFrontendHistoryEntry);
     }
 
-    return { room, history, historyDisabled, historyError };
+    return { room, history, historyDisabled, historyFailure };
   });
 
   if (error) {
@@ -248,14 +254,21 @@ export function useRoomDetail(roomId: string): UseRoomDetailResult {
       error: error instanceof Error ? error.message : String(error),
     });
   }
+  // Ladefehler mit Katalogtext, Wiederholen und Vorgangskennung (#2517).
+  const loadError = useSwrLoadError(error, "die Raumseite", () => mutate());
+  const historyError = useSwrLoadError(
+    data?.historyFailure,
+    "die Belegungshistorie",
+    () => mutate(),
+  );
 
   return {
     room: data?.room ?? null,
     history: data?.history ?? [],
     loading: isLoading,
-    error: error ? "Fehler beim Laden der Raumdaten." : null,
+    error: loadError,
     historyDisabled: data?.historyDisabled ?? false,
-    historyError: data?.historyError ?? null,
+    historyError,
   };
 }
 
@@ -271,7 +284,7 @@ interface RoomDetailContentProps {
   // tenant that has opted out.
   readonly historyDisabled?: boolean;
   /** Sichtbare Fehlermeldung statt einer irreführend leeren Historie. */
-  readonly historyError?: string | null;
+  readonly historyError?: FormErrorInput;
   /** Binärer Präsenzmodus kennt keine Raumbelegung. */
   readonly showOccupancy?: boolean;
 }
@@ -365,9 +378,7 @@ export function RoomDetailContent({
         />
       ) : null}
 
-      {showOccupancy && historyError ? (
-        <Alert type="error" message={historyError} />
-      ) : null}
+      {showOccupancy ? <LoadErrorAlert error={historyError} /> : null}
 
       {showOccupancy && hasHistory ? (
         <SectionCard title="Belegungshistorie">

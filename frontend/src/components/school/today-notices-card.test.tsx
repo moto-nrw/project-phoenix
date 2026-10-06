@@ -2,7 +2,14 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { StaffNotice } from "~/lib/staff-notices-api";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { TodayNoticesCard } from "./today-notices-card";
+
+const LOAD_FAILED = catalogText(
+  "general.unavailable",
+  "die Liste der Tagesinformationen",
+);
 
 const mutate = vi.hoisted(() => vi.fn());
 const useSWRAuth = vi.hoisted(() => vi.fn());
@@ -43,25 +50,25 @@ describe("TodayNoticesCard", () => {
     };
   });
 
-  it("zeigt einen Ladefehler mit Wiederholen statt keine Hinweise", () => {
+  it("zeigt einen Ladefehler mit Wiederholen statt keine Hinweise", async () => {
     swrResult.current = {
       data: undefined,
-      error: new Error("request failed"),
+      error: new ApiError("request failed", 503, {
+        code: "general.unavailable",
+      }),
       isValidating: false,
       mutate,
     };
 
     render(<TodayNoticesCard />);
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Die Tagesinformationen konnten nicht geladen werden.",
-    );
+    expect(await screen.findByText(LOAD_FAILED)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(mutate).toHaveBeenCalledTimes(1);
   });
 
-  it("behält zuletzt geladene Hinweise bei einem Aktualisierungsfehler sichtbar", () => {
+  it("behält zuletzt geladene Hinweise bei einem Aktualisierungsfehler sichtbar", async () => {
     swrResult.current = {
       data: [
         {
@@ -77,16 +84,16 @@ describe("TodayNoticesCard", () => {
           active: true,
         },
       ],
-      error: new Error("request failed"),
+      error: new ApiError("request failed", 503, {
+        code: "general.unavailable",
+      }),
       isValidating: false,
       mutate,
     };
 
     render(<TodayNoticesCard />);
 
+    expect(await screen.findByText(LOAD_FAILED)).toBeInTheDocument();
     expect(screen.getByText("Raumwechsel")).toBeVisible();
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Die zuletzt geladenen Hinweise bleiben sichtbar.",
-    );
   });
 });

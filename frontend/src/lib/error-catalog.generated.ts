@@ -295,7 +295,7 @@ export const ERROR_CATALOG = {
       "pickup.resolution_required":
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
       "presence.activity_participant_limit_reached":
-        "Im Angebot {activity_name} ist kein Platz mehr. Bitte wählen Sie ein anderes Angebot.",
+        "Die Aktivität {activity_name} ist voll ({current_occupancy} von {max_participants} Kindern).",
       "presence.room_capacity_exceeded":
         "Der Raum {room_name} ist voll ({current_occupancy} von {max_capacity} Plätzen).",
       "presence.statistics_range_invalid":
@@ -314,6 +314,8 @@ export const ERROR_CATALOG = {
         "Die Ausgangsphase gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "rooms.color_already_in_use":
         "Diese Farbe hat schon ein anderer Raum. Bitte wählen Sie eine andere Farbe.",
+      "rooms.not_released":
+        "Dieser Raum ist nicht mehr freigegeben. Bitte wählen Sie einen anderen Raum.",
       "school.setup_completed":
         "Die Einrichtung der Schule ist schon abgeschlossen. Bitte laden Sie die Seite neu.",
       "school.setup_incomplete":
@@ -460,6 +462,12 @@ export const ERROR_CATALOG = {
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "substitutions.invalid_target":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+      "timetable.activity_not_owner":
+        "Sie können nur Aktivitäten ändern, die Sie angelegt haben oder betreuen.",
+      "timetable.activity_system_protected":
+        "Diese Aktivität gehört fest zu moto. Sie lässt sich nicht umbenennen oder löschen.",
+      "timetable.activity_template_protected":
+        "Diese Aktivität ist ein Regeltermin. Bitte ändern Sie sie im Betreuungsplan.",
       "timetable.ambiguous_template_instance_delete":
         "Dieser Termin lässt sich nicht einzeln löschen. Die Serie hat an diesem Tag mehrere Termine.",
       "timetable.attendance_entry_not_found":
@@ -581,6 +589,8 @@ export const ERROR_CATALOG = {
         "Bitte wählen Sie höchstens {max} Angebote aus.",
       "timetable.only_supervisor_replacement_required":
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
+      "timetable.operation_not_planned":
+        "Sie sind für diese Aktivität nicht eingeplant. Nur eingeplante Betreuungskräfte können hier etwas eintragen oder ändern.",
       "timetable.operation_stale":
         "Der Termin wurde gerade geändert. Bitte laden Sie die Seite neu.",
       "timetable.pickup_extension_block_gone":

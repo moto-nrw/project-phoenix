@@ -14,11 +14,13 @@ import type { CSSProperties } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import NavigationLink from "~/components/ui/navigation-link";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import type { ClassDayReport } from "~/lib/class-day-api";
 import { formatDate, parseISODate, todayISO } from "~/lib/date-helpers";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import type { ClassDayClasses } from "~/lib/school-class-day-api";
 import { schoolClassLabel } from "~/lib/school-class-label";
@@ -104,7 +106,9 @@ export function ClassDayClass({
 
   // Das Schreib-Flag kommt von der Klassenliste (Berechtigung UND Freigabe
   // der OGS). Bei "nicht freigegeben" gibt es keinen Knopf und keinen
-  // ausgegrauten Hinweis: nichts, was nach einer Aktion aussieht.
+  // ausgegrauten Hinweis: nichts, was nach einer Aktion aussieht. Bewusst
+  // still bei einem Ladefehler: dann fehlt nur dieser Knopf, die Klasse
+  // selbst lädt und meldet sich unten.
   const { data: classes } = useSWRAuth(
     fetchClasses ? "class-day-classes" : null,
     async () => {
@@ -157,6 +161,14 @@ export function ClassDayClass({
       focusThrottleInterval: REPORT_FOCUS_THROTTLE_MS,
       keepPreviousData: false,
     },
+  );
+
+  // Ladefehler mit Katalogtext und Wiederholen (#2517); eine entzogene
+  // Klasse meldet sich über ihren Code (fehlende Berechtigung).
+  const loadError = useSwrLoadError(
+    error,
+    `die Klasse ${schoolClassLabel(schoolClass)}`,
+    () => refetchReport(),
   );
 
   const rows = useMemo(() => report?.rows ?? [], [report]);
@@ -267,13 +279,9 @@ export function ClassDayClass({
           </div>
         )}
 
-        {!weekend && !isLoading && error && (
-          <EmptyState
-            className="mt-4"
-            title={`${schoolClassLabel(schoolClass)} nicht verfügbar`}
-            description="Diese Klasse konnte nicht geladen werden. Möglicherweise ist sie Ihnen nicht mehr zugewiesen. Bitte gehen Sie zurück zu allen Klassen."
-          />
-        )}
+        {!weekend && !isLoading && error ? (
+          <LoadErrorAlert error={loadError} className="mt-4" />
+        ) : null}
 
         {!weekend && !isLoading && report && rows.length === 0 && (
           <EmptyState

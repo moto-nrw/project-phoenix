@@ -153,10 +153,7 @@
     "excel": "Excel",
     "pdfDownloadStatus": "Trwa pobieranie PDF.",
     "excelDownloadStatus": "Trwa pobieranie pliku Excel.",
-    "downloadError": "Nie udało się pobrać listy dziennej. Proszę spróbować jeszcze raz.",
-    "loadErrorTitle": "Lista dzienna nie została wczytana",
-    "loadErrorMessage": "Proszę spróbować ponownie.",
-    "retry": "Spróbuj ponownie",
+    "errorObject": "lista dzienna",
     "caption": "Obiad w dniu {date}",
     "emptyTitle": "Brak zapisów na ten dzień",
     "emptyDescription": "Na ten dzień żadne dziecko nie jest na liście dla kuchni."
@@ -2403,6 +2400,9 @@
         "self_assignment": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
       },
       "timetable": {
+        "activity_not_owner": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "activity_system_protected": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "activity_template_protected": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "ambiguous_template_instance_delete": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "attendance_entry_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "attendance_frozen": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2464,6 +2464,7 @@
         "offering_source_outside_period": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "offering_source_too_many": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "only_supervisor_replacement_required": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "operation_not_planned": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "operation_stale": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "pickup_extension_block_gone": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "pickup_extension_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",

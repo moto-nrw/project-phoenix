@@ -59,7 +59,6 @@ export const nodeLogicTestFiles = [
   "src/lib/backend-proxy-response.server.test.ts",
   "src/lib/birthdays-api.server.test.ts",
   "src/lib/calendar-period-helpers.test.ts",
-  "src/lib/capacity-error.test.ts",
   "src/lib/care-offering-availability.test.ts",
   "src/lib/category-api.test.ts",
   "src/lib/change-request-access.test.ts",

@@ -153,10 +153,7 @@
     "excel": "Excel",
     "pdfDownloadStatus": "PDF-ja po shkarkohet.",
     "excelDownloadStatus": "Skedari Excel po shkarkohet.",
-    "downloadError": "Lista ditore nuk mund të shkarkohej. Ju lutemi, provoni përsëri.",
-    "loadErrorTitle": "Lista ditore nuk u ngarkua",
-    "loadErrorMessage": "Ju lutemi, provoni përsëri.",
-    "retry": "Provo përsëri",
+    "errorObject": "lista ditore",
     "caption": "Dreka më {date}",
     "emptyTitle": "Asnjë regjistrim për këtë ditë",
     "emptyDescription": "Asnjë fëmijë nuk është në listën e kuzhinës për këtë ditë."
@@ -2403,6 +2400,9 @@
         "self_assignment": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
       },
       "timetable": {
+        "activity_not_owner": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "activity_system_protected": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "activity_template_protected": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "ambiguous_template_instance_delete": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "attendance_entry_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "attendance_frozen": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -2464,6 +2464,7 @@
         "offering_source_outside_period": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "offering_source_too_many": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "only_supervisor_replacement_required": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "operation_not_planned": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "operation_stale": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "pickup_extension_block_gone": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "pickup_extension_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",

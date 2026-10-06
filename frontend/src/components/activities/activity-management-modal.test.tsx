@@ -1,82 +1,15 @@
 /**
  * Tests for ActivityManagementModal Component
- * Tests the rendering, update functionality, and error message handling
+ * Tests the rendering, update functionality, and the shared error path
  */
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import {
-  ActivityManagementModal,
-  getDeleteErrorMessage,
-} from "./activity-management-modal";
+import { ActivityManagementModal } from "./activity-management-modal";
+import { deleteActivity, updateActivity } from "~/lib/activity-api";
 import type { Activity } from "~/lib/activity-api";
-
-// =============================================================================
-// Unit Tests for getDeleteErrorMessage
-// =============================================================================
-
-describe("getDeleteErrorMessage", () => {
-  it("returns default message for non-Error objects", () => {
-    expect(getDeleteErrorMessage(null)).toBe(
-      "Fehler beim Löschen der Aktivität",
-    );
-    expect(getDeleteErrorMessage(undefined)).toBe(
-      "Fehler beim Löschen der Aktivität",
-    );
-    expect(getDeleteErrorMessage("string error")).toBe(
-      "Fehler beim Löschen der Aktivität",
-    );
-    expect(getDeleteErrorMessage(123)).toBe(
-      "Fehler beim Löschen der Aktivität",
-    );
-  });
-
-  it("returns students enrolled message when error mentions students", () => {
-    const error = new Error("Cannot delete: students enrolled in activity");
-    const result = getDeleteErrorMessage(error);
-    expect(result).toBe(
-      "Diese Aktivität kann nicht gelöscht werden, da noch Kinder eingeschrieben sind. Bitte entfernen Sie zuerst alle Kinder aus der Aktivität.",
-    );
-  });
-
-  it("returns ownership error message for 403 with ownership context", () => {
-    const error = new Error("403 you can only modify your own activities");
-    const result = getDeleteErrorMessage(error);
-    expect(result).toBe(
-      "Sie können diese Aktivität nicht löschen, da Sie sie nicht erstellt haben und kein Betreuer sind.",
-    );
-  });
-
-  it("returns ownership error message for 403 with supervise context", () => {
-    const error = new Error("403 activities you created or supervise");
-    const result = getDeleteErrorMessage(error);
-    expect(result).toBe(
-      "Sie können diese Aktivität nicht löschen, da Sie sie nicht erstellt haben und kein Betreuer sind.",
-    );
-  });
-
-  it("returns session expired message for 401 error", () => {
-    const error = new Error("Request failed with status 401");
-    const result = getDeleteErrorMessage(error);
-    expect(result).toBe(
-      "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
-    );
-  });
-
-  it("returns generic permission denied message for other 403 errors", () => {
-    const error = new Error("Forbidden 403");
-    const result = getDeleteErrorMessage(error);
-    expect(result).toBe(
-      "Sie haben keine Berechtigung, diese Aktivität zu löschen.",
-    );
-  });
-
-  it("returns original error message for other errors", () => {
-    const error = new Error("Network timeout");
-    const result = getDeleteErrorMessage(error);
-    expect(result).toBe("Network timeout");
-  });
-});
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 // =============================================================================
 // Component Tests for ActivityManagementModal
@@ -88,12 +21,9 @@ vi.mock("~/lib/activity-api", () => ({
   deleteActivity: vi.fn(),
 }));
 
-vi.mock("~/lib/use-notification", () => ({
-  getDbOperationMessage: vi.fn(
-    (operation: string, entity: string, name: string) =>
-      `${operation} ${entity} ${name}`,
-  ),
-}));
+// The real hook returns a stable setForm (useState); the modal's reset effect
+// depends on it.
+const { mockSetForm } = vi.hoisted(() => ({ mockSetForm: vi.fn() }));
 
 vi.mock("~/hooks/useActivityForm", () => ({
   parseParticipantLimit: (value: string) =>
@@ -104,21 +34,16 @@ vi.mock("~/hooks/useActivityForm", () => ({
       category_id: "1",
       max_participants: "15",
     },
-    setForm: vi.fn(),
+    setForm: mockSetForm,
     categories: [
       { id: "1", name: "Category 1" },
       { id: "2", name: "Category 2" },
     ],
     loading: false,
-    error: null,
-    setError: vi.fn(),
+    loadError: null,
     handleInputChange: vi.fn(),
     validateForm: vi.fn(() => null),
   })),
-}));
-
-vi.mock("~/lib/api-error-message", () => ({
-  getApiErrorMessage: vi.fn((_err: unknown) => "Error message"),
 }));
 
 vi.mock("~/components/ui/form-modal", () => ({
@@ -408,5 +333,52 @@ describe("ActivityManagementModal", () => {
         screen.getByText(/Sie können nur Aktivitäten bearbeiten/),
       ).toBeInTheDocument();
     });
+  });
+
+  it("shows the catalog text of a failed save in the form", async () => {
+    vi.mocked(updateActivity).mockRejectedValueOnce(
+      new ApiError("boom", 500, { code: "general.server" }),
+    );
+    render(
+      <ActivityManagementModal
+        isOpen={true}
+        onClose={mockOnClose}
+        activity={mockActivity}
+      />,
+    );
+
+    fireEvent.submit(screen.getByLabelText(/Aktivitätsname/).closest("form")!);
+
+    expect(
+      await screen.findByText(catalogText("general.server", "die Aktivität")),
+    ).toBeInTheDocument();
+    expect(mockOnClose).not.toHaveBeenCalled();
+  });
+
+  it("keeps a failed delete in the open delete dialog", async () => {
+    vi.mocked(deleteActivity).mockRejectedValueOnce(
+      new ApiError("nope", 403, { code: "general.permission" }),
+    );
+    render(
+      <ActivityManagementModal
+        isOpen={true}
+        onClose={mockOnClose}
+        activity={mockActivity}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Aktivität löschen" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ja, löschen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.permission", "die Aktivität"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Endgültig löschen" }),
+    ).toBeInTheDocument();
+    expect(mockOnClose).not.toHaveBeenCalled();
   });
 });

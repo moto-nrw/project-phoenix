@@ -18,7 +18,7 @@ var operationErrorRules = []common.ErrorRule{
 	{Target: timetable.ErrTimetableOperationNotFound, Render: notFoundWithCode(common.CodeTimetableInstanceNotFound)},
 	{Target: timetable.ErrInstanceNotFound, Render: notFoundWithCode(common.CodeTimetableInstanceNotFound)},
 	{Target: timetable.ErrNoStaffProfile, Render: forbiddenWithCode(common.CodeTimetableNoStaffProfile)},
-	{Target: timetable.ErrTimetableOperationForbidden, Render: common.ErrorForbidden},
+	{Target: timetable.ErrTimetableOperationForbidden, Render: forbiddenWithCode(common.CodeTimetableOperationNotPlanned)},
 	{Target: timetable.ErrInvalidInstanceTransition, Render: conflictWithCode(common.CodeTimetableInvalidTransition)},
 	{Target: timetable.ErrInstanceStartTooEarly, Render: conflictWithCode(common.CodeTimetableStartTooEarly)},
 	{Target: timetable.ErrInstanceStartExpired, Render: conflictWithCode(common.CodeTimetableStartWindowExpired)},

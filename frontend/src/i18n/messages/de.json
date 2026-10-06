@@ -153,10 +153,7 @@
     "excel": "Excel",
     "pdfDownloadStatus": "PDF wird heruntergeladen.",
     "excelDownloadStatus": "Excel wird heruntergeladen.",
-    "downloadError": "Die Tagesliste konnte nicht heruntergeladen werden. Bitte versuchen Sie es noch einmal.",
-    "loadErrorTitle": "Tagesliste nicht geladen",
-    "loadErrorMessage": "Bitte versuchen Sie es erneut.",
-    "retry": "Erneut versuchen",
+    "errorObject": "die Tagesliste",
     "caption": "Mittagessen am {date}",
     "emptyTitle": "Keine Anmeldungen für diesen Tag",
     "emptyDescription": "Für diesen Tag steht kein Kind auf der Küchenliste."
@@ -2290,7 +2287,7 @@
         "resolution_required": "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld."
       },
       "presence": {
-        "activity_participant_limit_reached": "Im Angebot {activity_name} ist kein Platz mehr. Bitte wählen Sie ein anderes Angebot.",
+        "activity_participant_limit_reached": "Die Aktivität {activity_name} ist voll ({current_occupancy} von {max_participants} Kindern).",
         "room_capacity_exceeded": "Der Raum {room_name} ist voll ({current_occupancy} von {max_capacity} Plätzen).",
         "statistics_range_invalid": "Der Zeitraum passt nicht. Er darf höchstens ein Jahr lang sein und nicht in der Zukunft enden."
       },
@@ -2305,7 +2302,7 @@
       },
       "rooms": {
         "color_already_in_use": "Diese Farbe hat schon ein anderer Raum. Bitte wählen Sie eine andere Farbe.",
-        "not_released": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand."
+        "not_released": "Dieser Raum ist nicht mehr freigegeben. Bitte wählen Sie einen anderen Raum."
       },
       "school": {
         "no_school_portal_role": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
@@ -2403,6 +2400,9 @@
         "self_assignment": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben."
       },
       "timetable": {
+        "activity_not_owner": "Sie können nur Aktivitäten ändern, die Sie angelegt haben oder betreuen.",
+        "activity_system_protected": "Diese Aktivität gehört fest zu moto. Sie lässt sich nicht umbenennen oder löschen.",
+        "activity_template_protected": "Diese Aktivität ist ein Regeltermin. Bitte ändern Sie sie im Betreuungsplan.",
         "ambiguous_template_instance_delete": "Dieser Termin lässt sich nicht einzeln löschen. Die Serie hat an diesem Tag mehrere Termine.",
         "attendance_entry_not_found": "Diesen Eintrag gibt es nicht mehr. Bitte laden Sie die Seite neu.",
         "attendance_frozen": "Der Termin ist abgeschlossen. Bitte ändern Sie die Anwesenheit über die Korrektur.",
@@ -2464,6 +2464,7 @@
         "offering_source_outside_period": "Die Anmeldephase von „{offering}“ passt nicht zum Zeitraum. Bitte wählen Sie ein anderes Angebot.",
         "offering_source_too_many": "Bitte wählen Sie höchstens {max} Angebote aus.",
         "only_supervisor_replacement_required": "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
+        "operation_not_planned": "Sie sind für diese Aktivität nicht eingeplant. Nur eingeplante Betreuungskräfte können hier etwas eintragen oder ändern.",
         "operation_stale": "Der Termin wurde gerade geändert. Bitte laden Sie die Seite neu.",
         "pickup_extension_block_gone": "Der Termin hat sich inzwischen geändert. Bitte wählen Sie noch einmal.",
         "pickup_extension_invalid": "Diese Auswahl passt nicht. Bitte laden Sie die Seite neu und wählen Sie noch einmal.",

@@ -1862,6 +1862,24 @@
       "legacy": "self_assignment"
     },
     {
+      "code": "timetable.activity_not_owner",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "timetable.activity_not_owner"
+    },
+    {
+      "code": "timetable.activity_system_protected",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "timetable.activity_system_protected"
+    },
+    {
+      "code": "timetable.activity_template_protected",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "timetable.activity_template_protected"
+    },
+    {
       "code": "timetable.ambiguous_template_instance_delete",
       "class": "business_rejection",
       "parameters": [],
@@ -2264,6 +2282,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "ONLY_SUPERVISOR_REPLACEMENT_REQUIRED"
+    },
+    {
+      "code": "timetable.operation_not_planned",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "timetable.operation_not_planned"
     },
     {
       "code": "timetable.operation_stale",

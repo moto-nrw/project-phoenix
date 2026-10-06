@@ -464,7 +464,7 @@ src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@231 text-[11px]@271
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@213
 src/components/active-supervisions/planned-now-section.tsx|text-[11px]@431
-src/components/activities/activity-management-modal.tsx|text-[10px]@330 text-[10px]@359 text-[10px]@396
+src/components/activities/activity-management-modal.tsx|text-[10px]@313 text-[10px]@343 text-[10px]@381
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/calendar/personal-calendar.tsx|text-[11px]@802 text-[11px]@830 text-[11px]@917 text-[11px]@978 text-[11px]@982 text-[11px]@988 text-[11px]@1034 text-[11px]@1040 text-[10px]@1060 text-[11px]@1113 text-[11px]@1193 text-[11px]@1199 text-[11px]@1204
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@40 text-[10px]@94

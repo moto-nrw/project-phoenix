@@ -505,7 +505,7 @@ import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
 import { isHomeLocation } from "~/lib/location-helper";
 import { substitutionService } from "~/lib/substitution-api";
-import { unavailableApiError } from "~/lib/api-error";
+import { ApiError, unavailableApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import type {
   OgsLiveViewData,
@@ -674,7 +674,7 @@ describe("OGSGroupPage", () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: null,
       isLoading: false,
-      error: new Error("API error: 403"),
+      error: new ApiError("API error: 403", 403),
       mutate: mockMutate,
       isValidating: false,
     } as never);
@@ -1133,7 +1133,7 @@ describe("OGSGroupPage additional scenarios", () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: null,
       isLoading: false,
-      error: new Error("API error: 500"),
+      error: new ApiError("API error: 500", 500, { code: "general.server" }),
       mutate: mockMutate,
       isValidating: false,
     } as never);
@@ -1143,6 +1143,13 @@ describe("OGSGroupPage additional scenarios", () => {
     await waitFor(() => {
       expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
     });
+    // The page says what failed instead of showing an empty group (Alert is
+    // mocked here, so the retry action is not rendered).
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Liste Ihrer OGS-Gruppe"),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("shows transfer modal component", async () => {

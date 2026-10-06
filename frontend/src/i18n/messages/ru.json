@@ -153,10 +153,7 @@
     "excel": "Excel",
     "pdfDownloadStatus": "PDF скачивается.",
     "excelDownloadStatus": "Файл Excel скачивается.",
-    "downloadError": "Не удалось скачать список на день. Повторите попытку.",
-    "loadErrorTitle": "Список на день не загружен",
-    "loadErrorMessage": "Повторите попытку.",
-    "retry": "Повторить попытку",
+    "errorObject": "список на день",
     "caption": "Обед на {date}",
     "emptyTitle": "На этот день никто не записан",
     "emptyDescription": "На этот день в списке для кухни нет детей."
@@ -2403,6 +2400,9 @@
         "self_assignment": "Не удалось сохранить: {object}. Проверьте введённые данные."
       },
       "timetable": {
+        "activity_not_owner": "У вас нет доступа к: {object}. Обратитесь в школу.",
+        "activity_system_protected": "У вас нет доступа к: {object}. Обратитесь в школу.",
+        "activity_template_protected": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "ambiguous_template_instance_delete": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "attendance_entry_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "attendance_frozen": "Не удалось изменить: {object}. Проверьте текущее состояние.",
@@ -2464,6 +2464,7 @@
         "offering_source_outside_period": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "offering_source_too_many": "Не удалось сохранить: {object}. Проверьте введённые данные.",
         "only_supervisor_replacement_required": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "operation_not_planned": "У вас нет доступа к: {object}. Обратитесь в школу.",
         "operation_stale": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "pickup_extension_block_gone": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "pickup_extension_invalid": "Не удалось сохранить: {object}. Проверьте введённые данные.",

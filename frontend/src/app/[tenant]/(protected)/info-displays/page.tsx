@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { QRCodeSVG } from "qrcode.react";
 import { Copy, Check } from "lucide-react";
@@ -20,6 +20,12 @@ import { DisplayModeGuard } from "~/components/tenant/display-mode-guard";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useTenant } from "~/lib/tenant-context";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -70,19 +76,29 @@ function InfoDisplaysPageContent() {
     mutate,
   } = useSWRAuth<InfoDisplay[]>("info-displays", listDisplays);
 
-  const loadError = displaysError
-    ? "Fehler beim Laden der Info-Displays. Bitte versuchen Sie es später erneut."
-    : "";
+  // Ladefehler mit Katalogtext, Wiederholen und Vorgangskennung (#2517).
+  const loadError = useSwrLoadError(
+    displaysError,
+    "die Liste der Info-Displays",
+    () => mutate(),
+  );
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  // Anlegen und Umbenennen: Fehler bleiben im Dialog, Feldfehler am Namen.
+  const nameErrors = useApiFormError();
+  // Aktionen aus dem Zeilenmenü (neuer Link, Ein-/Ausschalten): Toast.
+  const { show: showActionError } = useApiErrorDisplay();
+  const deleteErrors = useApiFormError();
+  // „Wiederholen“ läuft mit dem aktuellen Stand (Name, Zeile).
+  const retrySaveRef = useRef<() => void>(() => undefined);
+  const retryDeleteRef = useRef<() => void>(() => undefined);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<InfoDisplay | null>(null);
   const [nameInput, setNameInput] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<InfoDisplay | null>(null);
-  const [deleteError, setDeleteError] = useState("");
   const [tokenModal, setTokenModal] = useState<TokenModalState | null>(null);
 
   const filtered = useMemo(() => {
@@ -94,27 +110,42 @@ function InfoDisplaysPageContent() {
   const run = async <T,>(
     action: () => Promise<T>,
     failEvent: string,
+    onError: (err: unknown) => void,
   ): Promise<{ ok: true; value: T } | { ok: false }> => {
     setBusy(true);
-    setError("");
     try {
       const value = await action();
       await mutate();
       return { ok: true, value };
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.error(failEvent, { error: message });
-      setError(message);
+      logger.error(failEvent, {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      onError(err);
       return { ok: false };
     } finally {
       setBusy(false);
     }
   };
 
+  const showNameError = (err: unknown) =>
+    void nameErrors.show(err, {
+      object: "das Display",
+      retry: () => retrySaveRef.current(),
+    });
+
+  const closeNameModal = () => {
+    nameErrors.clear();
+    setCreateOpen(false);
+    setRenameTarget(null);
+  };
+
   const handleCreate = async () => {
+    nameErrors.clear();
     const result = await run(
       () => createDisplay(nameInput),
       "display_create_failed",
+      showNameError,
     );
     if (!result.ok) return;
     const { display, token } = result.value;
@@ -128,24 +159,47 @@ function InfoDisplaysPageContent() {
 
   const handleRename = async () => {
     if (!renameTarget) return;
+    nameErrors.clear();
     const result = await run(
       () => updateDisplay(renameTarget.id, { name: nameInput }),
       "display_rename_failed",
+      showNameError,
     );
     if (!result.ok) return;
+    toast.success(`Das Display heißt jetzt „${result.value.name}“.`);
     setRenameTarget(null);
     setNameInput("");
   };
 
-  const handleToggleActive = (display: InfoDisplay) =>
-    run(async () => {
-      await updateDisplay(display.id, { isActive: !display.isActive });
-    }, "display_toggle_failed");
+  const handleToggleActive = async (display: InfoDisplay) => {
+    const result = await run(
+      () => updateDisplay(display.id, { isActive: !display.isActive }),
+      "display_toggle_failed",
+      (err) =>
+        void showActionError(err, {
+          object: display.isActive
+            ? "das Ausschalten des Displays"
+            : "das Einschalten des Displays",
+          retry: () => void handleToggleActive(display),
+        }),
+    );
+    if (!result.ok) return;
+    toast.success(
+      result.value.isActive
+        ? `Das Display „${display.name}“ ist eingeschaltet.`
+        : `Das Display „${display.name}“ ist ausgeschaltet.`,
+    );
+  };
 
   const handleRegenerate = async (display: InfoDisplay) => {
     const result = await run(
       () => regenerateDisplayToken(display.id),
       "display_regenerate_failed",
+      (err) =>
+        void showActionError(err, {
+          object: "der neue Link für das Display",
+          retry: () => void handleRegenerate(display),
+        }),
     );
     if (!result.ok) return;
     setTokenModal({
@@ -157,19 +211,31 @@ function InfoDisplaysPageContent() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setBusy(true);
-    setDeleteError("");
+    deleteErrors.clear();
     try {
       await deleteDisplay(deleteTarget.id);
       await mutate();
+      toast.success(`Das Display „${deleteTarget.name}“ ist gelöscht.`);
       setDeleteTarget(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.error("display_delete_failed", { error: message });
-      setDeleteError(message);
+      logger.error("display_delete_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // Der Fehler bleibt im offenen Löschdialog.
+      void deleteErrors.show(err, {
+        object: "das Display",
+        retry: () => retryDeleteRef.current(),
+      });
     } finally {
       setBusy(false);
     }
   };
+
+  useLayoutEffect(() => {
+    retrySaveRef.current = () =>
+      void (renameTarget ? handleRename() : handleCreate());
+    retryDeleteRef.current = () => void handleDelete();
+  });
 
   const columns: DataTableColumn<InfoDisplay>[] = [
     {
@@ -223,7 +289,7 @@ function InfoDisplaysPageContent() {
                     label: "Löschen",
                     destructive: true,
                     onClick: () => {
-                      setDeleteError("");
+                      deleteErrors.clear();
                       setDeleteTarget(row);
                     },
                   },
@@ -263,7 +329,7 @@ function InfoDisplaysPageContent() {
         onChange: setSearchQuery,
         placeholder: "Display suchen…",
       }}
-      error={loadError || null}
+      error={loadError}
       loading={listLoading}
       empty={
         !listLoading && !loadError && total === 0
@@ -291,22 +357,17 @@ function InfoDisplaysPageContent() {
           {/* Create / rename modal */}
           <FormModal
             isOpen={createOpen || renameTarget !== null}
-            onClose={() => {
-              setCreateOpen(false);
-              setRenameTarget(null);
-            }}
+            onClose={closeNameModal}
             title={renameTarget ? "Display umbenennen" : "Neues Info-Display"}
             size="sm"
+            error={nameErrors.error}
             footer={
               <div className="flex justify-end gap-3">
                 <Button
                   type="button"
                   variant="outline"
                   size="md"
-                  onClick={() => {
-                    setCreateOpen(false);
-                    setRenameTarget(null);
-                  }}
+                  onClick={closeNameModal}
                 >
                   Abbrechen
                 </Button>
@@ -332,6 +393,8 @@ function InfoDisplaysPageContent() {
               </label>
               <Input
                 id="display-name"
+                name="name"
+                error={nameErrors.fieldError("name")}
                 value={nameInput}
                 onChange={(e) => setNameInput(e.target.value)}
                 placeholder="z. B. Eingangsbereich"
@@ -368,16 +431,17 @@ function InfoDisplaysPageContent() {
               }
               gate={{ mode: "twoStep" }}
               onConfirm={handleDelete}
-              onClose={() => setDeleteTarget(null)}
+              onClose={() => {
+                deleteErrors.clear();
+                setDeleteTarget(null);
+              }}
               loading={busy}
-              error={deleteError}
+              error={deleteErrors.error}
             />
           )}
         </>
       }
     >
-      {error && <Alert type="error" message={error} />}
-
       {/* Die Zeilen sind bewusst nicht anklickbar: zu einem Display gibt es
             keine Objektansicht. Sein Link wird genau einmal gezeigt und laesst
             sich nicht wieder aufrufen, alles Weitere steht im Kebab der Zeile.

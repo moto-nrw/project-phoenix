@@ -2,12 +2,16 @@
 import { sessionFetch } from "./session-cache";
 import api from "./api";
 import { handleDomainApiError } from "./api-helpers";
+import { ApiError, apiErrorFromResponse } from "./api-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ActivityAPI" });
 
-// Error handler using shared utility
+// Error handler using shared utility. A structured ApiError (browser path)
+// passes through unchanged, so code, field errors and request ID reach the
+// shared display path.
 function handleActivityApiError(error: unknown, context: string): never {
+  if (error instanceof ApiError) throw error;
   handleDomainApiError(error, context, "ACTIVITY");
 }
 import {
@@ -393,7 +397,10 @@ export async function fetchActivities(
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      throw await apiErrorFromResponse(
+        response,
+        `API error: ${response.status}`,
+      );
     }
 
     const responseData = (await response.json()) as unknown;
@@ -424,7 +431,10 @@ export async function getActivity(id: string): Promise<Activity> {
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      throw await apiErrorFromResponse(
+        response,
+        `API error: ${response.status}`,
+      );
     }
 
     const responseData = (await response.json()) as
@@ -461,7 +471,10 @@ export async function getEnrolledStudents(
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `API error: ${response.status}`,
+        );
       }
 
       const responseData = (await response.json()) as unknown;
@@ -496,7 +509,10 @@ export async function enrollStudent(
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      throw await apiErrorFromResponse(
+        response,
+        `API error: ${response.status}`,
+      );
     }
 
     return { success: true };
@@ -523,7 +539,10 @@ export async function unenrollStudent(
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      throw await apiErrorFromResponse(
+        response,
+        `API error: ${response.status}`,
+      );
     }
     return;
   }
@@ -547,7 +566,10 @@ export async function createActivity(
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      throw await apiErrorFromResponse(
+        response,
+        `API error: ${response.status}`,
+      );
     }
 
     try {
@@ -592,7 +614,10 @@ export async function updateActivity(
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      throw await apiErrorFromResponse(
+        response,
+        `API error: ${response.status}`,
+      );
     }
 
     const responseData = (await response.json()) as
@@ -627,7 +652,10 @@ export async function deleteActivity(id: string): Promise<void> {
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      throw await apiErrorFromResponse(
+        response,
+        `API error: ${response.status}`,
+      );
     }
   } else {
     await api.delete(url);
@@ -646,7 +674,10 @@ export async function getCategories(): Promise<ActivityCategory[]> {
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `API error: ${response.status}`,
+        );
       }
 
       const responseData = (await response.json()) as
@@ -692,7 +723,10 @@ export async function getSupervisors(): Promise<
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `API error: ${response.status}`,
+        );
       }
 
       const responseData = (await response.json()) as
@@ -715,6 +749,8 @@ export async function getSupervisors(): Promise<
         : [];
     }
   } catch {
+    // Bewusst still: die leere Liste meldet den Fehlschlag, der Aufrufer
+    // entscheidet über die Anzeige.
     return [];
   }
 }
@@ -735,7 +771,10 @@ export async function getActivitySchedules(
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `API error: ${response.status}`,
+        );
       }
 
       const responseData = (await response.json()) as unknown;
@@ -745,6 +784,8 @@ export async function getActivitySchedules(
     const response = await api.get<ApiResponse<BackendActivitySchedule[]>>(url);
     return parseSchedulesResponse(response.data);
   } catch {
+    // Bewusst still: die leere Liste meldet den Fehlschlag, der Aufrufer
+    // entscheidet über die Anzeige.
     return [];
   }
 }
@@ -766,7 +807,10 @@ export async function getActivitySchedule(
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `API error: ${response.status}`,
+        );
       }
 
       const responseData = (await response.json()) as
@@ -786,6 +830,8 @@ export async function getActivitySchedule(
       return mapActivityScheduleResponse(response.data.data);
     }
   } catch {
+    // Bewusst still: null meldet den Fehlschlag, der Aufrufer entscheidet
+    // über die Anzeige.
     return null;
   }
 }
@@ -802,7 +848,10 @@ export async function getTimeframes(): Promise<Timeframe[]> {
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `API error: ${response.status}`,
+        );
       }
 
       const responseData = (await response.json()) as unknown;
@@ -838,7 +887,10 @@ export async function getAvailableTimeSlots(
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `API error: ${response.status}`,
+        );
       }
 
       const responseData = (await response.json()) as
@@ -858,6 +910,8 @@ export async function getAvailableTimeSlots(
       return response.data.data || [];
     }
   } catch {
+    // Bewusst still: die leere Liste meldet den Fehlschlag, der Aufrufer
+    // entscheidet über die Anzeige.
     return [];
   }
 }
@@ -883,7 +937,10 @@ export async function createActivitySchedule(
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `API error: ${response.status}`,
+        );
       }
 
       const responseData = (await response.json()) as
@@ -932,7 +989,10 @@ export async function updateActivitySchedule(
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `API error: ${response.status}`,
+        );
       }
 
       const responseData = (await response.json()) as
@@ -955,6 +1015,8 @@ export async function updateActivitySchedule(
       return mapActivityScheduleResponse(response.data.data);
     }
   } catch {
+    // Bewusst still: null meldet den Fehlschlag, der Aufrufer entscheidet
+    // über die Anzeige.
     return null;
   }
 }
@@ -976,7 +1038,10 @@ export async function deleteActivitySchedule(
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `API error: ${response.status}`,
+        );
       }
 
       return true;
@@ -985,6 +1050,8 @@ export async function deleteActivitySchedule(
       return true;
     }
   } catch {
+    // Bewusst still: false meldet den Fehlschlag, der Aufrufer entscheidet
+    // über die Anzeige.
     return false;
   }
 }
@@ -1056,7 +1123,10 @@ export async function getActivitySupervisors(
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `API error: ${response.status}`,
+        );
       }
 
       const responseData = (await response.json()) as unknown;
@@ -1067,6 +1137,8 @@ export async function getActivitySupervisors(
       await api.get<ApiResponse<BackendActivitySupervisor[]>>(url);
     return parseActivitySupervisorsResponse(response.data);
   } catch {
+    // Bewusst still: die leere Liste meldet den Fehlschlag, der Aufrufer
+    // entscheidet über die Anzeige.
     return [];
   }
 }
@@ -1108,7 +1180,10 @@ export async function getAvailableSupervisors(
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `API error: ${response.status}`,
+        );
       }
 
       const responseData = (await response.json()) as unknown;
@@ -1118,6 +1193,8 @@ export async function getAvailableSupervisors(
     const response = await api.get<ApiResponse<BackendSupervisor[]>>(url);
     return parseSupervisorsResponse(response.data);
   } catch {
+    // Bewusst still: die leere Liste meldet den Fehlschlag, der Aufrufer
+    // entscheidet über die Anzeige.
     return [];
   }
 }
@@ -1146,7 +1223,10 @@ export async function assignSupervisor(
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `API error: ${response.status}`,
+        );
       }
 
       return true;
@@ -1155,6 +1235,8 @@ export async function assignSupervisor(
       return true;
     }
   } catch {
+    // Bewusst still: false meldet den Fehlschlag, der Aufrufer entscheidet
+    // über die Anzeige.
     return false;
   }
 }
@@ -1178,7 +1260,10 @@ export async function updateSupervisorRole(
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `API error: ${response.status}`,
+        );
       }
 
       return true;
@@ -1187,6 +1272,8 @@ export async function updateSupervisorRole(
       return true;
     }
   } catch {
+    // Bewusst still: false meldet den Fehlschlag, der Aufrufer entscheidet
+    // über die Anzeige.
     return false;
   }
 }
@@ -1208,7 +1295,10 @@ export async function removeSupervisor(
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `API error: ${response.status}`,
+        );
       }
 
       return true;
@@ -1217,6 +1307,8 @@ export async function removeSupervisor(
       return true;
     }
   } catch {
+    // Bewusst still: false meldet den Fehlschlag, der Aufrufer entscheidet
+    // über die Anzeige.
     return false;
   }
 }
@@ -1295,7 +1387,10 @@ export async function getAvailableStudents(
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `API error: ${response.status}`,
+        );
       }
 
       const responseData = (await response.json()) as unknown;
@@ -1305,6 +1400,8 @@ export async function getAvailableStudents(
     const response = await api.get<ApiResponse<AvailableStudentBackend[]>>(url);
     return parseAvailableStudentsResponse(response.data);
   } catch {
+    // Bewusst still: die leere Liste meldet den Fehlschlag, der Aufrufer
+    // entscheidet über die Anzeige.
     return [];
   }
 }
@@ -1315,16 +1412,6 @@ export async function getAvailableTimeframes(): Promise<Timeframe[]> {
 }
 
 // Helper: Map HTTP status to enrollment-specific error
-function getEnrollmentApiError(status: number): Error {
-  if (status === 401) {
-    return new Error("Authentication expired. Please log in again.");
-  }
-  if (status === 403) {
-    return new Error("You don't have permission to modify enrollments.");
-  }
-  return new Error(`API error: ${status}`);
-}
-
 // Batch update student enrollments (add or remove multiple students at once)
 export async function updateGroupEnrollments(
   activityId: string,
@@ -1350,7 +1437,10 @@ export async function updateGroupEnrollments(
       });
 
       if (!response.ok) {
-        throw getEnrollmentApiError(response.status);
+        throw await apiErrorFromResponse(
+          response,
+          `API error: ${response.status}`,
+        );
       }
 
       return true;

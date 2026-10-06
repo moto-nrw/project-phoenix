@@ -30,11 +30,6 @@ const schoolApi: ClassArrivalExceptionApi = {
   earliestBlockStart: fetchClassBlockStartSchool,
 };
 
-interface Feedback {
-  readonly type: "success" | "error";
-  readonly message: string;
-}
-
 export interface ClassArrivalExceptionDialogProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
@@ -52,21 +47,20 @@ export function ClassArrivalExceptionDialog({
   defaultDate,
   onChanged,
 }: ClassArrivalExceptionDialogProps) {
-  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  // Nur Erfolgsmeldungen: Fehler zeigt das Panel selbst über den
+  // gemeinsamen Fehlerweg (#2513) in seinem Formular.
+  const [success, setSuccess] = useState<string | null>(null);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) setConfirmationOpen(false);
   }, [isOpen]);
   const notify = useMemo(
-    () => ({
-      success: (message: string) => setFeedback({ type: "success", message }),
-      error: (message: string) => setFeedback({ type: "error", message }),
-    }),
+    () => ({ success: (message: string) => setSuccess(message) }),
     [],
   );
   const close = useCallback(() => {
-    setFeedback(null);
+    setSuccess(null);
     onClose();
   }, [onClose]);
 
@@ -91,9 +85,7 @@ export function ClassArrivalExceptionDialog({
           Die OGS sieht die neue Zeit sofort. Sie gilt nur für Kinder mit
           Betreuung an diesem Tag.
         </p>
-        {feedback ? (
-          <Alert type={feedback.type} message={feedback.message} />
-        ) : null}
+        {success ? <Alert type="success" message={success} /> : null}
         {isOpen ? (
           <ClassArrivalExceptionPanel
             schoolClass={schoolClass}

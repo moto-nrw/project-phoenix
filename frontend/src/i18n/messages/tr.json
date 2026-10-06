@@ -153,10 +153,7 @@
     "excel": "Excel",
     "pdfDownloadStatus": "PDF indiriliyor.",
     "excelDownloadStatus": "Excel indiriliyor.",
-    "downloadError": "Günlük liste indirilemedi. Lütfen tekrar deneyin.",
-    "loadErrorTitle": "Günlük liste yüklenmedi",
-    "loadErrorMessage": "Lütfen tekrar deneyin.",
-    "retry": "Tekrar dene",
+    "errorObject": "günlük liste",
     "caption": "{date} tarihli öğle yemeği",
     "emptyTitle": "Bu gün için kayıt yok",
     "emptyDescription": "Bu gün için mutfak listesinde çocuk yok."
@@ -2403,6 +2400,9 @@
         "self_assignment": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
       },
       "timetable": {
+        "activity_not_owner": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "activity_system_protected": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "activity_template_protected": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "ambiguous_template_instance_delete": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "attendance_entry_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "attendance_frozen": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -2464,6 +2464,7 @@
         "offering_source_outside_period": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "offering_source_too_many": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "only_supervisor_replacement_required": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "operation_not_planned": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "operation_stale": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "pickup_extension_block_gone": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "pickup_extension_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
