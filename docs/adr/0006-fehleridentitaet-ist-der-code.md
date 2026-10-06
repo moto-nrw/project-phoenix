@@ -79,7 +79,9 @@ keiner davon ein Anwendungsfehler, und keiner der vier großen Anbieter liefert
   Code. Der Katalog ist ein `Record<ErrorCode, ...>`, ein Code ohne Text bricht
   damit `pnpm run check`.
 - Kennt der Katalog einen Code nicht, wird der Text seiner **Fehlerklasse**
-  angezeigt. Eine leere oder englische Meldung darf es nicht geben.
+  angezeigt. Eine leere Meldung oder ein englischer Backend-Satz darf es nicht
+  geben. Der Klassentext steht in der Sprache der Leserin; im Eltern-Portal ist
+  das auch Englisch (#2518).
 - Die rund 120 vorhandenen Codes werden **einmalig umbenannt**, zusammen mit
   allen Konsumenten in einer Auslieferung. Danach gilt dauerhaft: neuer Code ja,
   umbenennen nein, entfernen nein.

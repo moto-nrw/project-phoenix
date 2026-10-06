@@ -3,22 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
 import "@testing-library/jest-dom/vitest";
 import enMessages from "~/i18n/messages/en.json";
-import { ERROR_CATALOG } from "~/lib/error-catalog.generated";
-import {
-  ERROR_CODE_CLASSES,
-  type ErrorCode,
-} from "~/lib/error-codes.generated";
+import type { ErrorCode } from "~/lib/error-codes.generated";
+import { catalogText } from "~/test/error-catalog-text";
 
 /** The English sentence the shared error path shows (#2518). */
-function enCatalogText(code: ErrorCode, object: string): string {
-  const en = ERROR_CATALOG.en as {
-    classes: Record<string, string>;
-    codes: Partial<Record<ErrorCode, string>>;
-  };
-  const template = en.codes[code] ?? en.classes[ERROR_CODE_CLASSES[code]]!;
-  const text = template.replaceAll("{object}", object);
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
+const enCatalogText = (code: ErrorCode, object: string) =>
+  catalogText(code, object, "en");
+
 const LOGIN_OBJECT = enMessages.parentLogin.errorObject;
 
 const mocks = vi.hoisted(() => ({
@@ -196,6 +187,32 @@ describe("ParentLoginPage i18n", () => {
     expect(mocks.redirect).not.toHaveBeenCalled();
     await vi.waitFor(() => {
       expect(mocks.signOut).toHaveBeenCalledWith({ redirect: false });
+    });
+  });
+
+  it("reports a failed stale-session cleanup and runs it again on retry", async () => {
+    mocks.signOut
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(undefined);
+    mocks.useSession.mockReturnValue({
+      status: "authenticated",
+      data: {
+        error: "RefreshTokenExpired",
+        user: { scope: "parent", token: "stale-token" },
+      },
+    });
+
+    render(<ParentLoginPage />);
+
+    // The locked form says why instead of spinning without an end.
+    expect(
+      await screen.findByText(
+        enCatalogText("general.unavailable", LOGIN_OBJECT),
+      ),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await vi.waitFor(() => {
+      expect(mocks.signOut).toHaveBeenCalledTimes(2);
     });
   });
 

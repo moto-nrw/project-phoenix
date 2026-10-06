@@ -2590,5 +2590,10 @@
       "fieldCheck": "Bu alanı kontrol edin."
     },
     "loginNotice": "Oturumunuz sona erdi. Yeniden giriş yapın."
+  },
+  "parentCrash": {
+    "title": "Sayfa gösterilemedi",
+    "object": "sayfa",
+    "home": "Ana sayfaya git"
   }
 }

@@ -72,6 +72,53 @@ describe("complete catalogs for pl, tr and uk", () => {
   });
 });
 
+// en, ru and sq are complete as well since #2518: every error object phrase
+// and local error text parents can read is guarded, not only the catalog.
+// The exceptions are words that are spelled the same in that language, named
+// by key so a new German leftover cannot hide behind them.
+const sameWordByLocale: Record<"en" | "ru" | "sq", ReadonlySet<string>> = {
+  en: new Set([
+    "parentNav.feedback",
+    "parentFeedback.title",
+    "parentDeclaration.confirmVersion",
+    "enrollmentForm.actions.details",
+    "enrollmentStatus.nameLabel",
+    "enrollmentStatus.changeRequestAuthor.system",
+    "parentDashboard.newsPollChildAnswer",
+    // April, August, September, November
+    "enrollmentForm.months.3",
+    "enrollmentForm.months.7",
+    "enrollmentForm.months.8",
+    "enrollmentForm.months.10",
+  ]),
+  ru: new Set(["parentDashboard.newsPollChildAnswer"]),
+  sq: new Set([
+    "parentDashboard.newsPollChildAnswer",
+    "parentChildDetail.guardians.relationships.contact",
+    "enrollmentForm.phoneTypes.home",
+  ]),
+};
+
+describe("complete catalogs for en, ru and sq", () => {
+  it.each([
+    ["en", en],
+    ["ru", ru],
+    ["sq", sq],
+  ] as const)("has no German copy left in %s", (locale, catalog) => {
+    const german = flatten(de as unknown as MessageTree);
+    const translated = flatten(catalog as unknown as MessageTree);
+    const untranslated = Object.entries(translated).filter(
+      ([key, value]) =>
+        value === german[key] &&
+        !invariantValues.has(value) &&
+        !fullCatalogInvariants.has(value) &&
+        !sameWordByLocale[locale].has(key),
+    );
+
+    expect(untranslated).toEqual([]);
+  });
+});
+
 // Error texts the parents portal can show (#2518). A code with its own German
 // sentence names a specific next step; a locale that only has the class text
 // for it would hide that step from families reading another language.

@@ -2590,5 +2590,10 @@
       "fieldCheck": "Bitte prüfen Sie dieses Feld."
     },
     "loginNotice": "Ihre Anmeldung ist abgelaufen. Bitte melden Sie sich erneut an."
+  },
+  "parentCrash": {
+    "title": "Die Seite konnte nicht angezeigt werden",
+    "object": "die Seite",
+    "home": "Zur Startseite"
   }
 }

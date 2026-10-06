@@ -2590,5 +2590,10 @@
       "fieldCheck": "Please check this field."
     },
     "loginNotice": "Your session has expired. Please sign in again."
+  },
+  "parentCrash": {
+    "title": "The page could not be shown",
+    "object": "the page",
+    "home": "Go to the start page"
   }
 }

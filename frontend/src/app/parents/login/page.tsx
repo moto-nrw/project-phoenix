@@ -27,9 +27,12 @@ import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { ApiError, unavailableApiError } from "~/lib/api-error";
+import { createLogger } from "~/lib/logger";
 import { requestParentPasswordReset } from "~/lib/auth-api";
 import { parentPath } from "~/lib/parent-url";
 import { clientEnv } from "~/env.client";
+
+const logger = createLogger({ component: "ParentLoginPage" });
 
 /**
  * Wie lange nach einem erfolgreichen signIn auf die publizierte Session
@@ -118,6 +121,7 @@ function ParentLoginForm() {
   // Ref prevents re-triggering signOut (not in effect deps → no loop).
   // Separate state controls the loading spinner for the UI.
   const cleanupStartedRef = useRef(false);
+  const [cleanupAttempt, setCleanupAttempt] = useState(0);
   const [isCleaningUp, setIsCleaningUp] = useState(false);
   const { error: formError, show: showFormError } = formErrors;
   const hasError = Boolean(formError) || isStaffAccount;
@@ -148,15 +152,24 @@ function ParentLoginForm() {
         setIsCleaningUp(true);
         try {
           await signOut({ redirect: false });
-        } catch {
+        } catch (err) {
           cleanupStartedRef.current = false;
+          logger.warn("parent_login_stale_session_cleanup_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          // The stale session keeps the form locked: say so, and let
+          // Wiederholen run the cleanup again.
+          void showFormError(unavailableApiError(err), {
+            object: t("errorObject"),
+            retry: () => setCleanupAttempt((current) => current + 1),
+          });
         }
         setIsCleaningUp(false);
         return;
       }
     };
     void check();
-  }, [status, session]);
+  }, [status, session, cleanupAttempt, showFormError, t]);
 
   // Watchdog für die Übergabe von signIn an die Session. signIn kann ok
   // melden, ohne dass danach je eine Session ankommt: NextAuth holt sie per
@@ -209,8 +222,8 @@ function ParentLoginForm() {
         setIsLoading(false);
         // ErrAccountNoGuardianRole: Personal-Konto im Elternportal. Der
         // Backend-Code kommt seit parent-config.ts unmaskiert an — der
-        // 403 setzt eine korrekte Passwortpruefung voraus, verraet also
-        // nichts ueber ein fremdes Konto.
+        // 403 setzt eine korrekte Passwortprüfung voraus, verrät also
+        // nichts über ein fremdes Konto.
         if (result.code === "not_a_guardian") {
           setIsStaffAccount(true);
           return;

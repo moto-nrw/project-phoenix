@@ -281,7 +281,8 @@ export default function GuardiansPanel({
       setBusy(false);
     }
   };
-  // The retry sends the latest entry, not the one of the failed attempt.
+  // Retry runs the current handler. Typing in the field clears the error,
+  // so its retry always repeats the address that is still in the field.
   const inviteRef = useRef(handleInvite);
   useLayoutEffect(() => {
     inviteRef.current = handleInvite;

@@ -2590,5 +2590,10 @@
       "fieldCheck": "Sprawdź to pole."
     },
     "loginNotice": "Twoja sesja wygasła. Zaloguj się ponownie."
+  },
+  "parentCrash": {
+    "title": "Nie udało się wyświetlić strony",
+    "object": "strona",
+    "home": "Do strony głównej"
   }
 }

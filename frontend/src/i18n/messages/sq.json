@@ -2590,5 +2590,10 @@
       "fieldCheck": "Kontrolloni këtë fushë."
     },
     "loginNotice": "Seanca juaj ka skaduar. Hyni përsëri."
+  },
+  "parentCrash": {
+    "title": "Faqja nuk mund të shfaqej",
+    "object": "faqja",
+    "home": "Te faqja kryesore"
   }
 }

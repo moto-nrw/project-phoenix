@@ -30,6 +30,7 @@ interface StashedSaveFailure {
   readonly locale: AppLocale;
   readonly status?: number;
   readonly code?: string;
+  readonly instance?: string;
 }
 
 function stashSaveFailure(locale: AppLocale, error: unknown): boolean {
@@ -38,6 +39,7 @@ function stashSaveFailure(locale: AppLocale, error: unknown): boolean {
     locale,
     status: error instanceof ApiError ? error.status : undefined,
     code: error instanceof ApiError ? error.code : undefined,
+    instance: error instanceof ApiError ? error.requestId : undefined,
   };
   try {
     window.sessionStorage.setItem(
@@ -65,12 +67,14 @@ function takeSaveFailure(): { locale: AppLocale; error: unknown } | null {
     const failure = JSON.parse(raw) as StashedSaveFailure;
     return {
       locale: normalizeLocale(failure.locale),
-      // Only status and code travel; the shared error path needs no more.
+      // Status, code and request ID travel: what the shared error path
+      // shows, including the Vorgangskennung to copy.
       error:
         failure.status === undefined && failure.code === undefined
           ? new Error("parent locale save failed")
           : new ApiError("parent locale save failed", failure.status, {
               code: failure.code,
+              instance: failure.instance,
             }),
     };
   } catch (storageError) {

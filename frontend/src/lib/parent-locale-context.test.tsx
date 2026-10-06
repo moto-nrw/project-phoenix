@@ -216,7 +216,10 @@ describe("ParentLocaleProvider — setLocale when authenticated", () => {
     mockedUseLocale.mockReturnValue("de");
     mockedFetchProfile.mockResolvedValue({ portal_locale: "de" });
     mockedUpdateLocale.mockRejectedValue(
-      new ApiError("diag", 503, { code: "general.unavailable" }),
+      new ApiError("diag", 503, {
+        code: "general.unavailable",
+        instance: "req-locale",
+      }),
     );
 
     const { unmount } = renderProvider();
@@ -242,6 +245,8 @@ describe("ParentLocaleProvider — setLocale when authenticated", () => {
     const [shownError, options] = showErrorMock.mock.calls[0]!;
     expect(shownError).toBeInstanceOf(ApiError);
     expect((shownError as ApiError).code).toBe("general.unavailable");
+    // The Vorgangskennung survives the reload too.
+    expect((shownError as ApiError).requestId).toBe("req-locale");
     expect(options).toMatchObject({
       object: "errorObject",
       messageSuffix: "savedOnDevice",
