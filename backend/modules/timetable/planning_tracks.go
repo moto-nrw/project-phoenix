@@ -97,18 +97,31 @@ type PlanningTrackAdministration interface {
 // non-negative sort order. The error wraps ErrInvalidPlanningTrack.
 func (d PlanningTrackDraft) Validate() (PlanningTrackDraft, error) {
 	d.Name = strings.TrimSpace(d.Name)
-	reason := ""
+	field, reason := "", ""
 	if d.Name == "" {
-		reason = "planning track name is required"
+		field, reason = "name", "planning track name is required"
 	} else if len(d.Name) > 100 {
-		reason = "planning track name cannot exceed 100 characters"
+		field, reason = "name", "planning track name cannot exceed 100 characters"
 	} else if !planningTrackColorPattern.MatchString(d.Color) {
-		reason = "planning track color must use #RRGGBB"
+		field, reason = "color", "planning track color must use #RRGGBB"
 	} else if d.SortOrder < 0 {
-		reason = "planning track sort order cannot be negative"
+		field, reason = "sort_order", "planning track sort order cannot be negative"
 	}
 	if reason != "" {
-		return d, fmt.Errorf("%w: %s", ErrInvalidPlanningTrack, reason)
+		return d, &InvalidPlanningTrackError{Field: field, Reason: reason}
 	}
 	return d, nil
 }
+
+// InvalidPlanningTrackError names the draft field a refused planning track
+// is about, so the editor marks it (#2516). It wraps ErrInvalidPlanningTrack.
+type InvalidPlanningTrackError struct {
+	Field  string
+	Reason string
+}
+
+func (e *InvalidPlanningTrackError) Error() string {
+	return fmt.Sprintf("%s: %s", ErrInvalidPlanningTrack, e.Reason)
+}
+
+func (e *InvalidPlanningTrackError) Unwrap() error { return ErrInvalidPlanningTrack }

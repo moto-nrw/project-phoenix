@@ -1,9 +1,12 @@
+import { formatDate } from "~/lib/date-helpers";
 import { fetchStudents } from "~/lib/student-api";
 import { getSchoolYear } from "~/lib/student-helpers";
 import { resolveTemplateCalendarPeriodId } from "~/lib/timetable-helpers";
 import type {
   ActivityType,
+  ConflictWarningItem,
   EnrichedInstance,
+  ShiftCoverageWarningItem,
   TargetGroupType,
   TemplateProtectedStudentAssignment,
   TimetableListKind,
@@ -431,6 +434,38 @@ export interface PersonOption {
   schoolClass?: string;
   groupId?: string;
   groupName?: string;
+}
+
+/**
+ * One Dienstplan gap as a sentence (#2516). Built from the warning's fields,
+ * never from the server's `message`, so the wording stays in this app.
+ */
+export function shiftCoverageWarningText(
+  warning: ShiftCoverageWarningItem,
+): string {
+  const name = warning.staffName.trim() || "Eine Person";
+  return `${name} hat am ${formatDate(warning.date)} von ${warning.uncoveredStartTime} bis ${warning.uncoveredEndTime} Uhr keine Schicht.`;
+}
+
+/**
+ * One double booking as a sentence (#2516): the person comes from the loaded
+ * lists by `resourceId`, the other block from `conflictingTitle`. The
+ * server's `message` is not shown.
+ */
+export function conflictWarningText(
+  warning: ConflictWarningItem,
+  staff: readonly PersonOption[],
+  students: readonly PersonOption[],
+): string {
+  const title = warning.conflictingTitle.trim();
+  const where = title ? `bei „${title}“` : "bei einem anderen Termin";
+  const name =
+    warning.kind === "staff"
+      ? (staff.find((person) => person.id === warning.resourceId)?.name ??
+        "Eine Person aus dem Personal")
+      : (students.find((person) => person.id === warning.resourceId)?.name ??
+        "Ein Kind");
+  return `${name} ist zur selben Zeit schon ${where} eingeplant.`;
 }
 
 export function isoWeekday(dateISO: string): number {

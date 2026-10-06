@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   apiErrorFromBody,
   apiErrorFromResponse,
   apiErrorFromText,
   errorClassCode,
+  transportFetch,
 } from "./api-error";
 
 describe("ApiError", () => {
@@ -98,5 +99,63 @@ describe("apiErrorFromResponse", () => {
 
     expect(error.status).toBe(502);
     expect(error.code).toBe("general.unavailable");
+  });
+});
+
+describe("transportFetch", () => {
+  it("preserves an aborted request", async () => {
+    const abortError = new DOMException("Request aborted", "AbortError");
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValueOnce(abortError);
+    try {
+      await expect(
+        transportFetch("/api/timetable/shift-coverage"),
+      ).rejects.toBe(abortError);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("preserves an AbortError that is not an Error instance", async () => {
+    const abortError = { name: "AbortError", message: "Request aborted" };
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValueOnce(abortError);
+    try {
+      await expect(
+        transportFetch("/api/timetable/shift-coverage"),
+      ).rejects.toBe(abortError);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("turns a request that never reached the API into general.unavailable", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    try {
+      const error = await transportFetch("/api/timetable/instances").catch(
+        (err: unknown) => err,
+      );
+      expect(error).toBeInstanceOf(ApiError);
+      expect((error as ApiError).code).toBe("general.unavailable");
+      expect((error as ApiError).status).toBe(503);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("hands every HTTP answer through, including errors", async () => {
+    const response = new Response("{}", { status: 409 });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(response);
+    try {
+      await expect(transportFetch("/api/x")).resolves.toBe(response);
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 });

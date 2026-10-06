@@ -69,7 +69,7 @@ func (rs *Resource) replanWeek(w http.ResponseWriter, r *http.Request) {
 	bodyForWindow := &materializeRequest{FromDate: req.FromDate, ToDate: req.ToDate}
 	from, to, err := resolveMaterializationWindow(bodyForWindow, time.Now())
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, codedInvalid(err))
 		return
 	}
 

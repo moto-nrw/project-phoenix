@@ -17,14 +17,15 @@ type planningTrackRequest struct {
 }
 
 func (req *planningTrackRequest) Bind(_ *http.Request) error {
+	invalid := common.CodeTimetablePlanningTrackInvalid
 	if req.Name == "" {
-		return errors.New("name is required")
+		return invalidField(invalid, "name", "name is required")
 	}
 	if req.Color == "" {
-		return errors.New("color is required")
+		return invalidField(invalid, "color", "color is required")
 	}
 	if req.SortOrder < 0 {
-		return errors.New("sort_order cannot be negative")
+		return invalidField(invalid, "sort_order", "sort_order cannot be negative")
 	}
 	return nil
 }
@@ -35,7 +36,7 @@ type planningTrackOrderRequest struct {
 
 func (req *planningTrackOrderRequest) Bind(_ *http.Request) error {
 	if len(req.IDs) == 0 {
-		return errors.New("ids are required")
+		return invalidField(common.CodeTimetablePlanningTrackInvalid, "ids", "ids are required")
 	}
 	return nil
 }
@@ -60,7 +61,7 @@ func (rs *Resource) createPlanningTrack(w http.ResponseWriter, r *http.Request) 
 	}
 	req := new(planningTrackRequest)
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, bindErrorRenderer(err))
 		return
 	}
 	track, err := service.AddPlanningTrack(r.Context(), timetable.PlanningTrackDraft{
@@ -84,7 +85,7 @@ func (rs *Resource) updatePlanningTrack(w http.ResponseWriter, r *http.Request) 
 	}
 	req := new(planningTrackRequest)
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, bindErrorRenderer(err))
 		return
 	}
 	track, err := service.EditPlanningTrack(r.Context(), id, timetable.PlanningTrackDraft{
@@ -104,7 +105,7 @@ func (rs *Resource) reorderPlanningTracks(w http.ResponseWriter, r *http.Request
 	}
 	req := new(planningTrackOrderRequest)
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, bindErrorRenderer(err))
 		return
 	}
 	if err := service.OrderPlanningTracks(r.Context(), req.IDs); err != nil {
@@ -171,14 +172,29 @@ func planningTrackID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 }
 
 func renderPlanningTrackError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case errors.Is(err, timetable.ErrPlanningTrackNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, timetable.ErrInvalidPlanningTrack), errors.Is(err, timetable.ErrPlanningTrackArchived):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, timetable.ErrPlanningTrackNameTaken):
-		common.RenderError(w, r, common.ErrorConflict(err))
-	default:
-		common.RenderError(w, r, common.ErrorInternalServerWrap("planning track operation failed", err))
-	}
+	common.RenderError(w, r, common.RenderWithRules(err, planningTrackErrorRules,
+		common.ErrorInternalServerRenderer("planning track operation failed")))
+}
+
+// planningTrackErrorRules keep the editor's statuses and name each refusal
+// with its own code (#2516); an invalid draft marks its field.
+var planningTrackErrorRules = []common.ErrorRule{
+	{Target: timetable.ErrPlanningTrackNotFound, Render: notFoundWithCode(common.CodeTimetablePlanningTrackNotFound)},
+	{Match: isInvalidPlanningTrackField, Render: renderInvalidPlanningTrackField},
+	{Target: timetable.ErrInvalidPlanningTrack, Render: invalidWithCode(common.CodeTimetablePlanningTrackInvalid)},
+	{Target: timetable.ErrPlanningTrackArchived, Render: invalidWithCode(common.CodeTimetablePlanningTrackArchived)},
+	{Target: timetable.ErrPlanningTrackNameTaken, Render: func(err error) render.Renderer {
+		return common.ErrorConflictOnField(err, common.CodeTimetablePlanningTrackNameTaken, "name")
+	}},
+}
+
+func isInvalidPlanningTrackField(err error) bool {
+	var invalid *timetable.InvalidPlanningTrackError
+	return errors.As(err, &invalid)
+}
+
+func renderInvalidPlanningTrackField(err error) render.Renderer {
+	var invalid *timetable.InvalidPlanningTrackError
+	errors.As(err, &invalid)
+	return common.ErrorInvalidOnField(err, common.CodeTimetablePlanningTrackInvalid, invalid.Field)
 }

@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
+import { releaseFakeTimers } from "~/test/clock";
+
 import {
   exportSlotList,
+  fetchSlotListOptions,
+  fetchSlotListPreview,
+  SlotListExportError,
   SlotListExportSupersededError,
   type SlotListRequest,
 } from "./slot-lists-api";
@@ -36,7 +42,7 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
   URL.createObjectURL = originalCreateObjectURL;
   URL.revokeObjectURL = originalRevokeObjectURL;
-  vi.useRealTimers();
+  releaseFakeTimers();
   vi.restoreAllMocks();
 });
 
@@ -114,6 +120,131 @@ describe("exportSlotList", () => {
       ),
     ).rejects.toBeInstanceOf(SlotListExportSupersededError);
     expect(target.print).not.toHaveBeenCalled();
+    expect(target.close).toHaveBeenCalled();
+  });
+});
+
+// Failures carry code, status and request ID from the error envelope (#2516);
+// the page shows catalog text for them and never the server's sentence.
+function errorResponse(status: number, body: Record<string, unknown>) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+  throw new Error("expected the call to reject");
+}
+
+describe("slot list errors", () => {
+  it("keeps the envelope's code, status and request ID for the options", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      errorResponse(403, {
+        status: "error",
+        error: "Keine Berechtigung",
+        code: "general.permission",
+        instance: "req-options",
+      }),
+    ) as unknown as typeof fetch;
+
+    const error = await rejectionOf(fetchSlotListOptions("2026-07-27"));
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 403,
+      code: "general.permission",
+      requestId: "req-options",
+    });
+  });
+
+  it("classifies a preview refusal without a code by its status", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      errorResponse(400, {
+        status: "error",
+        error: "Ganztag-Listen sind nur für heute und künftige Tage verfügbar",
+      }),
+    ) as unknown as typeof fetch;
+
+    const error = await rejectionOf(fetchSlotListPreview(request));
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ status: 400, code: "general.input" });
+  });
+
+  it("turns a failed connection into general.unavailable", async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockRejectedValue(
+        new TypeError("Failed to fetch"),
+      ) as unknown as typeof fetch;
+
+    const options = await rejectionOf(fetchSlotListOptions("2026-07-27"));
+    const preview = await rejectionOf(fetchSlotListPreview(request));
+
+    for (const error of [options, preview]) {
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error).toMatchObject({ code: "general.unavailable" });
+    }
+  });
+
+  // The page branches on the 409 drift refusal by status, so the export error
+  // must keep it next to the shared ApiError fields.
+  it("rejects a drifted export as SlotListExportError with status 409", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      errorResponse(409, {
+        status: "error",
+        error: "Die Liste hat sich seit der Vorschau geändert.",
+        instance: "req-export",
+      }),
+    ) as unknown as typeof fetch;
+    const target = {
+      close: vi.fn(),
+      focus: vi.fn(),
+      print: vi.fn(),
+      location: { href: "" },
+    };
+
+    const error = await rejectionOf(
+      exportSlotList(request, "pdf", "print", target as unknown as Window),
+    );
+
+    expect(error).toBeInstanceOf(SlotListExportError);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 409,
+      code: "general.business_rejection",
+      requestId: "req-export",
+    });
+    expect(target.print).not.toHaveBeenCalled();
+    expect(target.close).toHaveBeenCalled();
+  });
+
+  it("closes the print tab and reports general.unavailable when the export cannot connect", async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockRejectedValue(
+        new TypeError("Failed to fetch"),
+      ) as unknown as typeof fetch;
+    const target = {
+      close: vi.fn(),
+      focus: vi.fn(),
+      print: vi.fn(),
+      location: { href: "" },
+    };
+
+    const error = await rejectionOf(
+      exportSlotList(request, "pdf", "print", target as unknown as Window),
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).not.toBeInstanceOf(SlotListExportError);
+    expect(error).toMatchObject({ code: "general.unavailable" });
     expect(target.close).toHaveBeenCalled();
   });
 });

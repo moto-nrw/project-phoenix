@@ -11,6 +11,8 @@
  * caller owns closing the dialog (or setting isBusy while it works).
  */
 
+import type { FormErrorInput } from "./form-error";
+import { FormErrorAlert } from "./form-error-alert";
 import { Button } from "./button";
 import { Modal } from "./modal";
 
@@ -36,6 +38,9 @@ interface ChoiceModalProps {
   readonly onSelect: (value: string) => void;
   /** Disables all options (and Abbrechen) while the caller is working. */
   readonly isBusy?: boolean;
+  /** Why the last choice failed, from `useApiFormError` (#2516): shown at the
+   *  top of the dialog with retry and request ID, like `FormModal`. */
+  readonly error?: FormErrorInput;
 }
 
 export function ChoiceModal({
@@ -46,6 +51,7 @@ export function ChoiceModal({
   options,
   onSelect,
   isBusy = false,
+  error,
 }: ChoiceModalProps) {
   // While the caller is working, every dismiss path (backdrop, Escape,
   // close button, Abbrechen) must be inert — closing mid-save would let
@@ -69,6 +75,7 @@ export function ChoiceModal({
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title={title} footer={footer}>
+      <FormErrorAlert message={error} className="mb-4" />
       {description && (
         <p className="mb-4 text-sm text-gray-600">{description}</p>
       )}

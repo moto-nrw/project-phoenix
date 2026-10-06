@@ -165,6 +165,15 @@ func ErrorInvalidRequestWithCode(err error, code string) render.Renderer {
 	return resp
 }
 
+// ErrorInvalidOnField returns a 400 Bad Request with a stable code that
+// names the one field the refusal is about, so the form can mark it (#2516).
+func ErrorInvalidOnField(err error, code, field string) render.Renderer {
+	resp := newErrResponse(http.StatusBadRequest, err)
+	resp.Code = code
+	resp.Errors = []FieldError{{Field: field, Reason: resp.ErrorText}}
+	return resp
+}
+
 // ErrorValidation returns a 400 Bad Request with a summary message and a
 // per-field error list. The summary goes in the standard `error` field so
 // existing frontend handlers that read `.error` continue to display a

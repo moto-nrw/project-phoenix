@@ -184,6 +184,30 @@ func TestErrorInvalidRequestWithDetails(t *testing.T) {
 	assert.Equal(t, "range too long", body.Error)
 }
 
+// TestErrorInvalidOnField pins the 400 that names its code and the one field
+// the form marks (#2516).
+func TestErrorInvalidOnField(t *testing.T) {
+	t.Parallel()
+
+	renderer := common.ErrorInvalidOnField(errors.New("end_date must be after start_date"),
+		common.CodeTimetableCalendarPeriodEndBeforeStart, "end_date")
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/test", nil)
+	common.RenderError(w, r, renderer)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	var body struct {
+		Code   string              `json:"code"`
+		Errors []common.FieldError `json:"errors"`
+		Error  string              `json:"error"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, common.CodeTimetableCalendarPeriodEndBeforeStart, body.Code)
+	assert.Equal(t, []common.FieldError{{Field: "end_date", Reason: "end_date must be after start_date"}}, body.Errors)
+	assert.Equal(t, "end_date must be after start_date", body.Error)
+}
+
 func TestErrorTooManyRequests(t *testing.T) {
 	t.Parallel()
 

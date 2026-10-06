@@ -98,23 +98,21 @@ type updateTemplateRequest struct {
 }
 
 func (req *updateTemplateRequest) Bind(_ *http.Request) error {
-	if req.Name == "" {
-		return errors.New("name is required")
-	}
-	if len(req.Name) > 255 {
-		return errors.New("name cannot exceed 255 characters")
-	}
-	if req.Notes != nil && len(*req.Notes) > 2000 {
-		return errors.New("notes cannot exceed 2000 characters")
+	invalid := common.CodeTimetableTemplateInvalid
+	if err := validateTemplateTextFields(req.Name, req.Notes); err != nil {
+		return err
 	}
 	if req.CategoryID <= 0 {
-		return errors.New("category_id is required")
+		return invalidField(invalid, "category_id", "category_id is required")
 	}
-	if req.StartTime == "" || req.EndTime == "" {
-		return errors.New("start_time and end_time are required")
+	if req.StartTime == "" {
+		return invalidField(invalid, "start_time", "start_time is required (HH:MM)")
+	}
+	if req.EndTime == "" {
+		return invalidField(invalid, "end_time", "end_time is required (HH:MM)")
 	}
 	if len(req.Weekdays) == 0 {
-		return errors.New("at least one weekday is required")
+		return invalidField(invalid, "weekdays", "at least one weekday is required")
 	}
 	if err := validateTemplateWeekdays(req.Weekdays); err != nil {
 		return err
@@ -205,7 +203,7 @@ type parsedUpdateTemplate struct {
 func parseUpdateTemplateRequest(w http.ResponseWriter, r *http.Request) (*parsedUpdateTemplate, bool) {
 	req := &updateTemplateRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, bindErrorRenderer(err))
 		return nil, false
 	}
 	if !isValidActivityType(req.Type) {
@@ -362,7 +360,9 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := rs.Templates.ValidateTemplateEducationGroup(ctx, parsed.req.EducationGroupID); err != nil {
-		renderTemplateEducationGroupError(w, r, err)
+		if !renderTemplateEducationGroupError(w, r, err) {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("validate education group failed", err))
+		}
 		return
 	}
 	timeframeID, err := rs.Templates.FindOrCreateTimeframe(ctx, parsed.startTime, parsed.endTime, parsed.req.Name)
@@ -400,7 +400,8 @@ func (rs *Resource) loadTemplateForUpdate(w http.ResponseWriter, r *http.Request
 	}
 	if len(templates) == 0 {
 		if hasWeekendTemplateWeekday(parsed.req.Weekdays) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("timetable templates can only be scheduled from Monday to Friday")))
+			common.RenderError(w, r, invalidOnField(common.CodeTimetableTemplateWeekend, "weekdays",
+				"timetable templates can only be scheduled from Monday to Friday"))
 			return templateResponse{}, false
 		}
 		renderTemplateNotFound(w, r)
@@ -516,7 +517,8 @@ func validateLegacyTemplateWorkdays(existing []templateScheduleResponse, request
 	for _, weekday := range requested {
 		if weekday > timetableModule.WeekdayFriday {
 			if _, ok := legacy[weekday]; !ok {
-				return errors.New("timetable templates can only be scheduled from Monday to Friday")
+				return invalidField(common.CodeTimetableTemplateWeekend, "weekdays",
+					"timetable templates can only be scheduled from Monday to Friday")
 			}
 		}
 	}
@@ -597,19 +599,11 @@ func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error
 	switch {
 	case errors.Is(err, timetableModule.ErrTemplateSegmentNotEditable):
 		renderTemplateNotFound(w, r)
-	case errors.Is(err, timetableModule.ErrCategoryNotAssignable):
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
-	case errors.Is(err, timetableModule.ErrPlanningTrackNotFound), errors.Is(err, timetableModule.ErrPlanningTrackArchived):
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable")))
-	case errors.Is(err, timetableModule.ErrTemplateWeekendWeekday):
-		common.RenderError(w, r, common.ErrorInvalidRequest(timetableModule.ErrTemplateWeekendWeekday))
-	case errors.Is(err, timetableModule.ErrOfferingSourceInvalid):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case renderTemplateStartPullError(w, r, err):
-	case renderTemplateEducationGroupError(w, r, err):
 	case renderTemplateCareOfferingConflict(w, r, err):
 	case renderTemplateRosterRebaseConflict(w, r, err):
-	case renderTemplateTargetGradeLimit(w, r, err):
+	case templateRefusalRenderer(err) != nil:
+		common.RenderError(w, r, templateRefusalRenderer(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("update template failed", err))
 	}

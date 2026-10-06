@@ -7,7 +7,8 @@ const mockToast = vi.hoisted(() => ({
   warning: vi.fn(),
   info: vi.fn(),
 }));
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => mockToast,
 }));
 
@@ -23,6 +24,7 @@ import {
   type PickupExtension,
 } from "~/lib/pickup-extension-api";
 import { PickupExtensionDialog } from "./pickup-extension-dialog";
+import { catalogText } from "~/test/error-catalog-text";
 
 const mockResolve = vi.mocked(resolvePickupExtension);
 
@@ -183,12 +185,45 @@ describe("PickupExtensionDialog (#3261)", () => {
 
     expect(
       await screen.findByText(
-        "Der Termin hat sich inzwischen geändert. Bitte wählen Sie noch einmal.",
+        catalogText(
+          "timetable.pickup_extension_block_gone",
+          "die Zuordnung zum Termin",
+        ),
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText("gone")).not.toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
     expect(onStale).toHaveBeenCalledWith(dayTask());
     expect(screen.getByRole("button", { name: "Eintragen" })).toBeDisabled();
+    // Die alte Auswahl ist überholt: kein Wiederholen damit.
+    expect(
+      screen.queryByRole("button", { name: "Wiederholen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("zeigt einen Serverfehler im Dialog und wiederholt die Auswahl", async () => {
+    mockResolve
+      .mockRejectedValueOnce(
+        new PickupExtensionApiError("boom", 500, "general.server"),
+      )
+      .mockResolvedValueOnce(undefined);
+    const onClose = vi.fn();
+    render(
+      <PickupExtensionDialog tasks={[dayTask()]} isOpen onClose={onClose} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Zuordnung zum Termin"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("boom")).not.toBeInTheDocument();
+    expect(mockToast.error).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(mockResolve).toHaveBeenLastCalledWith("7", ["31"]);
   });
 
   it("zeigt nichts ohne offene Frage", () => {

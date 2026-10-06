@@ -12,6 +12,16 @@ import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
 
 import { TagesplanView } from "./tagesplan-view";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+// Starten ist eine Aktion ohne Formular: Fehler gehen als Toast über
+// useApiErrorDisplay (#2516). Ladefehler laufen über den echten Hook.
+const showActionError = vi.hoisted(() => vi.fn());
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useApiErrorDisplay: () => ({ show: showActionError }),
+}));
 
 // useSWRAuth is NOT globally mocked (only the raw `swr` package is) — mock the
 // exact subpath the component imports so the day fetch is driven per test.
@@ -279,21 +289,31 @@ describe("TagesplanView", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows a retryable error state when the list fails to load", () => {
-    setSWR({ data: undefined, isLoading: false, error: new Error("boom") });
+  it("shows a retryable error state when the list fails to load", async () => {
+    setSWR({
+      data: undefined,
+      isLoading: false,
+      error: new ApiError("Failed to fetch", 503, {
+        code: "general.unavailable",
+      }),
+    });
 
     render(<TagesplanView />);
 
     expect(
-      screen.getByText("Der Tagesplan konnte nicht geladen werden."),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Termine"),
+      ),
     ).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Noch einmal versuchen" }),
-    );
+    expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Heute ist keine Betreuung geplant"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(reloadList).toHaveBeenCalled();
   });
 
-  it("explains missing permission instead of a bare error (403)", async () => {
+  it("explains missing permission with the catalog text (403)", async () => {
     const { TimetableOperationsApiError } =
       await import("~/lib/timetable-operations-api");
     setSWR({
@@ -305,8 +325,54 @@ describe("TagesplanView", () => {
     render(<TagesplanView />);
 
     expect(
-      screen.getByText("Kein Zugriff auf den Betreuungsplan"),
+      await screen.findByText(
+        catalogText("general.permission", "die Liste der Termine"),
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText("forbidden")).not.toBeInTheDocument();
+  });
+
+  it("reports a failed start as a toast and retries the same block", async () => {
+    const error = new ApiError("too early", 409, {
+      code: "timetable.start_too_early",
+    });
+    vi.mocked(timetableOperationsApi.start).mockRejectedValueOnce(error);
+    setSWR({
+      data: [
+        makeInstance({
+          id: "4",
+          canStart: true,
+          startExpiresAt: "2099-01-01T00:00:00Z",
+          isAssigned: true,
+        }),
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<TagesplanView />);
+    fireEvent.click(screen.getByRole("button", { name: "Starten" }));
+
+    await waitFor(() =>
+      expect(showActionError).toHaveBeenCalledWith(error, {
+        object: "das Starten des Termins",
+        retry: expect.any(Function),
+      }),
+    );
+    expect(push).not.toHaveBeenCalled();
+    expect(reloadList).toHaveBeenCalled();
+
+    vi.mocked(timetableOperationsApi.start).mockResolvedValueOnce({
+      activeGroupId: "77",
+    } as never);
+    const { retry } = showActionError.mock.calls[0]![1] as {
+      retry: () => void;
+    };
+    retry();
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith("/active-supervisions?session=77"),
+    );
+    expect(timetableOperationsApi.start).toHaveBeenLastCalledWith("4");
   });
 
   it("keeps the previous start path visible when the Betreuungsplan is disabled", () => {

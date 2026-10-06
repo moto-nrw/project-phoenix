@@ -3,6 +3,11 @@
 // (Plan / Ist / Abgleich) and PDF/XLSX export.
 
 import {
+  ApiError,
+  apiErrorFromResponse,
+  transportFetch,
+} from "~/lib/api-error";
+import {
   downloadBlob,
   filenameFromDisposition,
   openBlobForPrint,
@@ -161,13 +166,13 @@ export function groupByOptionsFor(target: SlotListTarget): SlotListGroupBy[] {
 export async function fetchSlotListOptions(
   date: string,
 ): Promise<SlotListOptionsResult> {
-  const response = await fetch("/api/timetable/lists/options", {
+  const response = await transportFetch("/api/timetable/lists/options", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ date }),
   });
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response));
+    throw await apiErrorFromResponse(response, "slot list options failed");
   }
   const payload = (await response.json()) as { data: SlotListOptionsResult };
   return payload.data;
@@ -176,13 +181,13 @@ export async function fetchSlotListOptions(
 export async function fetchSlotListPreview(
   request: SlotListRequest,
 ): Promise<SlotListResult> {
-  const response = await fetch("/api/timetable/lists/preview", {
+  const response = await transportFetch("/api/timetable/lists/preview", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
   });
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response));
+    throw await apiErrorFromResponse(response, "slot list preview failed");
   }
   // route-wrapper envelopes handler results as { data, status }
   const payload = (await response.json()) as { data: SlotListResult };
@@ -192,17 +197,20 @@ export async function fetchSlotListPreview(
 export type SlotListExportMode = "download" | "print";
 
 /**
- * Error thrown by exportSlotList for a non-OK export response. Carries the HTTP
- * status so callers can branch on the backend's 409 drift refusal (the fresh
- * build no longer matches the reviewed preview) without string-matching the
- * message (#1565 review pass 2).
+ * Error thrown by exportSlotList for a non-OK export response. Carries status,
+ * code and request ID like every API error, so callers can branch on the
+ * backend's 409 drift refusal (the fresh build no longer matches the reviewed
+ * preview) without string-matching the message (#1565 review pass 2).
  */
-export class SlotListExportError extends Error {
-  readonly status: number;
-  constructor(status: number, message: string) {
-    super(message);
+export class SlotListExportError extends ApiError {
+  constructor(source: ApiError) {
+    super(source.message, source.status, {
+      code: source.code,
+      details: source.details,
+      errors: source.errors,
+      instance: source.instance,
+    });
     this.name = "SlotListExportError";
-    this.status = status;
   }
 }
 
@@ -247,7 +255,7 @@ export async function exportSlotList(
   }
 
   try {
-    const response = await fetch("/api/timetable/lists/export", {
+    const response = await transportFetch("/api/timetable/lists/export", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -258,8 +266,7 @@ export async function exportSlotList(
     });
     if (!response.ok) {
       throw new SlotListExportError(
-        response.status,
-        await readErrorMessage(response),
+        await apiErrorFromResponse(response, "slot list export failed"),
       );
     }
 
@@ -310,41 +317,4 @@ function fallbackFilename(
         ? request.list_kind
         : "angebote";
   return `tagesliste-${source}-${target}-${request.date}.${format}`;
-}
-
-async function readErrorMessage(response: Response): Promise<string> {
-  try {
-    const payload = (await response.json()) as {
-      error?: string;
-      message?: string;
-    };
-    const raw = payload.error ?? payload.message;
-    if (raw) return unwrapBackendMessage(raw);
-  } catch {
-    // fall through to generic message
-  }
-  return "Die Liste konnte nicht geladen werden.";
-}
-
-// The proxy layers forward a backend error in one of a few shapes: the clean
-// German sentence, the raw backend JSON body (`{"status":"error","error":"…"}`)
-// when a route bypasses the shared JSON wrapper (the export download route), or
-// the legacy `API error (400): {…}` envelope. Peel all of them back to the
-// backend's human sentence so a refusal (e.g. a past Ganztag date or a future
-// reconciliation) never surfaces an internal prefix or serialized JSON to the
-// user (#1565 review pass 2). A plain sentence with no embedded object is
-// returned untouched.
-function unwrapBackendMessage(raw: string): string {
-  const trimmed = raw.trim();
-  const jsonStart = trimmed.indexOf("{");
-  if (jsonStart === -1) return trimmed;
-  try {
-    const nested = JSON.parse(trimmed.slice(jsonStart)) as {
-      error?: string;
-      message?: string;
-    };
-    return nested.error ?? nested.message ?? trimmed;
-  } catch {
-    return trimmed;
-  }
 }

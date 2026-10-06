@@ -65,6 +65,31 @@ export function unavailableApiError(cause?: unknown): ApiError {
   return error;
 }
 
+/**
+ * `fetch` for domain clients: a request that never reached the API (offline
+ * or DNS failure) becomes `general.unavailable` instead of a raw `TypeError`
+ * like "Failed to fetch". Callers use AbortSignal to supersede stale work;
+ * those cancellations must retain their normal AbortError semantics.
+ */
+export async function transportFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    if (
+      error !== null &&
+      typeof error === "object" &&
+      "name" in error &&
+      error.name === "AbortError"
+    ) {
+      throw error;
+    }
+    throw unavailableApiError(error);
+  }
+}
+
 export function apiErrorFromBody(
   message: string,
   status: number,

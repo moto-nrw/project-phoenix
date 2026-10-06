@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StaffPoolSlideOver } from "./staff-pool-slide-over";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { useSWRAuth } from "~/lib/swr";
 import { timetableService } from "~/lib/timetable-api";
 import type {
@@ -26,7 +28,8 @@ vi.mock("~/lib/timetable-api", () => ({
   },
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: mockToastSuccess,
     error: mockToastError,
@@ -306,16 +309,81 @@ describe("StaffPoolSlideOver", () => {
     expect(mockToastWarning).toHaveBeenCalledTimes(2);
   });
 
-  it("shows a German error toast when the move fails", async () => {
-    mockMoveStaff.mockRejectedValueOnce(new Error("HTTP 409: conflict"));
-    renderPool({ entries: [entry()] });
+  it("keeps a failed move in the open confirmation with the catalog text", async () => {
+    mockMoveStaff
+      .mockRejectedValueOnce(
+        new ApiError("HTTP 409: conflict", 409, {
+          code: "timetable.staff_already_on_target",
+        }),
+      )
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce({
+        action: "moved",
+        targetInstanceId: "42",
+        coverageWarnings: [],
+        timeConflicts: [],
+      });
+    const { onMoved } = renderPool({ entries: [entry()] });
 
     fireEvent.click(
       screen.getByRole("button", { name: /Hierher verschieben/ }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Verschieben" }));
 
-    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+    // Die Rückfrage liegt über den Toasts: der Fehler steht in ihr.
+    expect(
+      await screen.findByText(
+        catalogText(
+          "timetable.staff_already_on_target",
+          "das Verschieben der Person",
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/HTTP 409/)).not.toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Verschieben" }));
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "das Verschieben der Person"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(onMoved).toHaveBeenCalledOnce());
+    expect(mockMoveStaff).toHaveBeenCalledTimes(3);
+  });
+
+  it("shows a failed pool load in place with retry", async () => {
+    const mutate = vi.fn();
+    mockUseSWRAuth.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new ApiError("Failed to fetch", 503, {
+        code: "general.unavailable",
+      }),
+      mutate,
+      isValidating: false,
+    } as unknown as ReturnType<typeof useSWRAuth>);
+    render(
+      <StaffPoolSlideOver
+        open
+        instance={makeInstance()}
+        canManage
+        onClose={vi.fn()}
+        onMoved={vi.fn()}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste des Personals"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mutate).toHaveBeenCalled();
   });
 
   it("setzt den Auf-/Zuklapp-Zustand beim Blockwechsel zurück", () => {

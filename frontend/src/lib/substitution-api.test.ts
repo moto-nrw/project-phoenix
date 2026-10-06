@@ -73,7 +73,7 @@ describe("substitutionService", () => {
 
     await expect(
       substitutionService.fetchScheduleOverview("2026-08-31", "2026-09-04"),
-    ).rejects.toThrow("Ungültige Antwort für Vertretungen.");
+    ).rejects.toMatchObject({ name: "ApiError", code: "general.server" });
   });
 
   it("assigns an appointment-scoped schedule substitution", async () => {
@@ -220,11 +220,21 @@ describe("substitutionService", () => {
   });
 
   it("marks forbidden group-overview access for the page guard", async () => {
-    sessionFetch.mockResolvedValue({ ok: false, status: 403 });
+    sessionFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status: "error",
+          error: "forbidden",
+          code: "substitutions.forbidden",
+        }),
+        { status: 403 },
+      ),
+    );
 
     await expect(substitutionService.fetchOverview()).rejects.toMatchObject({
-      name: "SubstitutionAccessError",
-      message: "Vertretungen konnten nicht geladen werden.",
+      name: "ApiError",
+      status: 403,
+      code: "substitutions.forbidden",
     });
   });
 
@@ -257,11 +267,18 @@ describe("substitutionService", () => {
     expect(result.id).toBe("5");
   });
 
-  it("preserves a group-handover creation error for the transfer modal", async () => {
-    sessionFetch.mockResolvedValue({
-      ok: false,
-      json: async () => ({ error: "Diese Gruppenübergabe besteht bereits." }),
-    });
+  it("keeps code and request ID of a group-handover creation error", async () => {
+    sessionFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status: "error",
+          error: "substitution already exists",
+          code: "substitutions.already_assigned",
+          instance: "req-1",
+        }),
+        { status: 409 },
+      ),
+    );
 
     await expect(
       substitutionService.createSubstitution(
@@ -271,8 +288,10 @@ describe("substitutionService", () => {
         "2026-08-30",
       ),
     ).rejects.toMatchObject({
-      name: "TransferError",
-      message: "Diese Gruppenübergabe besteht bereits.",
+      name: "ApiError",
+      status: 409,
+      code: "substitutions.already_assigned",
+      requestId: "req-1",
     });
   });
 
@@ -373,17 +392,24 @@ describe("substitutionService", () => {
     });
   });
 
-  it("preserves a group-handover cancellation error for the transfer modal", async () => {
-    sessionFetch.mockResolvedValue({
-      ok: false,
-      json: async () => ({ error: "Die Übergabe wurde bereits beendet." }),
-    });
+  it("keeps the code of a group-handover cancellation error", async () => {
+    sessionFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status: "error",
+          error: "substitution not running",
+          code: "substitutions.not_running",
+        }),
+        { status: 409 },
+      ),
+    );
 
     await expect(
       substitutionService.deleteSubstitution("9007199254740993"),
     ).rejects.toMatchObject({
-      name: "CancelTransferError",
-      message: "Die Übergabe wurde bereits beendet.",
+      name: "ApiError",
+      status: 409,
+      code: "substitutions.not_running",
     });
   });
 });

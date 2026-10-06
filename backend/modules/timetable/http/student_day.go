@@ -175,14 +175,14 @@ func (rs *Resource) resolveStudentForRead(w http.ResponseWriter, r *http.Request
 	attends, err := rs.People.StudentAttends(ctx, studentID, rs.todayDate())
 	if err != nil {
 		if common.IsNotFound(err) {
-			common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("student not found"), common.CodeTimetableStudentNotFound))
 			return false
 		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load student failed", err))
 		return false
 	}
 	if !attends {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("student not found"), common.CodeTimetableStudentNotFound))
 		return false
 	}
 

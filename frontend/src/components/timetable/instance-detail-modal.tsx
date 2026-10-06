@@ -9,7 +9,7 @@
  * assigned staff, children, attendance state, and admin corrections.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import Link from "~/components/ui/navigation-link";
 import {
@@ -29,6 +29,10 @@ import {
 
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useApiFormError } from "~/contexts/ToastContext";
+import { createLogger } from "~/lib/logger";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -380,9 +384,12 @@ function attendancePatchForInstance(
   return onAttendancePatch;
 }
 
+const logger = createLogger({ component: "InstanceDetailModal" });
+
 /**
- * Parent callbacks own user-facing error reporting and rethrow so their callers
- * can react. This drawer only owns pending UI state, so it consumes that already
+ * Lifecycle and attendance callbacks report their own failure as a toast
+ * (#2516; the drawer sits below the toasts) and rethrow so their callers can
+ * react. This drawer only owns pending UI state, so it consumes that already
  * reported rejection and tells the local flow whether the mutation succeeded.
  */
 async function awaitReportedAction(
@@ -392,6 +399,7 @@ async function awaitReportedAction(
     await action();
     return true;
   } catch {
+    // Bewusst still: der Aufrufer hat den Fehler schon als Toast gemeldet.
     return false;
   }
 }
@@ -479,19 +487,17 @@ function ParticipantNamesLoader({
   instanceId: string;
   children: (names: InstanceParticipantNames) => React.ReactNode;
 }>) {
-  const { data, error } = useSWRAuth(
+  const { data, error, mutate } = useSWRAuth(
     `timetable-participants-${instanceId}`,
     () => timetableService.getInstanceParticipants(instanceId),
   );
+  const loadError = useSwrLoadError(error, "die Liste der Teilnehmenden", () =>
+    mutate(),
+  );
   if (data) return <>{children(data)}</>;
-  if (error) {
-    return (
-      <Alert
-        type="error"
-        message="Die Teilnehmenden konnten nicht geladen werden. Bitte versuchen Sie es noch einmal."
-      />
-    );
-  }
+  // Bis der Katalogtext da ist, bleibt der Ladehinweis stehen: ohne Namen
+  // darf keine leere oder anonyme Liste erscheinen.
+  if (error && loadError) return <LoadErrorAlert error={loadError} />;
   return (
     <p role="status" className="text-sm text-gray-500">
       Teilnehmende werden geladen…
@@ -693,25 +699,46 @@ export function InstanceDetailModal({
     }
   };
 
-  const handleDeleteCancelled = async (): Promise<boolean> => {
-    if (!instance || !onDeleteCancelled) return false;
+  // Löschen läuft im Bestätigungsdialog. Der liegt über den Toasts, also
+  // zeigt er den Fehler selbst (#2516); die Callbacks melden nichts.
+  const deleteErrors = useApiFormError();
+  const { clear: clearDeleteError, show: showDeleteError } = deleteErrors;
+  const latestConfirmDeleteRef = useRef<() => void>(() => undefined);
+
+  const runDelete = async (
+    remove: (target: EnrichedInstance) => Promise<void>,
+    object: string,
+  ): Promise<boolean> => {
+    if (!instance) return false;
     setPendingDelete(true);
+    clearDeleteError();
     try {
-      return await awaitReportedAction(() => onDeleteCancelled(instance));
+      await remove(instance);
+      return true;
+    } catch (err) {
+      logger.warn("instance_delete_dialog_failed", {
+        instance_id: instance.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showDeleteError(err, {
+        object,
+        retry: () => latestConfirmDeleteRef.current(),
+      });
+      return false;
     } finally {
       setPendingDelete(false);
     }
   };
 
-  const handleDeleteFollowing = async (): Promise<boolean> => {
-    if (!instance || !onDeleteFollowing) return false;
-    setPendingDelete(true);
-    try {
-      return await awaitReportedAction(() => onDeleteFollowing(instance));
-    } finally {
-      setPendingDelete(false);
-    }
-  };
+  const handleDeleteCancelled = async (): Promise<boolean> =>
+    onDeleteCancelled
+      ? runDelete(onDeleteCancelled, "das Löschen des Termins")
+      : false;
+
+  const handleDeleteFollowing = async (): Promise<boolean> =>
+    onDeleteFollowing
+      ? runDelete(onDeleteFollowing, "das Beenden des Regeltermins")
+      : false;
 
   // "Ab jetzt dauerhaft" beendet den Regeltermin ab dem Datum des Termins —
   // das Backend lehnt ein Datum vor heute ab, weil das Vergangenheit löschen
@@ -744,6 +771,7 @@ export function InstanceDetailModal({
   }, [deleteOpen, deleteScopeAvailable, pendingDelete, seriesEndAvailable]);
 
   const openDeleteFlow = () => {
+    clearDeleteError();
     // The hook refreshes once a minute. Re-read Berlin's current date at the
     // interaction boundary so the short interval after midnight cannot open
     // an already invalid series-ending choice.
@@ -770,6 +798,10 @@ export function InstanceDetailModal({
       setDeleteOpen(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestConfirmDeleteRef.current = () => void handleConfirmDelete();
+  });
 
   const handleConfirm = async () => {
     const action = pendingConfirm;
@@ -1252,7 +1284,7 @@ export function InstanceDetailModal({
         onConfirm={handleConfirmDelete}
         onClose={() => setDeleteOpen(false)}
         loading={pendingDelete}
-        error=""
+        error={deleteErrors.error}
       />
     </>
   );
