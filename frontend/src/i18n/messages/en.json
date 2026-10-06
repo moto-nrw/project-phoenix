@@ -1955,8 +1955,8 @@
     "howToAndroid": "Android: In Google Calendar on a computer, Other calendars, From URL, then paste the link. The calendar then also shows on the phone.",
     "regenerate": "Create a new link",
     "regenerated": "New subscription link created. The old link no longer works.",
-    "loadError": "The subscription link could not be loaded.",
-    "rotateError": "The subscription link could not be renewed.",
+    "loadObject": "the subscription link",
+    "rotateObject": "the subscription link",
     "alreadyActive": "Your subscription link is already active. For security reasons it is not shown again. If you no longer have it, create a new link; the old one then stops working.",
     "createNew": "Create a new subscription link"
   },

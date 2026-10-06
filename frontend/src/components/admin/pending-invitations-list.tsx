@@ -1,8 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Mail, Send, Trash2 } from "lucide-react";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Mail, Send, Trash2 } from "lucide-react";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
+import { formErrorMessage } from "~/components/ui/form-error";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import {
@@ -11,7 +28,6 @@ import {
   revokeInvitation,
 } from "~/lib/invitation-api";
 import type { PendingInvitation } from "~/lib/invitation-helpers";
-import type { ApiError } from "~/lib/auth-api";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { isValidDateString, isDateExpired } from "~/lib/utils/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -27,50 +43,67 @@ export function PendingInvitationsList({
 }: PendingInvitationsListProps) {
   const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Ladefehler stehen in der Karte, mit Wiederholen (#2517).
+  const [loadFailed, setLoadFailed] = useState(false);
+  const loadError = useApiLoadError();
+  const showLoadError = loadError.show;
+  const clearLoadError = loadError.clear;
+  const latestLoadRef = useRef<() => void>(() => undefined);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<PendingInvitation | null>(
     null,
   );
   const { success: toastSuccess } = useToast();
+  // „Erneut senden“ ist eine Zeilenaktion ohne Formular: Fehler als Toast.
+  const { show: showActionError } = useApiErrorDisplay();
+  // Widerrufen läuft im Bestätigungsdialog; sein Fehler bleibt im Dialog.
+  const revokeErrors = useApiFormError();
+  const clearRevokeError = revokeErrors.clear;
+  const latestRevokeRef = useRef<() => void>(() => undefined);
 
+  // Never rejects: a failed load shows its error in the card.
   const loadInvitations = useCallback(async () => {
     try {
       setIsLoading(true);
-      setError(null);
       const data = await listPendingInvitations();
       setInvitations(data);
+      setLoadFailed(false);
+      clearLoadError();
     } catch (err) {
-      const apiError = err as ApiError | undefined;
-      setError(
-        apiError?.message ?? "Offene Einladungen konnten nicht geladen werden.",
-      );
+      logger.error("failed to load invitations", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setLoadFailed(true);
+      void showLoadError(err, {
+        object: "die Liste der offenen Einladungen",
+        retry: () => latestLoadRef.current(),
+      });
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [showLoadError, clearLoadError]);
+  useLayoutEffect(() => {
+    latestLoadRef.current = () => void loadInvitations();
+  });
 
   useEffect(() => {
-    loadInvitations().catch((err) =>
-      logger.error("failed to load invitations", {
-        error: err instanceof Error ? err.message : String(err),
-      }),
-    );
+    void loadInvitations();
   }, [loadInvitations, refreshKey]);
 
   const handleResend = async (id: number) => {
-    setError(null);
     try {
       setActionLoading(id);
       await resendInvitation(id);
-      toastSuccess("Einladung wurde erneut gesendet.");
+      toastSuccess("Die Einladung ist erneut gesendet.");
       await loadInvitations();
     } catch (err) {
-      const apiError = err as ApiError | undefined;
-      setError(
-        apiError?.message ??
-          "Die Einladung konnte nicht erneut gesendet werden.",
-      );
+      logger.error("invitation_resend_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showActionError(err, {
+        object: "das erneute Senden der Einladung",
+        retry: () => void handleResend(id),
+      });
     } finally {
       setActionLoading(null);
     }
@@ -78,21 +111,32 @@ export function PendingInvitationsList({
 
   const handleRevoke = async () => {
     if (!revokeTarget) return;
-    setError(null);
+    clearRevokeError();
     try {
       setActionLoading(revokeTarget.id);
       await revokeInvitation(revokeTarget.id);
-      toastSuccess("Einladung wurde widerrufen.");
+      toastSuccess("Die Einladung ist widerrufen.");
       setRevokeTarget(null);
       await loadInvitations();
     } catch (err) {
-      const apiError = err as ApiError | undefined;
-      setError(
-        apiError?.message ?? "Die Einladung konnte nicht widerrufen werden.",
-      );
+      logger.error("invitation_revoke_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await revokeErrors.show(err, {
+        object: "das Widerrufen der Einladung",
+        retry: () => latestRevokeRef.current(),
+      });
     } finally {
       setActionLoading(null);
     }
+  };
+  useLayoutEffect(() => {
+    latestRevokeRef.current = () => void handleRevoke();
+  });
+
+  const closeRevoke = () => {
+    clearRevokeError();
+    setRevokeTarget(null);
   };
 
   const sortedInvitations = useMemo(
@@ -104,7 +148,13 @@ export function PendingInvitationsList({
     [invitations],
   );
 
-  if (isLoading) {
+  // Bis der Katalogtext des Ladefehlers da ist, bleibt der Ladezustand
+  // stehen, nie „Keine offenen Einladungen“.
+  const failedWithoutData = loadFailed && invitations.length === 0;
+  if (
+    isLoading ||
+    (failedWithoutData && formErrorMessage(loadError.error) === null)
+  ) {
     return (
       <div className="moto-content-surface flex items-center justify-center rounded-2xl border p-12 shadow-sm">
         <div className="flex items-center gap-3 text-sm text-gray-600">
@@ -129,30 +179,9 @@ export function PendingInvitationsList({
         </span>
       </div>
 
-      {error && (
-        <div className="border-moto-red/20 bg-moto-red-soft mb-4 rounded-xl border p-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-start gap-2">
-              <AlertTriangle
-                className="text-moto-red mt-0.5 h-4 w-4 flex-shrink-0"
-                aria-hidden="true"
-              />
-              <p className="text-moto-red-strong text-sm">{error}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => loadInvitations()}
-              className="bg-moto-red/10 text-moto-red-strong hover:bg-moto-red/20 rounded-lg px-2 py-1 text-xs font-medium"
-            >
-              Erneut versuchen
-            </button>
-          </div>
-        </div>
-      )}
+      <LoadErrorAlert error={loadError.error} className="mb-4" />
 
-      {/* Success toasts handled globally; no inline feedback */}
-
-      {sortedInvitations.length === 0 ? (
+      {failedWithoutData ? null : sortedInvitations.length === 0 ? (
         <div className="mt-2 rounded-xl border border-dashed border-gray-200 bg-gray-50/50 px-4 py-6 text-center">
           <p className="text-xs text-gray-400">Keine offenen Einladungen</p>
         </div>
@@ -278,7 +307,7 @@ export function PendingInvitationsList({
 
       <ConfirmationModal
         isOpen={!!revokeTarget}
-        onClose={() => setRevokeTarget(null)}
+        onClose={closeRevoke}
         onConfirm={handleRevoke}
         title="Einladung widerrufen?"
         confirmText="Widerrufen"
@@ -292,6 +321,7 @@ export function PendingInvitationsList({
           </span>{" "}
           wirklich widerrufen? Der Link kann danach nicht mehr verwendet werden.
         </p>
+        <FormErrorAlert message={revokeErrors.error} className="mt-3" />
       </ConfirmationModal>
     </div>
   );

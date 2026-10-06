@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   BellRing,
   ExternalLink,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { LinkifiedText } from "~/components/ui/linkified-text";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
@@ -31,6 +32,7 @@ import type { Activity } from "~/lib/activity-helpers";
 import { formatBerlinDate } from "~/lib/date-helpers";
 import { LONG_POLL_OPTIONS } from "~/lib/announcement-poll-options";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   fetchAnnouncementRecipients,
@@ -190,13 +192,19 @@ function PollResultsPanel({
 }) {
   const [results, setResults] = useState<PollResults | null>(null);
   const [children, setChildren] = useState<PollChild[] | null>(null);
-  const [error, setError] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
+  const loadError = useApiLoadError();
+  const showLoadError = loadError.show;
+  const clearLoadError = loadError.clear;
+  const { show: showError } = useApiErrorDisplay();
+  // „Wiederholen“ lädt neu: ein neuer Wert startet den Abruf erneut.
+  const [reloadKey, setReloadKey] = useState(0);
   const [onlyOpen, setOnlyOpen] = useState(false);
   const [reminding, setReminding] = useState(false);
+  const latestRemindRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     let cancelled = false;
-    setError("");
     Promise.all([
       fetchPollResults(announcement.id),
       fetchPollChildren(announcement.id),
@@ -205,20 +213,24 @@ function PollResultsPanel({
         if (cancelled) return;
         setResults(resultsData);
         setChildren(childrenData);
+        setLoadFailed(false);
+        clearLoadError();
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Umfrageergebnis konnte nicht geladen werden";
-        setError(message);
-        logger.error("announcement_poll_results_failed", { error: message });
+        logger.error("announcement_poll_results_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setLoadFailed(true);
+        void showLoadError(err, {
+          object: "das Ergebnis der Umfrage",
+          retry: () => setReloadKey((key) => key + 1),
+        });
       });
     return () => {
       cancelled = true;
     };
-  }, [announcement.id]);
+  }, [announcement.id, reloadKey, showLoadError, clearLoadError]);
 
   const deadlinePassed =
     announcement.response_deadline !== undefined &&
@@ -230,21 +242,24 @@ function PollResultsPanel({
 
   const handleRemind = async () => {
     setReminding(true);
-    setError("");
     try {
       const count = await remindUnanswered(announcement.id);
       onReminded(count);
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Erinnerung konnte nicht gesendet werden";
-      setError(message);
-      logger.error("announcement_poll_reminder_failed", { error: message });
+      logger.error("announcement_poll_reminder_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showError(err, {
+        object: "das Senden der Erinnerung",
+        retry: () => latestRemindRef.current(),
+      });
     } finally {
       setReminding(false);
     }
   };
+  useLayoutEffect(() => {
+    latestRemindRef.current = () => void handleRemind();
+  });
 
   const visibleChildren = (children ?? []).filter(
     (child) =>
@@ -257,10 +272,13 @@ function PollResultsPanel({
       icon={ListChecks}
       description="Gezählt werden Kinder, nicht Konten: die Zahl, mit der die Schule plant."
     >
-      {error && <p className="text-moto-red-strong mb-2 text-sm">{error}</p>}
+      <LoadErrorAlert
+        error={loadFailed ? loadError.error : null}
+        className="mb-2"
+      />
 
       {results === null || children === null ? (
-        error ? null : (
+        loadFailed && loadError.error ? null : (
           <SkeletonRegion label="Umfrageergebnisse werden geladen…">
             <ListSkeleton rows={4} avatar={false} />
           </SkeletonRegion>
@@ -414,7 +432,12 @@ export function AnnouncementDetail({
   const [recipients, setRecipients] = useState<AnnouncementRecipient[] | null>(
     null,
   );
-  const [error, setError] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
+  const loadError = useApiLoadError();
+  const showLoadError = loadError.show;
+  const clearLoadError = loadError.clear;
+  // „Wiederholen“ lädt neu: ein neuer Wert startet den Abruf erneut.
+  const [reloadKey, setReloadKey] = useState(0);
   const [statusFilter, setStatusFilter] = useState<
     "all" | AnnouncementRecipient["status"]
   >("all");
@@ -432,7 +455,6 @@ export function AnnouncementDetail({
   useEffect(() => {
     if (!showReadStats) return;
     let cancelled = false;
-    setError("");
     Promise.all([
       fetchAnnouncementStats(announcement.id),
       fetchAnnouncementRecipients(announcement.id),
@@ -448,20 +470,30 @@ export function AnnouncementDetail({
               a.first_name.localeCompare(b.first_name),
           ),
         );
+        setLoadFailed(false);
+        clearLoadError();
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Statistik konnte nicht geladen werden";
-        setError(message);
-        logger.error("announcement_detail_failed", { error: message });
+        logger.error("announcement_detail_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setLoadFailed(true);
+        void showLoadError(err, {
+          object: "die Statistik der Mitteilung",
+          retry: () => setReloadKey((key) => key + 1),
+        });
       });
     return () => {
       cancelled = true;
     };
-  }, [announcement.id, showReadStats]);
+  }, [
+    announcement.id,
+    showReadStats,
+    reloadKey,
+    showLoadError,
+    clearLoadError,
+  ]);
 
   const isPublished = announcement.status !== "draft";
   const poll = isPoll(announcement);
@@ -603,8 +635,8 @@ export function AnnouncementDetail({
         staff check before publishing. */}
       {showReadStats && (
         <SectionCard title={isPublished ? "Statistik" : "Aktuelle Reichweite"}>
-          {error ? (
-            <p className="text-moto-red-strong text-sm">{error}</p>
+          {loadFailed && loadError.error ? (
+            <LoadErrorAlert error={loadError.error} />
           ) : stats === null || recipients === null ? (
             <SkeletonRegion label="Statistik wird geladen…">
               <ListSkeleton rows={4} avatar={false} />

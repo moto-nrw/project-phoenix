@@ -1955,8 +1955,8 @@
     "howToAndroid": "Android: Në Google Calendar në kompjuter, Kalendarë të tjerë, Nga URL, pastaj ngjisni lidhjen. Kalendari shfaqet më pas edhe në telefon.",
     "regenerate": "Krijoni lidhje të re",
     "regenerated": "U krijua një lidhje e re abonimi. E vjetra nuk vlen më.",
-    "loadError": "Lidhja e abonimit nuk u ngarkua dot.",
-    "rotateError": "Lidhja e abonimit nuk u rinovua dot.",
+    "loadObject": "lidhja e abonimit",
+    "rotateObject": "lidhja e abonimit",
     "alreadyActive": "Lidhja juaj e abonimit është tashmë aktive. Për arsye sigurie nuk shfaqet sërish. Nëse nuk e keni më, krijoni një lidhje të re; e mëparshmja nuk do të vlejë më.",
     "createNew": "Krijoni lidhje të re abonimi"
   },

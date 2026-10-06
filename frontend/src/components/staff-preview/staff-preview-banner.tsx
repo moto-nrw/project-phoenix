@@ -45,6 +45,9 @@ function ActivePreviewBanner({
       // gelesen, weil der Server damit prüft, welche Vorschau endet.
       await performEndStaffPreview(session?.user?.token, update, mutate);
     } catch (err) {
+      // Bewusst ohne Meldung: scheitert das Zurückschalten, meldet
+      // performEndStaffPreview die Sitzung ab. Die Neuladung unten führt dann
+      // zur Anmeldung, eine Meldung davor wäre sofort wieder weg.
       logger.error("staff_preview_end_failed", {
         error: err instanceof Error ? err.message : String(err),
       });

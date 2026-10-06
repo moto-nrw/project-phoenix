@@ -5,7 +5,7 @@
  * the staff JWT. Backend int64 ids arrive already stringified.
  */
 
-import { ApiError } from "~/lib/api-error";
+import { ApiError, apiErrorFromText, transportFetch } from "~/lib/api-error";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 
 export type AnnouncementPriority = "info" | "important";
@@ -365,24 +365,34 @@ interface ApiResponse<T> {
 }
 
 /**
- * Throws an ApiError carrying the backend's stable `code` (for example
- * "communication.declaration_has_submissions"), so a dialog can map it to a German sentence
- * instead of showing the raw backend text.
+ * Throws an ApiError carrying the backend's stable `code`, field errors,
+ * details and request ID (#2517). Screens show the catalog text for the code,
+ * never the message.
  */
 async function throwApiError(
   response: Response,
   fallback: string,
 ): Promise<never> {
-  let message = fallback;
-  let code: string | undefined;
+  let text = "";
   try {
-    const body = (await response.json()) as { error?: string; code?: string };
-    if (body.error) message = body.error;
-    if (body.code) code = body.code;
+    text = await response.text();
   } catch {
-    // Body was not JSON — keep the German fallback.
+    // Body already consumed or the stream broke: the status still classifies.
   }
-  throw new ApiError(message, response.status, code ? { code } : undefined);
+  // The backend sentence stays the message for logs; screens never show it.
+  let message = fallback;
+  try {
+    const body = text ? (JSON.parse(text) as { error?: unknown }) : undefined;
+    if (typeof body?.error === "string" && body.error) message = body.error;
+  } catch {
+    // Not JSON: keep the fallback as the diagnostic.
+  }
+  throw apiErrorFromText(message, response.status, text);
+}
+
+/** A success answer without the expected body: the API broke its contract. */
+function missingBody(message: string): ApiError {
+  return new ApiError(message, 502, { code: "general.server" });
 }
 
 async function request<T>(
@@ -390,7 +400,7 @@ async function request<T>(
   init: RequestInit | undefined,
   fallback: string,
 ): Promise<T | undefined> {
-  const response = await fetch(url, init);
+  const response = await transportFetch(url, init);
   if (!response.ok) await throwApiError(response, fallback);
   const body = (await response.json()) as ApiResponse<T>;
   return body.data;
@@ -441,7 +451,7 @@ export async function createAnnouncement(
     jsonBody(input),
     "Elternmitteilung konnte nicht erstellt werden",
   );
-  if (!data) throw new Error("Elternmitteilung konnte nicht erstellt werden");
+  if (!data) throw missingBody("Elternmitteilung konnte nicht erstellt werden");
   return data;
 }
 
@@ -455,7 +465,7 @@ export async function updateAnnouncement(
     "Elternmitteilung konnte nicht gespeichert werden",
   );
   if (!data)
-    throw new Error("Elternmitteilung konnte nicht gespeichert werden");
+    throw missingBody("Elternmitteilung konnte nicht gespeichert werden");
   return data;
 }
 
@@ -472,7 +482,7 @@ export async function updateAnnouncementReminder(
     },
     "Erinnerung konnte nicht gespeichert werden",
   );
-  if (!data) throw new Error("Erinnerung konnte nicht gespeichert werden");
+  if (!data) throw missingBody("Erinnerung konnte nicht gespeichert werden");
   return data;
 }
 
@@ -495,7 +505,7 @@ export async function publishAnnouncement(id: string): Promise<Announcement> {
     "Elternmitteilung konnte nicht veröffentlicht werden",
   );
   if (!data)
-    throw new Error("Elternmitteilung konnte nicht veröffentlicht werden");
+    throw missingBody("Elternmitteilung konnte nicht veröffentlicht werden");
   return data;
 }
 
@@ -510,7 +520,7 @@ export async function unpublishAnnouncement(id: string): Promise<Announcement> {
     "Elternmitteilung konnte nicht zurückgezogen werden",
   );
   if (!data)
-    throw new Error("Elternmitteilung konnte nicht zurückgezogen werden");
+    throw missingBody("Elternmitteilung konnte nicht zurückgezogen werden");
   return data;
 }
 
@@ -607,7 +617,7 @@ export async function fetchDeclarationStatus(
     undefined,
     "Status konnte nicht geladen werden",
   );
-  if (!data) throw new Error("Status konnte nicht geladen werden");
+  if (!data) throw missingBody("Status konnte nicht geladen werden");
   return data;
 }
 
@@ -625,7 +635,7 @@ export async function downloadDeclarationExport(
   id: string,
   format: "csv" | "pdf",
 ): Promise<void> {
-  const response = await fetch(declarationExportUrl(id, format));
+  const response = await transportFetch(declarationExportUrl(id, format));
   if (!response.ok) {
     await throwApiError(response, "Die Datei konnte nicht erstellt werden");
   }

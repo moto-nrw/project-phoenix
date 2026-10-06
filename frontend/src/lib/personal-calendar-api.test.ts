@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "./api-error";
+
 import {
   cancelStaffAppointment,
   cancelStaffAppointmentOccurrence,
@@ -355,35 +357,68 @@ describe("personal calendar API", () => {
     );
   });
 
-  it("surfaces backend error messages", async () => {
+  // #2517: the error keeps the backend text only as a diagnostic; code,
+  // field errors and request ID reach the shared display path.
+  it("throws an ApiError with the wire code, field errors and request id", async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({ error: "calendar access forbidden" }, { status: 403 }),
+      jsonResponse(
+        {
+          error: "calendar access forbidden",
+          code: "general.permission",
+          errors: [{ field: "title", reason: "required" }],
+          instance: "req-42",
+        },
+        { status: 403 },
+      ),
     );
 
-    await expect(
-      getStaffCalendar(new Date(2026, 0, 5), new Date(2026, 0, 11)),
-    ).rejects.toThrow("calendar access forbidden");
+    const error = await getStaffCalendar(
+      new Date(2026, 0, 5),
+      new Date(2026, 0, 11),
+    ).catch((err: unknown) => err);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      message: "calendar access forbidden",
+      status: 403,
+      code: "general.permission",
+      errors: [{ field: "title", reason: "required" }],
+      requestId: "req-42",
+    });
   });
 
-  it("uses generic error messages when error responses are not json", async () => {
+  it("classifies a non-json error response by its status", async () => {
     fetchMock.mockResolvedValueOnce(new Response("nope", { status: 500 }));
 
-    await expect(getStaffAppointmentOverview("9")).rejects.toThrow(
-      "Anfrage fehlgeschlagen (HTTP 500)",
+    const error = await getStaffAppointmentOverview("9").catch(
+      (err: unknown) => err,
     );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      message: "Anfrage fehlgeschlagen (HTTP 500)",
+      status: 500,
+      code: "general.server",
+    });
   });
 
   // A 2xx body that is not valid JSON used to reach the calendar's red error
   // box as the browser's own English text — in Safari "The string did not
-  // match the expected pattern.", its default SyntaxError message.
+  // match the expected pattern.", its default SyntaxError message. Now it is
+  // general.unavailable, which the display path shows with Wiederholen.
   describe("unreadable successful responses", () => {
-    const READABLE = "Das hat leider nicht geklappt. Bitte versuchen Sie es";
-
     beforeEach(() => {
       vi.spyOn(console, "error").mockImplementation(() => undefined);
     });
 
-    it("reports a truncated json body in German", async () => {
+    async function failure(promise: Promise<unknown>) {
+      const error = await promise.catch((err: unknown) => err);
+      expect(error).toBeInstanceOf(ApiError);
+      expect((error as ApiError).code).toBe("general.unavailable");
+      return error as ApiError;
+    }
+
+    it("reports a truncated json body as unavailable", async () => {
       fetchMock.mockResolvedValueOnce(
         new Response('{"data": {"events": [', {
           status: 200,
@@ -391,29 +426,43 @@ describe("personal calendar API", () => {
         }),
       );
 
-      await expect(
+      await failure(
         getStaffCalendar(new Date(2026, 0, 5), new Date(2026, 0, 11)),
-      ).rejects.toThrow(READABLE);
+      );
     });
 
-    it("reports an empty body in German", async () => {
+    it("reports an empty body as unavailable", async () => {
       fetchMock.mockResolvedValueOnce(new Response("", { status: 200 }));
 
-      await expect(
+      await failure(
         getStaffCalendar(new Date(2026, 0, 5), new Date(2026, 0, 11)),
-      ).rejects.toThrow(READABLE);
+      );
     });
 
-    it("reports a failed connection in German and logs the native cause", async () => {
+    it("reports a failed connection as unavailable and logs the native cause", async () => {
       fetchMock.mockRejectedValueOnce(new TypeError("Load failed"));
 
-      await expect(
+      await failure(
         getStaffCalendar(new Date(2026, 0, 5), new Date(2026, 0, 11)),
-      ).rejects.toThrow(READABLE);
+      );
       expect(console.error).toHaveBeenCalledWith(
         "calendar_request_failed",
         expect.objectContaining({ stage: "network", error: "Load failed" }),
       );
+    });
+
+    it("keeps an aborted request an AbortError", async () => {
+      fetchMock.mockRejectedValueOnce(
+        new DOMException("The operation was aborted.", "AbortError"),
+      );
+
+      const error = await getStaffCalendar(
+        new Date(2026, 0, 5),
+        new Date(2026, 0, 11),
+      ).catch((err: unknown) => err);
+
+      expect(error).not.toBeInstanceOf(ApiError);
+      expect((error as Error).name).toBe("AbortError");
     });
   });
 });

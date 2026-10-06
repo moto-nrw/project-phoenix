@@ -1955,8 +1955,8 @@
     "howToAndroid": "Android: W Kalendarzu Google na komputerze: Inne kalendarze, Z adresu URL, potem wkleić link. Kalendarz pojawi się potem także na telefonie.",
     "regenerate": "Utwórz nowy link",
     "regenerated": "Utworzono nowy link subskrypcji. Stary link już nie działa.",
-    "loadError": "Nie udało się wczytać linku subskrypcji.",
-    "rotateError": "Nie udało się odnowić linku subskrypcji.",
+    "loadObject": "link subskrypcji",
+    "rotateObject": "link subskrypcji",
     "alreadyActive": "Państwa link subskrypcji jest już aktywny. Ze względów bezpieczeństwa nie zostanie pokazany ponownie. Jeśli już go Państwo nie mają, proszę utworzyć nowy link. Dotychczasowy przestanie wtedy działać.",
     "createNew": "Utwórz nowy link subskrypcji"
   },

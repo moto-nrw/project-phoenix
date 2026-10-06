@@ -8,7 +8,12 @@
  * Go backend with the staff JWT. Backend int64 ids arrive already stringified.
  */
 
-import { apiErrorFromResponse, unavailableApiError } from "~/lib/api-error";
+import {
+  ApiError,
+  apiErrorFromResponse,
+  apiErrorFromText,
+  transportFetch,
+} from "~/lib/api-error";
 import type { ChatMessage } from "~/lib/messaging-status";
 import { getRelationshipTypeLabel } from "~/lib/guardian-helpers";
 
@@ -53,24 +58,35 @@ interface ApiResponse<T> {
 }
 
 /**
- * Reads the backend error message off a failed /api/messages response and throws
- * it, falling back to the supplied German default only when the body carries no
- * `error`. Without this every helper discarded the envelope's `error`, so a 403
- * "messaging disabled" surfaced as a generic "... konnte nicht geladen werden"
- * and the real reason was lost. Mirrors parent-api.ts's shared error path.
+ * Throws the failed /api/messages response as an ApiError (#2517): code,
+ * field errors and request ID come from the envelope, so the shared display
+ * path shows the catalog text instead of the backend sentence. The message
+ * keeps the backend's `error` (fallback: the German default) as a developer
+ * diagnostic for the log.
  */
 async function throwApiError(
   response: Response,
   fallback: string,
 ): Promise<never> {
+  let text = "";
+  try {
+    text = await response.text();
+  } catch {
+    // Body unreadable: the status still classifies the error.
+  }
   let message = fallback;
   try {
-    const body = (await response.json()) as { error?: string };
+    const body = (text ? JSON.parse(text) : {}) as { error?: string };
     if (body.error) message = body.error;
   } catch {
     // Body was not JSON — keep the German fallback.
   }
-  throw new Error(message);
+  throw apiErrorFromText(message, response.status, text);
+}
+
+/** A success response without the expected payload. */
+function missingData(fallback: string): ApiError {
+  return new ApiError(fallback, 500, { code: "general.server" });
 }
 
 /** GET a /api/messages route, surfacing the backend error on failure. */
@@ -78,7 +94,7 @@ async function getEnvelope<T>(
   url: string,
   fallback: string,
 ): Promise<ApiResponse<T>> {
-  const response = await fetch(url);
+  const response = await transportFetch(url);
   if (!response.ok) await throwApiError(response, fallback);
   return (await response.json()) as ApiResponse<T>;
 }
@@ -89,7 +105,7 @@ async function postEnvelope<T>(
   body: unknown,
   fallback: string,
 ): Promise<ApiResponse<T>> {
-  const response = await fetch(url, {
+  const response = await transportFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -132,14 +148,9 @@ export async function fetchStudentThreads(
 ): Promise<InboxThread[]> {
   // The child page shows a failed load through the shared display path
   // (#2513), which reads the code and request ID, not the backend sentence.
-  let response: Response;
-  try {
-    response = await fetch(
-      `/api/messages/students/${encodeURIComponent(studentId)}/threads`,
-    );
-  } catch (error) {
-    throw unavailableApiError(error);
-  }
+  const response = await transportFetch(
+    `/api/messages/students/${encodeURIComponent(studentId)}/threads`,
+  );
   if (!response.ok) {
     throw await apiErrorFromResponse(
       response,
@@ -172,7 +183,7 @@ export async function fetchThread(threadId: string): Promise<ThreadDetail> {
     fallback,
   );
   if (!result.data) {
-    throw new Error(fallback);
+    throw missingData(fallback);
   }
   return result.data;
 }
@@ -267,7 +278,7 @@ export async function fetchMessageCountSetting(): Promise<MessageCountSetting> {
 export async function saveMessageCountScope(
   scope: MessageCountScope,
 ): Promise<void> {
-  const response = await fetch("/api/messages/count-scope", {
+  const response = await transportFetch("/api/messages/count-scope", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ scope }),
@@ -300,7 +311,7 @@ export async function openThread(input: {
     fallback,
   );
   if (!result.data) {
-    throw new Error(fallback);
+    throw missingData(fallback);
   }
   return result.data;
 }

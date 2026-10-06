@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "~/components/ui/modal";
-import { Alert } from "~/components/ui/alert";
+import { formErrorMessage } from "~/components/ui/form-error";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
-import { getApiErrorMessage } from "~/lib/api-error-message";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import {
   type MessageableStaff,
   type StaffMessagesApi,
@@ -42,14 +46,25 @@ export function NewTeamMessageModal({
   const [query, setQuery] = useState("");
   const [people, setPeople] = useState<MessageableStaff[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  // Increments on "Wiederholen" and reloads the list.
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  // Both errors stay in the open dialog (#2517): the list with a retry,
+  // opening a chat in the alert above it.
+  const loadError = useApiLoadError();
+  const showLoadError = loadError.show;
+  const clearLoadError = loadError.clear;
   const [openingId, setOpeningId] = useState<string | null>(null);
-  const [openError, setOpenError] = useState<string | null>(null);
+  const openError = useApiFormError();
+  const latestPickRef = useRef<(person: MessageableStaff) => void>(
+    () => undefined,
+  );
 
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
-    setLoadError(null);
+    setLoadFailed(false);
+    clearLoadError();
     api
       .fetchRecipients()
       .then((rows) => {
@@ -60,14 +75,11 @@ export function NewTeamMessageModal({
           error: err instanceof Error ? err.message : String(err),
         });
         if (!cancelled) {
-          setLoadError(
-            getApiErrorMessage(
-              err,
-              "laden",
-              "Liste",
-              "Die Liste konnte nicht geladen werden.",
-            ),
-          );
+          setLoadFailed(true);
+          void showLoadError(err, {
+            object: "die Liste der Personen",
+            retry: () => setLoadAttempt((attempt) => attempt + 1),
+          });
         }
       })
       .finally(() => {
@@ -76,7 +88,7 @@ export function NewTeamMessageModal({
     return () => {
       cancelled = true;
     };
-  }, [api]);
+  }, [api, loadAttempt, showLoadError, clearLoadError]);
 
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -87,7 +99,7 @@ export function NewTeamMessageModal({
   const handlePick = async (person: MessageableStaff) => {
     if (openingId) return;
     setOpeningId(person.account_id);
-    setOpenError(null);
+    openError.clear();
     try {
       const thread = await api.openThread(person.account_id);
       onOpened(thread.thread_id);
@@ -96,18 +108,22 @@ export function NewTeamMessageModal({
         error: err instanceof Error ? err.message : String(err),
         account_id: person.account_id,
       });
-      setOpenError(
-        getApiErrorMessage(
-          err,
-          "öffnen",
-          "Unterhaltung",
-          "Die Unterhaltung konnte nicht geöffnet werden.",
-        ),
-      );
+      void openError.show(err, {
+        object: "die Unterhaltung",
+        retry: () => latestPickRef.current(person),
+      });
     } finally {
       setOpeningId(null);
     }
   };
+  useLayoutEffect(() => {
+    latestPickRef.current = (person) => void handlePick(person);
+  });
+
+  // Until the catalog text is there, the failed list keeps its loading
+  // line, never "Es gibt niemanden, dem Sie schreiben können."
+  const loading =
+    isLoading || (loadFailed && formErrorMessage(loadError.error) === null);
 
   return (
     <Modal isOpen onClose={onClose} title="Neue Nachricht">
@@ -121,17 +137,17 @@ export function NewTeamMessageModal({
           autoFocus
         />
 
-        {openError && <Alert type="error" message={openError} />}
-        {loadError && <Alert type="error" message={loadError} />}
+        <FormErrorAlert message={openError.error} />
+        <LoadErrorAlert error={loadError.error} />
 
         <div className="max-h-72 space-y-1 overflow-y-auto">
-          {isLoading && (
+          {loading && (
             <p className="py-3 text-center text-sm text-gray-500">
               Wird geladen...
             </p>
           )}
 
-          {!isLoading && !loadError && filtered.length === 0 && (
+          {!loading && !loadFailed && filtered.length === 0 && (
             <p className="py-3 text-center text-sm text-gray-500">
               {people.length === 0
                 ? "Es gibt niemanden, dem Sie schreiben können."

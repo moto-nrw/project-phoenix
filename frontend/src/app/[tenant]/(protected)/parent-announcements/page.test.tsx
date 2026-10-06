@@ -5,6 +5,8 @@ import {
   updateAnnouncement,
   type Announcement,
 } from "~/lib/parent-announcements-api";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import ParentAnnouncementsPage from "./page";
 import { stashAnnouncementStudents } from "~/lib/announcement-prefill";
 
@@ -418,6 +420,63 @@ describe("ParentAnnouncementsPage: scheduled reminder (#3162)", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Uhrzeit");
     expect(updateAnnouncement).not.toHaveBeenCalled();
+  });
+
+  // #2517: Fehler über den gemeinsamen Anzeigeweg.
+  it("marks a missing title at the field before going on", async () => {
+    listState.data = [{ ...base, title: "" }];
+    searchParams.set("bearbeiten", "1");
+    render(<ParentAnnouncementsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Weiter" }));
+
+    expect(
+      await screen.findByText("Bitte geben Sie einen Titel ein."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Titel" })).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+  });
+
+  it("keeps a failed save in the form with the catalog text and retries", async () => {
+    vi.mocked(updateAnnouncement)
+      .mockRejectedValueOnce(
+        new ApiError("db exploded", 500, { code: "general.server" }),
+      )
+      .mockResolvedValueOnce({ ...base });
+    listState.data = [base];
+    searchParams.set("bearbeiten", "1");
+    render(<ParentAnnouncementsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Weiter" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Als Entwurf speichern" }),
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "das Speichern der Mitteilung"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/db exploded/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(updateAnnouncement).toHaveBeenCalledTimes(2));
+  });
+
+  it("shows a failed list load with the catalog text, not an empty list", async () => {
+    listState.data = undefined;
+    listState.error = new ApiError("down", 503, {
+      code: "general.unavailable",
+    });
+    render(<ParentAnnouncementsPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Mitteilungen"),
+      ),
+    ).toBeInTheDocument();
   });
 });
 

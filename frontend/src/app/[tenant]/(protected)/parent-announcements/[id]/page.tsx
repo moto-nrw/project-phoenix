@@ -2,7 +2,6 @@
 
 import { Suspense, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { Alert } from "~/components/ui/alert";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -23,12 +22,15 @@ import {
   KIND_PARAM,
 } from "~/components/announcements/announcement-meta";
 import type { AnnouncementKind } from "~/components/announcements/announcement-meta";
+import { useToast } from "~/contexts/ToastContext";
 import { groupService } from "~/lib/api";
+import { ApiError } from "~/lib/api-error";
 import type { Group } from "~/lib/api";
 import { fetchActivities } from "~/lib/activity-api";
 import type { Activity } from "~/lib/activity-helpers";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { fetchAnnouncement } from "~/lib/parent-announcements-api";
 import type { Announcement } from "~/lib/parent-announcements-api";
@@ -135,13 +137,23 @@ function AnnouncementDetailPageContent() {
   );
 
   const [action, setAction] = useState<LifecycleAction>(null);
-  const [reminderNotice, setReminderNotice] = useState("");
+  const { success: toastSuccess } = useToast();
+  // Ein 404 ist kein Ladefehler, sondern eine Mitteilung, die es nicht mehr
+  // gibt.
+  const notFound = loadError instanceof ApiError && loadError.status === 404;
+  const shownLoadError = useSwrLoadError(
+    notFound ? undefined : loadError,
+    "die Mitteilung",
+    () => void mutate(),
+  );
 
   const refresh = async () => {
     await Promise.all([mutate(), tenantMutate(LIST_KEY)]);
   };
 
-  if (isLoading && !announcement) {
+  // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett stehen.
+  const awaitingErrorText = !!loadError && !notFound && !shownLoadError;
+  if ((isLoading && !announcement) || awaitingErrorText) {
     return (
       <AnnouncementDetailLoadingPage
         referrer={referrer}
@@ -158,9 +170,9 @@ function AnnouncementDetailPageContent() {
         backHref={referrer}
         backLabel={backLabel}
         error={
-          loadError
-            ? "Elternmitteilung konnte nicht geladen werden."
-            : "Elternmitteilung nicht gefunden."
+          loadError && !notFound
+            ? shownLoadError
+            : "Diese Mitteilung gibt es nicht mehr."
         }
       />
     );
@@ -258,15 +270,14 @@ function AnnouncementDetailPageContent() {
         </>
       }
     >
-      {reminderNotice && <Alert type="success" message={reminderNotice} />}
       <AnnouncementDetail
         announcement={announcement}
         groups={groups ?? []}
         activities={activities ?? []}
         onReminded={(count) =>
-          setReminderNotice(
+          toastSuccess(
             count === 0
-              ? "Alle erreichten Kinder haben bereits geantwortet, es wurde niemand erinnert."
+              ? "Alle erreichten Kinder haben schon geantwortet. Es wurde niemand erinnert."
               : `${count} ${count === 1 ? "Elternteil wurde" : "Eltern wurden"} an die offene Umfrage erinnert.`,
           )
         }

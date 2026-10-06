@@ -1,17 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { BellRing, CheckCircle2, Download } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { InfoCard } from "~/components/ui/info-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { SegmentedControlItem } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
-import { getApiErrorMessage } from "~/lib/api-error-message";
+import {
+  useApiErrorDisplay,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { formatChatDateTime } from "~/lib/date-helpers";
 import { formatBytes } from "~/lib/files-api";
 import { createLogger } from "~/lib/logger";
@@ -132,27 +144,40 @@ export function DeclarationStatusPanel({
   readonly canAct: boolean;
 }) {
   const [status, setStatus] = useState<DeclarationStatus | null>(null);
-  const [loadError, setLoadError] = useState("");
-  const [actionError, setActionError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
+  const loadError = useApiLoadError();
+  const showLoadError = loadError.show;
+  const clearLoadError = loadError.clear;
+  const { show: showError } = useApiErrorDisplay();
+  const { success: toastSuccess } = useToast();
   const [busy, setBusy] = useState<"remind" | "pdf" | "csv" | null>(null);
   const [childFilter, setChildFilter] = useState<ChildFilter>("all");
+  // „Wiederholen“ ruft Laden bzw. die Aktion mit dem dann aktuellen Stand auf.
+  const latestLoadRef = useRef<() => void>(() => undefined);
+  const latestRemindRef = useRef<() => void>(() => undefined);
+  const latestDownloadRef = useRef<(format: "pdf" | "csv") => void>(
+    () => undefined,
+  );
 
   const load = useCallback(async () => {
     try {
       setStatus(await fetchDeclarationStatus(announcementId));
-      setLoadError("");
+      setLoadFailed(false);
+      clearLoadError();
     } catch (error) {
-      setLoadError(
-        getApiErrorMessage(
-          error,
-          "laden",
-          "Status",
-          "Der Stand der Antworten konnte nicht geladen werden.",
-        ),
-      );
+      logger.error("declaration_status_load_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      setLoadFailed(true);
+      void showLoadError(error, {
+        object: "der Stand der Antworten",
+        retry: () => latestLoadRef.current(),
+      });
     }
-  }, [announcementId]);
+  }, [announcementId, showLoadError, clearLoadError]);
+  useLayoutEffect(() => {
+    latestLoadRef.current = () => void load();
+  });
 
   useEffect(() => {
     void load();
@@ -168,25 +193,22 @@ export function DeclarationStatusPanel({
 
   const remind = async () => {
     setBusy("remind");
-    setNotice("");
-    setActionError("");
     try {
       const count = await remindUnanswered(announcementId);
-      setNotice(
+      toastSuccess(
         count === 0
           ? "Für alle Kinder liegt eine Antwort vor. Es wurde niemand erinnert."
           : `${count} ${count === 1 ? "Person wurde" : "Personen wurden"} erinnert.`,
       );
       await load();
     } catch (error) {
-      setActionError(
-        getApiErrorMessage(
-          error,
-          "senden",
-          "Erinnerung",
-          "Die Erinnerung konnte nicht gesendet werden.",
-        ),
-      );
+      logger.error("declaration_remind_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      void showError(error, {
+        object: "das Senden der Erinnerung",
+        retry: () => latestRemindRef.current(),
+      });
     } finally {
       setBusy(null);
     }
@@ -194,25 +216,30 @@ export function DeclarationStatusPanel({
 
   const download = async (format: "pdf" | "csv") => {
     setBusy(format);
-    setActionError("");
     try {
       await downloadDeclarationExport(announcementId, format);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error("declaration_export_failed", { format, error: message });
-      setActionError(
-        "Die Datei konnte nicht erstellt werden. Bitte versuchen Sie es noch einmal.",
-      );
+      void showError(error, {
+        object: "das Erstellen der Datei",
+        retry: () => latestDownloadRef.current(format),
+      });
     } finally {
       setBusy(null);
     }
   };
+  useLayoutEffect(() => {
+    latestRemindRef.current = () => void remind();
+    latestDownloadRef.current = (format) => void download(format);
+  });
 
-  if (loadError && !status) {
-    return (
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
-        {loadError}
-      </div>
+  if (loadFailed && !status) {
+    // Bis der Katalogtext da ist, bleibt die Ladezeile stehen.
+    return loadError.error ? (
+      <LoadErrorAlert error={loadError.error} />
+    ) : (
+      <div className="text-sm text-gray-500">Stand wird geladen …</div>
     );
   }
   if (!status) {
@@ -328,19 +355,9 @@ export function DeclarationStatusPanel({
         </Button>
       </div>
 
-      {notice && (
-        <p
-          role="status"
-          className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700"
-        >
-          {notice}
-        </p>
-      )}
-      {(actionError || (loadError && status)) && (
-        <p role="alert" className="text-moto-red-strong text-sm">
-          {actionError || loadError}
-        </p>
-      )}
+      {/* Ein Neuladen nach einer Aktion ist gescheitert: der alte Stand
+          bleibt sichtbar, der Fehler steht darüber. */}
+      <LoadErrorAlert error={loadFailed ? loadError.error : null} />
 
       <section>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">

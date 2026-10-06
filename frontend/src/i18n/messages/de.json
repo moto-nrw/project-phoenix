@@ -1946,7 +1946,7 @@
     "linkLabel": "Abo-Link (zum Kopieren)",
     "copy": "Kopieren",
     "copiedButton": "Kopiert",
-    "copied": "Link kopiert.",
+    "copied": "Der Link ist kopiert.",
     "copyFailed": "Kopieren nicht möglich. Bitte markieren Sie den Link von Hand.",
     "linkOnce": "Aus Sicherheitsgründen sehen Sie diesen Link nur jetzt. Kopieren Sie ihn gleich in Ihren Kalender.",
     "howToTitle": "So geht es:",
@@ -1954,9 +1954,9 @@
     "howToApple": "iPhone/iPad: Einstellungen, Kalender, Accounts, Account hinzufügen, Andere, Kalenderabo hinzufügen, dann den Link einfügen.",
     "howToAndroid": "Android: In Google Kalender am Computer, Weitere Kalender, Per URL, dann den Link einfügen. Der Kalender wird danach auch auf dem Handy angezeigt.",
     "regenerate": "Link neu erstellen",
-    "regenerated": "Neuer Abo-Link erstellt. Der alte Link gilt nicht mehr.",
-    "loadError": "Der Abo-Link konnte nicht geladen werden.",
-    "rotateError": "Der Abo-Link konnte nicht erneuert werden.",
+    "regenerated": "Der neue Abo-Link ist erstellt. Der alte Link gilt nicht mehr.",
+    "loadObject": "das Anzeigen des Abo-Links",
+    "rotateObject": "das Erneuern des Abo-Links",
     "alreadyActive": "Ihr Abo-Link ist bereits aktiv. Aus Sicherheitsgründen wird er nicht erneut angezeigt. Wenn Sie ihn nicht mehr haben, erstellen Sie einen neuen Link; der bisherige gilt dann nicht mehr.",
     "createNew": "Neuen Abo-Link erstellen"
   },
@@ -1965,15 +1965,15 @@
     "createNew": "Neue Zugangsdaten erstellen",
     "regenerate": "Zugangsdaten neu erstellen",
     "alreadyActive": "Ihre Zugangsdaten sind bereits aktiv. Sie werden nur einmal gezeigt. Wenn Sie sie nicht mehr haben, erstellen Sie neue. Das bisherige Kalender-Abo endet dann ebenfalls.",
-    "regenerated": "Neue Zugangsdaten erstellt. Die bisherigen gelten nicht mehr.",
+    "regenerated": "Die neuen Zugangsdaten sind erstellt. Die bisherigen gelten nicht mehr.",
     "caldavTitle": "Mit einem Kalenderprogramm verbinden",
     "caldavDescription": "Zeigen Sie Ihren moto-Kalender zum Beispiel in Thunderbird. Dort können Sie die Termine nur ansehen. Kalenderprogramme nennen diesen Zugang CalDAV.",
     "caldavAddress": "Adresse",
     "caldavUsername": "Benutzername",
     "caldavPassword": "App-Passwort",
-    "addressCopied": "Adresse kopiert.",
-    "usernameCopied": "Benutzername kopiert.",
-    "passwordCopied": "App-Passwort kopiert.",
+    "addressCopied": "Die Adresse ist kopiert.",
+    "usernameCopied": "Der Benutzername ist kopiert.",
+    "passwordCopied": "Das App-Passwort ist kopiert.",
     "passwordOnce": "Sie sehen das App-Passwort nur jetzt. Speichern Sie es gleich im Kalenderprogramm.",
     "passwordHidden": "Das App-Passwort wurde bereits gezeigt. Wenn Sie es nicht mehr haben, erstellen Sie neue Zugangsdaten.",
     "caldavUnavailable": "Die Verbindung ist gerade nicht verfügbar. Bitte versuchen Sie es noch einmal."
@@ -2080,8 +2080,8 @@
       "communication": {
         "announcement_not_published": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
         "announcement_published_immutable": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
-        "announcement_reminder_sent": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
-        "declaration_has_submissions": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
+        "announcement_reminder_sent": "Die Erinnerung ist schon verschickt. Sie lässt sich nicht mehr ändern.",
+        "declaration_has_submissions": "Auf dieses Einverständnis haben Eltern schon geantwortet. Deshalb lässt es sich nicht löschen. Sie können es zurückziehen, dann sehen Eltern es nicht mehr.",
         "parent_news_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
         "poll_not_open": "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
         "staff_counterpart_unavailable": "{object} ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
@@ -2201,10 +2201,10 @@
         "withdraw_not_allowed": "Diese Anmeldung kann nicht mehr zurückgezogen werden. Bitte wenden Sie sich an die Schule."
       },
       "files": {
-        "announcement_published": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
-        "attachment_limit_reached": "Für {object} sind zu viele Dateien ausgewählt. Bitte entfernen Sie einen Anhang.",
-        "folder_name_taken": "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
-        "quota_exceeded": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand."
+        "announcement_published": "Die Mitteilung ist schon veröffentlicht. Ihre Anhänge lassen sich nicht mehr ändern.",
+        "attachment_limit_reached": "Eine Mitteilung kann höchstens 5 Anhänge haben. Bitte entfernen Sie einen Anhang.",
+        "folder_name_taken": "Es gibt schon einen Ordner mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
+        "quota_exceeded": "Der Speicherplatz der Dateiablage ist voll. Bitte löschen Sie Dateien, die Sie nicht mehr brauchen."
       },
       "general": {
         "business_rejection": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
@@ -2236,7 +2236,7 @@
         "preview_target_not_previewable": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "preview_target_school_portal": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "preview_token_invalid": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
-        "read_only_preview": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+        "read_only_preview": "In der Vorschau können Sie nur lesen. Bitte beenden Sie die Vorschau, um etwas zu ändern.",
         "session_account_inactive": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "use_parent_portal": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "use_school_portal": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule."

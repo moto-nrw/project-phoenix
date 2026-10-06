@@ -8,6 +8,8 @@ import {
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import GuardianPickerPanel from "./guardian-picker-panel";
 import type { Guardian } from "@/lib/guardian-helpers";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 const mockSearchGuardians = vi.fn();
 
@@ -246,8 +248,13 @@ describe("GuardianPickerPanel select-and-confirm flow", () => {
     });
   });
 
-  it("shows a German error message when the search fails", async () => {
-    mockSearchGuardians.mockRejectedValue(new Error("backend exploded"));
+  // #2517: catalog text where the results belong, retry searches again.
+  it("shows the catalog text when the search fails and retries", async () => {
+    mockSearchGuardians
+      .mockRejectedValueOnce(
+        new ApiError("backend exploded", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce([makeGuardian(1)]);
 
     render(<GuardianPickerPanel onSelect={vi.fn()} onCancel={vi.fn()} />);
     fireEvent.change(screen.getByPlaceholderText("Name oder E-Mail suchen…"), {
@@ -255,13 +262,26 @@ describe("GuardianPickerPanel select-and-confirm flow", () => {
     });
     await act(() => vi.advanceTimersByTimeAsync(300));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("Suche fehlgeschlagen. Bitte erneut versuchen."),
-      ).toBeInTheDocument();
-    });
-    // The raw backend message must never reach the user.
+    expect(
+      await screen.findByText(
+        catalogText(
+          "general.unavailable",
+          "die Suche nach Erziehungsberechtigten",
+        ),
+      ),
+    ).toBeInTheDocument();
+    // The raw backend message must never reach the user, and a failed
+    // search is no empty result.
     expect(screen.queryByText("backend exploded")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Keine Erziehungsberechtigten gefunden."),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await act(() => vi.advanceTimersByTimeAsync(300));
+
+    expect(await screen.findByText("First1 Last1")).toBeInTheDocument();
+    expect(mockSearchGuardians).toHaveBeenCalledTimes(2);
   });
 
   it("shows the minimum-length hint and does not search for short queries", async () => {

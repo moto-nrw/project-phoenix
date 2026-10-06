@@ -1,7 +1,16 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import type { DeclarationStatus } from "~/lib/parent-announcements-api";
+import { catalogText } from "~/test/error-catalog-text";
 import {
   DeclarationStatusPanel,
   sortDeclarationChildren,
@@ -23,6 +32,11 @@ vi.mock("~/lib/parent-announcements-api", async (importOriginal) => {
     downloadDeclarationExport: downloadMock,
   };
 });
+
+// Erfolg und Aktionsfehler kommen als Toast (#2517).
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 const HASH = "a1b2c3d4e5f6".padEnd(64, "0");
 
@@ -286,7 +300,9 @@ describe("DeclarationStatusPanel (#3430)", () => {
   });
 
   it("offers no reminder for a withdrawn Einverständnis and says when an export fails", async () => {
-    downloadMock.mockRejectedValue(new Error("boom"));
+    downloadMock.mockRejectedValue(
+      new ApiError("boom", 500, { code: "general.server" }),
+    );
     render(<DeclarationStatusPanel announcementId="42" canAct={false} />);
     await screen.findByText("Kinder mit Antwort");
 
@@ -296,9 +312,32 @@ describe("DeclarationStatusPanel (#3430)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Verlauf als CSV/ }));
     expect(
       await screen.findByText(
-        "Die Datei konnte nicht erstellt werden. Bitte versuchen Sie es noch einmal.",
+        catalogText("general.server", "das Erstellen der Datei"),
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/boom/)).not.toBeInTheDocument();
+  });
+
+  // #2517: Ladefehler vor Ort mit Wiederholen, nie als leere Liste.
+  it("shows a failed load with the catalog text and retries", async () => {
+    statusMock.mockRejectedValueOnce(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
+    render(<DeclarationStatusPanel announcementId="42" canAct />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "der Stand der Antworten"),
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText("Kinder mit Antwort")).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        catalogText("general.unavailable", "der Stand der Antworten"),
+      ),
+    ).not.toBeInTheDocument();
   });
 });
 

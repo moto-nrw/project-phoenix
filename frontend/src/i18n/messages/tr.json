@@ -1955,8 +1955,8 @@
     "howToAndroid": "Android: Bilgisayarda Google Takvim'de Diğer takvimler, URL ile, sonra bağlantıyı yapıştırın. Takvim daha sonra telefonda da görünür.",
     "regenerate": "Bağlantıyı yeniden oluştur",
     "regenerated": "Yeni abonelik bağlantısı oluşturuldu. Eski bağlantı artık geçerli değil.",
-    "loadError": "Abonelik bağlantısı yüklenemedi.",
-    "rotateError": "Abonelik bağlantısı yenilenemedi.",
+    "loadObject": "abonelik bağlantısı",
+    "rotateObject": "abonelik bağlantısı",
     "alreadyActive": "Abonelik bağlantınız zaten etkin. Güvenlik nedeniyle yeniden gösterilmez. Artık elinizde yoksa yeni bir bağlantı oluşturun; eski bağlantı o zaman geçerliliğini yitirir.",
     "createNew": "Yeni abonelik bağlantısı oluştur"
   },

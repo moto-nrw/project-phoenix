@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
@@ -44,7 +43,6 @@ interface PersonalCalendarProps {
   readonly weekStart?: Date;
   readonly viewMode?: CalendarViewMode;
   readonly loading?: boolean;
-  readonly error?: string | null;
   readonly onShowOverview?: (appointmentId: string) => void;
   readonly onRespond?: (
     recipientId: string,
@@ -461,7 +459,6 @@ export function PersonalCalendar({
   weekStart,
   viewMode = "week",
   loading,
-  error,
   onShowOverview,
   onRespond,
   respondingRecipientId,
@@ -527,8 +524,6 @@ export function PersonalCalendar({
 
   return (
     <div className="w-full space-y-6">
-      {error ? <Alert type="error" message={error} /> : null}
-
       <div className="relative">
         {/* Der Kopf bleibt beim Laden stehen, nur die Datenfläche wird
             abgedeckt; ein Skelett darüber statt eines Eigenbau-Spinners. */}

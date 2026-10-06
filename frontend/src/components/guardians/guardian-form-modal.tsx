@@ -11,7 +11,8 @@ import {
   SlideOverCloseButton,
 } from "~/components/ui/slide-over";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
 import type {
   GuardianFormData,
   GuardianWithRelationship,
@@ -241,13 +242,14 @@ export default function GuardianFormModal({
   mode,
 }: GuardianFormModalProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const clearErrors = formErrors.clear;
   // Tracks which fields have validation errors: "entryId:field" or "entryId:phone:phoneId"
   const [fieldErrors, setFieldErrors] = useState<Set<string>>(new Set());
   const [entries, setEntries] = useState<GuardianEntry[]>([createEmptyEntry()]);
   const [newEntryId, setNewEntryId] = useState<string | null>(null);
   const entryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const errorRef = useScrollToError(error);
 
   // Reset entries when modal opens/closes or initialData changes
   useEffect(() => {
@@ -257,12 +259,12 @@ export default function GuardianFormModal({
       } else {
         setEntries([createEmptyEntry()]);
       }
-      setError(null);
+      clearErrors();
       setFieldErrors(new Set());
       setNewEntryId(null);
       entryRefs.current.clear();
     }
-  }, [isOpen, initialData]);
+  }, [isOpen, initialData, clearErrors]);
 
   // Scroll to newly added entry
   useEffect(() => {
@@ -499,12 +501,12 @@ export default function GuardianFormModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    formErrors.clear();
     setFieldErrors(new Set());
 
     const validationError = validateEntries();
     if (validationError) {
-      setError(validationError);
+      formErrors.invalid(validationError);
       return;
     }
 
@@ -520,7 +522,14 @@ export default function GuardianFormModal({
         error: err instanceof Error ? err.message : String(err),
         mode,
       });
-      setError(err instanceof Error ? err.message : "Fehler beim Speichern");
+      await formErrors.show(err, {
+        object:
+          mode === "create"
+            ? "das Hinzufügen der Erziehungsberechtigten"
+            : "das Speichern der Erziehungsberechtigten",
+        // Erneut absenden mit den Eingaben von jetzt.
+        retry: () => formRef.current?.requestSubmit(),
+      });
     } finally {
       setIsLoading(false);
     }
@@ -546,22 +555,13 @@ export default function GuardianFormModal({
           <SlideOverCloseButton />
         </SlideOverHeader>
         <form
+          ref={formRef}
           onSubmit={handleSubmit}
           noValidate
           className="flex min-h-0 flex-1 flex-col"
         >
           <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 md:space-y-6">
-            {/* Submit Error */}
-            {error && (
-              <div
-                ref={errorRef}
-                className="border-moto-red/20 bg-moto-red-soft rounded-lg border p-2 md:p-3"
-              >
-                <p className="text-moto-red-strong text-xs md:text-sm">
-                  {error}
-                </p>
-              </div>
-            )}
+            <FormErrorAlert message={formErrors.error} />
 
             {/* Guardian Entries */}
             {entries.map((entry, index) => (

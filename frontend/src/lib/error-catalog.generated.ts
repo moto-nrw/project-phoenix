@@ -105,6 +105,10 @@ export const ERROR_CATALOG = {
         "Das Datum für {object} liegt in der Vergangenheit. Bitte wählen Sie ein anderes Datum.",
       "classday.school_write_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "communication.announcement_reminder_sent":
+        "Die Erinnerung ist schon verschickt. Sie lässt sich nicht mehr ändern.",
+      "communication.declaration_has_submissions":
+        "Auf dieses Einverständnis haben Eltern schon geantwortet. Deshalb lässt es sich nicht löschen. Sie können es zurückziehen, dann sehen Eltern es nicht mehr.",
       "communication.parent_news_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.poll_not_open":
@@ -195,10 +199,14 @@ export const ERROR_CATALOG = {
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "enrollment.window_closed":
         "Die Anmeldefrist ist vorbei oder hat noch nicht begonnen. Bitte wenden Sie sich an die Schule.",
+      "files.announcement_published":
+        "Die Mitteilung ist schon veröffentlicht. Ihre Anhänge lassen sich nicht mehr ändern.",
       "files.attachment_limit_reached":
-        "Für {object} sind zu viele Dateien ausgewählt. Bitte entfernen Sie einen Anhang.",
+        "Eine Mitteilung kann höchstens 5 Anhänge haben. Bitte entfernen Sie einen Anhang.",
       "files.folder_name_taken":
-        "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
+        "Es gibt schon einen Ordner mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
+      "files.quota_exceeded":
+        "Der Speicherplatz der Dateiablage ist voll. Bitte löschen Sie Dateien, die Sie nicht mehr brauchen.",
       "grade_transition.preview_stale":
         "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
       "identity.account_already_has_tenant_access":
@@ -221,6 +229,8 @@ export const ERROR_CATALOG = {
         "Für {object} müssen Sie angemeldet sein. Bitte melden Sie sich an.",
       "identity.preview_token_invalid":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+      "identity.read_only_preview":
+        "In der Vorschau können Sie nur lesen. Bitte beenden Sie die Vorschau, um etwas zu ändern.",
       "iot.activity_capacity_exceeded":
         "Im Angebot {activity_name} ist kein Platz mehr. Bitte wählen Sie ein anderes Angebot.",
       "iot.deviation_reason_required":

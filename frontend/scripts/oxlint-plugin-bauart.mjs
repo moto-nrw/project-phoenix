@@ -308,13 +308,13 @@ const ROW_ACTION_BASELINE = new Map(
     // Formular-intern (Eintrag eines Formularwerts, kein gespeichertes
     // Objekt): fest an die bestehende Stelle gebunden, damit keine neue
     // Zeilenaktion dieselbe Ausnahme nutzen kann.
-    "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1190"],
+    "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1277"],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
       "Gericht entfernen@738",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Antwort entfernen@1449",
-      "Entfernen@1887",
+      "Antwort entfernen@1572",
+      "Entfernen@2015",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
       "Bedingung löschen@2024",
@@ -1576,7 +1576,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // seinen eigenen Fuß (BAUARTEN-SPEC Bauart 2 Regel 4, #3115); die Anzeige
     // liegt auf der Route `parent-announcements/[id]`.
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1349",
+      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1456",
     ],
     // Einträge ohne eigene Objektansicht (Termin, Schließtag,
     // Kalenderzeitraum, Jahrgangswechsel, Klassenlisteneintrag,
@@ -1584,7 +1584,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // kennt für sie noch keine Bauart (Entscheidung in #3119 offen gelassen).
     // Bis sie eine bekommen, bleibt der Bestand stehen und wächst nicht.
     "src/app/[tenant]/(protected)/calendar/page.tsx": [
-      "Termin bearbeiten Termin erstellen@918",
+      "Termin bearbeiten Termin erstellen@990",
     ],
     "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
       "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@538",
@@ -1599,13 +1599,13 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@948",
     ],
     "src/components/files/folder-modal.tsx": [
-      "Ordner bearbeiten Neuer Ordner@131",
+      "Ordner bearbeiten Neuer Ordner@145",
     ],
     "src/components/planning/closing-day-modal.tsx": [
       "Schließtag bearbeiten Schließtag anlegen@90",
     ],
     "src/components/staff-notices/staff-notice-modal.tsx": [
-      "Tagesinformation bearbeiten Neue Tagesinformation@182",
+      "Tagesinformation bearbeiten Neue Tagesinformation@186",
     ],
     "src/components/timetable/calendar-period-modal.tsx": [
       "Kalenderzeitraum bearbeiten Kalenderzeitraum anlegen@403",

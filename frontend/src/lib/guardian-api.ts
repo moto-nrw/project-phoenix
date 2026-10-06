@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { ApiError, enrichApiError, transportFetch } from "./api-error";
 // Guardian API Client
 // Calls Next.js API routes which proxy to the Go backend
 
@@ -67,10 +67,9 @@ function isErrorResponse(value: unknown): value is ErrorResponse {
   );
 }
 
-// Error carrying the HTTP status so callers can branch on it. The guardian
-// delete flow needs to tell a 409 (still linked — show the affected children
-// and offer a full delete) apart from a 403 (not allowed to fully delete) and
-// a generic failure.
+// Every failure of this client is a GuardianApiError: the wire code, field
+// errors and request ID travel to the shared error display (#2517); the
+// message is a diagnostic for the logs and is never shown.
 export class GuardianApiError extends ApiError {
   status: number;
 
@@ -81,79 +80,31 @@ export class GuardianApiError extends ApiError {
   }
 }
 
-// Error message translations (English backend -> German frontend)
-// Exported for testing
-export const errorTranslations: Record<string, string> = {
-  "invalid email format": "Ungültiges E-Mail-Format",
-  "bereits registriert": "Diese E-Mail-Adresse wird bereits verwendet",
-  // Duplicate-email on guardian create (#1513): the backend already sends a
-  // German message, but translateApiError replaces any unrecognised string with
-  // the generic catch-all — so this pattern is required for the helpful
-  // "use the search" guidance to reach the user.
-  "bereits vergeben":
-    "Diese E-Mail-Adresse ist bereits vergeben. Bitte die vorhandene Person über die Suche auswählen.",
-  "guardian not found": "Erziehungsberechtigte/r nicht gefunden",
-  "student not found": "Kind nicht gefunden",
-  "relationship already exists": "Diese Verknüpfung existiert bereits",
-  "validation failed": "Validierung fehlgeschlagen",
-  "invalid phone number format":
-    "Ungültiges Telefonnummernformat (nur Ziffern, Leerzeichen, +, -, Klammern)",
-  "phone number must contain at least 3 digits":
-    "Telefonnummer muss mindestens 3 Ziffern enthalten",
-  "phone number is required": "Telefonnummer ist erforderlich",
-  // Invalid contact input comes back as a 400 with a German reason (#3549);
-  // without these patterns it would fall through to the generic catch-all.
-  "ungültiges e-mail-format": "Ungültiges E-Mail-Format",
-  "ungültiges telefonnummer-format":
-    "Ungültiges Telefonnummernformat (nur Ziffern, Leerzeichen, +, -, Klammern)",
-  "telefonnummer muss mindestens 3 ziffern enthalten":
-    "Telefonnummer muss mindestens 3 Ziffern enthalten",
-  "telefonnummer ist erforderlich": "Telefonnummer ist erforderlich",
-  "ungültige bevorzugte kontaktmethode": "Ungültige bevorzugte Kontaktmethode",
-  unauthorized: "Keine Berechtigung",
-  forbidden: "Zugriff verweigert",
-};
+/** The failed response as a GuardianApiError carrying the envelope. */
+async function guardianApiError(
+  response: Response,
+  operation: string,
+  fallback: string,
+): Promise<GuardianApiError> {
+  const body: unknown = await response.json().catch((err: unknown) => {
+    logger.debug("json_parse_failed", {
+      error: err instanceof Error ? err.message : String(err),
+      status: response.status,
+      operation,
+    });
+    return undefined;
+  });
+  const message = isErrorResponse(body) ? body.error : fallback;
+  return enrichApiError(new GuardianApiError(message, response.status), body);
+}
 
 /**
- * Translate backend error messages to user-friendly German messages
- * Exported for testing
+ * A 2xx answer whose body still says `status: "error"`, or lacks the data
+ * the call needs. Nothing about it is the user's input, so it counts as a
+ * server failure.
  */
-export function translateApiError(errorMessage: string): string {
-  const lowerError = errorMessage.toLowerCase();
-
-  // Check specific error patterns first (before generic "validation failed")
-  // Order matters: more specific patterns must be checked before generic ones
-  for (const [pattern, translation] of Object.entries(errorTranslations)) {
-    if (pattern === "validation failed") continue; // Handle last
-    if (lowerError.includes(pattern)) {
-      return translation;
-    }
-  }
-
-  // Handle "validation failed: <specific reason>" — extract and translate the reason
-  if (lowerError.includes("validation failed")) {
-    const colonIndex = lowerError.indexOf("validation failed:");
-    if (colonIndex !== -1) {
-      const reason = errorMessage
-        .substring(colonIndex + "validation failed:".length)
-        .trim();
-      if (reason) {
-        // Try to translate the extracted reason
-        const translatedReason = translateApiError(reason);
-        // If the reason itself translates to something specific, use it
-        if (
-          translatedReason !==
-          "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut."
-        ) {
-          return translatedReason;
-        }
-      }
-    }
-    return errorTranslations["validation failed"]!;
-  }
-
-  // Return generic message for unknown errors
-  return "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.";
+function bodyError(message: string | undefined, fallback: string) {
+  return new GuardianApiError(message ?? fallback, 500);
 }
 
 // Backend student type (minimal representation for guardian relationships)
@@ -222,23 +173,16 @@ interface PartialRelationshipUpdateRequest {
 export async function fetchStudentGuardians(
   studentId: string,
 ): Promise<GuardianWithRelationship[]> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/guardians/students/${studentId}/guardians`,
   );
 
   if (!response.ok) {
-    const error: unknown = await response.json().catch((err) => {
-      logger.debug("json_parse_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        status: response.status,
-        operation: "fetch_student_guardians",
-      });
-      return { error: "Failed to fetch guardians" };
-    });
-    const errorMessage = isErrorResponse(error)
-      ? error.error
-      : `Failed to fetch guardians: ${response.statusText}`;
-    throw new Error(errorMessage);
+    throw await guardianApiError(
+      response,
+      "fetch_student_guardians",
+      "Failed to fetch guardians",
+    );
   }
 
   const result = (await response.json()) as ApiResponse<
@@ -246,7 +190,7 @@ export async function fetchStudentGuardians(
   >;
 
   if (result.status === "error") {
-    throw new Error(result.error ?? "Failed to fetch guardians");
+    throw bodyError(result.error, "Failed to fetch guardians");
   }
 
   return (result.data ?? []).map(mapGuardianWithRelationshipResponse);
@@ -258,27 +202,22 @@ export async function fetchStudentGuardians(
 export async function fetchGuardianStudents(
   guardianId: string,
 ): Promise<BackendStudent[]> {
-  const response = await fetch(`/api/guardians/${guardianId}/students`);
+  const response = await transportFetch(
+    `/api/guardians/${guardianId}/students`,
+  );
 
   if (!response.ok) {
-    const error: unknown = await response.json().catch((err) => {
-      logger.debug("json_parse_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        status: response.status,
-        operation: "fetch_guardian_students",
-      });
-      return { error: "Failed to fetch students" };
-    });
-    const errorMessage = isErrorResponse(error)
-      ? error.error
-      : `Failed to fetch students: ${response.statusText}`;
-    throw new Error(errorMessage);
+    throw await guardianApiError(
+      response,
+      "fetch_guardian_students",
+      "Failed to fetch students",
+    );
   }
 
   const result = (await response.json()) as ApiResponse<BackendStudent[]>;
 
   if (result.status === "error") {
-    throw new Error(result.error ?? "Failed to fetch students");
+    throw bodyError(result.error, "Failed to fetch students");
   }
 
   return result.data ?? [];
@@ -292,7 +231,7 @@ export async function createGuardian(
 ): Promise<Guardian> {
   const backendData = mapGuardianFormDataToBackend(data);
 
-  const response = await fetch("/api/guardians", {
+  const response = await transportFetch("/api/guardians", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -301,26 +240,17 @@ export async function createGuardian(
   });
 
   if (!response.ok) {
-    const error: unknown = await response.json().catch((err) => {
-      logger.debug("json_parse_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        status: response.status,
-        operation: "create_guardian",
-      });
-      return { error: "Failed to create guardian" };
-    });
-    const errorMessage = isErrorResponse(error)
-      ? translateApiError(error.error)
-      : translateApiError(`Failed to create guardian: ${response.statusText}`);
-    throw new Error(errorMessage);
+    throw await guardianApiError(
+      response,
+      "create_guardian",
+      "Failed to create guardian",
+    );
   }
 
   const result = (await response.json()) as ApiResponse<BackendGuardianProfile>;
 
   if (result.status === "error" || !result.data) {
-    throw new Error(
-      translateApiError(result.error ?? "Failed to create guardian"),
-    );
+    throw bodyError(result.error, "Failed to create guardian");
   }
 
   return mapGuardianResponse(result.data);
@@ -335,7 +265,7 @@ export async function updateGuardian(
 ): Promise<Guardian> {
   const backendData = mapGuardianFormToBackend(data);
 
-  const response = await fetch(`/api/guardians/${guardianId}`, {
+  const response = await transportFetch(`/api/guardians/${guardianId}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -344,26 +274,17 @@ export async function updateGuardian(
   });
 
   if (!response.ok) {
-    const error: unknown = await response.json().catch((err) => {
-      logger.debug("json_parse_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        status: response.status,
-        operation: "update_guardian",
-      });
-      return { error: "Failed to update guardian" };
-    });
-    const errorMessage = isErrorResponse(error)
-      ? translateApiError(error.error)
-      : translateApiError(`Failed to update guardian: ${response.statusText}`);
-    throw new Error(errorMessage);
+    throw await guardianApiError(
+      response,
+      "update_guardian",
+      "Failed to update guardian",
+    );
   }
 
   const result = (await response.json()) as ApiResponse<BackendGuardianProfile>;
 
   if (result.status === "error" || !result.data) {
-    throw new Error(
-      translateApiError(result.error ?? "Failed to update guardian"),
-    );
+    throw bodyError(result.error, "Failed to update guardian");
   }
 
   return mapGuardianResponse(result.data);
@@ -397,25 +318,15 @@ export async function deleteGuardian(
   const url = queryString
     ? `/api/guardians/${guardianId}?${queryString}`
     : `/api/guardians/${guardianId}`;
-  const response = await fetch(url, {
+  const response = await transportFetch(url, {
     method: "DELETE",
   });
 
   if (!response.ok) {
-    const error: unknown = await response.json().catch((err) => {
-      logger.debug("json_parse_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        status: response.status,
-        operation: "delete_guardian",
-      });
-      return { error: "Failed to delete guardian" };
-    });
-    const errorMessage = isErrorResponse(error)
-      ? error.error
-      : `Failed to delete guardian: ${response.statusText}`;
-    throw enrichApiError(
-      new GuardianApiError(errorMessage, response.status),
-      error,
+    throw await guardianApiError(
+      response,
+      "delete_guardian",
+      "Failed to delete guardian",
     );
   }
 
@@ -428,7 +339,7 @@ export async function deleteGuardian(
   const result = (await response.json()) as ApiResponse<null>;
 
   if (result.status === "error") {
-    throw new Error(result.error ?? "Failed to delete guardian");
+    throw bodyError(result.error, "Failed to delete guardian");
   }
 }
 
@@ -455,23 +366,15 @@ export interface GuardianDeletePreview {
 export async function fetchGuardianDeletePreview(
   guardianId: string,
 ): Promise<GuardianDeletePreview> {
-  const response = await fetch(`/api/guardians/${guardianId}/delete-preview`);
+  const response = await transportFetch(
+    `/api/guardians/${guardianId}/delete-preview`,
+  );
 
   if (!response.ok) {
-    const error: unknown = await response.json().catch((err) => {
-      logger.debug("json_parse_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        status: response.status,
-        operation: "fetch_guardian_delete_preview",
-      });
-      return { error: "Failed to load delete preview" };
-    });
-    const errorMessage = isErrorResponse(error)
-      ? error.error
-      : `Failed to load delete preview: ${response.statusText}`;
-    throw enrichApiError(
-      new GuardianApiError(errorMessage, response.status),
-      error,
+    throw await guardianApiError(
+      response,
+      "fetch_guardian_delete_preview",
+      "Failed to load delete preview",
     );
   }
 
@@ -485,7 +388,7 @@ export async function fetchGuardianDeletePreview(
   }>;
 
   if (result.status === "error" || !result.data) {
-    throw new Error(result.error ?? "Failed to load delete preview");
+    throw bodyError(result.error, "Failed to load delete preview");
   }
 
   return {
@@ -507,7 +410,7 @@ export async function linkGuardianToStudent(
 ): Promise<void> {
   const backendData = mapStudentGuardianLinkToBackend(linkData);
 
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/guardians/students/${studentId}/guardians`,
     {
       method: "POST",
@@ -519,24 +422,17 @@ export async function linkGuardianToStudent(
   );
 
   if (!response.ok) {
-    const error: unknown = await response.json().catch((err) => {
-      logger.debug("json_parse_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        status: response.status,
-        operation: "link_guardian_to_student",
-      });
-      return { error: "Failed to link guardian" };
-    });
-    const errorMessage = isErrorResponse(error)
-      ? error.error
-      : `Failed to link guardian: ${response.statusText}`;
-    throw new Error(errorMessage);
+    throw await guardianApiError(
+      response,
+      "link_guardian_to_student",
+      "Failed to link guardian",
+    );
   }
 
   const result = (await response.json()) as ApiResponse<null>;
 
   if (result.status === "error") {
-    throw new Error(result.error ?? "Failed to link guardian");
+    throw bodyError(result.error, "Failed to link guardian");
   }
 }
 
@@ -577,7 +473,7 @@ export interface NewStudentGuardianInput {
  * batch back server-side, so there are no orphaned profiles and the client needs
  * no compensating delete (which a non-admin supervisor could not perform once a
  * guardian had lost its links). Bad input (e.g. a duplicate email) comes back as
- * a 400 with a German message, translated for display.
+ * a 400; the shared error display shows the catalog text for its code.
  */
 export async function createStudentGuardians(
   studentId: string,
@@ -609,7 +505,7 @@ export async function createStudentGuardians(
     })),
   };
 
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/guardians/students/${studentId}/guardians/batch`,
     {
       method: "POST",
@@ -621,18 +517,11 @@ export async function createStudentGuardians(
   );
 
   if (!response.ok) {
-    const error: unknown = await response.json().catch((err) => {
-      logger.debug("json_parse_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        status: response.status,
-        operation: "create_student_guardians",
-      });
-      return { error: "Failed to create guardians" };
-    });
-    const errorMessage = isErrorResponse(error)
-      ? translateApiError(error.error)
-      : translateApiError(`Failed to create guardians: ${response.statusText}`);
-    throw new Error(errorMessage);
+    throw await guardianApiError(
+      response,
+      "create_student_guardians",
+      "Failed to create guardians",
+    );
   }
 
   // 201 Created with no meaningful body — the caller reloads the guardian list.
@@ -643,9 +532,7 @@ export async function createStudentGuardians(
   const result = (await response.json()) as ApiResponse<null>;
 
   if (result.status === "error") {
-    throw new Error(
-      translateApiError(result.error ?? "Failed to create guardians"),
-    );
+    throw bodyError(result.error, "Failed to create guardians");
   }
 }
 
@@ -680,7 +567,7 @@ export async function updateStudentGuardianRelationship(
     backendData.emergency_priority = updates.emergencyPriority;
   }
 
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/guardians/relationships/${relationshipId}`,
     {
       method: "PUT",
@@ -692,24 +579,17 @@ export async function updateStudentGuardianRelationship(
   );
 
   if (!response.ok) {
-    const error: unknown = await response.json().catch((err) => {
-      logger.debug("json_parse_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        status: response.status,
-        operation: "update_student_guardian_relationship",
-      });
-      return { error: "Failed to update relationship" };
-    });
-    const errorMessage = isErrorResponse(error)
-      ? error.error
-      : `Failed to update relationship: ${response.statusText}`;
-    throw new Error(errorMessage);
+    throw await guardianApiError(
+      response,
+      "update_student_guardian_relationship",
+      "Failed to update relationship",
+    );
   }
 
   const result = (await response.json()) as ApiResponse<null>;
 
   if (result.status === "error") {
-    throw new Error(result.error ?? "Failed to update relationship");
+    throw bodyError(result.error, "Failed to update relationship");
   }
 }
 
@@ -720,7 +600,7 @@ export async function removeGuardianFromStudent(
   studentId: string,
   guardianId: string,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/guardians/students/${studentId}/guardians/${guardianId}`,
     {
       method: "DELETE",
@@ -728,18 +608,11 @@ export async function removeGuardianFromStudent(
   );
 
   if (!response.ok) {
-    const error: unknown = await response.json().catch((err) => {
-      logger.debug("json_parse_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        status: response.status,
-        operation: "remove_guardian_from_student",
-      });
-      return { error: "Failed to remove guardian" };
-    });
-    const errorMessage = isErrorResponse(error)
-      ? error.error
-      : `Failed to remove guardian: ${response.statusText}`;
-    throw new Error(errorMessage);
+    throw await guardianApiError(
+      response,
+      "remove_guardian_from_student",
+      "Failed to remove guardian",
+    );
   }
 
   // 204 No Content means successful deletion with no response body
@@ -751,7 +624,7 @@ export async function removeGuardianFromStudent(
   const result = (await response.json()) as ApiResponse<null>;
 
   if (result.status === "error") {
-    throw new Error(result.error ?? "Failed to remove guardian");
+    throw bodyError(result.error, "Failed to remove guardian");
   }
 }
 
@@ -788,38 +661,34 @@ export async function inviteGuardianToStudent(
     confirmRoleUpgrade?: boolean;
   },
 ): Promise<InviteGuardianResult> {
-  const response = await fetch(`/api/guardians/students/${studentId}/invite`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      email,
-      first_name: options?.firstName ?? "",
-      last_name: options?.lastName ?? "",
-      relationship_type: options?.relationshipType ?? "",
-      // Only sent when confirming an upgrade; a plain invite keeps the
-      // historical four-field body.
-      ...(options?.confirmRoleUpgrade ? { confirm_role_upgrade: true } : {}),
-    }),
-  });
+  const response = await transportFetch(
+    `/api/guardians/students/${studentId}/invite`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        first_name: options?.firstName ?? "",
+        last_name: options?.lastName ?? "",
+        relationship_type: options?.relationshipType ?? "",
+        // Only sent when confirming an upgrade; a plain invite keeps the
+        // historical four-field body.
+        ...(options?.confirmRoleUpgrade ? { confirm_role_upgrade: true } : {}),
+      }),
+    },
+  );
 
   if (!response.ok) {
-    const error: unknown = await response.json().catch((err) => {
-      logger.debug("json_parse_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        status: response.status,
-        operation: "invite_guardian_to_student",
-      });
-      return { error: "Failed to invite guardian" };
-    });
-    const errorMessage = isErrorResponse(error)
-      ? error.error
-      : `Failed to invite guardian: ${response.statusText}`;
-    throw new Error(errorMessage);
+    throw await guardianApiError(
+      response,
+      "invite_guardian_to_student",
+      "Failed to invite guardian",
+    );
   }
 
   const result = (await response.json()) as ApiResponse<InviteGuardianResult>;
   if (result.status === "error" || !result.data) {
-    throw new Error(result.error ?? "Failed to invite guardian");
+    throw bodyError(result.error, "Failed to invite guardian");
   }
   return result.data;
 }
@@ -836,30 +705,23 @@ export const GUARDIAN_PICKER_RESULT_LIMIT = 50;
  * Search for existing guardians (for linking)
  */
 export async function searchGuardians(query: string): Promise<Guardian[]> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/guardians/search?q=${encodeURIComponent(query)}&page_size=${GUARDIAN_PICKER_RESULT_LIMIT}`,
   );
 
   if (!response.ok) {
-    const error: unknown = await response.json().catch((err) => {
-      logger.debug("json_parse_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        status: response.status,
-        operation: "search_guardians",
-      });
-      return { error: "Failed to search guardians" };
-    });
-    const errorMessage = isErrorResponse(error)
-      ? error.error
-      : `Failed to search guardians: ${response.statusText}`;
-    throw new Error(errorMessage);
+    throw await guardianApiError(
+      response,
+      "search_guardians",
+      "Failed to search guardians",
+    );
   }
 
   const result =
     (await response.json()) as PaginatedResponse<BackendGuardianPickerResponse>;
 
   if (result.status === "error") {
-    throw new Error(result.error ?? "Failed to search guardians");
+    throw bodyError(result.error, "Failed to search guardians");
   }
 
   return (result.data ?? []).map(mapGuardianPickerResponse);
@@ -875,27 +737,22 @@ export async function searchGuardians(query: string): Promise<Guardian[]> {
 export async function fetchGuardianPhoneNumbers(
   guardianId: string,
 ): Promise<PhoneNumber[]> {
-  const response = await fetch(`/api/guardians/${guardianId}/phone-numbers`);
+  const response = await transportFetch(
+    `/api/guardians/${guardianId}/phone-numbers`,
+  );
 
   if (!response.ok) {
-    const error: unknown = await response.json().catch((err) => {
-      logger.debug("json_parse_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        status: response.status,
-        operation: "fetch_guardian_phone_numbers",
-      });
-      return { error: "Failed to fetch phone numbers" };
-    });
-    const errorMessage = isErrorResponse(error)
-      ? error.error
-      : `Failed to fetch phone numbers: ${response.statusText}`;
-    throw new Error(errorMessage);
+    throw await guardianApiError(
+      response,
+      "fetch_guardian_phone_numbers",
+      "Failed to fetch phone numbers",
+    );
   }
 
   const result = (await response.json()) as ApiResponse<BackendPhoneNumber[]>;
 
   if (result.status === "error") {
-    throw new Error(result.error ?? "Failed to fetch phone numbers");
+    throw bodyError(result.error, "Failed to fetch phone numbers");
   }
 
   return (result.data ?? []).map(mapPhoneNumberResponse);
@@ -910,35 +767,29 @@ export async function addGuardianPhoneNumber(
 ): Promise<PhoneNumber> {
   const backendData = mapPhoneNumberCreateToBackend(data);
 
-  const response = await fetch(`/api/guardians/${guardianId}/phone-numbers`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+  const response = await transportFetch(
+    `/api/guardians/${guardianId}/phone-numbers`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(backendData),
     },
-    body: JSON.stringify(backendData),
-  });
+  );
 
   if (!response.ok) {
-    const error: unknown = await response.json().catch((err) => {
-      logger.debug("json_parse_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        status: response.status,
-        operation: "add_guardian_phone_number",
-      });
-      return { error: "Failed to add phone number" };
-    });
-    const errorMessage = isErrorResponse(error)
-      ? translateApiError(error.error)
-      : translateApiError(`Failed to add phone number: ${response.statusText}`);
-    throw new Error(errorMessage);
+    throw await guardianApiError(
+      response,
+      "add_guardian_phone_number",
+      "Failed to add phone number",
+    );
   }
 
   const result = (await response.json()) as ApiResponse<BackendPhoneNumber>;
 
   if (result.status === "error" || !result.data) {
-    throw new Error(
-      translateApiError(result.error ?? "Failed to add phone number"),
-    );
+    throw bodyError(result.error, "Failed to add phone number");
   }
 
   return mapPhoneNumberResponse(result.data);
@@ -954,7 +805,7 @@ export async function updateGuardianPhoneNumber(
 ): Promise<void> {
   const backendData = mapPhoneNumberUpdateToBackend(data);
 
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/guardians/${guardianId}/phone-numbers/${phoneId}`,
     {
       method: "PUT",
@@ -966,28 +817,17 @@ export async function updateGuardianPhoneNumber(
   );
 
   if (!response.ok) {
-    const error: unknown = await response.json().catch((err) => {
-      logger.debug("json_parse_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        status: response.status,
-        operation: "update_guardian_phone_number",
-      });
-      return { error: "Failed to update phone number" };
-    });
-    const errorMessage = isErrorResponse(error)
-      ? translateApiError(error.error)
-      : translateApiError(
-          `Failed to update phone number: ${response.statusText}`,
-        );
-    throw new Error(errorMessage);
+    throw await guardianApiError(
+      response,
+      "update_guardian_phone_number",
+      "Failed to update phone number",
+    );
   }
 
   const result = (await response.json()) as ApiResponse<null>;
 
   if (result.status === "error") {
-    throw new Error(
-      translateApiError(result.error ?? "Failed to update phone number"),
-    );
+    throw bodyError(result.error, "Failed to update phone number");
   }
 }
 
@@ -998,7 +838,7 @@ export async function deleteGuardianPhoneNumber(
   guardianId: string,
   phoneId: string,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/guardians/${guardianId}/phone-numbers/${phoneId}`,
     {
       method: "DELETE",
@@ -1006,18 +846,11 @@ export async function deleteGuardianPhoneNumber(
   );
 
   if (!response.ok) {
-    const error: unknown = await response.json().catch((err) => {
-      logger.debug("json_parse_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        status: response.status,
-        operation: "delete_guardian_phone_number",
-      });
-      return { error: "Failed to delete phone number" };
-    });
-    const errorMessage = isErrorResponse(error)
-      ? error.error
-      : `Failed to delete phone number: ${response.statusText}`;
-    throw new Error(errorMessage);
+    throw await guardianApiError(
+      response,
+      "delete_guardian_phone_number",
+      "Failed to delete phone number",
+    );
   }
 
   // 204 No Content means successful deletion with no response body
@@ -1028,7 +861,7 @@ export async function deleteGuardianPhoneNumber(
   const result = (await response.json()) as ApiResponse<null>;
 
   if (result.status === "error") {
-    throw new Error(result.error ?? "Failed to delete phone number");
+    throw bodyError(result.error, "Failed to delete phone number");
   }
 }
 
@@ -1039,7 +872,7 @@ export async function setGuardianPrimaryPhone(
   guardianId: string,
   phoneId: string,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/guardians/${guardianId}/phone-numbers/${phoneId}/set-primary`,
     {
       method: "POST",
@@ -1047,24 +880,17 @@ export async function setGuardianPrimaryPhone(
   );
 
   if (!response.ok) {
-    const error: unknown = await response.json().catch((err) => {
-      logger.debug("json_parse_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        status: response.status,
-        operation: "set_guardian_primary_phone",
-      });
-      return { error: "Failed to set primary phone" };
-    });
-    const errorMessage = isErrorResponse(error)
-      ? error.error
-      : `Failed to set primary phone: ${response.statusText}`;
-    throw new Error(errorMessage);
+    throw await guardianApiError(
+      response,
+      "set_guardian_primary_phone",
+      "Failed to set primary phone",
+    );
   }
 
   const result = (await response.json()) as ApiResponse<null>;
 
   if (result.status === "error") {
-    throw new Error(result.error ?? "Failed to set primary phone");
+    throw bodyError(result.error, "Failed to set primary phone");
   }
 }
 
@@ -1118,22 +944,21 @@ function mapPendingApproval(data: BackendPendingApproval): PendingApproval {
 
 /** List parent-initiated guardian invitations awaiting staff approval. */
 export async function listPendingApprovals(): Promise<PendingApproval[]> {
-  const response = await fetch("/api/guardians/invitations/pending-approval");
+  const response = await transportFetch(
+    "/api/guardians/invitations/pending-approval",
+  );
   if (!response.ok) {
-    const error: unknown = await response.json().catch(() => ({
-      error: "Failed to load approvals",
-    }));
-    throw new Error(
-      isErrorResponse(error)
-        ? error.error
-        : `Failed to load approvals: ${response.statusText}`,
+    throw await guardianApiError(
+      response,
+      "list_pending_approvals",
+      "Failed to load approvals",
     );
   }
   const result = (await response.json()) as ApiResponse<
     BackendPendingApproval[]
   >;
   if (result.status === "error") {
-    throw new Error(result.error ?? "Failed to load approvals");
+    throw bodyError(result.error, "Failed to load approvals");
   }
   return (result.data ?? []).map(mapPendingApproval);
 }
@@ -1142,24 +967,21 @@ async function postInvitationAction(
   invitationId: string,
   action: "approve" | "reject",
 ): Promise<void> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/guardians/invitations/${invitationId}/${action}`,
     { method: "POST" },
   );
   if (!response.ok) {
-    const error: unknown = await response.json().catch(() => ({
-      error: `Failed to ${action} invitation`,
-    }));
-    throw new Error(
-      isErrorResponse(error)
-        ? error.error
-        : `Failed to ${action} invitation: ${response.statusText}`,
+    throw await guardianApiError(
+      response,
+      `${action}_invitation`,
+      `Failed to ${action} invitation`,
     );
   }
   if (response.status === 204) return;
   const result = (await response.json()) as ApiResponse<null>;
   if (result.status === "error") {
-    throw new Error(result.error ?? `Failed to ${action} invitation`);
+    throw bodyError(result.error, `Failed to ${action} invitation`);
   }
 }
 

@@ -1,16 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { AlertTriangle, BellRing, CheckCircle2, RefreshCw } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { InfoCard } from "~/components/ui/info-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { SegmentedControlItem } from "~/components/ui/segmented-control";
-import { getApiErrorMessage } from "~/lib/api-error-message";
+import {
+  useApiErrorDisplay,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
+import { createLogger } from "~/lib/logger";
 import { formatDate } from "~/lib/date-helpers";
 import {
   fetchLetterStatus,
@@ -76,6 +89,8 @@ const CHILD_FILTERS: ReadonlyArray<SegmentedControlItem<ChildFilter>> = [
   { value: "open", label: "Nur offene" },
 ];
 
+const logger = createLogger({ component: "LetterStatusPanel" });
+
 function fullName(first: string, last: string): string {
   return `${first} ${last}`.trim() || "Unbekannt";
 }
@@ -91,26 +106,39 @@ export function LetterStatusPanel({
   readonly emailAudience: AnnouncementEmailAudience;
 }) {
   const [status, setStatus] = useState<LetterStatus | null>(null);
-  const [loadError, setLoadError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
+  const loadError = useApiLoadError();
+  const showLoadError = loadError.show;
+  const clearLoadError = loadError.clear;
+  const { show: showError } = useApiErrorDisplay();
+  const { success: toastSuccess } = useToast();
   const [busy, setBusy] = useState<"remind" | "resend" | null>(null);
   const [childFilter, setChildFilter] = useState<ChildFilter>("all");
+  // „Wiederholen“ ruft Laden bzw. die Aktion mit dem dann aktuellen Stand auf.
+  const latestLoadRef = useRef<() => void>(() => undefined);
+  const latestActionRef = useRef<(action: "remind" | "resend") => void>(
+    () => undefined,
+  );
 
   const load = useCallback(async () => {
     try {
       setStatus(await fetchLetterStatus(announcementId));
-      setLoadError("");
+      setLoadFailed(false);
+      clearLoadError();
     } catch (error) {
-      setLoadError(
-        getApiErrorMessage(
-          error,
-          "laden",
-          "Status",
-          "Status konnte nicht geladen werden.",
-        ),
-      );
+      logger.error("letter_status_load_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      setLoadFailed(true);
+      void showLoadError(error, {
+        object: "der Stand des Elternbriefs",
+        retry: () => latestLoadRef.current(),
+      });
     }
-  }, [announcementId]);
+  }, [announcementId, showLoadError, clearLoadError]);
+  useLayoutEffect(() => {
+    latestLoadRef.current = () => void load();
+  });
 
   useEffect(() => {
     void load();
@@ -127,41 +155,47 @@ export function LetterStatusPanel({
 
   const runAction = async (action: "remind" | "resend") => {
     setBusy(action);
-    setNotice("");
     try {
       const count =
         action === "remind"
           ? await remindUnanswered(announcementId)
           : await resendFailedEmails(announcementId);
-      setNotice(
+      toastSuccess(
         action === "remind"
           ? count === 0
             ? "Alle Kinder sind bestätigt. Es wurde niemand erinnert."
-            : `${count} Bezugspersonen erinnert.`
+            : `${count} ${count === 1 ? "Bezugsperson ist" : "Bezugspersonen sind"} erinnert.`
           : count === 0
             ? "Es gab keine fehlgeschlagenen E-Mails."
-            : `${count} E-Mails werden erneut gesendet.`,
+            : `${count} ${count === 1 ? "E-Mail wird" : "E-Mails werden"} erneut gesendet.`,
       );
       await load();
     } catch (error) {
-      setLoadError(
-        getApiErrorMessage(
-          error,
-          "senden",
-          action === "remind" ? "Erinnerung" : "E-Mail",
-          "Aktion konnte nicht ausgeführt werden.",
-        ),
-      );
+      logger.error("letter_status_action_failed", {
+        action,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      void showError(error, {
+        object:
+          action === "remind"
+            ? "das Senden der Erinnerung"
+            : "das erneute Senden der E-Mails",
+        retry: () => latestActionRef.current(action),
+      });
     } finally {
       setBusy(null);
     }
   };
+  useLayoutEffect(() => {
+    latestActionRef.current = (action) => void runAction(action);
+  });
 
-  if (loadError && !status) {
-    return (
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
-        {loadError}
-      </div>
+  if (loadFailed && !status) {
+    // Bis der Katalogtext da ist, bleibt die Ladezeile stehen.
+    return loadError.error ? (
+      <LoadErrorAlert error={loadError.error} />
+    ) : (
+      <div className="text-sm text-gray-500">Status wird geladen …</div>
     );
   }
   if (!status) {
@@ -296,14 +330,9 @@ export function LetterStatusPanel({
         </div>
       )}
 
-      {notice && (
-        <p className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
-          {notice}
-        </p>
-      )}
-      {loadError && status && (
-        <p className="text-moto-red-strong text-sm">{loadError}</p>
-      )}
+      {/* Ein Neuladen nach einer Aktion ist gescheitert: der alte Stand
+          bleibt sichtbar, der Fehler steht darüber. */}
+      <LoadErrorAlert error={loadFailed ? loadError.error : null} />
 
       <section>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">

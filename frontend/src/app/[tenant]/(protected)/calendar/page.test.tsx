@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
 
@@ -38,7 +44,10 @@ vi.mock("~/lib/swr", () => ({
   useSWRAuth: mockUseSWRAuth,
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+// Der echte Anzeigeweg (useApiFormError, useApiErrorDisplay) läuft im
+// ToastProvider; nur die direkten Toasts der Seite werden abgefangen.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: mockToastSuccess,
     error: mockToastError,
@@ -81,7 +90,15 @@ vi.mock("~/lib/personal-calendar-api", async () => {
   };
 });
 
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
 import StaffCalendarPage from "./page";
+
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 import type {
   CalendarRecipientOptions,
   CalendarResponse,
@@ -164,7 +181,7 @@ describe("StaffCalendarPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps the calendar subscription available when the calendar fails", () => {
+  it("keeps the calendar subscription available when the calendar fails", async () => {
     mockUseSWRAuth.mockImplementation((key: unknown) => {
       const cacheKey = typeof key === "string" ? key : "";
       if (cacheKey.startsWith("calendar-recipient-options")) {
@@ -173,7 +190,9 @@ describe("StaffCalendarPage", () => {
       if (cacheKey.startsWith("staff-calendar")) {
         return {
           data: undefined,
-          error: new Error("calendar failed"),
+          error: new ApiError("calendar failed", 503, {
+            code: "general.unavailable",
+          }),
           isLoading: false,
           mutate: mockMutate,
         };
@@ -191,10 +210,22 @@ describe("StaffCalendarPage", () => {
     expect(
       screen.getByRole("heading", { name: "Kalender abonnieren" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("calendar failed")).toBeInTheDocument();
+    // #2517: Katalogtext mit Wiederholen statt des Serversatzes.
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Termine"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("calendar failed")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Keine Einträge in dieser Woche."),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Kalender abonnieren" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mockMutate).toHaveBeenCalledOnce();
   });
 
   it("edits a recurring appointment using the series base date, not the clicked occurrence", async () => {
@@ -300,8 +331,47 @@ describe("StaffCalendarPage", () => {
     await waitFor(() =>
       expect(mockRespondStaffCalendar).toHaveBeenCalledWith("42", "accepted"),
     );
-    expect(mockMutate).toHaveBeenCalledOnce();
-    expect(mockToastSuccess).toHaveBeenCalledWith("Termin zugesagt.");
+    await waitFor(() => expect(mockMutate).toHaveBeenCalledOnce());
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "Ihre Zusage ist gespeichert.",
+    );
+  });
+
+  // #2517: eine Aktion ohne Formular meldet sich im Toast, mit Katalogtext
+  // und Wiederholen derselben Antwort.
+  it("shows a failed RSVP in a toast and retries the same answer", async () => {
+    mockRespondStaffCalendar.mockRejectedValueOnce(
+      new ApiError("rsvp kaputt", 503, { code: "general.unavailable" }),
+    );
+    render(<StaffCalendarPage />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Teamplanung/ })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Zusagen" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "das Speichern Ihrer Antwort"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/rsvp kaputt/)).not.toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+
+    // Der Termin-Bereich schließt sich beim Antworten. happy-dom spielt die
+    // Ausblende-Animation von Radix nicht ab, deshalb bleibt der Rest der
+    // Seite hier aria-hidden; im Browser ist der Toast danach frei.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Wiederholen", hidden: true }),
+    );
+
+    await waitFor(() =>
+      expect(mockRespondStaffCalendar).toHaveBeenCalledTimes(2),
+    );
+    expect(mockRespondStaffCalendar).toHaveBeenLastCalledWith("42", "accepted");
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Ihre Zusage ist gespeichert.",
+      ),
+    );
   });
 
   it("creates a weekly recurring appointment for selected staff", async () => {
@@ -337,8 +407,10 @@ describe("StaffCalendarPage", () => {
         }),
       ),
     );
-    expect(mockToastSuccess).toHaveBeenCalledWith("Termin wurde erstellt.");
-    expect(mockMutate).toHaveBeenCalled();
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "Der Termin „Elterngespräch“ ist gespeichert.",
+    );
+    await waitFor(() => expect(mockMutate).toHaveBeenCalled());
   });
 
   it("requires a target before creating an appointment", async () => {
@@ -354,7 +426,7 @@ describe("StaffCalendarPage", () => {
     // Bauart 2 Regel 5 (#3113): der Fehler steht im Alert oben im Panel,
     // nicht als Toast.
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Bitte mindestens ein Ziel auswählen.",
+      "Bitte wählen Sie mindestens einen Empfänger aus.",
     );
     expect(mockToastWarning).not.toHaveBeenCalled();
   });
@@ -372,7 +444,7 @@ describe("StaffCalendarPage", () => {
       });
       fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        "Bitte mindestens ein Ziel auswählen.",
+        "Bitte wählen Sie mindestens einen Empfänger aus.",
       );
       fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
 
@@ -394,12 +466,13 @@ describe("StaffCalendarPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
 
     expect(mockCreateStaffAppointment).not.toHaveBeenCalled();
-    // Zwei Alerts: der Panel-Alert oben und die Feldmeldung am Titel.
+    // Zwei Alerts: der Sammelsatz oben im Panel und der Hinweis am Titel.
     const alerts = await screen.findAllByRole("alert");
     expect(alerts).toHaveLength(2);
-    for (const alert of alerts) {
-      expect(alert).toHaveTextContent("Bitte einen Titel eintragen.");
-    }
+    expect(alerts[0]).toHaveTextContent(
+      "Bitte prüfen Sie die markierten Felder.",
+    );
+    expect(alerts[1]).toHaveTextContent("Bitte geben Sie einen Titel ein.");
     expect(screen.getByLabelText("Titel")).toHaveAttribute(
       "aria-invalid",
       "true",
@@ -409,7 +482,9 @@ describe("StaffCalendarPage", () => {
 
   it("keeps a failed save in the panel with the reason on top", async () => {
     mockCreateStaffAppointment.mockRejectedValueOnce(
-      new Error("Der Termin überschneidet sich."),
+      new ApiError("Der Termin überschneidet sich.", 409, {
+        code: "general.business_rejection",
+      }),
     );
     render(<StaffCalendarPage />);
 
@@ -420,11 +495,76 @@ describe("StaffCalendarPage", () => {
     fireEvent.click(screen.getByLabelText("Anna Mitarbeiterin"));
     fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
 
+    // #2517: Katalogtext statt Serversatz.
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Der Termin überschneidet sich.",
+      catalogText("general.business_rejection", "das Speichern des Termins"),
     );
+    expect(
+      screen.queryByText("Der Termin überschneidet sich."),
+    ).not.toBeInTheDocument();
     expect(screen.getByLabelText("Titel")).toHaveValue("Teamsitzung");
     expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it("retries a failed save with the current form and marks the field the server names", async () => {
+    mockCreateStaffAppointment
+      .mockRejectedValueOnce(
+        new ApiError("bad", 400, {
+          code: "general.input",
+          errors: [{ field: "location", reason: "too long" }],
+        }),
+      )
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce({ appointment: { id: "1" } });
+    render(<StaffCalendarPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Neuer Termin" }));
+    fireEvent.change(screen.getByLabelText("Titel"), {
+      target: { value: "Teamsitzung" },
+    });
+    fireEvent.change(screen.getByLabelText("Ort"), {
+      target: { value: "Raum 1" },
+    });
+    fireEvent.click(screen.getByLabelText("Anna Mitarbeiterin"));
+    fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.input", "das Speichern des Termins"),
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByLabelText("Ort")).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "das Speichern des Termins"),
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Titel"), {
+      target: { value: "Teamsitzung neu" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() =>
+      expect(mockCreateStaffAppointment).toHaveBeenCalledTimes(3),
+    );
+    expect(mockCreateStaffAppointment).toHaveBeenLastCalledWith(
+      expect.objectContaining({ title: "Teamsitzung neu" }),
+    );
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Der Termin „Teamsitzung neu“ ist gespeichert.",
+      ),
+    );
   });
 
   it("requires both dates before creating an appointment", async () => {
@@ -441,9 +581,13 @@ describe("StaffCalendarPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
 
     expect(mockCreateStaffAppointment).not.toHaveBeenCalled();
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Bitte Start- und Enddatum angeben.",
-    );
+    expect(await screen.findAllByRole("alert")).toHaveLength(2);
+    expect(
+      screen.getByText("Bitte prüfen Sie die markierten Felder."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitte wählen Sie den ersten Tag."),
+    ).toBeInTheDocument();
     expect(mockToastWarning).not.toHaveBeenCalled();
   });
 

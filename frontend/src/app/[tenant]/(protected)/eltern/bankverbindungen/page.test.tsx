@@ -7,7 +7,9 @@ import {
   within,
 } from "@testing-library/react";
 
+import { ApiError } from "~/lib/api-error";
 import type { PaymentOverviewRow } from "~/lib/guardian-payment-api";
+import { catalogText } from "~/test/error-catalog-text";
 
 const mockFetchOverview = vi.fn();
 const mockExport = vi.fn();
@@ -29,7 +31,14 @@ vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: mockPush, replace: mockPush }),
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+// Load errors run through the real hook; the export error is spied at the
+// action path (#2517).
+const { mockShowActionError } = vi.hoisted(() => ({
+  mockShowActionError: vi.fn(),
+}));
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useApiErrorDisplay: () => ({ show: mockShowActionError }),
   useToast: () => ({
     success: vi.fn(),
     error: vi.fn(),
@@ -60,6 +69,7 @@ describe("BankverbindungenPage", () => {
     mockPermissions = ["guardians:financial"];
     mockFetchOverview.mockReset();
     mockExport.mockReset();
+    mockShowActionError.mockReset();
     mockFetchOverview.mockResolvedValue([]);
   });
 
@@ -179,6 +189,50 @@ describe("BankverbindungenPage", () => {
 
     await waitFor(() =>
       expect(screen.getByText(/enthält die ganzen IBANs/)).toBeInTheDocument(),
+    );
+  });
+
+  // #2517: a failed load replaces the list, never "Noch keine Kinder".
+  it("shows a failed load instead of the empty list and retries", async () => {
+    mockFetchOverview
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce([row({})]);
+
+    render(<BankverbindungenPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Bankverbindungen"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Noch keine Kinder in der Liste"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() =>
+      expect(table().getByText("Mia Schneider")).toBeInTheDocument(),
+    );
+  });
+
+  it("reports a failed download on the action path", async () => {
+    mockFetchOverview.mockResolvedValue([row({})]);
+    const failure = new ApiError("boom", 500, { code: "general.server" });
+    mockExport.mockRejectedValue(failure);
+
+    render(<BankverbindungenPage />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Herunterladen/ }),
+    );
+
+    await waitFor(() =>
+      expect(mockShowActionError).toHaveBeenCalledWith(failure, {
+        object: "das Herunterladen der Bankverbindungen",
+        retry: expect.any(Function),
+      }),
     );
   });
 });

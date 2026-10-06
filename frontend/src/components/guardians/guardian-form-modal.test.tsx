@@ -6,6 +6,8 @@ import GuardianFormModal, {
   type GuardianEntry,
 } from "./guardian-form-modal";
 import type { GuardianWithRelationship } from "@/lib/guardian-helpers";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 // Mock crypto.randomUUID for predictable test results
 let uuidCounter = 0;
@@ -1108,17 +1110,31 @@ describe("GuardianFormModal", () => {
     // Submit form
     fireEvent.click(screen.getByText("Hinzufügen"));
 
-    // Wait for submission to fail
+    // Wait for submission to fail: the catalog text, never the raw message.
     await waitFor(() => {
-      expect(screen.getByText("Second guardian failed")).toBeInTheDocument();
+      expect(
+        // A plain Error gets the crash text, worded like the server class.
+        screen.getByText(
+          catalogText(
+            "general.server",
+            "das Hinzufügen der Erziehungsberechtigten",
+          ),
+        ),
+      ).toBeInTheDocument();
     });
+    expect(screen.queryByText("Second guardian failed")).toBeNull();
 
     // Verify callback was passed
     expect(capturedCallback).toBeInstanceOf(Function);
   });
 
-  it("shows error message on submit failure", async () => {
-    mockOnSubmit.mockRejectedValue(new Error("API Error"));
+  // #2517: catalog text in the form's alert; retry sends the current input.
+  it("shows the catalog text on submit failure and retries", async () => {
+    mockOnSubmit
+      .mockRejectedValueOnce(
+        new ApiError("API Error", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce(undefined);
 
     render(
       <GuardianFormModal
@@ -1144,10 +1160,27 @@ describe("GuardianFormModal", () => {
     // Submit form
     fireEvent.click(screen.getByText("Hinzufügen"));
 
-    // Should show error message
-    await waitFor(() => {
-      expect(screen.getByText("API Error")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        catalogText(
+          "general.unavailable",
+          "das Hinzufügen der Erziehungsberechtigten",
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("API Error")).toBeNull();
+    expect(mockOnClose).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByPlaceholderText("Max"), {
+      target: { value: "Toni" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => expect(mockOnSubmit).toHaveBeenCalledTimes(2));
+    expect(mockOnSubmit.mock.calls[1]?.[0]?.[0]?.guardianData.firstName).toBe(
+      "Toni",
+    );
+    await waitFor(() => expect(mockOnClose).toHaveBeenCalled());
   });
 
   it("can add and remove phone numbers", async () => {

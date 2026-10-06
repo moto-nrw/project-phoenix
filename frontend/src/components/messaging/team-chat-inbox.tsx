@@ -11,14 +11,16 @@ import useSWR from "swr";
 import { MessagesSquare } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Button } from "~/components/ui/button";
-import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
+import { formErrorMessage, type FormError } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { TileCard } from "~/components/ui/tile-card";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { NewTeamMessageModal } from "~/components/messaging/new-team-message-modal";
 import { TeamChatSkeleton } from "~/components/messaging/team-chat-skeletons";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
   type StaffInboxThread,
   isStaffMessagingDisabled,
@@ -69,6 +71,11 @@ export interface TeamChatInboxParts {
   readonly loading: boolean;
   /** Ersetzt die Liste, sobald nichts zu zeigen ist. */
   readonly empty: TeamChatEmptyState | null;
+  /**
+   * Ladefehler OHNE Daten (#2517): ersetzt die Liste, mit Wiederholen und
+   * Vorgangskennung. Nie als Leerzustand.
+   */
+  readonly error: FormError | null;
   /** Fehler NEBEN vorhandenen (möglicherweise veralteten) Daten. */
   readonly staleWarning: ReactNode | null;
   /** Die Liste der Unterhaltungen. */
@@ -153,6 +160,15 @@ export function TeamChatInbox({
   const chatEnabled = flagSaysEnabled && !disabledByBackend;
   // Only a REAL failure belongs in a red alert. "Switched off" is not one.
   const loadFailed = Boolean(error) && !disabledByBackend;
+  // Katalogtext, Wiederholen und Vorgangskennung über den gemeinsamen
+  // Anzeigeweg (#2517).
+  const loadError = useSwrLoadError(
+    loadFailed ? error : undefined,
+    "die Liste der Unterhaltungen",
+    mutate,
+  );
+  // Der Katalogtext kommt asynchron; bis dahin bleibt das Skelett stehen.
+  const errorTextPending = loadFailed && formErrorMessage(loadError) === null;
 
   useEffect(() => {
     if (!chatEnabled && composeOpen) {
@@ -165,7 +181,8 @@ export function TeamChatInbox({
   // isValidating) und die Seite zeigt ewig Platzhalter, statt zu sagen, was
   // los ist - der Fehlerzustand darunter wäre unerreichbar. Gleiche Regel wie
   // auf der Thread-Seite.
-  const showSkeleton = isLoading && !threads && !loadFailed;
+  const showSkeleton =
+    (isLoading && !threads && !loadFailed) || errorTextPending;
   // Arrays sind truthy: ein zwischengespeichertes LEERES Ergebnis aus einem
   // früheren erfolgreichen Abruf lässt `threads` wahr werden, obwohl der
   // aktuelle Abruf gescheitert ist. Ohne diese Zusammenfassung präsentiert die
@@ -202,28 +219,10 @@ export function TeamChatInbox({
       };
     }
     if (showSkeleton) return null;
-    if (loadFailed && nothingToShow) {
-      // Fehler OHNE Daten: nur den Fehler zeigen. Eine leere Liste
-      // danebenzustellen behauptet "Sie haben keine Nachrichten",
-      // obwohl in Wahrheit niemand nachsehen konnte - und das ist die
-      // auffälligere der beiden Aussagen.
-      return {
-        icon: emptyIcon,
-        title: "Das hat leider nicht geklappt",
-        description:
-          "Die Unterhaltungen konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
-        action: (
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => void mutate()}
-          >
-            Erneut versuchen
-          </Button>
-        ),
-      };
-    }
+    // Fehler OHNE Daten: nur den Fehler zeigen (`error`). Eine leere Liste
+    // danebenzustellen behauptet "Sie haben keine Nachrichten", obwohl in
+    // Wahrheit niemand nachsehen konnte.
+    if (loadFailed && nothingToShow) return null;
     if (filteredThreads.length === 0 && !loadFailed) {
       return {
         icon: emptyIcon,
@@ -235,15 +234,14 @@ export function TeamChatInbox({
     return null;
   })();
 
+  const failedWithoutData =
+    chatEnabled && !showSkeleton && loadFailed && nothingToShow;
   const staleWarning =
     loadFailed && !nothingToShow ? (
       // Fehler NEBEN vorhandenen (möglicherweise veralteten) Daten: die
       // Liste bleibt stehen, der Hinweis sagt, dass sie nicht aktuell
       // sein muss.
-      <Alert
-        type="error"
-        message="Die Unterhaltungen konnten nicht geladen werden."
-      />
+      <LoadErrorAlert error={loadError} />
     ) : null;
 
   const list = (
@@ -316,6 +314,7 @@ export function TeamChatInbox({
     composeButton,
     loading: showSkeleton,
     empty,
+    error: failedWithoutData ? loadError : null,
     staleWarning,
     list,
     overlays,
@@ -335,6 +334,7 @@ function DefaultInboxFrame({ parts }: { readonly parts: TeamChatInboxParts }) {
     composeButton,
     loading,
     empty,
+    error,
     staleWarning,
     list,
     overlays,
@@ -373,6 +373,8 @@ function DefaultInboxFrame({ parts }: { readonly parts: TeamChatInboxParts }) {
 
       {loading ? (
         <TeamChatSkeleton />
+      ) : error ? (
+        <LoadErrorAlert error={error} />
       ) : empty ? (
         <EmptyState
           icon={empty.icon}

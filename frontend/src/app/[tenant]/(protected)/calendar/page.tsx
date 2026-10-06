@@ -1,6 +1,14 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
 import { Plus, Trash2 } from "lucide-react";
@@ -41,10 +49,16 @@ import {
   TableSkeleton,
 } from "~/components/ui/page-skeletons";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { useFormError } from "~/components/ui/form-error";
-import { useToast } from "~/contexts/ToastContext";
+import { errorAlertActions } from "~/components/ui/form-error-alert";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { berlinTodayISO, toISODate } from "~/lib/date-helpers";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { createLogger } from "~/lib/logger";
 import {
   cancelStaffAppointment,
   cancelStaffAppointmentOccurrence,
@@ -113,8 +127,12 @@ const weekdays = [
   { value: "sunday", label: "So" },
 ];
 
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
+const logger = createLogger({ component: "StaffCalendarPage" });
+
+function logFailure(event: string, error: unknown) {
+  logger.error(event, {
+    error: error instanceof Error ? error.message : String(error),
+  });
 }
 
 function weekdayName(dateISO: string): string {
@@ -424,16 +442,34 @@ function StaffCalendarPageInner() {
   const [monthDays, setMonthDays] = useState<number[]>([]);
   const [occurrenceCount, setOccurrenceCount] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  // Fehler des Terminformulars: Alert oben im Panel, Titel zusätzlich am
-  // Feld (Bauart 2 Regel 5). Kein Toast: der verblasst, bevor jemand bei
+  // Fehler des Terminformulars: Alert oben im Panel, Feldfehler am Feld
+  // (Bauart 2 Regel 5). Kein Toast: der verblasst, bevor jemand bei
   // fünfzehn Feldern das fehlende gefunden hat.
-  const [formError, setFormError] = useFormError();
-  const [titleError, setTitleError] = useState<string | undefined>(undefined);
-  // Fehler von Aktionen ohne eigene Fläche (Laden, Antworten, Teilnehmer,
-  // Absagen): Alert über dem Raster, bis die nächste Aktion startet.
-  const [actionError, setActionError] = useState<string | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const clearFormErrors = formErrors.clear;
+  // Aktionen ohne eigene Fläche (Termin öffnen, Antworten, Teilnehmer,
+  // Absagen): Toast mit Katalogtext und Wiederholen (#2517).
+  const { show: showActionError } = useApiErrorDisplay();
   // Fehler beim Löschen bleibt im geöffneten Dialog stehen.
-  const [deleteError, setDeleteError] = useState("");
+  const deleteErrors = useApiFormError();
+  const clearDeleteErrors = deleteErrors.clear;
+  // „Wiederholen“ läuft über die jeweils aktuelle Fassung der Aktion.
+  const latestSubmitRef = useRef<() => void>(() => undefined);
+  const latestEditRef = useRef<(event: CalendarEvent) => void>(() => undefined);
+  const latestRunScopeRef = useRef<
+    (
+      event: CalendarEvent,
+      mode: "cancel" | "delete",
+      scope: "occurrence" | "series",
+    ) => void
+  >(() => undefined);
+  const latestOverviewRef = useRef<(appointmentId: string) => void>(
+    () => undefined,
+  );
+  const latestRespondRef = useRef<
+    (recipientId: string, status: "accepted" | "declined") => void
+  >(() => undefined);
   const [respondingRecipientId, setRespondingRecipientId] = useState<
     string | null
   >(null);
@@ -509,8 +545,7 @@ function StaffCalendarPageInner() {
     setDeliveryMode("rsvp_required");
     setSendEmail(false);
     setEditingId(null);
-    setFormError(null);
-    setTitleError(undefined);
+    clearFormErrors();
     setFormOpen(false);
   };
 
@@ -527,7 +562,6 @@ function StaffCalendarPageInner() {
   const handleEdit = async (event: CalendarEvent) => {
     if (!event.appointment_id) return;
     setBusyAppointmentId(event.appointment_id);
-    setActionError(null);
     try {
       // Editing is series-scoped (UpdateStaffAppointment rewrites the whole
       // appointment), so prefill from the persisted appointment DETAIL — its
@@ -567,7 +601,11 @@ function StaffCalendarPageInner() {
       setEditingId(event.appointment_id);
       setFormOpen(true);
     } catch (err) {
-      setActionError(errorMessage(err, "Termin konnte nicht geladen werden."));
+      logFailure("calendar_appointment_detail_failed", err);
+      void showActionError(err, {
+        object: "das Öffnen des Termins",
+        retry: () => latestEditRef.current(event),
+      });
     } finally {
       setBusyAppointmentId(null);
     }
@@ -581,48 +619,50 @@ function StaffCalendarPageInner() {
     if (!event.appointment_id) return;
     const appointmentId = event.appointment_id;
     setBusyAppointmentId(appointmentId);
-    setActionError(null);
-    setDeleteError("");
+    clearDeleteErrors();
     try {
       if (scope === "occurrence") {
         await cancelStaffAppointmentOccurrence(
           appointmentId,
           event.occurrence_date ?? event.start_date,
         );
-        toast.success("Dieser Termin wurde entfernt.");
       } else if (mode === "cancel") {
         await cancelStaffAppointment(appointmentId);
-        toast.success("Termin wurde abgesagt.");
       } else {
         await deleteStaffAppointment(appointmentId);
-        toast.success("Termin wurde gelöscht.");
       }
-      await mutate();
+      toast.success(scopeSuccessMessage(event, mode, scope));
       setDeleteTarget(null);
       setCancelTarget(null);
     } catch (err) {
-      const message = errorMessage(
-        err,
-        "Aktion konnte nicht ausgeführt werden.",
-      );
+      logFailure(`calendar_appointment_${mode}_failed`, err);
+      const object = scopeErrorObject(mode, scope);
       if (mode === "delete") {
         // Der Löschdialog bleibt offen und zeigt den Grund.
-        setDeleteError(message);
+        await deleteErrors.show(err, {
+          object,
+          retry: () => latestRunScopeRef.current(event, mode, scope),
+        });
       } else {
-        // Die Absage-Dialoge haben keinen Fehler-Slot: schließen, Grund
-        // über dem Raster.
-        setActionError(message);
+        // Die Absage-Dialoge haben keinen Fehler-Slot: schließen, Grund im
+        // Toast, Wiederholen mit derselben Wahl.
         setCancelTarget(null);
+        void showActionError(err, {
+          object,
+          retry: () => latestRunScopeRef.current(event, mode, scope),
+        });
       }
+      return;
     } finally {
       setBusyAppointmentId(null);
     }
+    await refreshCalendar();
   };
 
   const handleCancel = (event: CalendarEvent) => setCancelTarget(event);
   const handleDelete = (event: CalendarEvent) => {
     setDeleteScope(event.recurring ? null : "series");
-    setDeleteError("");
+    clearDeleteErrors();
     setDeleteTarget(event);
   };
 
@@ -631,14 +671,15 @@ function StaffCalendarPageInner() {
     // can't leave the old overview visible under a different appointment.
     setOverview(null);
     setOverviewLoading(true);
-    setActionError(null);
     try {
       setOverview(await getStaffAppointmentOverview(appointmentId));
     } catch (err) {
       setOverview(null);
-      setActionError(
-        errorMessage(err, "Teilnehmerübersicht konnte nicht geladen werden."),
-      );
+      logFailure("calendar_appointment_overview_failed", err);
+      void showActionError(err, {
+        object: "die Teilnehmerübersicht",
+        retry: () => latestOverviewRef.current(appointmentId),
+      });
     } finally {
       setOverviewLoading(false);
     }
@@ -649,39 +690,40 @@ function StaffCalendarPageInner() {
     status: "accepted" | "declined",
   ) => {
     setRespondingRecipientId(recipientId);
-    setActionError(null);
     try {
       await respondStaffCalendar(recipientId, status);
-      await mutate();
       toast.success(
-        status === "accepted" ? "Termin zugesagt." : "Termin abgesagt.",
+        status === "accepted"
+          ? "Ihre Zusage ist gespeichert."
+          : "Ihre Absage ist gespeichert.",
       );
     } catch (err) {
-      setActionError(
-        errorMessage(err, "Antwort konnte nicht gespeichert werden."),
-      );
+      logFailure("calendar_response_failed", err);
+      void showActionError(err, {
+        object: "das Speichern Ihrer Antwort",
+        retry: () => latestRespondRef.current(recipientId, status),
+      });
+      return;
     } finally {
       setRespondingRecipientId(null);
     }
+    await refreshCalendar();
   };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    // Den Formularfehler erst nach bestandener Prüfung löschen: ein
-    // vorheriges `setFormError(null)` würde den Versuchszähler zurücksetzen,
-    // und der Alert scrollt beim zweiten gleichen Fehler nicht mehr.
-    setTitleError(undefined);
-    if (!title.trim()) {
-      setTitleError("Bitte einen Titel eintragen.");
-      setFormError("Bitte einen Titel eintragen.");
+    void submit();
+  };
+
+  const submit = async () => {
+    // Prüfung vor dem Senden: Hinweis am Feld, Sammelsatz oben im Panel.
+    const fields = appointmentFieldErrors(title, startDate, endDate);
+    if (Object.keys(fields).length > 0) {
+      formErrors.invalid("Bitte prüfen Sie die markierten Felder.", fields);
       return;
     }
     if (!editingId && targets.length === 0) {
-      setFormError("Bitte mindestens ein Ziel auswählen.");
-      return;
-    }
-    if (!startDate || !endDate) {
-      setFormError("Bitte Start- und Enddatum angeben.");
+      formErrors.invalid("Bitte wählen Sie mindestens einen Empfänger aus.");
       return;
     }
 
@@ -710,7 +752,7 @@ function StaffCalendarPageInner() {
               !endsOn && occurrenceCount ? occurrenceCount : undefined,
           };
 
-    setFormError(null);
+    formErrors.clear();
     setSubmitting(true);
     try {
       if (editingId) {
@@ -729,7 +771,6 @@ function StaffCalendarPageInner() {
           recurrence,
           send_email: sendEmail,
         });
-        toast.success("Termin wurde aktualisiert.");
       } else {
         await createStaffAppointment({
           title: title.trim(),
@@ -746,23 +787,43 @@ function StaffCalendarPageInner() {
           targets: targets.map(serializeTarget),
           send_email: sendEmail,
         });
-        toast.success("Termin wurde erstellt.");
       }
+      toast.success(`Der Termin „${title.trim()}“ ist gespeichert.`);
       resetForm();
-      await mutate();
     } catch (err) {
-      setFormError(
-        errorMessage(
-          err,
-          editingId
-            ? "Termin konnte nicht aktualisiert werden."
-            : "Termin konnte nicht erstellt werden.",
-        ),
-      );
+      logFailure("calendar_appointment_save_failed", err);
+      await formErrors.show(err, {
+        object: "das Speichern des Termins",
+        retry: () => latestSubmitRef.current(),
+      });
+      return;
     } finally {
       setSubmitting(false);
     }
+    await refreshCalendar();
   };
+
+  // Gespeichert ist schon. Scheitert nur das Neuladen des Rasters, zeigt die
+  // Seite den Ladefehler mit Wiederholen über `calendarError`; nichts geht
+  // verloren, deshalb kein zweiter Fehler hier.
+  const refreshCalendar = async () => {
+    try {
+      await mutate();
+    } catch (err) {
+      logFailure("calendar_refresh_failed", err);
+    }
+  };
+
+  useLayoutEffect(() => {
+    latestSubmitRef.current = () => void submit();
+    latestEditRef.current = (event) => void handleEdit(event);
+    latestRunScopeRef.current = (event, mode, scope) =>
+      void runScope(event, mode, scope);
+    latestOverviewRef.current = (appointmentId) =>
+      void handleShowOverview(appointmentId);
+    latestRespondRef.current = (recipientId, status) =>
+      void handleRespond(recipientId, status);
+  });
 
   const calendarEvents = calendarError ? [] : (data?.events ?? []);
 
@@ -773,7 +834,6 @@ function StaffCalendarPageInner() {
       // On a load error SWR may still hold the previous range's data; don't
       // render stale appointments under the new date label.
       events={calendarEvents}
-      error={actionError}
       referenceDate={referenceDate}
       viewMode={viewMode}
       showWeekend={showWeekend}
@@ -805,10 +865,18 @@ function StaffCalendarPageInner() {
   // gelten nur für den Kalender-Reiter — der Betreuungsplan-Reiter bringt
   // seine eigenen Zustände mit.
   const onCalendarTab = activeTab === "meine";
+  // Ladefehler mit Katalogtext, Wiederholen und Vorgangskennung (#2517).
+  const calendarLoadError = useSwrLoadError(
+    calendarError,
+    "die Liste der Termine",
+    () => mutate(),
+  );
+  // Bei einem Ladefehler steht nie ein leeres Raster unter dem Datum (siehe
+  // `calendarError` unten); der Abo-Bereich bleibt erreichbar.
   const calendarLoading = onCalendarTab && isLoading;
   const calendarErrorState =
-    onCalendarTab && calendarError
-      ? errorMessage(calendarError, "Kalender konnte nicht geladen werden.")
+    onCalendarTab && calendarError && calendarLoadError
+      ? calendarLoadError
       : null;
   const calendarEmpty =
     onCalendarTab && !isLoading && !calendarError && eventCount === 0
@@ -836,7 +904,7 @@ function StaffCalendarPageInner() {
     // Der Abo-Bereich (#2621) bleibt auch in einer leeren Woche erreichbar,
     // deshalb ersetzt der Leerzustand hier nur das Raster, nicht den Inhalt.
     <>
-      {calendarErrorState ? null : calendarEmpty ? (
+      {calendarError ? null : calendarEmpty ? (
         <SectionCard>
           <EmptyState
             title={calendarEmpty.title}
@@ -859,7 +927,11 @@ function StaffCalendarPageInner() {
       loading={calendarLoading}
       error={
         calendarErrorState
-          ? { message: calendarErrorState, keepContent: true }
+          ? {
+              message: calendarErrorState.message,
+              action: errorAlertActions(calendarErrorState),
+              keepContent: true,
+            }
           : null
       }
       actions={
@@ -921,381 +993,399 @@ function StaffCalendarPageInner() {
                 </div>
                 <SlideOverCloseButton disabled={submitting} />
               </SlideOverHeader>
-              <SlideOverBody error={formError}>
-                <form className="space-y-5" onSubmit={handleSubmit}>
-                  <div className="flex items-center gap-2">
-                    <MotoConceptIcon concept="calendarPeriods" size={20} />
-                    <p className="text-sm text-gray-600">
-                      {editingId
-                        ? "Passen Sie Zeitpunkt und Details an. Empfänger und Antwortregel bleiben unverändert."
-                        : "Legen Sie Zeitpunkt, Antwortregel und Empfängergruppen fest."}
-                    </p>
-                  </div>
+              <SlideOverBody error={formErrors.error}>
+                <div ref={formRef}>
+                  <form className="space-y-5" onSubmit={handleSubmit}>
+                    <div className="flex items-center gap-2">
+                      <MotoConceptIcon concept="calendarPeriods" size={20} />
+                      <p className="text-sm text-gray-600">
+                        {editingId
+                          ? "Passen Sie Zeitpunkt und Details an. Empfänger und Antwortregel bleiben unverändert."
+                          : "Legen Sie Zeitpunkt, Antwortregel und Empfängergruppen fest."}
+                      </p>
+                    </div>
 
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Input
-                      label="Titel"
-                      name="calendar-title"
-                      value={title}
-                      onChange={(event) => {
-                        setTitle(event.target.value);
-                        setTitleError(undefined);
-                      }}
-                      error={titleError}
-                      disabled={submitting}
-                      required
-                    />
-                    <Input
-                      label="Ort"
-                      name="calendar-location"
-                      value={location}
-                      onChange={(event) => setLocation(event.target.value)}
-                      disabled={submitting}
-                    />
-                    <ISODatePicker
-                      label="Startdatum"
-                      id="calendar-start-date"
-                      controlSize="lg"
-                      value={startDate}
-                      onChange={(next) => {
-                        setStartDate(next);
-                        if (endDate < next) setEndDate(next);
-                      }}
-                      disabled={submitting}
-                      calendarLayout="popover"
-                      hideClearButton
-                      required
-                    />
-                    <ISODatePicker
-                      label="Enddatum"
-                      id="calendar-end-date"
-                      controlSize="lg"
-                      value={endDate}
-                      min={startDate}
-                      onChange={setEndDate}
-                      disabled={submitting}
-                      calendarLayout="popover"
-                      hideClearButton
-                      required
-                    />
-                    <Input
-                      label="Startzeit"
-                      name="calendar-start-time"
-                      type="time"
-                      value={startTime}
-                      onChange={(event) => setStartTime(event.target.value)}
-                      disabled={submitting || allDay}
-                      required
-                    />
-                    <Input
-                      label="Endzeit"
-                      name="calendar-end-time"
-                      type="time"
-                      value={endTime}
-                      onChange={(event) => setEndTime(event.target.value)}
-                      disabled={submitting || allDay}
-                      required
-                    />
-                  </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Input
+                        label="Titel"
+                        name="title"
+                        value={title}
+                        onChange={(event) => setTitle(event.target.value)}
+                        error={formErrors.fieldError("title")}
+                        disabled={submitting}
+                        required
+                      />
+                      <Input
+                        label="Ort"
+                        name="location"
+                        value={location}
+                        onChange={(event) => setLocation(event.target.value)}
+                        error={formErrors.fieldError("location")}
+                        disabled={submitting}
+                      />
+                      <ISODatePicker
+                        label="Startdatum"
+                        id="calendar-start-date"
+                        name="start_date"
+                        controlSize="lg"
+                        value={startDate}
+                        error={formErrors.fieldError("start_date")}
+                        onChange={(next) => {
+                          setStartDate(next);
+                          if (endDate < next) setEndDate(next);
+                        }}
+                        disabled={submitting}
+                        calendarLayout="popover"
+                        hideClearButton
+                        required
+                      />
+                      <ISODatePicker
+                        label="Enddatum"
+                        id="calendar-end-date"
+                        name="end_date"
+                        controlSize="lg"
+                        value={endDate}
+                        error={formErrors.fieldError("end_date")}
+                        min={startDate}
+                        onChange={setEndDate}
+                        disabled={submitting}
+                        calendarLayout="popover"
+                        hideClearButton
+                        required
+                      />
+                      <Input
+                        label="Startzeit"
+                        name="start_time"
+                        type="time"
+                        value={startTime}
+                        error={formErrors.fieldError("start_time")}
+                        onChange={(event) => setStartTime(event.target.value)}
+                        disabled={submitting || allDay}
+                        required
+                      />
+                      <Input
+                        label="Endzeit"
+                        name="end_time"
+                        type="time"
+                        value={endTime}
+                        error={formErrors.fieldError("end_time")}
+                        onChange={(event) => setEndTime(event.target.value)}
+                        disabled={submitting || allDay}
+                        required
+                      />
+                    </div>
 
-                  <label
-                    htmlFor="calendar-all-day"
-                    className="flex items-center gap-2 text-sm font-medium text-gray-700"
-                  >
-                    <Checkbox
-                      id="calendar-all-day"
-                      checked={allDay}
-                      onChange={(event) => setAllDay(event.target.checked)}
-                      disabled={submitting}
-                    />
-                    Ganztägig
-                  </label>
+                    <label
+                      htmlFor="calendar-all-day"
+                      className="flex items-center gap-2 text-sm font-medium text-gray-700"
+                    >
+                      <Checkbox
+                        id="calendar-all-day"
+                        checked={allDay}
+                        onChange={(event) => setAllDay(event.target.checked)}
+                        disabled={submitting}
+                      />
+                      Ganztägig
+                    </label>
 
-                  <label
-                    htmlFor="calendar-send-email"
-                    className="flex items-start gap-2 text-sm font-medium text-gray-700"
-                  >
-                    <Checkbox
-                      id="calendar-send-email"
-                      checked={sendEmail}
-                      onChange={(event) => setSendEmail(event.target.checked)}
-                      disabled={submitting}
-                    />
-                    <span>
-                      Eltern per E-Mail benachrichtigen
-                      <span className="mt-0.5 block text-xs font-normal text-gray-500">
-                        Sendet eine E-Mail mit Titel und Termin an die
-                        eingeladenen Eltern. Ohne Haken erscheint der Termin nur
-                        im Eltern-Portal.
+                    <label
+                      htmlFor="calendar-send-email"
+                      className="flex items-start gap-2 text-sm font-medium text-gray-700"
+                    >
+                      <Checkbox
+                        id="calendar-send-email"
+                        checked={sendEmail}
+                        onChange={(event) => setSendEmail(event.target.checked)}
+                        disabled={submitting}
+                      />
+                      <span>
+                        Eltern per E-Mail benachrichtigen
+                        <span className="mt-0.5 block text-xs font-normal text-gray-500">
+                          Sendet eine E-Mail mit Titel und Termin an die
+                          eingeladenen Eltern. Ohne Haken erscheint der Termin
+                          nur im Eltern-Portal.
+                        </span>
                       </span>
-                    </span>
-                  </label>
+                    </label>
 
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-gray-700">
-                      Beschreibung
-                    </span>
-                    <textarea
-                      className="block min-h-24 w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
-                      value={description}
-                      onChange={(event) => setDescription(event.target.value)}
-                      disabled={submitting}
-                    />
-                  </label>
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-gray-700">
+                        Beschreibung
+                      </span>
+                      <textarea
+                        className="block min-h-24 w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+                        value={description}
+                        onChange={(event) => setDescription(event.target.value)}
+                        disabled={submitting}
+                      />
+                    </label>
 
-                  <div
-                    className={`grid gap-4 ${editingId ? "" : "md:grid-cols-2"}`}
-                  >
-                    {!editingId ? (
-                      <label htmlFor="calendar-delivery-mode" className="block">
+                    <div
+                      className={`grid gap-4 ${editingId ? "" : "md:grid-cols-2"}`}
+                    >
+                      {!editingId ? (
+                        <label
+                          htmlFor="calendar-delivery-mode"
+                          className="block"
+                        >
+                          <span className="mb-2 block text-sm font-medium text-gray-700">
+                            Antwortregel
+                          </span>
+                          <CustomSelect
+                            id="calendar-delivery-mode"
+                            ariaLabel="Antwortregel"
+                            value={deliveryMode}
+                            onChange={(next) =>
+                              setDeliveryMode(next as CalendarDeliveryMode)
+                            }
+                            disabled={submitting}
+                            options={[
+                              {
+                                value: "rsvp_required",
+                                label:
+                                  "Antwort erforderlich: Zusage oder Absage",
+                              },
+                              {
+                                value: "informational",
+                                label:
+                                  "Nur informieren: ohne Rückmeldung eintragen",
+                              },
+                            ]}
+                          />
+                        </label>
+                      ) : null}
+                      <label
+                        htmlFor="calendar-overview-visibility"
+                        className="block"
+                      >
                         <span className="mb-2 block text-sm font-medium text-gray-700">
-                          Antwortregel
+                          Teilnehmerübersicht
                         </span>
                         <CustomSelect
-                          id="calendar-delivery-mode"
-                          ariaLabel="Antwortregel"
-                          value={deliveryMode}
+                          id="calendar-overview-visibility"
+                          ariaLabel="Teilnehmerübersicht"
+                          value={overviewVisibility}
                           onChange={(next) =>
-                            setDeliveryMode(next as CalendarDeliveryMode)
+                            setOverviewVisibility(
+                              next as CalendarOverviewVisibility,
+                            )
                           }
                           disabled={submitting}
                           options={[
+                            { value: "organizer", label: "Nur ich" },
                             {
-                              value: "rsvp_required",
-                              label: "Antwort erforderlich: Zusage oder Absage",
+                              value: "staff",
+                              label: "Mitarbeitende mit Termin",
                             },
-                            {
-                              value: "informational",
-                              label:
-                                "Nur informieren: ohne Rückmeldung eintragen",
-                            },
+                            { value: "all", label: "Alle Eingeladenen" },
                           ]}
                         />
                       </label>
-                    ) : null}
-                    <label
-                      htmlFor="calendar-overview-visibility"
-                      className="block"
-                    >
-                      <span className="mb-2 block text-sm font-medium text-gray-700">
-                        Teilnehmerübersicht
-                      </span>
-                      <CustomSelect
-                        id="calendar-overview-visibility"
-                        ariaLabel="Teilnehmerübersicht"
-                        value={overviewVisibility}
-                        onChange={(next) =>
-                          setOverviewVisibility(
-                            next as CalendarOverviewVisibility,
-                          )
-                        }
-                        disabled={submitting}
-                        options={[
-                          { value: "organizer", label: "Nur ich" },
-                          { value: "staff", label: "Mitarbeitende mit Termin" },
-                          { value: "all", label: "Alle Eingeladenen" },
-                        ]}
-                      />
-                    </label>
-                  </div>
+                    </div>
 
-                  {!editingId ? (
-                    <div className="rounded-lg border border-gray-200 bg-white p-3">
-                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                        <h3 className="text-sm font-semibold text-gray-900">
-                          Empfänger auswählen
-                        </h3>
-                        <span className="text-xs text-gray-500">
-                          {targets.length} Ziel{targets.length === 1 ? "" : "e"}{" "}
-                          ausgewählt
-                        </span>
-                      </div>
-                      <div className="mb-3">
-                        <Input
-                          label="Ziele suchen"
-                          name="calendar-target-search"
-                          value={targetSearch}
-                          onChange={(event) =>
-                            setTargetSearch(event.target.value)
-                          }
-                          disabled={submitting}
-                          placeholder="Name, Klasse oder Gruppe"
-                        />
-                      </div>
-                      <div className="grid gap-3 lg:grid-cols-2">
-                        {targetGroups.map((group) => (
-                          <section
-                            key={group.type}
-                            className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
-                          >
-                            <h4 className="text-xs font-semibold tracking-wide text-gray-700 uppercase">
-                              {group.label}
-                            </h4>
-                            <div className="mt-2 max-h-48 space-y-1 overflow-y-auto pr-1">
-                              {group.choices.length === 0 ? (
-                                <p className="py-2 text-xs text-gray-500">
-                                  Keine Treffer
-                                </p>
-                              ) : (
-                                group.choices.map((choice) => {
-                                  const selected = selectedKeys.has(choice.key);
-                                  const disabled =
-                                    submitting || (!selected && choice.covered);
-                                  const checkboxId = `calendar-target-${choice.key.replace(/[^a-z0-9_-]/gi, "-")}`;
-                                  return (
-                                    <label
-                                      key={choice.key}
-                                      htmlFor={checkboxId}
-                                      className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm transition-colors ${
-                                        selected
-                                          ? "border-gray-900 bg-white text-gray-950"
-                                          : choice.covered
-                                            ? "bg-moto-green-soft border-gray-200 text-gray-500"
-                                            : "border-transparent bg-white text-gray-700 hover:border-gray-200"
-                                      } ${disabled ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}
-                                    >
-                                      <Checkbox
-                                        id={checkboxId}
-                                        checked={selected}
-                                        disabled={disabled}
-                                        onChange={() => toggleTarget(choice)}
-                                      />
-                                      <span className="min-w-0 flex-1 truncate">
-                                        {choice.label}
-                                      </span>
-                                      {choice.covered && !selected ? (
-                                        <span className="text-xs font-medium text-gray-500">
-                                          bereits enthalten
+                    {!editingId ? (
+                      <div className="rounded-lg border border-gray-200 bg-white p-3">
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                          <h3 className="text-sm font-semibold text-gray-900">
+                            Empfänger auswählen
+                          </h3>
+                          <span className="text-xs text-gray-500">
+                            {targets.length} Ziel
+                            {targets.length === 1 ? "" : "e"} ausgewählt
+                          </span>
+                        </div>
+                        <div className="mb-3">
+                          <Input
+                            label="Ziele suchen"
+                            name="calendar-target-search"
+                            value={targetSearch}
+                            onChange={(event) =>
+                              setTargetSearch(event.target.value)
+                            }
+                            disabled={submitting}
+                            placeholder="Name, Klasse oder Gruppe"
+                          />
+                        </div>
+                        <div className="grid gap-3 lg:grid-cols-2">
+                          {targetGroups.map((group) => (
+                            <section
+                              key={group.type}
+                              className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
+                            >
+                              <h4 className="text-xs font-semibold tracking-wide text-gray-700 uppercase">
+                                {group.label}
+                              </h4>
+                              <div className="mt-2 max-h-48 space-y-1 overflow-y-auto pr-1">
+                                {group.choices.length === 0 ? (
+                                  <p className="py-2 text-xs text-gray-500">
+                                    Keine Treffer
+                                  </p>
+                                ) : (
+                                  group.choices.map((choice) => {
+                                    const selected = selectedKeys.has(
+                                      choice.key,
+                                    );
+                                    const disabled =
+                                      submitting ||
+                                      (!selected && choice.covered);
+                                    const checkboxId = `calendar-target-${choice.key.replace(/[^a-z0-9_-]/gi, "-")}`;
+                                    return (
+                                      <label
+                                        key={choice.key}
+                                        htmlFor={checkboxId}
+                                        className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm transition-colors ${
+                                          selected
+                                            ? "border-gray-900 bg-white text-gray-950"
+                                            : choice.covered
+                                              ? "bg-moto-green-soft border-gray-200 text-gray-500"
+                                              : "border-transparent bg-white text-gray-700 hover:border-gray-200"
+                                        } ${disabled ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}
+                                      >
+                                        <Checkbox
+                                          id={checkboxId}
+                                          checked={selected}
+                                          disabled={disabled}
+                                          onChange={() => toggleTarget(choice)}
+                                        />
+                                        <span className="min-w-0 flex-1 truncate">
+                                          {choice.label}
                                         </span>
-                                      ) : null}
-                                    </label>
-                                  );
-                                })
-                              )}
-                            </div>
-                          </section>
+                                        {choice.covered && !selected ? (
+                                          <span className="text-xs font-medium text-gray-500">
+                                            bereits enthalten
+                                          </span>
+                                        ) : null}
+                                      </label>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            </section>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {targets.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {targets.map((target) => (
+                          <span
+                            key={target.key}
+                            className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700"
+                          >
+                            {target.label}
+                            <button
+                              type="button"
+                              className="rounded p-0.5 text-gray-500 hover:bg-gray-200 hover:text-gray-900"
+                              onClick={() => removeTarget(target.key)}
+                              disabled={submitting}
+                              aria-label={`${target.label} entfernen`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                            </button>
+                          </span>
                         ))}
                       </div>
-                    </div>
-                  ) : null}
+                    ) : null}
 
-                  {targets.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {targets.map((target) => (
-                        <span
-                          key={target.key}
-                          className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700"
-                        >
-                          {target.label}
-                          <button
-                            type="button"
-                            className="rounded p-0.5 text-gray-500 hover:bg-gray-200 hover:text-gray-900"
-                            onClick={() => removeTarget(target.key)}
-                            disabled={submitting}
-                            aria-label={`${target.label} entfernen`}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                          </button>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <label htmlFor="calendar-frequency" className="block">
+                        <span className="mb-2 block text-sm font-medium text-gray-700">
+                          Wiederholung
                         </span>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <label htmlFor="calendar-frequency" className="block">
-                      <span className="mb-2 block text-sm font-medium text-gray-700">
-                        Wiederholung
-                      </span>
-                      <CustomSelect
-                        id="calendar-frequency"
-                        ariaLabel="Wiederholung"
-                        value={frequency}
-                        onChange={(next) =>
-                          setFrequency(next as RecurrenceFrequency)
+                        <CustomSelect
+                          id="calendar-frequency"
+                          ariaLabel="Wiederholung"
+                          value={frequency}
+                          onChange={(next) =>
+                            setFrequency(next as RecurrenceFrequency)
+                          }
+                          disabled={submitting}
+                          options={[
+                            { value: "none", label: "Keine" },
+                            { value: "daily", label: "Täglich" },
+                            { value: "weekly", label: "Wöchentlich" },
+                            { value: "monthly", label: "Monatlich" },
+                            { value: "yearly", label: "Jährlich" },
+                          ]}
+                        />
+                      </label>
+                      <Input
+                        label="Intervall"
+                        name="calendar-recurrence-interval"
+                        type="number"
+                        min={1}
+                        value={intervalCount}
+                        onChange={(event) =>
+                          setIntervalCount(
+                            Number.parseInt(event.target.value, 10) || 1,
+                          )
                         }
-                        disabled={submitting}
-                        options={[
-                          { value: "none", label: "Keine" },
-                          { value: "daily", label: "Täglich" },
-                          { value: "weekly", label: "Wöchentlich" },
-                          { value: "monthly", label: "Monatlich" },
-                          { value: "yearly", label: "Jährlich" },
-                        ]}
+                        disabled={submitting || frequency === "none"}
                       />
-                    </label>
-                    <Input
-                      label="Intervall"
-                      name="calendar-recurrence-interval"
-                      type="number"
-                      min={1}
-                      value={intervalCount}
-                      onChange={(event) =>
-                        setIntervalCount(
-                          Number.parseInt(event.target.value, 10) || 1,
-                        )
-                      }
-                      disabled={submitting || frequency === "none"}
-                    />
-                    <ISODatePicker
-                      label="Endet am"
-                      id="calendar-recurrence-end"
-                      controlSize="lg"
-                      value={endsOn}
-                      min={startDate}
-                      onChange={setEndsOn}
-                      disabled={submitting || frequency === "none"}
-                      calendarLayout="popover"
-                    />
-                  </div>
-
-                  {frequency === "weekly" ? (
-                    <div className="flex flex-wrap gap-2">
-                      {weekdays.map((day) => (
-                        <label
-                          key={day.value}
-                          htmlFor={`calendar-weekday-${day.value}`}
-                          className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-sm text-gray-700"
-                        >
-                          <Checkbox
-                            id={`calendar-weekday-${day.value}`}
-                            checked={weeklyDays.includes(day.value)}
-                            onChange={(event) => {
-                              setWeeklyDays((current) =>
-                                event.target.checked
-                                  ? [...current, day.value]
-                                  : current.filter(
-                                      (value) => value !== day.value,
-                                    ),
-                              );
-                            }}
-                            disabled={submitting}
-                          />
-                          {day.label}
-                        </label>
-                      ))}
+                      <ISODatePicker
+                        label="Endet am"
+                        id="calendar-recurrence-end"
+                        controlSize="lg"
+                        value={endsOn}
+                        min={startDate}
+                        onChange={setEndsOn}
+                        disabled={submitting || frequency === "none"}
+                        calendarLayout="popover"
+                      />
                     </div>
-                  ) : null}
 
-                  <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="md"
-                      onClick={resetForm}
-                      disabled={submitting}
-                    >
-                      Abbrechen
-                    </Button>
-                    <Button
-                      type="submit"
-                      size="md"
-                      isLoading={submitting}
-                      loadingText="Speichert…"
-                    >
-                      {editingId ? "Änderungen speichern" : "Termin speichern"}
-                    </Button>
-                  </div>
-                </form>
+                    {frequency === "weekly" ? (
+                      <div className="flex flex-wrap gap-2">
+                        {weekdays.map((day) => (
+                          <label
+                            key={day.value}
+                            htmlFor={`calendar-weekday-${day.value}`}
+                            className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-sm text-gray-700"
+                          >
+                            <Checkbox
+                              id={`calendar-weekday-${day.value}`}
+                              checked={weeklyDays.includes(day.value)}
+                              onChange={(event) => {
+                                setWeeklyDays((current) =>
+                                  event.target.checked
+                                    ? [...current, day.value]
+                                    : current.filter(
+                                        (value) => value !== day.value,
+                                      ),
+                                );
+                              }}
+                              disabled={submitting}
+                            />
+                            {day.label}
+                          </label>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 pt-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="md"
+                        onClick={resetForm}
+                        disabled={submitting}
+                      >
+                        Abbrechen
+                      </Button>
+                      <Button
+                        type="submit"
+                        size="md"
+                        isLoading={submitting}
+                        loadingText="Speichert…"
+                      >
+                        {editingId
+                          ? "Änderungen speichern"
+                          : "Termin speichern"}
+                      </Button>
+                    </div>
+                  </form>
+                </div>
               </SlideOverBody>
             </SlideOverContent>
           </SlideOver>
@@ -1365,11 +1455,11 @@ function StaffCalendarPageInner() {
             onClose={() => {
               if (!busyAppointmentId) {
                 setDeleteTarget(null);
-                setDeleteError("");
+                clearDeleteErrors();
               }
             }}
             loading={Boolean(busyAppointmentId)}
-            error={deleteError}
+            error={deleteErrors.error}
           />
 
           <ChoiceModal
@@ -1435,6 +1525,49 @@ function StaffCalendarPageInner() {
       )}
     </TenantPage>
   );
+}
+
+/** Prüfung vor dem Senden. Schlüssel sind die Feldnamen des Backends. */
+function appointmentFieldErrors(
+  title: string,
+  startDate: string,
+  endDate: string,
+): Record<string, string> {
+  const fields: Record<string, string> = {};
+  if (!title.trim()) fields.title = "Bitte geben Sie einen Titel ein.";
+  if (!startDate) fields.start_date = "Bitte wählen Sie den ersten Tag.";
+  if (!endDate) fields.end_date = "Bitte wählen Sie den letzten Tag.";
+  return fields;
+}
+
+/** Wer was bei einer Absage oder Löschung nicht bekommen hat. */
+function scopeErrorObject(
+  mode: "cancel" | "delete",
+  scope: "occurrence" | "series",
+): string {
+  if (mode === "cancel") return "die Absage des Termins";
+  return scope === "occurrence"
+    ? "das Entfernen des Termins"
+    : "das Löschen des Termins";
+}
+
+function scopeSuccessMessage(
+  event: CalendarEvent,
+  mode: "cancel" | "delete",
+  scope: "occurrence" | "series",
+): string {
+  const name = `„${event.title}“`;
+  if (scope === "occurrence") {
+    return mode === "cancel"
+      ? `Der Termin ${name} ist an diesem Tag abgesagt.`
+      : `Der Termin ${name} ist an diesem Tag entfernt.`;
+  }
+  const subject = event.recurring
+    ? `Die Terminreihe ${name}`
+    : `Der Termin ${name}`;
+  return mode === "cancel"
+    ? `${subject} ist abgesagt.`
+    : `${subject} ist gelöscht.`;
 }
 
 export default function StaffCalendarPage() {

@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { TileCard } from "~/components/ui/tile-card";
 import { Button } from "~/components/ui/button";
-import { Alert } from "~/components/ui/alert";
+import { formErrorMessage } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -19,7 +20,8 @@ import {
 import { NewMessageModal } from "~/components/messaging/new-message-modal";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
 
@@ -33,8 +35,6 @@ const MARK_ALL_READ_SUCCESS =
 // the remaining number does not read as a failed click.
 const MARK_ALL_READ_TEAM_MARKED =
   "Gelesen. Vom Team als ungelesen markierte Unterhaltungen bleiben ungelesen.";
-const MARK_ALL_READ_ERROR =
-  "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
 
 function MessagesInboxContent() {
   const router = useTenantRouter();
@@ -91,11 +91,12 @@ function MessagesInboxContent() {
   const toast = useToast();
   const { unreadCount } = useMessagesUnread();
   const [markingAllRead, setMarkingAllRead] = useState(false);
-  const [markAllReadError, setMarkAllReadError] = useState<string | null>(null);
+  // Eine Aktion ohne Formular: der Fehler kommt als Meldung mit Wiederholen.
+  const { show: showActionError } = useApiErrorDisplay();
+  const latestMarkAllReadRef = useRef<() => void>(() => undefined);
   const handleMarkAllRead = async () => {
     if (markingAllRead) return;
     setMarkingAllRead(true);
-    setMarkAllReadError(null);
     try {
       const remaining = await markAllMessagesRead();
       window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
@@ -113,11 +114,20 @@ function MessagesInboxContent() {
       logger.error("inbox_mark_all_read_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setMarkAllReadError(MARK_ALL_READ_ERROR);
+      void showActionError(err, {
+        object: "das Markieren als gelesen",
+        retry: () => latestMarkAllReadRef.current(),
+      });
     } finally {
       setMarkingAllRead(false);
     }
   };
+  useLayoutEffect(() => {
+    latestMarkAllReadRef.current = () => void handleMarkAllRead();
+  });
+
+  // Ladefehler mit Katalogtext, Wiederholen und Vorgangskennung (#2517).
+  const loadError = useSwrLoadError(error, "die Liste der Nachrichten", mutate);
 
   const filteredThreads = useMemo(() => {
     const list: InboxThread[] = threads ?? [];
@@ -133,7 +143,11 @@ function MessagesInboxContent() {
   // Skeleton only on the very first load (no cached data yet). The header,
   // filter bar, and compose entry point are real chrome and render
   // immediately regardless — only the thread list skeletonizes.
-  const showSkeleton = isLoading && !threads;
+  // Bis der Katalogtext eines Ladefehlers da ist, bleibt das Skelett stehen,
+  // nie „Noch keine Nachrichten“.
+  const showSkeleton =
+    (isLoading && !threads) ||
+    (Boolean(error) && formErrorMessage(loadError) === null);
 
   // Statuszeile unter dem Seitentitel, allein aus der geladenen Inbox.
   const threadList: InboxThread[] = threads ?? [];
@@ -211,11 +225,7 @@ function MessagesInboxContent() {
           ],
         },
       ]}
-      error={
-        bodyReplaced && loadFailed
-          ? "Nachrichten konnten nicht geladen werden."
-          : null
-      }
+      error={bodyReplaced && loadFailed ? loadError : null}
       empty={
         bodyReplaced && !loadFailed
           ? {
@@ -245,13 +255,7 @@ function MessagesInboxContent() {
       }
     >
       <>
-        {markAllReadError && <Alert type="error" message={markAllReadError} />}
-        {loadFailed && (
-          <Alert
-            type="error"
-            message="Nachrichten konnten nicht geladen werden."
-          />
-        )}
+        {loadFailed && <LoadErrorAlert error={loadError} />}
 
         <ul className="space-y-3">
           {filteredThreads.map((thread) => {

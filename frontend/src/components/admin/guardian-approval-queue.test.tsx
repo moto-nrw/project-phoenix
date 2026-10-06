@@ -2,9 +2,20 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import GuardianApprovalQueue from "./guardian-approval-queue";
 import type { PendingApproval } from "@/lib/guardian-api";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
-vi.mock("~/contexts/ToastContext", () => ({
-  useToast: vi.fn(() => ({ success: vi.fn(), error: vi.fn() })),
+const { mockToastSuccess, mockToastError, mockShowActionError } = vi.hoisted(
+  () => ({
+    mockToastSuccess: vi.fn(),
+    mockToastError: vi.fn(),
+    mockShowActionError: vi.fn(),
+  }),
+);
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
+  useApiErrorDisplay: () => ({ show: mockShowActionError }),
 }));
 
 vi.mock("~/components/ui/modal", () => ({
@@ -200,8 +211,89 @@ describe("GuardianApprovalQueue", () => {
     expect(
       await screen.findByText(/Einladungs-Einstellung konnte nicht geladen/),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(retry).toHaveBeenCalledOnce();
+  });
+
+  // #2517: a failed settings request shows the catalog text it carries.
+  it("shows the catalog text of a failed settings request", async () => {
+    mockList.mockResolvedValue([]);
+
+    render(
+      <GuardianApprovalQueue
+        inviteModeState={{
+          status: "error",
+          isRetrying: false,
+          retry: vi.fn(),
+          error: "Die Einladungs-Einstellung ist gerade nicht erreichbar.",
+        }}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Einladungs-Einstellung ist gerade nicht erreichbar.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a failed load where the list belongs and retries", async () => {
+    mockList
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce([sampleRequest]);
+
+    render(<GuardianApprovalQueue inviteModeState={staffApprovalMode} />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Anfragen"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Keine offenen Anfragen")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(await screen.findByText("Julia Schröder")).toBeInTheDocument();
+  });
+
+  it("reports a failed approval on the action path", async () => {
+    const failure = new ApiError("nope", 409, {
+      code: "general.business_rejection",
+    });
+    mockApprove.mockRejectedValueOnce(failure);
+
+    render(<GuardianApprovalQueue inviteModeState={staffApprovalMode} />);
+    await waitFor(() => screen.getByText("Julia Schröder"));
+    fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+
+    await waitFor(() =>
+      expect(mockShowActionError).toHaveBeenCalledWith(failure, {
+        object: "die Freigabe der Anfrage",
+        retry: expect.any(Function),
+      }),
+    );
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it("keeps a failed rejection in the confirmation dialog", async () => {
+    mockReject.mockRejectedValueOnce(
+      new ApiError("boom", 500, { code: "general.server" }),
+    );
+
+    render(<GuardianApprovalQueue inviteModeState={staffApprovalMode} />);
+    await waitFor(() => screen.getByText("Julia Schröder"));
+    fireEvent.click(screen.getByRole("button", { name: /Ablehnen/ }));
+    fireEvent.click(screen.getByTestId("confirm-reject"));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "das Ablehnen der Anfrage"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("confirm-modal")).toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 
   it("approves a request and reloads the list", async () => {
