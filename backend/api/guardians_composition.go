@@ -2,11 +2,13 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -23,6 +25,12 @@ import (
 // renderPeopleDirectoryFailure writes the shared error shape for a failure
 // kind the People Directory adapters classified.
 func renderPeopleDirectoryFailure(w http.ResponseWriter, r *http.Request, kind usersAPI.FailureKind, err error) {
+	for _, rule := range guardianInputCodes {
+		if kind == usersAPI.FailureInvalidRequest && errors.Is(err, rule.sentinel) {
+			apiCommon.RenderError(w, r, guardianInputError(err, rule.code, rule.field))
+			return
+		}
+	}
 	switch kind {
 	case usersAPI.FailureInvalidRequest:
 		apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
@@ -37,6 +45,25 @@ func renderPeopleDirectoryFailure(w http.ResponseWriter, r *http.Request, kind u
 	default:
 		apiCommon.RenderError(w, r, apiCommon.ErrorInternalServer(err))
 	}
+}
+
+// guardianInputCodes gives the guardian input refusals the form can explain
+// their own code (#2517); field names the form control to mark, if any.
+var guardianInputCodes = []struct {
+	sentinel error
+	code     string
+	field    string
+}{
+	{peopleModule.ErrGuardianEmailTaken, apiCommon.CodeStudentsGuardianEmailTaken, ""},
+	{peopleModule.ErrGuardianIBANInvalid, apiCommon.CodeStudentsGuardianIbanInvalid, "iban"},
+	{peopleModule.ErrGuardianAccountHolderTooLong, apiCommon.CodeStudentsGuardianAccountHolderTooLong, "account_holder"},
+}
+
+func guardianInputError(err error, code, field string) render.Renderer {
+	if field == "" {
+		return apiCommon.ErrorInvalidRequestWithCode(err, code)
+	}
+	return apiCommon.ErrorInvalidOnField(err, code, field)
 }
 
 func guardianFailureKind(kind services.GuardianFailureKind) usersAPI.FailureKind {

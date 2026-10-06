@@ -1552,6 +1552,24 @@
       "legacy": "guardian_access_revoked"
     },
     {
+      "code": "students.guardian_account_holder_too_long",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.guardian_account_holder_too_long"
+    },
+    {
+      "code": "students.guardian_email_taken",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.guardian_email_taken"
+    },
+    {
+      "code": "students.guardian_iban_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "students.guardian_iban_invalid"
+    },
+    {
       "code": "students.offering_change_capacity_full",
       "class": "business_rejection",
       "parameters": [],

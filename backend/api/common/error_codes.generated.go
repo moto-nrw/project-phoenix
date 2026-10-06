@@ -319,6 +319,9 @@ const (
 	CodeStudentsExcusedRequestStatusConflict             = "students.excused_request_status_conflict"
 	CodeStudentsExportSelectionTooLarge                  = "students.export_selection_too_large"
 	CodeStudentsGuardianAccessRevoked                    = "students.guardian_access_revoked"
+	CodeStudentsGuardianAccountHolderTooLong             = "students.guardian_account_holder_too_long"
+	CodeStudentsGuardianEmailTaken                       = "students.guardian_email_taken"
+	CodeStudentsGuardianIbanInvalid                      = "students.guardian_iban_invalid"
 	CodeStudentsOfferingChangeCapacityFull               = "students.offering_change_capacity_full"
 	CodeStudentsOfferingChangeDateOutOfRange             = "students.offering_change_date_out_of_range"
 	CodeStudentsOfferingChangesNoEnrollment              = "students.offering_changes_no_enrollment"
@@ -866,6 +869,9 @@ var errorClassByCode = map[string]string{
 	"students.excused_request_status_conflict":             "business_rejection",
 	"students.export_selection_too_large":                  "input",
 	"students.guardian_access_revoked":                     "business_rejection",
+	"students.guardian_account_holder_too_long":            "input",
+	"students.guardian_email_taken":                        "input",
+	"students.guardian_iban_invalid":                       "input",
 	"students.offering_change_capacity_full":               "business_rejection",
 	"students.offering_change_date_out_of_range":           "input",
 	"students.offering_changes_no_enrollment":              "permission",

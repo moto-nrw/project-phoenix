@@ -156,7 +156,7 @@ describe("StudentPaymentCard", () => {
     });
     mockUpdatePayment.mockRejectedValue(
       new ApiError("malformed IBAN", 400, {
-        code: "general.input",
+        code: "students.guardian_iban_invalid",
         errors: [{ field: "iban", reason: "malformed" }],
       }),
     );
@@ -179,7 +179,10 @@ describe("StudentPaymentCard", () => {
     // #2517: catalog text in the edit area, the named field marked.
     expect(
       await screen.findByText(
-        catalogText("general.input", "das Speichern der Bankverbindung"),
+        catalogText(
+          "students.guardian_iban_invalid",
+          "das Speichern der Bankverbindung",
+        ),
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/malformed/)).not.toBeInTheDocument();

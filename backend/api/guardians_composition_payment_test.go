@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -200,6 +201,9 @@ func TestGuardianComposition_PaymentRejectsMalformedIBAN(t *testing.T) {
 		code, body := ctx.paymentRequest(t, http.MethodPut, fmt.Sprintf("/%d/payment", guardianID), map[string]any{"iban": iban}, financialPerm)
 		assert.Equal(t, http.StatusBadRequest, code, "IBAN %q must be refused", iban)
 		assert.Contains(t, body, "Die IBAN ist nicht gültig", "IBAN %q", iban)
+		// Own code and the field to mark (#2517).
+		assert.Contains(t, body, `"code":"`+common.CodeStudentsGuardianIbanInvalid+`"`, "IBAN %q", iban)
+		assert.Contains(t, body, `"field":"iban"`, "IBAN %q", iban)
 	}
 }
 

@@ -369,6 +369,12 @@ export const ERROR_CATALOG = {
         "Die Auswahl umfasst {total} Kinder. Eine Liste darf höchstens {limit} Kinder haben. Bitte grenzen Sie die Auswahl ein, zum Beispiel nach Gruppe oder Klasse.",
       "students.guardian_access_revoked":
         "Die anfragende Person hat keinen Zugriff mehr auf das Kind. Bitte lehnen Sie {object} ab.",
+      "students.guardian_account_holder_too_long":
+        "Der Name des Kontoinhabers ist zu lang. Bitte kürzen Sie ihn.",
+      "students.guardian_email_taken":
+        "Diese E-Mail-Adresse gehört schon zu einer anderen Person. Bitte wählen Sie die vorhandene Person über die Suche aus.",
+      "students.guardian_iban_invalid":
+        "Die IBAN ist nicht gültig. Bitte prüfen Sie die Eingabe.",
       "students.offering_change_capacity_full":
         "In einem der Angebote ist kein Platz mehr frei. Bitte prüfen Sie die Belegung.",
       "students.offering_change_date_out_of_range":

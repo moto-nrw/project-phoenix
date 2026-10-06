@@ -1183,6 +1183,47 @@ describe("GuardianFormModal", () => {
     await waitFor(() => expect(mockOnClose).toHaveBeenCalled());
   });
 
+  // #2517: a duplicate e-mail points to the search for the existing person.
+  it("explains a taken e-mail with its own text", async () => {
+    mockOnSubmit.mockRejectedValueOnce(
+      new ApiError("guardian e-mail is already used", 400, {
+        code: "students.guardian_email_taken",
+      }),
+    );
+
+    render(
+      <GuardianFormModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onSubmit={mockOnSubmit}
+        mode="create"
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Max"), {
+      target: { value: "Test" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Mustermann"), {
+      target: { value: "User" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText("max.mustermann@example.com"),
+      { target: { value: "taken@example.com" } },
+    );
+    fireEvent.click(screen.getByText("Hinzufügen"));
+
+    expect(
+      await screen.findByText(
+        catalogText(
+          "students.guardian_email_taken",
+          "das Hinzufügen der Erziehungsberechtigten",
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/already used/)).toBeNull();
+    expect(mockOnClose).not.toHaveBeenCalled();
+  });
+
   it("can add and remove phone numbers", async () => {
     render(
       <GuardianFormModal
