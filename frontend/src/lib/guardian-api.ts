@@ -70,7 +70,7 @@ function isErrorResponse(value: unknown): value is ErrorResponse {
 // Every failure of this client is a GuardianApiError: the wire code, field
 // errors and request ID travel to the shared error display (#2517); the
 // message is a diagnostic for the logs and is never shown.
-export class GuardianApiError extends ApiError {
+class GuardianApiError extends ApiError {
   status: number;
 
   constructor(message: string, status: number) {

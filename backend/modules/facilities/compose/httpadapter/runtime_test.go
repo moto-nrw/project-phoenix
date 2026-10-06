@@ -18,12 +18,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	roomsHTTP "github.com/moto-nrw/project-phoenix/modules/facilities/http/rooms"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -180,7 +178,7 @@ func TestGetRoom(t *testing.T) {
 		// A deleted or unknown room link names itself (#2517) instead of the
 		// input class text "konnte nicht übernommen werden".
 		body := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-		assert.Equal(t, apiCommon.CodeRoomsNotFound, body["code"], "Body: %s", rr.Body.String())
+		assert.Equal(t, "rooms.not_found", body["code"], "Body: %s", rr.Body.String())
 	})
 
 	t.Run("bad_request_for_invalid_id", func(t *testing.T) {
@@ -795,18 +793,4 @@ func TestGetRoomHistory_DurationMinutesPopulated(t *testing.T) {
 	// EXTRACT(EPOCH)/60 is integer-cast; allow ±1 minute for clock drift
 	// between fixture creation, the UPDATE, and the handler call.
 	assert.InDelta(t, 90.0, duration, 1.0, "duration_minutes should be ~90 for a 90-minute session")
-}
-
-func TestRenderFailureNamesMissingRoom(t *testing.T) {
-	t.Parallel()
-
-	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/42", nil)
-
-	renderFailure(rr, req, roomsHTTP.FailureNotFound, facilitiesModule.ErrRoomNotFound, "")
-
-	assert.Equal(t, http.StatusNotFound, rr.Code)
-	var body map[string]any
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
-	assert.Equal(t, apiCommon.CodeRoomsNotFound, body["code"], "Body: %s", rr.Body.String())
 }

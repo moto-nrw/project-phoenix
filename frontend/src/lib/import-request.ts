@@ -13,7 +13,7 @@ import {
 
 /** Without a session token the login has expired: the error path sends the
  *  person to the login screen. */
-export function missingSessionError(): ApiError {
+function missingSessionError(): ApiError {
   return new ApiError("No authentication token available", 401);
 }
 
