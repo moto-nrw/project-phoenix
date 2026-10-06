@@ -8,6 +8,8 @@ import { useSession } from "next-auth/react";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { Organization, School } from "~/lib/operator/provisioning-helpers";
 import { operatorPath } from "~/lib/operator-url";
+import type { FormError } from "~/components/ui/form-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 
 // Shared URL-param filter plumbing for the three operator list pages that
 // filter by Träger + Schule via `?orgId=…&schoolId=…` (accounts, devices,
@@ -17,6 +19,9 @@ export function useOrgSchoolFilter(routePath: string): {
   readonly isAuthenticated: boolean;
   readonly organizations: Organization[] | undefined;
   readonly schools: School[] | undefined;
+  /** Failed loads of the two filter lists (#2519); render in LoadErrorAlert. */
+  readonly organizationsLoadError: FormError | null;
+  readonly schoolsLoadError: FormError | null;
   readonly activeOrganizations: Organization[];
   readonly activeSchools: School[];
   readonly filterOrgId: string;
@@ -34,7 +39,11 @@ export function useOrgSchoolFilter(routePath: string): {
   const filterOrgId = searchParams.get("orgId") ?? "";
   const urlSchoolId = searchParams.get("schoolId") ?? "";
 
-  const { data: organizations } = useSWR(
+  const {
+    data: organizations,
+    error: organizationsError,
+    mutate: reloadOrganizations,
+  } = useSWR(
     isAuthenticated ? "operator-organizations" : null,
     () => operatorProvisioningService.listOrganizations(),
     {
@@ -44,7 +53,11 @@ export function useOrgSchoolFilter(routePath: string): {
     },
   );
 
-  const { data: schools } = useSWR(
+  const {
+    data: schools,
+    error: schoolsError,
+    mutate: reloadSchools,
+  } = useSWR(
     isAuthenticated ? "operator-schools" : null,
     () => operatorProvisioningService.listSchools(),
     {
@@ -52,6 +65,17 @@ export function useOrgSchoolFilter(routePath: string): {
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
+  );
+
+  const organizationsLoadError = useSwrLoadError(
+    organizationsError,
+    "die Liste der Träger",
+    () => void reloadOrganizations(),
+  );
+  const schoolsLoadError = useSwrLoadError(
+    schoolsError,
+    "die Liste der Schulen",
+    () => void reloadSchools(),
   );
 
   const activeOrganizations = useMemo(
@@ -125,6 +149,8 @@ export function useOrgSchoolFilter(routePath: string): {
     isAuthenticated,
     organizations,
     schools,
+    organizationsLoadError,
+    schoolsLoadError,
     activeOrganizations,
     activeSchools,
     filterOrgId,

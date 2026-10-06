@@ -5,6 +5,9 @@ import { getRelativeTime } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import type { FormError, FormErrorInput } from "~/components/ui/form-error";
+import { useApiFormError } from "~/contexts/ToastContext";
 
 const logger = createLogger({ component: "SoftDeleteShared" });
 
@@ -18,7 +21,8 @@ interface UseSoftDeletableOptions<T extends SoftDeletable> {
   readonly softDeleteFn: (id: string) => Promise<unknown>;
   readonly restoreFn: (id: string) => Promise<unknown>;
   readonly mutateList: () => Promise<unknown>;
-  readonly errorMessages: {
+  /** What failed, for the catalog sentence (#2519), e.g. "das Löschen der Schule". */
+  readonly errorObjects: {
     readonly softDelete: string;
     readonly restore: string;
   };
@@ -33,7 +37,7 @@ export interface SoftDeletableState<T extends SoftDeletable> {
   readonly restoreTarget: T | null;
   readonly setRestoreTarget: (target: T | null) => void;
   readonly isProcessing: boolean;
-  readonly softDeleteError: string;
+  readonly softDeleteError: FormError | null;
   readonly showTrash: boolean;
   readonly setShowTrash: (value: boolean) => void;
   readonly handleSoftDelete: () => Promise<void>;
@@ -47,7 +51,7 @@ export function useSoftDeletable<T extends SoftDeletable>(
     softDeleteFn,
     restoreFn,
     mutateList,
-    errorMessages,
+    errorObjects,
     logEventPrefix,
     onAfterSoftDelete,
     onAfterRestore,
@@ -56,44 +60,57 @@ export function useSoftDeletable<T extends SoftDeletable>(
   const [deleteTarget, setDeleteTargetRaw] = useState<T | null>(null);
   const [restoreTarget, setRestoreTargetRaw] = useState<T | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [softDeleteError, setSoftDeleteError] = useState("");
+  // The failed action stays inside its confirmation dialog.
+  const actionErrors = useApiFormError();
+  const { show: showActionError, clear: clearActionError } = actionErrors;
   const [showTrash, setShowTrash] = useState(false);
 
-  const setDeleteTarget = useCallback((target: T | null) => {
-    setDeleteTargetRaw(target);
-    setSoftDeleteError("");
-  }, []);
+  const setDeleteTarget = useCallback(
+    (target: T | null) => {
+      setDeleteTargetRaw(target);
+      clearActionError();
+    },
+    [clearActionError],
+  );
 
-  const setRestoreTarget = useCallback((target: T | null) => {
-    setRestoreTargetRaw(target);
-    setSoftDeleteError("");
-  }, []);
+  const setRestoreTarget = useCallback(
+    (target: T | null) => {
+      setRestoreTargetRaw(target);
+      clearActionError();
+    },
+    [clearActionError],
+  );
 
   const execute = useCallback(
     async (
       target: T | null,
       action: (id: string) => Promise<unknown>,
-      errorMsg: string,
+      errorObject: string,
       logEvent: string,
       onSuccess: () => void | Promise<void>,
     ) => {
       if (!target) return;
       setIsProcessing(true);
-      setSoftDeleteError("");
+      clearActionError();
       try {
         await action(target.id);
         await onSuccess();
-        await mutateList().catch(() => {});
+        await mutateList().catch((error: unknown) => {
+          // The list shows its own load error; the action itself succeeded.
+          logger.warn(`${logEvent}_list_refresh_failed`, {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
       } catch (error) {
-        setSoftDeleteError(errorMsg);
         logger.error(logEvent, {
           error: error instanceof Error ? error.message : String(error),
         });
+        void showActionError(error, { object: errorObject });
       } finally {
         setIsProcessing(false);
       }
     },
-    [mutateList],
+    [mutateList, showActionError, clearActionError],
   );
 
   const handleSoftDelete = useCallback(async () => {
@@ -101,7 +118,7 @@ export function useSoftDeletable<T extends SoftDeletable>(
     await execute(
       target,
       softDeleteFn,
-      errorMessages.softDelete,
+      errorObjects.softDelete,
       `${logEventPrefix}_soft_delete_failed`,
       async () => {
         setDeleteTarget(null);
@@ -114,7 +131,7 @@ export function useSoftDeletable<T extends SoftDeletable>(
     deleteTarget,
     execute,
     softDeleteFn,
-    errorMessages.softDelete,
+    errorObjects.softDelete,
     logEventPrefix,
     setDeleteTarget,
     onAfterSoftDelete,
@@ -125,7 +142,7 @@ export function useSoftDeletable<T extends SoftDeletable>(
     await execute(
       target,
       restoreFn,
-      errorMessages.restore,
+      errorObjects.restore,
       `${logEventPrefix}_restore_failed`,
       async () => {
         setRestoreTarget(null);
@@ -139,7 +156,7 @@ export function useSoftDeletable<T extends SoftDeletable>(
     restoreTarget,
     execute,
     restoreFn,
-    errorMessages.restore,
+    errorObjects.restore,
     logEventPrefix,
     setRestoreTarget,
     onAfterRestore,
@@ -151,7 +168,7 @@ export function useSoftDeletable<T extends SoftDeletable>(
     restoreTarget,
     setRestoreTarget,
     isProcessing,
-    softDeleteError,
+    softDeleteError: actionErrors.error,
     showTrash,
     setShowTrash,
     handleSoftDelete,
@@ -238,7 +255,7 @@ export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
   readonly entityArticleAccusative: string;
   readonly warningTitle: string;
   readonly warningBullets: readonly string[];
-  readonly errorMessage: string;
+  readonly errorMessage: FormErrorInput;
   readonly isProcessing: boolean;
   readonly onCancel: () => void;
   readonly onConfirm: () => void;
@@ -313,7 +330,7 @@ export function RestoreConfirmationModal<T extends SoftDeletable>({
   readonly extraMessage?: string;
   readonly onConfirm: () => void;
   readonly isProcessing: boolean;
-  readonly errorMessage?: string;
+  readonly errorMessage?: FormErrorInput;
   readonly confirmDisabled?: boolean;
   readonly confirmDisabledReason?: string;
 }) {
@@ -340,11 +357,7 @@ export function RestoreConfirmationModal<T extends SoftDeletable>({
           {confirmDisabledReason}
         </div>
       )}
-      {errorMessage && (
-        <div className="bg-moto-red-soft text-moto-red mt-3 rounded-lg px-3 py-2 text-sm">
-          {errorMessage}
-        </div>
-      )}
+      <FormErrorAlert message={errorMessage ?? null} className="mt-3" />
     </ConfirmationModal>
   );
 }

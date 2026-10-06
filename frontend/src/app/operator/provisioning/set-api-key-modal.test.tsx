@@ -1,8 +1,26 @@
 import type { ReactNode } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render as renderPlain,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { ERROR_CATALOG } from "~/lib/error-catalog.generated";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
+
+/** What the shared path shows for a failure that is no API error. */
+function crashText(object: string) {
+  const text = ERROR_CATALOG.de.actions.crash.replace("{object}", object);
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 import { SetApiKeyModal } from "./set-api-key-modal";
-import { OperatorApiError } from "~/lib/operator/api-helpers";
 
 const { mockSetDeviceAPIKey, mockLoggerError } = vi.hoisted(() => ({
   mockSetDeviceAPIKey: vi.fn(),
@@ -39,6 +57,9 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
 vi.mock("~/lib/logger", () => ({
   createLogger: () => ({
     error: mockLoggerError,
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
   }),
 }));
 
@@ -96,7 +117,7 @@ describe("SetApiKeyModal", () => {
 
   it("shows not found error for missing device", async () => {
     mockSetDeviceAPIKey.mockRejectedValue(
-      new OperatorApiError("not found", 404),
+      new ApiError("not found", 404, { code: "general.input" }),
     );
 
     render(
@@ -110,14 +131,20 @@ describe("SetApiKeyModal", () => {
 
     fireEvent.click(screen.getByText("Übernehmen"));
 
-    await waitFor(() => {
-      expect(screen.getByText("Gerät nicht gefunden.")).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.input", "die Änderung des API-Keys"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("not found")).toBeNull();
   });
 
   it("shows duplicate api key conflict", async () => {
     mockSetDeviceAPIKey.mockRejectedValue(
-      new OperatorApiError("already exists", 409),
+      new ApiError("already exists", 409, {
+        code: "general.business_rejection",
+        errors: [{ field: "api_key", reason: "taken" }],
+      }),
     );
 
     render(
@@ -135,11 +162,15 @@ describe("SetApiKeyModal", () => {
     });
     fireEvent.click(screen.getByText("Übernehmen"));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("Dieser API-Key wird bereits verwendet."),
-      ).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.business_rejection", "die Änderung des API-Keys"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("API-Key eingeben...")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
   });
 
   it("logs and shows a generic error", async () => {
@@ -157,7 +188,10 @@ describe("SetApiKeyModal", () => {
     fireEvent.click(screen.getByText("Übernehmen"));
 
     await waitFor(() => {
-      expect(screen.getByText("kaputt")).toBeInTheDocument();
+      expect(
+        screen.getByText(crashText("die Änderung des API-Keys")),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("kaputt")).toBeNull();
       expect(mockLoggerError).toHaveBeenCalledWith(
         "set_api_key_failed",
         expect.objectContaining({ error: "kaputt", device_id: "200" }),
@@ -231,6 +265,11 @@ describe("SetApiKeyModal", () => {
         }),
       );
     });
+    expect(
+      await screen.findByText(
+        "Der API-Key konnte nicht kopiert werden. Bitte markieren und kopieren Sie ihn selbst.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("disables submit for manual mode without a custom key", () => {

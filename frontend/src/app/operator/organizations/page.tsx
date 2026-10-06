@@ -86,11 +86,9 @@ export default function OperatorOrganizationsPage() {
     softDeleteFn: operatorProvisioningService.softDeleteOrganization,
     restoreFn: operatorProvisioningService.restoreOrganization,
     mutateList: mutateOrgs,
-    errorMessages: {
-      softDelete:
-        "Fehler beim Löschen des Trägers. Bitte versuchen Sie es erneut.",
-      restore:
-        "Fehler beim Wiederherstellen des Trägers. Bitte versuchen Sie es erneut.",
+    errorObjects: {
+      softDelete: "das Löschen des Trägers",
+      restore: "die Wiederherstellung des Trägers",
     },
     logEventPrefix: "organization",
   });

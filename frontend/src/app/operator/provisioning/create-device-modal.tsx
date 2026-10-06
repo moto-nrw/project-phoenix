@@ -1,16 +1,16 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Modal } from "~/components/ui/modal";
-import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type {
   School,
   OperatorDevice,
 } from "~/lib/operator/provisioning-helpers";
-import { isOperatorApiError } from "~/lib/operator/api-helpers";
 import { DEVICE_TYPE_OPTIONS } from "~/lib/iot-helpers";
 import { createLogger } from "~/lib/logger";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { FormField, FormError } from "./provisioning-shared";
+import { FormField } from "./provisioning-shared";
 
 const logger = createLogger({ component: "CreateDeviceModal" });
 
@@ -32,8 +32,10 @@ export function CreateDeviceModal({
   const [apiKeyMode, setApiKeyMode] = useState<"auto" | "manual">("auto");
   const [customApiKey, setCustomApiKey] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState("");
-  const errorRef = useScrollToError(error);
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { show: showError, invalid, clear: clearError } = formErrors;
+  const { error: toastError } = useToast();
 
   const [createdDevice, setCreatedDevice] = useState<OperatorDevice | null>(
     null,
@@ -48,7 +50,7 @@ export function CreateDeviceModal({
       setName("");
       setApiKeyMode("auto");
       setCustomApiKey("");
-      setError("");
+      clearError();
       setCreatedDevice(null);
       setCopied(false);
     }
@@ -67,17 +69,21 @@ export function CreateDeviceModal({
       // unset lands here and must produce a visible error instead of a silent
       // return. The device-ID text input keeps its native `required`.
       if (!schoolId) {
-        setError("Bitte wählen Sie eine Schule aus.");
+        const hint = "Bitte wählen Sie eine Schule aus.";
+        invalid("Bitte prüfen Sie die markierten Felder.", { school_id: hint });
         return;
       }
       if (!deviceType) {
-        setError("Bitte wählen Sie einen Gerätetyp aus.");
+        const hint = "Bitte wählen Sie einen Gerätetyp aus.";
+        invalid("Bitte prüfen Sie die markierten Felder.", {
+          device_type: hint,
+        });
         return;
       }
       if (!deviceId.trim()) return;
 
       setIsSaving(true);
-      setError("");
+      clearError();
       try {
         const device = await operatorProvisioningService.createDevice({
           school_id: parseInt(schoolId, 10),
@@ -90,28 +96,26 @@ export function CreateDeviceModal({
         setCreatedDevice(device);
         onCreated(device);
       } catch (err) {
-        if (isOperatorApiError(err) && err.status === 409) {
-          const msg = err.message.toLowerCase();
-          if (msg.includes("api_key")) {
-            setError("Dieser API-Key wird bereits verwendet.");
-          } else {
-            setError(
-              "Ein Gerät mit dieser ID existiert bereits für diese Schule.",
-            );
-          }
-        } else {
-          setError(
-            err instanceof Error ? err.message : "Fehler beim Erstellen.",
-          );
-          logger.error("device_create_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+        logger.error("device_create_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        void showError(err, { object: "das Anlegen des Geräts" });
       } finally {
         setIsSaving(false);
       }
     },
-    [schoolId, deviceId, deviceType, name, apiKeyMode, customApiKey, onCreated],
+    [
+      schoolId,
+      deviceId,
+      deviceType,
+      name,
+      apiKeyMode,
+      customApiKey,
+      onCreated,
+      invalid,
+      clearError,
+      showError,
+    ],
   );
 
   const handleCopyApiKey = useCallback(async () => {
@@ -124,8 +128,11 @@ export function CreateDeviceModal({
       logger.error("clipboard_copy_failed", {
         error: "Failed to copy API key to clipboard",
       });
+      toastError(
+        "Der API-Key konnte nicht kopiert werden. Bitte markieren und kopieren Sie ihn selbst.",
+      );
     }
-  }, [createdDevice]);
+  }, [createdDevice, toastError]);
 
   if (createdDevice) {
     return (
@@ -211,11 +218,18 @@ export function CreateDeviceModal({
       }
     >
       <form
+        ref={formRef}
         onSubmit={(e) => void handleCreate(e)}
         className="space-y-4"
         id="create-device-form"
       >
-        <FormField label="Schule" htmlFor="device-school" required>
+        <FormErrorAlert message={formErrors.error} />
+        <FormField
+          label="Schule"
+          htmlFor="device-school"
+          required
+          error={formErrors.fieldError("school_id")}
+        >
           <CustomSelect
             id="device-school"
             ariaLabel="Schule"
@@ -233,9 +247,15 @@ export function CreateDeviceModal({
           />
         </FormField>
 
-        <FormField label="Geräte-ID" htmlFor="device-id" required>
+        <FormField
+          label="Geräte-ID"
+          htmlFor="device-id"
+          required
+          error={formErrors.fieldError("device_id")}
+        >
           <input
             id="device-id"
+            name="device_id"
             type="text"
             value={deviceId}
             onChange={(e) => setDeviceId(e.target.value)}
@@ -246,7 +266,12 @@ export function CreateDeviceModal({
           />
         </FormField>
 
-        <FormField label="Typ" htmlFor="device-type" required>
+        <FormField
+          label="Typ"
+          htmlFor="device-type"
+          required
+          error={formErrors.fieldError("device_type")}
+        >
           <CustomSelect
             id="device-type"
             ariaLabel="Typ"
@@ -264,9 +289,14 @@ export function CreateDeviceModal({
           />
         </FormField>
 
-        <FormField label="Name" htmlFor="device-name">
+        <FormField
+          label="Name"
+          htmlFor="device-name"
+          error={formErrors.fieldError("name")}
+        >
           <input
             id="device-name"
+            name="name"
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -310,6 +340,16 @@ export function CreateDeviceModal({
             {apiKeyMode === "manual" && (
               <input
                 type="text"
+                name="api_key"
+                aria-label="API-Key"
+                aria-invalid={
+                  formErrors.fieldError("api_key") ? true : undefined
+                }
+                aria-describedby={
+                  formErrors.fieldError("api_key")
+                    ? "device-api-key-error"
+                    : undefined
+                }
                 value={customApiKey}
                 onChange={(e) => setCustomApiKey(e.target.value)}
                 placeholder="API-Key eingeben..."
@@ -317,10 +357,13 @@ export function CreateDeviceModal({
                 className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
               />
             )}
+            {apiKeyMode === "manual" && formErrors.fieldError("api_key") ? (
+              <p id="device-api-key-error" className="text-moto-red text-xs">
+                {formErrors.fieldError("api_key")}
+              </p>
+            ) : null}
           </div>
         </div>
-
-        {error && <FormError ref={errorRef} message={error} />}
       </form>
     </Modal>
   );

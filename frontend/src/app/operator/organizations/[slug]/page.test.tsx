@@ -8,13 +8,20 @@
  */
 import {
   act,
-  render,
+  render as renderPlain,
   screen,
   fireEvent,
   waitFor,
   within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
 
 vi.mock("~/components/operator/transfer-device-modal", () => ({
   TransferDeviceModal: () => null,
@@ -445,9 +452,11 @@ describe("OperatorOrganizationDetailPage", () => {
 
   it("shows subdomain conflict error when creating school", async () => {
     setupSWR();
-    const { OperatorApiError } = await import("~/lib/operator/api-helpers");
     mockCreateSchool.mockRejectedValue(
-      new OperatorApiError("subdomain already exists", 409),
+      new ApiError("subdomain already exists", 409, {
+        code: "general.business_rejection",
+        errors: [{ field: "subdomain", reason: "taken" }],
+      }),
     );
 
     await renderPage();
@@ -463,11 +472,11 @@ describe("OperatorOrganizationDetailPage", () => {
     });
     fireEvent.click(screen.getByText("Erstellen"));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("Eine Schule mit dieser Subdomain existiert bereits."),
-      ).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.business_rejection", "das Anlegen der Schule"),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("creates school successfully and revalidates tenant cache", async () => {
