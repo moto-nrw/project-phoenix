@@ -2084,6 +2084,7 @@
         "poll_not_open": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "staff_counterpart_unavailable": "{object} сейчас недоступен. Повторите попытку.",
         "staff_messaging_disabled": "У вас нет доступа к: {object}. Обратитесь в школу.",
+        "staff_notice_outdated": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "system_announcement_immutable": "Не удалось изменить: {object}. Проверьте текущее состояние."
       },
       "enrollment": {
@@ -2201,6 +2202,10 @@
       "files": {
         "announcement_published": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "attachment_limit_reached": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "file_missing": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+        "file_too_large": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+        "file_type_not_allowed": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+        "file_unreadable": "Не удалось сохранить: {object}. Проверьте введённые данные.",
         "folder_name_taken": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "quota_exceeded": "Не удалось изменить: {object}. Проверьте текущее состояние."
       },

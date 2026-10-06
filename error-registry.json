@@ -505,6 +505,12 @@
       "legacy": "staff_messaging_disabled"
     },
     {
+      "code": "communication.staff_notice_outdated",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.staff_notice_outdated"
+    },
+    {
       "code": "communication.system_announcement_immutable",
       "class": "business_rejection",
       "parameters": [],
@@ -793,6 +799,32 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "attachment_limit_reached"
+    },
+    {
+      "code": "files.file_missing",
+      "class": "input",
+      "parameters": [],
+      "legacy": "files.file_missing"
+    },
+    {
+      "code": "files.file_too_large",
+      "class": "input",
+      "parameters": [
+        "max_mb"
+      ],
+      "legacy": "files.file_too_large"
+    },
+    {
+      "code": "files.file_type_not_allowed",
+      "class": "input",
+      "parameters": [],
+      "legacy": "files.file_type_not_allowed"
+    },
+    {
+      "code": "files.file_unreadable",
+      "class": "input",
+      "parameters": [],
+      "legacy": "files.file_unreadable"
     },
     {
       "code": "files.folder_name_taken",

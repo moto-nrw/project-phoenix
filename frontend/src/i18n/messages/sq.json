@@ -2084,6 +2084,7 @@
         "poll_not_open": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "staff_counterpart_unavailable": "{object} nuk është i disponueshëm tani. Provoni përsëri.",
         "staff_messaging_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "staff_notice_outdated": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "system_announcement_immutable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "enrollment": {
@@ -2201,6 +2202,10 @@
       "files": {
         "announcement_published": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "attachment_limit_reached": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "file_missing": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "file_too_large": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "file_type_not_allowed": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "file_unreadable": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "folder_name_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "quota_exceeded": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },

@@ -2084,6 +2084,7 @@
         "poll_not_open": "{object} could not be changed. Please check its current status.",
         "staff_counterpart_unavailable": "{object} is unavailable right now. Please try again.",
         "staff_messaging_disabled": "You cannot access {object}. Please contact the school.",
+        "staff_notice_outdated": "{object} could not be changed. Please check its current status.",
         "system_announcement_immutable": "{object} could not be changed. Please check its current status."
       },
       "enrollment": {
@@ -2201,6 +2202,10 @@
       "files": {
         "announcement_published": "{object} could not be changed. Please check its current status.",
         "attachment_limit_reached": "{object} could not be changed. Please check its current status.",
+        "file_missing": "{object} could not be saved. Please check your entries.",
+        "file_too_large": "{object} could not be saved. Please check your entries.",
+        "file_type_not_allowed": "{object} could not be saved. Please check your entries.",
+        "file_unreadable": "{object} could not be saved. Please check your entries.",
         "folder_name_taken": "{object} could not be changed. Please check its current status.",
         "quota_exceeded": "{object} could not be changed. Please check its current status."
       },

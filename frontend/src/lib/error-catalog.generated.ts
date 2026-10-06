@@ -117,6 +117,8 @@ export const ERROR_CATALOG = {
         "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.staff_messaging_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "communication.staff_notice_outdated":
+        "Diese Tagesinformation hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
       "enrollment.approval_care_offering_exactly_one":
         "Für dieses Kind muss genau ein Betreuungsangebot gebucht sein. Die Familie muss die Auswahl ändern.",
       "enrollment.approval_care_offering_missing":
@@ -205,6 +207,14 @@ export const ERROR_CATALOG = {
         "Die Mitteilung ist schon veröffentlicht. Ihre Anhänge lassen sich nicht mehr ändern.",
       "files.attachment_limit_reached":
         "Eine Mitteilung kann höchstens 5 Anhänge haben. Bitte entfernen Sie einen Anhang.",
+      "files.file_missing":
+        "Es wurde keine Datei ausgewählt. Bitte wählen Sie eine Datei aus.",
+      "files.file_too_large":
+        "Diese Datei ist zu groß. Erlaubt sind bis zu {max_mb} MB.",
+      "files.file_type_not_allowed":
+        "Diese Dateiart ist hier nicht erlaubt. Bitte wählen Sie eine andere Datei.",
+      "files.file_unreadable":
+        "Die Datei lässt sich nicht lesen. Bitte prüfen Sie die Datei und laden Sie sie erneut hoch.",
       "files.folder_name_taken":
         "Es gibt schon einen Ordner mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
       "files.quota_exceeded":

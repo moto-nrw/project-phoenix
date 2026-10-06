@@ -241,7 +241,7 @@ func (rs *StaffAdminResource) uploadStaffDocument(w http.ResponseWriter, r *http
 
 	uploaded, err := common.ParseDocumentWithLimits(w, r, "file", maxStaffDocumentFile, maxStaffDocumentBody)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorUpload(err, maxStaffDocumentFile))
 		return
 	}
 	defer common.CloseFile(uploaded.File)

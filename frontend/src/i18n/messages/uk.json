@@ -2084,6 +2084,7 @@
         "poll_not_open": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "staff_counterpart_unavailable": "{object} зараз недоступний. Спробуйте ще раз.",
         "staff_messaging_disabled": "У вас немає доступу до: {object}. Зверніться до школи.",
+        "staff_notice_outdated": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "system_announcement_immutable": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
       "enrollment": {
@@ -2201,6 +2202,10 @@
       "files": {
         "announcement_published": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "attachment_limit_reached": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "file_missing": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "file_too_large": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "file_type_not_allowed": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "file_unreadable": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "folder_name_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "quota_exceeded": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },

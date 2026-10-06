@@ -86,6 +86,7 @@ const (
 	CodeCommunicationPollNotOpen                         = "communication.poll_not_open"
 	CodeCommunicationStaffCounterpartUnavailable         = "communication.staff_counterpart_unavailable"
 	CodeCommunicationStaffMessagingDisabled              = "communication.staff_messaging_disabled"
+	CodeCommunicationStaffNoticeOutdated                 = "communication.staff_notice_outdated"
 	CodeCommunicationSystemAnnouncementImmutable         = "communication.system_announcement_immutable"
 	CodeEnrollmentApprovalCareOfferingExactlyOne         = "enrollment.approval_care_offering_exactly_one"
 	CodeEnrollmentApprovalCareOfferingMissing            = "enrollment.approval_care_offering_missing"
@@ -199,6 +200,10 @@ const (
 	CodeEnrollmentWithdrawNotAllowed                     = "enrollment.withdraw_not_allowed"
 	CodeFilesAnnouncementPublished                       = "files.announcement_published"
 	CodeFilesAttachmentLimitReached                      = "files.attachment_limit_reached"
+	CodeFilesFileMissing                                 = "files.file_missing"
+	CodeFilesFileTooLarge                                = "files.file_too_large"
+	CodeFilesFileTypeNotAllowed                          = "files.file_type_not_allowed"
+	CodeFilesFileUnreadable                              = "files.file_unreadable"
 	CodeFilesFolderNameTaken                             = "files.folder_name_taken"
 	CodeFilesQuotaExceeded                               = "files.quota_exceeded"
 	CodeGeneralBusinessRejection                         = "general.business_rejection"
@@ -670,6 +675,7 @@ var errorClassByCode = map[string]string{
 	"communication.poll_not_open":                          "business_rejection",
 	"communication.staff_counterpart_unavailable":          "unavailable",
 	"communication.staff_messaging_disabled":               "permission",
+	"communication.staff_notice_outdated":                  "business_rejection",
 	"communication.system_announcement_immutable":          "business_rejection",
 	"enrollment.approval_care_offering_exactly_one":        "business_rejection",
 	"enrollment.approval_care_offering_missing":            "business_rejection",
@@ -783,6 +789,10 @@ var errorClassByCode = map[string]string{
 	"enrollment.withdraw_not_allowed":                      "permission",
 	"files.announcement_published":                         "business_rejection",
 	"files.attachment_limit_reached":                       "business_rejection",
+	"files.file_missing":                                   "input",
+	"files.file_too_large":                                 "input",
+	"files.file_type_not_allowed":                          "input",
+	"files.file_unreadable":                                "input",
 	"files.folder_name_taken":                              "business_rejection",
 	"files.quota_exceeded":                                 "business_rejection",
 	"general.business_rejection":                           "business_rejection",

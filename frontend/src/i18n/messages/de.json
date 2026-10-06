@@ -2084,6 +2084,7 @@
         "poll_not_open": "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
         "staff_counterpart_unavailable": "{object} ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
         "staff_messaging_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+        "staff_notice_outdated": "Diese Tagesinformation hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
         "system_announcement_immutable": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand."
       },
       "enrollment": {
@@ -2201,6 +2202,10 @@
       "files": {
         "announcement_published": "Die Mitteilung ist schon veröffentlicht. Ihre Anhänge lassen sich nicht mehr ändern.",
         "attachment_limit_reached": "Eine Mitteilung kann höchstens 5 Anhänge haben. Bitte entfernen Sie einen Anhang.",
+        "file_missing": "Es wurde keine Datei ausgewählt. Bitte wählen Sie eine Datei aus.",
+        "file_too_large": "Diese Datei ist zu groß. Erlaubt sind bis zu {max_mb} MB.",
+        "file_type_not_allowed": "Diese Dateiart ist hier nicht erlaubt. Bitte wählen Sie eine andere Datei.",
+        "file_unreadable": "Die Datei lässt sich nicht lesen. Bitte prüfen Sie die Datei und laden Sie sie erneut hoch.",
         "folder_name_taken": "Es gibt schon einen Ordner mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
         "quota_exceeded": "Der Speicherplatz der Dateiablage ist voll. Bitte löschen Sie Dateien, die Sie nicht mehr brauchen."
       },

@@ -2084,6 +2084,7 @@
         "poll_not_open": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "staff_counterpart_unavailable": "{object} jest teraz niedostępne. Spróbuj ponownie.",
         "staff_messaging_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "staff_notice_outdated": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "system_announcement_immutable": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "enrollment": {
@@ -2201,6 +2202,10 @@
       "files": {
         "announcement_published": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "attachment_limit_reached": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "file_missing": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_too_large": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_type_not_allowed": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_unreadable": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "folder_name_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "quota_exceeded": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
