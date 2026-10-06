@@ -11,7 +11,7 @@ import ru from "./messages/ru.json";
 import sq from "./messages/sq.json";
 import tr from "./messages/tr.json";
 import uk from "./messages/uk.json";
-import { PARENT_PORTAL_ERROR_CODES } from "./parent-error-codes";
+import { PARENT_PORTAL_ERROR_CODES } from "~/test/parent-error-codes";
 
 interface MessageTree {
   [key: string]: string | MessageTree;
