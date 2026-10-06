@@ -19631,17 +19631,6 @@
       "target_role": "contract"
     },
     {
-      "id": "root-composition.compose.production.identity-access.review-contract",
-      "description": "Bind native request-review identity and tenant-setting contracts without retained model dependencies (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "identity-access",
-      "target_role": "contract"
-    },
-    {
       "id": "people-directory.http.identity-access-contract",
       "description": "Bind the native request-review identity and tenant-setting contracts (#3179, #2731).",
       "scopes": [

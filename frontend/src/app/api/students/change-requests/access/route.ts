@@ -1,7 +1,6 @@
 import { apiGet } from "~/lib/api-helpers.server";
+import type { ParentRequestReviewAccess } from "~/lib/change-request-access";
 import { createGetHandler } from "~/lib/route-wrapper.server";
-
-type ParentRequestReviewAccess = "admin" | "group_leader" | "none";
 
 interface ChangeRequestAccessResponse {
   readonly review_access: ParentRequestReviewAccess;
