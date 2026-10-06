@@ -2044,7 +2044,8 @@
         "staff_counterpart_unavailable": "{object} сейчас недоступен. Повторите попытку.",
         "staff_messaging_disabled": "У вас нет доступа к: {object}. Обратитесь в школу.",
         "staff_notice_outdated": "Не удалось изменить: {object}. Проверьте текущее состояние.",
-        "system_announcement_immutable": "Не удалось изменить: {object}. Проверьте текущее состояние."
+        "system_announcement_immutable": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "announcement_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние."
       },
       "enrollment": {
         "approval_care_offering_exactly_one": "Не удалось изменить: {object}. Проверьте текущее состояние.",
@@ -2213,7 +2214,22 @@
         "session_account_inactive": "Ваш аккаунт отключён. Обратитесь к руководству вашей школы.",
         "tenant_access_denied": "У вас нет доступа к: {object}. Обратитесь в школу.",
         "use_parent_portal": "У вас нет доступа к: {object}. Обратитесь в школу.",
-        "use_school_portal": "У вас нет доступа к: {object}. Обратитесь в школу."
+        "use_school_portal": "У вас нет доступа к: {object}. Обратитесь в школу.",
+        "username_taken": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "password_mismatch": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+        "operator_invitation_invalid": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "invitation_rate_limited": "{object} сейчас недоступен. Повторите попытку.",
+        "email_change_rate_limited": "{object} сейчас недоступен. Повторите попытку.",
+        "email_change_same_email": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+        "email_change_link_invalid": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "mfa_not_enrolled": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "mfa_already_enrolled": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "passkey_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "account_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "tenant_access_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "account_not_in_school": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "lehrkraft_role_immutable": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "access_name_required": "Не удалось сохранить: {object}. Проверьте введённые данные."
       },
       "import": {
         "file_columns_missing": "Не удалось сохранить: {object}. Проверьте введённые данные.",
@@ -2580,6 +2596,48 @@
         "vacation_quota_reason_required": "Не удалось сохранить: {object}. Проверьте введённые данные.",
         "vacation_request_in_past": "Не удалось сохранить: {object}. Проверьте введённые данные.",
         "work_session_overlap": "Не удалось изменить: {object}. Проверьте текущее состояние."
+      },
+      "provisioning": {
+        "organization_slug_taken": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "school_subdomain_taken": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "school_slug_taken": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "device_api_key_taken": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "device_id_taken": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "organization_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "organization_already_deleted": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "organization_not_deleted": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "organization_has_schools": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "organization_deleted": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "school_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "school_inactive": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "school_already_deleted": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "school_not_deleted": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "device_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "device_in_use": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "device_protected": "У вас нет доступа к: {object}. Обратитесь в школу.",
+        "device_transfer_protected": "У вас нет доступа к: {object}. Обратитесь в школу.",
+        "device_online": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "device_active_session": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "device_other_organization": "У вас нет доступа к: {object}. Обратитесь в школу.",
+        "device_same_school": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "person_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "person_has_supervisions": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "caregiver_capability_blocked": "Не удалось изменить: {object}. Проверьте текущее состояние."
+      },
+      "settings": {
+        "not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "admin_only": "У вас нет доступа к: {object}. Обратитесь в школу.",
+        "managed_by_upload": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "invalid_value": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+        "presence_mode_switch_blocked": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "booking_authority_blocked": "Не удалось изменить: {object}. Проверьте текущее состояние."
+      },
+      "devices": {
+        "tag_scan_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "tag_scan_already_resolved": "Не удалось изменить: {object}. Проверьте текущее состояние."
+      },
+      "billing": {
+        "invalid_key_day": "Не удалось сохранить: {object}. Проверьте введённые данные."
       }
     },
     "actions": {

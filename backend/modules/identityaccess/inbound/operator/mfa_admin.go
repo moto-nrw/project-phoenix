@@ -92,7 +92,7 @@ func (rs *SchoolAccountMFAResource) resolveOperatorMFAAdminTarget(w http.Respons
 		return 0, 0, false
 	}
 	if !exists {
-		common.RenderError(w, r, common.OperatorNotFound("account is not a member of this school"))
+		common.RenderError(w, r, common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotInSchool, "account is not a member of this school"))
 		return 0, 0, false
 	}
 	return schoolID, accountID, true

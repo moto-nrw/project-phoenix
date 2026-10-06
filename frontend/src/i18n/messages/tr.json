@@ -2044,7 +2044,8 @@
         "staff_counterpart_unavailable": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
         "staff_messaging_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "staff_notice_outdated": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "system_announcement_immutable": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+        "system_announcement_immutable": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "announcement_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "enrollment": {
         "approval_care_offering_exactly_one": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -2213,7 +2214,22 @@
         "session_account_inactive": "Hesabınız kapalı. Lütfen okulunuzun yönetimiyle iletişime geçin.",
         "tenant_access_denied": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "use_parent_portal": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "use_school_portal": "{object} için erişim izniniz yok. Okulla iletişime geçin."
+        "use_school_portal": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "username_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "password_mismatch": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "operator_invitation_invalid": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "invitation_rate_limited": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
+        "email_change_rate_limited": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
+        "email_change_same_email": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "email_change_link_invalid": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "mfa_not_enrolled": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "mfa_already_enrolled": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "passkey_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "account_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "tenant_access_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "account_not_in_school": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "lehrkraft_role_immutable": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "access_name_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
       },
       "import": {
         "file_columns_missing": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
@@ -2580,6 +2596,48 @@
         "vacation_quota_reason_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "vacation_request_in_past": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "work_session_overlap": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+      },
+      "provisioning": {
+        "organization_slug_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "school_subdomain_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "school_slug_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "device_api_key_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "device_id_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "organization_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "organization_already_deleted": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "organization_not_deleted": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "organization_has_schools": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "organization_deleted": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "school_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "school_inactive": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "school_already_deleted": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "school_not_deleted": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "device_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "device_in_use": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "device_protected": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "device_transfer_protected": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "device_online": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "device_active_session": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "device_other_organization": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "device_same_school": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "person_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "person_has_supervisions": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "caregiver_capability_blocked": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+      },
+      "settings": {
+        "not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "admin_only": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "managed_by_upload": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "invalid_value": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "presence_mode_switch_blocked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "booking_authority_blocked": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+      },
+      "devices": {
+        "tag_scan_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "tag_scan_already_resolved": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+      },
+      "billing": {
+        "invalid_key_day": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
       }
     },
     "actions": {

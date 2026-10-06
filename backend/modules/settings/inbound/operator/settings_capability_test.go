@@ -120,19 +120,24 @@ func TestOperatorSettingsRoutes_SetValuePassesOperatorAndForce(t *testing.T) {
 
 func TestOperatorSettingsRoutes_SetValueConflicts(t *testing.T) {
 	t.Parallel()
-	for name, sentinel := range map[string]error{
-		"presence mode switch blocked": settings.ErrPresenceModeSwitchBlocked,
-		"booking authority blocked":    careplan.ErrBookingAuthorityBlocked,
+	for name, tc := range map[string]struct {
+		sentinel error
+		code     string
+	}{
+		"presence mode switch blocked": {settings.ErrPresenceModeSwitchBlocked, "settings.presence_mode_switch_blocked"},
+		"booking authority blocked":    {careplan.ErrBookingAuthorityBlocked, "settings.booking_authority_blocked"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			fake := &fakeOperatorSchoolSettings{setErr: fmt.Errorf("wrapped: %w", sentinel)}
+			fake := &fakeOperatorSchoolSettings{setErr: fmt.Errorf("wrapped: %w", tc.sentinel)}
 
 			req := newOperatorRequest(t, http.MethodPut, fakeSchoolPath("/settings/values/checkout.wc_enabled"),
 				map[string]any{"value": true})
 			rr := testutil.ExecuteRequest(fakeSettingsRouter(fake), req)
 
 			testutil.AssertErrorResponse(t, rr, http.StatusConflict)
-			assert.Contains(t, rr.Body.String(), sentinel.Error())
+			assert.Contains(t, rr.Body.String(), tc.sentinel.Error())
+			// #2519: the operator portal shows the conflict by its code.
+			assert.Equal(t, tc.code, testutil.ParseJSONResponse(t, rr.Body.Bytes())["code"])
 		})
 	}
 }

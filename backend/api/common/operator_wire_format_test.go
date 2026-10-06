@@ -53,7 +53,21 @@ func TestWireFormat_Operator_ErrHelpers(t *testing.T) {
 			name:       "ErrInvalidCredentials",
 			renderer:   common.OperatorInvalidCredentials(),
 			wantStatus: 401,
-			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen","title":"Unauthorized","detail":"Invalid email or password","instance":"","error":"Invalid email or password","code":"general.permission"}` + "\n",
+			// #2519: the failed login names its reason by code; the type
+			// follows the code's input class.
+			wantBody: `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Unauthorized","detail":"Invalid email or password","instance":"","error":"Invalid email or password","code":"identity.invalid_credentials"}` + "\n",
+		},
+		{
+			name:       "ErrRejectionWithDetails",
+			renderer:   common.OperatorRejectionWithDetails(409, common.CodeProvisioningOrganizationHasSchools, "has schools", map[string]any{"school_count": 2}),
+			wantStatus: 409,
+			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich","title":"Conflict","detail":"has schools","instance":"","error":"has schools","code":"provisioning.organization_has_schools","details":{"school_count":2}}` + "\n",
+		},
+		{
+			name:       "ErrInvalidField",
+			renderer:   common.OperatorInvalidField(common.CodeIdentityPasswordTooWeak, "password", "weak"),
+			wantStatus: 400,
+			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Bad Request","detail":"weak","instance":"","error":"weak","code":"identity.password_too_weak","errors":[{"field":"password","reason":"weak"}]}` + "\n",
 		},
 		{
 			name:       "ErrUnauthorized",

@@ -2044,7 +2044,8 @@
         "staff_counterpart_unavailable": "{object} ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
         "staff_messaging_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
         "staff_notice_outdated": "Diese Tagesinformation hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
-        "system_announcement_immutable": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand."
+        "system_announcement_immutable": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
+        "announcement_not_found": "Diese Mitteilung gibt es nicht mehr. Bitte laden Sie die Seite neu."
       },
       "enrollment": {
         "approval_care_offering_exactly_one": "Für dieses Kind muss genau ein Betreuungsangebot gebucht sein. Die Familie muss die Auswahl ändern.",
@@ -2213,7 +2214,22 @@
         "session_account_inactive": "Ihr Konto ist ausgeschaltet. Bitte wenden Sie sich an die Leitung Ihrer Schule.",
         "tenant_access_denied": "Ihr Konto hat keinen Zugang zu dieser Schule. Bitte melden Sie sich neu an.",
         "use_parent_portal": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
-        "use_school_portal": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule."
+        "use_school_portal": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+        "username_taken": "Diesen Benutzernamen gibt es schon. Bitte wählen Sie einen anderen.",
+        "password_mismatch": "Die beiden Passwörter stimmen nicht überein. Bitte geben Sie sie erneut ein.",
+        "operator_invitation_invalid": "Dieser Einladungslink ist abgelaufen oder ungültig. Bitte lassen Sie sich neu einladen.",
+        "invitation_rate_limited": "Es wurden zu viele Einladungen verschickt. Bitte versuchen Sie es in einer Stunde erneut.",
+        "email_change_rate_limited": "Die E-Mail-Adresse wurde zu oft geändert. Bitte versuchen Sie es in einer Stunde erneut.",
+        "email_change_same_email": "Die neue E-Mail-Adresse ist dieselbe wie die bisherige. Bitte geben Sie eine andere ein.",
+        "email_change_link_invalid": "Dieser Bestätigungslink ist abgelaufen oder ungültig. Bitte ändern Sie die E-Mail-Adresse erneut.",
+        "mfa_not_enrolled": "Die Zwei-Faktor-Anmeldung ist noch nicht eingerichtet. Bitte richten Sie sie zuerst ein.",
+        "mfa_already_enrolled": "Die Zwei-Faktor-Anmeldung ist schon eingerichtet. Bitte laden Sie die Seite neu.",
+        "passkey_not_found": "Diesen Passkey gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+        "account_not_found": "Dieses Konto gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+        "tenant_access_not_found": "Dieses Konto hat keinen Zugang zu dieser Schule mehr. Bitte laden Sie die Seite neu.",
+        "account_not_in_school": "Dieses Konto gehört nicht zu dieser Schule. Bitte laden Sie die Seite neu.",
+        "lehrkraft_role_immutable": "Ein Lehrkraft-Konto behält seine Rolle. Für eine andere Rolle braucht die Person ein neues Konto.",
+        "access_name_required": "Für diese Schule fehlt der Name der Person. Bitte geben Sie Vor- und Nachnamen ein."
       },
       "import": {
         "file_columns_missing": "In der Datei fehlen Spalten: {columns}. Bitte nutzen Sie die Vorlage.",
@@ -2580,6 +2596,48 @@
         "vacation_quota_reason_required": "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
         "vacation_request_in_past": "Urlaub können Sie nur ab heute beantragen. Bitte wählen Sie ein anderes Datum.",
         "work_session_overlap": "Die Zeit überschneidet sich mit einem anderen Eintrag an diesem Tag. Bitte prüfen Sie Beginn und Ende."
+      },
+      "provisioning": {
+        "organization_slug_taken": "Diese Kurzbezeichnung hat schon ein anderer Träger. Bitte wählen Sie eine andere.",
+        "school_subdomain_taken": "Diese Subdomain hat schon eine andere Schule. Bitte wählen Sie eine andere.",
+        "school_slug_taken": "Diese Kurzbezeichnung hat schon eine andere Schule dieses Trägers. Bitte wählen Sie eine andere.",
+        "device_api_key_taken": "Diesen API-Schlüssel nutzt schon ein anderes Gerät. Bitte wählen Sie einen anderen.",
+        "device_id_taken": "Diese Geräte-ID gibt es an der Schule schon. Bitte wählen Sie eine andere.",
+        "organization_not_found": "Diesen Träger gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+        "organization_already_deleted": "Dieser Träger ist schon gelöscht. Bitte laden Sie die Seite neu.",
+        "organization_not_deleted": "Dieser Träger ist nicht gelöscht. Bitte laden Sie die Seite neu.",
+        "organization_has_schools": "Zu diesem Träger gehören noch {school_count} Schulen. Bitte löschen Sie zuerst die Schulen.",
+        "organization_deleted": "Der Träger ist gelöscht. Bitte wählen Sie einen anderen Träger.",
+        "school_not_found": "Diese Schule gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+        "school_inactive": "Die Schule ist ausgeschaltet. Bitte schalten Sie sie zuerst ein.",
+        "school_already_deleted": "Diese Schule ist schon gelöscht. Bitte laden Sie die Seite neu.",
+        "school_not_deleted": "Diese Schule ist nicht gelöscht. Bitte laden Sie die Seite neu.",
+        "device_not_found": "Dieses Gerät gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+        "device_in_use": "Mit diesem Gerät wurden schon Anwesenheiten oder Sitzungen erfasst. Es kann nicht gelöscht werden.",
+        "device_protected": "Dieses Systemgerät kann nicht gelöscht werden.",
+        "device_transfer_protected": "Dieses Systemgerät kann nicht umgezogen werden.",
+        "device_online": "Das Gerät ist gerade online. Bitte schalten Sie es aus und versuchen Sie es dann erneut.",
+        "device_active_session": "Auf dem Gerät läuft gerade eine Sitzung. Bitte beenden Sie sie und versuchen Sie es dann erneut.",
+        "device_other_organization": "Ein Gerät kann nur zu einer Schule desselben Trägers umziehen. Bitte wählen Sie eine andere Schule.",
+        "device_same_school": "Das Gerät gehört schon zu dieser Schule. Bitte wählen Sie eine andere Schule.",
+        "person_not_found": "Diese Person gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+        "person_has_supervisions": "Diese Person führt gerade eine Aufsicht. Bitte beenden Sie die Aufsicht zuerst.",
+        "caregiver_capability_blocked": "Die Betreuungsrolle kann noch nicht entfernt werden, weil die Person noch eingeplant ist. Bitte lösen Sie diese Zuordnungen zuerst."
+      },
+      "settings": {
+        "not_found": "Diese Einstellung gibt es nicht. Bitte laden Sie die Seite neu.",
+        "admin_only": "Diese Einstellung ändert nur die Schule selbst.",
+        "managed_by_upload": "Dieser Wert entsteht beim Hochladen der Datei. Bitte laden Sie die Datei neu hoch.",
+        "invalid_value": "Der Wert für {object} ist nicht erlaubt. Bitte prüfen Sie die Eingabe.",
+        "presence_mode_switch_blocked": "Der Anwesenheitsmodus kann erst nach dem Tagesabschluss gewechselt werden. Bitte beenden Sie zuerst den laufenden Tag.",
+        "booking_authority_blocked": "Der Buchungsmodus wurde nicht aktiviert: Für mindestens ein betreutes Kind ist kein Betreuungstag gebucht. Bitte prüfen Sie die Auswirkungen erneut."
+      },
+      "devices": {
+        "tag_scan_not_found": "Diesen Scan gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+        "tag_scan_already_resolved": "Dieser Scan ist schon erledigt. Bitte laden Sie die Seite neu."
+      },
+      "billing": {
+        "invalid_key_day": "Der Stichtag muss zwischen dem 1. und dem 28. des Monats liegen. Bitte wählen Sie einen dieser Tage."
       }
     },
     "actions": {

@@ -2044,7 +2044,8 @@
         "staff_counterpart_unavailable": "{object} jest teraz niedostępne. Spróbuj ponownie.",
         "staff_messaging_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "staff_notice_outdated": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-        "system_announcement_immutable": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+        "system_announcement_immutable": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "announcement_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "enrollment": {
         "approval_care_offering_exactly_one": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2213,7 +2214,22 @@
         "session_account_inactive": "Twoje konto jest wyłączone. Skontaktuj się z dyrekcją swojej szkoły.",
         "tenant_access_denied": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "use_parent_portal": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
-        "use_school_portal": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
+        "use_school_portal": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "username_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "password_mismatch": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "operator_invitation_invalid": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "invitation_rate_limited": "{object} jest teraz niedostępne. Spróbuj ponownie.",
+        "email_change_rate_limited": "{object} jest teraz niedostępne. Spróbuj ponownie.",
+        "email_change_same_email": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "email_change_link_invalid": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "mfa_not_enrolled": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "mfa_already_enrolled": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "passkey_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "account_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "tenant_access_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "account_not_in_school": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "lehrkraft_role_immutable": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "access_name_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
       },
       "import": {
         "file_columns_missing": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
@@ -2580,6 +2596,48 @@
         "vacation_quota_reason_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "vacation_request_in_past": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "work_session_overlap": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+      },
+      "provisioning": {
+        "organization_slug_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "school_subdomain_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "school_slug_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "device_api_key_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "device_id_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "organization_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "organization_already_deleted": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "organization_not_deleted": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "organization_has_schools": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "organization_deleted": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "school_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "school_inactive": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "school_already_deleted": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "school_not_deleted": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "device_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "device_in_use": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "device_protected": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "device_transfer_protected": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "device_online": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "device_active_session": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "device_other_organization": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "device_same_school": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "person_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "person_has_supervisions": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "caregiver_capability_blocked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+      },
+      "settings": {
+        "not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "admin_only": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "managed_by_upload": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "invalid_value": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "presence_mode_switch_blocked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "booking_authority_blocked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+      },
+      "devices": {
+        "tag_scan_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "tag_scan_already_resolved": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+      },
+      "billing": {
+        "invalid_key_day": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
       }
     },
     "actions": {

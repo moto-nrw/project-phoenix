@@ -1046,6 +1046,105 @@ export const ERROR_CATALOG = {
         "Der Stand dieser Änderungsanfrage hat sich geändert. Bitte laden Sie die Seite neu.",
       "enrollment.phase_eligibility_setting_required":
         "Für eine Einschränkung nach Klasse oder Klassenstufe muss die passende Abfrage eingeschaltet sein. Bitte schalten Sie sie in den Einstellungen ein.",
+      "identity.username_taken":
+        "Diesen Benutzernamen gibt es schon. Bitte wählen Sie einen anderen.",
+      "identity.password_mismatch":
+        "Die beiden Passwörter stimmen nicht überein. Bitte geben Sie sie erneut ein.",
+      "identity.operator_invitation_invalid":
+        "Dieser Einladungslink ist abgelaufen oder ungültig. Bitte lassen Sie sich neu einladen.",
+      "identity.invitation_rate_limited":
+        "Es wurden zu viele Einladungen verschickt. Bitte versuchen Sie es in einer Stunde erneut.",
+      "identity.email_change_rate_limited":
+        "Die E-Mail-Adresse wurde zu oft geändert. Bitte versuchen Sie es in einer Stunde erneut.",
+      "identity.email_change_same_email":
+        "Die neue E-Mail-Adresse ist dieselbe wie die bisherige. Bitte geben Sie eine andere ein.",
+      "identity.email_change_link_invalid":
+        "Dieser Bestätigungslink ist abgelaufen oder ungültig. Bitte ändern Sie die E-Mail-Adresse erneut.",
+      "identity.mfa_not_enrolled":
+        "Die Zwei-Faktor-Anmeldung ist noch nicht eingerichtet. Bitte richten Sie sie zuerst ein.",
+      "identity.mfa_already_enrolled":
+        "Die Zwei-Faktor-Anmeldung ist schon eingerichtet. Bitte laden Sie die Seite neu.",
+      "identity.passkey_not_found":
+        "Diesen Passkey gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "identity.account_not_found":
+        "Dieses Konto gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "identity.tenant_access_not_found":
+        "Dieses Konto hat keinen Zugang zu dieser Schule mehr. Bitte laden Sie die Seite neu.",
+      "identity.account_not_in_school":
+        "Dieses Konto gehört nicht zu dieser Schule. Bitte laden Sie die Seite neu.",
+      "identity.lehrkraft_role_immutable":
+        "Ein Lehrkraft-Konto behält seine Rolle. Für eine andere Rolle braucht die Person ein neues Konto.",
+      "identity.access_name_required":
+        "Für diese Schule fehlt der Name der Person. Bitte geben Sie Vor- und Nachnamen ein.",
+      "provisioning.organization_slug_taken":
+        "Diese Kurzbezeichnung hat schon ein anderer Träger. Bitte wählen Sie eine andere.",
+      "provisioning.school_subdomain_taken":
+        "Diese Subdomain hat schon eine andere Schule. Bitte wählen Sie eine andere.",
+      "provisioning.school_slug_taken":
+        "Diese Kurzbezeichnung hat schon eine andere Schule dieses Trägers. Bitte wählen Sie eine andere.",
+      "provisioning.device_api_key_taken":
+        "Diesen API-Schlüssel nutzt schon ein anderes Gerät. Bitte wählen Sie einen anderen.",
+      "provisioning.device_id_taken":
+        "Diese Geräte-ID gibt es an der Schule schon. Bitte wählen Sie eine andere.",
+      "provisioning.organization_not_found":
+        "Diesen Träger gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "provisioning.organization_already_deleted":
+        "Dieser Träger ist schon gelöscht. Bitte laden Sie die Seite neu.",
+      "provisioning.organization_not_deleted":
+        "Dieser Träger ist nicht gelöscht. Bitte laden Sie die Seite neu.",
+      "provisioning.organization_has_schools":
+        "Zu diesem Träger gehören noch {school_count} Schulen. Bitte löschen Sie zuerst die Schulen.",
+      "provisioning.organization_deleted":
+        "Der Träger ist gelöscht. Bitte wählen Sie einen anderen Träger.",
+      "provisioning.school_not_found":
+        "Diese Schule gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "provisioning.school_inactive":
+        "Die Schule ist ausgeschaltet. Bitte schalten Sie sie zuerst ein.",
+      "provisioning.school_already_deleted":
+        "Diese Schule ist schon gelöscht. Bitte laden Sie die Seite neu.",
+      "provisioning.school_not_deleted":
+        "Diese Schule ist nicht gelöscht. Bitte laden Sie die Seite neu.",
+      "provisioning.device_not_found":
+        "Dieses Gerät gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "provisioning.device_in_use":
+        "Mit diesem Gerät wurden schon Anwesenheiten oder Sitzungen erfasst. Es kann nicht gelöscht werden.",
+      "provisioning.device_protected":
+        "Dieses Systemgerät kann nicht gelöscht werden.",
+      "provisioning.device_transfer_protected":
+        "Dieses Systemgerät kann nicht umgezogen werden.",
+      "provisioning.device_online":
+        "Das Gerät ist gerade online. Bitte schalten Sie es aus und versuchen Sie es dann erneut.",
+      "provisioning.device_active_session":
+        "Auf dem Gerät läuft gerade eine Sitzung. Bitte beenden Sie sie und versuchen Sie es dann erneut.",
+      "provisioning.device_other_organization":
+        "Ein Gerät kann nur zu einer Schule desselben Trägers umziehen. Bitte wählen Sie eine andere Schule.",
+      "provisioning.device_same_school":
+        "Das Gerät gehört schon zu dieser Schule. Bitte wählen Sie eine andere Schule.",
+      "provisioning.person_not_found":
+        "Diese Person gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "provisioning.person_has_supervisions":
+        "Diese Person führt gerade eine Aufsicht. Bitte beenden Sie die Aufsicht zuerst.",
+      "provisioning.caregiver_capability_blocked":
+        "Die Betreuungsrolle kann noch nicht entfernt werden, weil die Person noch eingeplant ist. Bitte lösen Sie diese Zuordnungen zuerst.",
+      "settings.not_found":
+        "Diese Einstellung gibt es nicht. Bitte laden Sie die Seite neu.",
+      "settings.admin_only": "Diese Einstellung ändert nur die Schule selbst.",
+      "settings.managed_by_upload":
+        "Dieser Wert entsteht beim Hochladen der Datei. Bitte laden Sie die Datei neu hoch.",
+      "settings.invalid_value":
+        "Der Wert für {object} ist nicht erlaubt. Bitte prüfen Sie die Eingabe.",
+      "settings.presence_mode_switch_blocked":
+        "Der Anwesenheitsmodus kann erst nach dem Tagesabschluss gewechselt werden. Bitte beenden Sie zuerst den laufenden Tag.",
+      "settings.booking_authority_blocked":
+        "Der Buchungsmodus wurde nicht aktiviert: Für mindestens ein betreutes Kind ist kein Betreuungstag gebucht. Bitte prüfen Sie die Auswirkungen erneut.",
+      "communication.announcement_not_found":
+        "Diese Mitteilung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "devices.tag_scan_not_found":
+        "Diesen Scan gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "devices.tag_scan_already_resolved":
+        "Dieser Scan ist schon erledigt. Bitte laden Sie die Seite neu.",
+      "billing.invalid_key_day":
+        "Der Stichtag muss zwischen dem 1. und dem 28. des Monats liegen. Bitte wählen Sie einen dieser Tage.",
     },
   },
   en: {
