@@ -202,3 +202,181 @@ func TestCheckReviewedTableAdoptionRejectsTransfer(t *testing.T) {
 		t.Fatalf("ownership transfer was accepted: %v\n%s", err, output)
 	}
 }
+
+// ghostRecordsRetiredAccessor is a generic store whose table arrives at run
+// time, so the base can only record it as tables.unresolved debt (ADR 0045).
+const ghostRecordsRetiredAccessor = `package retired
+
+import (
+	"context"
+	"database/sql"
+)
+
+func Purge(ctx context.Context, db *sql.DB, table string) error {
+	_, err := db.ExecContext(ctx, "DELETE FROM "+table)
+	return err
+}
+`
+
+// ghostRecordsStaticStore names the table statically, the way the adopting
+// owner's own adapter replaces the retired generic store.
+const ghostRecordsStaticStore = `package store
+
+import (
+	"context"
+	"database/sql"
+)
+
+func Purge(ctx context.Context, db *sql.DB) error {
+	_, err := db.ExecContext(ctx, "DELETE FROM ghost.records")
+	return err
+}
+`
+
+// unresolvedTableRecord is a base-baseline entry recording that a package
+// reaches some table through an expression the analysis cannot resolve.
+func unresolvedTableRecord(issue int, pkg string) string {
+	return fmt.Sprintf("{\"scope\":\"production\",\"rule\":\"tables.unresolved\",\"source\":\"example.test/architecture-fixture/%s\",\"target\":\"%s.ExecContext\",\"issue\":\"https://github.com/moto-nrw/project-phoenix/issues/%d\"}\n", pkg, pkg, issue)
+}
+
+// classifyPostgres adds a postgres package of the given owner, adding the
+// owner and the role when the fixture does not have them yet.
+func classifyPostgres(document map[string]any, path, owner string) {
+	if owner != "module" && !fixtureHasOwner(document, owner) {
+		document["owners"] = append(document["owners"].([]any), map[string]any{"id": owner, "kind": "domain"})
+	}
+	if !containsJSONValue(document["roles"].([]any), "postgres") {
+		document["roles"] = append(document["roles"].([]any), "postgres")
+	}
+	document["packages"] = append(document["packages"].([]any), map[string]any{
+		"path": path, "owner": owner, "role": "postgres",
+		"internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test",
+	})
+}
+
+func fixtureHasOwner(document map[string]any, owner string) bool {
+	for _, item := range document["owners"].([]any) {
+		if item.(map[string]any)["id"] == owner {
+			return true
+		}
+	}
+	return false
+}
+
+func withoutPackage(document map[string]any, path string) {
+	var kept []any
+	for _, item := range document["packages"].([]any) {
+		if item.(map[string]any)["path"] != path {
+			kept = append(kept, item)
+		}
+	}
+	document["packages"] = kept
+}
+
+// retiredExpressionScenario describes one candidate against a base whose
+// retired package reached an unowned table only through an unresolved
+// expression.
+type retiredExpressionScenario struct {
+	reviewed     bool
+	recorded     bool
+	keepRetired  bool
+	staticStores map[string]string
+}
+
+func runRetiredExpressionScenario(t *testing.T, scenario retiredExpressionScenario) (string, error) {
+	t.Helper()
+	base := mutatePolicy(t, readFile(t, fixturePath(t, "vertical-forbidden.json")), func(document map[string]any) {
+		classifyPostgres(document, "retired", "other")
+		document["external_classes"] = append(document["external_classes"].([]any), "standard")
+		for _, path := range []string{"context", "database/sql"} {
+			document["external_packages"] = append(document["external_packages"].([]any), map[string]any{"path": path, "class": "standard"})
+		}
+		document["rules"] = append(document["rules"].([]any), map[string]any{
+			"id": "postgres.to.standard", "description": "Fixture stores use the standard library.", "scopes": []string{"production"},
+			"source_role": "postgres", "target_class": "standard",
+		})
+	})
+	baseline := legacyRecord(2583)
+	if scenario.recorded {
+		baseline += unresolvedTableRecord(2706, "retired")
+	}
+	repo, baseRef := ratchetRepositoryWithPolicy(t, baseline, base)
+	writeFile(t, filepath.Join(repo, "retired", "retired.go"), ghostRecordsRetiredAccessor)
+	runGit(t, repo, "add", ".")
+	runGit(t, repo, "commit", "-qm", "retired accessor")
+	baseRef = strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+
+	candidate := mutatePolicy(t, base, func(document map[string]any) {
+		if scenario.reviewed {
+			document["policy_epoch"] = document["policy_epoch"].(float64) + 1
+		}
+		document["data_objects"] = []any{map[string]any{"name": "ghost.records", "write_owner": "module"}}
+		if !scenario.keepRetired {
+			withoutPackage(document, "retired")
+		}
+		for path, owner := range scenario.staticStores {
+			classifyPostgres(document, path, owner)
+		}
+	})
+	candidateBaseline := legacyRecord(2583)
+	if scenario.keepRetired {
+		if scenario.recorded {
+			candidateBaseline += unresolvedTableRecord(2706, "retired")
+		}
+	} else {
+		runGit(t, repo, "rm", "-q", "-r", "retired")
+	}
+	for path := range scenario.staticStores {
+		writeFile(t, filepath.Join(repo, path, path+".go"), strings.Replace(ghostRecordsStaticStore, "package store", "package "+path, 1))
+	}
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), candidate)
+	writeFile(t, filepath.Join(repo, "architecture", "legacy.jsonl"), candidateBaseline)
+	runGit(t, repo, "add", ".")
+	return runRepositoryCheck(t, repo, baseRef)
+}
+
+// A reviewed epoch may adopt an unowned table that the base reached only
+// through a retired package's unresolved expression, once the adopting
+// owner's own adapter names it statically and nobody else does (ADR 0045).
+func TestCheckReviewedTableAdoptionFromRetiredExpression(t *testing.T) {
+	t.Parallel()
+	output, err := runRetiredExpressionScenario(t, retiredExpressionScenario{
+		reviewed: true, recorded: true, staticStores: map[string]string{"store": "module"},
+	})
+	if err != nil {
+		t.Fatalf("adoption of a table the retired generic store reached was rejected: %v\n%s", err, output)
+	}
+}
+
+// The retired-expression path stays as narrow as the debt path: it needs a
+// reviewed epoch, recorded unresolved debt on a package the candidate
+// deletes, and static access by the adopting owner alone.
+func TestCheckReviewedTableAdoptionFromRetiredExpressionPreservesGuards(t *testing.T) {
+	t.Parallel()
+	const rejected = "data object ghost.records was newly assigned to owner module"
+	for name, scenario := range map[string]retiredExpressionScenario{
+		"unchanged epoch": {
+			recorded: true, staticStores: map[string]string{"store": "module"},
+		},
+		"no recorded unresolved debt": {
+			reviewed: true, staticStores: map[string]string{"store": "module"},
+		},
+		"unresolved accessor kept": {
+			reviewed: true, recorded: true, keepRetired: true, staticStores: map[string]string{"store": "module"},
+		},
+		"no static access": {
+			reviewed: true, recorded: true,
+		},
+		"foreign static access": {
+			reviewed: true, recorded: true, staticStores: map[string]string{"store": "module", "rival": "other"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			output, err := runRetiredExpressionScenario(t, scenario)
+			if err == nil || !strings.Contains(output, rejected) {
+				t.Fatalf("%s was accepted: %v\n%s", name, err, output)
+			}
+		})
+	}
+}

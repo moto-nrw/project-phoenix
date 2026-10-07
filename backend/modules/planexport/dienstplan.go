@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // areaWithoutShiftType labels shifts that carry no Schichtart, so they still
@@ -237,7 +237,7 @@ func memberFullName(member *StaffMember) string {
 // closedDayLines prefixes a cell with the reason the day is closed, so an
 // empty Tuesday reads as "Schließtag" rather than as a planning mistake. It
 // is the dominant fact of that column, so it leads in strong weight.
-func (d *dienstplanData) closedDayLines(day timezone.Date) []listexport.Line {
+func (d *dienstplanData) closedDayLines(day calendar.Date) []listexport.Line {
 	if label, ok := d.closedDays[dayKey(day)]; ok {
 		return []listexport.Line{strong(label)}
 	}
@@ -246,7 +246,7 @@ func (d *dienstplanData) closedDayLines(day timezone.Date) []listexport.Line {
 
 // personDayLines is one staff member's day: their shift windows first, then
 // the tasks planned inside them.
-func (d *dienstplanData) personDayLines(staffID int64, day timezone.Date) []listexport.Line {
+func (d *dienstplanData) personDayLines(staffID int64, day calendar.Date) []listexport.Line {
 	key := staffDay{staffID: staffID, date: dayKey(day)}
 	lines := make([]listexport.Line, 0, 4)
 

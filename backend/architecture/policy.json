@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 31,
+  "policy_epoch": 32,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -453,13 +453,6 @@
     "workflow-integration-test"
   ],
   "packages": [
-    {
-      "path": "modules/documentrendering/compose",
-      "owner": "document-rendering",
-      "role": "compose",
-      "internal_test_role": "workflow-integration-test",
-      "external_test_role": "module-behavior-test"
-    },
     {
       "path": "modules/documentrendering/lists",
       "owner": "document-rendering",
@@ -1154,13 +1147,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/documents",
-      "owner": "document-rendering",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "database/repositories/education",
       "owner": "school-structure",
       "role": "postgres",
@@ -1478,13 +1464,6 @@
     {
       "path": "models/delivery",
       "owner": "delivery-platform",
-      "role": "domain",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models/documents",
-      "owner": "document-rendering",
       "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -2400,9 +2379,9 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/planexport/legacy",
+      "path": "modules/planexport/compose",
       "owner": "document-rendering",
-      "role": "adapter",
+      "role": "compose",
       "internal_test_role": "adapter-test",
       "external_test_role": "module-behavior-test"
     },
@@ -4444,6 +4423,10 @@
       "write_owner": "file-storage"
     },
     {
+      "name": "documents.file_cleanup",
+      "write_owner": "file-storage"
+    },
+    {
       "name": "documents.folder_accounts",
       "write_owner": "file-storage"
     },
@@ -5212,51 +5195,8 @@
   ],
   "rules": [
     {
-      "id": "document-rendering.compose.cleanup-postgres",
-      "description": "Bind the retained document cleanup repository behind a consumer-owned port.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "compose",
-      "target_owner": "document-rendering",
-      "target_role": "postgres"
-    },
-    {
-      "id": "document-rendering.compose.cleanup-domain",
-      "description": "Translate retained document cleanup rows at the persistence composition boundary.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "compose",
-      "target_owner": "document-rendering",
-      "target_role": "domain"
-    },
-    {
-      "id": "document-rendering.compose.file-storage-port",
-      "description": "Implement File Storage's consumer-owned cleanup port without exposing the generic repository.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "compose",
-      "target_owner": "file-storage",
-      "target_role": "compose"
-    },
-    {
-      "id": "document-rendering.compose.orm-sql",
-      "description": "Construct the cleanup persistence binding with the root database.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "compose",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "legacy-composition.to.document-cleanup-compose",
-      "description": "Supply the retained cleanup persistence through File Storage's consumer-owned port.",
+      "description": "The legacy root binds the plan export capability to the owners' public reads through the Document Rendering composition (#2706).",
       "scopes": [
         "production"
       ],
@@ -19429,28 +19369,6 @@
       "target_class": "test"
     },
     {
-      "id": "document-rendering.public.calendar-date",
-      "description": "The public plan export capability resolves request and record days with the repository calendar-date value type (#2706).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "public",
-      "target_owner": "legacy-shared",
-      "target_role": "domain"
-    },
-    {
-      "id": "document-rendering.adapter.public",
-      "description": "The plan export compatibility adapter implements the capability's consumer-owned ports and returns its public service (#2706).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter",
-      "target_owner": "document-rendering",
-      "target_role": "public"
-    },
-    {
       "id": "document-rendering.decision-test.application",
       "description": "Plan export rendering tests inspect the rendered Document Rendering document field by field (#2706).",
       "scopes": [
@@ -19463,7 +19381,7 @@
     },
     {
       "id": "document-rendering.adapter-test.document-rendering-application",
-      "description": "Plan export adapter tests inspect the rendered Document Rendering document and render the runtime evidence through the real renderer (#2706).",
+      "description": "Plan export composition tests inspect the rendered Document Rendering document and render the runtime evidence through the real renderer (#2706).",
       "scopes": [
         "internal_test"
       ],
@@ -19471,6 +19389,50 @@
       "source_role": "adapter-test",
       "target_owner": "document-rendering",
       "target_role": "application"
+    },
+    {
+      "id": "document-rendering.compose.public",
+      "description": "The plan export composition returns the public plan export capability (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "compose",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "document-rendering.compose.timetable-activities-public",
+      "description": "The plan export composition reads blocks, their staff, Angebote and Planungsspuren through the public Timetable & Activities capability (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "document-rendering.compose.facilities-public",
+      "description": "The plan export composition reads the printed room names through the public Facilities capability (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "document-rendering.compose.workforce-public",
+      "description": "The plan export composition reads the Dienstplan overview and the Schichtarten through the public Workforce capability (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "public"
     },
     {
       "id": "timetable-activities.http.document-rendering",
@@ -22135,28 +22097,6 @@
       "target_role": "public"
     },
     {
-      "id": "document-rendering.adapter.workforce-public",
-      "description": "The plan export adapter names the Dienstplan overview through the public Workforce query (#3418).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
-      "id": "document-rendering.adapter.facilities-domain",
-      "description": "The plan export adapter names the retained room rows it reads directly instead of through the retired reader interface (#3418).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter",
-      "target_owner": "facilities",
-      "target_role": "domain"
-    },
-    {
       "id": "legacy-composition.to.shift-plan-sync-public",
       "description": "The legacy factory binds the shift-plan-sync workflow contracts to the absence service and the substitution module (#3418).",
       "scopes": [
@@ -22678,17 +22618,6 @@
       "source_role": "module-internal-test",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "document-rendering.adapter-test.workforce-compose",
-      "description": "The plan export isolation and checkpoint suites compose the Dienstplan overview they export (#3418).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter-test",
-      "target_owner": "workforce",
-      "target_role": "compose"
     },
     {
       "id": "timetable-activities.integration-test.legacy-shared-domain",

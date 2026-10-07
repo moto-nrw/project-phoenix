@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // confidentialityNote matches the wording of every other printed export.
@@ -40,7 +40,7 @@ func (s *service) getLogger() *slog.Logger {
 // "Schließtag: Betriebsferien" or "Feiertag: Christi Himmelfahrt". A closing
 // day wins over a holiday when both apply — it is the tenant's own decision
 // and carries the more specific wording.
-func (s *service) nonWorkingDays(ctx context.Context, from, to timezone.Date) map[Date]string {
+func (s *service) nonWorkingDays(ctx context.Context, from, to calendar.Date) map[Date]string {
 	labels := map[Date]string{}
 
 	if s.deps.Holidays != nil {
@@ -64,12 +64,12 @@ func (s *service) nonWorkingDays(ctx context.Context, from, to timezone.Date) ma
 			if closing == nil {
 				continue
 			}
-			start, err := timezone.ParseDate(string(closing.StartDate))
+			start, err := calendar.ParseDate(string(closing.StartDate))
 			if err != nil {
 				s.getLogger().Warn("plan export: closing day has no valid start", "error", err.Error())
 				continue
 			}
-			end, err := timezone.ParseDate(string(closing.EndDate))
+			end, err := calendar.ParseDate(string(closing.EndDate))
 			if err != nil {
 				s.getLogger().Warn("plan export: closing day has no valid end", "error", err.Error())
 				continue

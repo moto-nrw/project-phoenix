@@ -3,13 +3,9 @@
 // for facts: Identity & Access for memberships and roles, People Directory
 // for the names in the audience picker, the Settings Platform for the two
 // file settings, the Audit Platform for the trail, and Communication for the
-// announcement side of attachments.
-//
-// documents.file_cleanup has no policy owner yet: the retained generic
-// document repository reaches it only dynamically, so the ratchet records no
-// finding to adopt it from (ADR 0015). The root supplies its intent operations
-// through CleanupStore; this module no longer imports the retained repository.
-// Every other table is served by the owner's own adapter.
+// announcement side of attachments. Every File Storage table, the cleanup
+// intents in documents.file_cleanup included (ADR 0045), is served by the
+// owner's own adapter.
 package compose
 
 import (
@@ -73,13 +69,6 @@ type Event = ports.Event
 // Events appends records inside the caller's transaction.
 type Events = ports.Events
 
-// CleanupStore is the tenant-scoped durable file cleanup capability.
-type CleanupStore = ports.CleanupStore
-
-// CleanupIntent and OperationStats are the cleanup port's persistence-free values.
-type CleanupIntent = domain.CleanupIntent
-type OperationStats = domain.OperationStats
-
 // Announcements is the Communication surface for the staff side of
 // attachments; see ports.Announcements.
 type Announcements = ports.Announcements
@@ -98,7 +87,6 @@ type Dependencies struct {
 	People           People
 	Settings         Settings
 	Events           Events
-	FileCleanups     CleanupStore
 	HasPermission    func(required string, permissions []string) bool
 	Announcements    Announcements
 	GuardianAudience GuardianAudience
@@ -112,7 +100,7 @@ type Dependencies struct {
 // from the context; the stores apply it as a defense-in-depth predicate.
 func New(dependencies Dependencies) (*filestorage.Module, error) {
 	if dependencies.DB == nil || dependencies.Objects == nil || dependencies.Identity == nil ||
-		dependencies.People == nil || dependencies.Settings == nil || dependencies.Events == nil || dependencies.FileCleanups == nil ||
+		dependencies.People == nil || dependencies.Settings == nil || dependencies.Events == nil ||
 		dependencies.Observe == nil || dependencies.Logger == nil || dependencies.HasPermission == nil {
 		return nil, errors.New("file storage compose: all dependencies are required")
 	}
@@ -124,7 +112,7 @@ func New(dependencies Dependencies) (*filestorage.Module, error) {
 	service := application.New(application.Dependencies{
 		Folders:            postgres.NewFolderStore(runtime),
 		Files:              postgres.NewFileStore(runtime),
-		FileCleanups:       dependencies.FileCleanups,
+		FileCleanups:       postgres.NewFileCleanupStore(runtime),
 		Attachments:        postgres.NewAttachmentStore(runtime),
 		AttachmentCleanups: postgres.NewAttachmentCleanupStore(runtime),
 		FileObjects:        objectStore{kind: fileObjectKind, backend: dependencies.Objects},

@@ -74,6 +74,11 @@ consumer-owned `CleanupStore` port and `modules/documentrendering/compose`
 generic repository nor its persistence models. Its settings, audit, permission
 matching and private object storage are also supplied through consumer ports;
 the seven temporary File Storage composition permissions are removed.
+#2706 adopts `documents.file_cleanup` under `file-storage` through the
+[ADR 0045](../../docs/adr/0045-owners-adopt-tables-a-retired-generic-store-reached.md)
+path (policy epoch 31 to 32): File Storage's Postgres adapter serves the
+intents with a static table name, and the binder, the generic repository and
+its model are deleted with their five baseline entries.
 #2710 adopts `users.persons_guardians` under `people-directory` the same way
 (policy epoch 7 to 8). #3221 adopts `users.guardian_financial_data` under
 `people-directory` and moves the staff messaging persistence out of
@@ -2487,22 +2492,22 @@ and the Bun database the shared tenant middleware takes) and its
 The plan export capability (`modules/planexport`, `document-rendering`/`public`,
 #2706) renders the printable Dienstplan and Betreuungsplan from plain records
 through consumer-owned ports declared in the same package; it owns no table
-and never writes. Its compatibility adapter (`modules/planexport/legacy`,
-`document-rendering`/`adapter`) binds those ports to the retained schedule
-services and repositories and maps their rows field by field. The
-temporary permissions for the adapter's legacy imports, its tests, the
-capability's calendar-date test import and the root-composition call into the
-adapter are recorded as exact `imports.forbidden` debt in `legacy.jsonl` under
-#2706. The adapter's own public-capability binding, the public capability's
-calendar-date value type and the tests' imports of the owner's public and
-application packages remain target-allowed. Rebind each legacy port to its
-owner's public capability as it appears, remove each tuple with its import,
-and delete the adapter with the last legacy source. The two-tenant RLS test
-binds the Dienstplan's shift and staff reads to the tenant transaction under
-test, because their retained sources are Workforce adapters composed only by
-the legacy repository factory. The retained `services/listexport` renderer keeps its
-`module-internal-test` seam, so the capability's rendering tests declare the
-`workflow-decision-test` seam and the adapter tests the `adapter-test` seam.
+and never writes. Its calendar days use the shared kernel. Its composition
+(`modules/planexport/compose`, `document-rendering`/`compose`) binds those
+ports to the owners' public reads and maps their records field by field:
+Workforce for the staff week and the Schichtarten, Timetable & Activities for
+the blocks, their staff, head counts, Angebote and Planungsspuren, Facilities
+for the room names. The root binds the staff names, closing days and holidays
+it already serves to other consumers. The former compatibility adapter
+`modules/planexport/legacy` and its eleven baseline entries are deleted, and
+the composition's four `document-rendering.compose.*` rules are target shape.
+The composition tests (`adapter-test` seam) pin the translation and prove the
+Betreuungsplan's tenant isolation and runtime; the Dienstplan's isolation and
+runtime evidence live in Workforce's behaviour suite
+(`modules/workforce/compose`), because the overview's staff and room ports
+still name retained People Directory and Facilities rows. The retained
+`services/listexport` renderer keeps its `module-internal-test` seam, so the
+capability's rendering tests declare the `workflow-decision-test` seam.
 The `inbound-timetable.to.document-rendering` and
 `workforce.http.document-rendering-public` edges are the target shape (an
 inbound adapter calling the public capability) and stay.
@@ -2511,7 +2516,8 @@ The same change moves the birthday routes to `modules/birthdays/http`
 `modules/filestorage/documents` (`file-storage`/`adapter`). Their
 compatibility bindings, the birthday handlers' retained user-context, birthday
 service and birthday row imports and the coordinator's retained storage
-backend, are exact debt under #2706 as well; the remaining `inbound-birthdays.*`
+backend, were exact debt under #2706 as well; the coordinator now declares
+its own private object-store port, bound to the shared uploads backend; the remaining `inbound-birthdays.*`
 permissions are the inbound target shape. #3751 later moved the birthday
 service into People Directory and the routes to
 `modules/peopledirectory/inbound/birthdays`; the `inbound-birthdays` owner and its
@@ -2528,10 +2534,8 @@ do. It is tracked by #2706 with the rest of the document coordinator's debt;
 it goes when the student document handlers move to the public File Storage
 capability, and no new caller may rely on it. The file store handlers' equivalent exception went
 with #2707. The generic file-metadata repository
-(`database/repositories/documents`) and model (`models/documents`) keep their
-five `document-rendering` debt entries under #2706: their tables belong to
-File Storage (ADR 0010); the student and staff document handlers are their
-remaining consumers.
+(`database/repositories/documents`) and model (`models/documents`) are
+deleted with their five entries (ADR 0045).
 
 The File Storage capability (`modules/filestorage`, `file-storage`/`public`,
 #2707) owns the school file storage and the attachments of
@@ -2541,14 +2545,14 @@ that makes an interrupted upload recoverable, and the sweep the worker runs.
 `internal/application` holds the authority and upload rules,
 `internal/adapters/postgres` serves `documents.folders`,
 `documents.folder_roles`, `documents.folder_accounts`, `documents.files`,
-`documents.announcement_attachments` and
+`documents.file_cleanup`, `documents.announcement_attachments` and
 `documents.announcement_attachment_cleanup` with static table names, and
 `compose` binds the ports: membership, account roles and shareable roles to
 the public Identity & Access capability, the audience picker's names to the
 public People Directory query (both target shape), and, as compatibility
 permissions, the two file settings, the retained Audit file-event contract,
-the shared permission matcher, the retained storage backend and the retained
-generic document repository for the `documents.file_cleanup` intents. The
+the shared permission matcher and the retained storage backend; since #2706
+the `documents.file_cleanup` intents are the owner's own adapter. The
 folder visibility rule is now owner SQL over the owner's own tables with the
 viewer's membership and role ids supplied by Identity & Access; the former
 foreign reads of `auth.account_tenants`, `auth.account_roles` and
@@ -3103,3 +3107,10 @@ an owned table, adopting a table with no recorded debt, and adopting while a
 package of another owner still accesses it remain loosenings; after the
 adoption the ordinary `tables.foreign-write` and `tables.foreign-read` rules
 apply to every other accessor, and a new finding there cannot become debt.
+[ADR 0045](../../docs/adr/0045-owners-adopt-tables-a-retired-generic-store-reached.md)
+(#2706) adds a second evidence for a table the base reached only through a
+generic store's unresolved expression: the base records a
+`tables.unresolved` finding for a package the candidate no longer
+classifies, and an analysis of the candidate with the table assigned to a
+non-existent owner shows it named statically by packages of the adopting
+owner and no other.

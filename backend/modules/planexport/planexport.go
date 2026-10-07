@@ -20,8 +20,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // File is a rendered plan document.
@@ -119,8 +119,8 @@ func formatValid(f listexport.Format) bool {
 
 // window is the validated request range as calendar-date values.
 type window struct {
-	from timezone.Date
-	to   timezone.Date
+	from calendar.Date
+	to   calendar.Date
 }
 
 // validate checks the request against the templates the plan allows and
@@ -129,11 +129,11 @@ func (p Params) validate(allowed []Template) (window, error) {
 	if p.From == "" || p.To == "" {
 		return window{}, fmt.Errorf("%w: from and to are required", ErrInvalidParams)
 	}
-	from, err := timezone.ParseDate(string(p.From))
+	from, err := calendar.ParseDate(string(p.From))
 	if err != nil {
 		return window{}, fmt.Errorf("%w: from must be YYYY-MM-DD", ErrInvalidParams)
 	}
-	to, err := timezone.ParseDate(string(p.To))
+	to, err := calendar.ParseDate(string(p.To))
 	if err != nil {
 		return window{}, fmt.Errorf("%w: to must be YYYY-MM-DD", ErrInvalidParams)
 	}
@@ -161,11 +161,11 @@ func (p Params) validate(allowed []Template) (window, error) {
 // An empty format defaults to PDF: the printed sheet is the point of the
 // feature, and every caller that omits the field wants paper.
 func ParseParams(from, to, template, variant, format string) (Params, error) {
-	fromDate, err := timezone.ParseDate(from)
+	fromDate, err := calendar.ParseDate(from)
 	if err != nil {
 		return Params{}, fmt.Errorf("%w: from must be YYYY-MM-DD", ErrInvalidParams)
 	}
-	toDate, err := timezone.ParseDate(to)
+	toDate, err := calendar.ParseDate(to)
 	if err != nil {
 		return Params{}, fmt.Errorf("%w: to must be YYYY-MM-DD", ErrInvalidParams)
 	}
@@ -186,6 +186,6 @@ func ParseParams(from, to, template, variant, format string) (Params, error) {
 
 // dayKey is the record form of a calendar day, used wherever a record date
 // is compared with a printed column.
-func dayKey(day timezone.Date) Date {
+func dayKey(day calendar.Date) Date {
 	return Date(day.String())
 }
