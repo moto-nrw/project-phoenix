@@ -3445,7 +3445,7 @@ function TimeTrackingContent() {
   useEffect(() => {
     if (metricsError) {
       void showMetricsLoadError(metricsError, {
-        object: "die Kennzahlen",
+        object: "die Übersicht der Arbeitszeit",
         retry: () => void retryMetrics(),
       });
     } else {
