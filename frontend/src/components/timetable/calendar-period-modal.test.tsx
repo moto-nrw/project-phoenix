@@ -7,6 +7,9 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
 const { mockToastSuccess, mockToastError, mockCreate, mockUpdate, mockDelete } =
   vi.hoisted(() => ({
     mockToastSuccess: vi.fn(),
@@ -68,7 +71,8 @@ vi.mock("~/components/ui/date-picker", async () =>
   (await import("~/test/mocks/date-picker")).datePickerModuleMock(),
 );
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
 }));
 
@@ -132,9 +136,11 @@ describe("CalendarPeriodModal", () => {
       target: { value: "2026-07-31" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Enddatum muss nach dem Startdatum liegen.",
-    );
+    expect(
+      await screen.findByText("Das Enddatum muss nach dem Startdatum liegen."),
+    ).toBeInTheDocument();
+    // Das Feld trägt den Hinweis selbst.
+    expect(screen.getByText("Bitte ein späteres Datum wählen.")).toBeVisible();
 
     fireEvent.change(screen.getByLabelText("Enddatum*"), {
       target: { value: "2027-07-31" },
@@ -143,9 +149,11 @@ describe("CalendarPeriodModal", () => {
       target: { value: "2" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Bei einer Wiederholung über mehrere Wochen ist das Startdatum der Wiederholung erforderlich.",
-    );
+    expect(
+      await screen.findByText(
+        "Bitte geben Sie an, ab wann die Wiederholung zählt.",
+      ),
+    ).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Startdatum der Wiederholung*"), {
       target: { value: "2026-08-03" },
@@ -165,7 +173,7 @@ describe("CalendarPeriodModal", () => {
       }),
     );
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      'Kalenderzeitraum "Schuljahr 2026/2027" angelegt',
+      "Der Kalenderzeitraum „Schuljahr 2026/2027“ ist angelegt.",
     );
     expect(onSaved).toHaveBeenCalledWith(period);
     expect(onClose).toHaveBeenCalledOnce();
@@ -297,7 +305,11 @@ describe("CalendarPeriodModal", () => {
     const onToggle = vi
       .fn()
       .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error("Zweite Verknüpfung fehlgeschlagen"))
+      .mockRejectedValueOnce(
+        new ApiError("Zweite Verknüpfung fehlgeschlagen", 409, {
+          code: "general.business_rejection",
+        }),
+      )
       .mockResolvedValueOnce(undefined);
     render(
       <CalendarPeriodModal
@@ -331,8 +343,14 @@ describe("CalendarPeriodModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Zweite Verknüpfung fehlgeschlagen",
+      catalogText(
+        "general.business_rejection",
+        "die Verknüpfung der Anmeldephase",
+      ),
     );
+    expect(
+      screen.queryByText(/Zweite Verknüpfung fehlgeschlagen/),
+    ).not.toBeInTheDocument();
     expect(onSaved).toHaveBeenCalledWith(period);
     expect(onClose).not.toHaveBeenCalled();
     expect(onToggle).toHaveBeenNthCalledWith(
@@ -509,7 +527,7 @@ describe("CalendarPeriodModal", () => {
     ).toBeInTheDocument();
     expect(onSaved).toHaveBeenCalledWith(period);
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      'Kalenderzeitraum "Schuljahr 2026/2027" angelegt',
+      "Der Kalenderzeitraum „Schuljahr 2026/2027“ ist angelegt.",
     );
     expect(onClose).not.toHaveBeenCalled();
     expect(
@@ -567,13 +585,17 @@ describe("CalendarPeriodModal", () => {
     );
     expect(mockCreate).toHaveBeenCalledTimes(1);
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      'Kalenderzeitraum "Schuljahr 2026/2027" aktualisiert',
+      "Der Kalenderzeitraum „Schuljahr 2026/2027“ ist gespeichert.",
     );
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("surfaces API failures", async () => {
-    mockCreate.mockRejectedValueOnce(new Error("Periode ueberlappt"));
+  it("surfaces API failures with the catalog text and marks the field", async () => {
+    const error = new ApiError("Periode ueberlappt", 409, {
+      code: "timetable.calendar_period_overlap_conflict",
+      errors: [{ field: "start_date", reason: "overlap" }],
+    });
+    mockCreate.mockRejectedValueOnce(error);
     render(
       <CalendarPeriodModal
         isOpen
@@ -589,10 +611,101 @@ describe("CalendarPeriodModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Periode ueberlappt",
-    );
+    expect(
+      await screen.findByText(
+        catalogText(
+          "timetable.calendar_period_overlap_conflict",
+          "das Speichern des Kalenderzeitraums",
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Periode ueberlappt/)).not.toBeInTheDocument();
+    expect(
+      await screen.findByText("Bitte prüfen Sie dieses Feld."),
+    ).toBeInTheDocument();
     // Der Alert oben im Panel ist die einzige Meldung (Bauart 2 Regel 5).
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it("retries a failed save with the current form", async () => {
+    mockCreate
+      .mockRejectedValueOnce(
+        new ApiError("db down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce({ period, warnings: [] });
+    const onClose = vi.fn();
+    render(
+      <CalendarPeriodModal
+        isOpen
+        onClose={onClose}
+        onSaved={vi.fn()}
+        createDefaults={{
+          name: "Schuljahr",
+          startDate: "2026-08-01",
+          endDate: "2027-07-31",
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
+    expect(
+      await screen.findByText(
+        catalogText(
+          "general.unavailable",
+          "das Speichern des Kalenderzeitraums",
+        ),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Bezeichnung*"), {
+      target: { value: "Schuljahr B" },
+    });
+    // Eine Änderung räumt den Hinweis ab; der nächste Fehler kommt neu.
+    expect(
+      screen.queryByRole("button", { name: "Wiederholen" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(mockCreate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: "Schuljahr B" }),
+    );
+  });
+
+  it("keeps the delete dialog open and shows a refused delete inside it", async () => {
+    mockDelete.mockRejectedValueOnce(
+      new ApiError("fk violation", 409, {
+        code: "timetable.calendar_period_care_offering_conflict",
+      }),
+    );
+    const onDeleted = vi.fn();
+    render(
+      <CalendarPeriodModal
+        isOpen
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        onDeleted={onDeleted}
+        initial={period}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Kalenderzeitraum löschen",
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Löschen" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Endgültig löschen" }),
+    );
+
+    expect(
+      await within(dialog).findByText(
+        catalogText(
+          "timetable.calendar_period_care_offering_conflict",
+          "das Löschen des Kalenderzeitraums",
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/fk violation/)).not.toBeInTheDocument();
+    expect(onDeleted).not.toHaveBeenCalled();
     expect(mockToastError).not.toHaveBeenCalled();
   });
 });

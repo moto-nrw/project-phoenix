@@ -468,18 +468,11 @@ describe("PersonalCalendar", () => {
     },
   );
 
-  it("shows empty and error states", () => {
-    render(
-      <PersonalCalendar
-        events={[]}
-        weekStart={new Date(2026, 0, 5)}
-        error="Kalender konnte nicht geladen werden."
-      />,
-    );
+  // Fehler zeigt die Seite über den gemeinsamen Anzeigeweg (#2517), nicht
+  // das Raster.
+  it("shows the empty state", () => {
+    render(<PersonalCalendar events={[]} weekStart={new Date(2026, 0, 5)} />);
 
-    expect(
-      screen.getByText("Kalender konnte nicht geladen werden."),
-    ).toBeInTheDocument();
     expect(
       screen.getAllByText("Keine Einträge in dieser Woche.").length,
     ).toBeGreaterThan(0);

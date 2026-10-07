@@ -1,7 +1,15 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import HomePage from "./page";
+import { ToastProvider } from "~/contexts/ToastContext";
+
 import type {
   HomeBlockPlacement,
   HomeBlockPolicies,
@@ -16,6 +24,11 @@ import type {
  * Standardansicht der Rolle — auf ihre Ankunft zu WARTEN würde die Startseite
  * bei einer hängenden Abfrage leer lassen.
  */
+
+// Fehler einer Aktion kommen als Toast (#2517).
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
@@ -149,6 +162,8 @@ vi.mock("~/lib/hooks/use-home-layout", () => ({
 import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import { fetchBirthdayOverviewClient } from "~/lib/birthdays-api";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 /** Die SWR-Schlüssel, mit denen die Seite in diesem Rendern gefragt hat. */
 function requestedKeys(): (string | null)[] {
@@ -267,7 +282,7 @@ describe("Startseite — Abfragen nicht platzierter Bausteine", () => {
         ? ({
             data: undefined,
             isLoading: false,
-            error: new Error("Birthday fetch failed: 500"),
+            error: new ApiError("Birthday fetch failed", 500),
             mutate: vi.fn(),
             isValidating: false,
           } as unknown as ReturnType<typeof useSWRAuth>)
@@ -284,7 +299,7 @@ describe("Startseite — Abfragen nicht platzierter Bausteine", () => {
 
     expect(
       await screen.findByText(
-        "Die Geburtstage konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+        catalogText("general.server", "die Liste der Geburtstage"),
       ),
     ).toBeInTheDocument();
   });

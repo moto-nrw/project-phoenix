@@ -18,6 +18,7 @@ import {
   type RolloverInput,
   type RolloverResult,
 } from "./enrollment-phase-api";
+import { ApiError } from "./api-error";
 
 const originalFetch = globalThis.fetch;
 
@@ -268,16 +269,34 @@ describe("createPhase", () => {
     );
   });
 
-  it("translates the backend phase name validation error to German", async () => {
+  it("keeps field errors and never carries the backend sentence (#2515)", async () => {
     mockFetch(async () =>
       jsonResponse(
-        { error: "phase validation: phase name is required" },
+        {
+          error: "phase validation: phase name is required",
+          code: "general.input",
+          errors: [{ field: "name", reason: "required" }],
+        },
         { status: 400 },
       ),
     );
-    await expect(createPhase(validInput)).rejects.toThrow(
-      /Bitte gib einen Namen für die Anmeldephase ein/,
-    );
+    const error = await createPhase(validInput).catch((err: unknown) => err);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 400,
+      code: "general.input",
+      errors: [{ field: "name", reason: "required" }],
+    });
+    expect((error as Error).message).not.toContain("phase name is required");
+  });
+
+  it("reports a request that never reached the API as unavailable (#2515)", async () => {
+    mockFetch(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    await expect(createPhase(validInput)).rejects.toMatchObject({
+      code: "general.unavailable",
+    });
   });
 });
 
@@ -343,28 +362,21 @@ describe("updatePhase", () => {
     expect(seenURL).toContain("a%2Fb");
   });
 
-  it("translates validation error 'service_end_date must be on or after service_start_date' to German", async () => {
+  it("keeps the field of a rejected window for the form (#2515)", async () => {
     mockFetch(async () =>
       jsonResponse(
-        { error: "service_end_date must be on or after service_start_date" },
+        {
+          error: "enrollment_close_at must be after enrollment_open_at",
+          errors: [{ field: "enrollment_close_at", reason: "after_open" }],
+        },
         { status: 400 },
       ),
     );
-    await expect(updatePhase("1", validInput)).rejects.toThrow(
-      /Das Ende des Betreuungszeitraums muss am gleichen Tag oder nach dem Beginn liegen/,
-    );
-  });
-
-  it("translates 'enrollment_close_at must be after enrollment_open_at' to German", async () => {
-    mockFetch(async () =>
-      jsonResponse(
-        { error: "enrollment_close_at must be after enrollment_open_at" },
-        { status: 400 },
-      ),
-    );
-    await expect(updatePhase("1", validInput)).rejects.toThrow(
-      /Die Schließung des Anmeldefensters muss nach der Öffnung liegen/,
-    );
+    await expect(updatePhase("1", validInput)).rejects.toMatchObject({
+      status: 400,
+      code: "general.input",
+      errors: [{ field: "enrollment_close_at", reason: "after_open" }],
+    });
   });
 
   it("uses the German fallback for unmatched English validation messages", async () => {
@@ -396,15 +408,15 @@ describe("deletePhase", () => {
   });
 
   // The "has requests/offerings" delete guard was removed — a phase is
-  // always deletable now. A non-204 response surfaces the backend's error
-  // text directly (no special code translation).
-  it("translates known backend not-found text on a non-OK response", async () => {
+  // always deletable now. A non-204 response carries status and code; the
+  // text comes from the catalog (#2515).
+  it("classifies a not-found response by its status", async () => {
     mockFetch(async () =>
       jsonResponse({ error: "phase not found" }, { status: 404 }),
     );
-    await expect(deletePhase("1234")).rejects.toThrow(
-      /Die Anmeldephase wurde nicht gefunden/,
-    );
+    const error = await deletePhase("1234").catch((err: unknown) => err);
+    expect(error).toMatchObject({ status: 404, code: "general.input" });
+    expect((error as Error).message).not.toContain("phase not found");
   });
 
   it("falls back to the German operation fallback when body is malformed", async () => {
@@ -493,52 +505,64 @@ describe("createRollover", () => {
     expect(seenURL).toContain("a%2Fb/rollover");
   });
 
-  it("translates rollover.source_not_found code", async () => {
+  it("keeps the rollover.source_not_found code for the catalog", async () => {
     mockFetch(async () =>
       jsonResponse(
-        { code: "rollover.source_not_found", error: "source not found" },
+        { code: "rollover.source_not_found", error: "raw" },
         { status: 404 },
       ),
     );
-    await expect(createRollover("42", validRolloverInput)).rejects.toThrow(
-      /Quellphase wurde nicht gefunden/,
-    );
+    await expect(
+      createRollover("42", validRolloverInput),
+    ).rejects.toMatchObject({
+      status: 404,
+      code: "rollover.source_not_found",
+    });
   });
 
-  it("translates rollover.source_already_rolled code", async () => {
+  it("keeps the rollover.source_already_rolled code for the catalog", async () => {
     mockFetch(async () =>
       jsonResponse(
-        { code: "rollover.source_already_rolled", error: "already rolled" },
+        { code: "rollover.source_already_rolled", error: "raw" },
         { status: 409 },
       ),
     );
-    await expect(createRollover("42", validRolloverInput)).rejects.toThrow(
-      /bereits eine Anschlussphase/,
-    );
+    await expect(
+      createRollover("42", validRolloverInput),
+    ).rejects.toMatchObject({
+      status: 409,
+      code: "rollover.source_already_rolled",
+    });
   });
 
-  it("translates rollover.invalid_request code", async () => {
+  it("keeps the rollover.invalid_request code for the catalog", async () => {
     mockFetch(async () =>
       jsonResponse(
-        { code: "rollover.invalid_request", error: "invalid" },
+        { code: "rollover.invalid_request", error: "raw" },
         { status: 400 },
       ),
     );
-    await expect(createRollover("42", validRolloverInput)).rejects.toThrow(
-      /unvollständig oder ungültig/,
-    );
+    await expect(
+      createRollover("42", validRolloverInput),
+    ).rejects.toMatchObject({
+      status: 400,
+      code: "rollover.invalid_request",
+    });
   });
 
-  it("translates rollover.duplicate_name code", async () => {
+  it("keeps the rollover.duplicate_name code for the catalog", async () => {
     mockFetch(async () =>
       jsonResponse(
-        { code: "rollover.duplicate_name", error: "duplicate name" },
+        { code: "rollover.duplicate_name", error: "raw" },
         { status: 409 },
       ),
     );
-    await expect(createRollover("42", validRolloverInput)).rejects.toThrow(
-      /bereits eine Phase mit diesem Namen/,
-    );
+    await expect(
+      createRollover("42", validRolloverInput),
+    ).rejects.toMatchObject({
+      status: 409,
+      code: "rollover.duplicate_name",
+    });
   });
 
   it("uses the German fallback for unknown English rollover codes", async () => {
@@ -611,27 +635,27 @@ describe("decideRolloverReview", () => {
     expect(seenBody).toContain(`"new_grade_level":2`);
   });
 
-  it("translates rollover.review_invalid code", async () => {
+  it("keeps the rollover.review_invalid code for the catalog", async () => {
     mockFetch(async () =>
       jsonResponse(
-        { code: "rollover.review_invalid", error: "invalid" },
+        { code: "rollover.review_invalid", error: "raw" },
         { status: 400 },
       ),
     );
     await expect(
       decideRolloverReview("99", { decision: "keep" }),
-    ).rejects.toThrow(/in diesem Zustand nicht erlaubt/);
+    ).rejects.toMatchObject({ status: 400, code: "rollover.review_invalid" });
   });
 
-  it("translates rollover.review_not_found code", async () => {
+  it("keeps the rollover.review_not_found code for the catalog", async () => {
     mockFetch(async () =>
       jsonResponse(
-        { code: "rollover.review_not_found", error: "not found" },
+        { code: "rollover.review_not_found", error: "raw" },
         { status: 404 },
       ),
     );
     await expect(
       decideRolloverReview("99", { decision: "drop" }),
-    ).rejects.toThrow(/Eintrag in der Prüfliste existiert nicht mehr/);
+    ).rejects.toMatchObject({ status: 404, code: "rollover.review_not_found" });
   });
 });

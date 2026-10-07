@@ -20,6 +20,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { DatabaseForm } from "~/components/ui/database/database-form";
+import { useApiFormError } from "~/contexts/ToastContext";
 import {
   DataField,
   DataGrid,
@@ -209,6 +210,8 @@ function DeviceStammdatenTab({
   onSaveDevice: (data: Partial<Device>) => Promise<void>;
   onCancelEdit: () => void;
 }) {
+  // Speicherfehler im Formular, eine vergebene Geräte-ID am Feld (#2517).
+  const saveErrors = useApiFormError();
   if (editing) {
     return (
       <DatabaseForm<Partial<Device>>
@@ -218,6 +221,8 @@ function DeviceStammdatenTab({
         onCancel={onCancelEdit}
         submitLabel="Speichern"
         stickyActions
+        errorPath={saveErrors}
+        errorObject="das Gerät"
       />
     );
   }

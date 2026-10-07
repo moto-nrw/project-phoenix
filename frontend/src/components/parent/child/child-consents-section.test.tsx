@@ -1,8 +1,10 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import deMessages from "~/i18n/messages/de.json";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import {
   getChildConsents,
   grantChildPhotoConsent,
@@ -66,16 +68,21 @@ beforeEach(() => {
 describe("ChildConsentsSection", () => {
   it("bietet nach einem Ladefehler einen neuen Versuch an", async () => {
     const user = userEvent.setup();
-    mockedGet.mockRejectedValueOnce(new Error("offline"));
+    mockedGet.mockRejectedValueOnce(
+      new ApiError("diag", 503, { code: "general.unavailable" }),
+    );
     renderSection();
 
     expect(
       await screen.findByText(
-        "Die Einwilligungen konnten gerade nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+        catalogText(
+          "general.unavailable",
+          deMessages.parentChild.consents.errorObjectList,
+        ),
       ),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Erneut laden" }));
+    await user.click(screen.getByRole("button", { name: "Wiederholen" }));
 
     expect(
       await screen.findByRole("heading", {
@@ -235,5 +242,31 @@ describe("ChildConsentsSection", () => {
     expect(
       screen.getByRole("button", { name: "Foto-Einwilligung widerrufen" }),
     ).toBeInTheDocument();
+  });
+
+  it("zeigt einen fehlgeschlagenen Widerruf im offenen Dialog", async () => {
+    const user = userEvent.setup();
+    mockedWithdraw.mockRejectedValueOnce(
+      new ApiError("backend sentence", 500, { code: "general.server" }),
+    );
+    renderSection();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Foto-Einwilligung widerrufen",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Jetzt widerrufen" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      await within(dialog).findByText(
+        catalogText(
+          "general.server",
+          deMessages.parentChild.consents.errorObjectPhoto,
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/backend sentence/)).not.toBeInTheDocument();
   });
 });

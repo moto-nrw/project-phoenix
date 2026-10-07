@@ -1,7 +1,11 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { ApiError } from "~/lib/api-error";
 import type { Announcement } from "~/lib/parent-announcements-api";
+import { catalogText } from "~/test/error-catalog-text";
 import {
   buildAnnouncementMenuItems,
   DeleteAnnouncementDialog,
@@ -58,10 +62,11 @@ vi.mock("~/components/ui/confirm-delete-modal", () => ({
   }: {
     title: string;
     onConfirm: () => Promise<void>;
-    error?: string;
+    error?: FormErrorInput;
   }) => (
+    // Wie der echte Dialog: der Fehler steht im Dialog.
     <div role="dialog" aria-label={title}>
-      {error ? <p role="alert">{error}</p> : null}
+      <FormErrorAlert message={error} />
       <button type="button" onClick={() => void onConfirm()}>
         Endgültig löschen
       </button>
@@ -117,8 +122,13 @@ describe("lifecycle dialogs", () => {
     expect(onDone).toHaveBeenCalled();
   });
 
-  it("shows the backend error and stays open when publishing fails", async () => {
-    publishMock.mockRejectedValue(new Error("Keine Empfänger"));
+  // #2517: Katalogtext statt Serversatz, Wiederholen im Dialog.
+  it("shows the catalog text and stays open when publishing fails", async () => {
+    publishMock
+      .mockRejectedValueOnce(
+        new ApiError("publish exploded", 500, { code: "general.server" }),
+      )
+      .mockResolvedValueOnce(announcement);
     const onClose = vi.fn();
     render(
       <PublishAnnouncementDialog
@@ -130,10 +140,17 @@ describe("lifecycle dialogs", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
 
-    await waitFor(() =>
-      expect(screen.getByText("Keine Empfänger")).toBeInTheDocument(),
-    );
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "das Veröffentlichen der Mitteilung"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/publish exploded/)).not.toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(publishMock).toHaveBeenCalledTimes(2);
   });
 
   it("unpublishes through the service", async () => {
@@ -153,7 +170,9 @@ describe("lifecycle dialogs", () => {
   });
 
   it("deletes through the service and surfaces errors in the dialog", async () => {
-    deleteMock.mockRejectedValueOnce(new Error("Nicht erlaubt"));
+    deleteMock.mockRejectedValueOnce(
+      new ApiError("not allowed", 403, { code: "general.permission" }),
+    );
     const onDone = vi.fn();
     render(
       <DeleteAnnouncementDialog
@@ -165,7 +184,9 @@ describe("lifecycle dialogs", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
     await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent("Nicht erlaubt"),
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        catalogText("general.permission", "das Löschen der Mitteilung"),
+      ),
     );
     expect(onDone).not.toHaveBeenCalled();
 
@@ -293,7 +314,6 @@ describe("buildAnnouncementMenuItems: scheduled reminder (#3162)", () => {
 
 describe("deleting an Einverständnis with answers (#3430)", () => {
   it("explains that it must stay and that withdrawing still works", async () => {
-    const { ApiError } = await import("~/lib/api-error");
     deleteMock.mockRejectedValue(
       new ApiError("declaration has submissions", 409, {
         code: "communication.declaration_has_submissions",
@@ -310,9 +330,16 @@ describe("deleting an Einverständnis with answers (#3430)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
 
+    // Der eigene Katalogtext des Codes, nicht der Serversatz.
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Auf dieses Einverständnis haben Eltern schon geantwortet. Deshalb lässt es sich nicht löschen. Sie können es zurückziehen, dann sehen Eltern es nicht mehr.",
+      catalogText(
+        "communication.declaration_has_submissions",
+        "das Löschen der Mitteilung",
+      ),
     );
+    expect(
+      screen.queryByText(/declaration has submissions/),
+    ).not.toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
   });
 });

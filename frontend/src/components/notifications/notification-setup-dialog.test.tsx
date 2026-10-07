@@ -5,6 +5,15 @@ import {
   NotificationSetupDialog,
   setupStorageKey,
 } from "./notification-setup-dialog";
+import { ToastProvider } from "~/contexts/ToastContext";
+
+// The shared error path shows failures through the toast provider (#2517).
+function renderWithToast(
+  ui: Parameters<typeof render>[0],
+  options?: Parameters<typeof render>[1],
+) {
+  return render(ui, { wrapper: ToastProvider, ...options });
+}
 
 const mocks = vi.hoisted(() => ({
   fetchPreferences: vi.fn(),
@@ -50,7 +59,7 @@ function renderDialog(props: {
   portal: "tenant" | "parent" | "school";
   restartToken?: number;
 }) {
-  return render(
+  return renderWithToast(
     <ModalProvider>
       <NotificationSetupDialog accountId="42" {...props} />
     </ModalProvider>,

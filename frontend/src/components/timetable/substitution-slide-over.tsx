@@ -19,7 +19,7 @@
  */
 
 import { RotateCcw } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { berlinTodayISO, formatDate, parseISODate } from "~/lib/date-helpers";
 import {
@@ -39,8 +39,13 @@ import type {
   EnrichedInstance,
   InstanceStatus,
 } from "~/lib/timetable-types";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -57,6 +62,7 @@ import {
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { useApiFormError } from "~/contexts/ToastContext";
 
 import {
   timetableMutedSurface,
@@ -113,12 +119,13 @@ interface SubstitutionSlideOverProps {
    * acknowledgement, cancel) in one atomic backend call (#1840). The slide-over
    * no longer sequences independent mutations that could half-commit.
    *
-   * Resolves `true` when the save committed and the slide-over may close,
-   * `false` when it failed (403/409/500/network) so the form stays open with
-   * the user's edits intact for a retry. It must NOT reject — the caller
-   * surfaces the error as a toast and returns false.
+   * Resolves when the save committed and the slide-over may close. Rejects
+   * with the error when it failed (403/409/500/network): the form stays open
+   * with the user's edits intact and shows the reason above the form, with
+   * „Wiederholen“ where a retry can help (#2516). A toast would lie under the
+   * open panel.
    */
-  onApply: (input: ApplyDeviationsInput) => Promise<boolean>;
+  onApply: (input: ApplyDeviationsInput) => Promise<void>;
   /**
    * Reiter, mit dem der Editor öffnet (#1886). Chunk 5 setzt "verlauf" aus dem
    * URL-Parameter `verlauf=1`; Standard ist "bearbeiten".
@@ -207,6 +214,12 @@ export function SubstitutionSlideOver({
   // Which reiter is shown (#1886). Seeded from initialTab and re-seeded whenever
   // a different block opens, so a `verlauf=1` deep link lands on the Verlauf tab.
   const [activeTab, setActiveTab] = useState<SubstitutionEditorTab>(initialTab);
+  // Speicherfehler stehen oben im Formular, nie als Toast (#2516).
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { clear: clearFormErrors } = formErrors;
+  // „Wiederholen“ speichert den AKTUELLEN Formularstand.
+  const latestSaveRef = useRef<() => void>(() => undefined);
 
   const wasUnstaffed = instance?.understaffedAck === true;
 
@@ -272,6 +285,7 @@ export function SubstitutionSlideOver({
     setRemovedSubs(new Set());
     setRestoredSubs(new Set());
     setActiveTab(initialTab);
+    clearFormErrors();
     // Re-seed only when another appointment opens. Revalidation after a failed
     // save must not erase the person's unsaved choices.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -463,8 +477,12 @@ export function SubstitutionSlideOver({
     restoredSubs.size > 0 ||
     peopleChanged;
 
-  async function handleSubmit(event: React.FormEvent) {
+  function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    void save();
+  }
+
+  async function save() {
     if (!instance || !hasChanges || (!cancel && !peopleValid) || saving) return;
     if (
       cancel &&
@@ -476,19 +494,20 @@ export function SubstitutionSlideOver({
     )
       return;
     setSaving(true);
+    formErrors.clear();
     try {
       // Cancel is exclusive — it maps to the backend's cancel branch and ignores
       // every other field, mirroring the UI where "Block absagen" is its own
       // radio branch that hides the rest of the form.
       if (cancel) {
-        const ok = await onApply({
+        await onApply({
           cancel: true,
           cancelReason: cancelReason.trim() || undefined,
           guardianNotice: guardianNoticePayload(noticeDraft, noticeReach),
         });
         // Only close on a committed save — a failed cancel keeps the form open
         // so the edits survive for a retry (#1840).
-        if (ok) onClose();
+        onClose();
         return;
       }
 
@@ -514,12 +533,22 @@ export function SubstitutionSlideOver({
       }
 
       // Keep the slide-over open (edits preserved) unless the save committed.
-      const ok = await onApply(input);
-      if (ok) onClose();
+      await onApply(input);
+      onClose();
+    } catch (err) {
+      // The caller has logged the failure; the form says why it stays open.
+      void formErrors.show(err, {
+        object: cancel ? "die Absage" : "die Vertretung",
+        retry: () => latestSaveRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   }
+
+  useLayoutEffect(() => {
+    latestSaveRef.current = () => void save();
+  });
 
   const typeBadge = instance
     ? getActivityTypeBadge(instance.activityType)
@@ -577,10 +606,12 @@ export function SubstitutionSlideOver({
               className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden focus-visible:ring-0"
             >
               <form
+                ref={formRef}
                 id={FORM_ID}
-                onSubmit={(e) => void handleSubmit(e)}
+                onSubmit={handleSubmit}
                 className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-4"
               >
+                <FormErrorAlert message={formErrors.error} />
                 {/* Aktion: "Besetzung bearbeiten" gegen "Block absagen" als
                     Radiogruppe. Sie macht die Exklusivität sichtbar — Absage
                     blendet die Besetzungs-Kontrollen aus (R3 Schwäche 8). */}
@@ -684,6 +715,11 @@ export function SubstitutionSlideOver({
                               }
                               staffLoadError={staffLoadError}
                               fullyCovered={fullyCovered}
+                              substituteInvalid={
+                                person.substituteId !== "" &&
+                                formErrors.fieldError("substitute_staff_id") !==
+                                  undefined
+                              }
                               onUpdate={(patch) =>
                                 updatePerson(row.staffId, patch)
                               }
@@ -1155,7 +1191,7 @@ function HistoryTab({
     slotFiltered ? `${instance.activityGroupId}-${instance.startTime}` : "day"
   }`;
 
-  const { data, isLoading, error } = useSWRAuth(swrKey, () =>
+  const { data, isLoading, error, mutate } = useSWRAuth(swrKey, () =>
     timetableService.getDeviationHistory(
       instance.date,
       instance.date,
@@ -1165,6 +1201,12 @@ function HistoryTab({
   );
 
   const events = useMemo(() => data?.events ?? [], [data]);
+  // Ladefehler vor Ort mit Wiederholen, nie als leerer Verlauf (#2516).
+  const loadError = useSwrLoadError(error, "die Liste der Änderungen", () =>
+    mutate(),
+  );
+  // Bis der Katalogtext da ist, bleibt das Skelett stehen.
+  const showSkeleton = isLoading || (Boolean(error) && loadError === null);
 
   // Kontext-Chip zum Slot-Anker (#1886): im Block-Scope die Position samt
   // Wochentag und Startzeit, im Tages-Scope das Datum. Bewusst an
@@ -1198,14 +1240,12 @@ function HistoryTab({
           </span>
         </div>
 
-        {isLoading ? (
+        {showSkeleton ? (
           <SkeletonRegion label="Verlauf wird geladen">
             <ListSkeleton rows={4} avatar={false} />
           </SkeletonRegion>
         ) : error ? (
-          <p className="text-sm text-gray-500">
-            Der Verlauf konnte nicht geladen werden. Bitte erneut versuchen.
-          </p>
+          <LoadErrorAlert error={loadError} />
         ) : events.length === 0 ? (
           <p className="text-sm text-gray-500">
             Für {scope === "block" ? "diesen Block" : "diesen Tag"} sind noch

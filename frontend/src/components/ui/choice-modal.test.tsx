@@ -99,6 +99,29 @@ describe("ChoiceModal", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the failed choice in its own alert at the top", async () => {
+    render(
+      <TestWrapper>
+        <ChoiceModal
+          isOpen
+          onClose={vi.fn()}
+          title="Änderung anwenden"
+          options={options}
+          onSelect={vi.fn()}
+          error="Die Serie gibt es nicht mehr. Bitte laden Sie die Seite neu."
+        />
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Die Serie gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+    );
+  });
+
   it("calls onSelect with the option value", async () => {
     const onSelect = vi.fn();
     render(

@@ -10,6 +10,12 @@ import {
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
 import { Loading } from "~/components/ui/loading";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { operatorPath } from "~/lib/operator-url";
 import {
@@ -40,14 +46,21 @@ export function InviteContent() {
     useState<OperatorInvitationValidation | null>(null);
   const [flowID, setFlowID] = useState<string | null>(null);
   const [state, setState] = useState<PageState>("loading");
-  const [errorMessage, setErrorMessage] = useState("");
+  const invitationLoad = useApiLoadError();
+  const { show: showLoadError, clear: clearLoadError } = invitationLoad;
 
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const {
+    show: showFormError,
+    invalid: invalidForm,
+    clear: clearFormError,
+  } = formErrors;
 
   const primaryRef = useRef<HTMLButtonElement>(null);
   const processingRef = useRef(false);
@@ -56,7 +69,8 @@ export function InviteContent() {
     if (processingRef.current) return;
     processingRef.current = true;
     setState("loading");
-    setFormError(null);
+    clearLoadError();
+    clearFormError();
     setPassword("");
     setConfirmPassword("");
 
@@ -74,7 +88,12 @@ export function InviteContent() {
           `${safeURL.pathname}${safeURL.search}`,
         );
       }
-      if (!nextFlowID) throw new Error("Kein Einladungsvorgang angegeben.");
+      if (!nextFlowID) {
+        // Without token and flow there is no invitation to look up.
+        throw new ApiError("Missing invitation flow", 404, {
+          code: "identity.invitation_not_found",
+        });
+      }
 
       const data = await validateOperatorInvitation(nextFlowID);
       setFlowID(nextFlowID);
@@ -82,17 +101,19 @@ export function InviteContent() {
       setDisplayName(data.displayName ?? "");
       setState("form");
     } catch (err) {
-      logger.error("invitation_validation_failed", {
+      logger.warn("invitation_validation_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setErrorMessage(
-        err instanceof Error
-          ? err.message
-          : "Einladung nicht gefunden oder abgelaufen.",
-      );
+      void showLoadError(err, {
+        object: "die Einladung",
+        retry: () => {
+          processingRef.current = false;
+          void processToken();
+        },
+      });
       setState("error");
     }
-  }, []);
+  }, [showLoadError, clearLoadError, clearFormError]);
 
   // Process token on mount. Query-string changes trigger a full navigation
   // (unlike fragment changes), so no event listener is needed — the component
@@ -111,25 +132,35 @@ export function InviteContent() {
       e.preventDefault();
       if (state === "submitting") return;
 
-      setFormError(null);
+      clearFormError();
 
       if (!displayName.trim()) {
-        setFormError("Anzeigename ist erforderlich.");
+        invalidForm("Bitte geben Sie einen Anzeigenamen ein.", {
+          display_name: "Bitte geben Sie einen Anzeigenamen ein.",
+        });
         return;
       }
       if (!allPasswordRulesMet) {
-        setFormError("Passwort erfüllt nicht alle Anforderungen.");
+        invalidForm("Das Passwort erfüllt noch nicht alle Anforderungen.", {
+          password: "Das Passwort erfüllt noch nicht alle Anforderungen.",
+        });
         return;
       }
       if (!passwordsMatch) {
-        setFormError("Passwörter stimmen nicht überein.");
+        invalidForm("Die Passwörter stimmen nicht überein.", {
+          confirm_password: "Die Passwörter stimmen nicht überein.",
+        });
         return;
       }
 
       setState("submitting");
 
       try {
-        if (!flowID) throw new Error("Kein Einladungsvorgang angegeben.");
+        if (!flowID) {
+          throw new ApiError("Missing invitation flow", 404, {
+            code: "identity.invitation_not_found",
+          });
+        }
         await acceptOperatorInvitation(flowID, {
           displayName: displayName.trim(),
           password,
@@ -138,18 +169,17 @@ export function InviteContent() {
         window.history.replaceState({}, "", window.location.pathname);
         setState("success");
       } catch (err) {
-        logger.error("invitation_accept_failed", {
+        logger.warn("invitation_accept_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        setFormError(
-          err instanceof Error
-            ? err.message
-            : "Konto konnte nicht erstellt werden.",
-        );
         setState("form");
+        void showFormError(err, { object: "die Erstellung des Kontos" });
       }
     },
     [
+      showFormError,
+      invalidForm,
+      clearFormError,
       state,
       displayName,
       password,
@@ -207,8 +237,8 @@ export function InviteContent() {
     return (
       <AuthShell
         eyebrow="Operator"
-        title="Einladung ungültig"
-        subtitle={errorMessage}
+        title="Einladung nicht geöffnet"
+        subtitle="Die Einladung konnte nicht geöffnet werden."
         variant="operator"
         brand={<OperatorBrand />}
         formMaxWidth="max-w-[31rem]"
@@ -217,6 +247,10 @@ export function InviteContent() {
           <div className="bg-moto-red-soft mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
             <span className="text-moto-red text-2xl font-semibold">!</span>
           </div>
+          <LoadErrorAlert
+            error={invitationLoad.error}
+            className="mb-4 text-left"
+          />
           <Link
             href={operatorPath("/operator/login")}
             className={authPrimaryButtonClassName}
@@ -244,7 +278,13 @@ export function InviteContent() {
         </div>
       )}
 
-      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5">
+      <form
+        ref={formRef}
+        onSubmit={(e) => void handleSubmit(e)}
+        noValidate
+        className="space-y-5"
+      >
+        <FormErrorAlert message={formErrors.error} />
         <div>
           <label
             htmlFor="accept-display-name"
@@ -254,12 +294,25 @@ export function InviteContent() {
           </label>
           <input
             id="accept-display-name"
+            name="display_name"
+            aria-invalid={
+              formErrors.fieldError("display_name") ? true : undefined
+            }
+            aria-describedby={
+              formErrors.fieldError("display_name")
+                ? "accept-display-name-error"
+                : undefined
+            }
             type="text"
             required
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="Max Mustermann"
             className={authInputClassName}
+          />
+          <FieldErrorText
+            id="accept-display-name-error"
+            message={formErrors.fieldError("display_name")}
           />
         </div>
 
@@ -273,6 +326,15 @@ export function InviteContent() {
           <div className="relative">
             <input
               id="accept-password"
+              name="password"
+              aria-invalid={
+                formErrors.fieldError("password") ? true : undefined
+              }
+              aria-describedby={
+                formErrors.fieldError("password")
+                  ? "accept-password-error"
+                  : undefined
+              }
               type={showPassword ? "text" : "password"}
               required
               value={password}
@@ -284,6 +346,10 @@ export function InviteContent() {
               onToggle={() => setShowPassword(!showPassword)}
             />
           </div>
+          <FieldErrorText
+            id="accept-password-error"
+            message={formErrors.fieldError("password")}
+          />
           {password.length > 0 && (
             <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
               {PASSWORD_RULES.map((rule) => {
@@ -327,6 +393,15 @@ export function InviteContent() {
           <div className="relative">
             <input
               id="accept-confirm-password"
+              name="confirm_password"
+              aria-invalid={
+                formErrors.fieldError("confirm_password") ? true : undefined
+              }
+              aria-describedby={
+                formErrors.fieldError("confirm_password")
+                  ? "accept-confirm-password-error"
+                  : undefined
+              }
               type={showConfirmPassword ? "text" : "password"}
               required
               value={confirmPassword}
@@ -338,18 +413,17 @@ export function InviteContent() {
               onToggle={() => setShowConfirmPassword(!showConfirmPassword)}
             />
           </div>
-          {confirmPassword.length > 0 && !passwordsMatch && (
+          {formErrors.fieldError("confirm_password") ? (
+            <FieldErrorText
+              id="accept-confirm-password-error"
+              message={formErrors.fieldError("confirm_password")}
+            />
+          ) : confirmPassword.length > 0 && !passwordsMatch ? (
             <p className="text-moto-red mt-1 text-xs">
               Passwörter stimmen nicht überein
             </p>
-          )}
+          ) : null}
         </div>
-
-        {formError && (
-          <div className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong rounded-xl border p-3 text-sm">
-            {formError}
-          </div>
-        )}
 
         <button
           ref={primaryRef}
@@ -366,5 +440,20 @@ export function InviteContent() {
         </button>
       </form>
     </AuthShell>
+  );
+}
+
+function FieldErrorText({
+  id,
+  message,
+}: {
+  readonly id: string;
+  readonly message: string | undefined;
+}) {
+  if (!message) return null;
+  return (
+    <p id={id} className="text-moto-red mt-1 text-xs">
+      {message}
+    </p>
   );
 }

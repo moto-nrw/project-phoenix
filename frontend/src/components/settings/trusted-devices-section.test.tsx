@@ -7,10 +7,12 @@ import {
   act,
 } from "@testing-library/react";
 import { TrustedDevicesSection } from "./trusted-devices-section";
+import { catalogText } from "~/test/error-catalog-text";
 
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: toastSuccess,
     error: toastError,
@@ -153,17 +155,22 @@ describe("TrustedDevicesSection", () => {
     });
   });
 
-  it("surfaces error message when list fails", async () => {
+  // #2517: catalog text in place of the list, never the backend sentence
+  // and never the empty state.
+  it("surfaces a failed load with the catalog text", async () => {
     global.fetch = jsonResponse({ error: "boom" }, 500);
     render(<TrustedDevicesSection />);
 
-    // Component renders an Alert + falls back to the empty-state copy
-    // (devices=null after the catch). We just need to see the alert
-    // surface; the exact text comes from `postJson` ("boom" via
-    // extractErrorMessage) but we match loosely so a future copy tweak
-    // doesn't break the test.
-    await waitFor(() => {
-      expect(screen.getByText(/boom/)).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Liste der vertrauten Geräte"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/boom/)).toBeNull();
+    expect(
+      screen.queryByText(
+        "Sie haben aktuell keine vertrauten Geräte gespeichert.",
+      ),
+    ).toBeNull();
   });
 });

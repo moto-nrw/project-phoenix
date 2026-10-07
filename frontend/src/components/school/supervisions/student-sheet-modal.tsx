@@ -9,7 +9,8 @@
 // das Blatt nur für Kinder der eigenen Aufsicht heraus.
 
 import { useEffect, useState } from "react";
-import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import {
   DataField,
   DataGrid,
@@ -113,13 +114,19 @@ export function StudentSheetModal({
   onClose,
 }: StudentSheetModalProps) {
   const [sheet, setSheet] = useState<SupervisionStudentSheet | null>(null);
-  const [failed, setFailed] = useState(false);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  // Erhöht von „Wiederholen“: lädt das Infoblatt erneut.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!studentId) return;
     let cancelled = false;
     setSheet(null);
-    setFailed(false);
+    clearLoadError();
     schoolSupervisionsApi
       .studentSheet(instanceId, studentId)
       .then((result) => {
@@ -127,15 +134,18 @@ export function StudentSheetModal({
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setFailed(true);
         logger.error("student_sheet_failed", {
           error: err instanceof Error ? err.message : String(err),
+        });
+        void showLoadError(err, {
+          object: "das Infoblatt des Kindes",
+          retry: () => setAttempt((value) => value + 1),
         });
       });
     return () => {
       cancelled = true;
     };
-  }, [instanceId, studentId]);
+  }, [instanceId, studentId, attempt, showLoadError, clearLoadError]);
 
   const title = sheet
     ? `${sheet.firstName} ${sheet.lastName}`.trim()
@@ -144,13 +154,8 @@ export function StudentSheetModal({
   return (
     <Modal isOpen={studentId !== null} onClose={onClose} title={title}>
       <div className="space-y-4">
-        {failed ? (
-          <Alert
-            type="error"
-            message="Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal."
-          />
-        ) : null}
-        {!sheet && !failed ? (
+        <LoadErrorAlert error={loadError} />
+        {!sheet && !loadError ? (
           <div className="space-y-3">
             <Skeleton className="h-20 w-full" />
             <Skeleton className="h-28 w-full" />

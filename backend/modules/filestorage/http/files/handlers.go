@@ -280,7 +280,7 @@ func (rs *Resource) uploadFile(w http.ResponseWriter, r *http.Request) {
 	}
 	upload, closeUpload, err := parseUpload(w, r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorUpload(err, maxFile))
 		return
 	}
 	defer closeUpload()

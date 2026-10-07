@@ -4,9 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AnfragenPage from "./page";
 import type { AggregatedRequestFilters } from "~/components/students/aggregated-request-list";
+import { ApiError } from "~/lib/api-error";
 import { resolveChangeRequestAccess } from "~/lib/change-request-access";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { useTimetableEnabled } from "~/lib/tenant-context";
+import { catalogText } from "~/test/error-catalog-text";
 
 const { mockUseSession, mockRedirect } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
@@ -209,6 +211,28 @@ describe("AnfragenPage", () => {
     render(<AnfragenPage />);
 
     expect(mockRedirect).toHaveBeenCalledWith("/test-tenant/home");
+  });
+
+  // #2517: eine gescheiterte Prüfung leitet nicht still weg.
+  it("zeigt einen Ladefehler der Freigaben statt wegzuleiten", async () => {
+    const refresh = vi.fn();
+    mockUseChangeRequestAccess.mockReturnValue({
+      ...resolveChangeRequestAccess(mockUseSession().data, "none"),
+      isLoading: false,
+      error: new ApiError("down", 503, { code: "general.unavailable" }),
+      refresh,
+    } as unknown as ReturnType<typeof useChangeRequestAccess>);
+
+    render(<AnfragenPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Prüfung Ihrer Freigaben"),
+      ),
+    ).toBeInTheDocument();
+    expect(mockRedirect).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(refresh).toHaveBeenCalled();
   });
 
   it("rendert die aggregierte Liste in der Offen-Ansicht", () => {

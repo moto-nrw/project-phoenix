@@ -93,6 +93,8 @@ describe("invitation-api", () => {
 
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/invitations/validate?token=test-token-123",
+        // transportFetch hands fetch an explicit init.
+        undefined,
       );
       expect(result).toEqual({
         email: "teacher@example.com",
@@ -126,6 +128,8 @@ describe("invitation-api", () => {
 
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/invitations/validate?token=token%20with%20spaces%20%26%20special%3Dchars",
+        // transportFetch hands fetch an explicit init.
+        undefined,
       );
     });
 
@@ -310,9 +314,12 @@ describe("invitation-api", () => {
       await expect(validateInvitation("test-token")).rejects.toThrow(
         "Einladung konnte nicht geprüft werden.",
       );
-      expect(warnSpy).toHaveBeenCalledWith("failed to parse invitation API error", {
-        error: expect.any(String),
-      });
+      expect(warnSpy).toHaveBeenCalledWith(
+        "failed to parse invitation API error",
+        {
+          error: expect.any(String),
+        },
+      );
     });
 
     it("extracts message field from JSON error response", async () => {

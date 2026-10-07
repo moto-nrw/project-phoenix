@@ -212,7 +212,7 @@ func mapOrganizationError(err error, organizationID int64) error {
 	case errors.Is(err, organizationtenancy.ErrOrganizationNotFound):
 		return &organizationtenancy.OrganizationNotFoundError{OrganizationID: organizationID}
 	case errors.Is(err, organizationtenancy.ErrOrganizationSlugConflict):
-		return &organizationtenancy.ProvisioningConflictError{Err: errors.New("organization slug already exists")}
+		return &organizationtenancy.ProvisioningConflictError{Kind: organizationtenancy.ConflictOrganizationSlug, Err: errors.New("organization slug already exists")}
 	case errors.Is(err, organizationtenancy.ErrOrganizationAlreadyDeleted):
 		return &organizationtenancy.OrganizationAlreadyDeletedError{OrganizationID: organizationID}
 	case errors.Is(err, organizationtenancy.ErrOrganizationNotDeleted):
@@ -238,9 +238,9 @@ func mapSchoolError(err error, schoolID, organizationID int64) error {
 func translateSchoolError(err error, schoolID, organizationID int64) (error, bool) {
 	switch {
 	case errors.Is(err, organizationtenancy.ErrSchoolDomainConflict):
-		return &organizationtenancy.ProvisioningConflictError{Err: errors.New("school subdomain already exists")}, true
+		return &organizationtenancy.ProvisioningConflictError{Kind: organizationtenancy.ConflictSchoolSubdomain, Err: errors.New("school subdomain already exists")}, true
 	case errors.Is(err, organizationtenancy.ErrSchoolSlugConflict):
-		return &organizationtenancy.ProvisioningConflictError{Err: errors.New("school slug already exists in this organization")}, true
+		return &organizationtenancy.ProvisioningConflictError{Kind: organizationtenancy.ConflictSchoolSlug, Err: errors.New("school slug already exists in this organization")}, true
 	case errors.Is(err, organizationtenancy.ErrSchoolNotFound):
 		return &organizationtenancy.SchoolNotFoundError{SchoolID: schoolID}, true
 	case errors.Is(err, organizationtenancy.ErrSchoolAlreadyDeleted):

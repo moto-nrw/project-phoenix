@@ -1,5 +1,6 @@
+import { type ApiError, unavailableApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
-import { readEnrollmentError } from "~/lib/enrollment-error-messages";
+import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import type { Translations } from "~/lib/enrollment-translations";
 
 const logger = createLogger({ component: "CareOfferingAPI" });
@@ -114,7 +115,19 @@ async function readJSON<T>(response: Response): Promise<T> {
   return raw as unknown as T;
 }
 
-async function readError(response: Response, fallback: string): Promise<Error> {
+/** A request that never reached the API counts as unavailable (#2515). */
+async function send(input: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (cause) {
+    throw unavailableApiError(cause);
+  }
+}
+
+async function readError(
+  response: Response,
+  fallback: string,
+): Promise<ApiError> {
   return readEnrollmentError(
     response,
     fallback,
@@ -134,7 +147,7 @@ export async function listCareOfferings(
     url.searchParams.set("phase_id", phaseId);
   }
   const path = `${url.pathname}${url.search}`;
-  const response = await fetch(path, { cache: "no-store" });
+  const response = await send(path, { cache: "no-store" });
   if (!response.ok) {
     throw await readError(
       response,
@@ -148,7 +161,7 @@ export async function listCareOfferings(
 export async function createCareOffering(
   input: CareOfferingInput,
 ): Promise<CareOffering> {
-  const response = await fetch(BASE, {
+  const response = await send(BASE, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -166,7 +179,7 @@ export async function updateCareOffering(
   id: string,
   input: CareOfferingInput,
 ): Promise<CareOffering> {
-  const response = await fetch(`${BASE}/${encodeURIComponent(id)}`, {
+  const response = await send(`${BASE}/${encodeURIComponent(id)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -181,7 +194,7 @@ export async function updateCareOffering(
 }
 
 export async function deleteCareOffering(id: string): Promise<void> {
-  const response = await fetch(`${BASE}/${encodeURIComponent(id)}`, {
+  const response = await send(`${BASE}/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
   if (response.status === 204) return;
@@ -201,7 +214,7 @@ export async function cloneCareOffering(
   id: string,
   input: CloneCareOfferingInput,
 ): Promise<CareOffering> {
-  const response = await fetch(`${BASE}/${encodeURIComponent(id)}/clone`, {
+  const response = await send(`${BASE}/${encodeURIComponent(id)}/clone`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),

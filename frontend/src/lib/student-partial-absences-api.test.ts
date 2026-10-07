@@ -37,6 +37,7 @@ describe("student-partial-absences-api", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/students/42/partial-absences?from=2026-05-01&to=2026-05-31",
+      undefined,
     );
     expect(result[0]).toMatchObject({
       id: "9",

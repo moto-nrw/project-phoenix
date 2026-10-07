@@ -64,6 +64,7 @@ const mocks = vi.hoisted(() => ({
   cloneCareOffering: vi.fn(),
   deleteCareOffering: vi.fn(),
   deletePhase: vi.fn(),
+  getPhaseDeleteImpact: vi.fn(),
   deleteSchema: vi.fn(),
   deleteEnrollmentLegalDocument: vi.fn(),
   fetchManualEnrollmentBootstrap: vi.fn(),
@@ -92,6 +93,7 @@ const mocks = vi.hoisted(() => ({
     error: vi.fn(),
     warning: vi.fn(),
   },
+  showActionError: vi.fn(),
 }));
 
 // The date and datetime fields moved from native inputs to the kit pickers;
@@ -123,8 +125,12 @@ vi.mock("~/lib/tenant-context", () => ({
   useNFCEnabled: vi.fn(() => true),
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+// Form, load and dialog errors run through the real hooks (#2515); only the
+// toast surface and the toast path for actions without a form are doubles.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   useToast: () => mocks.toast,
+  useApiErrorDisplay: () => ({ show: mocks.showActionError }),
 }));
 
 vi.mock("~/lib/swr", async (importOriginal) => ({
@@ -176,6 +182,7 @@ vi.mock("~/lib/enrollment-phase-api", async (importOriginal) => {
     ...actual,
     createPhase: mocks.createPhase,
     deletePhase: mocks.deletePhase,
+    getPhaseDeleteImpact: mocks.getPhaseDeleteImpact,
     listPhaseExpiryWarnings: mocks.listPhaseExpiryWarnings,
     listPhases: mocks.listPhases,
     updatePhase: mocks.updatePhase,
@@ -262,7 +269,9 @@ import { PhasesEditor } from "./phases-editor";
 import type { CareOffering } from "~/lib/care-offering-api";
 import type { FormField, FormSchema } from "~/lib/enrollment-form-schema-api";
 import type { Phase } from "~/lib/enrollment-phase-api";
+import { ApiError } from "~/lib/api-error";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
+import { catalogText } from "~/test/error-catalog-text";
 
 function phase(overrides: Partial<Phase> = {}): Phase {
   return {
@@ -878,7 +887,7 @@ describe("CareOfferingsEditor", () => {
 
     // Der Hinweis steht als Kit-Alert am Feld (Bauart 2 Regel 5, #3113).
     expect(screen.getByRole("alert")).toHaveTextContent(
-      /Regeltermin deckt die ausgewählten Angebotstage Di, Mi, Do, Fr nicht ab/,
+      /Regeltermin deckt die Angebotstage Di, Mi, Do, Fr nicht ab/,
     );
     expect(
       screen.getByText(
@@ -892,7 +901,7 @@ describe("CareOfferingsEditor", () => {
     }
 
     expect(
-      screen.queryByText(/Regeltermin deckt die ausgewählten Angebotstage/),
+      screen.queryByText(/Regeltermin deckt die Angebotstage/),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Erstellen" })).toBeEnabled();
   });
@@ -1457,7 +1466,7 @@ describe("CareOfferingsEditor", () => {
       /Lernzeit.*nicht kompatibel/,
     );
     expect(
-      screen.getByText(/muss den gesamten Betreuungszeitraum/),
+      screen.getByText(/muss den ganzen Betreuungszeitraum/),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
   });
@@ -1500,7 +1509,9 @@ describe("CareOfferingsEditor", () => {
         },
       ],
     });
-    mocks.updateCareOffering.mockRejectedValue(new Error(technicalError));
+    mocks.updateCareOffering.mockRejectedValue(
+      new ApiError(technicalError, 500, { code: "general.server" }),
+    );
 
     render(<CareOfferingsEditor />);
     fireEvent.click(
@@ -1519,7 +1530,7 @@ describe("CareOfferingsEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     const saveError = await screen.findByText(
-      "Betreuungsangebot konnte nicht gespeichert werden",
+      catalogText("general.server", "das Betreuungsangebot"),
     );
     expect(saveError).toBeVisible();
     // Der Speicherfehler steht im Alert oben im Panel, nicht im Toast
@@ -1795,28 +1806,30 @@ describe("CareOfferingsEditor", () => {
       await Promise.resolve();
     });
     await act(async () => {
-      failedCatalogRequest.reject(new Error("Ferienkatalog nicht erreichbar"));
+      failedCatalogRequest.reject(
+        new ApiError("Ferienkatalog nicht erreichbar", 503, {
+          code: "general.unavailable",
+        }),
+      );
       await failedCatalogRequest.promise.catch(() => undefined);
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
     expect(
-      await screen.findByRole("heading", {
-        name: "Betreuungsangebote konnten nicht geladen werden",
-      }),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Betreuungsangebote"),
+      ),
     ).toBeVisible();
-    expect(screen.getByText("Ferienkatalog nicht erreichbar")).toBeVisible();
+    expect(
+      screen.queryByText("Ferienkatalog nicht erreichbar"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Regelbetreuung")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Noch kein Betreuungsangebot angelegt"),
     ).not.toBeInTheDocument();
 
     targetPhaseFails = false;
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Betreuungsangebote erneut laden",
-      }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     await act(async () => {
       successfulCatalogRequest.resolve([
         offering({
@@ -2071,9 +2084,63 @@ describe("CareOfferingsEditor", () => {
     ).toBeInTheDocument();
     unmount();
 
-    mocks.listPhases.mockRejectedValueOnce(new Error("Phasen kaputt"));
+    mocks.listPhases.mockRejectedValueOnce(
+      new ApiError("Phasen kaputt", 500, { code: "general.server" }),
+    );
     render(<CareOfferingsEditor />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Phasen kaputt");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      catalogText("general.server", "die Liste der Betreuungsangebote"),
+    );
+    expect(screen.queryByText("Phasen kaputt")).not.toBeInTheDocument();
+    // Kein Leerzustand hinter dem Ladefehler.
+    expect(
+      screen.queryByText("Erst eine Anmeldephase anlegen"),
+    ).not.toBeInTheDocument();
+  });
+  // #2517: Der Seitenkopf bekommt nach einem Ladefehler keine "0 Angebote".
+  it("reports an unavailable summary, not zero, when the catalog fails", async () => {
+    mocks.listPhases.mockRejectedValueOnce(
+      new ApiError("Phasen kaputt", 500, { code: "general.server" }),
+    );
+    const onSummaryChange = vi.fn();
+    render(<CareOfferingsEditor onSummaryChange={onSummaryChange} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      catalogText("general.server", "die Liste der Betreuungsangebote"),
+    );
+    expect(onSummaryChange).toHaveBeenLastCalledWith("unavailable");
+    expect(onSummaryChange).not.toHaveBeenCalledWith({ total: 0, active: 0 });
+  });
+  it("keeps a failed offering delete in the open dialog (#2515)", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([offering()]);
+    mocks.deleteCareOffering.mockRejectedValue(
+      new ApiError("in use", 409, { code: "general.business_rejection" }),
+    );
+
+    render(<CareOfferingsEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Regelbetreuung",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Löschen" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Ja, löschen" }),
+    );
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: "Endgültig löschen" }),
+    );
+
+    expect(
+      await within(dialog).findByText(
+        catalogText("general.business_rejection", "das Betreuungsangebot"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("in use")).not.toBeInTheDocument();
+    expect(mocks.toast.error).not.toHaveBeenCalled();
   });
 });
 
@@ -2183,9 +2250,15 @@ describe("PhasesEditor", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Bitte Beginn und Ende des Betreuungszeitraums angeben.",
-    );
+    expect(
+      await screen.findByText(
+        "Bitte geben Sie Beginn und Ende des Betreuungszeitraums an.",
+      ),
+    ).toBeInTheDocument();
+    // Der fehlende Beginn steht zusätzlich am Feld.
+    expect(
+      screen.getByText("Bitte wählen Sie den Beginn."),
+    ).toBeInTheDocument();
     expect(mocks.createPhase).not.toHaveBeenCalled();
   });
 
@@ -2204,11 +2277,134 @@ describe("PhasesEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Bitte gib einen Namen für die Anmeldephase ein.",
+      "Bitte geben Sie der Anmeldephase einen Namen.",
     );
+    // Das Feld ist markiert und hat den Fokus (#2515).
+    await waitFor(() => expect(inputByName("name")).toHaveFocus());
+    expect(inputByName("name")).toHaveAttribute("aria-invalid", "true");
     // Kein Toast mehr neben dem Alert (Bauart 2 Regel 5, #3113).
     expect(mocks.toast.error).not.toHaveBeenCalled();
     expect(mocks.createPhase).not.toHaveBeenCalled();
+  });
+
+  it("shows a failed phase load in place instead of the empty state (#2515)", async () => {
+    mocks.listPhases
+      .mockRejectedValueOnce(
+        new ApiError("phases down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue([phase()]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Anmeldephasen"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Noch keine Anmeldephase angelegt"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/0 aktiv/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText("Schuljahr 2026/27")).toBeInTheDocument();
+  });
+
+  it("marks the name field when the backend refuses a taken phase name (#2515)", async () => {
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.createPhase.mockRejectedValue(
+      new ApiError("phase name already exists", 409, {
+        code: "enrollment.phase_name_exists",
+        errors: [{ field: "name", reason: "taken" }],
+      }),
+    );
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Erste Anmeldephase anlegen" }),
+    );
+    fireEvent.change(await waitForInputByName("name"), {
+      target: { value: "Schuljahr 2026/27" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("enrollment.phase_name_exists", "die Anmeldephase"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("phase name already exists")).toBeNull();
+    await waitFor(() =>
+      expect(inputByName("name")).toHaveAttribute("aria-invalid", "true"),
+    );
+    expect(mocks.toast.error).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed status change through the toast path (#2515)", async () => {
+    const refused = new ApiError("forbidden", 403, {
+      code: "general.permission",
+    });
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.updatePhase.mockRejectedValue(refused);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Deaktivieren" }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.showActionError).toHaveBeenCalledWith(
+        refused,
+        expect.objectContaining({ object: "die Anmeldephase" }),
+      ),
+    );
+  });
+
+  it("keeps a failed delete in the open dialog (#2515)", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.getPhaseDeleteImpact.mockResolvedValue({
+      requests: 1,
+      care_offerings: 1,
+      students_kept: 0,
+    });
+    mocks.deletePhase.mockRejectedValue(
+      new ApiError("conflict", 409, { code: "general.business_rejection" }),
+    );
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Löschen" }));
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(mocks.getPhaseDeleteImpact).toHaveBeenCalled());
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: "Löschen" }),
+    );
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: "Endgültig löschen" }),
+    );
+
+    expect(
+      await within(dialog).findByText(
+        catalogText("general.business_rejection", "die Anmeldephase"),
+      ),
+    ).toBeInTheDocument();
+    expect(mocks.toast.error).not.toHaveBeenCalled();
   });
 
   it("uses tenant-aware phase detail links in the action menu", async () => {
@@ -2746,7 +2942,7 @@ describe("EnrollmentFormEditor", () => {
 
     await waitFor(() => {
       expect(mocks.toast.success).toHaveBeenCalledWith(
-        "Formularvorlage erstellt.",
+        "Die Formularvorlage „Kontaktformular“ ist angelegt.",
       );
     });
     expect(
@@ -2790,7 +2986,10 @@ describe("EnrollmentFormEditor", () => {
     mocks.listSchemas.mockResolvedValue([schema()]);
     mocks.listPhases.mockResolvedValue([]);
     mocks.renameSchema.mockRejectedValue(
-      new Error("Es gibt bereits ein Formular mit diesem Namen."),
+      new ApiError("schema name exists", 409, {
+        code: "enrollment.schema_name_exists",
+        errors: [{ field: "name", reason: "already exists" }],
+      }),
     );
 
     render(<EnrollmentFormEditor />);
@@ -2812,15 +3011,18 @@ describe("EnrollmentFormEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(
-      await screen.findAllByText(
-        "Es gibt bereits ein Formular mit diesem Namen.",
+      await screen.findByText(
+        catalogText("enrollment.schema_name_exists", "die Formularvorlage"),
       ),
-    ).toHaveLength(2);
+    ).toBeInTheDocument();
     // Dialog stays open so the admin can correct the name.
     expect(screen.getByLabelText("Name")).toHaveAttribute(
       "aria-invalid",
       "true",
     );
+    await waitFor(() => {
+      expect(screen.getByLabelText("Name")).toHaveFocus();
+    });
   });
 
   it("renames via the builder name field when saving an edited template", async () => {
@@ -3595,9 +3797,9 @@ describe("EnrollmentFormEditor", () => {
     await waitFor(() => {
       expect(mocks.createSchema).toHaveBeenCalled();
     });
-    expect(mocks.toast.error).toHaveBeenCalledWith(
-      "Nicht alle ungespeicherten PDF-Dateien konnten bereinigt werden.",
-    );
+    expect(mocks.showActionError).toHaveBeenCalledWith(expect.any(Error), {
+      object: "eine ungespeicherte PDF-Datei",
+    });
     expect(mocks.deleteEnrollmentLegalDocument).toHaveBeenCalledTimes(1);
 
     view.unmount();
@@ -4034,26 +4236,77 @@ describe("EnrollmentFormEditor", () => {
     expect(screen.queryByText("Ausgeblendet")).not.toBeInTheDocument();
   });
 
-  it("handles load and save errors", async () => {
-    mocks.listSchemas.mockRejectedValueOnce(new Error("Schema kaputt"));
+  it("shows a failed load in place with retry instead of an empty overview", async () => {
+    mocks.listSchemas
+      .mockRejectedValueOnce(
+        new ApiError("boom", 500, {
+          code: "general.server",
+          instance: "req-7",
+        }),
+      )
+      .mockResolvedValueOnce([]);
     mocks.listPhases.mockResolvedValue([]);
+    const onTemplateCountChange = vi.fn();
 
-    const { rerender } = render(<EnrollmentFormEditor />);
-    expect(await screen.findByText("Schema kaputt")).toBeInTheDocument();
+    render(
+      <EnrollmentFormEditor onTemplateCountChange={onTemplateCountChange} />,
+    );
 
-    mocks.listSchemas.mockResolvedValueOnce([]);
-    mocks.createSchema.mockRejectedValueOnce(new Error("Speichern kaputt"));
-    rerender(<EnrollmentFormEditor />);
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Übersicht der Anmeldeformulare"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/req-7/)).toBeInTheDocument();
+    expect(screen.queryByText("Anmeldeformulare verwalten")).toBeNull();
+    expect(onTemplateCountChange).toHaveBeenLastCalledWith(null, true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(
+      await screen.findByText("Anmeldeformulare verwalten"),
+    ).toBeInTheDocument();
+    expect(onTemplateCountChange).toHaveBeenLastCalledWith(0, false);
+  });
+
+  it("fails the load when the phases cannot be read", async () => {
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.listPhases.mockRejectedValueOnce(
+      new ApiError("unavailable", 503, { code: "general.unavailable" }),
+    );
+
+    render(<EnrollmentFormEditor />);
+
+    expect(
+      await screen.findByText(
+        catalogText(
+          "general.unavailable",
+          "die Übersicht der Anmeldeformulare",
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Anmeldeformulare verwalten")).toBeNull();
+  });
+
+  it("shows a failed save in the builder alert and marks the field from the API", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.createSchema.mockRejectedValueOnce(
+      new ApiError("schema name exists", 409, {
+        code: "enrollment.schema_name_exists",
+        errors: [{ field: "name", reason: "already exists" }],
+      }),
+    );
+
+    render(<EnrollmentFormEditor />);
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Neue Vorlage" }),
     );
-    fireEvent.change(
-      screen.getByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
-      {
-        target: { value: "Fehlerformular" },
-      },
+    const nameInput = screen.getByPlaceholderText(
+      "z. B. Ferienbetreuung Sommer 2026",
     );
+    fireEvent.change(nameInput, { target: { value: "Fehlerformular" } });
     fireEvent.click(screen.getByRole("button", { name: "Freie Zusatzfrage" }));
     fireEvent.change(screen.getByLabelText("Frage im Elternformular"), {
       target: { value: "Hinweis" },
@@ -4062,7 +4315,124 @@ describe("EnrollmentFormEditor", () => {
       screen.getByRole("button", { name: "Formularvorlage erstellen" }),
     );
 
-    expect(await screen.findByText("Speichern kaputt")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        catalogText("enrollment.schema_name_exists", "die Formularvorlage"),
+      ),
+    ).toBeInTheDocument();
+    expect(nameInput).toHaveAttribute("aria-invalid", "true");
+    await waitFor(() => {
+      expect(nameInput).toHaveFocus();
+    });
+    expect(mocks.toast.error).not.toHaveBeenCalled();
+  });
+
+  it("retries a failed save with the current draft", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.createSchema
+      .mockRejectedValueOnce(
+        new ApiError("boom", 500, {
+          code: "general.server",
+          instance: "req-1",
+        }),
+      )
+      .mockResolvedValueOnce(
+        schema({ id: "schema-new", name: "Zweiter Name" }),
+      );
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    const nameInput = screen.getByPlaceholderText(
+      "z. B. Ferienbetreuung Sommer 2026",
+    );
+    fireEvent.change(nameInput, { target: { value: "Erster Name" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Formularvorlage"),
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.change(nameInput, { target: { value: "Zweiter Name" } });
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => {
+      expect(mocks.createSchema).toHaveBeenCalledTimes(2);
+    });
+    expect(mocks.createSchema.mock.calls[1]?.[0]).toBe("Zweiter Name");
+  });
+
+  it("marks and focuses the field a local check before saving names", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      { target: { value: "Prüfformular" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Freie Zusatzfrage" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Bitte geben Sie für Frage 1 einen Fragetext ein.",
+      ),
+    ).toBeInTheDocument();
+    const question = screen.getByLabelText("Frage im Elternformular");
+    expect(question).toHaveAttribute("aria-invalid", "true");
+    expect(question).toHaveAccessibleDescription(
+      "Bitte füllen Sie dieses Feld aus.",
+    );
+    await waitFor(() => {
+      expect(question).toHaveFocus();
+    });
+    expect(mocks.createSchema).not.toHaveBeenCalled();
+  });
+
+  it("keeps the delete dialog open with the reason when deleting fails", async () => {
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.deleteSchema.mockRejectedValueOnce(
+      new ApiError("schema has phases", 409, {
+        code: "enrollment.schema_has_phases",
+      }),
+    );
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Regelformular",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Löschen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ja, löschen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("enrollment.schema_has_phases", "die Formularvorlage"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Endgültig löschen" }),
+    ).toBeInTheDocument();
+    expect(mocks.toast.error).not.toHaveBeenCalled();
+    expect(mocks.toast.success).not.toHaveBeenCalled();
   });
 
   it("keeps a half-filled pickup-time row visible while editing", async () => {

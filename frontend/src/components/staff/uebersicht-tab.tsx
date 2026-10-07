@@ -13,7 +13,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import type { ChartConfig } from "~/components/ui/chart";
 import { UebersichtTabSkeleton } from "~/components/staff/uebersicht-tab-skeleton";
-import { useSwrLoadError } from "~/components/staff/use-swr-load-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
   staffAbsenceService,
   staffBalanceAdjustmentService,

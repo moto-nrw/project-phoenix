@@ -10,6 +10,7 @@
 
 import { signOut } from "next-auth/react";
 
+import { apiErrorFromResponse } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { sessionFetch, clearSessionCache } from "~/lib/session-cache";
 
@@ -95,7 +96,10 @@ export async function fetchStaffPreviewCandidates(): Promise<
 > {
   const response = await sessionFetch("/api/auth/staff-preview/candidates");
   if (!response.ok) {
-    throw new Error(`Failed to load preview candidates: ${response.status}`);
+    throw await apiErrorFromResponse(
+      response,
+      `Failed to load preview candidates: ${response.status}`,
+    );
   }
   // createGetHandler wraps GET responses in { status, data }.
   const envelope = (await response.json()) as {
@@ -119,7 +123,10 @@ async function startStaffPreview(
     body: JSON.stringify({ account_id: accountId }),
   });
   if (!response.ok) {
-    throw new Error(`Failed to start preview: ${response.status}`);
+    throw await apiErrorFromResponse(
+      response,
+      `Failed to start preview: ${response.status}`,
+    );
   }
   const data = (await response.json()) as BackendStaffPreviewStartResponse;
   return {

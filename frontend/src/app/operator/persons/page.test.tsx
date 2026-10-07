@@ -5,8 +5,20 @@
  * moved from client state (set via another tab) to URL query params
  * (schoolId, orgId) driven by the page's own OrgSchoolFilter.
  */
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render as renderPlain,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
 
 const {
   mockUseSession,
@@ -251,6 +263,27 @@ describe("OperatorPersonsPage", () => {
     ).toBeInTheDocument();
   });
 
+  // #2519: cached empty data is not an empty state when revalidation failed.
+  it("shows a failed persons load without claiming the list is empty", async () => {
+    mockSearchParamsGet.mockImplementation((key: string) =>
+      key === "schoolId" ? "10" : null,
+    );
+    withDefaultSWR({
+      schoolPersons: [],
+      personsError: new ApiError("down", 503),
+      staleData: true,
+    });
+
+    render(<OperatorPersonsPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Personen"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Keine Personen")).toBeNull();
+  });
+
   it("shows persons loading state", () => {
     mockSearchParamsGet.mockImplementation((key: string) =>
       key === "schoolId" ? "10" : null,
@@ -437,7 +470,9 @@ describe("OperatorPersonsPage", () => {
       key === "schoolId" ? "10" : null,
     );
     mockSoftDeletePerson.mockRejectedValue(
-      new Error("Person hat aktive Besuche"),
+      new ApiError("Person hat aktive Besuche", 409, {
+        code: "general.business_rejection",
+      }),
     );
     const consoleError = vi
       .spyOn(console, "error")
@@ -459,7 +494,11 @@ describe("OperatorPersonsPage", () => {
     fireEvent.click(screen.getByText("Endgültig löschen"));
 
     await waitFor(() => {
-      expect(screen.getByText("Person hat aktive Besuche")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          catalogText("general.business_rejection", "das Löschen der Person"),
+        ),
+      ).toBeInTheDocument();
       expect(consoleError).toHaveBeenCalledWith(
         "person_soft_delete_failed",
         expect.objectContaining({
@@ -558,5 +597,27 @@ describe("OperatorPersonsPage", () => {
         (screen.getByPlaceholderText("Anna Schmidt") as HTMLInputElement).value,
       ).toBe("");
     });
+  });
+
+  // #2519: a failed filter list is shown, not an empty filter.
+  it("shows failed loads of the filter lists", async () => {
+    withDefaultSWR({
+      schoolPersons: [],
+      orgsError: new ApiError("down", 503),
+      schoolsError: new ApiError("boom", 500),
+    });
+
+    render(<OperatorPersonsPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Träger"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Liste der Schulen"),
+      ),
+    ).toBeInTheDocument();
   });
 });

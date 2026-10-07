@@ -81,7 +81,7 @@ describe("SelectionBulkInviteModal", () => {
         "Die Einladung an 2 Eltern wird jetzt verschickt. Der Hinweis an 1 Elternteil mit moto-Konto wird jetzt verschickt. Das dauert ein paar Minuten.",
       ),
     ).toBeVisible();
-    expect(toastSuccess).toHaveBeenCalledWith("3 Eltern eingeladen");
+    expect(toastSuccess).toHaveBeenCalledWith("3 Eltern sind eingeladen.");
     expect(screen.getByRole("button", { name: "Schließen" })).toBeVisible();
   });
 

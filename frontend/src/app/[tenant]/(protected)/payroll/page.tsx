@@ -1,20 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import useSWR from "swr";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { createLogger } from "~/lib/logger";
 import {
   duplicateLohnartNumbers,
   fetchPayrollStatus,
+  savePayrollSetting,
   type PayrollStatus,
 } from "~/lib/payroll-api";
-import { setSettingValue } from "~/lib/settings-api";
+
+const logger = createLogger({ component: "PayrollPage" });
 
 // Abrechnung (#1417 Tranche 2b): maintenance surface for the DATEV payroll
 // foundation — Lohnart mapping and LODAS client identifiers. Values are
@@ -48,23 +60,40 @@ export default function PayrollPage() {
     mutate,
   } = useSWR(isReady ? "payroll-status" : null, fetchPayrollStatus);
 
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const loadError = useSwrLoadError(
+    error,
+    "die Einstellungen zur Abrechnung",
+    () => mutate(),
+  );
+  // Bauart 4 speichert jedes Feld für sich: der Fehler steht über den
+  // Karten, mit Wiederholen für genau diesen Wert (#2517).
+  const formRef = useRef<HTMLDivElement>(null);
+  const {
+    error: saveError,
+    show: showSaveError,
+    clear: clearSaveError,
+  } = useApiFormError(formRef);
   const saveQueues = useRef(new Map<string, Promise<void>>());
+  const saveRef = useRef<(key: string, value: string) => void>(() => undefined);
 
   const save = useCallback(
     (key: string, value: string) => {
       const previous = saveQueues.current.get(key) ?? Promise.resolve();
       const next = previous
         .then(async () => {
-          setSaveError(null);
-          const message = await setSettingValue(key, value);
-          if (message) {
-            setSaveError(message);
-          }
+          clearSaveError();
+          await savePayrollSetting(key, value);
           await mutate();
         })
-        .catch(() => {
-          setSaveError("Einstellung konnte nicht gespeichert werden.");
+        .catch((err: unknown) => {
+          logger.error("payroll_setting_save_failed", {
+            key,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          void showSaveError(err, {
+            object: "die Einstellung",
+            retry: () => saveRef.current(key, value),
+          });
         });
 
       saveQueues.current.set(key, next);
@@ -75,13 +104,19 @@ export default function PayrollPage() {
       });
       return next;
     },
-    [mutate],
+    [mutate, clearSaveError, showSaveError],
   );
+  // Wiederholen läuft über die Warteschlange, wie ein neues Speichern.
+  useLayoutEffect(() => {
+    saveRef.current = (key, value) => void save(key, value);
+  });
 
   // Permission-loading joins the data-loading condition below instead of an
   // early return before the header, so the page header renders immediately and
   // only the data region skeletonizes.
-  const showSkeleton = permissionLoading || !isReady || (!error && !status);
+  // Bis der Katalogtext eines Ladefehlers da ist, bleibt das Skelett.
+  const showSkeleton =
+    permissionLoading || !isReady || (!status && (!error || !loadError));
 
   const duplicates = status ? duplicateLohnartNumbers(status) : [];
 
@@ -98,17 +133,13 @@ export default function PayrollPage() {
       stats={statusLine}
       statsLoading={showSkeleton}
       loading={showSkeleton}
-      error={
-        error
-          ? "Die Abrechnungs-Konfiguration konnte nicht geladen werden."
-          : null
-      }
+      error={loadError}
     >
       {status && (
-        <div className="space-y-6">
+        <div ref={formRef} className="space-y-6">
           <ReadinessCard status={status} />
 
-          {saveError && <Alert type="error" message={saveError} />}
+          <FormErrorAlert message={saveError} />
           {duplicates.length > 0 && (
             <Alert
               type="warning"

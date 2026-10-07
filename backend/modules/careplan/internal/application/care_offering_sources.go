@@ -29,7 +29,9 @@ func (c *CareOfferingCatalog) ValidateTemplateOfferingSource(ctx context.Context
 	}
 	for _, id := range sources.Dropped {
 		if !stored[id] {
-			return c.deps.SourceRules.Reject(fmt.Sprintf("care offering %d not found", id))
+			return c.deps.SourceRules.RejectWith(ports.OfferingSourceRefusal{
+				Kind: ports.OfferingSourceNotFound, Reason: fmt.Sprintf("care offering %d not found", id),
+			})
 		}
 	}
 	c.deps.Logger.Warn("offering source validation: ignoring vanished stored source offerings",
@@ -104,7 +106,11 @@ func (c *CareOfferingCatalog) checkOfferingSourceIDs(offeringIDs []int64) error 
 		return c.deps.SourceRules.Reject("at least one care offering is required")
 	}
 	if limit := c.deps.SourceRules.MaxSourcesPerTemplate(); len(offeringIDs) > limit {
-		return c.deps.SourceRules.Reject(fmt.Sprintf("at most %d source offerings are supported (%d given)", limit, len(offeringIDs)))
+		return c.deps.SourceRules.RejectWith(ports.OfferingSourceRefusal{
+			Kind:   ports.OfferingSourceTooMany,
+			Reason: fmt.Sprintf("at most %d source offerings are supported (%d given)", limit, len(offeringIDs)),
+			Max:    limit, Given: len(offeringIDs),
+		})
 	}
 	return nil
 }
@@ -144,13 +150,19 @@ func (c *CareOfferingCatalog) acceptOfferingSource(
 	tolerateDrift bool,
 ) error {
 	if !offering.IsActive && !tolerateDrift {
-		return c.deps.SourceRules.Reject(fmt.Sprintf("care offering %d is inactive", offering.ID))
+		return c.deps.SourceRules.RejectWith(ports.OfferingSourceRefusal{
+			Kind: ports.OfferingSourceInactive, Reason: fmt.Sprintf("care offering %d is inactive", offering.ID), Offering: offering.Name,
+		})
 	}
 	if sources.Phase != nil && offering.PhaseID != sources.Phase.ID {
-		return c.deps.SourceRules.Reject(fmt.Sprintf(
-			"all source offerings must belong to the same enrollment phase (offering %d belongs to %q)",
-			offering.ID, c.offeringPhaseName(ctx, offering.PhaseID),
-		))
+		return c.deps.SourceRules.RejectWith(ports.OfferingSourceRefusal{
+			Kind: ports.OfferingSourceMixedPhases,
+			Reason: fmt.Sprintf(
+				"all source offerings must belong to the same enrollment phase (offering %d belongs to %q)",
+				offering.ID, c.offeringPhaseName(ctx, offering.PhaseID),
+			),
+			Offering: offering.Name,
+		})
 	}
 	if sources.Phase == nil {
 		phase, err := c.establishSourcePhase(ctx, offering, period, tolerateDrift)
@@ -181,7 +193,9 @@ func (c *CareOfferingCatalog) establishSourcePhase(
 	}
 	if period != nil && !tolerateDrift {
 		if err := careplan.ValidatePhaseWithinPeriod(phase, period); err != nil {
-			return careplan.OfferingPhase{}, c.deps.SourceRules.Reject(err.Error())
+			return careplan.OfferingPhase{}, c.deps.SourceRules.RejectWith(ports.OfferingSourceRefusal{
+				Kind: ports.OfferingSourceOutsidePeriod, Reason: err.Error(), Offering: offering.Name,
+			})
 		}
 	}
 	return phase, nil

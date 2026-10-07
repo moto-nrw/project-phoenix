@@ -1,6 +1,15 @@
 import { apiErrorFromResponse, unavailableApiError } from "./api-error";
 import { fetchWithAuth } from "./fetch-with-auth";
 
+/** A request that never reached the API becomes `general.unavailable`. */
+async function authFetch(url: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await (init ? fetchWithAuth(url, init) : fetchWithAuth(url));
+  } catch (error) {
+    throw unavailableApiError(error);
+  }
+}
+
 /**
  * Birthday display + staff birthday list (#1542).
  *
@@ -91,10 +100,13 @@ export async function fetchBirthdayOverviewClient(
   weekStart?: string | null,
 ): Promise<BirthdayOverview> {
   const query = weekStart ? `?week_start=${encodeURIComponent(weekStart)}` : "";
-  const response = await fetchWithAuth(`/api/birthdays${query}`);
+  const response = await authFetch(`/api/birthdays${query}`);
 
   if (!response.ok) {
-    throw new Error(`Birthday fetch failed: ${response.status}`);
+    throw await apiErrorFromResponse(
+      response,
+      `Birthday fetch failed: ${response.status}`,
+    );
   }
 
   const json = (await response.json()) as { data: BackendOverview };
@@ -102,10 +114,13 @@ export async function fetchBirthdayOverviewClient(
 }
 
 export async function fetchBirthdayOptOut(): Promise<boolean> {
-  const response = await fetchWithAuth("/api/birthdays/opt-out");
+  const response = await authFetch("/api/birthdays/opt-out");
 
   if (!response.ok) {
-    throw new Error(`Birthday opt-out fetch failed: ${response.status}`);
+    throw await apiErrorFromResponse(
+      response,
+      `Birthday opt-out fetch failed: ${response.status}`,
+    );
   }
 
   const json = (await response.json()) as { data: { opt_out: boolean } };
@@ -113,14 +128,17 @@ export async function fetchBirthdayOptOut(): Promise<boolean> {
 }
 
 export async function updateBirthdayOptOut(optOut: boolean): Promise<boolean> {
-  const response = await fetchWithAuth("/api/birthdays/opt-out", {
+  const response = await authFetch("/api/birthdays/opt-out", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ opt_out: optOut }),
   });
 
   if (!response.ok) {
-    throw new Error(`Birthday opt-out update failed: ${response.status}`);
+    throw await apiErrorFromResponse(
+      response,
+      `Birthday opt-out update failed: ${response.status}`,
+    );
   }
 
   const json = (await response.json()) as { data: { opt_out: boolean } };

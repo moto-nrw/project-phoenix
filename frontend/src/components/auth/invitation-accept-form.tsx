@@ -1,20 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirect targets root login, not tenant route
 import { useRouter } from "next/navigation";
 import { Check, Circle } from "lucide-react";
-import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { signOut } from "next-auth/react";
 import {
-  authInputClassName,
+  AuthFieldError,
+  authInputClass,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
+import { credentialError } from "~/components/auth/credential-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { acceptInvitation } from "~/lib/invitation-api";
 import type { InvitationValidation } from "~/lib/invitation-helpers";
-import type { ApiError } from "~/lib/auth-api";
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
 
@@ -32,32 +34,25 @@ interface InvitationAcceptFormProps {
   readonly redirectToPath?: string;
 }
 
-// Helper to map API error status to user-friendly message
-const getInvitationErrorMessage = (
-  apiError: ApiError | undefined,
-  err: unknown,
-): string => {
-  if (apiError?.code === "identity.invitation_account_login_required") {
-    return "Für diese E-Mail-Adresse besteht bereits ein Konto. Bitte laden Sie die Einladung erneut und melden Sie sich an.";
+/** Prüfung vor dem Senden. Schlüssel sind die Feldnamen des Backends. */
+function acceptFieldErrors(
+  firstName: string,
+  lastName: string,
+  passwordOk: boolean,
+  passwordsMatch: boolean,
+): Record<string, string> {
+  const fields: Record<string, string> = {};
+  if (!firstName.trim())
+    fields.first_name = "Bitte geben Sie Ihren Vornamen an.";
+  if (!lastName.trim())
+    fields.last_name = "Bitte geben Sie Ihren Nachnamen an.";
+  if (!passwordOk) {
+    fields.password = "Das Passwort erfüllt noch nicht alle Anforderungen.";
+  } else if (!passwordsMatch) {
+    fields.confirm_password = "Die Passwörter stimmen nicht überein.";
   }
-  if (apiError?.status === 410) {
-    return "Diese Einladung ist nicht mehr gültig. Bitte fordere eine neue Einladung an.";
-  }
-  if (apiError?.status === 404) {
-    return "Einladung wurde nicht gefunden.";
-  }
-  if (apiError?.status === 409) {
-    return "Für diese E-Mail existiert bereits ein Konto. Bitte melde dich direkt an oder kontaktiere den Support.";
-  }
-  if (apiError?.status === 400) {
-    return (
-      apiError.message ?? "Ungültige Eingaben. Bitte überprüfe das Formular."
-    );
-  }
-  const generic =
-    apiError?.message ?? (err instanceof Error ? err.message : undefined);
-  return generic ?? "Beim Annehmen der Einladung ist ein Fehler aufgetreten.";
-};
+  return fields;
+}
 
 export function InvitationAcceptForm({
   token,
@@ -71,7 +66,11 @@ export function InvitationAcceptForm({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Fehler über den gemeinsamen Weg (#2517): Katalogtext im Fehlerkasten,
+  // Feldfehler am Feld. Vor der Anmeldung heißt 401 "abgelehnt".
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const latestSubmitRef = useRef<() => void>(() => undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAccepted, setIsAccepted] = useState(false);
   const [signOutFailed, setSignOutFailed] = useState(false);
@@ -79,8 +78,6 @@ export function InvitationAcceptForm({
   const [tenantRedirectUrl, setTenantRedirectUrl] = useState<string | null>(
     null,
   );
-  const errorRef = useScrollToError(error);
-  const [errorFieldName, setErrorFieldName] = useState<string | null>(null);
 
   useEffect(() => {
     setFirstName(invitation.firstName ?? "");
@@ -101,30 +98,18 @@ export function InvitationAcceptForm({
     [requirementStatus],
   );
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setError(null);
-    setErrorFieldName(null);
-
-    if (!firstName.trim() || !lastName.trim()) {
-      setError("Bitte gib Vor- und Nachname an.");
-      setErrorFieldName(!firstName.trim() ? "firstName" : "lastName");
+  const submit = async () => {
+    const fields = acceptFieldErrors(
+      firstName,
+      lastName,
+      allRequirementsMet,
+      password === confirmPassword,
+    );
+    if (Object.keys(fields).length > 0) {
+      formErrors.invalid("Bitte prüfen Sie die markierten Felder.", fields);
       return;
     }
-
-    if (!allRequirementsMet) {
-      setError(
-        "Das Passwort erfüllt noch nicht alle Sicherheitsanforderungen.",
-      );
-      setErrorFieldName("password");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError("Die Passwörter stimmen nicht überein.");
-      setErrorFieldName("confirmPassword");
-      return;
-    }
+    formErrors.clear();
 
     try {
       setIsSubmitting(true);
@@ -178,27 +163,30 @@ export function InvitationAcceptForm({
         router.push(redirectToPath ?? "/");
       }, 1500);
     } catch (err) {
-      // Distinguish network/offline from HTTP errors
-      if (typeof navigator !== "undefined" && !navigator.onLine) {
-        logger.warn("invitation_accept_offline", {
-          error: "no_network_connection",
-        });
-        setError(
-          "Keine Netzwerkverbindung. Bitte überprüfe deine Internetverbindung und versuche es erneut.",
-        );
-        setIsSubmitting(false);
-        return;
-      }
       logger.error("invitation_accept_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      const apiError = err as ApiError | undefined;
-      const errorMessage = getInvitationErrorMessage(apiError, err);
-      setError(errorMessage);
+      // Ohne Netz kommt general.unavailable mit Wiederholen.
+      void formErrors.show(credentialError(err), {
+        object: "die Einladung",
+        retry: () => latestSubmitRef.current(),
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    void submit();
+  };
+
+  // „Wiederholen“ sendet den Stand, der dann im Formular steht.
+  useLayoutEffect(() => {
+    latestSubmitRef.current = () => void submit();
+  });
+
+  const fieldError = formErrors.fieldError;
 
   const handleManualRedirect = async () => {
     try {
@@ -241,9 +229,9 @@ export function InvitationAcceptForm({
         </h3>
         {signOutRetryFailed ? (
           <p className="mb-4 text-sm text-gray-500">
-            Die vorherige Sitzung konnte nicht beendet werden. Bitte lösche die
-            Websitedaten in deinen Browsereinstellungen oder versuche es später
-            erneut.
+            Die vorherige Sitzung konnte nicht beendet werden. Bitte löschen Sie
+            die Websitedaten in Ihren Browsereinstellungen oder versuchen Sie es
+            später erneut.
           </p>
         ) : signOutFailed ? (
           <>
@@ -261,7 +249,7 @@ export function InvitationAcceptForm({
         ) : (
           <>
             <p className="mb-6 text-sm text-gray-500">
-              Bitte melde dich mit deinen neuen Zugangsdaten an.
+              Bitte melden Sie sich mit Ihren neuen Zugangsdaten an.
             </p>
             <div className="h-1 w-16 overflow-hidden rounded-full bg-gray-100">
               <div
@@ -284,31 +272,13 @@ export function InvitationAcceptForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-6">
-      {error && (
-        <div
-          ref={errorRef}
-          className="border-moto-red/10 bg-moto-red-soft/50 rounded-xl border p-4"
-        >
-          <div className="flex items-start gap-3">
-            <svg
-              className="text-moto-red mt-0.5 h-5 w-5 flex-shrink-0"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-              />
-            </svg>
-            <p className="text-moto-red-strong text-sm">{error}</p>
-          </div>
-        </div>
-      )}
-      {/* Success toast handled globally */}
+    <form
+      ref={formRef}
+      onSubmit={handleSubmit}
+      noValidate
+      className="space-y-6"
+    >
+      <FormErrorAlert message={formErrors.error} />
 
       <div className="mb-4">
         <p className="text-sm text-gray-600">
@@ -353,39 +323,55 @@ export function InvitationAcceptForm({
         <div>
           <label
             htmlFor="firstName"
-            className={`mb-1 block text-sm font-medium ${errorFieldName === "firstName" ? "text-moto-red" : "text-gray-700"}`}
+            className={`mb-1 block text-sm font-medium ${fieldError("first_name") ? "text-moto-red" : "text-gray-700"}`}
           >
             Vorname
           </label>
           <input
             id="firstName"
-            name="firstName"
+            name="first_name"
             data-testid="input-firstName"
             value={firstName}
             onChange={(event) => setFirstName(event.target.value)}
             disabled={isSubmitting}
             autoComplete="given-name"
             required
-            className={`${authInputClassName} ${errorFieldName === "firstName" ? "ring-moto-red/30 ring-2" : ""}`}
+            aria-invalid={Boolean(fieldError("first_name"))}
+            aria-describedby={
+              fieldError("first_name") ? "firstName-error" : undefined
+            }
+            className={authInputClass(Boolean(fieldError("first_name")))}
+          />
+          <AuthFieldError
+            id="firstName-error"
+            message={fieldError("first_name")}
           />
         </div>
         <div>
           <label
             htmlFor="lastName"
-            className={`mb-1 block text-sm font-medium ${errorFieldName === "lastName" ? "text-moto-red" : "text-gray-700"}`}
+            className={`mb-1 block text-sm font-medium ${fieldError("last_name") ? "text-moto-red" : "text-gray-700"}`}
           >
             Nachname
           </label>
           <input
             id="lastName"
-            name="lastName"
+            name="last_name"
             data-testid="input-lastName"
             value={lastName}
             onChange={(event) => setLastName(event.target.value)}
             disabled={isSubmitting}
             autoComplete="family-name"
             required
-            className={`${authInputClassName} ${errorFieldName === "lastName" ? "ring-moto-red/30 ring-2" : ""}`}
+            aria-invalid={Boolean(fieldError("last_name"))}
+            aria-describedby={
+              fieldError("last_name") ? "lastName-error" : undefined
+            }
+            className={authInputClass(Boolean(fieldError("last_name")))}
+          />
+          <AuthFieldError
+            id="lastName-error"
+            message={fieldError("last_name")}
           />
         </div>
       </div>
@@ -393,7 +379,7 @@ export function InvitationAcceptForm({
       <div>
         <label
           htmlFor="password"
-          className={`mb-1 block text-sm font-medium ${errorFieldName === "password" ? "text-moto-red" : "text-gray-700"}`}
+          className={`mb-1 block text-sm font-medium ${fieldError("password") ? "text-moto-red" : "text-gray-700"}`}
         >
           Passwort
         </label>
@@ -406,7 +392,11 @@ export function InvitationAcceptForm({
             onChange={(event) => setPassword(event.target.value)}
             disabled={isSubmitting}
             autoComplete="new-password"
-            className={`${authInputClassName} pr-10 ${errorFieldName === "password" ? "ring-moto-red/30 ring-2" : ""}`}
+            aria-invalid={Boolean(fieldError("password"))}
+            aria-describedby={
+              fieldError("password") ? "password-error" : undefined
+            }
+            className={`${authInputClass(Boolean(fieldError("password")))} pr-10`}
             required
           />
           <PasswordToggleButton
@@ -414,25 +404,32 @@ export function InvitationAcceptForm({
             onToggle={() => setShowPassword(!showPassword)}
           />
         </div>
+        <AuthFieldError id="password-error" message={fieldError("password")} />
       </div>
 
       <div>
         <label
           htmlFor="confirmPassword"
-          className={`mb-1 block text-sm font-medium ${errorFieldName === "confirmPassword" ? "text-moto-red" : "text-gray-700"}`}
+          className={`mb-1 block text-sm font-medium ${fieldError("confirm_password") ? "text-moto-red" : "text-gray-700"}`}
         >
           Passwort bestätigen
         </label>
         <div className="relative">
           <input
             id="confirmPassword"
-            name="confirmPassword"
+            name="confirm_password"
             type={showConfirmPassword ? "text" : "password"}
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
             disabled={isSubmitting}
             autoComplete="new-password"
-            className={`${authInputClassName} pr-10 ${errorFieldName === "confirmPassword" ? "ring-moto-red/30 ring-2" : ""}`}
+            aria-invalid={Boolean(fieldError("confirm_password"))}
+            aria-describedby={
+              fieldError("confirm_password")
+                ? "confirmPassword-error"
+                : undefined
+            }
+            className={`${authInputClass(Boolean(fieldError("confirm_password")))} pr-10`}
             required
           />
           <PasswordToggleButton
@@ -440,6 +437,10 @@ export function InvitationAcceptForm({
             onToggle={() => setShowConfirmPassword(!showConfirmPassword)}
           />
         </div>
+        <AuthFieldError
+          id="confirmPassword-error"
+          message={fieldError("confirm_password")}
+        />
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">

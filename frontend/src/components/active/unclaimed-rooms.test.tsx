@@ -9,6 +9,12 @@ import { render } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { UnclaimedRooms } from "./unclaimed-rooms";
 
+// The banner is off; its claim error path needs no toast provider here.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useApiErrorDisplay: () => ({ show: vi.fn() }),
+}));
+
 // Mock activeService
 vi.mock("~/lib/active-api", () => ({
   activeService: {

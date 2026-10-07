@@ -1,3 +1,4 @@
+import { catalogText } from "~/test/error-catalog-text";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   act,
@@ -856,14 +857,19 @@ describe("SchoolSetupWizard", () => {
 
   it("says so when a step could not be saved", async () => {
     const { SchoolSetupError } = await import("~/lib/school-setup-api");
-    api.setSchoolSetupStepSkipped.mockRejectedValue(new SchoolSetupError(409));
+    api.setSchoolSetupStepSkipped.mockRejectedValue(
+      new SchoolSetupError(409, { code: "school.setup_completed" }),
+    );
     render(<SchoolSetupWizard />);
 
     fireEvent.click(screen.getByRole("button", { name: "Überspringen" }));
 
     expect(
       await screen.findByText(
-        "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+        catalogText(
+          "school.setup_completed",
+          "die Änderung der ersten Schritte",
+        ),
       ),
     ).toBeInTheDocument();
     expect(replace).not.toHaveBeenCalled();

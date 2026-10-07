@@ -1,4 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import type React from "react";
@@ -174,15 +176,23 @@ describe("ParentEnrollPicker", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows an error state when loading fails", async () => {
-    mocks.listEnrollableSchools.mockRejectedValueOnce(new Error("offline"));
+  it("shows a failed load in place of the list, with retry", async () => {
+    mocks.listEnrollableSchools
+      .mockRejectedValueOnce(new ApiError("offline", 503))
+      .mockResolvedValueOnce([]);
 
     render(<ParentEnrollPicker />);
 
     expect(
       await screen.findByText(
-        "Die Anmeldephasen konnten nicht geladen werden.",
+        catalogText("general.unavailable", "die Liste der Anmeldephasen"),
       ),
     ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => {
+      expect(mocks.listEnrollableSchools).toHaveBeenCalledTimes(2);
+    });
   });
 });

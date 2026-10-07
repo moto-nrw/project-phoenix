@@ -22,7 +22,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -293,35 +292,11 @@ func staticConflict(message, code string) func(error) render.Renderer {
 // status codes. Unknown errors fall through to 500 to avoid leaking a
 // potentially wrong 4xx for a real database failure.
 var instanceLifecycleErrorRules = []common.ErrorRule{
-	{Target: timetable.ErrInstanceNotFound, Render: common.ErrorNotFound},
-	{
-		Match: func(err error) bool {
-			return errors.Is(err, timetable.ErrInvalidInstanceReference) ||
-				errors.Is(err, timetable.ErrInstanceWeekend) ||
-				errors.Is(err, timetable.ErrInstanceOutsideActiveCalendarPeriod) ||
-				errors.Is(err, timetable.ErrGuardianNoticeInvalid)
-		},
-		Render: common.ErrorInvalidRequest,
-	},
+	{Target: timetable.ErrInvalidInstanceReference, Render: common.ErrorInvalidRequest},
+	{Target: timetable.ErrGuardianNoticeInvalid, Render: codedOr(common.CodeTimetableGuardianNoticeInvalid)},
 	{
 		Target: timetable.ErrInstanceMoved,
 		Render: staticConflict("block was changed concurrently; reopen it and try again", common.CodeTimetableInstanceMoved),
-	},
-	{Target: timetable.ErrInvalidInstanceTransition, Render: conflictCode(common.CodeTimetableInvalidTransition)},
-	{Target: timetable.ErrInstanceStartTooEarly, Render: conflictCode(common.CodeTimetableStartTooEarly)},
-	{Target: timetable.ErrInstanceStartExpired, Render: conflictCode(common.CodeTimetableStartWindowExpired)},
-	{Target: timetable.ErrInstanceCompleteEarly, Render: conflictCode(common.CodeTimetableCompleteTooEarly)},
-	{Target: timetable.ErrCompletionConfirmationStale, Render: conflictCode(common.CodeTimetableCompletionConfirmationStale)},
-	{Target: timetable.ErrTimetableOperationForbidden, Render: common.ErrorForbidden},
-	// A full room names itself with code and, when known, numbers (#3633).
-	{Target: studentpresence.ErrRoomCapacityExceeded, Render: common.ErrorBusinessRejectionOr(studentpresence.RoomCapacityCode)},
-	{
-		Match: func(err error) bool {
-			return errors.Is(err, timetable.ErrTimetableOperationConflict) ||
-				errors.Is(err, studentpresence.ErrStudentAlreadyActive) ||
-				errors.Is(err, studentpresence.ErrRoomConflict)
-		},
-		Render: common.ErrorConflict,
 	},
 	{
 		Target: timetable.ErrUnderstaffedAckStillStaffed,
@@ -345,7 +320,9 @@ var instanceLifecycleErrorRules = []common.ErrorRule{
 
 func renderInstanceLifecycleError(w http.ResponseWriter, r *http.Request, err error) {
 	common.RenderError(w, r, common.RenderWithRules(err, instanceLifecycleErrorRules, func(err error) render.Renderer {
-		return common.ErrorInternalServerWrap("instance lifecycle failed", err)
+		return common.RenderWithRules(err, operationErrorRules, func(err error) render.Renderer {
+			return common.ErrorInternalServerWrap("instance lifecycle failed", err)
+		})
 	}))
 }
 

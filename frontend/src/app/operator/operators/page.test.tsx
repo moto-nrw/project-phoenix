@@ -1,7 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render as renderPlain,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import type { OperatorInvitationsData } from "~/lib/operator/operator-invitation-api";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
 
 const {
   mockUseSWR,
@@ -30,18 +42,8 @@ vi.mock("~/lib/operator/operator-invitation-api", () => ({
   revokeOperatorInvitation: mockRevokeInvitation,
 }));
 
-vi.mock("~/lib/operator/api-helpers", () => ({
-  isOperatorApiError: (e: unknown) =>
-    e instanceof Error && e.name === "OperatorApiError",
-}));
-
 vi.mock("~/lib/breadcrumb-context", () => ({
   useSetBreadcrumb: vi.fn(),
-}));
-
-const mockToastSuccess = vi.fn();
-vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => ({ success: mockToastSuccess }),
 }));
 
 vi.mock("~/components/ui/modal", () => ({
@@ -201,7 +203,9 @@ describe("OperatorOperatorsPage", () => {
         displayName: "New Op",
       });
     });
-    expect(mockToastSuccess).toHaveBeenCalledWith("Einladung wurde gesendet.");
+    expect(
+      await screen.findByText("Einladung wurde gesendet."),
+    ).toBeInTheDocument();
   });
 
   it("sends undefined displayName when field is empty", async () => {
@@ -224,9 +228,16 @@ describe("OperatorOperatorsPage", () => {
     });
   });
 
-  it("shows error when invite creation fails", async () => {
+  // #2519: catalog text by code in the form's alert, field marked; never
+  // the backend sentence.
+  it("shows a failed invite in the form and marks the field", async () => {
     setupSWR(sampleData);
-    mockCreateInvitation.mockRejectedValue(new Error("Server error"));
+    mockCreateInvitation.mockRejectedValue(
+      new ApiError("email already exists", 409, {
+        code: "general.business_rejection",
+        errors: [{ field: "email", reason: "taken" }],
+      }),
+    );
 
     render(<OperatorOperatorsPage />);
 
@@ -236,11 +247,52 @@ describe("OperatorOperatorsPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Einladung senden" }));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("Einladung konnte nicht gesendet werden."),
-      ).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.business_rejection", "die Einladung"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("E-Mail-Adresse *")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(screen.queryByText("email already exists")).toBeNull();
+  });
+
+  it("shows a failed resend as a toast with retry", async () => {
+    setupSWR(sampleData);
+    mockResendInvitation
+      .mockRejectedValueOnce(new ApiError("down", 503))
+      .mockResolvedValueOnce(undefined);
+
+    render(<OperatorOperatorsPage />);
+    fireEvent.click(screen.getByText("Erneut senden"));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "das erneute Senden der Einladung"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mockResendInvitation).toHaveBeenCalledTimes(2));
+  });
+
+  it("keeps a failed revoke inside the confirmation", async () => {
+    setupSWR(sampleData);
+    mockRevokeInvitation.mockRejectedValue(
+      new ApiError("gone", 404, { code: "general.input" }),
+    );
+
+    render(<OperatorOperatorsPage />);
+    fireEvent.click(screen.getByText("Widerrufen"));
+    fireEvent.click(screen.getByText("Confirm"));
+
+    const modal = screen.getByTestId("confirmation-modal");
+    await waitFor(() =>
+      expect(modal.textContent).toContain(
+        catalogText("general.input", "das Widerrufen der Einladung"),
+      ),
+    );
   });
 
   it("shows resend and revoke buttons for pending invitations", () => {
@@ -262,9 +314,9 @@ describe("OperatorOperatorsPage", () => {
     await waitFor(() => {
       expect(mockResendInvitation).toHaveBeenCalledWith("1");
     });
-    expect(mockToastSuccess).toHaveBeenCalledWith(
-      "Einladung wurde erneut gesendet.",
-    );
+    expect(
+      await screen.findByText("Einladung wurde erneut gesendet."),
+    ).toBeInTheDocument();
   });
 
   it("opens confirmation modal for revoke", () => {
@@ -290,18 +342,22 @@ describe("OperatorOperatorsPage", () => {
     await waitFor(() => {
       expect(mockRevokeInvitation).toHaveBeenCalledWith("1");
     });
-    expect(mockToastSuccess).toHaveBeenCalledWith(
-      "Einladung wurde widerrufen.",
-    );
+    expect(
+      await screen.findByText("Einladung wurde widerrufen."),
+    ).toBeInTheDocument();
   });
 
-  it("shows fetch error message", () => {
-    setupSWR(undefined, { error: new Error("Network error") });
+  it("shows a failed load with retry", async () => {
+    setupSWR(undefined, { error: new ApiError("down", 503) });
     render(<OperatorOperatorsPage />);
 
     expect(
-      screen.getByText("Daten konnten nicht geladen werden."),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Operatoren"),
+      ),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mockMutate).toHaveBeenCalled();
   });
 
   it("shows creator name and expiry for pending invitations", () => {

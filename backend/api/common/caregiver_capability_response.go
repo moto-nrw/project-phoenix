@@ -11,10 +11,12 @@ import (
 // are People Directory's wire values; the HTTP adapters pass them through as
 // strings so they need not import the owner's rows (#2736).
 type CaregiverCapabilityBlockedResponse struct {
-	HTTPStatusCode int      `json:"-"`
-	Status         string   `json:"status"`
-	ErrorText      string   `json:"error"`
-	Blockers       []string `json:"blockers"`
+	HTTPStatusCode int    `json:"-"`
+	Status         string `json:"status"`
+	ErrorText      string `json:"error"`
+	// Code is the registered code; empty takes the status class code.
+	Code     string   `json:"code,omitempty"`
+	Blockers []string `json:"blockers"`
 }
 
 func NewCaregiverCapabilityBlockedResponse(

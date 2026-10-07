@@ -17,7 +17,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -40,10 +39,10 @@ func (rs *SettingsResource) guardOperatorWrite(w http.ResponseWriter, r *http.Re
 		return false
 	}
 	if _, ok := errors.AsType[*settings.DefinitionNotFoundError](err); ok {
-		render.Render(w, r, common.OperatorNotFound(fmt.Sprintf("setting %q not found", key))) //nolint:errcheck
+		common.RenderError(w, r, common.OperatorRejection(http.StatusNotFound, common.CodeSettingsNotFound, fmt.Sprintf("setting %q not found", key)))
 		return true
 	}
-	render.Render(w, r, common.OperatorForbidden(errAdminOnlyForOperator)) //nolint:errcheck
+	common.RenderError(w, r, common.OperatorRejection(http.StatusForbidden, common.CodeSettingsAdminOnly, errAdminOnlyForOperator))
 	return true
 }
 
@@ -51,7 +50,7 @@ func guardOperatorDirectManagedSettingWrite(w http.ResponseWriter, r *http.Reque
 	if key != settings.KeyEnrollmentLegalAGBDocumentURL {
 		return false
 	}
-	render.Render(w, r, common.OperatorForbidden(errLegalAGBDocumentManagedByUpload)) //nolint:errcheck
+	common.RenderError(w, r, common.OperatorRejection(http.StatusForbidden, common.CodeSettingsManagedByUpload, errLegalAGBDocumentManagedByUpload))
 	return true
 }
 
@@ -134,7 +133,7 @@ func (rs *SettingsResource) GetSchoolSettingsSchema(w http.ResponseWriter, r *ht
 
 	schema, err := rs.settings.Schema(r.Context(), schoolID)
 	if err != nil {
-		render.Render(w, r, common.OperatorInternal("Failed to retrieve settings schema")) //nolint:errcheck
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Failed to retrieve settings schema", err))
 		return
 	}
 
@@ -151,11 +150,11 @@ func (rs *SettingsResource) GetBookingAuthorityImpact(w http.ResponseWriter, r *
 	}
 	impact, err := rs.settings.BookingAuthorityImpact(r.Context(), schoolID)
 	if errors.Is(err, settings.ErrBookingAuthorityImpactUnavailable) {
-		render.Render(w, r, common.OperatorInternal("Booking authority impact service is not configured")) //nolint:errcheck
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Booking authority impact service is not configured", err))
 		return
 	}
 	if err != nil {
-		render.Render(w, r, common.OperatorInternal("Failed to review booking authority impact")) //nolint:errcheck
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Failed to review booking authority impact", err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, impact, "Booking authority impact retrieved successfully")
@@ -177,7 +176,7 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 
 	var req setSchoolSettingRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		render.Render(w, r, common.OperatorInvalidRequest(err)) //nolint:errcheck
+		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
 
@@ -194,11 +193,11 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 		// surface the "daily end required" copy without heuristics. errors.Is
 		// keeps the branch resilient to wrapping, unlike string equality.
 		if errors.Is(err, settings.ErrPresenceModeSwitchBlocked) {
-			render.Render(w, r, common.OperatorConflict(settings.ErrPresenceModeSwitchBlocked.Error())) //nolint:errcheck
+			common.RenderError(w, r, common.OperatorRejection(http.StatusConflict, common.CodeSettingsPresenceModeSwitchBlocked, settings.ErrPresenceModeSwitchBlocked.Error()))
 			return
 		}
 		if errors.Is(err, careplan.ErrBookingAuthorityBlocked) {
-			render.Render(w, r, common.OperatorConflict(careplan.ErrBookingAuthorityBlocked.Error())) //nolint:errcheck
+			common.RenderError(w, r, common.OperatorRejection(http.StatusConflict, common.CodeSettingsBookingAuthorityBlocked, careplan.ErrBookingAuthorityBlocked.Error()))
 			return
 		}
 		renderOperatorSettingsError(w, r, err)
@@ -271,7 +270,8 @@ func (rs *SettingsResource) RevealSchoolSettingValue(w http.ResponseWriter, r *h
 func renderOperatorSettingsError(w http.ResponseWriter, r *http.Request, err error) {
 	settingsErr, ok := errors.AsType[*settings.SettingsError](err)
 	if !ok {
-		render.Render(w, r, common.OperatorInternal(err.Error())) //nolint:errcheck
+		// The cause is logged and reported, never sent to the client (#2519).
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Failed to change setting", err))
 		return
 	}
 
@@ -283,12 +283,12 @@ func renderOperatorSettingsError(w http.ResponseWriter, r *http.Request, err err
 
 	switch {
 	case errors.As(inner, &defNotFound):
-		render.Render(w, r, common.OperatorNotFound(err.Error())) //nolint:errcheck
+		common.RenderError(w, r, common.OperatorRejection(http.StatusNotFound, common.CodeSettingsNotFound, err.Error()))
 	case errors.As(inner, &invalidValue):
-		render.Render(w, r, common.OperatorInvalidRequest(err)) //nolint:errcheck
+		common.RenderError(w, r, common.OperatorInvalidRequestWithCode(err, common.CodeSettingsInvalidValue))
 	case errors.As(inner, &permDenied):
-		render.Render(w, r, common.OperatorForbidden(err.Error())) //nolint:errcheck
+		common.RenderError(w, r, common.OperatorForbidden(err.Error()))
 	default:
-		render.Render(w, r, common.OperatorInternal(err.Error())) //nolint:errcheck
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Failed to change setting", err))
 	}
 }

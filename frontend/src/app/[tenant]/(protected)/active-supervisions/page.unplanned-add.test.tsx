@@ -3,7 +3,12 @@
  * timetable check-in stubbed: the full-dashboard renders and the
  * "Kind ungeplant hinzufügen" panel (issue #2387).
  */
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import {
+  render as rtlRender,
+  screen,
+  waitFor,
+  cleanup,
+} from "@testing-library/react";
 import { useLayoutEffect } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
@@ -331,6 +336,18 @@ vi.mock("~/lib/timetable-operations-api", async (importOriginal) => {
 import { fireEvent } from "@testing-library/react";
 import { fetchStudents } from "~/lib/student-api";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
+
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+const ADD_FAILED = catalogText("general.server", "das Kind");
+
+// Aktionen melden Fehler als Toast oder im Dialog (#2517); der Provider
+// zeigt den Toast echt an.
+function render(ui: Parameters<typeof rtlRender>[0]) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 beforeEach(() => {
   vi.mocked(PageHeaderWithSearch)
@@ -918,14 +935,12 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     expect(garschagenCard).toHaveAttribute("aria-pressed", "true");
 
     vi.mocked(timetableOperationsApi.checkIn).mockRejectedValueOnce(
-      new Error("check-in failed"),
+      new ApiError("check-in failed", 500, { code: "general.server" }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
 
     await waitFor(() => {
-      expect(
-        screen.getByText("Kind konnte nicht zur Aktivität hinzugefügt werden."),
-      ).toBeInTheDocument();
+      expect(screen.getByText(ADD_FAILED)).toBeInTheDocument();
     });
     expect(garschagenCard).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeEnabled();
@@ -937,33 +952,25 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
       ).not.toBeInTheDocument(),
     );
     fireEvent.click(screen.getByRole("button", { name: "Kind hinzufügen" }));
-    expect(
-      screen.queryByText("Kind konnte nicht zur Aktivität hinzugefügt werden."),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(ADD_FAILED)).not.toBeInTheDocument();
 
     await searchFor("Marie");
     fireEvent.click(
       await screen.findByRole("button", { name: /Marie Garschagen/ }),
     );
     vi.mocked(timetableOperationsApi.checkIn).mockRejectedValueOnce(
-      new Error("check-in failed"),
+      new ApiError("check-in failed", 500, { code: "general.server" }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
 
-    await screen.findByText(
-      "Kind konnte nicht zur Aktivität hinzugefügt werden.",
-    );
+    await screen.findByText(ADD_FAILED);
     currentRosterData = {
       ...rosterData,
       instance: { ...rosterData.instance, id: "100", title: "Sport" },
     };
     rerender(<MeinRaumPage />);
     await waitFor(() =>
-      expect(
-        screen.queryByText(
-          "Kind konnte nicht zur Aktivität hinzugefügt werden.",
-        ),
-      ).not.toBeInTheDocument(),
+      expect(screen.queryByText(ADD_FAILED)).not.toBeInTheDocument(),
     );
 
     fireEvent.click(

@@ -1,7 +1,7 @@
 import { announceEnrollmentReadChange } from "~/lib/enrollment-unread-api";
-import { apiErrorFromResponse, type ApiError } from "~/lib/api-error";
+import { unavailableApiError, type ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
-import { readEnrollmentError } from "~/lib/enrollment-error-messages";
+import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import type {
   CareOfferingSelectionMode,
   PublicEnrollmentBootstrap,
@@ -309,7 +309,19 @@ async function readJSON<T>(response: Response): Promise<T> {
   return raw as unknown as T;
 }
 
-async function readError(response: Response, fallback: string): Promise<Error> {
+/** A request that never reached the API counts as unavailable (#2515). */
+async function send(input: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    throw unavailableApiError(error);
+  }
+}
+
+async function readError(
+  response: Response,
+  fallback: string,
+): Promise<ApiError> {
   return readEnrollmentError(
     response,
     fallback,
@@ -334,7 +346,7 @@ export async function listAdminRequests(
   if (filters.childStatus)
     url.searchParams.set("child_status", filters.childStatus);
   const path = `${url.pathname}${url.search}`;
-  const response = await fetch(path, { cache: "no-store" });
+  const response = await send(path, { cache: "no-store" });
   if (!response.ok) {
     throw await readError(response, "Anmeldungen konnten nicht geladen werden");
   }
@@ -343,7 +355,7 @@ export async function listAdminRequests(
 }
 
 export async function getAdminRequest(id: string): Promise<AdminRequestDetail> {
-  const response = await fetch(`${BASE}/${encodeURIComponent(id)}`, {
+  const response = await send(`${BASE}/${encodeURIComponent(id)}`, {
     cache: "no-store",
   });
   if (!response.ok) {
@@ -357,7 +369,7 @@ export async function setAdminRequestRead(
   id: string,
   read: boolean,
 ): Promise<void> {
-  const response = await fetch(`${BASE}/${encodeURIComponent(id)}/read`, {
+  const response = await send(`${BASE}/${encodeURIComponent(id)}/read`, {
     method: read ? "PUT" : "DELETE",
   });
   if (!response.ok) {
@@ -371,7 +383,7 @@ export async function setAdminRequestRead(
 
 /** Markiert alle ungelesenen Anmeldungen der Person als gelesen. */
 export async function markAllAdminRequestsRead(): Promise<void> {
-  const response = await fetch(`${BASE}/mark-all-read`, { method: "POST" });
+  const response = await send(`${BASE}/mark-all-read`, { method: "POST" });
   if (!response.ok) {
     throw await readError(
       response,
@@ -389,7 +401,7 @@ export function announceAdminRequestOpened() {
 export async function getAdminRequestDeleteImpact(
   requestId: string,
 ): Promise<AdminEnrollmentDeletionImpact> {
-  const response = await fetch(
+  const response = await send(
     `${BASE}/${encodeURIComponent(requestId)}/delete-impact`,
     { cache: "no-store" },
   );
@@ -406,7 +418,7 @@ export async function getAdminChildDeleteImpact(
   requestId: string,
   childId: string,
 ): Promise<AdminEnrollmentDeletionImpact> {
-  const response = await fetch(
+  const response = await send(
     `${BASE}/${encodeURIComponent(requestId)}/children/${encodeURIComponent(childId)}/delete-impact`,
     { cache: "no-store" },
   );
@@ -423,7 +435,7 @@ export async function deleteAdminRequest(
   requestId: string,
   reason: string,
 ): Promise<AdminEnrollmentDeletionImpact> {
-  const response = await fetch(`${BASE}/${encodeURIComponent(requestId)}`, {
+  const response = await send(`${BASE}/${encodeURIComponent(requestId)}`, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ reason }),
@@ -453,7 +465,7 @@ export interface AdminRestoreResult {
 export async function restoreAdminRequest(
   requestId: string,
 ): Promise<AdminRestoreResult> {
-  const response = await fetch(
+  const response = await send(
     `${BASE}/${encodeURIComponent(requestId)}/restore`,
     { method: "POST" },
   );
@@ -471,7 +483,7 @@ export async function deleteAdminChild(
   childId: string,
   reason: string,
 ): Promise<AdminEnrollmentDeletionImpact> {
-  const response = await fetch(
+  const response = await send(
     `${BASE}/${encodeURIComponent(requestId)}/children/${encodeURIComponent(childId)}`,
     {
       method: "DELETE",
@@ -510,7 +522,7 @@ export async function createLateInvite(
   phaseId: string,
   input: CreateLateInviteInput,
 ): Promise<CreateLateInviteResult> {
-  const response = await fetch(
+  const response = await send(
     `${PHASE_BASE}/${encodeURIComponent(phaseId)}/late-invites`,
     {
       method: "POST",
@@ -530,7 +542,7 @@ export async function createLateInvite(
 export async function fetchManualEnrollmentBootstrap(
   phaseId: string,
 ): Promise<PublicEnrollmentBootstrap> {
-  const response = await fetch(
+  const response = await send(
     `${PHASE_BASE}/${encodeURIComponent(phaseId)}/manual-bootstrap`,
     { cache: "no-store" },
   );
@@ -553,7 +565,7 @@ export async function createManualApprovedEnrollment(
   phaseId: string,
   input: CreateManualApprovedEnrollmentInput,
 ): Promise<SubmitEnrollmentResult> {
-  const response = await fetch(
+  const response = await send(
     `${PHASE_BASE}/${encodeURIComponent(phaseId)}/manual-approved-enrollments`,
     {
       method: "POST",
@@ -570,36 +582,15 @@ export async function createManualApprovedEnrollment(
   return readJSON<SubmitEnrollmentResult>(response);
 }
 
-/**
- * The Kinder area shows errors through the shared display path (#2513): it
- * needs the code, field errors and request ID, not a finished sentence.
- */
-async function readStudentRequestsError(
-  response: Response,
-  fallback: string,
-): Promise<ApiError> {
-  const error = await apiErrorFromResponse(response, fallback);
-  const context = { status: response.status, code: error.code };
-  if (response.status >= 500) {
-    logger.error("enrollment_admin_request_failed", context);
-  } else {
-    logger.warn("enrollment_admin_request_failed", context);
-  }
-  return error;
-}
-
 export async function listStudentEnrollmentRequests(
   studentId: string,
 ): Promise<AdminRequestSummary[]> {
-  const response = await fetch(
+  const response = await send(
     `/api/enrollment/admin/students/${encodeURIComponent(studentId)}/requests`,
     { cache: "no-store" },
   );
   if (!response.ok) {
-    throw await readStudentRequestsError(
-      response,
-      "Anmeldungen konnten nicht geladen werden",
-    );
+    throw await readError(response, "Anmeldungen konnten nicht geladen werden");
   }
   const list = await readJSON<AdminRequestSummary[]>(response);
   return Array.isArray(list) ? list : [];
@@ -609,7 +600,7 @@ export async function exportStudentEnrollmentRequests(
   studentId: string,
   format: EnrollmentRequestExportFormat,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await send(
     `/api/enrollment/admin/students/${encodeURIComponent(studentId)}/requests/export`,
     {
       method: "POST",
@@ -619,10 +610,7 @@ export async function exportStudentEnrollmentRequests(
   );
 
   if (!response.ok) {
-    throw await readStudentRequestsError(
-      response,
-      "Export konnte nicht erstellt werden",
-    );
+    throw await readError(response, "Export konnte nicht erstellt werden");
   }
 
   const blob = await response.blob();
@@ -646,7 +634,7 @@ export async function decideAdminChild(
   // The deep dynamic /requests/[id]/children/[childId]/decide path
   // hits a Turbopack dev bug where the route disappears after cache
   // compaction; this collapsed shape keeps Next dev stable.
-  const response = await fetch(`/api/enrollment/admin/decide`, {
+  const response = await send(`/api/enrollment/admin/decide`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -670,7 +658,7 @@ export async function updateAdminChildOfferings(
   childId: string,
   input: UpdateAdminChildOfferingsInput,
 ): Promise<AdminRequestChild> {
-  const response = await fetch(`/api/enrollment/admin/offerings`, {
+  const response = await send(`/api/enrollment/admin/offerings`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -695,7 +683,7 @@ export async function correctAdminChildData(
   childId: string,
   input: CorrectAdminChildDataInput,
 ): Promise<AdminChildDataCorrectionResult> {
-  const response = await fetch(`/api/enrollment/admin/data-correction`, {
+  const response = await send(`/api/enrollment/admin/data-correction`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -723,7 +711,7 @@ export async function listAdminChildOfferingAdjustments(
   );
   url.searchParams.set("request_id", requestId);
   url.searchParams.set("child_id", childId);
-  const response = await fetch(`${url.pathname}${url.search}`, {
+  const response = await send(`${url.pathname}${url.search}`, {
     cache: "no-store",
   });
   if (!response.ok) {
@@ -750,7 +738,7 @@ export async function listAdminEnrollmentChangeRequests(
   );
   if (filters.requestId) url.searchParams.set("request_id", filters.requestId);
   if (filters.status) url.searchParams.set("status", filters.status);
-  const response = await fetch(`${url.pathname}${url.search}`, {
+  const response = await send(`${url.pathname}${url.search}`, {
     cache: "no-store",
   });
   if (!response.ok) {
@@ -766,7 +754,7 @@ export async function listAdminEnrollmentChangeRequests(
 export async function getAdminEnrollmentChangeRequest(
   id: string,
 ): Promise<AdminEnrollmentChangeRequest> {
-  const response = await fetch(
+  const response = await send(
     `${CHANGE_REQUEST_BASE}/${encodeURIComponent(id)}`,
     { cache: "no-store" },
   );
@@ -783,7 +771,7 @@ export async function askEnrollmentChangeRequestQuestion(
   id: string,
   body: string,
 ): Promise<AdminEnrollmentChangeRequest> {
-  const response = await fetch(
+  const response = await send(
     `${CHANGE_REQUEST_BASE}/${encodeURIComponent(id)}/question`,
     {
       method: "POST",
@@ -801,7 +789,7 @@ export async function approveEnrollmentChangeRequest(
   id: string,
   note: string,
 ): Promise<AdminEnrollmentChangeRequest> {
-  const response = await fetch(
+  const response = await send(
     `${CHANGE_REQUEST_BASE}/${encodeURIComponent(id)}/approve`,
     {
       method: "POST",
@@ -822,7 +810,7 @@ export async function rejectEnrollmentChangeRequest(
   id: string,
   note: string,
 ): Promise<AdminEnrollmentChangeRequest> {
-  const response = await fetch(
+  const response = await send(
     `${CHANGE_REQUEST_BASE}/${encodeURIComponent(id)}/reject`,
     {
       method: "POST",

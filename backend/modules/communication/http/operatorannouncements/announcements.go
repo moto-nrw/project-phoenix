@@ -149,11 +149,11 @@ func (rs *AnnouncementsResource) CreateAnnouncement(w http.ResponseWriter, r *ht
 	}
 
 	if req.Title == "" {
-		common.RenderError(w, r, common.OperatorInvalidRequest(errors.New("title is required")))
+		common.RenderError(w, r, common.OperatorInvalidField(common.CodeGeneralInput, "title", "title is required"))
 		return
 	}
 	if req.Content == "" {
-		common.RenderError(w, r, common.OperatorInvalidRequest(errors.New("content is required")))
+		common.RenderError(w, r, common.OperatorInvalidField(common.CodeGeneralInput, "content", "content is required"))
 		return
 	}
 
@@ -313,7 +313,7 @@ func AnnouncementErrorRenderer(err error) render.Renderer {
 
 	switch {
 	case errors.As(err, &notFound):
-		return common.OperatorNotFound("Announcement not found")
+		return common.OperatorRejection(http.StatusNotFound, common.CodeCommunicationAnnouncementNotFound, "Announcement not found")
 	case errors.As(err, &invalidData):
 		return common.OperatorInvalidRequest(err)
 	default:

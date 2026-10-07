@@ -216,7 +216,9 @@ func (rs *Resource) callerAccountID(w http.ResponseWriter, r *http.Request) (int
 
 func (rs *Resource) renderServiceError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, peopledirectory.ErrStaffNotFound) {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("kein Personaldatensatz für dieses Konto")))
+		// The settings card hides itself on this code: the opt-out only
+		// applies to accounts with a staff record (#2517).
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("no staff record for this account"), common.CodeWorkforceStaffProfileMissing))
 		return
 	}
 	common.RenderError(w, r, common.ErrorInternalServer(err))

@@ -76,12 +76,12 @@ func (p *Provisioning) validateSchoolCreate(ctx context.Context, school organiza
 	if taken, err := p.schoolBySlug(ctx, school.OrganizationID, school.Slug); err != nil {
 		return err
 	} else if taken != nil {
-		return &organizationtenancy.ProvisioningConflictError{Err: errors.New("school slug already exists in this organization")}
+		return &organizationtenancy.ProvisioningConflictError{Kind: organizationtenancy.ConflictSchoolSlug, Err: errors.New("school slug already exists in this organization")}
 	}
 	if taken, err := p.schoolBySubdomain(ctx, school.Subdomain); err != nil {
 		return err
 	} else if taken != nil {
-		return &organizationtenancy.ProvisioningConflictError{Err: errors.New("school subdomain already exists")}
+		return &organizationtenancy.ProvisioningConflictError{Kind: organizationtenancy.ConflictSchoolSubdomain, Err: errors.New("school subdomain already exists")}
 	}
 	return nil
 }
@@ -242,7 +242,7 @@ func (p *Provisioning) schoolChangeSet(ctx context.Context, existing organizatio
 			return nil, err
 		}
 		if taken != nil && taken.ID != existing.ID {
-			return nil, &organizationtenancy.ProvisioningConflictError{Err: errors.New("school slug already exists in this organization")}
+			return nil, &organizationtenancy.ProvisioningConflictError{Kind: organizationtenancy.ConflictSchoolSlug, Err: errors.New("school slug already exists in this organization")}
 		}
 		if changes.Slug != existing.Slug {
 			diff["slug"] = map[string]string{"old": existing.Slug, "new": changes.Slug}
@@ -254,7 +254,7 @@ func (p *Provisioning) schoolChangeSet(ctx context.Context, existing organizatio
 			return nil, err
 		}
 		if taken != nil && taken.ID != existing.ID {
-			return nil, &organizationtenancy.ProvisioningConflictError{Err: errors.New("school subdomain already exists")}
+			return nil, &organizationtenancy.ProvisioningConflictError{Kind: organizationtenancy.ConflictSchoolSubdomain, Err: errors.New("school subdomain already exists")}
 		}
 		diff["subdomain"] = map[string]string{"old": existing.Subdomain, "new": changes.Subdomain}
 	}

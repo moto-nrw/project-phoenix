@@ -2,7 +2,11 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { ApiError, unavailableApiError } from "~/lib/api-error";
 import type { ClosingDay } from "~/lib/closing-day-helpers";
+import { catalogText } from "~/test/error-catalog-text";
 
 // The factory is hoisted above the imports, so the mock helper has to be
 // pulled in inside it rather than at the top of the file.
@@ -32,17 +36,21 @@ vi.mock("~/lib/logger", () => ({
 }));
 
 vi.mock("~/components/ui/form-modal", () => ({
+  // Wie der echte FormModal: der Fehler steht oben im Bearbeitungsbereich.
   FormModal: ({
     isOpen,
     children,
     footer,
+    error,
   }: {
     isOpen: boolean;
     children: ReactNode;
     footer?: ReactNode;
+    error?: FormErrorInput;
   }) =>
     isOpen ? (
       <div>
+        <FormErrorAlert message={error} />
         {children}
         {footer}
       </div>
@@ -149,7 +157,7 @@ describe("ClosingDayModal", () => {
     );
   });
 
-  it("offers nothing when no appointment is left or counting fails", async () => {
+  it("offers nothing when no appointment is left or cancelling is not allowed", async () => {
     const onOfferCancel = vi.fn();
     const { rerender } = render(
       <ClosingDayModal
@@ -171,7 +179,9 @@ describe("ClosingDayModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await waitFor(() => expect(mockBulkCancel).toHaveBeenCalledOnce());
 
-    mockBulkCancel.mockRejectedValueOnce(new Error("Forbidden"));
+    mockBulkCancel.mockRejectedValueOnce(
+      new ApiError("Forbidden", 403, { code: "general.permission" }),
+    );
     rerender(
       <ClosingDayModal
         isOpen
@@ -186,6 +196,31 @@ describe("ClosingDayModal", () => {
 
     expect(onOfferCancel).not.toHaveBeenCalled();
     expect(mockUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it("still offers the cancel dialog when counting fails for another reason", async () => {
+    const onOfferCancel = vi.fn();
+    render(
+      <ClosingDayModal
+        isOpen
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        initial={existingClosingDay}
+        onOfferCancel={onOfferCancel}
+      />,
+    );
+    mockBulkCancel.mockRejectedValueOnce(
+      unavailableApiError(new TypeError("Failed to fetch")),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(onOfferCancel).toHaveBeenCalledWith({
+        startDate: existingClosingDay.startDate,
+        endDate: existingClosingDay.endDate,
+      }),
+    );
   });
 
   it("updates the selected closing day", async () => {
@@ -207,7 +242,7 @@ describe("ClosingDayModal", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("rejects a whitespace-only reason before calling the API", () => {
+  it("rejects a whitespace-only reason before calling the API", async () => {
     renderModal();
 
     fireEvent.change(screen.getByLabelText("Grund"), {
@@ -221,10 +256,109 @@ describe("ClosingDayModal", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Bitte einen Grund angeben.",
+    expect(
+      await screen.findByText("Bitte prüfen Sie die markierten Felder."),
+    ).toBeInTheDocument();
+    // Der Hinweis steht am Feld, das Feld ist markiert.
+    expect(screen.getByLabelText("Grund")).toHaveAttribute(
+      "aria-invalid",
+      "true",
     );
+    expect(
+      screen.getByText("Bitte geben Sie einen Grund an."),
+    ).toBeInTheDocument();
     expect(mockCreate).not.toHaveBeenCalled();
     expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("marks an end before the start at the end field", async () => {
+    renderModal();
+
+    fireEvent.change(screen.getByLabelText("Grund"), {
+      target: { value: "Brückentag" },
+    });
+    fireEvent.change(screen.getByLabelText("Von"), {
+      target: { value: "2026-09-14" },
+    });
+    fireEvent.change(screen.getByLabelText("Bis"), {
+      target: { value: "2026-09-10" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        "Der letzte Tag darf nicht vor dem ersten liegen.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  // #2516: Katalogtext statt Serversatz, Wiederholen mit dem aktuellen Stand.
+  it("keeps a failed save in the dialog and retries with the current reason", async () => {
+    mockUpdate
+      .mockRejectedValueOnce(
+        new ApiError("closing day kaputt", 500, { code: "general.server" }),
+      )
+      .mockResolvedValueOnce(existingClosingDay);
+    const { onClose, onSaved } = renderModal(existingClosingDay);
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "das Speichern des Schließtags"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/closing day kaputt/)).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Grund"), {
+      target: { value: "Weihnachtsferien" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenLastCalledWith("7", {
+        start_date: "2026-12-24",
+        end_date: "2026-12-31",
+        reason: "Weihnachtsferien",
+      }),
+    );
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(onSaved).toHaveBeenCalledOnce();
+  });
+
+  it("marks the field the server names", async () => {
+    mockCreate.mockRejectedValueOnce(
+      new ApiError("invalid", 400, {
+        code: "general.input",
+        errors: [{ field: "reason", reason: "too long" }],
+      }),
+    );
+    renderModal();
+
+    fireEvent.change(screen.getByLabelText("Grund"), {
+      target: { value: "Pädagogischer Tag" },
+    });
+    fireEvent.change(screen.getByLabelText("Von"), {
+      target: { value: "2026-09-14" },
+    });
+    fireEvent.change(screen.getByLabelText("Bis"), {
+      target: { value: "2026-09-14" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.input", "das Speichern des Schließtags"),
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByLabelText("Grund")).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      ),
+    );
+    expect(screen.queryByText(/too long/)).not.toBeInTheDocument();
   });
 });

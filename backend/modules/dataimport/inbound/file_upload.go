@@ -2,6 +2,7 @@ package importapi
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -48,9 +49,14 @@ func (rs *Resource) openValidatedUploadFile(w http.ResponseWriter, r *http.Reque
 	r.Body = http.MaxBytesReader(w, r.Body, maxFileSize)
 
 	// Parse multipart form
-	if r.ParseMultipartForm(maxFileSize) != nil {
+	if err := r.ParseMultipartForm(maxFileSize); err != nil {
 		render.Status(r, http.StatusBadRequest)
-		rs.runtime.Failure(w, r, Failure{Status: http.StatusBadRequest, Cause: fmt.Errorf("datei zu groß (max 10MB)")})
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			rs.runtime.Failure(w, r, uploadFailure(codeImportFileTooLarge, fmt.Errorf("datei zu groß (max 10MB)")))
+		} else {
+			rs.runtime.Failure(w, r, uploadFailure(codeImportFileUnreadable, fmt.Errorf("datei kann nicht gelesen werden")))
+		}
 		return nil, nil, false, false
 	}
 
@@ -58,7 +64,7 @@ func (rs *Resource) openValidatedUploadFile(w http.ResponseWriter, r *http.Reque
 	file, header, err := r.FormFile("file")
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
-		rs.runtime.Failure(w, r, Failure{Status: http.StatusBadRequest, Cause: fmt.Errorf("datei fehlt")})
+		rs.runtime.Failure(w, r, uploadFailure(codeImportFileMissing, fmt.Errorf("datei fehlt")))
 		return nil, nil, false, false
 	}
 
@@ -66,7 +72,7 @@ func (rs *Resource) openValidatedUploadFile(w http.ResponseWriter, r *http.Reque
 	if !isValidImportFile(header) {
 		_ = file.Close()
 		render.Status(r, http.StatusBadRequest)
-		rs.runtime.Failure(w, r, Failure{Status: http.StatusBadRequest, Cause: fmt.Errorf("ungültiger Dateityp (nur CSV oder Excel erlaubt)")})
+		rs.runtime.Failure(w, r, uploadFailure(codeImportFileTypeInvalid, fmt.Errorf("ungültiger Dateityp (nur CSV oder Excel erlaubt)")))
 		return nil, nil, false, false
 	}
 
@@ -75,7 +81,7 @@ func (rs *Resource) openValidatedUploadFile(w http.ResponseWriter, r *http.Reque
 	if err := verifyFileContent(file, header); err != nil {
 		_ = file.Close()
 		render.Status(r, http.StatusBadRequest)
-		rs.runtime.Failure(w, r, Failure{Status: http.StatusBadRequest, Cause: err})
+		rs.runtime.Failure(w, r, uploadFailure(codeImportFileTypeInvalid, err))
 		return nil, nil, false, false
 	}
 
@@ -98,7 +104,7 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 	rows, err := rs.files.Students(file, uploadFormat(isExcel))
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
-		rs.runtime.Failure(w, r, Failure{Status: http.StatusBadRequest, Cause: fmt.Errorf("Datei-Fehler: %s", err.Error())})
+		rs.runtime.Failure(w, r, decodeFailure(err))
 		return nil, false
 	}
 
@@ -124,7 +130,7 @@ func (rs *Resource) validateAndParseStaffFile(w http.ResponseWriter, r *http.Req
 	rows, err := rs.files.Staff(file, uploadFormat(isExcel))
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
-		rs.runtime.Failure(w, r, Failure{Status: http.StatusBadRequest, Cause: fmt.Errorf("Datei-Fehler: %s", err.Error())})
+		rs.runtime.Failure(w, r, decodeFailure(err))
 		return nil, false
 	}
 

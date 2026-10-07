@@ -7,6 +7,7 @@ const logger = createLogger({ component: "DatabasePage" });
 import Link from "~/components/ui/navigation-link";
 import { redirect } from "next/navigation";
 import { CollectionGrid } from "~/components/ui/collection-grid";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { Skeleton } from "~/components/ui/skeleton";
 import { TileCard } from "~/components/ui/tile-card";
@@ -16,6 +17,8 @@ import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { DatabaseCardGridSkeleton } from "./page-skeleton";
 import { formatCount } from "~/lib/format-utils";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 
 import { hasEffectiveAdminScope } from "~/lib/auth-utils";
 import { hasAnyDatabasePagePermission } from "~/lib/section-navigation";
@@ -87,12 +90,17 @@ const EMPTY_DATABASE_COUNTS: DatabaseCounts = {
 };
 
 async function fetchDatabaseCounts(url: string): Promise<DatabaseCounts> {
-  const response = await fetch(url);
+  const response = await transportFetch(url);
+  // Ohne Recht auf die Zähler bleiben sie still leer: welche Kachel jemand
+  // sieht, entscheidet das Recht der Route, nicht diese Abfrage.
   if (response.status === 401 || response.status === 403) {
     return EMPTY_DATABASE_COUNTS;
   }
   if (!response.ok) {
-    throw new Error(`Database counts request failed (${response.status})`);
+    throw await apiErrorFromResponse(
+      response,
+      `Database counts request failed (${response.status})`,
+    );
   }
   const result = (await response.json()) as {
     data: DatabaseCounts;
@@ -245,7 +253,12 @@ function DatabaseContent() {
   // Personen ohne config:read zur Verfügung.
   const timetableEnabled = useTimetableEnabled();
   const tenantPath = useTenantAwarePath();
-  const { data, isLoading: countsLoading } = useSWR(
+  const {
+    data,
+    error: countsError,
+    isLoading: countsLoading,
+    mutate: mutateCounts,
+  } = useSWR(
     session?.user ? "/api/database/counts" : null,
     fetchDatabaseCounts,
     {
@@ -257,13 +270,21 @@ function DatabaseContent() {
     },
   );
   const counts = data ?? EMPTY_DATABASE_COUNTS;
+  // Ein Ladefehler ist nie „0 Einträge“: die Kacheln bleiben bedienbar, die
+  // Zahl fehlt, und der Fehler steht darüber (#2517).
+  const countsLoadError = useSwrLoadError(
+    data === undefined ? countsError : undefined,
+    "die Zahl der Einträge",
+    () => mutateCounts(),
+  );
+  const countsMissing = data === undefined && countsError !== undefined;
 
   if (!session?.user) {
     redirect("/");
   }
 
   const showSkeleton = countsLoading && data === undefined;
-  const statusLine = buildDatabaseStatusLine(counts);
+  const statusLine = countsMissing ? null : buildDatabaseStatusLine(counts);
 
   return (
     <TenantPage
@@ -285,6 +306,8 @@ function DatabaseContent() {
         </Link>
         .
       </p>
+
+      <LoadErrorAlert error={countsLoadError} />
 
       {showSkeleton ? (
         <DatabaseCardGridSkeleton />
@@ -315,7 +338,11 @@ function DatabaseContent() {
             const entryLabel = count === 1 ? "Eintrag" : "Einträge";
             const countText =
               section.badge ??
-              (countsLoading ? "Lädt…" : `${count} ${entryLabel}`);
+              (countsLoading
+                ? "Lädt…"
+                : countsMissing
+                  ? "Nicht geladen"
+                  : `${count} ${entryLabel}`);
             const badgeLoading = section.badge === undefined && countsLoading;
             const concept = MOTO_CONCEPTS[section.concept];
 

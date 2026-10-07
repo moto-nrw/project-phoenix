@@ -318,6 +318,7 @@ export function StepTermin({
         <Field label="Datum" htmlFor="event_date" required>
           <ISODatePicker
             id="event_date"
+            name="date"
             controlSize="md"
             value={form.date}
             error={fieldErrors.date}

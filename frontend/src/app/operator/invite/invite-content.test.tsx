@@ -1,6 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render as renderPlain,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
 
 const { mockEstablish, mockValidate, mockAccept } = vi.hoisted(() => ({
   mockEstablish: vi.fn(),
@@ -33,7 +45,7 @@ describe("InviteContent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockEstablish.mockResolvedValue("flow-123");
-    mockValidate.mockRejectedValue(new Error("Kein Token angegeben."));
+    mockValidate.mockRejectedValue(new ApiError("not found", 404));
     // Reset URL (strips any leftover ?token=... from a prior test)
     window.history.pushState({}, "", "/operator/invite");
   });
@@ -42,11 +54,14 @@ describe("InviteContent", () => {
     render(<InviteContent />);
 
     await waitFor(() => {
-      expect(screen.getByText("Einladung ungültig")).toBeInTheDocument();
+      expect(screen.getByText("Einladung nicht geöffnet")).toBeInTheDocument();
     });
     expect(
-      screen.getByText("Kein Einladungsvorgang angegeben."),
+      await screen.findByText(
+        catalogText("identity.invitation_not_found", "die Einladung"),
+      ),
     ).toBeInTheDocument();
+    expect(mockValidate).not.toHaveBeenCalled();
   });
 
   it("validates token from URL query and shows form", async () => {
@@ -101,19 +116,42 @@ describe("InviteContent", () => {
     expect(mockValidate).toHaveBeenCalledWith("existing-flow");
   });
 
+  // #2519: catalog text by code, never the backend sentence.
   it("shows error state when validation fails", async () => {
     setQueryToken("expired-token");
     mockValidate.mockRejectedValue(
-      new Error("Dieser Link ist abgelaufen oder ungültig"),
+      new ApiError("invitation expired", 410, {
+        code: "identity.invitation_expired",
+      }),
     );
 
     render(<InviteContent />);
 
     await waitFor(() => {
-      expect(screen.getByText("Einladung ungültig")).toBeInTheDocument();
+      expect(screen.getByText("Einladung nicht geöffnet")).toBeInTheDocument();
     });
     expect(
-      screen.getByText("Dieser Link ist abgelaufen oder ungültig"),
+      await screen.findByText(
+        catalogText("identity.invitation_expired", "die Einladung"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("invitation expired")).toBeNull();
+  });
+
+  it("retries a validation that could not reach the server", async () => {
+    setQueryFlow("flow-1");
+    mockValidate
+      .mockRejectedValueOnce(new ApiError("down", 503))
+      .mockResolvedValueOnce({
+        email: "test@example.com",
+        expiresAt: "2026-04-06T00:00:00Z",
+      });
+
+    render(<InviteContent />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Wiederholen" }));
+    expect(
+      await screen.findByText("Operator-Konto erstellen"),
     ).toBeInTheDocument();
   });
 
@@ -211,7 +249,12 @@ describe("InviteContent", () => {
       displayName: "Test",
       expiresAt: "2026-04-06T00:00:00Z",
     });
-    mockAccept.mockRejectedValue(new Error("Passwort zu schwach"));
+    mockAccept.mockRejectedValue(
+      new ApiError("password too weak", 400, {
+        code: "identity.password_too_weak",
+        errors: [{ field: "password", reason: "too_weak" }],
+      }),
+    );
 
     render(<InviteContent />);
 
@@ -231,9 +274,16 @@ describe("InviteContent", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Konto erstellen" }));
 
-    await waitFor(() => {
-      expect(screen.getByText("Passwort zu schwach")).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("identity.password_too_weak", "die Erstellung des Kontos"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Passwort *")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(screen.queryByText("password too weak")).toBeNull();
   });
 
   it("shows validation error for empty display name on submit", async () => {
@@ -266,9 +316,13 @@ describe("InviteContent", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Anzeigename ist erforderlich."),
-      ).toBeInTheDocument();
+        screen.getAllByText("Bitte geben Sie einen Anzeigenamen ein.").length,
+      ).toBeGreaterThan(0);
     });
+    expect(screen.getByLabelText("Anzeigename *")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
     expect(mockAccept).not.toHaveBeenCalled();
   });
 
@@ -309,7 +363,7 @@ describe("InviteContent", () => {
     render(<InviteContent />);
 
     await waitFor(() => {
-      expect(screen.getByText("Einladung ungültig")).toBeInTheDocument();
+      expect(screen.getByText("Einladung nicht geöffnet")).toBeInTheDocument();
     });
     expect(screen.getByText("Zur Anmeldung")).toBeInTheDocument();
   });

@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { RolloverForm } from "~/components/enrollment/rollover-form";
 import { getPhase, type Phase } from "~/lib/enrollment-phase-api";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
@@ -21,23 +22,36 @@ export default function MobileRolloverPage({ params }: PageProps) {
   const tenantPath = useTenantAwarePath();
   const tenantMutate = useTenantMutate();
   const [phase, setPhase] = useState<Phase | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const phaseLoad = useApiLoadError();
+  const showLoadError = phaseLoad.show;
+  const clearLoadError = phaseLoad.clear;
+  // Bumped by „Wiederholen“ to load the phase again.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!isReady) return;
+    let cancelled = false;
+    clearLoadError();
     getPhase(id)
-      .then(setPhase)
-      .catch((err: unknown) => {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Phase konnte nicht geladen werden";
-        logger.error("rollover_phase_load_failed", { error: message });
-        setError(message);
+      .then((loaded) => {
+        if (!cancelled) setPhase(loaded);
+      })
+      .catch(async (err: unknown) => {
+        if (cancelled) return;
+        logger.error("rollover_phase_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        await showLoadError(err, {
+          object: "die Anmeldephase",
+          retry: () => setAttempt((current) => current + 1),
+        });
       });
-  }, [isReady, id]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isReady, id, attempt, showLoadError, clearLoadError]);
 
-  if (!isReady || (phase === null && error === null)) {
+  if (!isReady || (phase === null && !phaseLoad.error)) {
     return (
       <TenantPage
         title="Anschlussphase erstellen"
@@ -58,7 +72,7 @@ export default function MobileRolloverPage({ params }: PageProps) {
         back
         backHref="/enrollment-phases"
         backLabel="Zurück zu den Anmeldephasen"
-        error={error}
+        error={phaseLoad.error}
       />
     );
   }

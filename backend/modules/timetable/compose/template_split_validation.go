@@ -185,7 +185,8 @@ func validateSplitRecurrence(in TemplateSplitInput, today timezone.Date) error {
 		return fmt.Errorf("%w: effective_date is required", timetable.ErrSplitInvalidInput)
 	}
 	if in.EffectiveDate.Before(today) {
-		return fmt.Errorf("%w: effective_date must not be in the past", timetable.ErrSplitInvalidInput)
+		return timetable.WithCode(fmt.Errorf("%w: effective_date must not be in the past", timetable.ErrSplitInvalidInput),
+			timetable.CodeTemplateSplitInPast)
 	}
 	return nil
 }
@@ -225,7 +226,8 @@ func validateTemplateEndInput(in timetable.EndTemplateCommand, today timezone.Da
 		return fmt.Errorf("%w: effective_date is required", timetable.ErrSplitInvalidInput)
 	}
 	if in.EffectiveDate.Before(today) {
-		return fmt.Errorf("%w: effective_date must not be in the past", timetable.ErrSplitInvalidInput)
+		return timetable.WithCode(fmt.Errorf("%w: effective_date must not be in the past", timetable.ErrSplitInvalidInput),
+			timetable.CodeTemplateSplitInPast)
 	}
 	return nil
 }

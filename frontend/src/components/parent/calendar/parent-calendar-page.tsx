@@ -6,6 +6,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -29,7 +30,6 @@ import {
   ParentPageHeader,
   ParentSectionSkeleton,
 } from "~/components/parent/parent-page";
-import { Alert } from "~/components/ui/alert";
 import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { Button } from "~/components/ui/button";
 import {
@@ -40,12 +40,21 @@ import {
   DrawerTitle,
 } from "~/components/ui/drawer";
 import { EmptyState } from "~/components/ui/empty-state";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
   StatusBadge,
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import {
   berlinTodayISO,
   isValidISODate,
@@ -222,7 +231,13 @@ export function ParentCalendarPage() {
   );
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  // A failed load replaces list and month grid with retry (#2518), so it
+  // never reads as "no appointments".
+  const {
+    error,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const seqRef = useRef(0);
 
@@ -236,22 +251,32 @@ export function ParentCalendarPage() {
       );
       if (seq !== seqRef.current) return;
       setEvents(response.events);
-      setError(false);
+      clearLoadError();
     } catch (err) {
       if (seq !== seqRef.current) return;
       logger.warn("parent_calendar_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(true);
+      void showLoadError(err, {
+        object: t("errorObjectList"),
+        retry: () => void loadRef.current(),
+      });
     } finally {
       if (seq === seqRef.current) setLoading(false);
     }
-  }, [rangeEnd, today]);
+  }, [clearLoadError, rangeEnd, showLoadError, t, today]);
+  // The retry runs the latest load, not the one of the failed attempt.
+  const loadRef = useRef(load);
+  useLayoutEffect(() => {
+    loadRef.current = load;
+  });
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  // Throws on failure: the surface the person pressed shows the error (the
+  // row as a toast, the open details in place).
   const respond = async (
     event: CalendarEvent,
     status: "accepted" | "declined",
@@ -270,7 +295,7 @@ export function ParentCalendarPage() {
       logger.warn("parent_calendar_respond_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error(t("respondError"));
+      throw err;
     } finally {
       setRespondingId(null);
     }
@@ -305,47 +330,49 @@ export function ParentCalendarPage() {
         description={t("description")}
       />
 
-      {error ? <Alert type="error" message={t("loadError")} /> : null}
-
-      <div className="grid items-stretch gap-5 lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]">
-        {hasEvents ? (
-          <CalendarEventList
-            groups={groupedEvents}
-            locale={locale}
-            respondingId={respondingId}
-            onRespond={respond}
-          />
-        ) : !error ? (
-          <section className="moto-content-surface h-full rounded-2xl border p-5 shadow-sm sm:p-6">
-            <EmptyState
-              icon={<CalendarDotsIcon className="size-8" />}
-              title={t("empty")}
+      {error ? (
+        <LoadErrorAlert error={error} />
+      ) : (
+        <div className="grid items-stretch gap-5 lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]">
+          {hasEvents ? (
+            <CalendarEventList
+              groups={groupedEvents}
+              locale={locale}
+              respondingId={respondingId}
+              onRespond={respond}
             />
-          </section>
-        ) : null}
+          ) : (
+            <section className="moto-content-surface h-full rounded-2xl border p-5 shadow-sm sm:p-6">
+              <EmptyState
+                icon={<CalendarDotsIcon className="size-8" />}
+                title={t("empty")}
+              />
+            </section>
+          )}
 
-        <div className="hidden h-full lg:col-start-2 lg:block">
-          <CalendarMonthPanel
-            events={events}
-            referenceDate={referenceDate}
-            today={today}
-            rangeEnd={rangeEnd}
-            locale={locale}
-            respondingId={respondingId}
-            canGoBack={referenceDate > monthReference(today)}
-            canGoForward={referenceDate < lastLoadedMonth}
-            onChangeMonth={(offset) => {
-              const next = new Date(
-                referenceDate.getFullYear(),
-                referenceDate.getMonth() + offset,
-                1,
-              );
-              setReferenceDate(next);
-            }}
-            onRespond={respond}
-          />
+          <div className="hidden h-full lg:col-start-2 lg:block">
+            <CalendarMonthPanel
+              events={events}
+              referenceDate={referenceDate}
+              today={today}
+              rangeEnd={rangeEnd}
+              locale={locale}
+              respondingId={respondingId}
+              canGoBack={referenceDate > monthReference(today)}
+              canGoForward={referenceDate < lastLoadedMonth}
+              onChangeMonth={(offset) => {
+                const next = new Date(
+                  referenceDate.getFullYear(),
+                  referenceDate.getMonth() + offset,
+                  1,
+                );
+                setReferenceDate(next);
+              }}
+              onRespond={respond}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       <CalendarSubscribePanel />
     </ParentPage>
@@ -433,6 +460,41 @@ function CalendarEventList({
   );
 }
 
+type RespondStatus = "accepted" | "declined";
+type ApiErrorShow = ReturnType<typeof useApiErrorDisplay>["show"];
+
+/**
+ * Sends one RSVP and hands a failure to `show` with retry. The retry runs the
+ * latest `onRespond`, not the one of the failed attempt.
+ */
+function useRespondWithError(
+  onRespond: (status: RespondStatus) => Promise<void>,
+  show: ApiErrorShow,
+  before?: () => void,
+) {
+  const t = useTranslations("parentCalendar");
+  const onRespondRef = useRef(onRespond);
+  const beforeRef = useRef(before);
+  useLayoutEffect(() => {
+    onRespondRef.current = onRespond;
+    beforeRef.current = before;
+  });
+  return useCallback(
+    async function run(status: RespondStatus): Promise<void> {
+      beforeRef.current?.();
+      try {
+        await onRespondRef.current(status);
+      } catch (err) {
+        void show(err, {
+          object: t("errorObjectResponse"),
+          retry: () => void run(status),
+        });
+      }
+    },
+    [show, t],
+  );
+}
+
 function CalendarListEvent({
   event,
   locale,
@@ -445,6 +507,9 @@ function CalendarListEvent({
   onRespond: (status: "accepted" | "declined") => Promise<void>;
 }>) {
   const t = useTranslations("parentCalendar");
+  // The row's own buttons sit in the list, so their error is a toast.
+  const { show: showRespondError } = useApiErrorDisplay();
+  const respondInRow = useRespondWithError(onRespond, showRespondError);
   const state = eventState(event);
   const colors = eventColors(event);
   const date = formatCalendarDate(event.start_date, locale, {
@@ -523,7 +588,7 @@ function CalendarListEvent({
               variant="primary"
               size="md"
               isLoading={responding}
-              onClick={() => void onRespond("accepted")}
+              onClick={() => void respondInRow("accepted")}
             >
               {t("accept")}
             </Button>
@@ -532,7 +597,7 @@ function CalendarListEvent({
               variant="outline_danger"
               size="md"
               disabled={responding}
-              onClick={() => void onRespond("declined")}
+              onClick={() => void respondInRow("declined")}
             >
               {t("decline")}
             </Button>
@@ -882,6 +947,17 @@ function CalendarEventDetails({
   onRespond: (status: "accepted" | "declined") => Promise<void>;
 }>) {
   const t = useTranslations("parentCalendar");
+  // The details are an open popover or drawer, so the error stays inside.
+  const {
+    error: respondError,
+    show: showRespondError,
+    clear: clearRespondError,
+  } = useApiFormError();
+  const respondHere = useRespondWithError(
+    onRespond,
+    showRespondError,
+    clearRespondError,
+  );
 
   return (
     <>
@@ -945,26 +1021,29 @@ function CalendarEventDetails({
       </div>
       {state === "needsResponse" ? (
         <div
-          className={`flex items-center justify-end gap-2 border-t border-gray-100 px-4 py-3 ${mobile ? "pb-[calc(0.75rem+env(safe-area-inset-bottom))]" : ""}`}
+          className={`border-t border-gray-100 px-4 py-3 ${mobile ? "pb-[calc(0.75rem+env(safe-area-inset-bottom))]" : ""}`}
         >
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            isLoading={responding}
-            onClick={() => void onRespond("accepted")}
-          >
-            {t("accept")}
-          </Button>
-          <Button
-            type="button"
-            variant="outline_danger"
-            size="md"
-            disabled={responding}
-            onClick={() => void onRespond("declined")}
-          >
-            {t("decline")}
-          </Button>
+          <FormErrorAlert message={respondError} className="mb-3" />
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              isLoading={responding}
+              onClick={() => void respondHere("accepted")}
+            >
+              {t("accept")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline_danger"
+              size="md"
+              disabled={responding}
+              onClick={() => void respondHere("declined")}
+            >
+              {t("decline")}
+            </Button>
+          </div>
         </div>
       ) : null}
     </>

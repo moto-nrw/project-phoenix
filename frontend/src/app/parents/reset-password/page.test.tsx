@@ -1,6 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import deMessages from "~/i18n/messages/de.json";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
@@ -64,6 +67,30 @@ describe("ParentResetPasswordPage", () => {
     expect(
       screen.getByRole("button", { name: "Passwort ändern" }),
     ).toBeDisabled();
+  });
+
+  it("shows a failed reset with the translated object of the shared path", async () => {
+    confirmParentPasswordReset.mockRejectedValue(
+      new ApiError("diag", 503, { code: "general.unavailable" }),
+    );
+    render(<ParentResetPasswordPage />);
+
+    fireEvent.change(screen.getByLabelText("Neues Passwort"), {
+      target: { value: "Sicher!123" },
+    });
+    fireEvent.change(screen.getByLabelText("Passwort bestätigen"), {
+      target: { value: "Sicher!123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Passwort ändern" }));
+
+    expect(
+      await screen.findByText(
+        catalogText(
+          "general.unavailable",
+          deMessages.parentPasswordResetPage.errorObject,
+        ),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("links back to the parents login via parentPath", () => {

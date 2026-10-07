@@ -5,6 +5,7 @@ import {
   RoomDetailSkeleton,
   useRoomDetail,
 } from "./room-detail-content";
+import { catalogText } from "~/test/error-catalog-text";
 
 // Die Seite /rooms/[id] verbindet Hook, Skelett und Inhalt; dieser Harness
 // tut dasselbe in kleinstem Umfang, damit die Hook-Zweige (Antwortformen der
@@ -13,7 +14,8 @@ function RoomDetailHarness({ roomId }: { readonly roomId: string }) {
   const { room, history, loading, error, historyDisabled, historyError } =
     useRoomDetail(roomId);
   if (loading) return <RoomDetailSkeleton />;
-  if (error || !room) return <div>{error ?? "Raum nicht gefunden"}</div>;
+  if (error || !room)
+    return <div>{error?.message ?? "Raum nicht gefunden"}</div>;
   return (
     <>
       <h1>{room.name}</h1>
@@ -177,7 +179,11 @@ const Wrapper = ({ children }: { children: React.ReactNode }) => (
   <>{children}</>
 );
 
-type FetchResponse = { ok: boolean; json: () => Promise<unknown> };
+type FetchResponse = {
+  ok: boolean;
+  status?: number;
+  json: () => Promise<unknown>;
+};
 const mockFetch = vi.fn();
 
 const originalFetch = globalThis.fetch;
@@ -197,6 +203,7 @@ const okJson = (body: unknown): FetchResponse => ({
 
 const notOk = (): FetchResponse => ({
   ok: false,
+  status: 500,
   json: async () => ({}),
 });
 
@@ -360,8 +367,8 @@ describe("useRoomDetail (via harness)", () => {
     );
     expect(screen.queryByText("Belegungshistorie")).not.toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Die Belegungshistorie konnte nicht geladen werden. Bitte laden Sie die Seite neu.",
+      await screen.findByText(
+        catalogText("general.server", "die Belegungshistorie"),
       ),
     ).toBeInTheDocument();
   });
@@ -375,11 +382,36 @@ describe("useRoomDetail (via harness)", () => {
       </Wrapper>,
     );
 
-    await waitFor(() =>
-      expect(
-        screen.getByText("Fehler beim Laden der Raumdaten."),
-      ).toBeInTheDocument(),
+    expect(
+      await screen.findByText(catalogText("general.server", "die Raumseite")),
+    ).toBeInTheDocument();
+  });
+
+  it("names a deleted or unknown room instead of asking to check the input (#2517)", async () => {
+    const body = {
+      status: "error",
+      error: "room not found",
+      code: "rooms.not_found",
+    };
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      json: async () => body,
+      text: async () => JSON.stringify(body),
+    });
+
+    render(
+      <Wrapper>
+        <RoomDetailHarness roomId="room-deleted" />
+      </Wrapper>,
     );
+
+    expect(
+      await screen.findByText(catalogText("rooms.not_found", "die Raumseite")),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(catalogText("general.input", "die Raumseite")),
+    ).not.toBeInTheDocument();
   });
 
   it("falls back through name → room_name → '' when name is missing", async () => {

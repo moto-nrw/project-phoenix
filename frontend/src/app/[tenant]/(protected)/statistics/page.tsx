@@ -16,6 +16,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { DateRange } from "react-day-picker";
@@ -35,6 +36,12 @@ import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
+import {
+  ApiError,
+  apiErrorFromResponse,
+  transportFetch,
+} from "~/lib/api-error";
 import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
 import {
   berlinTodayISO,
@@ -49,11 +56,9 @@ import {
   formatHours,
   formatRate,
   EXPORT_FILENAME_STEM,
-  StatisticsError,
   statisticsExportUrl,
   type StatisticsCourseRow,
   type StatisticsCourseStudentRow,
-  type StatisticsErrorCode,
   type StatisticsExportFormat,
   type StatisticsExportSection,
   type StatisticsGroupRow,
@@ -84,13 +89,9 @@ const COURSE_VIEW_ITEMS: readonly { value: CourseView; label: string }[] = [
   { value: "by-child", label: "Je Kind" },
 ];
 
-const ERROR_MESSAGES: Record<StatisticsErrorCode, string> = {
-  forbidden:
-    "Ihr Konto darf die Statistik nicht sehen. Bitte wenden Sie sich an Ihre Administration.",
-  invalid_request:
-    "Der Zeitraum ist ungültig. Er darf höchstens ein Jahr umfassen und nicht in der Zukunft enden.",
-  unknown: "Die Statistik konnte nicht geladen werden.",
-};
+/** Fehlendes Recht ist ein Zustand mit eigener Seite, kein Ladefehler. */
+const FORBIDDEN_MESSAGE =
+  "Ihr Konto darf die Statistik nicht sehen. Bitte wenden Sie sich an Ihre Administration.";
 
 function addDays(d: Date, days: number): Date {
   const r = new Date(d);
@@ -114,9 +115,15 @@ export default function StatisticsPage() {
   const [courseView, setCourseView] = useState<CourseView>("by-course");
   const [data, setData] = useState<StatisticsReport | null>(null);
   const [loading, setLoading] = useState(true);
-  const [errorCode, setErrorCode] = useState<StatisticsErrorCode | null>(null);
+  const [forbidden, setForbidden] = useState(false);
+  // Ladefehler im Gerüst mit Wiederholen, Exportfehler als Toast (#2517).
+  const load = useApiLoadError();
+  const { show: showLoadError, clear: clearLoadError } = load;
+  const [reloadKey, setReloadKey] = useState(0);
+  const [failed, setFailed] = useState(false);
   const [exporting, setExporting] = useState<string | null>(null);
-  const [exportError, setExportError] = useState<string | null>(null);
+  const { show: showExportError } = useApiErrorDisplay();
+  const retryExportRef = useRef<() => void>(() => undefined);
 
   const groupOptions = useMemo(
     () =>
@@ -133,7 +140,9 @@ export default function StatisticsPage() {
     if (!fromISO || !toISO) return;
     let cancelled = false;
     setLoading(true);
-    setErrorCode(null);
+    setForbidden(false);
+    setFailed(false);
+    clearLoadError();
     fetchStatisticsReport(fromISO, toISO, groupIds)
       .then((report) => {
         if (cancelled) return;
@@ -143,13 +152,19 @@ export default function StatisticsPage() {
       .catch((error: unknown) => {
         if (cancelled) return;
         setData(null);
-        setErrorCode(
-          error instanceof StatisticsError ? error.legacyCode : "unknown",
-        );
         logger.error("statistics_fetch_failed", {
           from: fromISO,
           to: toISO,
           error: error instanceof Error ? error.message : String(error),
+        });
+        if (error instanceof ApiError && error.status === 403) {
+          setForbidden(true);
+          return;
+        }
+        setFailed(true);
+        void showLoadError(error, {
+          object: "die Statistik",
+          retry: () => setReloadKey((key) => key + 1),
         });
       })
       .finally(() => {
@@ -158,7 +173,7 @@ export default function StatisticsPage() {
     return () => {
       cancelled = true;
     };
-  }, [fromISO, toISO, groupIds]);
+  }, [fromISO, toISO, groupIds, reloadKey, showLoadError, clearLoadError]);
 
   const downloadExport = useCallback(
     async (
@@ -167,14 +182,12 @@ export default function StatisticsPage() {
     ) => {
       if (!fromISO || !toISO) return;
       setExporting(`${section}-${format}`);
-      setExportError(null);
       try {
-        const res = await fetch(
+        const res = await transportFetch(
           statisticsExportUrl(fromISO, toISO, format, groupIds, section),
         );
         if (!res.ok) {
-          setExportError("Export fehlgeschlagen. Bitte erneut versuchen.");
-          return;
+          throw await apiErrorFromResponse(res, "statistics export failed");
         }
         const blob = await res.blob();
         const disposition = res.headers.get("Content-Disposition") ?? "";
@@ -193,12 +206,16 @@ export default function StatisticsPage() {
         logger.error("statistics_export_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
-        setExportError("Export fehlgeschlagen. Bitte erneut versuchen.");
+        retryExportRef.current = () => void downloadExport(format, section);
+        void showExportError(error, {
+          object: "die Exportdatei",
+          retry: () => retryExportRef.current(),
+        });
       } finally {
         setExporting(null);
       }
     },
-    [fromISO, toISO, groupIds],
+    [fromISO, toISO, groupIds, showExportError],
   );
 
   // Anchor 365 days back: the backend allows at most 366 days inclusive,
@@ -759,10 +776,8 @@ export default function StatisticsPage() {
 
   // Fehlendes Recht ist ein Zustand, kein Fehler: eigener ruhiger Leerzustand
   // statt einer roten Fehlermeldung (Querregel "Zustände").
-  if (errorCode === "forbidden") {
-    return (
-      <ForbiddenPage title="Statistik" message={ERROR_MESSAGES.forbidden} />
-    );
+  if (forbidden) {
+    return <ForbiddenPage title="Statistik" message={FORBIDDEN_MESSAGE} />;
   }
 
   return (
@@ -770,8 +785,9 @@ export default function StatisticsPage() {
       title="Statistik"
       stats={statusLine}
       statsLoading={loading}
-      loading={loading}
-      error={errorCode !== null ? ERROR_MESSAGES[errorCode] : null}
+      // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett.
+      loading={loading || (failed && load.error === null)}
+      error={load.error}
       tabs={{
         value: view,
         onChange: (next) => setView(next as StatisticsView),
@@ -838,8 +854,6 @@ export default function StatisticsPage() {
         </PlanningContextBar>
       }
     >
-      {exportError && <Alert type="error" message={exportError} />}
-
       {data && headline && (
         <>
           {/* Kennzahlen des Zeitraums als eigene Karte; die Tabelle darunter

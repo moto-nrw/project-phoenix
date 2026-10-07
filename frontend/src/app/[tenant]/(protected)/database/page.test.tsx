@@ -1,4 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import DatabasePage from "./page";
 import { mockSessionData } from "~/test/mocks/next-auth";
@@ -332,7 +334,9 @@ describe("DatabasePage", () => {
 
   it("handles fetch error gracefully", async () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const error = new Error("Network error");
+    const error = new ApiError("Network error", 503, {
+      code: "general.unavailable",
+    });
     vi.mocked(useSWR).mockImplementation(((
       _key: unknown,
       _fetcher: unknown,
@@ -355,6 +359,14 @@ describe("DatabasePage", () => {
         error: "Network error",
       });
     });
+    // Ein Ladefehler ist nie „0 Einträge“ (#2517).
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Zahl der Einträge"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("0 Einträge")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Nicht geladen").length).toBeGreaterThan(0);
 
     consoleSpy.mockRestore();
   });

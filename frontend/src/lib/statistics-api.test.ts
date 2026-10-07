@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchStatisticsReport, StatisticsError } from "./statistics-api";
+import { ApiError } from "./api-error";
+import { fetchStatisticsReport } from "./statistics-api";
 
 describe("fetchStatisticsReport errors", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("separates backend code from the existing forbidden display code", async () => {
+  it("carries the backend code, details, field errors and request ID", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -24,8 +25,7 @@ describe("fetchStatisticsReport errors", () => {
     await expect(
       fetchStatisticsReport("2026-09-01", "2026-09-09"),
     ).rejects.toMatchObject({
-      name: "StatisticsError",
-      legacyCode: "forbidden",
+      name: "ApiError",
       code: "statistics.report_forbidden",
       status: 403,
       details: { report: "attendance" },
@@ -45,11 +45,21 @@ describe("fetchStatisticsReport errors", () => {
     );
 
     const failure = fetchStatisticsReport("2026-09-01", "2026-09-09");
-    await expect(failure).rejects.toBeInstanceOf(StatisticsError);
+    await expect(failure).rejects.toBeInstanceOf(ApiError);
     await expect(failure).rejects.toMatchObject({
-      legacyCode: "invalid_request",
       code: "general.input",
       status: 400,
     });
+  });
+
+  it("turns a request that never reached the API into general.unavailable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new TypeError("Failed to fetch")),
+    );
+
+    await expect(
+      fetchStatisticsReport("2026-09-01", "2026-09-09"),
+    ).rejects.toMatchObject({ code: "general.unavailable" });
   });
 });

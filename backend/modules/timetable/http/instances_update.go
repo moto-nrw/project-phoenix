@@ -34,19 +34,20 @@ func (req *updateInstanceRequest) Bind(_ *http.Request) error {
 	if req.Date == "" {
 		return errors.New("date is required (YYYY-MM-DD)")
 	}
+	invalid := common.CodeTimetableInstanceInvalid
 	if req.Title == "" {
-		return errors.New("title is required")
+		return invalidField(invalid, "title", "title is required")
 	}
 	if len(req.Title) > 255 {
-		return errors.New("title cannot exceed 255 characters")
+		return invalidField(invalid, "title", "title cannot exceed 255 characters")
 	}
 	if req.StartTime == "" || req.EndTime == "" {
-		return errors.New("start_time and end_time are required")
+		return invalidField(invalid, "start_time", "start_time and end_time are required")
 	}
 	// 0 = no room: only an occurrence of a duty may omit it (#3822); the
 	// service checks the linked template. Without a template it is required.
 	if req.RoomID < 0 || (req.RoomID == 0 && req.ActivityGroupID == nil) {
-		return errors.New("room_id is required")
+		return invalidField(invalid, "room_id", "room_id is required")
 	}
 	return nil
 }
@@ -63,7 +64,7 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 	}
 	req := &updateInstanceRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, bindErrorRenderer(err))
 		return
 	}
 	date, startTime, endTime, ok := parseUpdatedInstanceSlot(w, r, req)
@@ -125,7 +126,7 @@ func parseUpdatedInstanceSlot(w http.ResponseWriter, r *http.Request, req *updat
 		return date, startTime, endTime, false
 	}
 	if !endTime.After(startTime) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("end_time must be after start_time")))
+		common.RenderError(w, r, invalidOnField(common.CodeTimetableInstanceEndBeforeStart, "end_time", "end_time must be after start_time"))
 		return date, startTime, endTime, false
 	}
 	return date, startTime, endTime, true

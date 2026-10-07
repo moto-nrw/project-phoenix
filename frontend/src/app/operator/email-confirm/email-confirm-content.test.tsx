@@ -1,5 +1,22 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render as renderPlain,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
+
+const OBJECT = "die Bestätigung der E-Mail-Adresse";
+
+function errorResponse(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), { status });
+}
 
 const { mockUseSession, mockUpdateSession, mockFetch } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
@@ -74,7 +91,11 @@ describe("EmailConfirmContent", () => {
       expect(
         screen.getByText("Bestätigung fehlgeschlagen"),
       ).toBeInTheDocument();
-      expect(screen.getByText("Kein Token angegeben.")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Der Link enthält keinen Bestätigungscode. Bitte öffnen Sie den Link aus der E-Mail erneut.",
+        ),
+      ).toBeInTheDocument();
     });
   });
 
@@ -95,7 +116,7 @@ describe("EmailConfirmContent", () => {
         screen.getByText("Bestätigung fehlgeschlagen"),
       ).toBeInTheDocument();
     });
-    expect(screen.queryByText("Erneut versuchen")).not.toBeInTheDocument();
+    expect(screen.queryByText("Wiederholen")).not.toBeInTheDocument();
   });
 
   it("shows idle state with confirm button when token is provided", async () => {
@@ -246,150 +267,55 @@ describe("EmailConfirmContent", () => {
     });
   });
 
-  it("shows retryable error on 5xx response", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      json: async () => ({ error: "Serverfehler" }),
-    });
-
+  async function confirmWith(response: unknown) {
+    if (response instanceof Error) mockFetch.mockRejectedValueOnce(response);
+    else mockFetch.mockResolvedValueOnce(response);
     setQueryToken("test-token");
     render(<EmailConfirmContent />);
+    fireEvent.click(await screen.findByText("Jetzt bestätigen"));
+    expect(
+      await screen.findByText("Bestätigung fehlgeschlagen"),
+    ).toBeInTheDocument();
+  }
 
-    await waitFor(() => {
-      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText("Jetzt bestätigen"));
+  // #2519: catalog text by code, retry only for server and unavailable
+  // errors, never the backend sentence.
+  it("shows a server error with retry", async () => {
+    await confirmWith(errorResponse(500, { error: "Serverfehler" }));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("Bestätigung fehlgeschlagen"),
-      ).toBeInTheDocument();
-      expect(screen.getByText("Serverfehler")).toBeInTheDocument();
-      expect(screen.getByText("Erneut versuchen")).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(catalogText("general.server", OBJECT)),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Wiederholen")).toBeInTheDocument();
+    expect(screen.queryByText("Serverfehler")).toBeNull();
   });
 
-  it("uses default 5xx error message when response has no error field", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 503,
-      json: async () => ({}),
-    });
+  it("shows an expired link by its code without retry", async () => {
+    await confirmWith(
+      errorResponse(400, {
+        error: "Token abgelaufen",
+        code: "general.input",
+      }),
+    );
 
-    setQueryToken("test-token");
-    render(<EmailConfirmContent />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText("Jetzt bestätigen"));
-
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          "Ein Serverfehler ist aufgetreten. Bitte versuche es später erneut.",
-        ),
-      ).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(catalogText("general.input", OBJECT)),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Wiederholen")).not.toBeInTheDocument();
+    expect(screen.queryByText("Token abgelaufen")).toBeNull();
   });
 
-  it("shows the backend error of a 502", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 502,
-      json: async () => ({ status: "error", error: "Bad Gateway" }),
-    });
+  it("shows a network failure as unavailable with retry", async () => {
+    await confirmWith(new TypeError("Failed to fetch"));
 
-    setQueryToken("test-token");
-    render(<EmailConfirmContent />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText("Jetzt bestätigen"));
-
-    await waitFor(() => {
-      expect(screen.getByText("Bad Gateway")).toBeInTheDocument();
-    });
-  });
-
-  it("shows non-retryable error on 4xx response", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      json: async () => ({ error: "Token abgelaufen" }),
-    });
-
-    setQueryToken("test-token");
-    render(<EmailConfirmContent />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText("Jetzt bestätigen"));
-
-    await waitFor(() => {
-      expect(
-        screen.getByText("Bestätigung fehlgeschlagen"),
-      ).toBeInTheDocument();
-      expect(screen.getByText("Token abgelaufen")).toBeInTheDocument();
-      expect(screen.queryByText("Erneut versuchen")).not.toBeInTheDocument();
-    });
-  });
-
-  it("uses default 4xx error message when response has no error field", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      json: async () => ({}),
-    });
-
-    setQueryToken("test-token");
-    render(<EmailConfirmContent />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText("Jetzt bestätigen"));
-
-    await waitFor(() => {
-      expect(
-        screen.getByText("Dieser Link ist abgelaufen oder ungültig."),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("shows retryable error on network failure", async () => {
-    mockFetch.mockRejectedValueOnce(new Error("Network error"));
-
-    setQueryToken("test-token");
-    render(<EmailConfirmContent />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText("Jetzt bestätigen"));
-
-    await waitFor(() => {
-      expect(
-        screen.getByText("Bestätigung fehlgeschlagen"),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText(
-          "Ein Fehler ist aufgetreten. Bitte versuche es später erneut.",
-        ),
-      ).toBeInTheDocument();
-      expect(screen.getByText("Erneut versuchen")).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(catalogText("general.unavailable", OBJECT)),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Wiederholen")).toBeInTheDocument();
   });
 
   it("handles retry after error", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      json: async () => ({ error: "Serverfehler" }),
-    });
+    mockFetch.mockResolvedValueOnce(errorResponse(500, {}));
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -398,17 +324,9 @@ describe("EmailConfirmContent", () => {
 
     setQueryToken("test-token");
     render(<EmailConfirmContent />);
+    fireEvent.click(await screen.findByText("Jetzt bestätigen"));
 
-    await waitFor(() => {
-      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText("Jetzt bestätigen"));
-
-    await waitFor(() => {
-      expect(screen.getByText("Erneut versuchen")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Erneut versuchen"));
+    fireEvent.click(await screen.findByText("Wiederholen"));
 
     await waitFor(() => {
       expect(screen.getByText("E-Mail-Adresse geändert")).toBeInTheDocument();

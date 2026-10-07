@@ -62,10 +62,10 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 
 		switch {
 		case passwordResetLinkUnusable(err):
-			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid or expired reset token")))
+			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(errors.New("invalid or expired reset token"), common.CodeIdentityPasswordResetLinkInvalid))
 			return
 		case passwordTooWeak(err):
-			common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrPasswordTooWeak))
+			common.RenderError(w, r, common.ErrorInvalidOnField(identityaccess.ErrPasswordTooWeak, common.CodeIdentityPasswordTooWeak, "new_password"))
 			return
 		}
 

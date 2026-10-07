@@ -56,7 +56,7 @@ vi.mock("@/lib/database/service-factory", () => ({
     getOne: mockGetOne,
     create: mockCreate,
     update: mockUpdate,
-    delete: mockDelete,
+    remove: mockDelete,
   })),
 }));
 
@@ -761,7 +761,7 @@ describe("StudentsPage", () => {
         getOne: mockGetOne,
         create: mockCreate,
         update: mockUpdate,
-        delete: mockDelete,
+        remove: mockDelete,
       });
 
       let capturedStudentsFetcher: (() => Promise<unknown>) | null = null;
@@ -824,7 +824,7 @@ describe("StudentsPage", () => {
         getOne: mockGetOne,
         create: mockCreate,
         update: mockUpdate,
-        delete: mockDelete,
+        remove: mockDelete,
       });
 
       let capturedStudentsFetcher: (() => Promise<unknown>) | null = null;

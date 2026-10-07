@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
-import { Alert } from "~/components/ui/alert";
+import { formErrorMessage } from "~/components/ui/form-error";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Loading } from "~/components/ui/loading";
 import { mutate } from "~/lib/swr";
@@ -13,6 +17,7 @@ import {
   performStartStaffPreview,
   type StaffPreviewCandidate,
 } from "~/lib/staff-preview-api";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StaffPreviewModal" });
@@ -38,11 +43,23 @@ export function StaffPreviewModal({ isOpen, onClose }: StaffPreviewModalProps) {
   );
   const [selectedId, setSelectedId] = useState("");
   const [isStarting, setIsStarting] = useState(false);
-  const [error, setError] = useState("");
+  // Erhöht sich bei „Wiederholen“ und lädt die Liste neu.
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [loadFailed, setLoadFailed] = useState(false);
+  // Fehler bleiben im offenen Dialog (#2517): Laden mit Wiederholen,
+  // Starten im Fehlerkasten über der Auswahl.
+  const loadError = useApiLoadError();
+  const showLoadError = loadError.show;
+  const clearLoadError = loadError.clear;
+  const startError = useApiFormError();
+  const clearStartError = startError.clear;
+  const latestStartRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     if (!isOpen) return;
-    setError("");
+    clearLoadError();
+    clearStartError();
+    setLoadFailed(false);
     setSelectedId("");
     setCandidates(null);
     let cancelled = false;
@@ -56,20 +73,22 @@ export function StaffPreviewModal({ isOpen, onClose }: StaffPreviewModalProps) {
         });
         if (!cancelled) {
           setCandidates([]);
-          setError(
-            "Die Liste konnte nicht geladen werden. Bitte versuchen Sie es noch einmal.",
-          );
+          setLoadFailed(true);
+          void showLoadError(err, {
+            object: "die Liste der Personen",
+            retry: () => setLoadAttempt((attempt) => attempt + 1),
+          });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [isOpen]);
+  }, [isOpen, loadAttempt, showLoadError, clearLoadError, clearStartError]);
 
   const handleStart = async () => {
     if (!selectedId || isStarting) return;
     setIsStarting(true);
-    setError("");
+    startError.clear();
     try {
       await performStartStaffPreview(selectedId, update, mutate);
       // Volle Neuladung auf der aktuellen Seite: ab jetzt rendert alles mit
@@ -79,12 +98,17 @@ export function StaffPreviewModal({ isOpen, onClose }: StaffPreviewModalProps) {
       logger.error("staff_preview_start_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        "Die Vorschau konnte nicht gestartet werden. Bitte versuchen Sie es noch einmal.",
-      );
       setIsStarting(false);
+      await startError.show(err, {
+        object: "die Vorschau",
+        retry: () => latestStartRef.current(),
+      });
     }
   };
+  // „Wiederholen“ startet mit der dann gewählten Person.
+  useLayoutEffect(() => {
+    latestStartRef.current = () => void handleStart();
+  });
 
   const options = (candidates ?? []).map((candidate) => ({
     value: candidate.accountId,
@@ -121,11 +145,15 @@ export function StaffPreviewModal({ isOpen, onClose }: StaffPreviewModalProps) {
           können dabei nur lesen, nichts ändern.
         </p>
 
-        {error && <Alert type="error" message={error} />}
+        <FormErrorAlert message={startError.error} />
+        <LoadErrorAlert error={loadError.error} />
 
-        {candidates === null ? (
+        {/* Bis der Fehlertext da ist, bleibt der Ladezustand stehen, nie
+            „Keine Person gefunden“ für eine Liste, die nie geladen wurde. */}
+        {candidates === null ||
+        (loadFailed && formErrorMessage(loadError.error) === null) ? (
           <Loading fullPage={false} />
-        ) : candidates.length === 0 && !error ? (
+        ) : candidates.length === 0 && !loadFailed ? (
           <p className="text-sm text-gray-500">
             Keine Person gefunden, die Sie ansehen können.
           </p>

@@ -414,6 +414,8 @@ describe("/staff — Berechtigungs-Split", () => {
     expect(
       screen.queryByText("Keine Personen gefunden."),
     ).not.toBeInTheDocument();
+    // #2517: keine Zählung aus einer Liste, die nie geladen wurde.
+    expect(screen.queryByText(/0 Personen/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 

@@ -59,6 +59,9 @@ const TRIGGER_BASE_CLASS =
 
 const DEFAULT_TRIGGER_CLASS =
   "moto-content-surface h-10 w-full hover:border-gray-300";
+// `moto-content-surface` is unlayered and beats the red border and tint, so
+// an invalid trigger drops it (frontend-ui-kit: neutral branch only).
+const INVALID_TRIGGER_CLASS = "h-10 w-full";
 
 export function CustomSelect({
   value,
@@ -127,9 +130,10 @@ export function CustomSelect({
         placeholder={placeholder}
         triggerRole="combobox"
         testId={testId}
-        className={`${TRIGGER_BASE_CLASS} ${triggerClassName ?? DEFAULT_TRIGGER_CLASS} ${
-          invalid ? "border-moto-red bg-moto-red/5" : ""
-        } ${className}`}
+        className={`${TRIGGER_BASE_CLASS} ${
+          triggerClassName ??
+          (invalid ? INVALID_TRIGGER_CLASS : DEFAULT_TRIGGER_CLASS)
+        } ${invalid ? "border-moto-red bg-moto-red/5" : ""} ${className}`}
         menuClassName={`scrollbar-thin overflow-y-auto moto-popover-surface rounded-xl border py-1 ${menuClassName}`}
         optionClassName="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
         activeOptionClassName="flex w-full items-center gap-2 bg-gray-50 px-4 py-2 text-left text-sm font-medium text-gray-900 transition-colors"

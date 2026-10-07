@@ -1,5 +1,19 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render as renderPlain,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
+
+const SAVE_OBJECT = "die Änderung am Kinderkontingent";
 
 const { mockUpdateSchool, mockLoggerError } = vi.hoisted(() => ({
   mockUpdateSchool: vi.fn(),
@@ -22,7 +36,6 @@ vi.mock("~/lib/logger", () => ({
 }));
 
 import { ChildQuotaModal } from "./child-quota-modal";
-import { OperatorApiError } from "~/lib/operator/api-helpers";
 import type { SchoolSummary } from "~/lib/operator/provisioning-helpers";
 
 const school: SchoolSummary = {
@@ -241,14 +254,12 @@ describe("ChildQuotaModal", () => {
 
   it("does not save from stale school data when refreshing the school fails", async () => {
     const { onClose, loadCurrentSchool } = renderModal();
-    loadCurrentSchool.mockRejectedValue(new Error("refresh failed"));
+    loadCurrentSchool.mockRejectedValue(new ApiError("refresh failed", 503));
 
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(
-      await screen.findByText(
-        "Das Kinderkontingent wurde nicht gespeichert. Bitte versuchen Sie es erneut.",
-      ),
+      await screen.findByText(catalogText("general.unavailable", SAVE_OBJECT)),
     ).toBeInTheDocument();
     expect(mockUpdateSchool).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
@@ -256,17 +267,21 @@ describe("ChildQuotaModal", () => {
 
   it("closes after saving when the subsequent refresh fails", async () => {
     const { onClose, onUpdated } = renderModal();
-    onUpdated.mockRejectedValue(new Error("refresh failed"));
+    onUpdated.mockRejectedValue(new ApiError("refresh failed", 500));
 
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(mockUpdateSchool).toHaveBeenCalled();
     expect(
-      screen.queryByText(
-        "Das Kinderkontingent wurde nicht gespeichert. Bitte versuchen Sie es erneut.",
-      ),
+      screen.queryByText(catalogText("general.server", SAVE_OBJECT)),
     ).not.toBeInTheDocument();
+    // #2519: the stale list is reported instead of failing silently.
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Liste der Schulen"),
+      ),
+    ).toBeInTheDocument();
     expect(mockLoggerError).toHaveBeenCalledWith(
       "child_quota_refresh_failed",
       expect.objectContaining({ school_id: "10" }),
@@ -274,25 +289,8 @@ describe("ChildQuotaModal", () => {
   });
 
   it("asks for a reload when the school changed underneath", async () => {
-    mockUpdateSchool.mockRejectedValue(new OperatorApiError("conflict", 409));
-    const { onClose } = renderModal();
-
-    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
-
-    expect(
-      await screen.findByText(
-        "Die Schule wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
-      ),
-    ).toBeInTheDocument();
-    expect(onClose).not.toHaveBeenCalled();
-  });
-
-  it("keeps the dialog open with an error when the server refuses", async () => {
     mockUpdateSchool.mockRejectedValue(
-      new OperatorApiError(
-        "child quota bundles must be between 1 and 1000",
-        400,
-      ),
+      new ApiError("conflict", 409, { code: "general.business_rejection" }),
     );
     const { onClose } = renderModal();
 
@@ -300,9 +298,33 @@ describe("ChildQuotaModal", () => {
 
     expect(
       await screen.findByText(
-        "Das Kinderkontingent wurde nicht gespeichert. Bitte prüfen Sie die Eingaben.",
+        catalogText("general.business_rejection", SAVE_OBJECT),
       ),
     ).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("keeps the dialog open with an error when the server refuses", async () => {
+    mockUpdateSchool.mockRejectedValue(
+      new ApiError("child quota bundles must be between 1 and 1000", 400, {
+        code: "general.input",
+        errors: [{ field: "bundles", reason: "out_of_range" }],
+      }),
+    );
+    const { onClose } = renderModal();
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(catalogText("general.input", SAVE_OBJECT)),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Anzahl Bundles")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(
+      screen.queryByText("child quota bundles must be between 1 and 1000"),
+    ).toBeNull();
     expect(onClose).not.toHaveBeenCalled();
     expect(mockLoggerError).toHaveBeenCalledWith(
       "child_quota_update_failed",

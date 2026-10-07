@@ -111,7 +111,7 @@ func (rs *Resource) passkeyLoginVerify(w http.ResponseWriter, r *http.Request) {
 		UserAgent:          r.Header.Get(headerUserAgent),
 	})
 	if err != nil {
-		mapPasskeyError(w, r, err)
+		mapPasskeyLoginError(w, r, err)
 		return
 	}
 	render.JSON(w, r, LoginResponse{
@@ -245,6 +245,28 @@ func passkeyExpectedOrigin(r *http.Request) string {
 	return strings.TrimSpace(r.Header.Get("Origin"))
 }
 
+// mapPasskeyLoginError answers a refused passkey login. An unknown or
+// mismatched passkey and a school the account cannot enter carry one code,
+// so the login page says the same for all of them (#2517). Everything else
+// is answered like the other ceremonies.
+func mapPasskeyLoginError(w http.ResponseWriter, r *http.Request, err error) {
+	cause := err
+	var flowErr *identityaccess.AuthenticationError
+	if errors.As(err, &flowErr) {
+		cause = flowErr.Err
+	}
+	switch {
+	case errors.Is(cause, identityaccess.ErrInvalidCredentials),
+		errors.Is(cause, identityaccess.ErrPasskeySessionInvalid),
+		errors.Is(cause, identityaccess.ErrAccountNotFound):
+		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrInvalidCredentials, common.CodeIdentityPasskeyLoginFailed))
+	case errors.Is(cause, identityaccess.ErrTenantAccessDenied):
+		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrTenantAccessDenied, common.CodeIdentityPasskeyLoginFailed))
+	default:
+		mapPasskeyError(w, r, err)
+	}
+}
+
 // mapPasskeyError classifies what the passkey ceremonies answer with. The
 // ceremonies are served by the retained port since #3331, so the sentinels
 // here are the retained ones the composition translates the module's into;
@@ -260,7 +282,7 @@ func mapPasskeyError(w http.ResponseWriter, r *http.Request, err error) {
 		errors.Is(err, identityaccess.ErrAccountNotFound):
 		common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidCredentials))
 	case errors.Is(err, identityaccess.ErrAccountInactive):
-		common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountInactive))
+		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrAccountInactive, common.CodeIdentitySessionAccountInactive))
 	case errors.Is(err, identityaccess.ErrTenantAccessDenied):
 		common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantAccessDenied))
 	case errors.Is(err, identityaccess.ErrTenantNotFound):
@@ -268,10 +290,10 @@ func mapPasskeyError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, identityaccess.ErrPasskeyOriginInvalid):
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
 	case errors.Is(err, identityaccess.ErrMFACodeInvalid):
-		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(err, common.CodeIdentityMfaCodeInvalid))
 	case errors.Is(err, identityaccess.ErrMFARateLimited),
 		errors.Is(err, identityaccess.ErrMFALocked):
-		common.RenderError(w, r, common.ErrorTooManyRequests(err))
+		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeIdentityMfaBlocked))
 	case errors.Is(err, identityaccess.ErrMFAStatusUnavailable):
 		// Passkey enrollment starts an email challenge, so it inherits the
 		// gate's fail-closed behaviour on a status or rate-limit lookup

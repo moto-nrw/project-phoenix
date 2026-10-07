@@ -1,3 +1,4 @@
+import { ApiError, apiErrorFromBody } from "./api-error";
 import { createLogger } from "./logger";
 import { sessionFetch } from "./session-cache";
 
@@ -89,7 +90,10 @@ export function mapSchoolSetupState(raw: BackendState): SchoolSetupState {
 async function readState(response: Response, event: string) {
   if (!response.ok) {
     logger.error(event, { status: response.status });
-    throw new SchoolSetupError(response.status);
+    throw new SchoolSetupError(
+      response.status,
+      await failedResponseBody(response),
+    );
   }
   const body = (await response.json()) as
     { data?: BackendState } | BackendState;
@@ -99,15 +103,42 @@ async function readState(response: Response, event: string) {
   // Checkliste „alles erledigt“ (0 von 0).
   if (data.completed !== true && !Array.isArray(data.steps)) {
     logger.error(event, { reason: "unexpected_shape" });
-    throw new SchoolSetupError(response.status);
+    // Eine unbrauchbare Antwort ist ein Serverfehler, kein Eingabefehler.
+    throw new SchoolSetupError(500);
   }
   return mapSchoolSetupState(data);
 }
 
-/** Fehler mit dem HTTP-Status, damit der Assistent passend antworten kann. */
-export class SchoolSetupError extends Error {
-  constructor(readonly status: number) {
-    super(`school setup request failed (${status})`);
+/**
+ * Fehler mit HTTP-Status, Code und Vorgangskennung der Antwort, damit der
+ * gemeinsame Fehlerweg den passenden Katalogtext zeigt (#2517).
+ */
+export class SchoolSetupError extends ApiError {
+  declare status: number;
+
+  constructor(status: number, body?: unknown) {
+    const wire = apiErrorFromBody(
+      `school setup request failed (${status})`,
+      status,
+      body,
+    );
+    super(wire.message, status, {
+      code: wire.code,
+      details: wire.details,
+      errors: wire.errors,
+      instance: wire.instance,
+    });
+    this.name = "SchoolSetupError";
+  }
+}
+
+async function failedResponseBody(response: Response): Promise<unknown> {
+  try {
+    const text = await response.text();
+    return text ? (JSON.parse(text) as unknown) : undefined;
+  } catch {
+    // Kein JSON: der Status allein ordnet den Fehler ein.
+    return undefined;
   }
 }
 

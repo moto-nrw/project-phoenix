@@ -4,7 +4,11 @@
  * which forward (with the tenant session token) to the backend.
  */
 
-import { apiErrorFromResponse, type ApiError } from "~/lib/api-error";
+import {
+  apiErrorFromResponse,
+  type ApiError,
+  transportFetch,
+} from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "MasterDataReviewAPI" });
@@ -57,7 +61,7 @@ export async function decideMasterDataChangeRequest(
   reason?: string,
   expectedVersion?: string,
 ): Promise<StaffMasterDataChange> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/master-data-change-requests/${encodeURIComponent(requestId)}/decide`,
     {
       method: "POST",

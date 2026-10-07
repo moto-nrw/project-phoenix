@@ -1,4 +1,8 @@
-import { apiErrorFromBody, apiErrorFromResponse } from "~/lib/api-error";
+import {
+  apiErrorFromBody,
+  apiErrorFromResponse,
+  transportFetch,
+} from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "GuardianBulkInviteAPI" });
@@ -57,7 +61,7 @@ export async function bulkInviteGuardians(
   studentIds: string[],
   options: { dryRun: boolean; resendOpen: boolean },
 ): Promise<BulkInviteResult> {
-  const response = await fetch("/api/guardians/bulk-invite", {
+  const response = await transportFetch("/api/guardians/bulk-invite", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

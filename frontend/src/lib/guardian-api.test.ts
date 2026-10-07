@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
-  translateApiError,
-  errorTranslations,
   fetchStudentGuardians,
   fetchGuardianStudents,
   createGuardian,
@@ -28,180 +26,6 @@ import type {
   PhoneNumberUpdateRequest,
   BackendPhoneNumber,
 } from "./guardian-helpers";
-
-describe("translateApiError", () => {
-  it("translates 'invalid email format' to German", () => {
-    expect(translateApiError("invalid email format")).toBe(
-      "Ungültiges E-Mail-Format",
-    );
-  });
-
-  it("translates error message case-insensitively", () => {
-    expect(translateApiError("Invalid Email Format")).toBe(
-      "Ungültiges E-Mail-Format",
-    );
-    expect(translateApiError("INVALID EMAIL FORMAT")).toBe(
-      "Ungültiges E-Mail-Format",
-    );
-  });
-
-  it("translates the German duplicate-email sentinel to the guardian-context wording", () => {
-    expect(
-      translateApiError("Diese E-Mail-Adresse ist bereits registriert"),
-    ).toBe("Diese E-Mail-Adresse wird bereits verwendet");
-  });
-
-  it("surfaces the 'use the search' guidance for a duplicate email on create (#1513)", () => {
-    expect(
-      translateApiError(
-        'E-Mail-Adresse "peter.berger@email.de" ist bereits vergeben – bitte die vorhandene Person über die Suche auswählen',
-      ),
-    ).toBe(
-      "Diese E-Mail-Adresse ist bereits vergeben. Bitte die vorhandene Person über die Suche auswählen.",
-    );
-  });
-
-  it("translates 'guardian not found' to German", () => {
-    expect(translateApiError("guardian not found")).toBe(
-      "Erziehungsberechtigte/r nicht gefunden",
-    );
-  });
-
-  it("translates 'student not found' to German", () => {
-    expect(translateApiError("student not found")).toBe("Kind nicht gefunden");
-  });
-
-  it("translates 'relationship already exists' to German", () => {
-    expect(translateApiError("relationship already exists")).toBe(
-      "Diese Verknüpfung existiert bereits",
-    );
-  });
-
-  it("translates 'validation failed' to German", () => {
-    expect(translateApiError("validation failed")).toBe(
-      "Validierung fehlgeschlagen",
-    );
-  });
-
-  it("extracts specific reason from 'validation failed: <reason>'", () => {
-    expect(
-      translateApiError("validation failed: invalid phone number format"),
-    ).toBe(
-      "Ungültiges Telefonnummernformat (nur Ziffern, Leerzeichen, +, -, Klammern)",
-    );
-    expect(
-      translateApiError(
-        "validation failed: phone number must contain at least 3 digits",
-      ),
-    ).toBe("Telefonnummer muss mindestens 3 Ziffern enthalten");
-    expect(translateApiError("validation failed: invalid email format")).toBe(
-      "Ungültiges E-Mail-Format",
-    );
-  });
-
-  // Since #3549 the backend answers invalid contact input with a 400 carrying
-  // the German reason instead of a 500 with "validation failed: <reason>".
-  it("translates the German contact validation reasons", () => {
-    expect(translateApiError("ungültiges E-Mail-Format")).toBe(
-      "Ungültiges E-Mail-Format",
-    );
-    expect(translateApiError("ungültiges Telefonnummer-Format")).toBe(
-      "Ungültiges Telefonnummernformat (nur Ziffern, Leerzeichen, +, -, Klammern)",
-    );
-    expect(
-      translateApiError("Telefonnummer muss mindestens 3 Ziffern enthalten"),
-    ).toBe("Telefonnummer muss mindestens 3 Ziffern enthalten");
-    expect(translateApiError("Telefonnummer ist erforderlich")).toBe(
-      "Telefonnummer ist erforderlich",
-    );
-    expect(translateApiError("ungültige bevorzugte Kontaktmethode")).toBe(
-      "Ungültige bevorzugte Kontaktmethode",
-    );
-  });
-
-  it("falls back to generic 'validation failed' when reason is unknown", () => {
-    expect(translateApiError("validation failed: some unknown reason")).toBe(
-      "Validierung fehlgeschlagen",
-    );
-  });
-
-  it("handles 'validation failed' without colon", () => {
-    expect(translateApiError("validation failed")).toBe(
-      "Validierung fehlgeschlagen",
-    );
-    expect(translateApiError("something validation failed something")).toBe(
-      "Validierung fehlgeschlagen",
-    );
-  });
-
-  it("translates 'unauthorized' to German", () => {
-    expect(translateApiError("unauthorized")).toBe("Keine Berechtigung");
-  });
-
-  it("translates 'forbidden' to German", () => {
-    expect(translateApiError("forbidden")).toBe("Zugriff verweigert");
-  });
-
-  it("handles error patterns contained in longer messages", () => {
-    expect(translateApiError("API error: invalid email format detected")).toBe(
-      "Ungültiges E-Mail-Format",
-    );
-    expect(
-      translateApiError(
-        "auth error during register: Diese E-Mail-Adresse ist bereits registriert",
-      ),
-    ).toBe("Diese E-Mail-Adresse wird bereits verwendet");
-  });
-
-  it("returns generic German message for unknown errors", () => {
-    expect(translateApiError("some unknown error")).toBe(
-      "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-    );
-    expect(translateApiError("connection timeout")).toBe(
-      "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-    );
-  });
-
-  it("returns generic message for empty string", () => {
-    expect(translateApiError("")).toBe(
-      "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-    );
-  });
-});
-
-describe("errorTranslations", () => {
-  it("contains all expected error patterns", () => {
-    const expectedPatterns = [
-      "invalid email format",
-      "bereits registriert",
-      "guardian not found",
-      "student not found",
-      "relationship already exists",
-      "validation failed",
-      "invalid phone number format",
-      "phone number must contain at least 3 digits",
-      "phone number is required",
-      "unauthorized",
-      "forbidden",
-    ];
-
-    for (const pattern of expectedPatterns) {
-      expect(errorTranslations).toHaveProperty(pattern);
-    }
-  });
-
-  it("all translations are non-empty strings", () => {
-    for (const translation of Object.values(errorTranslations)) {
-      expect(translation).toBeTruthy();
-      expect(typeof translation).toBe("string");
-      expect(translation.length).toBeGreaterThan(0);
-    }
-  });
-
-  it("has exactly 17 error translations", () => {
-    expect(Object.keys(errorTranslations).length).toBe(17);
-  });
-});
 
 // Mock data helpers
 const mockBackendGuardian: BackendGuardianProfile = {
@@ -337,6 +161,7 @@ describe("guardian-api functions", () => {
       });
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/guardians/students/123/guardians",
+        undefined,
       );
     });
 
@@ -417,7 +242,10 @@ describe("guardian-api functions", () => {
       const result = await fetchGuardianStudents("1");
 
       expect(result).toEqual(mockStudents);
-      expect(global.fetch).toHaveBeenCalledWith("/api/guardians/1/students");
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/guardians/1/students",
+        undefined,
+      );
     });
 
     it("throws error on non-ok response", async () => {
@@ -484,19 +312,28 @@ describe("guardian-api functions", () => {
       });
     });
 
-    it("throws translated error on non-ok response", async () => {
+    // #2517: the client no longer guesses a German sentence from the
+    // backend text; the code goes to the shared error display.
+    it("throws a GuardianApiError with the wire code on non-ok response", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
+        status: 400,
         statusText: "Bad Request",
         json: () =>
           Promise.resolve({
             error: "Diese E-Mail-Adresse ist bereits registriert",
+            code: "general.input",
+            instance: "req-1",
           }),
       });
 
-      await expect(createGuardian(mockGuardianFormData)).rejects.toThrow(
-        "Diese E-Mail-Adresse wird bereits verwendet",
-      );
+      await expect(createGuardian(mockGuardianFormData)).rejects.toMatchObject({
+        name: "GuardianApiError",
+        status: 400,
+        code: "general.input",
+        requestId: "req-1",
+        message: "Diese E-Mail-Adresse ist bereits registriert",
+      });
     });
 
     it("throws error when status is error", async () => {
@@ -506,12 +343,22 @@ describe("guardian-api functions", () => {
           Promise.resolve({
             status: "error",
             error: "validation failed",
+            code: "students.guardian_email_taken",
+            details: { existing_guardian_id: "42" },
+            errors: [{ field: "email", reason: "already_taken" }],
+            instance: "req-guardian-1",
           }),
       });
 
-      await expect(createGuardian(mockGuardianFormData)).rejects.toThrow(
-        "Validierung fehlgeschlagen",
-      );
+      await expect(createGuardian(mockGuardianFormData)).rejects.toMatchObject({
+        name: "GuardianApiError",
+        message: "validation failed",
+        status: 500,
+        code: "students.guardian_email_taken",
+        details: { existing_guardian_id: "42" },
+        errors: [{ field: "email", reason: "already_taken" }],
+        requestId: "req-guardian-1",
+      });
     });
 
     it("throws error when data is missing", async () => {
@@ -576,16 +423,22 @@ describe("guardian-api functions", () => {
       expect(body).toEqual({ first_name: "Johnny" });
     });
 
-    it("throws translated error on non-ok response", async () => {
+    it("throws the status class code on non-ok response", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
+        status: 404,
         statusText: "Not Found",
         json: () => Promise.resolve({ error: "guardian not found" }),
       });
 
       await expect(
         updateGuardian("999", { firstName: "Johnny" }),
-      ).rejects.toThrow("Erziehungsberechtigte/r nicht gefunden");
+      ).rejects.toMatchObject({
+        name: "GuardianApiError",
+        status: 404,
+        code: "general.input",
+        message: "guardian not found",
+      });
     });
 
     it("throws error when status is error", async () => {
@@ -600,7 +453,7 @@ describe("guardian-api functions", () => {
 
       await expect(
         updateGuardian("1", { firstName: "Johnny" }),
-      ).rejects.toThrow("Keine Berechtigung");
+      ).rejects.toThrow("unauthorized");
     });
   });
 
@@ -713,6 +566,7 @@ describe("guardian-api functions", () => {
       });
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/guardians/1/delete-preview",
+        undefined,
       );
     });
 
@@ -790,7 +644,7 @@ describe("guardian-api functions", () => {
       });
     });
 
-    it("translates a duplicate-email 400 into the German guidance message", async () => {
+    it("keeps the wire code of a duplicate-email 400", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 400,
@@ -799,6 +653,7 @@ describe("guardian-api functions", () => {
           Promise.resolve({
             error:
               'Erziehungsberechtigte/r 1: E-Mail-Adresse "a@b.de" ist bereits vergeben',
+            code: "general.input",
           }),
       });
 
@@ -815,9 +670,11 @@ describe("guardian-api functions", () => {
             emergencyPriority: 1,
           },
         ]),
-      ).rejects.toThrow(
-        "Diese E-Mail-Adresse ist bereits vergeben. Bitte die vorhandene Person über die Suche auswählen.",
-      );
+      ).rejects.toMatchObject({
+        name: "GuardianApiError",
+        status: 400,
+        code: "general.input",
+      });
     });
   });
 
@@ -1076,6 +933,7 @@ describe("guardian-api functions", () => {
       expect(result[0]!.firstName).toBe("John");
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/guardians/search?q=john&page_size=50",
+        undefined,
       );
     });
 
@@ -1093,6 +951,7 @@ describe("guardian-api functions", () => {
 
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/guardians/search?q=john%20doe%20%26%20sons&page_size=50",
+        undefined,
       );
     });
 
@@ -1202,6 +1061,7 @@ describe("guardian-api functions", () => {
       });
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/guardians/123/phone-numbers",
+        undefined,
       );
     });
 
@@ -1352,7 +1212,7 @@ describe("guardian-api functions", () => {
       expect(result.phoneType).toBe("mobile");
     });
 
-    it("throws translated error on non-ok response", async () => {
+    it("throws the backend message as diagnostic on non-ok response", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         statusText: "Bad Request",
@@ -1361,7 +1221,7 @@ describe("guardian-api functions", () => {
 
       await expect(
         addGuardianPhoneNumber("123", mockCreateRequest),
-      ).rejects.toThrow("Validierung fehlgeschlagen");
+      ).rejects.toThrow("validation failed");
     });
 
     it("throws error when status is error", async () => {
@@ -1394,18 +1254,20 @@ describe("guardian-api functions", () => {
       ).rejects.toThrow();
     });
 
-    it("throws translated fallback error when JSON parse fails", async () => {
+    it("throws the fallback diagnostic when JSON parse fails", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
+        status: 400,
         statusText: "Bad Request",
         json: () => Promise.reject(new Error("Parse error")),
       });
 
       await expect(
         addGuardianPhoneNumber("123", mockCreateRequest),
-      ).rejects.toThrow(
-        "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-      );
+      ).rejects.toMatchObject({
+        message: "Failed to add phone number",
+        code: "general.input",
+      });
     });
   });
 
@@ -1486,7 +1348,7 @@ describe("guardian-api functions", () => {
       expect(body).not.toHaveProperty("label");
     });
 
-    it("throws translated error on non-ok response", async () => {
+    it("throws the backend message as diagnostic on non-ok response", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         statusText: "Not Found",
@@ -1495,7 +1357,7 @@ describe("guardian-api functions", () => {
 
       await expect(
         updateGuardianPhoneNumber("999", "456", mockUpdateRequest),
-      ).rejects.toThrow("Erziehungsberechtigte/r nicht gefunden");
+      ).rejects.toThrow("guardian not found");
     });
 
     it("throws error when status is error", async () => {
@@ -1510,10 +1372,10 @@ describe("guardian-api functions", () => {
 
       await expect(
         updateGuardianPhoneNumber("123", "456", mockUpdateRequest),
-      ).rejects.toThrow("Keine Berechtigung");
+      ).rejects.toThrow("unauthorized");
     });
 
-    it("throws translated fallback error when JSON parse fails", async () => {
+    it("throws the fallback diagnostic when JSON parse fails", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         statusText: "Bad Request",
@@ -1522,9 +1384,7 @@ describe("guardian-api functions", () => {
 
       await expect(
         updateGuardianPhoneNumber("123", "456", mockUpdateRequest),
-      ).rejects.toThrow(
-        "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-      );
+      ).rejects.toThrow("Failed to update phone number");
     });
   });
 
@@ -1686,6 +1546,23 @@ describe("guardian-api functions", () => {
       await expect(setGuardianPrimaryPhone("123", "456")).rejects.toThrow(
         "Unauthorized",
       );
+    });
+  });
+});
+
+describe("guardian-api transport failures", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // #2517: a request that never reaches the API is general.unavailable, not
+  // a raw "Failed to fetch".
+  it("turns a network failure into general.unavailable", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+
+    await expect(fetchStudentGuardians("1")).rejects.toMatchObject({
+      name: "TypeError",
+      code: "general.unavailable",
     });
   });
 });

@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { ApiError, enrichApiError, transportFetch } from "./api-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "MFAApi" });
@@ -109,7 +109,7 @@ async function postJson<T>(
     headers.Authorization = `Bearer ${options.bearerToken}`;
   }
 
-  const response = await fetch(url, {
+  const response = await transportFetch(url, {
     method: options.method ?? "POST",
     headers,
     credentials: "include",

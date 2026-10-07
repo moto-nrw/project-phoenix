@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useStudentEnrollmentExtraFields } from "./use-student-enrollment-extra-fields";
@@ -98,6 +98,24 @@ describe("useStudentEnrollmentExtraFields", () => {
         error: "server unavailable",
       }),
     );
+  });
+
+  it("exposes the failure for the load error path and reloads on retry", async () => {
+    const failure = new Error("server unavailable");
+    fetchStudentEnrollmentExtraFieldsMock.mockRejectedValueOnce(failure);
+
+    const { result } = renderHook(() =>
+      useStudentEnrollmentExtraFields("123", true),
+    );
+
+    await waitFor(() => expect(result.current.error).toBe(failure));
+
+    fetchStudentEnrollmentExtraFieldsMock.mockResolvedValueOnce(groups);
+    act(() => result.current.reload());
+
+    await waitFor(() => expect(result.current.groups).toEqual(groups));
+    expect(result.current.error).toBeNull();
+    expect(fetchStudentEnrollmentExtraFieldsMock).toHaveBeenCalledTimes(2);
   });
 
   it("clears previous groups before loading another student", async () => {

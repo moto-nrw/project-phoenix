@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { ApiError } from "./api-error";
 import { exportPhaseRegistrations } from "./enrollment-export-api";
 
 // exportPhaseRegistrations POSTs to the Next.js proxy and streams the
@@ -110,18 +111,36 @@ describe("exportPhaseRegistrations", () => {
     expect(anchor.download).toBe("anmeldungen.docx");
   });
 
-  it("throws the backend error text on a non-ok response", async () => {
+  it("throws a coded error, never the backend text, on a non-ok response", async () => {
     global.fetch = vi.fn(
       async () =>
-        ({
-          ok: false,
-          text: async () => "phase has too many registrations",
-        }) as unknown as Response,
+        new Response(
+          JSON.stringify({
+            status: "error",
+            error: "phase has too many registrations",
+            instance: "req-7",
+          }),
+          { status: 500 },
+        ),
     ) as unknown as typeof fetch;
 
-    await expect(exportPhaseRegistrations("1", "pdf")).rejects.toThrow(
-      "phase has too many registrations",
+    const error = await exportPhaseRegistrations("1", "pdf").catch(
+      (err: unknown) => err,
     );
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ code: "general.server", requestId: "req-7" });
+    expect((error as Error).message).not.toContain("too many registrations");
+    expect(clickSpy).not.toHaveBeenCalled();
+  });
+
+  it("reports a request that never reached the API as unavailable", async () => {
+    global.fetch = vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    }) as unknown as typeof fetch;
+
+    await expect(exportPhaseRegistrations("1", "pdf")).rejects.toMatchObject({
+      code: "general.unavailable",
+    });
     expect(clickSpy).not.toHaveBeenCalled();
   });
 });

@@ -70,6 +70,8 @@ func TestClassListEntriesCompositionRunsTheCRUDAndAssignFlow(t *testing.T) {
 	rec = testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:create"})
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "existiert in dieser Klasse bereits")
+	// The screen words the refusal from its code (#2517).
+	assert.Contains(t, rec.Body.String(), `"code":"students.class_list_entry_duplicate"`)
 
 	// List (users:read) shows the entry with an empty match hint.
 	req = httptest.NewRequest(http.MethodGet, "/", nil)
@@ -93,6 +95,21 @@ func TestClassListEntriesCompositionRunsTheCRUDAndAssignFlow(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), fmt.Sprintf(`"matching_student_ids":["%d"]`, student.ID))
 
+	// A refused assign names its reason by code (#2517): an unknown child,
+	// then a child whose name and class do not match the entry.
+	req = httptest.NewRequest(http.MethodPost, fmt.Sprintf("/%d/assign", entryID), strings.NewReader(`{"student_id":"999999999"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:delete"})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"code":"students.class_list_entry_student_not_found"`)
+
+	other := testpkg.CreateTestStudent(t, db, "Mia", "Other", className+"-b")
+	req = httptest.NewRequest(http.MethodPost, fmt.Sprintf("/%d/assign", entryID), strings.NewReader(fmt.Sprintf(`{"student_id":"%d"}`, other.ID)))
+	req.Header.Set("Content-Type", "application/json")
+	rec = testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:delete"})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"code":"students.class_list_entry_assign_mismatch"`)
+
 	// Assign to the real student (users:delete) deletes the entry.
 	assignBody := fmt.Sprintf(`{"student_id":"%d"}`, student.ID)
 	req = httptest.NewRequest(http.MethodPost, fmt.Sprintf("/%d/assign", entryID), strings.NewReader(assignBody))
@@ -105,6 +122,13 @@ func TestClassListEntriesCompositionRunsTheCRUDAndAssignFlow(t *testing.T) {
 	rec = testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:read"})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.NotContains(t, rec.Body.String(), fmt.Sprintf(`"id":"%d"`, entryID))
+
+	// A new entry for a child who now has a record is refused with its code.
+	req = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(moveBody))
+	req.Header.Set("Content-Type", "application/json")
+	rec = testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:create"})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"code":"students.class_list_entry_student_exists"`)
 
 	req = httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/%d", entryID), nil)
 	rec = testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:delete"})

@@ -1914,6 +1914,9 @@ function SearchPageContent() {
   const isInitializing = status === "loading";
   const hasFetchedOnce =
     studentsData !== undefined || studentsError !== undefined;
+  // Zähler gibt es nur aus Zeilen, die für das gewählte Datum geladen sind:
+  // hasFetchedOnce ist auch nach einem Fehler wahr (#2517).
+  const rowsLoaded = studentsData !== undefined && !isDateTransition;
 
   // Show the skeleton while the session is still resolving, while the first
   // fetch is in progress (not yet hasFetchedOnce), or while a date switch is in
@@ -2736,8 +2739,11 @@ function SearchPageContent() {
   // list too — selectedIds may still hold students a live update removed,
   // and a count the bar shows must never exceed what a bulk action executes.
   // Statuszeile unter dem Seitentitel, allein aus der bereits geladenen
-  // Kinderliste: Gesamtzahl, wie viele zuhause sind, wie viele krank.
+  // Kinderliste: Gesamtzahl, wie viele zuhause sind, wie viele krank. Ohne
+  // geladene Liste für das gewählte Datum steht keine "0 Kinder" neben dem
+  // Ladefehler (#2517).
   const studentSummary = useMemo(() => {
+    if (!rowsLoaded) return null;
     const total = students.length;
     if (!isToday) {
       return `${total} ${total === 1 ? "Kind" : "Kinder"}`;
@@ -2779,7 +2785,7 @@ function SearchPageContent() {
       }
     }
     return `${total} ${total === 1 ? "Kind" : "Kinder"} · ${atSchool} in der Schule · ${atHome} zuhause · ${sick} krank`;
-  }, [isToday, students]);
+  }, [isToday, students, rowsLoaded]);
 
   const selectedStudentsForBulk = useMemo(
     () =>
@@ -3014,7 +3020,7 @@ function SearchPageContent() {
                   label: "Exportieren",
                   icon: <Download className="h-4 w-4" aria-hidden />,
                   onClick: () => setIsExportOpen(true),
-                  badge: filteredStudents.length,
+                  badge: rowsLoaded ? filteredStudents.length : undefined,
                 },
                 // Die Spaltenwahl der Liste (#3834) steht hier und nicht
                 // als eigener Knopf neben dem Umschalter.
@@ -3039,10 +3045,14 @@ function SearchPageContent() {
         }
         // Der Zähler ändert sich mit der Filterung und gehört deshalb in
         // die Filterzeile, nicht in die Titelzeile.
-        badge={{
-          count: filteredStudents.length,
-          icon: <MotoConceptIcon concept="children" size={20} />,
-        }}
+        badge={
+          rowsLoaded
+            ? {
+                count: filteredStudents.length,
+                icon: <MotoConceptIcon concept="children" size={20} />,
+              }
+            : undefined
+        }
         primaryAction={
           checkinModeAvailable && !schoolCheckin.isActive && !showTable ? (
             <SchoolCheckinFab

@@ -8,6 +8,10 @@ import {
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import StudentGuardianManager from "./student-guardian-manager";
 import type { GuardianWithRelationship } from "@/lib/guardian-helpers";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 // Mock all guardian API functions with proper typing
 const mockFetchStudentGuardians = vi.fn();
@@ -88,15 +92,23 @@ vi.mock("next-auth/react", () => ({
   }),
 }));
 
-// Mock toast context
-const mockToastSuccess = vi.fn();
-const mockToastError = vi.fn();
-vi.mock("~/contexts/ToastContext", () => ({
+// Mock toast context. Load and dialog errors run through the real hooks;
+// action errors (link, invite) are spied at useApiErrorDisplay (#2517).
+const { mockToastSuccess, mockToastError, mockShowActionError } = vi.hoisted(
+  () => ({
+    mockToastSuccess: vi.fn(),
+    mockToastError: vi.fn(),
+    mockShowActionError: vi.fn(),
+  }),
+);
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: mockToastSuccess,
     error: mockToastError,
     info: vi.fn(),
   }),
+  useApiErrorDisplay: () => ({ show: mockShowActionError }),
 }));
 
 // Mock child components
@@ -277,7 +289,9 @@ vi.mock("./guardian-delete-modal", () => ({
     canFullDelete,
     fullDeleteWarning,
     isWarningLoading,
+    error,
   }: {
+    error?: FormErrorInput;
     isOpen: boolean;
     onClose: () => void;
     onScopeChange?: (scope: "unlink" | "full") => void;
@@ -296,6 +310,7 @@ vi.mock("./guardian-delete-modal", () => ({
         data-can-full-delete={canFullDelete ? "yes" : "no"}
       >
         <p data-testid="delete-guardian-name">Delete {guardianName}?</p>
+        <FormErrorAlert message={error} />
         {fullDeleteWarning && (
           <p data-testid="full-delete-warning">{fullDeleteWarning}</p>
         )}
@@ -449,30 +464,51 @@ describe("StudentGuardianManager", () => {
   });
 
   describe("Error Handling", () => {
-    it("displays error message when fetch fails", async () => {
-      mockFetchStudentGuardians.mockRejectedValue(
-        new Error("Failed to fetch guardians"),
+    // #2517: catalog text where the list belongs, retry reloads it.
+    it("shows the catalog text of a failed load and retries", async () => {
+      mockFetchStudentGuardians.mockRejectedValueOnce(
+        new ApiError("Failed to fetch guardians", 503, {
+          code: "general.unavailable",
+        }),
       );
 
       render(<StudentGuardianManager studentId="student-123" />);
 
-      await waitFor(() => {
-        expect(
-          screen.getByText("Failed to fetch guardians"),
-        ).toBeInTheDocument();
-      });
+      expect(
+        await screen.findByText(
+          catalogText(
+            "general.unavailable",
+            "die Liste der Erziehungsberechtigten",
+          ),
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Failed to fetch guardians"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByTestId("guardian-list")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+      expect(await screen.findByTestId("guardian-list")).toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          catalogText(
+            "general.unavailable",
+            "die Liste der Erziehungsberechtigten",
+          ),
+        ),
+      ).not.toBeInTheDocument();
     });
 
-    it("displays generic error message for non-Error objects", async () => {
+    it("never shows a raw non-Error rejection", async () => {
       mockFetchStudentGuardians.mockRejectedValue("Unknown error");
 
       render(<StudentGuardianManager studentId="student-123" />);
 
-      await waitFor(() => {
-        expect(
-          screen.getByText("Fehler beim Laden der Erziehungsberechtigten"),
-        ).toBeInTheDocument();
-      });
+      expect(
+        await screen.findByText(/die Liste der Erziehungsberechtigten/i),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Unknown error")).not.toBeInTheDocument();
     });
   });
 
@@ -583,7 +619,7 @@ describe("StudentGuardianManager", () => {
 
       await waitFor(() => {
         expect(mockToastSuccess).toHaveBeenCalledWith(
-          "Erziehungsberechtigte/r erfolgreich hinzugefügt",
+          "Test Guardian ist hinzugefügt.",
         );
       });
     });
@@ -661,7 +697,7 @@ describe("StudentGuardianManager", () => {
 
       await waitFor(() => {
         expect(mockToastSuccess).toHaveBeenCalledWith(
-          "Erziehungsberechtigte/r erfolgreich aktualisiert",
+          "Die Angaben von Test Guardian sind gespeichert.",
         );
       });
     });
@@ -729,9 +765,42 @@ describe("StudentGuardianManager", () => {
 
       await waitFor(() => {
         expect(mockToastSuccess).toHaveBeenCalledWith(
-          "Anna Müller wurde erfolgreich entfernt",
+          "Anna Müller ist von diesem Kind entfernt.",
         );
       });
+    });
+
+    it("keeps a failed unlink in the dialog and retries", async () => {
+      mockRemoveGuardianFromStudent
+        .mockRejectedValueOnce(
+          new ApiError("remove exploded", 500, { code: "general.server" }),
+        )
+        .mockResolvedValueOnce(undefined);
+
+      render(<StudentGuardianManager studentId="student-123" />);
+      fireEvent.click(await screen.findByTestId("edit-guardian-1"));
+      fireEvent.click(screen.getByTestId("modal-delete-button"));
+      fireEvent.click(screen.getByTestId("confirm-delete"));
+
+      expect(
+        await screen.findByText(
+          catalogText("general.server", "das Entfernen der Person"),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("guardian-delete-modal")).toBeInTheDocument();
+      expect(screen.queryByText(/remove exploded/)).not.toBeInTheDocument();
+      expect(mockToastError).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+      await waitFor(() =>
+        expect(mockRemoveGuardianFromStudent).toHaveBeenCalledTimes(2),
+      );
+      await waitFor(() =>
+        expect(
+          screen.queryByTestId("guardian-delete-modal"),
+        ).not.toBeInTheDocument(),
+      );
     });
 
     it("closes delete modal when cancel is clicked", async () => {
@@ -804,6 +873,34 @@ describe("StudentGuardianManager", () => {
       expect(
         screen.queryByTestId("select-full-delete"),
       ).not.toBeInTheDocument();
+    });
+
+    // #2517: a refused preview explains itself inside the dialog and never
+    // leaves a full delete armed without its warning.
+    it("keeps a refused preview in the dialog and drops the scope", async () => {
+      mockPermissions = ["admin:*"];
+      mockFetchGuardianDeletePreview.mockRejectedValueOnce(
+        new ApiError("forbidden", 403, { code: "general.permission" }),
+      );
+
+      render(<StudentGuardianManager studentId="student-123" />);
+      await openDeleteModal();
+      fireEvent.click(screen.getByTestId("select-full-delete"));
+
+      expect(
+        await screen.findByText(
+          catalogText(
+            "general.permission",
+            "die Prüfung der betroffenen Kinder",
+          ),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("guardian-delete-modal")).toHaveAttribute(
+        "data-scope",
+        "none",
+      );
+      expect(screen.queryByTestId("confirm-full-delete")).toBeNull();
+      expect(mockToastError).not.toHaveBeenCalled();
     });
 
     it("admins choosing unlink still pass through the unlink confirmation", async () => {
@@ -883,7 +980,7 @@ describe("StudentGuardianManager", () => {
       });
       await waitFor(() => {
         expect(mockToastSuccess).toHaveBeenCalledWith(
-          "Anna Müller wurde vollständig gelöscht",
+          "Anna Müller ist vollständig gelöscht.",
         );
       });
     });
@@ -1112,7 +1209,7 @@ describe("StudentGuardianManager", () => {
 
       await waitFor(() => {
         expect(mockToastSuccess).toHaveBeenCalledWith(
-          "Hans Schmidt wurde erfolgreich hinzugefügt",
+          "Hans Schmidt ist jetzt mit diesem Kind verknüpft.",
         );
       });
       // Picker closes after a selection.
@@ -1123,10 +1220,11 @@ describe("StudentGuardianManager", () => {
       });
     });
 
-    it("shows a German error toast when linking the existing guardian fails", async () => {
-      mockLinkGuardianToStudent.mockRejectedValue(
-        new Error("guardian already linked"),
-      );
+    it("reports a failed link on the shared action path", async () => {
+      const failure = new ApiError("guardian already linked", 409, {
+        code: "general.business_rejection",
+      });
+      mockLinkGuardianToStudent.mockRejectedValue(failure);
 
       render(<StudentGuardianManager studentId="student-123" />);
 
@@ -1142,14 +1240,13 @@ describe("StudentGuardianManager", () => {
       fireEvent.click(screen.getByTestId("picker-select"));
 
       await waitFor(() => {
-        expect(mockToastError).toHaveBeenCalledWith(
-          "Fehler beim Verknüpfen der/des Erziehungsberechtigten",
-        );
+        expect(mockShowActionError).toHaveBeenCalledWith(failure, {
+          object: "das Verknüpfen der Person",
+          retry: expect.any(Function),
+        });
       });
       // A raw backend message must never reach the user.
-      expect(mockToastError).not.toHaveBeenCalledWith(
-        "guardian already linked",
-      );
+      expect(mockToastError).not.toHaveBeenCalled();
     });
 
     it("closes the picker without linking when cancelled", async () => {
@@ -1256,7 +1353,7 @@ describe("StudentGuardianManager", () => {
       );
       await waitFor(() =>
         expect(mockToastSuccess).toHaveBeenCalledWith(
-          "Hans Müller hat jetzt vollen Zugriff",
+          "Hans Müller hat jetzt vollen Zugriff.",
         ),
       );
     });
@@ -1306,7 +1403,7 @@ describe("StudentGuardianManager", () => {
         fireEvent.click(screen.getByTestId("invite-guardian-2"));
         await waitFor(() =>
           expect(mockToastSuccess).toHaveBeenCalledWith(
-            "Hans Müller hat schon ein Konto. Hinweis zum Elternportal an hans@example.com gesendet",
+            "Hans Müller hat schon ein Konto. Ein Hinweis zum Elternportal ist an hans@example.com gesendet.",
           ),
         );
       },
@@ -1326,7 +1423,7 @@ describe("StudentGuardianManager", () => {
       fireEvent.click(screen.getByTestId("invite-guardian-2"));
       await waitFor(() =>
         expect(mockToastSuccess).toHaveBeenCalledWith(
-          "Anfrage für Hans Müller wartet auf Freigabe",
+          "Die Anfrage für Hans Müller wartet auf Freigabe.",
         ),
       );
     });

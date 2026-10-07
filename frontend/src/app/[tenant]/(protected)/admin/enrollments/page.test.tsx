@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   markAllAdminRequestsRead: vi.fn(),
   fetchEmailSubscription: vi.fn(),
   setEmailSubscription: vi.fn(),
+  showActionError: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
 }));
@@ -30,6 +31,7 @@ vi.mock("~/lib/notification-preferences-api", () => ({
 }));
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({ success: mocks.toastSuccess, error: mocks.toastError }),
+  useApiErrorDisplay: () => ({ show: mocks.showActionError }),
 }));
 
 import Page from "./page";
@@ -64,11 +66,8 @@ describe("AdminEnrollmentsPage (#3778)", () => {
   });
 
   it("meldet einen Fehler beim Markieren", async () => {
-    mocks.markAllAdminRequestsRead.mockRejectedValue(
-      new Error(
-        "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
-      ),
-    );
+    const failed = new Error("network");
+    mocks.markAllAdminRequestsRead.mockRejectedValue(failed);
     render(<Page />);
 
     fireEvent.click(
@@ -81,9 +80,9 @@ describe("AdminEnrollmentsPage (#3778)", () => {
     );
 
     await waitFor(() => {
-      expect(mocks.toastError).toHaveBeenCalledWith(
-        "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
-      );
+      expect(mocks.showActionError).toHaveBeenCalledWith(failed, {
+        object: "die Markierung als gelesen",
+      });
     });
   });
 
@@ -148,7 +147,8 @@ describe("AdminEnrollmentsPage (#3778)", () => {
     });
 
     it("nimmt den Haken zurück, wenn das Speichern scheitert", async () => {
-      mocks.setEmailSubscription.mockRejectedValue(new Error("boom"));
+      const failed = new Error("boom");
+      mocks.setEmailSubscription.mockRejectedValue(failed);
       render(<Page />);
       await waitFor(() => {
         expect(mocks.fetchEmailSubscription).toHaveBeenCalled();
@@ -157,9 +157,9 @@ describe("AdminEnrollmentsPage (#3778)", () => {
       fireEvent.click(await openEmailEntry());
 
       await waitFor(() => {
-        expect(mocks.toastError).toHaveBeenCalledWith(
-          "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
-        );
+        expect(mocks.showActionError).toHaveBeenCalledWith(failed, {
+          object: "die E-Mail-Einstellung",
+        });
       });
       expect(await openEmailEntry()).toHaveAttribute("aria-checked", "false");
     });

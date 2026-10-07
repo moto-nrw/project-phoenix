@@ -30,6 +30,7 @@ function isSafeAppRelativePath(path: string): boolean {
       new URL(path, window.location.origin).origin === window.location.origin
     );
   } catch {
+    // A path the URL parser rejects is not safe to navigate to.
     return false;
   }
 }

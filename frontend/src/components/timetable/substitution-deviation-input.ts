@@ -164,3 +164,14 @@ export function buildStaffDeviationInput({
   }
   return input;
 }
+
+/**
+ * Hinweis nach einem gespeicherten Vertretungs-Save, wenn eine Ersatzperson
+ * zur selben Zeit anderswo eingeteilt ist. Gilt für Einzel- und
+ * Sammel-Vertretung.
+ */
+export function overlapWarningMessage(count: number): string {
+  return count === 1
+    ? "Bitte prüfen Sie eine mögliche Zeitüberschneidung."
+    : `Bitte prüfen Sie ${count} mögliche Zeitüberschneidungen.`;
+}

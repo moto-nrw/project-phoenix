@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/go-chi/render"
 )
 
 // DocxContentType is the DOCX MIME type. http.DetectContentType cannot
@@ -78,16 +80,20 @@ func parseValidatedUpload(w http.ResponseWriter, r *http.Request, fieldName stri
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
 
 	if err := r.ParseMultipartForm(maxBodySize); err != nil {
-		return nil, errors.New("file too large")
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			return nil, uploadRefusal{code: CodeFilesFileTooLarge, text: "file too large"}
+		}
+		return nil, uploadRefusal{code: CodeFilesFileUnreadable, text: "cannot read upload"}
 	}
 
 	file, header, err := r.FormFile(fieldName)
 	if err != nil {
-		return nil, errors.New("no file uploaded")
+		return nil, uploadRefusal{code: CodeFilesFileMissing, text: "no file uploaded"}
 	}
 	if header.Size > maxFileSize {
 		_ = file.Close()
-		return nil, errors.New("file too large")
+		return nil, uploadRefusal{code: CodeFilesFileTooLarge, text: "file too large"}
 	}
 
 	contentType, err := detectDocumentContentType(file, header.Filename, kinds, invalidMessage)
@@ -110,9 +116,9 @@ func detectDocumentContentType(file io.ReadSeeker, filename string, kinds []ooxm
 	n, err := file.Read(buf)
 	if n == 0 {
 		if err != nil {
-			return "", errors.New("cannot read file")
+			return "", uploadRefusal{code: CodeFilesFileUnreadable, text: "cannot read file"}
 		}
-		return "", errors.New("empty file")
+		return "", uploadRefusal{code: CodeFilesFileUnreadable, text: "empty file"}
 	}
 
 	contentType := http.DetectContentType(buf[:n])
@@ -122,15 +128,15 @@ func detectDocumentContentType(file io.ReadSeeker, filename string, kinds []ooxm
 	case contentType == "application/zip":
 		kind, ok := matchOOXMLKind(filename, kinds)
 		if !ok || !isOOXML(file, kind) {
-			return "", errors.New(invalidMessage)
+			return "", uploadRefusal{code: CodeFilesFileTypeNotAllowed, text: invalidMessage}
 		}
 		contentType = kind.contentType
 	default:
-		return "", errors.New(invalidMessage)
+		return "", uploadRefusal{code: CodeFilesFileTypeNotAllowed, text: invalidMessage}
 	}
 
 	if _, err := file.Seek(0, 0); err != nil {
-		return "", errors.New("failed to process file")
+		return "", uploadRefusal{code: CodeFilesFileUnreadable, text: "failed to process file"}
 	}
 	return contentType, nil
 }
@@ -170,6 +176,37 @@ func isOOXML(file io.ReadSeeker, kind ooxmlKind) bool {
 	return hasContentTypes && hasPart
 }
 
+// uploadRefusal is a rejected upload: the code the form explains (#2517) and
+// the diagnostic text GermanUploadError restates.
+type uploadRefusal struct {
+	code string
+	text string
+}
+
+func (e uploadRefusal) Error() string { return e.text }
+
+func uploadLimitMB(maxFileSize int64) int64 {
+	const megabyte = 1024 * 1024
+	if maxFileSize <= 0 {
+		return 0
+	}
+	return (maxFileSize-1)/megabyte + 1
+}
+
+// ErrorUpload renders a refused upload as a 400 with its code; the size
+// refusal names the limit in details. Other errors keep the plain 400.
+func ErrorUpload(err error, maxFileSize int64) render.Renderer {
+	var refusal uploadRefusal
+	if !errors.As(err, &refusal) {
+		return ErrorInvalidRequest(err)
+	}
+	shown := GermanUploadError(err, maxFileSize)
+	if refusal.code == CodeFilesFileTooLarge {
+		return ErrorInvalidRequestWithDetails(shown, refusal.code, map[string]any{"max_mb": uploadLimitMB(maxFileSize)})
+	}
+	return ErrorInvalidRequestWithCode(shown, refusal.code)
+}
+
 // GermanUploadError restates the size and shape rejections of
 // ParseDocumentWithLimits / ParseOfficeFileWithLimits in German, naming the
 // limit the caller ran into.
@@ -186,7 +223,7 @@ func GermanUploadError(err error, maxFileSize int64) error {
 	switch err.Error() {
 	case "file too large":
 		//nolint:staticcheck // ST1005: user-facing German message
-		return fmt.Errorf("Diese Datei ist zu groß. Erlaubt sind bis zu %d MB.", maxFileSize/(1024*1024))
+		return fmt.Errorf("Diese Datei ist zu groß. Erlaubt sind bis zu %d MB.", uploadLimitMB(maxFileSize))
 	case "no file uploaded":
 		//nolint:staticcheck // ST1005: user-facing German message
 		return errors.New("Es wurde keine Datei ausgewählt.")

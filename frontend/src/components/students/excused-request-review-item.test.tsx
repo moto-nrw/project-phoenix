@@ -126,7 +126,9 @@ describe("ExcusedRequestReviewItem", () => {
     await waitFor(() =>
       expect(mockDecide).toHaveBeenCalledWith("300", false, "keine Kapazität"),
     );
-    expect(onDecided).toHaveBeenCalledWith("Entschuldigte Abmeldung abgelehnt");
+    expect(onDecided).toHaveBeenCalledWith(
+      "Die entschuldigte Abmeldung ist abgelehnt.",
+    );
   });
 
   it("approves without a reason and reports the notice", async () => {
@@ -141,7 +143,9 @@ describe("ExcusedRequestReviewItem", () => {
     await waitFor(() =>
       expect(mockDecide).toHaveBeenCalledWith("300", true, undefined),
     );
-    expect(onDecided).toHaveBeenCalledWith("Entschuldigte Abmeldung bestätigt");
+    expect(onDecided).toHaveBeenCalledWith(
+      "Die entschuldigte Abmeldung ist bestätigt.",
+    );
   });
 
   it("names a sickness request in the queue", () => {

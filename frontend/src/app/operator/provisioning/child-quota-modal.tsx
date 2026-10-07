@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal } from "~/components/ui/modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type {
   SchoolSummary,
   UpdateSchoolRequest,
 } from "~/lib/operator/provisioning-helpers";
-import { isOperatorApiError } from "~/lib/operator/api-helpers";
 import {
   CHILD_QUOTA_DEFAULT_BUNDLE_SIZE,
   childQuotaLimit,
@@ -18,11 +19,11 @@ import {
 } from "~/lib/operator/child-quota";
 import { formatCount } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
-import { FormError } from "./provisioning-shared";
 
 const logger = createLogger({ component: "ChildQuotaModal" });
 
-type FieldErrors = Partial<Record<"bundles" | "bundleSize", string>>;
+// Draft field → control name, which is also the backend field name.
+const FIELD_NAMES = { bundles: "bundles", bundleSize: "bundle_size" } as const;
 
 // The school update route replaces every school field, so a quota change
 // sends the school's current values with it.
@@ -44,19 +45,6 @@ function schoolUpdate(
     hidden: school.hidden,
     child_quota: childQuota,
   };
-}
-
-function saveErrorMessage(error: unknown): string {
-  if (isOperatorApiError(error) && error.status === 400) {
-    return "Das Kinderkontingent wurde nicht gespeichert. Bitte prüfen Sie die Eingaben.";
-  }
-  if (
-    isOperatorApiError(error) &&
-    (error.status === 404 || error.status === 409)
-  ) {
-    return "Die Schule wurde inzwischen geändert. Bitte laden Sie die Seite neu.";
-  }
-  return "Das Kinderkontingent wurde nicht gespeichert. Bitte versuchen Sie es erneut.";
 }
 
 /**
@@ -84,8 +72,10 @@ export function ChildQuotaModal({
 }) {
   const [bundles, setBundles] = useState("");
   const [bundleSize, setBundleSize] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [error, setError] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { show: showError, invalid, clear: clearError } = formErrors;
+  const { show: showRefreshError } = useApiErrorDisplay();
   const [saving, setSaving] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
 
@@ -102,10 +92,14 @@ export function ChildQuotaModal({
         school.childQuotaBundleSize ?? CHILD_QUOTA_DEFAULT_BUNDLE_SIZE
       ).toString(),
     );
-    setFieldErrors({});
-    setError("");
+    clearError();
     setConfirmRemove(false);
-  }, [isOpen, school.childQuotaBundles, school.childQuotaBundleSize]);
+  }, [
+    isOpen,
+    school.childQuotaBundles,
+    school.childQuotaBundleSize,
+    clearError,
+  ]);
 
   const draft = validateChildQuotaDraft({ bundles, bundleSize });
   const warning = draft.ok
@@ -115,7 +109,7 @@ export function ChildQuotaModal({
   const save = useCallback(
     async (childQuota: UpdateSchoolRequest["child_quota"]) => {
       setSaving(true);
-      setError("");
+      clearError();
       try {
         const current = await loadCurrentSchool();
         await operatorProvisioningService.updateSchool(
@@ -127,7 +121,7 @@ export function ChildQuotaModal({
           school_id: school.id,
           error: err instanceof Error ? err.message : String(err),
         });
-        setError(saveErrorMessage(err));
+        void showError(err, { object: "die Änderung am Kinderkontingent" });
         setSaving(false);
         return;
       }
@@ -139,12 +133,25 @@ export function ChildQuotaModal({
           school_id: school.id,
           error: err instanceof Error ? err.message : String(err),
         });
+        // Saved, but the page still shows the old figures.
+        void showRefreshError(err, {
+          object: "die Liste der Schulen",
+          retry: () => void onUpdated(),
+        });
       } finally {
         setSaving(false);
       }
       onClose();
     },
-    [loadCurrentSchool, onClose, onUpdated, school.id],
+    [
+      loadCurrentSchool,
+      onClose,
+      onUpdated,
+      school.id,
+      clearError,
+      showError,
+      showRefreshError,
+    ],
   );
 
   const handleSubmit = useCallback(
@@ -152,13 +159,14 @@ export function ChildQuotaModal({
       event?.preventDefault();
       const result = validateChildQuotaDraft({ bundles, bundleSize });
       if (!result.ok) {
-        setFieldErrors({ [result.field]: result.error });
+        invalid("Bitte prüfen Sie die markierten Felder.", {
+          [FIELD_NAMES[result.field]]: result.error,
+        });
         return;
       }
-      setFieldErrors({});
       void save({ bundles: result.bundles, bundle_size: result.bundleSize });
     },
-    [bundleSize, bundles, save],
+    [bundleSize, bundles, save, invalid],
   );
 
   if (confirmRemove) {
@@ -178,11 +186,11 @@ export function ChildQuotaModal({
         loadingLabel="Wird entfernt…"
         onConfirm={() => save(null)}
         onClose={() => {
-          setError("");
+          clearError();
           setConfirmRemove(false);
         }}
         loading={saving}
-        error={error}
+        error={formErrors.error}
       />
     );
   }
@@ -200,7 +208,7 @@ export function ChildQuotaModal({
               variant="outline_danger"
               size="md"
               onClick={() => {
-                setError("");
+                clearError();
                 setConfirmRemove(true);
               }}
               disabled={saving}
@@ -231,11 +239,13 @@ export function ChildQuotaModal({
       }
     >
       <form
+        ref={formRef}
         id="child-quota-form"
         onSubmit={handleSubmit}
         noValidate
         className="space-y-4"
       >
+        <FormErrorAlert message={formErrors.error} />
         <p className="text-sm text-gray-600">
           So viele Kinder darf {school.name} laut Vertrag verwalten. Gebucht
           wird in ganzen Bundles.
@@ -243,22 +253,24 @@ export function ChildQuotaModal({
         <div className="grid grid-cols-2 gap-4">
           <Input
             id="child-quota-bundles"
+            name="bundles"
             label="Anzahl Bundles"
             inputMode="numeric"
             autoComplete="off"
             value={bundles}
             onChange={(event) => setBundles(event.target.value)}
-            error={fieldErrors.bundles}
+            error={formErrors.fieldError("bundles")}
             controlSize="compact"
           />
           <Input
             id="child-quota-bundle-size"
+            name="bundle_size"
             label="Kinder pro Bundle"
             inputMode="numeric"
             autoComplete="off"
             value={bundleSize}
             onChange={(event) => setBundleSize(event.target.value)}
-            error={fieldErrors.bundleSize}
+            error={formErrors.fieldError("bundle_size")}
             controlSize="compact"
           />
         </div>
@@ -283,7 +295,6 @@ export function ChildQuotaModal({
           </div>
         </dl>
         {warning && <Alert type="warning" message={warning} />}
-        {error && <FormError message={error} />}
       </form>
     </Modal>
   );

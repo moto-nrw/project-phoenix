@@ -125,7 +125,7 @@ func confirmEmailChangeErrorRenderer(err error) render.Renderer {
 	case errors.Is(err, ErrOperatorEmailChangeNotFound),
 		errors.Is(err, ErrOperatorEmailInUse),
 		errors.Is(err, ErrOperatorInactive):
-		return common.OperatorInvalidRequest(errors.New("dieser Link ist abgelaufen oder ungültig. Bitte starte den Vorgang erneut"))
+		return common.OperatorRejection(http.StatusBadRequest, common.CodeIdentityEmailChangeLinkInvalid, "dieser Link ist abgelaufen oder ungültig. Bitte starte den Vorgang erneut")
 	default:
 		return common.OperatorInternal("Ein Serverfehler ist aufgetreten")
 	}
@@ -134,28 +134,28 @@ func confirmEmailChangeErrorRenderer(err error) render.Renderer {
 // ProfileErrorRenderer maps profile-related service errors to HTTP responses
 func ProfileErrorRenderer(err error) render.Renderer {
 	if invalid, ok := InvalidInput(err); ok {
-		return common.OperatorInvalidRequest(invalid)
+		return invalidOperatorInput(invalid, "new_password")
 	}
 	switch {
 	case errors.Is(err, ErrOperatorPasswordMismatch):
-		return common.OperatorInvalidRequest(errors.New("das aktuelle Passwort ist falsch"))
+		return common.OperatorInvalidField(common.CodeIdentityCurrentPasswordWrong, "current_password", "das aktuelle Passwort ist falsch")
 	case errors.Is(err, ErrOperatorNotFound):
-		return common.OperatorNotFound("Operator not found")
+		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "Operator not found")
 	case errors.Is(err, ErrOperatorInactive):
-		return common.OperatorForbidden("Dieser Account ist deaktiviert")
+		return operatorInactive("Dieser Account ist deaktiviert")
 	case errors.Is(err, ErrOperatorEmailInUse):
 		// Defensive: InitiateEmailChange returns nil for duplicates
 		// (anti-enumeration), and ConfirmEmailChange uses
 		// confirmEmailChangeErrorRenderer. No current caller surfaces this
 		// error, but the mapping exists as a safety net if future profile
 		// endpoints produce it.
-		return common.OperatorConflict("E-Mail-Adresse wird bereits verwendet")
+		return common.OperatorRejection(http.StatusConflict, common.CodeIdentityEmailAlreadyExists, "E-Mail-Adresse wird bereits verwendet")
 	case errors.Is(err, ErrOperatorEmailChangeRateLimited):
-		return common.OperatorTooManyRequests("Zu viele Versuche. Bitte warte eine Stunde.")
+		return common.OperatorRejection(http.StatusTooManyRequests, common.CodeIdentityEmailChangeRateLimited, "Zu viele Versuche. Bitte warte eine Stunde.")
 	case errors.Is(err, ErrOperatorEmailChangeSameEmail):
-		return common.OperatorInvalidRequest(errors.New("die neue E-Mail ist identisch mit der aktuellen"))
+		return common.OperatorInvalidField(common.CodeIdentityEmailChangeSameEmail, "new_email", "die neue E-Mail ist identisch mit der aktuellen")
 	case errors.Is(err, ErrOperatorEmailChangeNotFound):
-		return common.OperatorInvalidRequest(errors.New("dieser Link ist abgelaufen oder ungültig"))
+		return common.OperatorRejection(http.StatusBadRequest, common.CodeIdentityEmailChangeLinkInvalid, "dieser Link ist abgelaufen oder ungültig")
 	default:
 		return common.OperatorInternal("An error occurred")
 	}

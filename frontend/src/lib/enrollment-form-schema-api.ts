@@ -1,5 +1,10 @@
+import {
+  ApiError,
+  apiErrorFromResponse,
+  unavailableApiError,
+} from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
-import { readEnrollmentError } from "~/lib/enrollment-error-messages";
+import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import type { Translations } from "~/lib/enrollment-translations";
 
 const logger = createLogger({ component: "EnrollmentFormSchemaAPI" });
@@ -248,6 +253,15 @@ interface BackendEnvelope<T> {
 
 const SCHEMA_PATH = "/api/enrollment/schema";
 
+/** A request that never reached the API counts as unavailable (#2515). */
+async function send(input: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (cause) {
+    throw unavailableApiError(cause);
+  }
+}
+
 async function readJSON<T>(response: Response): Promise<T> {
   const raw = (await response.json()) as BackendEnvelope<T>;
   if (
@@ -267,7 +281,7 @@ async function readJSON<T>(response: Response): Promise<T> {
  * this phase" dropdown.
  */
 export async function listSchemas(): Promise<FormSchema[]> {
-  const response = await fetch(`${SCHEMA_PATH}/versions`, {
+  const response = await send(`${SCHEMA_PATH}/versions`, {
     cache: "no-store",
   });
   if (!response.ok) {
@@ -283,7 +297,7 @@ export async function listSchemas(): Promise<FormSchema[]> {
 }
 
 export async function fetchSchemaById(id: string): Promise<FormSchema> {
-  const response = await fetch(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
+  const response = await send(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
     cache: "no-store",
   });
   if (!response.ok) {
@@ -357,7 +371,7 @@ export async function fetchEnrollmentPreviewBootstrap(params: {
   const search = new URLSearchParams();
   if (params.schemaId) search.set("schemaId", params.schemaId);
   if (params.base) search.set("base", "1");
-  const response = await fetch(`${SCHEMA_PATH}/preview?${search.toString()}`, {
+  const response = await send(`${SCHEMA_PATH}/preview?${search.toString()}`, {
     cache: "no-store",
   });
   if (!response.ok) {
@@ -386,7 +400,7 @@ export interface PublicCaptchaConfig {
 export async function fetchPublicCaptchaConfig(
   tenantSlug: string,
 ): Promise<PublicCaptchaConfig | null> {
-  const response = await fetch(
+  const response = await send(
     `/api/enrollment/captcha-config/${encodeURIComponent(tenantSlug)}`,
     { cache: "no-store" },
   );
@@ -450,7 +464,7 @@ export async function fetchPublicLegalTexts(
   }
   const query = params.toString();
   const url = query ? `${path}?${query}` : path;
-  const response = await fetch(url, { cache: "no-store" });
+  const response = await send(url, { cache: "no-store" });
   if (!response.ok) {
     throw await readEnrollmentError(
       response,
@@ -474,7 +488,7 @@ export async function fetchPublicActiveSchema(
   const url = trimmedToken
     ? `${path}?late_invite=${encodeURIComponent(trimmedToken)}`
     : path;
-  const response = await fetch(url, { cache: "no-store" });
+  const response = await send(url, { cache: "no-store" });
   if (response.status === 404) {
     return null;
   }
@@ -509,7 +523,7 @@ export async function createSchema(
           core_requirements: coreRequirements,
           legal_blocks: legalBlocks,
         };
-  const response = await fetch(SCHEMA_PATH, {
+  const response = await send(SCHEMA_PATH, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -554,7 +568,7 @@ export async function updateSchema(
   if (newName !== undefined) body.name = newName;
   if (coreRequirements !== undefined) body.core_requirements = coreRequirements;
   if (legalBlocks !== undefined) body.legal_blocks = legalBlocks;
-  const response = await fetch(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
+  const response = await send(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -576,19 +590,18 @@ export async function uploadEnrollmentLegalDocument(
   const formData = new FormData();
   formData.append("document", file);
 
-  const response = await fetch("/api/enrollment/legal-documents", {
+  const response = await send("/api/enrollment/legal-documents", {
     method: "POST",
     body: formData,
   });
 
   if (!response.ok) {
-    const message =
-      response.status === 413
-        ? "Die PDF-Datei darf maximal 10 MB groß sein."
-        : response.status === 415
-          ? "Bitte eine PDF-Datei hochladen."
-          : "PDF-Datei konnte nicht hochgeladen werden";
-    throw new Error(message);
+    throw await readEnrollmentError(
+      response,
+      "PDF-Datei konnte nicht hochgeladen werden",
+      logger,
+      "legal_document_upload_failed",
+    );
   }
 
   const result = (await response.json()) as {
@@ -596,7 +609,8 @@ export async function uploadEnrollmentLegalDocument(
   };
   const documentURL = result.data?.document_url;
   if (!documentURL) {
-    throw new Error("PDF-Datei konnte nicht hochgeladen werden");
+    // A success without the stored file's address is a server fault.
+    throw new ApiError("Legal document upload returned no document_url", 500);
   }
   return documentURL;
 }
@@ -608,12 +622,15 @@ export async function deleteEnrollmentLegalDocument(
   const filename = documentURL.trim().split("/").pop();
   if (!filename) return;
 
-  const response = await fetch(
+  const response = await send(
     `/api/enrollment/legal-documents/${encodeURIComponent(filename)}`,
     { keepalive: options.keepalive, method: "DELETE" },
   );
   if (!response.ok) {
-    throw new Error("PDF-Datei konnte nicht entfernt werden");
+    throw await apiErrorFromResponse(
+      response,
+      "PDF-Datei konnte nicht entfernt werden",
+    );
   }
 }
 
@@ -628,7 +645,7 @@ export async function renameSchema(
   id: string,
   name: string,
 ): Promise<FormSchema> {
-  const response = await fetch(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
+  const response = await send(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
@@ -645,7 +662,7 @@ export async function renameSchema(
 }
 
 export async function deleteSchema(id: string): Promise<void> {
-  const response = await fetch(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
+  const response = await send(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
   if (response.status === 204) return;

@@ -9,7 +9,11 @@
  * care-plan-helpers.ts and the view, not by this client.
  */
 
-import { apiErrorFromBody, apiErrorFromResponse } from "./api-error";
+import {
+  apiErrorFromBody,
+  apiErrorFromResponse,
+  transportFetch,
+} from "./api-error";
 
 /** Arrival/pickup slot source — mirrors SlotSource* in the backend. */
 type CarePlanSlotSource = "schedule" | "exception" | "none";
@@ -199,7 +203,7 @@ export async function fetchStudentCarePlanDay(
   studentId: string,
   date: string,
 ): Promise<CarePlanDay> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/timetable/student/${studentId}/day?date=${date}`,
   );
   if (!response.ok) throw await apiErrorFromResponse(response, LOAD_ERROR);
@@ -213,7 +217,7 @@ export async function fetchStudentCarePlanWeek(
   from: string,
   to: string,
 ): Promise<CarePlanWeek> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/timetable/student/${studentId}/week?from=${from}&to=${to}`,
   );
   if (!response.ok) throw await apiErrorFromResponse(response, LOAD_ERROR);

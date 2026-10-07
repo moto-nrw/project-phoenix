@@ -91,6 +91,7 @@ export function StepWiederholung({
     >
       <ISODatePicker
         id="event_series_last_day"
+        name="end_date"
         controlSize="md"
         value={form.seriesEndDate}
         min={isEditingSeries ? undefined : form.date || undefined}
@@ -316,8 +317,8 @@ export function StepWiederholung({
 
       {isSeriesFlow && calendarPeriods.length === 0 && (
         <Alert
-          type="error"
-          message="Für diese Woche gibt es keinen aktiven Planungszeitraum. Lege zuerst oben im Plan einen Zeitraum an."
+          type="warning"
+          message="Für diese Woche gibt es keinen aktiven Planungszeitraum. Legen Sie zuerst oben im Plan einen Zeitraum an."
         />
       )}
     </>

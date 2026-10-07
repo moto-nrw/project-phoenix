@@ -61,7 +61,7 @@ import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 
 import { StaffExportButton } from "./staff-export-button";
 import { StaffSessionTable } from "./staff-session-table";
-import { useSwrLoadError } from "./use-swr-load-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { KpiCards, ViewToggle, type ViewMode } from "./staff-time-views";
 
 const logger = createLogger({ component: "ZeiterfassungTab" });
@@ -550,6 +550,8 @@ export function ZeiterfassungTab({
           initialDate={backfill.date}
           onClose={() => setBackfill(null)}
           onCreated={() => {
+            // Die Krankmeldung ist gespeichert. Ein fehlgeschlagenes Nachladen
+            // lässt die Ansicht nur bis zum nächsten Laden veraltet.
             Promise.all([refreshPlanCaches(), refreshAfterBackfill()]).catch(
               (err: unknown) => {
                 logger.error("sick_backfill_refresh_failed", {

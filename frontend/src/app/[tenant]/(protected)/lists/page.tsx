@@ -25,12 +25,14 @@ import {
 } from "lucide-react";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { SectionCard } from "~/components/ui/section-card";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
@@ -38,6 +40,11 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { DesktopFilters } from "~/components/ui/page-header/DesktopFilters";
 import { ActiveFilterChips } from "~/components/ui/page-header/ActiveFilterChips";
 import { TenantPage } from "~/components/ui/tenant-page";
+import {
+  useApiErrorDisplay,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -76,6 +83,23 @@ import {
 } from "~/lib/slot-lists-api";
 
 const logger = createLogger({ component: "SlotListsPage" });
+
+// Hinweise aus dem Export-Ablauf (#2516). Keine API-Fehler: der Export hält
+// an, weil sich die Liste geändert hat oder der Browser das Druckfenster
+// blockiert. Eigene kurze Sätze statt des Server-Satzes.
+const PRINT_WINDOW_BLOCKED_MESSAGE =
+  "Das Druckfenster konnte nicht geöffnet werden. Bitte laden Sie die Liste als PDF herunter.";
+const SELECTION_CHANGED_MESSAGE =
+  "Die Auswahl hat sich geändert. Bitte prüfen Sie die Liste und exportieren Sie erneut.";
+const SLOTS_CHANGED_MESSAGE =
+  "Die Angebote für diesen Tag haben sich geändert. Bitte prüfen Sie die Liste und exportieren Sie erneut.";
+const PICKUP_TIMES_CHANGED_MESSAGE =
+  "Die Abholzeiten für diesen Tag haben sich geändert. Bitte prüfen Sie die Liste und exportieren Sie erneut.";
+const LIST_CHANGED_MESSAGE =
+  "Die Liste hat sich seit dem Laden geändert. Bitte prüfen Sie die Liste und exportieren Sie erneut.";
+// Bleibt bis zum Schließen stehen: der Export ist ausgeblieben, die Person
+// muss wissen, warum, auch wenn sie erst später auf den Bildschirm schaut.
+const DRIFT_NOTICE_DURATION_MS = 0;
 
 interface SelectionOption {
   id: "slots" | SlotListPickupCohort | SlotListKind;
@@ -764,13 +788,28 @@ export default function SlotListsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isOptionsLoading, setIsOptionsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // Non-null once /options rejects. Without it a failed options request leaves
+  // True once /options rejects. Without it a failed options request leaves
   // listOptions null forever, so activeInstanceIds stays null and
   // awaitingActiveSlots never clears — the preview gate below would then hold
   // isLoading true indefinitely (permanent spinner, exports disabled) even
-  // though /preview itself could succeed (#1565 review pass 1).
-  const [optionsError, setOptionsError] = useState<string | null>(null);
+  // though /preview itself could succeed (#1565 review pass 1). The message
+  // itself goes through optionsLoad (#2516).
+  const [optionsFailed, setOptionsFailed] = useState(false);
+  // Bumped by the retry of a failed /options load to rerun the load effect.
+  const [optionsReload, setOptionsReload] = useState(0);
+  // True once /preview rejects; the message goes through previewLoad.
+  const [previewFailed, setPreviewFailed] = useState(false);
+  // Ladefehler stehen dort, wo die Daten fehlen (#2516): Katalogtext mit
+  // Wiederholen und Vorgangskennung, nie als Toast oder leere Liste.
+  const optionsLoad = useApiLoadError();
+  const previewLoad = useApiLoadError();
+  const { show: showOptionsLoadError, clear: clearOptionsLoadError } =
+    optionsLoad;
+  const { show: showPreviewLoadError, clear: clearPreviewLoadError } =
+    previewLoad;
+  // Export ist eine Aktion ohne Formular: Fehler und Hinweise als Toast.
+  const { show: showExportError } = useApiErrorDisplay();
+  const toast = useToast();
   // Bumped on focus/visibility to force the preview effect to refetch. The
   // /options revalidation alone cannot catch attendance drift: its payload holds
   // only slot, pickup-cohort and planned-roster metadata, so a check-in/out or a
@@ -779,13 +818,6 @@ export default function SlotListsPage() {
   // present/missing rows and counters until an unrelated filter changes (#1565
   // review pass 2).
   const [previewNonce, setPreviewNonce] = useState(0);
-  // A warning that must survive the very next preview refetch. The preview
-  // effect clears any error at the start of its run, so an export-time drift
-  // message set alongside a previewNonce bump would only flash and vanish before
-  // the user could read it. Stash it here instead; the effect consumes it once
-  // the fresh preview has landed, so the user sees the refreshed data AND the
-  // "please review and retry" notice together (#1565 review pass 8).
-  const pendingPreviewWarning = useRef<string | null>(null);
 
   const isPickupBased = target === "pickup_cohort";
   const isManualSlotSelection = target === "slots" && listKind === "";
@@ -993,8 +1025,11 @@ export default function SlotListsPage() {
     () => new Set(selectedSlotIdsForUI),
     [selectedSlotIdsForUI],
   );
-  const slotSummary =
-    slotOptions.length === 0
+  // Ein Ladefehler ist kein Leerzustand: ohne Angebote aus dem Abruf sagt
+  // die Zusammenfassung „Nicht geladen“, nicht „keine geplant“.
+  const slotSummary = optionsFailed
+    ? "Nicht geladen"
+    : slotOptions.length === 0
       ? "Keine Angebote geplant"
       : selectableSlotIds.length === 0
         ? "Keine aktiven Angebote auswählbar"
@@ -1101,7 +1136,8 @@ export default function SlotListsPage() {
     // once the new options arrive. selectableSlotIds empties with them, so the
     // slot controls disable until the correct set loads.
     setListOptions(null);
-    setOptionsError(null);
+    setOptionsFailed(false);
+    clearOptionsLoadError();
     setIsOptionsLoading(true);
     fetchSlotListOptions(dateISO)
       .then((options) => {
@@ -1125,12 +1161,13 @@ export default function SlotListsPage() {
         if (generation <= optionsCommittedGenerationRef.current) return;
         setListOptions(null);
         // Record the failure so the preview gate releases instead of spinning
-        // forever. Prefer the API client's resolved German sentence (#1565).
-        setOptionsError(
-          err instanceof Error && err.message
-            ? err.message
-            : "Die Slot-Optionen konnten nicht geladen werden.",
-        );
+        // forever, and show the catalog text with a retry where the options
+        // are missing (#2516).
+        setOptionsFailed(true);
+        void showOptionsLoadError(err, {
+          object: "die Liste der Angebote",
+          retry: () => setOptionsReload((n) => n + 1),
+        });
       })
       .finally(() => {
         if (!cancelled) setIsOptionsLoading(false);
@@ -1138,7 +1175,14 @@ export default function SlotListsPage() {
     return () => {
       cancelled = true;
     };
-  }, [authStatus, dateISO, timetableDisabled]);
+  }, [
+    authStatus,
+    dateISO,
+    timetableDisabled,
+    optionsReload,
+    showOptionsLoadError,
+    clearOptionsLoadError,
+  ]);
 
   // The current date, mirrored into a ref so a background /options revalidation
   // that resolves after the user has moved to another day can detect the switch
@@ -1189,7 +1233,8 @@ export default function SlotListsPage() {
         // Drop this one no matter which network round-trip finished first.
         if (generation <= optionsCommittedGenerationRef.current) return;
         optionsCommittedGenerationRef.current = generation;
-        setOptionsError(null);
+        setOptionsFailed(false);
+        clearOptionsLoadError();
         setListOptions((prev) => {
           // Newest request and nothing installed yet: the initial load is still
           // in flight or FAILED. Install the fresh payload outright — the shared
@@ -1218,11 +1263,14 @@ export default function SlotListsPage() {
         });
       })
       .catch((err: unknown) => {
+        // Bewusst still: eine Hintergrund-Aktualisierung ohne Nutzeraktion.
+        // Der letzte Stand bleibt stehen, und vor jedem Export prüft
+        // handleExport die Angebote ohnehin neu und meldet dort Fehler.
         logger.warn("slot_list_options_revalidate_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
       });
-  }, [authStatus, dateISO, timetableDisabled]);
+  }, [authStatus, dateISO, timetableDisabled, clearOptionsLoadError]);
 
   useEffect(() => {
     if (authStatus !== "authenticated" || timetableDisabled) return;
@@ -1264,14 +1312,14 @@ export default function SlotListsPage() {
   useEffect(() => {
     if (authStatus !== "authenticated" || timetableDisabled) return;
     // A corrupted id filter in the URL must not run a silently-widened query.
-    // Clear the result (which also disables the export buttons) and surface an
-    // invalid-link message instead of previewing/exporting every group or slot
-    // (#1565 review pass 3). Checked before the awaitingActiveSlots gate below.
+    // Clear the result (which also disables the export buttons); the Vorschau
+    // card shows the invalid-link notice instead of previewing/exporting every
+    // group or slot (#1565 review pass 3). Checked before the
+    // awaitingActiveSlots gate below.
     if (filterLinkInvalid) {
       setResult(null);
-      setError(
-        "Dieser Link enthält einen ungültigen Filter und wurde nicht angewendet. Bitte Filter zurücksetzen oder die Liste erneut öffnen.",
-      );
+      setPreviewFailed(false);
+      clearPreviewLoadError();
       setIsLoading(false);
       return;
     }
@@ -1281,43 +1329,24 @@ export default function SlotListsPage() {
     // result also drops the previous date's rows, which would otherwise stay
     // exportable during the options-loading window after a date change.
     if (awaitingActiveSlots) {
-      // The authoritative active slot set never arrived because /options
-      // failed. Don't hold the gate — surface the options error and stop
-      // loading so the user isn't stuck on a permanent spinner (#1565 review
-      // pass 1).
-      if (optionsError) {
-        setResult(null);
-        setError(optionsError);
-        setIsLoading(false);
-        return;
-      }
       setResult(null);
-      setError(null);
-      setIsLoading(true);
+      setPreviewFailed(false);
+      clearPreviewLoadError();
+      // The authoritative active slot set never arrived because /options
+      // failed. Don't hold the gate — stop loading so the user isn't stuck on
+      // a permanent spinner; the Vorschau card shows the options load error
+      // with its retry instead (#1565 review pass 1, #2516).
+      setIsLoading(!optionsFailed);
       return;
     }
     let cancelled = false;
     setIsLoading(true);
-    setError(null);
+    setPreviewFailed(false);
+    clearPreviewLoadError();
     fetchSlotListPreview(request)
       .then((preview) => {
         if (cancelled) return;
         setResult(preview);
-        // Re-apply a warning stashed by the export drift path (409 / header-only
-        // drift) after the fresh preview lands, so it survives the setError(null)
-        // above instead of flashing (#1565 review pass 8). Deliberately re-read
-        // the LIVE ref (not a value captured at effect start) and do NOT clear it
-        // here: a single 409 fires BOTH an options revalidation and a nonce bump,
-        // so the preview effect can run more than once before the refresh settles.
-        // Consuming the warning in the first run to resolve let the later
-        // options-triggered run — which supersedes it — land with an empty ref and
-        // wipe the message. Keeping the ref set lets whichever run settles last
-        // re-apply it; it is cleared only when the user starts a new export
-        // (handleExport) or switches context (the effect below) (#1565 review pass
-        // 9 / pass 10).
-        if (pendingPreviewWarning.current) {
-          setError(pendingPreviewWarning.current);
-        }
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -1325,14 +1354,13 @@ export default function SlotListsPage() {
           error: err instanceof Error ? err.message : String(err),
         });
         setResult(null);
-        // Surface the backend's explanation (e.g. the past-date Ganztag refusal
-        // ErrPickupCohortPastDate) instead of a generic failure — the API client
-        // already resolves it to a German sentence.
-        setError(
-          err instanceof Error && err.message
-            ? err.message
-            : "Die Vorschau konnte nicht geladen werden.",
-        );
+        // Load error in place of the preview, never the empty state: an empty
+        // table would claim that no child is on the list (#2516).
+        setPreviewFailed(true);
+        void showPreviewLoadError(err, {
+          object: "die Vorschau",
+          retry: () => setPreviewNonce((n) => n + 1),
+        });
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -1345,38 +1373,14 @@ export default function SlotListsPage() {
     request,
     timetableDisabled,
     awaitingActiveSlots,
-    optionsError,
+    optionsFailed,
     filterLinkInvalid,
-    // A focus/visibility refresh bumps this to force a preview refetch even when
-    // request and listOptions are unchanged but attendance may have drifted.
+    showPreviewLoadError,
+    clearPreviewLoadError,
+    // A focus/visibility refresh (or the retry of a failed preview) bumps this
+    // to force a preview refetch even when request and listOptions are
+    // unchanged but attendance may have drifted.
     previewNonce,
-  ]);
-
-  // A stashed export-drift warning stays applicable only as long as the user is
-  // still looking at the SAME document that produced the drift. The dependency
-  // list is every user-controlled input that changes which document the export
-  // covers: not just date/target/source/pickup cohort/list kind, but also the
-  // grouping, the manual slot selection, and the group/class filters — each of
-  // those produces a different document and a fresh preview, after which the old
-  // "please re-export" notice is stale and must clear (#1565 review pass 12).
-  //
-  // Excluded on purpose is the background options revalidation the 409 path fires:
-  // it touches listOptions/activeInstanceIds (NOT these user inputs), so the
-  // warning still survives that refresh — the whole point of stashing it. Slot
-  // pruning can rewrite selectedSlotIds during that refresh, but only when a
-  // selected slot genuinely vanished, which is itself a real document change.
-  useEffect(() => {
-    pendingPreviewWarning.current = null;
-  }, [
-    dateISO,
-    target,
-    source,
-    pickupCohort,
-    listKind,
-    groupBy,
-    selectedSlotIds,
-    selectedGroupIds,
-    selectedClasses,
   ]);
 
   // We deliberately do NOT reconcile stale group/class URL filters against the
@@ -1455,7 +1459,9 @@ export default function SlotListsPage() {
       if (mode === "print") {
         printTarget = globalThis.open("", "_blank");
         if (!printTarget) {
-          setError("Der Druckdialog konnte nicht geöffnet werden.");
+          // Kein API-Fehler: der Browser hat das Fenster blockiert. Derselbe
+          // Toast-Weg wie die übrigen Exportfehler, mit eigenem Text (#2516).
+          toast.error(PRINT_WINDOW_BLOCKED_MESSAGE);
           return;
         }
       }
@@ -1470,12 +1476,9 @@ export default function SlotListsPage() {
       // a stale request is handed out (#1565 review pass 7). Every bail-out path
       // below clears the lock again.
       setIsExporting(true);
-      setError(null);
-      // A fresh export attempt supersedes any lingering "please re-export" drift
-      // warning from a previous 409: drop it so a later preview settle cannot
-      // re-apply a now-irrelevant message over this attempt's result (#1565
-      // review pass 10).
-      pendingPreviewWarning.current = null;
+      // Fehler und Hinweise dieses Versuchs gehen als Toast raus (#2516); das
+      // Wiederholen startet den Export mit dem dann aktuellen Stand neu.
+      const retryExport = () => latestExportRef.current(format, mode);
 
       // An export is the one non-idempotent, hand-it-out action here, so before
       // it fires validate against a FRESH /options read — never the possibly-
@@ -1558,9 +1561,10 @@ export default function SlotListsPage() {
         logger.error("slot_list_options_revalidate_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        setError(
-          "Die Angebote konnten vor dem Export nicht überprüft werden. Bitte versuchen Sie es erneut.",
-        );
+        void showExportError(err, {
+          object: "die Tagesliste",
+          retry: retryExport,
+        });
         return;
       }
       // If the user changed the date, source, list type, slot selection, or a
@@ -1574,9 +1578,9 @@ export default function SlotListsPage() {
       if (requestRef.current !== request) {
         printTarget?.close();
         setIsExporting(false);
-        setError(
-          "Die Auswahl hat sich während des Exports geändert. Bitte prüfen und erneut exportieren.",
-        );
+        toast.warning(SELECTION_CHANGED_MESSAGE, {
+          duration: DRIFT_NOTICE_DURATION_MS,
+        });
         return;
       }
       let drift: boolean;
@@ -1630,40 +1634,34 @@ export default function SlotListsPage() {
       if (drift) {
         printTarget?.close();
         setIsExporting(false);
-        setOptionsError(null);
-        // Stash the drift warning instead of setting it directly. setListOptions
-        // installs fresh options, which re-derives activeInstanceIds -> request
-        // and immediately reruns the preview effect; that effect opens with
-        // setError(null), so a message set here would be wiped by the very
-        // refresh this branch triggers, flashing for a frame or never showing at
-        // all. Stash it exactly like the 409 path so the refreshed preview
-        // reapplies it once the fresh content lands (#1565 review pass 13).
+        setOptionsFailed(false);
+        clearOptionsLoadError();
+        // Ask the user to re-check the refreshed list and export again. A
+        // toast survives the preview refetch the install below triggers, so
+        // the notice needs no stash that the effect re-applies (#2516).
         //
         // Commit under the shared generation: install `fresh` only when no newer
         // /options request has committed since this preflight started, then
         // advance the marker so an older revalidation resolving later is dropped
         // rather than overwriting this snapshot. If a newer request already won,
-        // keep its options — but then setListOptions is skipped, so the else branch
-        // must force a preview refetch or the stashed warning never surfaces
-        // (#1565 review pass 1 P2). The stash is set first so it is live before
-        // whichever branch triggers the preview rerun that re-applies it.
-        pendingPreviewWarning.current =
+        // keep its options and refetch the preview instead (#1565 review pass 1
+        // P2).
+        toast.warning(
           target === "slots"
-            ? "Die Angebote für diesen Tag haben sich seit dem Laden geändert. Bitte prüfen und erneut exportieren."
-            : "Die Abholzeiten für diesen Tag haben sich seit dem Laden geändert. Bitte prüfen und erneut exportieren.";
+            ? SLOTS_CHANGED_MESSAGE
+            : PICKUP_TIMES_CHANGED_MESSAGE,
+          { duration: DRIFT_NOTICE_DURATION_MS },
+        );
         if (exportOptionsGeneration > optionsCommittedGenerationRef.current) {
           optionsCommittedGenerationRef.current = exportOptionsGeneration;
           setListOptions(fresh);
         } else {
           // A newer /options refresh already committed a higher generation, so
           // installing `fresh` here would roll listOptions back and is correctly
-          // skipped. But then NO preview dependency changes, so the preview effect
-          // never reruns and the stashed warning above is never surfaced — the
-          // export would stop with no file AND no explanation. Force a preview
-          // refetch so the effect reruns and re-applies pendingPreviewWarning.current
-          // once it lands. previewNonce is not a document input, so the separate
-          // effect that clears the stash on a real document change does not fire
-          // (#1565 review pass 1 P2 follow-up).
+          // skipped. But then NO preview dependency changes, so the preview
+          // effect would not rerun. Force a preview refetch so the user re-checks
+          // the current content the notice above points at (#1565 review pass 1
+          // P2 follow-up).
           setPreviewNonce((n) => n + 1);
         }
         return;
@@ -1711,9 +1709,10 @@ export default function SlotListsPage() {
         logger.error("slot_list_preview_revalidate_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        setError(
-          "Die Liste konnte vor dem Export nicht überprüft werden. Bitte versuchen Sie es erneut.",
-        );
+        void showExportError(err, {
+          object: "die Tagesliste",
+          retry: retryExport,
+        });
         return;
       }
       // Same mid-flight guard as after the options read: if the selection moved on
@@ -1732,9 +1731,9 @@ export default function SlotListsPage() {
         // stranding stale on the list the user just switched to (#1565 review pass 2
         // P2 follow-up). A date change is skipped by commitRefreshedOptions' guard.
         commitRefreshedOptions();
-        setError(
-          "Die Auswahl hat sich während des Exports geändert. Bitte prüfen und erneut exportieren.",
-        );
+        toast.warning(SELECTION_CHANGED_MESSAGE, {
+          duration: DRIFT_NOTICE_DURATION_MS,
+        });
         return;
       }
       // resultSignature only covers the label, counters and rows. The backend
@@ -1752,27 +1751,14 @@ export default function SlotListsPage() {
         printTarget?.close();
         setIsExporting(false);
         setResult(freshPreview);
-        const driftWarning =
-          "Die Liste hat sich seit dem Laden geändert. Bitte prüfen und erneut exportieren.";
-        // Stash the warning BEFORE committing the refreshed options, exactly like
-        // the 409 and options-drift paths. Reaching here means the identity gate
-        // above passed, so the captured request is still current and
-        // commitRefreshedOptions is GUARANTEED to install the staged `fresh` — a new
-        // options object that re-derives activeInstanceIds -> request and reruns the
-        // preview effect, which opens with setError(null). A message set only via
-        // setError here would be wiped by that very refresh, flashing for a frame or
-        // never painting. Stashing it lets the refreshed preview reapply it once the
-        // fresh content lands. The direct setError below is a belt-and-suspenders
-        // fallback for the (currently unreachable) case where no refire fires; if a
-        // refire does fire it is wiped and re-applied from the ref, netting one
-        // stable warning (#1565 review pass 14 P2).
-        pendingPreviewWarning.current = driftWarning;
         // Same stranding guard as the other early-exit paths: the no-drift path
         // advanced the committed marker and staged `fresh`, so install it here too
         // rather than leaving listOptions behind the advanced marker (#1565 review
-        // pass 2 P2).
+        // pass 2 P2). The toast survives the preview refetch this may trigger.
         commitRefreshedOptions();
-        setError(driftWarning);
+        toast.warning(LIST_CHANGED_MESSAGE, {
+          duration: DRIFT_NOTICE_DURATION_MS,
+        });
         return;
       }
 
@@ -1814,21 +1800,21 @@ export default function SlotListsPage() {
         // tab). Ask the user to re-check and export again — this is not a failure
         // to log (#1565 review pass 10).
         if (err instanceof SlotListExportSupersededError) {
-          setError(
-            "Die Auswahl hat sich während des Exports geändert. Bitte prüfen und erneut exportieren.",
-          );
+          toast.warning(SELECTION_CHANGED_MESSAGE, {
+            duration: DRIFT_NOTICE_DURATION_MS,
+          });
           return;
         }
         // 409 = the backend's atomic drift refusal (its rebuild no longer matches
         // the verified signature). Refresh the preview so the user sees the new
         // content and re-checks, rather than silently failing. exportSlotList
-        // already closed the print tab on this rejection. Stash the warning so it
-        // survives the preview effect's setError(null) — setting it directly here
-        // would be wiped by the refetch the nonce bump triggers, flashing the
-        // message for a frame or never showing it at all (#1565 review pass 8).
+        // already closed the print tab on this rejection. The status decides
+        // the flow only; the notice is our own text, never the server's
+        // sentence (#2516).
         if (err instanceof SlotListExportError && err.status === 409) {
-          pendingPreviewWarning.current =
-            "Die Liste hat sich seit dem Laden geändert. Bitte prüfen und erneut exportieren.";
+          toast.warning(LIST_CHANGED_MESSAGE, {
+            duration: DRIFT_NOTICE_DURATION_MS,
+          });
           // The 409 means schedule metadata or a pickup cutoff drifted after the
           // preflight /options read but before the backend's export rebuild.
           // Bumping only previewNonce refreshes the preview while request and the
@@ -1845,9 +1831,10 @@ export default function SlotListsPage() {
         logger.error("slot_list_export_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        setError(
-          "Die Liste konnte nicht exportiert werden. Bitte versuchen Sie es erneut.",
-        );
+        void showExportError(err, {
+          object: "die Tagesliste",
+          retry: retryExport,
+        });
       } finally {
         setIsExporting(false);
         // Install the options snapshot the no-drift preflight staged, on EVERY
@@ -1879,8 +1866,19 @@ export default function SlotListsPage() {
       listOptions,
       result,
       revalidateOptions,
+      clearOptionsLoadError,
+      showExportError,
+      toast,
     ],
   );
+  // Wiederholen aus dem Fehler-Toast startet den Export mit dem AKTUELLEN
+  // Stand neu, nicht mit dem des fehlgeschlagenen Versuchs (#2516).
+  const latestExportRef = useRef<
+    (format: SlotListFormat, mode: "download" | "print") => void
+  >(() => undefined);
+  useLayoutEffect(() => {
+    latestExportRef.current = (format, mode) => void handleExport(format, mode);
+  });
 
   // Standard filter row, rendered via the shared DesktopFilters component.
   const filterConfigs: FilterConfig[] = useMemo(() => {
@@ -2108,6 +2106,27 @@ export default function SlotListsPage() {
     );
   }
 
+  // Why the preview shows no list, in order: a corrupted filter link, a failed
+  // /preview, or a failed /options that blocks a slot list (#2516). While the
+  // catalog text of a failure is still loading, the table keeps its loading
+  // state instead of an empty list.
+  const optionsBlockPreview = awaitingActiveSlots && optionsFailed;
+  const previewError = previewFailed
+    ? previewLoad.error
+    : optionsBlockPreview
+      ? optionsLoad.error
+      : null;
+  const previewErrorPending =
+    (previewFailed || optionsBlockPreview) && previewError === null;
+  const resetFilterLink = () => {
+    resetFilters();
+    replaceListUrl({
+      selectedSlotIds: null,
+      selectedGroupIds: null,
+      selectedClasses: null,
+    });
+  };
+
   const selectedOption = SELECTION_OPTIONS.find(
     (option) =>
       option.target === target &&
@@ -2135,7 +2154,14 @@ export default function SlotListsPage() {
           ? `${formatStatusDate(dateISO)} · ${result.counters.planned} Kinder geplant`
           : null
       }
-      statsLoading={isLoading || !result}
+      statsLoading={
+        isLoading ||
+        previewErrorPending ||
+        (!result &&
+          !filterLinkInvalid &&
+          !previewFailed &&
+          !optionsBlockPreview)
+      }
       // Bauart 3, Regel 4: Drucken und Exportieren stehen im Kebab der
       // Kopfkarte, nicht als Knopfreihe in einer Inhaltskarte.
       actions={
@@ -2211,11 +2237,13 @@ export default function SlotListsPage() {
                 : option.target === "slots"
                   ? isOptionsLoading
                     ? "Prüfe Datum…"
-                    : slotCount > 0
-                      ? cancelledSlotCount > 0
-                        ? `${selectableSlotIds.length} aktiv, ${cancelledSlotCount} abgesagt`
-                        : `${slotCount} Angebot${slotCount === 1 ? "" : "e"} geplant`
-                      : "Keine Angebote geplant"
+                    : optionsFailed
+                      ? "Nicht geladen"
+                      : slotCount > 0
+                        ? cancelledSlotCount > 0
+                          ? `${selectableSlotIds.length} aktiv, ${cancelledSlotCount} abgesagt`
+                          : `${slotCount} Angebot${slotCount === 1 ? "" : "e"} geplant`
+                        : "Keine Angebote geplant"
                   : availability
                     ? availability.row_count > 0
                       ? `${availability.row_count} Kinder mit passender Abholzeit`
@@ -2323,7 +2351,9 @@ export default function SlotListsPage() {
               </div>
             ) : (
               <p className="text-sm text-gray-500">
-                Für dieses Datum sind keine Angebote geplant.
+                {optionsFailed
+                  ? "Die Angebote konnten nicht geladen werden."
+                  : "Für dieses Datum sind keine Angebote geplant."}
               </p>
             )}
             {cancelledSlotCount > 0 ? (
@@ -2381,7 +2411,11 @@ export default function SlotListsPage() {
         </div>
       </SectionCard>
 
-      {error ? <Alert type="error" message={error} /> : null}
+      {/* Pickup lists do not wait for /options, so its load error stands
+          here; for slot lists it replaces the preview below. */}
+      {optionsBlockPreview ? null : (
+        <LoadErrorAlert error={optionsLoad.error} />
+      )}
 
       {/* Vorschau. Drucken und Exportieren liegen im Kebab der Kopfkarte,
           wie auf jeder anderen Werkzeugfläche. */}
@@ -2404,7 +2438,24 @@ export default function SlotListsPage() {
         </div>
 
         <div className="mt-4">
-          {groupBy && !isLoading && (result?.rows.length ?? 0) > 0 ? (
+          {filterLinkInvalid ? (
+            <Alert
+              type="warning"
+              message="Dieser Link enthält einen ungültigen Filter. Die Liste wird deshalb nicht angezeigt."
+              action={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={resetFilterLink}
+                >
+                  Filter zurücksetzen
+                </Button>
+              }
+            />
+          ) : previewError ? (
+            <LoadErrorAlert error={previewError} />
+          ) : groupBy && !isLoading && (result?.rows.length ?? 0) > 0 ? (
             <div className="space-y-5">
               {sections.map((section) => (
                 <div key={section.title}>
@@ -2431,7 +2482,7 @@ export default function SlotListsPage() {
               getRowKey={(r) =>
                 `${r.instance_id ?? ""}-${r.slot}-${r.student_id}`
               }
-              isLoading={isLoading}
+              isLoading={isLoading || previewErrorPending}
               pageSize={PREVIEW_PAGE_SIZE}
               emptyState={
                 <EmptyState

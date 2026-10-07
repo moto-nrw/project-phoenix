@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { ApiError, enrichApiError, transportFetch } from "./api-error";
 // Calendar period API client. Talks to the Next.js proxy at
 // /api/timetable/periods, which forwards to the Go backend
 // /api/timetable/periods (CRUD via SchedulesRead/Create/Update/Delete).
@@ -62,7 +62,7 @@ async function unwrap<T>(response: Response): Promise<T> {
 
 class CalendarPeriodService {
   async list(): Promise<CalendarPeriod[]> {
-    const response = await fetch("/api/timetable/periods", {
+    const response = await transportFetch("/api/timetable/periods", {
       method: "GET",
       headers: { Accept: "application/json" },
       credentials: "include",
@@ -72,7 +72,7 @@ class CalendarPeriodService {
   }
 
   async get(id: string): Promise<CalendarPeriod> {
-    const response = await fetch(`/api/timetable/periods/${id}`, {
+    const response = await transportFetch(`/api/timetable/periods/${id}`, {
       method: "GET",
       headers: { Accept: "application/json" },
       credentials: "include",
@@ -88,7 +88,7 @@ class CalendarPeriodService {
    * this call.
    */
   async bootstrap(): Promise<{ periods: CalendarPeriod[]; created: boolean }> {
-    const response = await fetch("/api/timetable/periods/bootstrap", {
+    const response = await transportFetch("/api/timetable/periods/bootstrap", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -112,7 +112,7 @@ class CalendarPeriodService {
   }
 
   async create(body: CalendarPeriodInput): Promise<CalendarPeriodSaveResult> {
-    const response = await fetch("/api/timetable/periods", {
+    const response = await transportFetch("/api/timetable/periods", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -134,7 +134,7 @@ class CalendarPeriodService {
     id: string,
     body: CalendarPeriodInput,
   ): Promise<CalendarPeriodSaveResult> {
-    const response = await fetch(`/api/timetable/periods/${id}`, {
+    const response = await transportFetch(`/api/timetable/periods/${id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -152,7 +152,7 @@ class CalendarPeriodService {
   }
 
   async delete(id: string): Promise<void> {
-    const response = await fetch(`/api/timetable/periods/${id}`, {
+    const response = await transportFetch(`/api/timetable/periods/${id}`, {
       method: "DELETE",
       headers: { Accept: "application/json" },
       credentials: "include",

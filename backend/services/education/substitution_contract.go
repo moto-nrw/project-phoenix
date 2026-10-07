@@ -32,6 +32,10 @@ type OperationError struct {
 	Code    string
 	Message string
 	Cause   error
+	// Details are the values a refusal names and Field the request field it
+	// is about (#2516); both reach the response unchanged.
+	Details map[string]any
+	Field   string
 }
 
 func (e *OperationError) Error() string {

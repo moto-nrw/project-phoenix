@@ -79,7 +79,8 @@ const mockToast = {
   warning: vi.fn(),
   info: vi.fn(),
 };
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => mockToast,
 }));
 
@@ -504,6 +505,8 @@ import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
 import { isHomeLocation } from "~/lib/location-helper";
 import { substitutionService } from "~/lib/substitution-api";
+import { ApiError, unavailableApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import type {
   OgsLiveViewData,
   OgsLiveWireStudent,
@@ -671,7 +674,7 @@ describe("OGSGroupPage", () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: null,
       isLoading: false,
-      error: new Error("API error: 403"),
+      error: new ApiError("API error: 403", 403),
       mutate: mockMutate,
       isValidating: false,
     } as never);
@@ -1130,7 +1133,7 @@ describe("OGSGroupPage additional scenarios", () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: null,
       isLoading: false,
-      error: new Error("API error: 500"),
+      error: new ApiError("API error: 500", 500, { code: "general.server" }),
       mutate: mockMutate,
       isValidating: false,
     } as never);
@@ -1140,6 +1143,13 @@ describe("OGSGroupPage additional scenarios", () => {
     await waitFor(() => {
       expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
     });
+    // The page says what failed instead of showing an empty group (Alert is
+    // mocked here, so the retry action is not rendered).
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Liste Ihrer OGS-Gruppe"),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("shows transfer modal component", async () => {
@@ -3227,7 +3237,7 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
 
   it("passes transfer data load failures to the modal", async () => {
     vi.mocked(substitutionService.fetchOverview).mockRejectedValueOnce(
-      new Error("network failure"),
+      unavailableApiError(new TypeError("Failed to fetch")),
     );
     vi.mocked(useSWRAuth).mockReturnValue({
       data: liveData({ students: [] }),
@@ -3242,10 +3252,14 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
 
     await waitFor(() => {
       const lastCall = mockTransferModalProps.mock.calls.at(-1) as
-        [{ loadError?: string }] | undefined;
-      expect(lastCall?.[0].loadError).toBe(
-        "Fachkräfte und Übergaben konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+        [{ loadError?: { message: string; retry?: unknown } }] | undefined;
+      expect(lastCall?.[0].loadError?.message).toBe(
+        catalogText(
+          "general.unavailable",
+          "die Liste der Fachkräfte und Übergaben",
+        ),
       );
+      expect(lastCall?.[0].loadError?.retry).toBeDefined();
     });
   });
 
@@ -3269,7 +3283,9 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
         ],
         runningSupervisions: [],
       })
-      .mockRejectedValueOnce(new Error("network failure"));
+      .mockRejectedValueOnce(
+        unavailableApiError(new TypeError("Failed to fetch")),
+      );
     vi.mocked(useSWRAuth).mockReturnValue({
       data: liveData({ students: [] }),
       isLoading: false,
@@ -3300,12 +3316,15 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
       const reloadedProps = mockTransferModalProps.mock.calls.at(-1)?.[0] as {
         availableUsers: Array<{ id: string }>;
         existingTransfers: Array<{ substitutionId: string }>;
-        loadError?: string;
+        loadError?: { message: string };
       };
       expect(reloadedProps.availableUsers).toEqual([]);
       expect(reloadedProps.existingTransfers).toEqual([]);
-      expect(reloadedProps.loadError).toBe(
-        "Fachkräfte und Übergaben konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      expect(reloadedProps.loadError?.message).toBe(
+        catalogText(
+          "general.unavailable",
+          "die Liste der Fachkräfte und Übergaben",
+        ),
       );
     });
   });

@@ -4,6 +4,7 @@ import StudentFeedbackHistoryPage from "./page";
 import { ApiError } from "~/lib/api-error";
 import { fetchStudent } from "~/lib/student-api";
 import { fetchStudentFeedback } from "~/lib/feedback-api";
+import { catalogText } from "~/test/error-catalog-text";
 
 const mockPush = vi.fn();
 
@@ -324,6 +325,11 @@ describe("StudentFeedbackHistoryPage", () => {
     expect(await screen.findByTestId("alert-error")).toHaveTextContent(
       "Die Feedbackhistorie ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
     );
+    // #2517: keine Zählung aus einer Historie, die nie geladen wurde.
+    expect(screen.getByTestId("alert-error")).toHaveTextContent(
+      catalogText("general.unavailable", "die Feedbackhistorie"),
+    );
+    expect(screen.queryByText(/0 Einträge/)).not.toBeInTheDocument();
   });
 
   it("shows the switched-off state from the child's record", async () => {

@@ -30,6 +30,8 @@ func TestAnnouncementErrorRenderer_NotFound(t *testing.T) {
 	status, _, errorText := extractErrResponse(t, renderer)
 	assert.Equal(t, http.StatusNotFound, status)
 	assert.Equal(t, "Announcement not found", errorText)
+	// #2519: the operator portal shows the reason by code.
+	assert.Equal(t, common.CodeCommunicationAnnouncementNotFound, renderer.(*common.ErrResponse).Code)
 }
 
 func TestAnnouncementErrorRenderer_InvalidData(t *testing.T) {

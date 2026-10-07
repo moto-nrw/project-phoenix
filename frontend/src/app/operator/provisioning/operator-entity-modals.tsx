@@ -1,5 +1,6 @@
 "use client";
 
+import type { FormErrorInput } from "~/components/ui/form-error";
 import {
   RestoreConfirmationModal,
   SoftDeleteConfirmationModal,
@@ -19,7 +20,7 @@ const ORG_DELETE_BULLETS = [
 
 interface SoftDeleteWrapperProps<T extends SoftDeletable> {
   readonly target: T;
-  readonly errorMessage: string;
+  readonly errorMessage: FormErrorInput;
   readonly isProcessing: boolean;
   readonly onCancel: () => void;
   readonly onConfirm: () => void;
@@ -60,7 +61,7 @@ interface RestoreWrapperProps<T extends SoftDeletable> {
   readonly setTarget: (t: T | null) => void;
   readonly onConfirm: () => void;
   readonly isProcessing: boolean;
-  readonly errorMessage?: string;
+  readonly errorMessage?: FormErrorInput;
   readonly confirmDisabled?: boolean;
   readonly confirmDisabledReason?: string;
 }

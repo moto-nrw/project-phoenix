@@ -1,3 +1,4 @@
+import { ApiError, apiErrorFromBody } from "./api-error";
 import { createLogger } from "./logger";
 import { sessionFetch } from "./session-cache";
 
@@ -64,10 +65,36 @@ export function mapStaffOnboardingState(
   };
 }
 
-/** Fehler mit dem HTTP-Status, damit die Checkliste passend antworten kann. */
-export class StaffOnboardingError extends Error {
-  constructor(readonly status: number) {
-    super(`staff onboarding request failed (${status})`);
+/**
+ * Fehler mit HTTP-Status, Code und Vorgangskennung der Antwort, damit der
+ * gemeinsame Fehlerweg den passenden Katalogtext zeigt (#2517).
+ */
+export class StaffOnboardingError extends ApiError {
+  declare status: number;
+
+  constructor(status: number, body?: unknown) {
+    const wire = apiErrorFromBody(
+      `staff onboarding request failed (${status})`,
+      status,
+      body,
+    );
+    super(wire.message, status, {
+      code: wire.code,
+      details: wire.details,
+      errors: wire.errors,
+      instance: wire.instance,
+    });
+    this.name = "StaffOnboardingError";
+  }
+}
+
+async function failedResponseBody(response: Response): Promise<unknown> {
+  try {
+    const text = await response.text();
+    return text ? (JSON.parse(text) as unknown) : undefined;
+  } catch {
+    // Kein JSON: der Status allein ordnet den Fehler ein.
+    return undefined;
   }
 }
 
@@ -77,7 +104,10 @@ async function readState(
 ): Promise<StaffOnboardingState> {
   if (!response.ok) {
     logger.error(event, { status: response.status });
-    throw new StaffOnboardingError(response.status);
+    throw new StaffOnboardingError(
+      response.status,
+      await failedResponseBody(response),
+    );
   }
   const body = (await response.json()) as
     { data?: BackendState } | BackendState;
@@ -86,7 +116,8 @@ async function readState(
   // Stand nicht ersetzen, sonst stünde jeder Schritt wieder offen.
   if (!Array.isArray(data.done_steps) || !Array.isArray(data.skipped_steps)) {
     logger.error(event, { reason: "unexpected_shape" });
-    throw new StaffOnboardingError(response.status);
+    // Eine unbrauchbare Antwort ist ein Serverfehler, kein Eingabefehler.
+    throw new StaffOnboardingError(500);
   }
   return mapStaffOnboardingState(data);
 }

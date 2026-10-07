@@ -1,4 +1,5 @@
-import { operatorFetch, OperatorApiError } from "./api-helpers";
+import { apiErrorFromResponse, transportFetch } from "../api-error";
+import { operatorFetch } from "./api-helpers";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 
 /**
@@ -102,14 +103,14 @@ export const operatorBillingService = {
   /** Downloads the CSV of one month (YYYY-MM), or of every month. */
   async downloadKeyDateCounts(month?: string): Promise<void> {
     const query = month ? `?month=${encodeURIComponent(month)}` : "";
-    const response = await fetch(
+    const response = await transportFetch(
       `/api/operator/billing/key-date-counts/export${query}`,
       { credentials: "include" },
     );
     if (!response.ok) {
-      throw new OperatorApiError(
-        "Die Datei konnte nicht erstellt werden.",
-        response.status,
+      throw await apiErrorFromResponse(
+        response,
+        `Key date count export failed (${response.status})`,
       );
     }
     const blob = await response.blob();

@@ -1,6 +1,14 @@
 "use client";
 
-import { Suspense, useCallback, useMemo, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
@@ -13,14 +21,14 @@ import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
-import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { groupsConfig } from "@/components/database/configs/groups.config";
 import type { Group } from "@/lib/group-helpers";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { GroupsMasterDetail } from "@/components/groups/groups-master-detail";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -50,10 +58,19 @@ function GroupsPageContent() {
     showConfirmModal: showDeleteConfirmModal,
     handleDeleteClick,
     handleDeleteCancel,
-    confirmDelete,
   } = useDeleteConfirmation();
 
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
+  // Schreibfehler bleiben im jeweiligen Dialog (#2517).
+  const createErrors = useApiFormError();
+  const deleteErrors = useApiFormError();
+  const [deletePending, setDeletePending] = useState(false);
+  const latestDeleteRef = useRef<() => void>(() => undefined);
+  const { clear: clearCreateErrors } = createErrors;
+  // Ein neu geöffnetes Anlegen beginnt ohne den Fehler des vorigen Versuchs.
+  useEffect(() => {
+    if (showCreateModal) clearCreateErrors();
+  }, [showCreateModal, clearCreateErrors]);
 
   const { status } = useSession({
     required: true,
@@ -67,16 +84,19 @@ function GroupsPageContent() {
 
   const {
     data: groupsData,
-    isLoading: loading,
+    isLoading: swrLoading,
     error: groupsError,
+    mutate: mutateGroups,
   } = useSWRAuth("database-groups-list", async () => {
     const data = await service.getList({ page: 1, pageSize: 500 });
     return Array.isArray(data.data) ? data.data : [];
   });
 
-  const error = groupsError
-    ? "Fehler beim Laden der Gruppen. Bitte versuchen Sie es später erneut."
-    : null;
+  const error = useSwrLoadError(groupsError, "die Liste der Gruppen", () =>
+    mutateGroups(),
+  );
+  // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett stehen.
+  const loading = swrLoading || (Boolean(groupsError) && error === null);
 
   // Statuszeile des Seitenkopfs aus der bereits geladenen Gruppenliste.
   const statusLine = useMemo(() => {
@@ -164,29 +184,14 @@ function GroupsPageContent() {
 
   const handleCreateGroup = useCallback(
     async (data: Partial<Group>) => {
-      try {
-        const payload = groupsConfig.form.transformBeforeSubmit
-          ? groupsConfig.form.transformBeforeSubmit(data)
-          : data;
-        const created = await service.create(payload);
-        toastSuccess(
-          getDbOperationMessage(
-            "create",
-            groupsConfig.name.singular,
-            created.name,
-          ),
-        );
-        setShowCreateModal(false);
-        await tenantMutate("database-groups-list");
-      } catch (createError) {
-        logger.error("failed to create group", {
-          error:
-            createError instanceof Error
-              ? createError.message
-              : String(createError),
-        });
-        throw createError;
-      }
+      // Ein Fehler bleibt im Dialog: DatabaseForm zeigt ihn über errorPath.
+      const payload = groupsConfig.form.transformBeforeSubmit
+        ? groupsConfig.form.transformBeforeSubmit(data)
+        : data;
+      const created = await service.create(payload);
+      toastSuccess(`Die Gruppe „${created.name}“ ist angelegt.`);
+      setShowCreateModal(false);
+      await tenantMutate("database-groups-list");
     },
     [service, tenantMutate, toastSuccess],
   );
@@ -194,57 +199,56 @@ function GroupsPageContent() {
   const handleUpdateGroup = useCallback(
     async (data: Partial<Group>) => {
       if (!selectedGroup) return;
-      try {
-        const payload = groupsConfig.form.transformBeforeSubmit
-          ? groupsConfig.form.transformBeforeSubmit(data)
-          : data;
-        await service.update(selectedGroup.id, payload);
-        toastSuccess(
-          getDbOperationMessage(
-            "update",
-            groupsConfig.name.singular,
-            selectedGroup.name,
-          ),
-        );
-        await tenantMutate("database-groups-list");
-      } catch (updateError) {
-        logger.error("failed to update group", {
-          group_id: selectedGroup.id,
-          error:
-            updateError instanceof Error
-              ? updateError.message
-              : String(updateError),
-        });
-        throw updateError;
-      }
+      // Ein Fehler bleibt im Formular (errorPath im Stammdaten-Reiter).
+      const payload = groupsConfig.form.transformBeforeSubmit
+        ? groupsConfig.form.transformBeforeSubmit(data)
+        : data;
+      await service.update(selectedGroup.id, payload);
+      toastSuccess(
+        `Die Gruppe „${data.name ?? selectedGroup.name}“ ist gespeichert.`,
+      );
+      await tenantMutate("database-groups-list");
     },
     [selectedGroup, service, tenantMutate, toastSuccess],
   );
 
   const handleDeleteGroup = useCallback(async () => {
     if (!selectedGroup) return;
-    const deleteError = await service.delete(selectedGroup.id);
-    if (deleteError) {
-      toastError(deleteError);
-      return;
+    setDeletePending(true);
+    deleteErrors.clear();
+    try {
+      const deleted = await service.remove(selectedGroup.id);
+      if (!deleted) return;
+      toastSuccess(`Die Gruppe „${selectedGroup.name}“ ist gelöscht.`);
+      handleDeleteCancel();
+      handleSelectGroup(null);
+      await tenantMutate("database-groups-list");
+    } catch (err) {
+      logger.warn("group_delete_failed", {
+        group_id: selectedGroup.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // Der Bestätigungsdialog bleibt offen und nennt den Grund.
+      void deleteErrors.show(err, {
+        object: "das Löschen der Gruppe",
+        retry: () => latestDeleteRef.current(),
+      });
+    } finally {
+      setDeletePending(false);
     }
-    toastSuccess(
-      getDbOperationMessage(
-        "delete",
-        groupsConfig.name.singular,
-        selectedGroup.name,
-      ),
-    );
-    handleSelectGroup(null);
-    await tenantMutate("database-groups-list");
   }, [
     selectedGroup,
     service,
-    toastError,
     toastSuccess,
+    handleDeleteCancel,
     handleSelectGroup,
     tenantMutate,
+    deleteErrors,
   ]);
+
+  useLayoutEffect(() => {
+    latestDeleteRef.current = () => void handleDeleteGroup();
+  });
 
   const canShowDetail =
     !loading && (filteredGroups.length > 0 || selectedGroup !== null);
@@ -292,13 +296,18 @@ function GroupsPageContent() {
             mode="create"
             config={groupsConfig}
             onSubmit={handleCreateGroup}
+            errorPath={createErrors}
+            errorObject="die Gruppe"
           />
 
           {selectedGroup && (
             <ConfirmDeleteModal
               isOpen={showDeleteConfirmModal}
-              onClose={handleDeleteCancel}
-              onConfirm={() => confirmDelete(() => void handleDeleteGroup())}
+              onClose={() => {
+                deleteErrors.clear();
+                handleDeleteCancel();
+              }}
+              onConfirm={() => void handleDeleteGroup()}
               title="Gruppe löschen?"
               description={
                 <>
@@ -309,8 +318,8 @@ function GroupsPageContent() {
                 </>
               }
               gate={{ mode: "twoStep" }}
-              loading={false}
-              error=""
+              loading={deletePending}
+              error={deleteErrors.error}
             />
           )}
         </>

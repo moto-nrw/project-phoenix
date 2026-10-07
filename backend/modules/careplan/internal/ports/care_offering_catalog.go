@@ -83,7 +83,31 @@ type CatalogTranslations interface {
 type OfferingSourceRules interface {
 	MaxSourcesPerTemplate() int
 	Reject(reason string) error
+	// RejectWith refuses a selection for a reason the editor words itself
+	// (#2516); Reason stays the diagnostic text.
+	RejectWith(refusal OfferingSourceRefusal) error
 	IsRejection(err error) bool
+}
+
+// OfferingSourceRefusalKind names why a selection was refused.
+type OfferingSourceRefusalKind string
+
+const (
+	OfferingSourceTooMany       OfferingSourceRefusalKind = "too_many"
+	OfferingSourceNotFound      OfferingSourceRefusalKind = "not_found"
+	OfferingSourceInactive      OfferingSourceRefusalKind = "inactive"
+	OfferingSourceMixedPhases   OfferingSourceRefusalKind = "mixed_phases"
+	OfferingSourceOutsidePeriod OfferingSourceRefusalKind = "outside_period"
+)
+
+// OfferingSourceRefusal is one refused selection with the values its reason
+// names: the cap and the given count, or the offering's name.
+type OfferingSourceRefusal struct {
+	Kind     OfferingSourceRefusalKind
+	Reason   string
+	Max      int
+	Given    int
+	Offering string
 }
 
 // SourcedTemplateResyncer keeps the rosters of the templates sourcing an

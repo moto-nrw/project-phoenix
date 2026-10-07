@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   CalendarRange,
@@ -30,7 +30,9 @@ import {
   type FormSchema,
 } from "~/lib/enrollment-form-schema-api";
 import { fetchSettingsSchema } from "~/lib/settings-api";
-import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { EmptyState } from "~/components/ui/empty-state";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import {
@@ -70,7 +72,8 @@ interface CareOfferingStats {
 export interface AdminEnrollmentsSummary {
   readonly activePhases: number;
   readonly requests: number;
-  readonly openChangeRequests: number;
+  /** null, wenn die Änderungsanfragen nicht geladen werden konnten. */
+  readonly openChangeRequests: number | null;
 }
 
 export function AdminEnrollmentsList({
@@ -78,7 +81,9 @@ export function AdminEnrollmentsList({
 }: {
   /** Meldet die geladenen Zahlen an den Seitenkopf, damit dessen Statuszeile
    *  aus denselben Daten stammt statt aus einem zweiten Request. */
-  readonly onSummaryChange?: (summary: AdminEnrollmentsSummary | null) => void;
+  readonly onSummaryChange?: (
+    summary: AdminEnrollmentsSummary | "unavailable" | null,
+  ) => void;
 } = {}) {
   const tenantSlug = useTenantSlugSafe();
   const tenantPath = useTenantAwarePath();
@@ -94,19 +99,26 @@ export function AdminEnrollmentsList({
   const [changeRequests, setChangeRequests] = useState<
     AdminEnrollmentChangeRequest[]
   >([]);
-  const [changeRequestsError, setChangeRequestsError] = useState<string | null>(
-    null,
-  );
+  const [changeRequestsFailed, setChangeRequestsFailed] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const loadError = useApiLoadError();
+  const showLoadError = loadError.show;
+  const clearLoadError = loadError.clear;
+  const changeRequestsError = useApiLoadError();
+  const showChangeRequestsError = changeRequestsError.show;
+  const clearChangeRequestsError = changeRequestsError.clear;
+  const reload = useCallback(() => setAttempt((value) => value + 1), []);
   const latestSchemas = useMemo(() => latestSchemasByName(schemas), [schemas]);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       setLoading(true);
-      setError(null);
-      setChangeRequestsError(null);
+      clearLoadError();
+      clearChangeRequestsError();
+      setChangeRequestsFailed(false);
       try {
         const [
           phasesData,
@@ -117,32 +129,40 @@ export function AdminEnrollmentsList({
         ] = await Promise.all([
           listPhases(),
           listAdminRequests(),
+          // Die Änderungsanfragen haben einen eigenen Kasten: scheitern sie,
+          // zeigt nur dieser den Ladefehler, der Rest der Seite bleibt nutzbar.
           listAdminEnrollmentChangeRequests()
-            .then((data) => ({ data, error: null as string | null }))
-            .catch((err) => {
-              const message =
-                err instanceof Error ? err.message : "Unbekannter Fehler";
+            .then((data) => ({ data, failed: false, error: null as unknown }))
+            .catch((err: unknown) => {
               logger.error("admin_change_requests_load_failed", {
-                error: message,
+                error: err instanceof Error ? err.message : "unknown",
               });
               return {
                 data: [] as AdminEnrollmentChangeRequest[],
-                error: message,
+                failed: true,
+                error: err,
               };
             }),
-          listSchemas().catch(() => [] as FormSchema[]),
-          fetchSettingsSchema().catch(() => null),
+          // Formulare, Einstellungen und Angebote speisen die Einrichtungs-
+          // schritte. Ohne sie stünden dort falsche Angaben ("Ausgeschaltet",
+          // 0 Angebote), darum scheitert die ganze Seite mit ihnen.
+          listSchemas(),
+          fetchSettingsSchema(),
         ]);
         const offeringLists = await Promise.all(
-          phasesData.map((phase) =>
-            listCareOfferings(phase.id).catch(() => []),
-          ),
+          phasesData.map((phase) => listCareOfferings(phase.id)),
         );
         if (cancelled) return;
         setPhases(phasesData);
         setAllRequests(allRequestsData);
         setChangeRequests(changeRequestsResult.data);
-        setChangeRequestsError(changeRequestsResult.error);
+        setChangeRequestsFailed(changeRequestsResult.failed);
+        if (changeRequestsResult.failed) {
+          void showChangeRequestsError(changeRequestsResult.error, {
+            object: "die Liste der Änderungsanfragen",
+            retry: reload,
+          });
+        }
         setSchemas(schemasData);
         const activePhaseIds = new Set(
           phasesData
@@ -158,12 +178,17 @@ export function AdminEnrollmentsList({
           ).length,
         });
         setEnrollmentEnabled(readEnrollmentEnabled(settingsData));
+        setLoaded(true);
       } catch (err) {
         if (cancelled) return;
-        const message =
-          err instanceof Error ? err.message : "Unbekannter Fehler";
-        logger.error("admin_enrollments_load_failed", { error: message });
-        setError(message);
+        logger.error("admin_enrollments_load_failed", {
+          error: err instanceof Error ? err.message : "unknown",
+        });
+        setLoaded(false);
+        await showLoadError(err, {
+          object: "die Übersicht der Anmeldungen",
+          retry: reload,
+        });
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -172,7 +197,14 @@ export function AdminEnrollmentsList({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [
+    attempt,
+    reload,
+    clearLoadError,
+    clearChangeRequestsError,
+    showLoadError,
+    showChangeRequestsError,
+  ]);
 
   useEffect(() => {
     if (!onSummaryChange) return;
@@ -180,16 +212,32 @@ export function AdminEnrollmentsList({
       onSummaryChange(null);
       return;
     }
+    // Ohne geladene Daten gibt es keine Zahlen: der Kopf zeigt dann keine
+    // Statuszeile statt "0 Anmeldungen".
+    if (!loaded) {
+      onSummaryChange("unavailable");
+      return;
+    }
     onSummaryChange({
       activePhases: phases.filter((phase) => phase.is_active).length,
       requests: allRequests.length,
-      openChangeRequests: changeRequests.filter(
-        (request) =>
-          request.status === "pending_review" ||
-          request.status === "needs_parent_response",
-      ).length,
+      openChangeRequests: changeRequestsFailed
+        ? null
+        : changeRequests.filter(
+            (request) =>
+              request.status === "pending_review" ||
+              request.status === "needs_parent_response",
+          ).length,
     });
-  }, [loading, phases, allRequests, changeRequests, onSummaryChange]);
+  }, [
+    loading,
+    loaded,
+    phases,
+    allRequests,
+    changeRequests,
+    changeRequestsFailed,
+    onSummaryChange,
+  ]);
 
   if (loading) {
     return (
@@ -201,6 +249,10 @@ export function AdminEnrollmentsList({
         />
       </SkeletonRegion>
     );
+  }
+
+  if (!loaded) {
+    return <LoadErrorAlert error={loadError.error} />;
   }
 
   return (
@@ -224,12 +276,11 @@ export function AdminEnrollmentsList({
       />
 
       <ChangeRequestsOverview
-        error={changeRequestsError}
+        failed={changeRequestsFailed}
+        error={changeRequestsError.error}
         requests={changeRequests}
         tenantPath={tenantPath}
       />
-
-      {error ? <Alert type="error" message={error} /> : null}
 
       <EnrollmentPhaseOverview
         phases={phases}
@@ -242,11 +293,13 @@ export function AdminEnrollmentsList({
 }
 
 function ChangeRequestsOverview({
+  failed,
   error,
   requests,
   tenantPath,
 }: Readonly<{
-  error: string | null;
+  failed: boolean;
+  error: FormErrorInput;
   requests: AdminEnrollmentChangeRequest[];
   tenantPath: (path: string) => string;
 }>) {
@@ -283,13 +336,8 @@ function ChangeRequestsOverview({
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </ButtonLink>
       </div>
-      {error ? (
-        <div className="mt-4">
-          <Alert
-            type="error"
-            message="Änderungsanfragen konnten nicht geladen werden. Die Zahlen sind unbekannt."
-          />
-        </div>
+      {failed ? (
+        <LoadErrorAlert error={error} className="mt-4" />
       ) : (
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
           <EnrollmentStatTile label="Offen" value={pending.length} />
@@ -300,7 +348,7 @@ function ChangeRequestsOverview({
           <EnrollmentStatTile label="Gesamt" value={requests.length} />
         </div>
       )}
-      {!error && openCount === 0 ? (
+      {!failed && openCount === 0 ? (
         <EmptyState
           variant="compact"
           className="mt-3"

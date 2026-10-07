@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
@@ -12,7 +19,9 @@ import { PickupExtensionTodos } from "~/components/home/pickup-extension-todos";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { leadsSchool } from "~/lib/auth-utils";
 import { fetchBirthdayOverviewClient } from "~/lib/birthdays-api";
 import type { BirthdayOverview } from "~/lib/birthdays-api";
@@ -37,6 +46,7 @@ import {
 } from "~/lib/home-blocks";
 import { useHomeBlockAccess } from "~/lib/hooks/use-home-block-access";
 import { useReminders } from "~/lib/hooks/use-reminders";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useHomeLayout } from "~/lib/hooks/use-home-layout";
 import { createLogger } from "~/lib/logger";
 import {
@@ -119,7 +129,11 @@ function HomeContent() {
   const [draft, setDraft] = useState<HomeBlockPlacement[] | null>(null);
   const [removedInDraft, setRemovedInDraft] = useState<HomeBlockKey[]>([]);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  // Fertig und Standard wiederherstellen sind Aktionen ohne Formular: ein
+  // Fehler kommt als Toast mit Wiederholen, der Entwurf bleibt offen.
+  const { show: showActionError } = useApiErrorDisplay();
+  const retrySaveRef = useRef<() => void>(() => undefined);
+  const retryResetRef = useRef<() => void>(() => undefined);
 
   const blockContext = useMemo(
     () => ({
@@ -198,6 +212,7 @@ function HomeContent() {
     data: birthdays,
     isLoading: birthdaysLoading,
     error: birthdaysError,
+    mutate: mutateBirthdays,
   } = useSWRAuth<BirthdayOverview>(
     wantsBirthdayData ? "birthday-overview" : null,
     // Ohne Argument: SWR reicht dem Abrufer sonst seinen Schlüssel durch,
@@ -218,6 +233,7 @@ function HomeContent() {
     data: dashboardData,
     isLoading,
     error: swrError,
+    mutate: mutateDashboard,
   } = useSWRAuth<DashboardAnalytics>(
     needsAnalytics ? "dashboard-analytics" : null,
     fetchDashboardAnalyticsClient,
@@ -230,19 +246,21 @@ function HomeContent() {
     });
   }
 
-  const error = swrError ? "Fehler beim Laden der Dashboard-Daten" : null;
+  const loadError = useSwrLoadError(
+    swrError,
+    "die Übersicht der Kennzahlen",
+    () => mutateDashboard(),
+  );
 
   const startEditing = useCallback(() => {
     if (!homeLayoutReady) return;
     setDraft([...saved.placements]);
     setRemovedInDraft([]);
-    setSaveError(null);
   }, [homeLayoutReady, saved.placements]);
 
   const cancelEditing = useCallback(() => {
     setDraft(null);
     setRemovedInDraft([]);
-    setSaveError(null);
   }, []);
 
   // Jede Änderung am Entwurf läuft durch dieselben Regeln (`home-blocks.ts`):
@@ -304,7 +322,6 @@ function HomeContent() {
   const save = useCallback(async () => {
     if (!draft) return;
     setSaving(true);
-    setSaveError(null);
     try {
       // Gespeichert wird die Anordnung UND was bewusst entfernt wurde. Ohne
       // das zweite käme ein entfernter Baustein aus der Standardansicht beim
@@ -335,9 +352,10 @@ function HomeContent() {
       logger.error("home_layout_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setSaveError(
-        "Die Startseite konnte nicht gespeichert werden. Bitte erneut versuchen.",
-      );
+      void showActionError(err, {
+        object: "die Anordnung der Startseite",
+        retry: () => retrySaveRef.current(),
+      });
     } finally {
       setSaving(false);
     }
@@ -347,11 +365,11 @@ function HomeContent() {
     homeLayout.overrides,
     removedInDraft,
     saveHomeLayout,
+    showActionError,
   ]);
 
   const restoreDefault = useCallback(async () => {
     setSaving(true);
-    setSaveError(null);
     try {
       await resetHomeLayout();
       setDraft(null);
@@ -360,13 +378,20 @@ function HomeContent() {
       logger.error("home_layout_reset_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setSaveError(
-        "Die Startseite konnte nicht zurückgesetzt werden. Bitte erneut versuchen.",
-      );
+      void showActionError(err, {
+        object: "das Zurücksetzen der Startseite",
+        retry: () => retryResetRef.current(),
+      });
     } finally {
       setSaving(false);
     }
-  }, [resetHomeLayout]);
+  }, [resetHomeLayout, showActionError]);
+
+  // Wiederholen sendet den Entwurf, wie er dann ist.
+  useLayoutEffect(() => {
+    retrySaveRef.current = () => void save();
+    retryResetRef.current = () => void restoreDefault();
+  });
 
   if (
     status === "authenticated" &&
@@ -394,6 +419,7 @@ function HomeContent() {
     birthdays,
     birthdaysLoading,
     birthdaysError,
+    retryBirthdays: () => mutateBirthdays(),
     canOpenStudentSearch: access.has("users:read"),
     tenantPath,
   };
@@ -417,11 +443,13 @@ function HomeContent() {
           : headerStats
       }
       error={
-        saveError
-          ? { message: saveError, keepContent: true }
-          : error
-            ? { message: error, keepContent: dashboardData !== undefined }
-            : null
+        loadError
+          ? {
+              message: loadError.message,
+              action: errorAlertActions(loadError),
+              keepContent: dashboardData !== undefined,
+            }
+          : null
       }
       actions={
         editing ? (

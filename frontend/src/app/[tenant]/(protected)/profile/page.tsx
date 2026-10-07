@@ -1,12 +1,23 @@
 "use client";
 
-import { Suspense, useState, useEffect, useCallback } from "react";
+import {
+  Suspense,
+  useState,
+  useEffect,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import { Camera, Pencil } from "lucide-react";
 import { AnalyseFreigabeNotice } from "~/components/analytics/analyse-freigabe-notice";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { ProfileUpdateRequest } from "~/lib/profile-helpers";
@@ -16,8 +27,7 @@ import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { Input } from "~/components/ui/input";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
-import { useFormError } from "~/components/ui/form-error";
-import { PasswordChangeModal } from "~/components/ui/password-change-modal";
+import { TenantPasswordChangeModal } from "~/components/auth/tenant-password-change-modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
@@ -50,14 +60,19 @@ function ProfileContent() {
   } = useSession({
     required: true,
   });
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
   const { profile, updateProfileData, refreshProfile } = useProfile();
 
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   // Speicherfehler stehen oben im Bearbeiten-Bereich der Karte, nicht als
-  // Toast: Bauart 2 Regel 5.
-  const [saveError, setSaveError] = useFormError();
+  // Toast: Bauart 2 Regel 5. Katalogtext und Wiederholen (#2517).
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  // Das Profilbild wird ohne Formular gewechselt: ein Fehler kommt als Toast.
+  const { show: showAvatarError } = useApiErrorDisplay();
+  const latestSaveRef = useRef<() => void>(() => undefined);
+  const latestAvatarRef = useRef<(file: File) => void>(() => undefined);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",
@@ -83,7 +98,7 @@ function ProfileContent() {
     if (!session?.user?.token || !profile) return;
 
     setIsSaving(true);
-    setSaveError(null);
+    formErrors.clear();
     try {
       const updateData: ProfileUpdateRequest = {
         firstName: formData.firstName,
@@ -104,12 +119,15 @@ function ProfileContent() {
       await updateSession({ name: newName });
 
       setIsEditing(false);
-      toastSuccess("Profil erfolgreich aktualisiert");
+      toastSuccess("Ihr Profil ist gespeichert.");
     } catch (err) {
       logger.error("profile_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setSaveError("Fehler beim Speichern des Profils");
+      void formErrors.show(err, {
+        object: "das Profil",
+        retry: () => latestSaveRef.current(),
+      });
     } finally {
       setIsSaving(false);
     }
@@ -123,16 +141,24 @@ function ProfileContent() {
       const compressedFile = await compressAvatar(file);
       await uploadAvatar(compressedFile);
       await refreshProfile(true);
-      toastSuccess("Profilbild erfolgreich aktualisiert");
+      toastSuccess("Ihr Profilbild ist gespeichert.");
     } catch (err) {
       logger.error("avatar_upload_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      toastError("Fehler beim Hochladen des Profilbilds");
+      void showAvatarError(err, {
+        object: "das Profilbild",
+        retry: () => latestAvatarRef.current(file),
+      });
     } finally {
       setIsSaving(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestSaveRef.current = () => void handleSaveProfile();
+    latestAvatarRef.current = (file) => void handleAvatarChange(file);
+  });
 
   const handleClosePasswordModal = useCallback(() => {
     setShowPasswordModal(false);
@@ -216,26 +242,28 @@ function ProfileContent() {
         }
       >
         {isEditing ? (
-          <div className="space-y-4">
-            <FormErrorAlert message={saveError} />
+          <div ref={formRef} className="space-y-4">
+            <FormErrorAlert message={formErrors.error} />
             <Input
               label="Vorname"
-              name="profile-firstname"
+              name="first_name"
               type="text"
               value={formData.firstName}
               onChange={(e) =>
                 setFormData({ ...formData, firstName: e.target.value })
               }
+              error={formErrors.fieldError("first_name")}
               maxLength={255}
             />
             <Input
               label="Nachname"
-              name="profile-lastname"
+              name="last_name"
               type="text"
               value={formData.lastName}
               onChange={(e) =>
                 setFormData({ ...formData, lastName: e.target.value })
               }
+              error={formErrors.fieldError("last_name")}
               maxLength={255}
             />
             <DataGrid>
@@ -250,7 +278,7 @@ function ProfileContent() {
                 size="md"
                 onClick={() => {
                   setIsEditing(false);
-                  setSaveError(null);
+                  formErrors.clear();
                   resetFormFromProfile();
                 }}
               >
@@ -309,12 +337,12 @@ function ProfileContent() {
       <AnalyseFreigabeNotice />
 
       {showPasswordModal && (
-        <PasswordChangeModal
+        <TenantPasswordChangeModal
           isOpen={showPasswordModal}
           onClose={handleClosePasswordModal}
           onSuccess={() => {
             handleClosePasswordModal();
-            toastSuccess("Passwort erfolgreich geändert");
+            toastSuccess("Ihr Passwort ist geändert.");
           }}
         />
       )}

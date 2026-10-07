@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -11,6 +18,7 @@ import {
 import { useSetupTour } from "~/components/school-setup/use-setup-tour";
 import { CoachMark } from "~/components/ui/coach-mark";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import {
   buildHelpGroupHref,
@@ -44,13 +52,17 @@ import { useStaffOnboarding } from "./use-staff-onboarding";
 
 const logger = createLogger({ component: "StaffOnboardingWizard" });
 
-const SAVE_FAILED =
-  "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
 const TOUR_LEFT =
   "Die Tour ist beendet, weil Sie eine andere Seite geöffnet haben. Mit „Zeig es mir“ starten Sie sie neu.";
 const CLICK_ACTION = "Klicken Sie auf die grün umrandete Stelle.";
 const TARGET_MISSING =
   "Diese Stelle ist gerade nicht zu sehen. Vielleicht fehlt Ihnen ein Recht, oder die Seite lädt noch.";
+
+type RunAction = (
+  action: () => Promise<StaffOnboardingState>,
+  after?: () => void,
+  onFail?: () => void,
+) => void;
 
 /** Knopf unten rechts oder offene Checkliste. */
 type View = "beacon" | "checklist";
@@ -90,7 +102,11 @@ function StaffOnboardingForPerson() {
   const [expandedByPerson, setExpandedByPerson] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirmDismiss, setConfirmDismiss] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Eine gescheiterte Änderung steht oben in der Checkliste: Katalogtext,
+  // Wiederholen und Vorgangskennung (#2517).
+  const formErrors = useApiFormError();
+  const { clear: clearError, show: showError } = formErrors;
+  const latestRunRef = useRef<RunAction>(() => undefined);
   const [notice, setNotice] = useState<string | null>(null);
   const pathname = usePathname();
   const { data: session } = useSession();
@@ -118,9 +134,13 @@ function StaffOnboardingForPerson() {
   );
 
   const run = useCallback(
-    async (action: () => Promise<StaffOnboardingState>, after?: () => void) => {
+    async (
+      action: () => Promise<StaffOnboardingState>,
+      after?: () => void,
+      onFail?: () => void,
+    ) => {
       setBusy(true);
-      setError(null);
+      clearError();
       try {
         await replace(await action());
         after?.();
@@ -128,13 +148,21 @@ function StaffOnboardingForPerson() {
         logger.warn("staff_onboarding_action_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        setError(SAVE_FAILED);
+        onFail?.();
+        void showError(err, {
+          object: "die Änderung der ersten Schritte",
+          retry: () => latestRunRef.current(action, after, onFail),
+        });
       } finally {
         setBusy(false);
       }
     },
-    [replace],
+    [replace, clearError, showError],
   );
+  useLayoutEffect(() => {
+    latestRunRef.current = (action, after, onFail) =>
+      void run(action, after, onFail);
+  });
 
   // Wer die letzte Station erreicht, hat den Schritt erledigt.
   const onTourFinished = useCallback(
@@ -245,12 +273,12 @@ function StaffOnboardingForPerson() {
         steps={checklistSteps}
         expanded={expanded}
         busy={busy}
-        error={error}
+        error={formErrors.error}
         notice={notice}
         helpHref={helpHref}
         replayDone
         onExpand={(step) => {
-          setError(null);
+          formErrors.clear();
           setNotice(null);
           setExpanded(step);
           setExpandedByPerson(true);
@@ -299,6 +327,9 @@ function StaffOnboardingForPerson() {
         onConfirm={() =>
           void run(
             () => setStaffOnboardingDismissed(true),
+            () => setConfirmDismiss(false),
+            // Der Grund steht in der Checkliste; der Dialog davor würde ihn
+            // verdecken.
             () => setConfirmDismiss(false),
           )
         }

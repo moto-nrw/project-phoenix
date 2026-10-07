@@ -88,14 +88,14 @@ func (rs *Resource) exportPhaseRegistrations(w http.ResponseWriter, r *http.Requ
 	})
 	if err != nil {
 		if errors.Is(err, capability.ErrPhaseNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(err))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound))
 			return
 		}
 		// Phase too large to assemble in one in-memory file: a client-side
 		// limit, not a server fault — surface it as a 400 with a clear
 		// message rather than a 500.
 		if errors.Is(err, capability.ErrExportTooLarge) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(capability.ErrExportTooLarge))
+			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(capability.ErrExportTooLarge, common.CodeEnrollmentExportTooLarge))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -223,7 +223,7 @@ func (rs *Resource) exportStudentEnrollmentRequests(w http.ResponseWriter, r *ht
 			return
 		}
 		if errors.Is(err, capability.ErrExportTooLarge) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(capability.ErrExportTooLarge))
+			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(capability.ErrExportTooLarge, common.CodeEnrollmentExportTooLarge))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))

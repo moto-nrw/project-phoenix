@@ -101,6 +101,7 @@ type ParentRequestReviewDependencies struct {
 		ResolveString(ctx context.Context, key string) (string, error)
 	}
 	GroupLeaderSettingKey string
+	RequestSettingKey     string
 	AbsenceSettingKey     string
 	AbsenceReadRequired   error
 }
@@ -159,6 +160,7 @@ func newParentRequestReview(caller *application.CallerContext, deps ParentReques
 			return domain.ReviewPermissions(deps.Permissions(permissions))
 		},
 		GroupLeaderSettingKey: deps.GroupLeaderSettingKey,
+		RequestSettingKey:     deps.RequestSettingKey,
 		AbsenceSettingKey:     deps.AbsenceSettingKey,
 		AbsenceReadRequired:   deps.AbsenceReadRequired,
 	}

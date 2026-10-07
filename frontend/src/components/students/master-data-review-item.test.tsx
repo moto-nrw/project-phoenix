@@ -105,7 +105,7 @@ describe("MasterDataReviewItem", () => {
       expect(mockDecide).toHaveBeenCalledWith("100", true, "passt"),
     );
     await waitFor(() =>
-      expect(onDecided).toHaveBeenCalledWith("Änderung übernommen"),
+      expect(onDecided).toHaveBeenCalledWith("Die Änderung ist übernommen."),
     );
     expect(onDecided).toHaveBeenCalledTimes(1);
   });
@@ -235,7 +235,7 @@ describe("MasterDataReviewItem", () => {
     await waitFor(() =>
       expect(mockDecide).toHaveBeenCalledWith("100", false, undefined),
     );
-    expect(onDecided).toHaveBeenCalledWith("Änderung abgelehnt");
+    expect(onDecided).toHaveBeenCalledWith("Die Änderung ist abgelehnt.");
   });
 
   it("shows a decision error without calling onDecided", async () => {

@@ -2,8 +2,21 @@ import type { Session } from "next-auth";
 
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 
+const PARENT_REQUEST_REVIEW_ACCESS = [
+  "admin",
+  "team",
+  "group_leader",
+  "none",
+] as const;
+
 export type ParentRequestReviewAccess =
-  "admin" | "team" | "group_leader" | "none";
+  (typeof PARENT_REQUEST_REVIEW_ACCESS)[number];
+
+export function isParentRequestReviewAccess(
+  value: unknown,
+): value is ParentRequestReviewAccess {
+  return PARENT_REQUEST_REVIEW_ACCESS.some((access) => access === value);
+}
 
 export interface EffectiveChangeRequestAccess {
   readonly parentReviewAccess: ParentRequestReviewAccess;

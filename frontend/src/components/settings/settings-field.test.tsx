@@ -3,6 +3,8 @@ import { render, fireEvent, waitFor } from "@testing-library/react";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { SettingsField } from "./settings-field";
 import type { ResolvedSetting } from "~/lib/settings-api";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 function renderWithProviders(ui: React.ReactElement) {
   return render(<ToastProvider>{ui}</ToastProvider>);
@@ -102,30 +104,7 @@ describe("SettingsField", () => {
   });
 
   it("does not expand editing when saving the visibility prerequisite fails", async () => {
-    const onSave = vi.fn().mockResolvedValue("Speichern fehlgeschlagen.");
-    const setting = scopeSetting(attendanceKey, "own");
-    const { getByRole } = renderWithProviders(
-      <SettingsField
-        setting={setting}
-        categoryItems={[setting, scopeSetting(visibilityKey, "own")]}
-        onSave={onSave}
-        onReset={vi.fn()}
-      />,
-    );
-    fireEvent.click(getByRole("combobox"));
-    fireEvent.click(getByRole("option", { name: "Alle Gruppen und Blöcke" }));
-    fireEvent.click(getByRole("button", { name: "Beides erweitern" }));
-    await waitFor(() =>
-      expect(document.body.textContent).toContain("Speichern fehlgeschlagen."),
-    );
-    expect(onSave).toHaveBeenCalledExactlyOnceWith(visibilityKey, "all_staff");
-  });
-
-  it("keeps the approved visibility change when the second write fails", async () => {
-    const onSave = vi
-      .fn()
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce("Bearbeitung konnte nicht gespeichert werden.");
+    const onSave = vi.fn().mockRejectedValue(new ApiError("boom", 500));
     const setting = scopeSetting(attendanceKey, "own");
     const { getByRole } = renderWithProviders(
       <SettingsField
@@ -140,7 +119,32 @@ describe("SettingsField", () => {
     fireEvent.click(getByRole("button", { name: "Beides erweitern" }));
     await waitFor(() =>
       expect(document.body.textContent).toContain(
-        "Bearbeitung konnte nicht gespeichert werden.",
+        catalogText("general.server", "die Einstellung „Test Setting“"),
+      ),
+    );
+    expect(onSave).toHaveBeenCalledExactlyOnceWith(visibilityKey, "all_staff");
+  });
+
+  it("keeps the approved visibility change when the second write fails", async () => {
+    const onSave = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new ApiError("boom", 500));
+    const setting = scopeSetting(attendanceKey, "own");
+    const { getByRole } = renderWithProviders(
+      <SettingsField
+        setting={setting}
+        categoryItems={[setting, scopeSetting(visibilityKey, "own")]}
+        onSave={onSave}
+        onReset={vi.fn()}
+      />,
+    );
+    fireEvent.click(getByRole("combobox"));
+    fireEvent.click(getByRole("option", { name: "Alle Gruppen und Blöcke" }));
+    fireEvent.click(getByRole("button", { name: "Beides erweitern" }));
+    await waitFor(() =>
+      expect(document.body.textContent).toContain(
+        catalogText("general.server", "die Einstellung „Test Setting“"),
       ),
     );
     expect(onSave.mock.calls).toEqual([
@@ -334,7 +338,7 @@ describe("SettingsField", () => {
   );
 
   it("stops the restriction at the first failed dependent write", async () => {
-    const onSave = vi.fn().mockResolvedValue("Speichern fehlgeschlagen.");
+    const onSave = vi.fn().mockRejectedValue(new ApiError("boom", 500));
     const setting = scopeSetting(visibilityKey, "all_staff");
     const { getByRole } = renderWithProviders(
       <SettingsField
@@ -351,7 +355,9 @@ describe("SettingsField", () => {
     pickOption(getByRole, "Eigene Zuständigkeiten");
     fireEvent.click(getByRole("button", { name: "Alles begrenzen" }));
     await waitFor(() =>
-      expect(document.body.textContent).toContain("Speichern fehlgeschlagen."),
+      expect(document.body.textContent).toContain(
+        catalogText("general.server", "die Einstellung „Test Setting“"),
+      ),
     );
     expect(onSave).toHaveBeenCalledExactlyOnceWith(attendanceKey, "own");
   });
@@ -740,22 +746,26 @@ describe("SettingsField", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
-  it("shows error message from failed save", async () => {
-    const onSave = vi.fn().mockResolvedValue("Ungültiger Wert.");
-    const { getByRole, container } = renderWithProviders(
+  it("shows the error of a rejected save", async () => {
+    const onSave = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError("invalid value", 400, { code: "general.input" }),
+      );
+    const { getByRole, findByText } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ type: "boolean", value: false })}
         onSave={onSave}
-        onReset={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(undefined)}
       />,
     );
 
     fireEvent.click(getByRole("switch"));
-    await waitFor(() => {
-      const errorText = container.querySelector(".text-moto-red");
-      expect(errorText).not.toBeNull();
-      expect(errorText!.textContent).toBe("Ungültiger Wert.");
-    });
+    expect(
+      await findByText(
+        catalogText("general.input", "die Einstellung „Test Setting“"),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("warns when an enabled enrollment legal block has no text", () => {
@@ -1141,5 +1151,103 @@ describe("SettingsField", () => {
     ) as HTMLInputElement;
     expect(input).not.toBeNull();
     expect(input.value).toBe("fallback");
+  });
+
+  // #2517: the tenant page throws the ApiError of a failed save.
+  describe("shared error path", () => {
+    it("shows a failed field save as a toast and retries the value", async () => {
+      const onSave = vi
+        .fn()
+        .mockRejectedValueOnce(new ApiError("boom", 500))
+        .mockResolvedValueOnce(null);
+      const { getByRole, findByText, container } = renderWithProviders(
+        <SettingsField
+          setting={makeSetting({
+            label: "Kinderfotos",
+            type: "boolean",
+            value: false,
+          })}
+          onSave={onSave}
+          onReset={vi.fn().mockResolvedValue(null)}
+        />,
+      );
+
+      fireEvent.click(getByRole("switch"));
+
+      expect(
+        await findByText(
+          catalogText("general.server", "die Einstellung „Kinderfotos“"),
+        ),
+      ).toBeInTheDocument();
+      // No inline sentence at the field: the toast carries the message.
+      expect(container.querySelector(".text-moto-red")).toBeNull();
+
+      fireEvent.click(getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+      expect(onSave).toHaveBeenLastCalledWith("test.setting", true);
+      expect(
+        await findByText("Die Einstellung „Kinderfotos“ ist gespeichert."),
+      ).toBeInTheDocument();
+    });
+
+    it("shows a failed reset as a toast", async () => {
+      const onReset = vi.fn().mockRejectedValue(new ApiError("boom", 503));
+      const { container, findByText } = renderWithProviders(
+        <SettingsField
+          setting={makeSetting({ label: "Startzeit" })}
+          onSave={vi.fn().mockResolvedValue(null)}
+          onReset={onReset}
+        />,
+      );
+
+      fireEvent.click(
+        container.querySelector("button[title='Auf Standard zurücksetzen']")!,
+      );
+
+      expect(
+        await findByText(
+          catalogText("general.unavailable", "die Einstellung „Startzeit“"),
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps a failed legal text save inside the open dialog", async () => {
+      const onSave = vi.fn().mockRejectedValue(new ApiError("boom", 500));
+      const { getByRole, getByLabelText } = renderWithProviders(
+        <SettingsField
+          setting={makeSetting({
+            key: "enrollment.legal_dsgvo_text",
+            label: "Datenschutzinformation Text",
+            type: "textarea",
+            value: "Datenschutz Text",
+          })}
+          categoryItems={[
+            makeSetting({
+              key: "enrollment.legal_dsgvo_enabled",
+              type: "boolean",
+              value: true,
+            }),
+          ]}
+          onSave={onSave}
+          onReset={vi.fn().mockResolvedValue(null)}
+        />,
+      );
+
+      fireEvent.click(getByRole("button", { name: "Rechtstext bearbeiten" }));
+      fireEvent.change(getByLabelText("Rechtstext"), {
+        target: { value: "Neuer Text" },
+      });
+      fireEvent.click(getByRole("button", { name: "Speichern" }));
+
+      const dialog = getByRole("dialog");
+      await waitFor(() =>
+        expect(dialog.textContent).toContain(
+          catalogText(
+            "general.server",
+            "die Einstellung „Datenschutzinformation Text“",
+          ),
+        ),
+      );
+    });
   });
 });

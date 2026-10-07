@@ -5,6 +5,8 @@ import { Suspense, useCallback, useMemo, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OperatorDevice } from "~/lib/operator/provisioning-helpers";
 import {
@@ -37,6 +39,8 @@ function OperatorDevicesPageContent() {
     filteredSchools,
     handleOrgFilterChange,
     handleSchoolFilterChange,
+    organizationsLoadError,
+    schoolsLoadError,
   } = useOrgSchoolFilter("/operator/devices");
 
   const [createDeviceOpen, setCreateDeviceOpen] = useState(false);
@@ -48,7 +52,11 @@ function OperatorDevicesPageContent() {
 
   const { mutate: globalMutate } = useSWRConfig();
 
-  const { data: schoolDevices, isLoading: schoolDevicesLoading } = useSWR(
+  const {
+    data: schoolDevices,
+    error: schoolDevicesError,
+    isLoading: schoolDevicesLoading,
+  } = useSWR(
     isAuthenticated && selectedSchool
       ? `operator-school-devices-${selectedSchool.id}`
       : null,
@@ -60,7 +68,11 @@ function OperatorDevicesPageContent() {
     },
   );
 
-  const { data: orgDevices, isLoading: orgDevicesLoading } = useSWR(
+  const {
+    data: orgDevices,
+    error: orgDevicesError,
+    isLoading: orgDevicesLoading,
+  } = useSWR(
     isAuthenticated && filterOrgId && !selectedSchool
       ? `operator-org-devices-${filterOrgId}`
       : null,
@@ -72,7 +84,11 @@ function OperatorDevicesPageContent() {
     },
   );
 
-  const { data: allDevices, isLoading: allDevicesLoading } = useSWR(
+  const {
+    data: allDevices,
+    error: allDevicesError,
+    isLoading: allDevicesLoading,
+  } = useSWR(
     isAuthenticated && !filterOrgId && !selectedSchool
       ? "operator-all-devices"
       : null,
@@ -91,6 +107,17 @@ function OperatorDevicesPageContent() {
         DEVICE_SWR_PREFIXES.some((p) => key.startsWith(p)),
     );
   }, [globalMutate]);
+
+  // Only one of the three lists is active at a time.
+  const devicesLoadError = useSwrLoadError(
+    selectedSchool
+      ? schoolDevicesError
+      : filterOrgId
+        ? orgDevicesError
+        : allDevicesError,
+    "die Liste der Geräte",
+    () => void refreshDevices(),
+  );
 
   const tabs = useMemo(
     () => ({
@@ -158,14 +185,21 @@ function OperatorDevicesPageContent() {
         onSchoolChange={handleSchoolFilterChange}
       />
 
+      <LoadErrorAlert error={organizationsLoadError} className="mb-4" />
+      <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
+      <LoadErrorAlert error={devicesLoadError} className="mb-4" />
+
       {!selectedSchool && filterOrgId && (
         <>
-          {!orgDevicesLoading && orgDevices?.length === 0 ? (
+          {!orgDevicesError &&
+          !orgDevicesLoading &&
+          orgDevices?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Geräte"
               description="Für diesen Träger gibt es noch keine registrierten Geräte."
             />
-          ) : (
+          ) : (orgDevices === undefined && !orgDevicesLoading) ||
+            orgDevicesError ? null : (
             <DevicesTable
               devices={orgDevices ?? []}
               showSchool
@@ -180,12 +214,15 @@ function OperatorDevicesPageContent() {
 
       {!selectedSchool && !filterOrgId && (
         <>
-          {!allDevicesLoading && allDevices?.length === 0 ? (
+          {!allDevicesError &&
+          !allDevicesLoading &&
+          allDevices?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Geräte"
               description="Es gibt noch keine registrierten Geräte im System."
             />
-          ) : (
+          ) : (allDevices === undefined && !allDevicesLoading) ||
+            allDevicesError ? null : (
             <DevicesTable
               devices={allDevices ?? []}
               showSchool
@@ -216,12 +253,15 @@ function OperatorDevicesPageContent() {
               </span>
             )}
           </div>
-          {!schoolDevicesLoading && schoolDevices?.length === 0 ? (
+          {!schoolDevicesError &&
+          !schoolDevicesLoading &&
+          schoolDevices?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Geräte"
               description="Für diese Schule gibt es noch keine registrierten Geräte."
             />
-          ) : (
+          ) : (schoolDevices === undefined && !schoolDevicesLoading) ||
+            schoolDevicesError ? null : (
             <DevicesTable
               devices={schoolDevices ?? []}
               isLoading={schoolDevicesLoading}

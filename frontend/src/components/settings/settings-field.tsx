@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useRef,
 } from "react";
 import {
@@ -16,7 +17,17 @@ import {
   Trash2,
 } from "lucide-react";
 import type { ResolvedSetting } from "~/lib/settings-api";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  ApiError,
+  apiErrorFromResponse,
+  transportFetch,
+} from "~/lib/api-error";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { BooleanField } from "./fields/boolean-field";
@@ -250,8 +261,13 @@ interface SettingsFieldProps {
   readonly setting: ResolvedSetting;
   readonly categoryItems?: ResolvedSetting[];
   readonly highlighted?: boolean;
-  readonly onSave: (key: string, value: unknown) => Promise<string | null>;
-  readonly onReset: (key: string) => Promise<string | null>;
+  /**
+   * Saves one value. Throws the ApiError of a failed save, which the field
+   * shows on the shared error path (#2517, #2519).
+   */
+  readonly onSave: (key: string, value: unknown) => Promise<void>;
+  /** Same contract as onSave. */
+  readonly onReset: (key: string) => Promise<void>;
   readonly onSchemaRefresh?: () => void;
   readonly onBookingAuthorityEnable?: () => Promise<void>;
   // audience controls the "auch von {other side} änderbar" hint shown
@@ -281,10 +297,12 @@ export function SettingsField({
   audience = "admin",
   revealFn,
 }: SettingsFieldProps) {
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
   const [localValue, setLocalValue] = useState<unknown>(setting.value);
   const [isDirty, setIsDirty] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Hint from a check before sending (range, missing legal text, a setting
+  // that must change first). Server errors go through the shared path.
+  const [hint, setHint] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [showHighlight, setShowHighlight] = useState(false);
   const [legalActivationOpen, setLegalActivationOpen] = useState(false);
@@ -294,22 +312,28 @@ export function SettingsField({
   const [legalActivationMode, setLegalActivationMode] =
     useState<LegalAGBDisplayMode>(ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT);
   const [legalActivationSaving, setLegalActivationSaving] = useState(false);
-  const [legalActivationError, setLegalActivationError] = useState<
-    string | null
-  >(null);
   const [legalTextEditOpen, setLegalTextEditOpen] = useState(false);
   const [legalTextEditDraft, setLegalTextEditDraft] = useState("");
   const [legalTextEditSaving, setLegalTextEditSaving] = useState(false);
-  const [legalTextEditError, setLegalTextEditError] = useState<string | null>(
-    null,
-  );
   const [legalDocumentDraftURL, setLegalDocumentDraftURL] = useState("");
   const [legalTextEditMode, setLegalTextEditMode] =
     useState<LegalAGBDisplayMode>(ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT);
   const [legalDocumentSaving, setLegalDocumentSaving] = useState(false);
-  const [legalDocumentError, setLegalDocumentError] = useState<string | null>(
-    null,
-  );
+  const fieldRef = useRef<HTMLDivElement | null>(null);
+  const activationRef = useRef<HTMLDivElement | null>(null);
+  const textEditRef = useRef<HTMLDivElement | null>(null);
+  // A field saves on its own (no form): a failed save is a toast with the
+  // catalog text (#2517). Errors from an open dialog stay in the dialog.
+  const { show: showFieldError } = useApiErrorDisplay(fieldRef);
+  const activationErrors = useApiFormError(activationRef);
+  const textEditErrors = useApiFormError(textEditRef);
+  const latestDoSaveRef = useRef<(value: unknown) => void>(() => undefined);
+  const latestResetRef = useRef<() => void>(() => undefined);
+  const latestActivationRef = useRef<() => void>(() => undefined);
+  const latestTextEditRef = useRef<() => void>(() => undefined);
+  const latestUploadRef = useRef<(file: File) => void>(() => undefined);
+  const latestDeleteRef = useRef<() => void>(() => undefined);
+  const settingObject = `die Einstellung „${setting.label}“`;
   const legalActivationTextKey =
     ENROLLMENT_LEGAL_TOGGLE_TO_TEXT_KEY[setting.key] ?? null;
   const legalActivationTextSetting = legalActivationTextKey
@@ -383,7 +407,9 @@ export function SettingsField({
       pending.categoryItems,
     );
     if (!localErr) {
-      void onSave(pending.setting.key, pending.localValue);
+      // The field is gone: nothing left to show an error at. The page
+      // reloads the schema, so a lost value shows up as the old one.
+      void persistSetting(onSave, pending.setting.key, pending.localValue);
     }
   });
 
@@ -398,54 +424,75 @@ export function SettingsField({
     };
   }, [setting.key]);
 
+  /** Shows a failed field save on the shared error path. */
+  const reportFieldFailure = useCallback(
+    (outcome: SaveFailure, retry?: () => void) => {
+      void showFieldError(outcome.error, { object: settingObject, retry });
+    },
+    [settingObject, showFieldError],
+  );
+
   const doSave = useCallback(
-    async (value: unknown): Promise<string | null> => {
+    async (value: unknown): Promise<boolean> => {
       const localError = validateLocally(setting, value, categoryItems);
       if (localError) {
-        setError(localError);
-        return localError;
+        setHint(localError);
+        return false;
       }
-      const errorMsg = await onSave(setting.key, value);
-      if (errorMsg) {
-        setError(errorMsg);
-        toastError(errorMsg);
-        return errorMsg;
-      } else {
-        setError(null);
-        setIsDirty(false);
-        toastSuccess("Einstellung gespeichert");
-        return null;
+      const outcome = await persistSetting(onSave, setting.key, value);
+      if (!outcome.ok) {
+        reportFieldFailure(outcome, () => latestDoSaveRef.current(value));
+        return false;
       }
+      setHint(null);
+      setIsDirty(false);
+      toastSuccess(`Die Einstellung „${setting.label}“ ist gespeichert.`);
+      return true;
     },
-    [setting, categoryItems, onSave, toastSuccess, toastError],
+    [setting, categoryItems, onSave, reportFieldFailure, toastSuccess],
+  );
+
+  /** A failed save inside an open dialog stays in that dialog. */
+  const reportDialogFailure = useCallback(
+    (
+      errors: ReturnType<typeof useApiFormError>,
+      outcome: SaveFailure,
+      retry: () => void,
+    ) => {
+      void errors.show(outcome.error, { object: settingObject, retry });
+    },
+    [settingObject],
   );
 
   const handleOpenLegalTextEdit = useCallback(() => {
     setLegalTextEditDraft(toStr(localValue));
     setLegalDocumentDraftURL(legalDocumentURL);
     setLegalTextEditMode(legalAGBDisplayMode);
-    setLegalTextEditError(null);
-    setLegalDocumentError(null);
+    textEditErrors.clear();
     setLegalTextEditOpen(true);
-  }, [legalAGBDisplayMode, legalDocumentURL, localValue]);
+  }, [legalAGBDisplayMode, legalDocumentURL, localValue, textEditErrors]);
 
   const handleLegalTextEditConfirm = useCallback(async () => {
     const trimmedText = legalTextEditDraft.trim();
+    const retry = () => latestTextEditRef.current();
+    textEditErrors.clear();
     if (setting.key !== ENROLLMENT_LEGAL_AGB_TEXT_KEY) {
       if (!hasEnrollmentLegalTextContent(trimmedText)) {
-        setLegalTextEditError(REQUIRED_ENROLLMENT_LEGAL_TEXT_ERROR);
+        textEditErrors.invalid(REQUIRED_ENROLLMENT_LEGAL_TEXT_ERROR);
         return;
       }
       setLegalTextEditSaving(true);
       try {
-        const saveError = await doSave(trimmedText);
-        if (saveError) {
-          setLegalTextEditError(saveError);
+        const outcome = await persistSetting(onSave, setting.key, trimmedText);
+        if (!outcome.ok) {
+          reportDialogFailure(textEditErrors, outcome, retry);
           return;
         }
         setLocalValue(trimmedText);
+        setIsDirty(false);
+        setHint(null);
+        toastSuccess(`Die Einstellung „${setting.label}“ ist gespeichert.`);
         setLegalTextEditOpen(false);
-        setLegalTextEditError(null);
       } finally {
         setLegalTextEditSaving(false);
       }
@@ -459,19 +506,19 @@ export function SettingsField({
         legalDocumentDraftURL,
       )
     ) {
-      setLegalTextEditError(selectedAGBSourceError(legalTextEditMode));
+      textEditErrors.invalid(selectedAGBSourceError(legalTextEditMode));
       return;
     }
     setLegalTextEditSaving(true);
     try {
       if (legalTextEditMode !== legalAGBDisplayMode) {
-        const modeError = await onSave(
+        const outcome = await persistSetting(
+          onSave,
           ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_KEY,
           legalTextEditMode,
         );
-        if (modeError) {
-          setLegalTextEditError(modeError);
-          toastError(modeError);
+        if (!outcome.ok) {
+          reportDialogFailure(textEditErrors, outcome, retry);
           return;
         }
       }
@@ -479,32 +526,31 @@ export function SettingsField({
         legalTextEditMode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT &&
         toStr(localValue) !== trimmedText
       ) {
-        const textError = await onSave(setting.key, trimmedText);
-        if (textError) {
-          setLegalTextEditError(textError);
-          toastError(textError);
+        const outcome = await persistSetting(onSave, setting.key, trimmedText);
+        if (!outcome.ok) {
+          reportDialogFailure(textEditErrors, outcome, retry);
           return;
         }
         setLocalValue(trimmedText);
       }
       setIsDirty(false);
-      setError(null);
-      toastSuccess("Einstellung gespeichert");
+      setHint(null);
+      toastSuccess(`Die Einstellung „${setting.label}“ ist gespeichert.`);
       setLegalTextEditOpen(false);
-      setLegalTextEditError(null);
     } finally {
       setLegalTextEditSaving(false);
     }
   }, [
-    doSave,
     legalAGBDisplayMode,
     legalDocumentDraftURL,
     legalTextEditDraft,
     legalTextEditMode,
     localValue,
     onSave,
+    reportDialogFailure,
     setting.key,
-    toastError,
+    setting.label,
+    textEditErrors,
     toastSuccess,
   ]);
 
@@ -516,7 +562,6 @@ export function SettingsField({
   const disableConfig = CONFIRM_ON_DISABLE[setting.key];
   const pendingValueRef = useRef<unknown>(null);
   const pendingScopeChangeRef = useRef<AttendanceScopeChange | null>(null);
-  const fieldRef = useRef<HTMLDivElement | null>(null);
   const activeConfirmConfig =
     pendingScopeChangeRef.current ??
     (enableConfig && pendingValueRef.current === true
@@ -534,7 +579,7 @@ export function SettingsField({
       );
       if (prerequisite) {
         if (!prerequisite.writable) {
-          setError(
+          setHint(
             "Dafür muss zuerst die andere Einstellung geändert werden. Bitte wenden Sie sich an die OGS-Leitung.",
           );
           return;
@@ -548,8 +593,7 @@ export function SettingsField({
         setLegalActivationText(toStr(legalActivationTextSetting?.value));
         setLegalActivationDocumentURL(legalDocumentURL);
         setLegalActivationMode(legalAGBDisplayMode);
-        setLegalActivationError(null);
-        setLegalDocumentError(null);
+        activationErrors.clear();
         setLegalActivationOpen(true);
         return;
       }
@@ -574,6 +618,7 @@ export function SettingsField({
       await doSave(value);
     },
     [
+      activationErrors,
       doSave,
       categoryItems,
       enableConfig,
@@ -592,6 +637,8 @@ export function SettingsField({
     const trimmedText = legalActivationText.trim();
     const isAGBActivation =
       legalActivationTextKey === ENROLLMENT_LEGAL_AGB_TEXT_KEY;
+    const retry = () => latestActivationRef.current();
+    activationErrors.clear();
     if (
       isAGBActivation
         ? !hasEnrollmentLegalAGBSourceContent(
@@ -601,7 +648,7 @@ export function SettingsField({
           )
         : !hasEnrollmentLegalTextContent(trimmedText)
     ) {
-      setLegalActivationError(
+      activationErrors.invalid(
         isAGBActivation
           ? selectedAGBSourceError(legalActivationMode)
           : "Bitte tragen Sie zuerst einen Text ein.",
@@ -611,13 +658,13 @@ export function SettingsField({
     setLegalActivationSaving(true);
     try {
       if (isAGBActivation && legalActivationMode !== legalAGBDisplayMode) {
-        const modeError = await onSave(
+        const outcome = await persistSetting(
+          onSave,
           ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_KEY,
           legalActivationMode,
         );
-        if (modeError) {
-          setLegalActivationError(modeError);
-          toastError(modeError);
+        if (!outcome.ok) {
+          reportDialogFailure(activationErrors, outcome, retry);
           return;
         }
       }
@@ -625,79 +672,94 @@ export function SettingsField({
         !isAGBActivation ||
         legalActivationMode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT
       ) {
-        const textError = await onSave(legalActivationTextKey, trimmedText);
-        if (textError) {
-          setLegalActivationError(textError);
-          toastError(textError);
+        const outcome = await persistSetting(
+          onSave,
+          legalActivationTextKey,
+          trimmedText,
+        );
+        if (!outcome.ok) {
+          reportDialogFailure(activationErrors, outcome, retry);
           return;
         }
       }
-      const toggleError = await doSave(true);
-      if (toggleError) {
-        setLegalActivationError(toggleError);
+      const outcome = await persistSetting(onSave, setting.key, true);
+      if (!outcome.ok) {
+        reportDialogFailure(activationErrors, outcome, retry);
         return;
       }
+      setIsDirty(false);
+      setHint(null);
+      toastSuccess(`Die Einstellung „${setting.label}“ ist gespeichert.`);
       setLegalActivationOpen(false);
-      setLegalActivationError(null);
     } finally {
       setLegalActivationSaving(false);
     }
   }, [
-    doSave,
+    activationErrors,
     legalAGBDisplayMode,
     legalActivationDocumentURL,
     legalActivationMode,
     legalActivationText,
     legalActivationTextKey,
     onSave,
-    toastError,
+    reportDialogFailure,
+    setting.key,
+    setting.label,
+    toastSuccess,
   ]);
+
+  // The PDF is managed from inside the open legal dialog; its errors and
+  // checks stay in that dialog.
+  const documentErrors = legalActivationOpen
+    ? activationErrors
+    : textEditErrors;
 
   const handleLegalDocumentUpload = useCallback(
     async (file: File | null) => {
       if (!file) return;
+      documentErrors.clear();
+      const fileProblem = legalDocumentFileProblem(file);
+      if (fileProblem) {
+        documentErrors.invalid(fileProblem);
+        return;
+      }
       setLegalDocumentSaving(true);
-      setLegalDocumentError(null);
       try {
         const uploadedURL = await uploadEnrollmentLegalAGBDocument(file);
         setLegalDocumentDraftURL(uploadedURL);
         setLegalActivationDocumentURL(uploadedURL);
-        toastSuccess("AGB-Datei gespeichert");
+        toastSuccess("Die AGB-Datei ist gespeichert.");
         onSchemaRefresh?.();
       } catch (uploadError) {
-        const message =
-          uploadError instanceof Error
-            ? uploadError.message
-            : "AGB-Datei konnte nicht hochgeladen werden.";
-        setLegalDocumentError(message);
-        toastError(message);
+        void documentErrors.show(uploadError, {
+          object: "das Hochladen der AGB-Datei",
+          retry: () => latestUploadRef.current(file),
+        });
       } finally {
         setLegalDocumentSaving(false);
       }
     },
-    [onSchemaRefresh, toastError, toastSuccess],
+    [documentErrors, onSchemaRefresh, toastSuccess],
   );
 
   const handleLegalDocumentDelete = useCallback(async () => {
+    documentErrors.clear();
     setLegalDocumentSaving(true);
-    setLegalDocumentError(null);
     try {
       await deleteEnrollmentLegalAGBDocument();
       setLegalDocumentDraftURL("");
       setLegalActivationDocumentURL("");
-      toastSuccess("AGB-Datei entfernt");
+      toastSuccess("Die AGB-Datei ist entfernt.");
       onSchemaRefresh?.();
     } catch (deleteError) {
-      const message =
-        deleteError instanceof Error
-          ? deleteError.message
-          : "AGB-Datei konnte nicht entfernt werden.";
-      setLegalDocumentError(message);
-      toastError(message);
+      void documentErrors.show(deleteError, {
+        object: "das Entfernen der AGB-Datei",
+        retry: () => latestDeleteRef.current(),
+      });
     } finally {
       setLegalDocumentSaving(false);
     }
-  }, [onSchemaRefresh, toastError, toastSuccess]);
+  }, [documentErrors, onSchemaRefresh, toastSuccess]);
 
   const handleConfirm = useCallback(async () => {
     setConfirmOpen(false);
@@ -707,23 +769,23 @@ export function SettingsField({
     pendingScopeChangeRef.current = null;
     if (value != null) {
       for (const change of prerequisite?.changes ?? []) {
-        const failure = await onSave(change.key, change.value);
-        if (failure) {
-          setError(failure);
-          toastError(failure);
+        const outcome = await persistSetting(onSave, change.key, change.value);
+        if (!outcome.ok) {
+          // The dialog is closed already: the field shows the failure.
+          reportFieldFailure(outcome);
           return;
         }
       }
       await doSave(value);
     }
-  }, [doSave, onSave, toastError]);
+  }, [doSave, onSave, reportFieldFailure]);
 
   // Local change — for text/number/time (debounce auto-save)
   const handleLocalChange = useCallback(
     (value: unknown) => {
       setLocalValue(value);
       setIsDirty(true);
-      setError(null);
+      setHint(null);
 
       // Reset debounce timer
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -753,19 +815,36 @@ export function SettingsField({
         clearTimeout(debounceRef.current);
         debounceRef.current = null;
       }
-      const errorMsg = await onReset(setting.key);
-      if (errorMsg) {
-        setError(errorMsg);
-        toastError(errorMsg);
-      } else {
-        setError(null);
-        setIsDirty(false);
-        toastSuccess("Auf Standard zurückgesetzt");
+      let outcome: SaveOutcome;
+      try {
+        await onReset(setting.key);
+        outcome = { ok: true };
+      } catch (error) {
+        outcome = { ok: false, error };
       }
+      if (!outcome.ok) {
+        reportFieldFailure(outcome, () => latestResetRef.current());
+        return;
+      }
+      setHint(null);
+      setIsDirty(false);
+      toastSuccess(
+        `Die Einstellung „${setting.label}“ steht wieder auf dem Standard.`,
+      );
     } finally {
       isResettingRef.current = false;
     }
-  }, [setting.key, onReset, toastSuccess, toastError]);
+  }, [setting.key, setting.label, onReset, reportFieldFailure, toastSuccess]);
+
+  // „Wiederholen“ sendet den Stand, der dann gilt.
+  useLayoutEffect(() => {
+    latestDoSaveRef.current = (value) => void doSave(value);
+    latestResetRef.current = () => void handleReset();
+    latestActivationRef.current = () => void handleLegalActivationConfirm();
+    latestTextEditRef.current = () => void handleLegalTextEditConfirm();
+    latestUploadRef.current = (file) => void handleLegalDocumentUpload(file);
+    latestDeleteRef.current = () => void handleLegalDocumentDelete();
+  });
 
   useEffect(() => {
     if (!highlighted) return;
@@ -829,12 +908,7 @@ export function SettingsField({
         {legalTextStoredStatus && (
           <p className="mt-1 text-xs text-gray-500">{legalTextStoredStatus}</p>
         )}
-        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
-        {legalDocumentError && (
-          <p className="text-moto-red mt-1 text-xs font-medium">
-            {legalDocumentError}
-          </p>
-        )}
+        {hint && <p className="text-moto-red mt-1 text-xs">{hint}</p>}
       </div>
 
       <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-3 sm:flex-nowrap">
@@ -902,7 +976,7 @@ export function SettingsField({
         onClose={() => {
           if (legalActivationSaving) return;
           setLegalActivationOpen(false);
-          setLegalActivationError(null);
+          activationErrors.clear();
         }}
         onConfirm={() => {
           void handleLegalActivationConfirm();
@@ -921,7 +995,8 @@ export function SettingsField({
             : !hasEnrollmentLegalTextContent(legalActivationText)
         }
       >
-        <div className="space-y-3">
+        <div ref={activationRef} className="space-y-3">
+          <FormErrorAlert message={activationErrors.error} />
           <p className="text-sm text-gray-600">
             {legalActivationTextKey === ENROLLMENT_LEGAL_AGB_TEXT_KEY
               ? "Dieser Block erscheint im Anmeldeformular, sobald er aktiviert ist. Wähle aus, ob Eltern den AGB-Text direkt lesen oder eine PDF-Datei öffnen sollen."
@@ -932,12 +1007,12 @@ export function SettingsField({
               mode: legalActivationMode,
               onModeChange: (mode) => {
                 setLegalActivationMode(mode);
-                setLegalActivationError(null);
+                activationErrors.clear();
               },
               textValue: legalActivationText,
               onTextChange: (value) => {
                 setLegalActivationText(value);
-                setLegalActivationError(null);
+                activationErrors.clear();
               },
               documentURL: legalActivationDocumentURL,
               documentSaving: legalDocumentSaving,
@@ -957,17 +1032,12 @@ export function SettingsField({
                 value={legalActivationText}
                 onChange={(event) => {
                   setLegalActivationText(event.target.value);
-                  setLegalActivationError(null);
+                  activationErrors.clear();
                 }}
                 rows={8}
                 className="mt-1 block w-full resize-y rounded-lg border-0 bg-white px-3 py-2.5 font-mono text-sm leading-6 text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
               />
             </label>
-          )}
-          {legalActivationError && (
-            <p className="text-moto-red text-xs font-medium">
-              {legalActivationError}
-            </p>
           )}
         </div>
       </ConfirmationModal>
@@ -977,7 +1047,7 @@ export function SettingsField({
         onClose={() => {
           if (legalTextEditSaving) return;
           setLegalTextEditOpen(false);
-          setLegalTextEditError(null);
+          textEditErrors.clear();
         }}
         onConfirm={() => {
           void handleLegalTextEditConfirm();
@@ -1000,18 +1070,19 @@ export function SettingsField({
             : !hasEnrollmentLegalTextContent(legalTextEditDraft)
         }
       >
-        <div className="space-y-3">
+        <div ref={textEditRef} className="space-y-3">
+          <FormErrorAlert message={textEditErrors.error} />
           {setting.key === ENROLLMENT_LEGAL_AGB_TEXT_KEY ? (
             renderAGBSourceEditor({
               mode: legalTextEditMode,
               onModeChange: (mode) => {
                 setLegalTextEditMode(mode);
-                setLegalTextEditError(null);
+                textEditErrors.clear();
               },
               textValue: legalTextEditDraft,
               onTextChange: (value) => {
                 setLegalTextEditDraft(value);
-                setLegalTextEditError(null);
+                textEditErrors.clear();
               },
               documentURL: legalDocumentDraftURL,
               documentSaving: legalDocumentSaving,
@@ -1031,26 +1102,26 @@ export function SettingsField({
                 value={legalTextEditDraft}
                 onChange={(event) => {
                   setLegalTextEditDraft(event.target.value);
-                  setLegalTextEditError(null);
+                  textEditErrors.clear();
                 }}
                 rows={10}
                 className="mt-1 block w-full resize-y rounded-lg border-0 bg-white px-3 py-2.5 font-mono text-sm leading-6 text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
               />
             </label>
           )}
-          {((setting.key === ENROLLMENT_LEGAL_AGB_TEXT_KEY
+          {/* Was noch fehlt, steht dauerhaft da: Speichern ist bis dahin
+              gesperrt. */}
+          {(setting.key === ENROLLMENT_LEGAL_AGB_TEXT_KEY
             ? !hasEnrollmentLegalAGBSourceContent(
                 legalTextEditMode,
                 legalTextEditDraft,
                 legalDocumentDraftURL,
               )
-            : !hasEnrollmentLegalTextContent(legalTextEditDraft)) ||
-            legalTextEditError) && (
+            : !hasEnrollmentLegalTextContent(legalTextEditDraft)) && (
             <p className="text-moto-red text-xs font-medium">
-              {legalTextEditError ??
-                (setting.key === ENROLLMENT_LEGAL_AGB_TEXT_KEY
-                  ? selectedAGBSourceError(legalTextEditMode)
-                  : REQUIRED_ENROLLMENT_LEGAL_TEXT_ERROR)}
+              {setting.key === ENROLLMENT_LEGAL_AGB_TEXT_KEY
+                ? selectedAGBSourceError(legalTextEditMode)
+                : REQUIRED_ENROLLMENT_LEGAL_TEXT_ERROR}
             </p>
           )}
         </div>
@@ -1434,17 +1505,33 @@ function legalContentStatusText(
     : "Hinterlege den Text, bevor du den Block aktivierst.";
 }
 
+const LEGAL_DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
+
+/** Check before sending: the backend takes a PDF of at most 10 MB. */
+function legalDocumentFileProblem(file: File): string | null {
+  if (file.type !== "application/pdf") {
+    return "Bitte wählen Sie eine PDF-Datei.";
+  }
+  if (file.size > LEGAL_DOCUMENT_MAX_BYTES) {
+    return "Die PDF-Datei ist zu groß. Bitte wählen Sie eine Datei bis 10 MB.";
+  }
+  return null;
+}
+
 async function uploadEnrollmentLegalAGBDocument(file: File): Promise<string> {
   const formData = new FormData();
   formData.append("document", file);
 
-  const response = await fetch("/api/settings/enrollment/legal-agb-document", {
-    method: "POST",
-    body: formData,
-  });
+  const response = await transportFetch(
+    "/api/settings/enrollment/legal-agb-document",
+    { method: "POST", body: formData },
+  );
 
   if (!response.ok) {
-    throw new Error(await legalDocumentErrorMessage(response));
+    throw await apiErrorFromResponse(
+      response,
+      `AGB document upload failed (${response.status})`,
+    );
   }
 
   const result = (await response.json()) as {
@@ -1452,38 +1539,44 @@ async function uploadEnrollmentLegalAGBDocument(file: File): Promise<string> {
   };
   const documentURL = result.data?.document_url;
   if (!documentURL) {
-    throw new Error("AGB-Datei konnte nicht hochgeladen werden.");
+    throw new ApiError("AGB document upload returned no URL", 502);
   }
   return documentURL;
 }
 
 async function deleteEnrollmentLegalAGBDocument(): Promise<void> {
-  const response = await fetch("/api/settings/enrollment/legal-agb-document", {
-    method: "DELETE",
-  });
+  const response = await transportFetch(
+    "/api/settings/enrollment/legal-agb-document",
+    { method: "DELETE" },
+  );
 
   if (!response.ok && response.status !== 204) {
-    throw new Error(await legalDocumentErrorMessage(response));
+    throw await apiErrorFromResponse(
+      response,
+      `AGB document delete failed (${response.status})`,
+    );
   }
 }
 
-async function legalDocumentErrorMessage(response: Response): Promise<string> {
-  if (response.status === 413) {
-    return "Die PDF-Datei darf maximal 10 MB groß sein.";
-  }
-  if (response.status === 415) {
-    return "Bitte eine PDF-Datei hochladen.";
-  }
-  if (response.status === 403) {
-    return "Für AGB-Dateien ist die Berechtigung für rechtliche Einstellungen erforderlich.";
-  }
+type SaveOutcome = { readonly ok: true } | SaveFailure;
+
+/** A failed save, shown on the shared API error path. */
+interface SaveFailure {
+  readonly ok: false;
+  readonly error: unknown;
+}
+
+async function persistSetting(
+  onSave: (key: string, value: unknown) => Promise<void>,
+  key: string,
+  value: unknown,
+): Promise<SaveOutcome> {
   try {
-    const body = (await response.json()) as { error?: string };
-    if (body.error) return body.error;
-  } catch {
-    // Fall through to generic copy.
+    await onSave(key, value);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error };
   }
-  return "AGB-Datei konnte nicht gespeichert werden.";
 }
 
 function renderField(

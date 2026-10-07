@@ -27,7 +27,7 @@ func (s *ChangeRequests) validateAccountLinkedGuardianEdits(ctx context.Context,
 		if !sameTrimmedString(editReq.GuardianFirstName, req.GuardianFirstName) ||
 			!sameTrimmedString(editReq.GuardianLastName, req.GuardianLastName) ||
 			!sameOptionalString(editReq.GuardianPhone, req.GuardianPhone) {
-			return fmt.Errorf("%w: account-linked guardian profile details must be changed in the parent portal", enrollment.ErrChangeRequestInvalidData)
+			return enrollment.InvalidInput(enrollment.CodeChangeRequestGuardianLinked, "", fmt.Errorf("%w: account-linked guardian profile details must be changed in the parent portal", enrollment.ErrChangeRequestInvalidData))
 		}
 	}
 	if len(editReq.AdditionalGuardians) == 0 || s.deps.Guardians == nil {
@@ -66,14 +66,14 @@ func (s *ChangeRequests) checkAccountLinkedCoGuardian(ctx context.Context, i int
 		if !sameTrimmedString(guardian.FirstName, old.FirstName) ||
 			!sameTrimmedString(guardian.LastName, old.LastName) ||
 			!sameOptionalString(guardian.Phone, old.Phone) {
-			return fmt.Errorf("%w: account-linked co-guardian %d details must be changed in the parent portal", enrollment.ErrChangeRequestInvalidData, i)
+			return enrollment.InvalidInput(enrollment.CodeChangeRequestGuardianLinked, "", fmt.Errorf("%w: account-linked co-guardian %d details must be changed in the parent portal", enrollment.ErrChangeRequestInvalidData, i))
 		}
 		return nil
 	}
 	if !sameTrimmedString(guardian.FirstName, profile.FirstName) ||
 		!sameTrimmedString(guardian.LastName, profile.LastName) ||
 		!s.submittedPhoneMatchesProfile(ctx, profile.ID, guardian.Phone) {
-		return fmt.Errorf("%w: account-linked co-guardian %d details must match the parent portal profile", enrollment.ErrChangeRequestInvalidData, i)
+		return enrollment.InvalidInput(enrollment.CodeChangeRequestGuardianLinked, "", fmt.Errorf("%w: account-linked co-guardian %d details must match the parent portal profile", enrollment.ErrChangeRequestInvalidData, i))
 	}
 	return nil
 }

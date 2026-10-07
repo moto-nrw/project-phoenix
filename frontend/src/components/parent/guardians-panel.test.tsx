@@ -1,14 +1,27 @@
 import "@testing-library/jest-dom/vitest";
 import {
   fireEvent,
-  render,
+  render as renderPlain,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
+import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import GuardiansPanel from "./guardians-panel";
-import type { ChildGuardian, RelatedAccount } from "~/lib/parent-api";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { catalogText } from "~/test/error-catalog-text";
+import {
+  ParentApiError,
+  type ChildGuardian,
+  type RelatedAccount,
+} from "~/lib/parent-api";
+
+// The shared error path reports row actions through the toast provider
+// (#2518).
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
 
 const mocks = vi.hoisted(() => ({
   listChildGuardians: vi.fn(),
@@ -20,21 +33,10 @@ const mocks = vi.hoisted(() => ({
   updateGuardianRelationship: vi.fn(),
 }));
 
-vi.mock("~/lib/parent-api", () => {
-  class ParentApiError extends Error {
-    readonly status: number;
-    readonly code?: string;
-
-    constructor(message: string, status: number, code?: string) {
-      super(message);
-      this.name = "ParentApiError";
-      this.status = status;
-      this.code = code;
-    }
-  }
-
+vi.mock("~/lib/parent-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/parent-api")>();
   return {
-    ParentApiError,
+    ParentApiError: actual.ParentApiError,
     listChildGuardians: mocks.listChildGuardians,
     listRelatedAccounts: mocks.listRelatedAccounts,
     createGuardianContact: mocks.createGuardianContact,
@@ -177,7 +179,9 @@ describe("GuardiansPanel", () => {
   });
 
   it("keeps invitation errors inside the dialog", async () => {
-    mocks.inviteRelatedAccount.mockRejectedValue(new Error("network"));
+    mocks.inviteRelatedAccount.mockRejectedValue(
+      new ParentApiError("diag", 503, "general.unavailable"),
+    );
 
     render(<GuardiansPanel studentId="42" canInvite canRemove={false} />);
 
@@ -195,8 +199,11 @@ describe("GuardiansPanel", () => {
 
     expect(
       await within(dialog).findByText(
-        "Die Einladung konnte nicht gesendet werden.",
+        catalogText("general.unavailable", "die Einladung"),
       ),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Wiederholen" }),
     ).toBeInTheDocument();
   });
 
@@ -336,8 +343,7 @@ describe("GuardiansPanel", () => {
     expect(contacts.closest("section")?.parentElement).toHaveClass("space-y-5");
   });
 
-  it("maps parent API error codes to localized modal errors", async () => {
-    const { ParentApiError } = await import("~/lib/parent-api");
+  it("shows a parent API error code in the dialog via the shared catalog", async () => {
     mocks.updateGuardianContact.mockRejectedValue(
       new ParentApiError(
         "parent: guardian with own portal account cannot be edited by another parent",
@@ -353,9 +359,10 @@ describe("GuardiansPanel", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
+    const dialog = screen.getByRole("dialog");
     expect(
-      await screen.findByText(
-        "Diese Person verwaltet ihre Kontaktdaten über ein eigenes Elternkonto.",
+      await within(dialog).findByText(
+        catalogText("care.guardian_has_own_account", "die Änderung am Kontakt"),
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/parent: guardian/)).not.toBeInTheDocument();
@@ -558,5 +565,123 @@ describe("GuardiansPanel", () => {
     expect(screen.getAllByRole("button", { name: "Bearbeiten" })).toHaveLength(
       1,
     );
+  });
+
+  // #2518: each section reports its own failed load in place, with a retry,
+  // and never as an empty list.
+  it("shows load errors where the lists are missing and retries them", async () => {
+    mocks.listChildGuardians
+      .mockRejectedValueOnce(
+        new ParentApiError("diag", 503, "general.unavailable"),
+      )
+      .mockResolvedValue([editableGuardian]);
+    mocks.listRelatedAccounts
+      .mockRejectedValueOnce(
+        new ParentApiError("diag", 503, "general.unavailable"),
+      )
+      .mockResolvedValue([]);
+
+    render(
+      <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Kontakte"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der verbundenen Konten"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Noch keine Konten verbunden."),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/diag/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Wiederholen" })[0]!);
+
+    expect(
+      await screen.findByRole("button", { name: "Bearbeiten" }),
+    ).toBeInTheDocument();
+    expect(mocks.listChildGuardians).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports a failed access removal through the shared toast", async () => {
+    mocks.listRelatedAccounts.mockResolvedValue([
+      {
+        guardian_profile_id: "24",
+        first_name: "Petra",
+        last_name: "Schulze",
+        email: "petra@example.test",
+        relationship_type: "parent",
+        is_primary: false,
+        status: "active",
+        is_self: false,
+      },
+    ]);
+    mocks.removeRelatedAccount.mockRejectedValue(
+      new ParentApiError("diag", 403, "care.remove_disabled"),
+    );
+
+    render(<GuardiansPanel studentId="42" canInvite={false} canRemove />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Zugang entziehen" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ja, Zugang entziehen" }),
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("care.remove_disabled", "die Freigabe für dieses Konto"),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("checks the name before saving and keeps a pickup save error in its dialog", async () => {
+    mocks.updateGuardianRelationship.mockRejectedValue(
+      new ParentApiError("diag", 403, "care.pickup_change_disabled"),
+    );
+
+    render(
+      <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
+    const contactDialog = screen.getByRole("dialog");
+    fireEvent.change(within(contactDialog).getByLabelText("Vorname"), {
+      target: { value: "  " },
+    });
+    fireEvent.click(
+      within(contactDialog).getByRole("button", { name: "Speichern" }),
+    );
+    expect(
+      await within(contactDialog).findByText(
+        "Vor- und Nachname sind erforderlich.",
+      ),
+    ).toBeInTheDocument();
+    expect(mocks.updateGuardianContact).not.toHaveBeenCalled();
+    fireEvent.click(
+      within(contactDialog).getByRole("button", { name: "Abbrechen" }),
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Abholrecht verwalten" }),
+    );
+    const pickupDialog = screen.getByRole("dialog");
+    fireEvent.click(
+      pickupDialog.querySelector<HTMLInputElement>("#guardian-can-pickup")!,
+    );
+    fireEvent.click(
+      within(pickupDialog).getByRole("button", { name: "Speichern" }),
+    );
+    expect(
+      await within(pickupDialog).findByText(
+        catalogText("care.pickup_change_disabled", "die Abholregelung"),
+      ),
+    ).toBeInTheDocument();
   });
 });

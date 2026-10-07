@@ -835,6 +835,28 @@ func init() {
 		AccessPolicy:    config.AccessShared,
 	})
 
+	// Replaces the group-leader switch in the settings page; the switch stays
+	// stored as the inherited choice until a school picks a scope here.
+	config.Register(config.Definition{
+		Key:             config.KeyParentRequestReviewScope,
+		Label:           "Wer gibt Änderungswünsche von Eltern frei?",
+		Description:     "Gilt für Stammdaten, Abholzeiten, Abholart und Angebote. Berechtigtes Team heißt: alle, die Kinderdaten bearbeiten dürfen.",
+		Type:            config.FieldSelect,
+		Default:         config.ParentRequestReviewScopeInherit,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       69,
+		AccessPolicy:    config.AccessShared,
+		Options: &config.SelectOptions{Static: []config.SelectOption{
+			{Label: "Bisherige Freigabe", Value: config.ParentRequestReviewScopeInherit},
+			{Label: "Admins", Value: config.ParentRequestReviewScopeAdmins},
+			{Label: "Admins und zuständige Gruppenleitungen", Value: config.ParentRequestReviewScopeGroupLeaders},
+			{Label: "Berechtigtes Team", Value: config.ParentRequestReviewScopeAllStaff},
+		}},
+	})
+
 	config.Register(config.Definition{
 		Key:   config.KeyParentRequestReasonPolicy,
 		Label: "Begründung bei Anfragen",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CalendarDays,
@@ -26,11 +26,21 @@ import {
   SkeletonRegion,
   TableSkeleton,
 } from "~/components/ui/page-skeletons";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { UploadSection } from "~/components/import/upload-section";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
+import {
+  downloadImportTemplate,
+  importResponseError,
+  postImportFile,
+} from "~/lib/import-request";
 import { hasPermission } from "~/lib/auth-utils";
 import {
   importBatchFailureAlertType,
@@ -259,7 +269,14 @@ export default function OpeningBalanceImportPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Fehler der Datei und der Übernahme stehen im Kasten über den Schritten,
+  // mit Wiederholen (#2517). Ein angehaltener Stapel ist ein Stand und steht
+  // als eigener Hinweis.
+  const importErrors = useApiFormError();
+  const { clear: clearImportErrors, show: showImportError } = importErrors;
+  const { show: showTemplateError } = useApiErrorDisplay();
+  const [batchNotice, setBatchNotice] = useState<string | null>(null);
+  const latestImportRef = useRef<() => void>(() => undefined);
   const previewRequestVersion = useRef(0);
 
   // Ein Eröffnungssaldo beschreibt einen abgeschlossenen Stand; der heutige
@@ -284,8 +301,9 @@ export default function OpeningBalanceImportPage() {
     setUploadedFile(null);
     resetPreview();
     setIsDragging(false);
-    setError(null);
-  }, [resetPreview]);
+    clearImportErrors();
+    setBatchNotice(null);
+  }, [resetPreview, clearImportErrors]);
 
   const buildFormData = useCallback(
     (file: File) => {
@@ -300,62 +318,44 @@ export default function OpeningBalanceImportPage() {
 
   const handleDownloadTemplate = useCallback(async () => {
     try {
-      const token = session?.user?.token;
-      if (!token) throw new Error("Keine Authentifizierung");
-
-      const response = await fetch(
+      await downloadImportTemplate(
         `/api/import/opening-balances/template?format=${templateFormat}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      if (!response.ok) {
-        throw new Error("Fehler beim Herunterladen der Vorlage");
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download =
+        session?.user?.token,
         templateFormat === "xlsx"
           ? "eroeffnungssalden-import-vorlage.xlsx"
-          : "eroeffnungssalden-import-vorlage.csv";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+          : "eroeffnungssalden-import-vorlage.csv",
+      );
     } catch (err) {
       logger.error("opening_balance_template_download_failed", {
         error: err instanceof Error ? err.message : String(err),
         format: templateFormat,
       });
-      setError(err instanceof Error ? err.message : "Unbekannter Fehler");
+      // Eine Aktion ohne Formular: Toast mit Wiederholen.
+      void showTemplateError(err, {
+        object: "die Vorlage",
+        retry: () => void handleDownloadTemplate(),
+      });
     }
-  }, [session, templateFormat]);
+  }, [session, templateFormat, showTemplateError]);
 
   const runPreview = useCallback(
     async (file: File) => {
       const requestVersion = ++previewRequestVersion.current;
-      setError(null);
+      clearImportErrors();
+      setBatchNotice(null);
       setIsLoading(true);
       setImportResult(null);
       setPreviewStale(false);
 
       try {
-        const token = session?.user?.token;
-        if (!token) throw new Error("Keine Authentifizierung");
-
-        const response = await fetch("/api/import/opening-balances/preview", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: buildFormData(file),
-        });
-        const payload = (await response.json()) as Record<string, unknown>;
+        const response = await postImportFile(
+          "/api/import/opening-balances/preview",
+          session?.user?.token,
+          buildFormData(file),
+        );
+        const payload = response.body;
         if (!response.ok) {
-          throw new Error(
-            (payload.error as string | undefined) ??
-              (payload.message as string | undefined) ??
-              "Fehler bei der Vorschau",
-          );
+          throw importResponseError(response, "Opening balance preview failed");
         }
 
         const result = payload.data as ImportResult;
@@ -367,7 +367,10 @@ export default function OpeningBalanceImportPage() {
           error: err instanceof Error ? err.message : String(err),
         });
         if (requestVersion === previewRequestVersion.current) {
-          setError(err instanceof Error ? err.message : "Unbekannter Fehler");
+          void showImportError(err, {
+            object: "die Datei",
+            retry: () => void runPreview(file),
+          });
           setPreviewRows([]);
           setPreviewResult(null);
         }
@@ -376,7 +379,7 @@ export default function OpeningBalanceImportPage() {
           setIsLoading(false);
       }
     },
-    [buildFormData, session],
+    [buildFormData, session, clearImportErrors, showImportError],
   );
 
   const handleFileSelect = useCallback(
@@ -385,14 +388,27 @@ export default function OpeningBalanceImportPage() {
       setUploadedFile(file);
       resetPreview();
       if (!paramsComplete) {
-        setError(
-          "Bitte zuerst Stichtag und Begründung angeben, dann wird die Vorschau erstellt.",
+        importErrors.invalid(
+          "Bitte geben Sie zuerst Stichtag und Begründung an. Dann wird die Vorschau erstellt.",
+          {
+            ...(effectiveDate
+              ? {}
+              : { effective_date: "Bitte ein Datum wählen." }),
+            ...(note.trim() ? {} : { note: "Bitte eine Begründung eingeben." }),
+          },
         );
         return;
       }
       void runPreview(file);
     },
-    [paramsComplete, resetPreview, runPreview],
+    [
+      paramsComplete,
+      resetPreview,
+      runPreview,
+      importErrors,
+      effectiveDate,
+      note,
+    ],
   );
 
   // Stichtag und Begründung gehen in jede Buchung ein: eine Vorschau, die
@@ -408,18 +424,16 @@ export default function OpeningBalanceImportPage() {
   const handleImport = useCallback(async () => {
     if (!uploadedFile) return;
     setIsImporting(true);
-    setError(null);
+    clearImportErrors();
+    setBatchNotice(null);
 
     try {
-      const token = session?.user?.token;
-      if (!token) throw new Error("Keine Authentifizierung");
-
-      const response = await fetch("/api/import/opening-balances/import", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: buildFormData(uploadedFile),
-      });
-      const payload = (await response.json()) as Record<string, unknown>;
+      const response = await postImportFile(
+        "/api/import/opening-balances/import",
+        session?.user?.token,
+        buildFormData(uploadedFile),
+      );
+      const payload = response.body;
       if (!response.ok) {
         const interrupted = readImportBatchFailure<ImportRowResult>(payload);
         if (interrupted) {
@@ -427,7 +441,7 @@ export default function OpeningBalanceImportPage() {
           setImportInterrupted(true);
           setPreviewResult(null);
           setPreviewRows((interrupted.Errors ?? []).map(toDisplayRow));
-          setError(importBatchFailureMessage(interrupted));
+          setBatchNotice(importBatchFailureMessage(interrupted));
           logger.error("opening_balance_import_batch_failed", {
             created: interrupted.CreatedCount,
             updated: interrupted.UpdatedCount,
@@ -435,11 +449,7 @@ export default function OpeningBalanceImportPage() {
           });
           return;
         }
-        throw new Error(
-          (payload.error as string | undefined) ??
-            (payload.message as string | undefined) ??
-            "Fehler beim Import",
-        );
+        throw importResponseError(response, "Opening balance import failed");
       }
 
       const result = payload.data as ImportResult;
@@ -450,22 +460,39 @@ export default function OpeningBalanceImportPage() {
 
       if (result.ErrorCount > 0) {
         toast.warning(
-          `${result.CreatedCount} übernommen, ${result.ErrorCount} übersprungen`,
+          `Die Übernahme ist fertig: ${result.CreatedCount} übernommen, ${result.ErrorCount} übersprungen.`,
         );
       } else {
         toast.success(
-          `${result.CreatedCount} ${result.CreatedCount === 1 ? "Übernahme" : "Übernahmen"} gebucht`,
+          result.CreatedCount === 1
+            ? "1 Übernahme ist gebucht."
+            : `${result.CreatedCount} Übernahmen sind gebucht.`,
         );
       }
     } catch (err) {
       logger.error("opening_balance_import_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(err instanceof Error ? err.message : "Unbekannter Fehler");
+      void showImportError(err, {
+        object: "die Übernahme der Salden",
+        retry: () => latestImportRef.current(),
+      });
     } finally {
       setIsImporting(false);
     }
-  }, [buildFormData, session, toast, uploadedFile]);
+  }, [
+    buildFormData,
+    session,
+    toast,
+    uploadedFile,
+    clearImportErrors,
+    showImportError,
+  ]);
+
+  // Wiederholen übernimmt die Datei mit Stichtag und Begründung von dann.
+  useLayoutEffect(() => {
+    latestImportRef.current = () => void handleImport();
+  });
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -475,12 +502,14 @@ export default function OpeningBalanceImportPage() {
       const file = e.dataTransfer.files[0];
       if (!file) return;
       if (!isSpreadsheet(file)) {
-        setError("Bitte nur CSV- oder Excel-Dateien (.csv, .xlsx) hochladen");
+        importErrors.invalid(
+          "Diese Datei passt nicht. Bitte laden Sie eine CSV- oder Excel-Datei hoch.",
+        );
         return;
       }
       handleFileSelect(file);
     },
-    [handleFileSelect],
+    [handleFileSelect, importErrors],
   );
 
   // Statuszeile des Seitenkopfs: der Stand des Imports.
@@ -539,28 +568,25 @@ export default function OpeningBalanceImportPage() {
         <p className="text-sm text-gray-600">{OPENING_BALANCES_DESCRIPTION}</p>
       </SectionCard>
 
-      {error && (
+      <FormErrorAlert message={importErrors.error} />
+      {batchNotice && importResult ? (
         <div className="relative">
           <Alert
-            type={
-              importInterrupted && importResult
-                ? importBatchFailureAlertType(importResult)
-                : "error"
-            }
-            message={error}
+            type={importBatchFailureAlertType(importResult)}
+            message={batchNotice}
           />
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            onClick={() => setError(null)}
+            onClick={() => setBatchNotice(null)}
             className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-2 -translate-y-1/2"
-            aria-label="Fehler schließen"
+            aria-label="Hinweis schließen"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
-      )}
+      ) : null}
 
       {/* Schritt 1: Vorlage */}
       <SectionCard
@@ -608,6 +634,8 @@ export default function OpeningBalanceImportPage() {
         <div className="grid gap-3 sm:grid-cols-2">
           <ISODatePicker
             id="opening-balance-effective-date"
+            name="effective_date"
+            error={importErrors.fieldError("effective_date")}
             label="Stichtag"
             value={effectiveDate}
             min={`${berlinToday.slice(0, 4)}-01-01`}
@@ -620,7 +648,8 @@ export default function OpeningBalanceImportPage() {
           />
           <Input
             id="opening-balance-note"
-            name="opening-balance-note"
+            name="note"
+            error={importErrors.fieldError("note")}
             label="Begründung"
             value={note}
             maxLength={200}
