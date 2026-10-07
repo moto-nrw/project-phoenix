@@ -94,12 +94,6 @@ func TestWireFormat_Operator_ErrHelpers(t *testing.T) {
 			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen","title":"Forbidden","detail":"no access","instance":"","error":"no access","code":"general.permission"}` + "\n",
 		},
 		{
-			name:       "ErrTooManyRequests",
-			renderer:   common.OperatorTooManyRequests("slow down"),
-			wantStatus: 429,
-			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-gerade-nicht-erreichbar","title":"Too Many Requests","detail":"slow down","instance":"","error":"slow down","code":"general.unavailable"}` + "\n",
-		},
-		{
 			name:       "ErrInternal",
 			renderer:   common.OperatorInternal("oops"),
 			wantStatus: 500,

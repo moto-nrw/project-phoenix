@@ -100,11 +100,6 @@ func OperatorForbidden(message string) render.Renderer {
 	return operatorError(http.StatusForbidden, message)
 }
 
-// OperatorTooManyRequests renders a 429.
-func OperatorTooManyRequests(message string) render.Renderer {
-	return operatorError(http.StatusTooManyRequests, message)
-}
-
 // OperatorInternal renders a 500.
 func OperatorInternal(message string) render.Renderer {
 	return operatorError(http.StatusInternalServerError, message)
