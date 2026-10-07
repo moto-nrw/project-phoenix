@@ -244,6 +244,7 @@ export default function OperatorSchoolsPage() {
             })}
           </div>
         ) : !summariesLoading &&
+          !summariesError &&
           schoolSummaries !== undefined &&
           activeSummaries.length === 0 ? (
           <EmptyState
@@ -252,7 +253,8 @@ export default function OperatorSchoolsPage() {
             buttonLabel="Neue Schule"
             onAction={() => setCreateSchoolOpen(true)}
           />
-        ) : schoolSummaries === undefined && !summariesLoading ? null : (
+        ) : (schoolSummaries === undefined && !summariesLoading) ||
+          summariesError ? null : (
           <DataTable
             columns={columns}
             rows={activeSummaries}

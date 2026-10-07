@@ -522,7 +522,11 @@ describe("OperatorOrganizationsPage", () => {
 
   // #2519: a failed load is not an empty list.
   it("shows a failed list load without claiming the list is empty", async () => {
-    withDefaultSWR({ orgsError: new ApiError("down", 503) });
+    withDefaultSWR({
+      orgs: [],
+      orgsError: new ApiError("down", 503),
+      staleData: true,
+    });
 
     render(<OperatorOrganizationsPage />);
 
@@ -531,6 +535,6 @@ describe("OperatorOrganizationsPage", () => {
         catalogText("general.unavailable", "die Liste der Träger"),
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Keine Einträge vorhanden.")).toBeNull();
+    expect(screen.queryByText("Keine Träger")).toBeNull();
   });
 });

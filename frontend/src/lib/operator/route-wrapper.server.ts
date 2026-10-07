@@ -23,7 +23,10 @@ export function operatorErrorResponse(
   code: ErrorCode,
   diagnostic: string,
 ): NextResponse {
-  return NextResponse.json({ error: diagnostic, code }, { status });
+  return NextResponse.json(
+    { status: "error", error: diagnostic, code },
+    { status },
+  );
 }
 
 /**

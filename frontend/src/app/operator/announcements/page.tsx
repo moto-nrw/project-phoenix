@@ -507,6 +507,7 @@ export default function OperatorAnnouncementsPage() {
         </SkeletonRegion>
       )}
       {!isLoading &&
+        !announcementsError &&
         announcements !== undefined &&
         filteredAnnouncements.length === 0 && (
           <div className="flex flex-col items-center gap-3 py-12 text-center">

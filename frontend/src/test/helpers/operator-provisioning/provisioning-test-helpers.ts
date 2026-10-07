@@ -63,6 +63,9 @@ export interface SetupSWROptions {
   /** Failed load of the account and device lists (#2519). */
   accountsError?: unknown;
   devicesError?: unknown;
+  personsError?: unknown;
+  /** Keeps cached data with an SWR revalidation error. */
+  staleData?: boolean;
   schoolAccounts?: unknown[];
   orgAccounts?: unknown[];
   allAccounts?: unknown[];
@@ -94,6 +97,8 @@ export function setupSWR(opts: SetupSWROptions): void {
     schoolsError,
     accountsError,
     devicesError,
+    personsError,
+    staleData = false,
     schoolAccounts,
     orgAccounts,
     allAccounts,
@@ -115,7 +120,7 @@ export function setupSWR(opts: SetupSWROptions): void {
       key === "operator-organization-summaries"
     ) {
       return {
-        data: orgsLoading || orgsError ? undefined : orgs,
+        data: orgsLoading || (orgsError && !staleData) ? undefined : orgs,
         error: orgsError,
         isLoading: orgsLoading,
         mutate: mutateOrgs,
@@ -136,7 +141,8 @@ export function setupSWR(opts: SetupSWROptions): void {
     }
     if (key === "operator-schools" || key === "operator-school-summaries") {
       return {
-        data: schoolsLoading || schoolsError ? undefined : schools,
+        data:
+          schoolsLoading || (schoolsError && !staleData) ? undefined : schools,
         error: schoolsError,
         isLoading: schoolsLoading,
         mutate: mutateSchools,
@@ -145,7 +151,9 @@ export function setupSWR(opts: SetupSWROptions): void {
     if (key === "operator-all-accounts") {
       return {
         data:
-          accountsLoading || accountsError ? undefined : (allAccounts ?? []),
+          accountsLoading || (accountsError && !staleData)
+            ? undefined
+            : (allAccounts ?? []),
         error: accountsError,
         isLoading: accountsLoading,
         mutate: () => undefined,
@@ -154,7 +162,9 @@ export function setupSWR(opts: SetupSWROptions): void {
     if (key.startsWith("operator-school-accounts-")) {
       return {
         data:
-          accountsLoading || accountsError ? undefined : (schoolAccounts ?? []),
+          accountsLoading || (accountsError && !staleData)
+            ? undefined
+            : (schoolAccounts ?? []),
         error: accountsError,
         isLoading: accountsLoading,
         mutate: () => undefined,
@@ -163,7 +173,9 @@ export function setupSWR(opts: SetupSWROptions): void {
     if (key.startsWith("operator-org-accounts-")) {
       return {
         data:
-          accountsLoading || accountsError ? undefined : (orgAccounts ?? []),
+          accountsLoading || (accountsError && !staleData)
+            ? undefined
+            : (orgAccounts ?? []),
         error: accountsError,
         isLoading: accountsLoading,
         mutate: () => undefined,
@@ -171,7 +183,10 @@ export function setupSWR(opts: SetupSWROptions): void {
     }
     if (key === "operator-all-devices") {
       return {
-        data: devicesLoading || devicesError ? undefined : (allDevices ?? []),
+        data:
+          devicesLoading || (devicesError && !staleData)
+            ? undefined
+            : (allDevices ?? []),
         error: devicesError,
         isLoading: devicesLoading,
         mutate: () => undefined,
@@ -180,7 +195,9 @@ export function setupSWR(opts: SetupSWROptions): void {
     if (key.startsWith("operator-school-devices-")) {
       return {
         data:
-          devicesLoading || devicesError ? undefined : (schoolDevices ?? []),
+          devicesLoading || (devicesError && !staleData)
+            ? undefined
+            : (schoolDevices ?? []),
         error: devicesError,
         isLoading: devicesLoading,
         mutate: () => undefined,
@@ -188,7 +205,10 @@ export function setupSWR(opts: SetupSWROptions): void {
     }
     if (key.startsWith("operator-org-devices-")) {
       return {
-        data: devicesLoading || devicesError ? undefined : (orgDevices ?? []),
+        data:
+          devicesLoading || (devicesError && !staleData)
+            ? undefined
+            : (orgDevices ?? []),
         error: devicesError,
         isLoading: devicesLoading,
         mutate: () => undefined,
@@ -196,7 +216,11 @@ export function setupSWR(opts: SetupSWROptions): void {
     }
     if (key.startsWith("operator-school-persons-")) {
       return {
-        data: personsLoading ? undefined : (schoolPersons ?? []),
+        data:
+          personsLoading || (personsError && !staleData)
+            ? undefined
+            : (schoolPersons ?? []),
+        error: personsError,
         isLoading: personsLoading,
         mutate: mutateSchoolPersons ?? (() => undefined),
       };

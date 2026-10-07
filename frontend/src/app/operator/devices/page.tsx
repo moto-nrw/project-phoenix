@@ -191,12 +191,15 @@ function OperatorDevicesPageContent() {
 
       {!selectedSchool && filterOrgId && (
         <>
-          {!orgDevicesLoading && orgDevices?.length === 0 ? (
+          {!orgDevicesError &&
+          !orgDevicesLoading &&
+          orgDevices?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Geräte"
               description="Für diesen Träger gibt es noch keine registrierten Geräte."
             />
-          ) : orgDevices === undefined && !orgDevicesLoading ? null : (
+          ) : (orgDevices === undefined && !orgDevicesLoading) ||
+            orgDevicesError ? null : (
             <DevicesTable
               devices={orgDevices ?? []}
               showSchool
@@ -211,12 +214,15 @@ function OperatorDevicesPageContent() {
 
       {!selectedSchool && !filterOrgId && (
         <>
-          {!allDevicesLoading && allDevices?.length === 0 ? (
+          {!allDevicesError &&
+          !allDevicesLoading &&
+          allDevices?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Geräte"
               description="Es gibt noch keine registrierten Geräte im System."
             />
-          ) : allDevices === undefined && !allDevicesLoading ? null : (
+          ) : (allDevices === undefined && !allDevicesLoading) ||
+            allDevicesError ? null : (
             <DevicesTable
               devices={allDevices ?? []}
               showSchool
@@ -247,12 +253,15 @@ function OperatorDevicesPageContent() {
               </span>
             )}
           </div>
-          {!schoolDevicesLoading && schoolDevices?.length === 0 ? (
+          {!schoolDevicesError &&
+          !schoolDevicesLoading &&
+          schoolDevices?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Geräte"
               description="Für diese Schule gibt es noch keine registrierten Geräte."
             />
-          ) : schoolDevices === undefined && !schoolDevicesLoading ? null : (
+          ) : (schoolDevices === undefined && !schoolDevicesLoading) ||
+            schoolDevicesError ? null : (
             <DevicesTable
               devices={schoolDevices ?? []}
               isLoading={schoolDevicesLoading}

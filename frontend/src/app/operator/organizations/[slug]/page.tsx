@@ -588,6 +588,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
                 ))}
               </div>
             ) : !schoolsLoading &&
+              !schoolsError &&
               organizationSchoolSummaries !== undefined &&
               activeSchools.length === 0 ? (
               <EmptyState
@@ -596,7 +597,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
                 buttonLabel="Neue Schule"
                 onAction={() => setCreateSchoolOpen(true)}
               />
-            ) : (
+            ) : (organizationSchoolSummaries === undefined &&
+                !schoolsLoading) ||
+              schoolsError ? null : (
               <DataTable
                 columns={schoolColumns}
                 rows={activeSchools}
@@ -610,8 +613,8 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
 
           <TabsPrimitive.Content value="konten" className="mt-4">
             <LoadErrorAlert error={accountsLoadError} className="mb-4" />
-            {!accountsLoading &&
-            orgAccounts === undefined ? null : !accountsLoading &&
+            {(orgAccounts === undefined && !accountsLoading) ||
+            accountsError ? null : !accountsLoading &&
               orgAccounts?.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
                 Keine Konten für diesen Träger.
@@ -628,8 +631,8 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
 
           <TabsPrimitive.Content value="geraete" className="mt-4">
             <LoadErrorAlert error={devicesLoadError} className="mb-4" />
-            {!devicesLoading &&
-            orgDevices === undefined ? null : !devicesLoading &&
+            {(orgDevices === undefined && !devicesLoading) ||
+            devicesError ? null : !devicesLoading &&
               orgDevices?.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
                 Keine Geräte für diesen Träger.
@@ -648,8 +651,8 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
 
           <TabsPrimitive.Content value="personen" className="mt-4">
             <LoadErrorAlert error={personsLoadError} className="mb-4" />
-            {!personsLoading &&
-            orgPersons === undefined ? null : !personsLoading &&
+            {(orgPersons === undefined && !personsLoading) ||
+            personsError ? null : !personsLoading &&
               orgPersons?.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
                 Keine Personen für diesen Träger.

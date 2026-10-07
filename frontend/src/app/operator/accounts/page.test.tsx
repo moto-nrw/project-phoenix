@@ -623,7 +623,11 @@ describe("OperatorAccountsPage", () => {
 
   // #2519: a failed load is not an empty list.
   it("shows a failed list load without claiming the list is empty", async () => {
-    withDefaultSWR({ accountsError: new ApiError("down", 503) });
+    withDefaultSWR({
+      allAccounts: [],
+      accountsError: new ApiError("down", 503),
+      staleData: true,
+    });
 
     render(<OperatorAccountsPage />);
 
@@ -632,6 +636,6 @@ describe("OperatorAccountsPage", () => {
         catalogText("general.unavailable", "die Liste der Konten"),
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Keine Einträge vorhanden.")).toBeNull();
+    expect(screen.queryByText("Keine Konten")).toBeNull();
   });
 });

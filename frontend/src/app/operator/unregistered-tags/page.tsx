@@ -188,12 +188,12 @@ function OperatorUnregisteredTagsPageContent() {
       <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
       <LoadErrorAlert error={scansLoadError} className="mb-4" />
 
-      {!isLoading && scans?.length === 0 ? (
+      {!isLoading && !scansError && scans?.length === 0 ? (
         <SimpleEmptyState
           title="Keine unbekannten RFID-Scans"
           description="Es liegen keine passenden Scanversuche vor."
         />
-      ) : scans === undefined && !isLoading ? null : (
+      ) : (scans === undefined && !isLoading) || scansError ? null : (
         <UnregisteredTagsTable
           scans={scans ?? []}
           isLoading={isLoading}

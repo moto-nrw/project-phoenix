@@ -234,7 +234,7 @@ describe("OperatorAnnouncementsPage", () => {
 
   it("renders loading state", () => {
     mockUseSWR.mockReturnValue({
-      data: undefined,
+      data: [],
       isLoading: true,
       mutate: mockMutate,
     });

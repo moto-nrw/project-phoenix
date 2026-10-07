@@ -622,8 +622,8 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
 
           <TabsPrimitive.Content value="konten" className="mt-4">
             <LoadErrorAlert error={accountsLoadError} className="mb-4" />
-            {!accountsLoading &&
-            schoolAccounts === undefined ? null : !accountsLoading &&
+            {(schoolAccounts === undefined && !accountsLoading) ||
+            accountsError ? null : !accountsLoading &&
               schoolAccounts?.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
                 Keine Konten für diese Schule.
@@ -641,8 +641,8 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
 
           <TabsPrimitive.Content value="geraete" className="mt-4">
             <LoadErrorAlert error={devicesLoadError} className="mb-4" />
-            {!devicesLoading &&
-            schoolDevices === undefined ? null : !devicesLoading &&
+            {(schoolDevices === undefined && !devicesLoading) ||
+            devicesError ? null : !devicesLoading &&
               schoolDevices?.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
                 Keine Geräte für diese Schule.
@@ -660,8 +660,8 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
 
           <TabsPrimitive.Content value="personen" className="mt-4">
             <LoadErrorAlert error={personsLoadError} className="mb-4" />
-            {!personsLoading &&
-            schoolPersons === undefined ? null : !personsLoading &&
+            {(schoolPersons === undefined && !personsLoading) ||
+            personsError ? null : !personsLoading &&
               schoolPersons?.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
                 Keine Personen für diese Schule.

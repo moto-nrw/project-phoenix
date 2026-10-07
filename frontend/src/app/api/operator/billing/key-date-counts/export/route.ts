@@ -85,7 +85,11 @@ async function GETHandler(request: NextRequest) {
     logger.error("operator billing export proxy failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return operatorErrorResponse(500, "general.server", "Export proxy failed");
+    return operatorErrorResponse(
+      503,
+      "general.unavailable",
+      "Export proxy failed",
+    );
   }
 }
 

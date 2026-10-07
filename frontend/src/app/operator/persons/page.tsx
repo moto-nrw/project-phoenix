@@ -106,7 +106,8 @@ function OperatorPersonsPageContent() {
             className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
           />
         </SkeletonRegion>
-      ) : !schoolPersons ? null : schoolPersons.length === 0 ? (
+      ) : !schoolPersons || schoolPersonsError ? null : schoolPersons.length ===
+        0 ? (
         <SimpleEmptyState
           title="Keine Personen"
           description={`Keine Personen in ${selectedSchool.name} vorhanden.`}

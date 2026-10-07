@@ -263,6 +263,27 @@ describe("OperatorPersonsPage", () => {
     ).toBeInTheDocument();
   });
 
+  // #2519: cached empty data is not an empty state when revalidation failed.
+  it("shows a failed persons load without claiming the list is empty", async () => {
+    mockSearchParamsGet.mockImplementation((key: string) =>
+      key === "schoolId" ? "10" : null,
+    );
+    withDefaultSWR({
+      schoolPersons: [],
+      personsError: new ApiError("down", 503),
+      staleData: true,
+    });
+
+    render(<OperatorPersonsPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Personen"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Keine Personen")).toBeNull();
+  });
+
   it("shows persons loading state", () => {
     mockSearchParamsGet.mockImplementation((key: string) =>
       key === "schoolId" ? "10" : null,

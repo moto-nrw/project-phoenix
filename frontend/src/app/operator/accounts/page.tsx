@@ -204,12 +204,15 @@ function OperatorAccountsPageContent() {
 
       {!selectedSchool && filterOrgId && (
         <>
-          {!orgAccountsLoading && orgAccounts?.length === 0 ? (
+          {!orgAccountsError &&
+          !orgAccountsLoading &&
+          orgAccounts?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Konten"
               description="Für diesen Träger gibt es noch keine zugewiesenen Konten."
             />
-          ) : orgAccounts === undefined && !orgAccountsLoading ? null : (
+          ) : (orgAccounts === undefined && !orgAccountsLoading) ||
+            orgAccountsError ? null : (
             <AccountsTable
               accounts={orgAccounts ?? []}
               showSchool
@@ -224,12 +227,15 @@ function OperatorAccountsPageContent() {
 
       {!selectedSchool && !filterOrgId && (
         <>
-          {!allAccountsLoading && allAccounts?.length === 0 ? (
+          {!allAccountsError &&
+          !allAccountsLoading &&
+          allAccounts?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Konten"
               description="Es gibt noch keine Konten im System."
             />
-          ) : allAccounts === undefined && !allAccountsLoading ? null : (
+          ) : (allAccounts === undefined && !allAccountsLoading) ||
+            allAccountsError ? null : (
             <AccountsTable
               accounts={allAccounts ?? []}
               showSchool
@@ -260,12 +266,15 @@ function OperatorAccountsPageContent() {
               </span>
             )}
           </div>
-          {!schoolAccountsLoading && schoolAccounts?.length === 0 ? (
+          {!schoolAccountsError &&
+          !schoolAccountsLoading &&
+          schoolAccounts?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Konten"
               description="Für diese Schule gibt es noch keine zugewiesenen Konten."
             />
-          ) : schoolAccounts === undefined && !schoolAccountsLoading ? null : (
+          ) : (schoolAccounts === undefined && !schoolAccountsLoading) ||
+            schoolAccountsError ? null : (
             <AccountsTable
               accounts={schoolAccounts ?? []}
               selectedSchool={selectedSchool}

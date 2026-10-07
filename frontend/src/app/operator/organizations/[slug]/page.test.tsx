@@ -292,21 +292,21 @@ function setupSWR(opts: SetupOpts = {}) {
         };
       case "operator-org-accounts":
         return {
-          data: accountsLoading || accountsError ? undefined : accounts,
+          data: accountsLoading ? undefined : accounts,
           error: accountsError,
           isLoading: accountsLoading,
           mutate: mockMutateOrgAccounts,
         };
       case "operator-org-devices":
         return {
-          data: devicesLoading || devicesError ? undefined : devices,
+          data: devicesLoading ? undefined : devices,
           error: devicesError,
           isLoading: devicesLoading,
           mutate: mockMutateOrgDevices,
         };
       case "operator-org-persons":
         return {
-          data: personsLoading || personsError ? undefined : persons,
+          data: personsLoading ? undefined : persons,
           error: personsError,
           isLoading: personsLoading,
           mutate: vi.fn(),

@@ -259,21 +259,21 @@ function setupSWR(opts: SetupOpts = {}) {
         };
       case "operator-school-accounts":
         return {
-          data: accountsError ? undefined : accounts,
+          data: accounts,
           error: accountsError,
           isLoading: false,
           mutate: mockMutateAccounts,
         };
       case "operator-school-devices":
         return {
-          data: devicesError ? undefined : devices,
+          data: devices,
           error: devicesError,
           isLoading: false,
           mutate: mockMutateDevices,
         };
       case "operator-school-persons":
         return {
-          data: personsError ? undefined : persons,
+          data: persons,
           error: personsError,
           isLoading: false,
           mutate: mockMutatePersons,

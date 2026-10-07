@@ -261,6 +261,7 @@ export default function OperatorOrganizationsPage() {
             ))}
           </div>
         ) : !orgsLoading &&
+          !orgsError &&
           organizations !== undefined &&
           activeOrganizations.length === 0 ? (
           <EmptyState
@@ -269,7 +270,8 @@ export default function OperatorOrganizationsPage() {
             buttonLabel="Neuer Träger"
             onAction={() => setCreateOrgOpen(true)}
           />
-        ) : organizations === undefined && !orgsLoading ? null : (
+        ) : (organizations === undefined && !orgsLoading) ||
+          orgsError ? null : (
           <DataTable
             columns={columns}
             rows={activeOrganizations}

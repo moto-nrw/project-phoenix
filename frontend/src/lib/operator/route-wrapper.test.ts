@@ -594,6 +594,7 @@ describe("createOperatorProxyPostHandler", () => {
     expect(response.status).toBe(400);
     const json = (await response.json()) as { status?: string; error?: string };
     expect(json).toEqual({
+      status: "error",
       error: "Invalid JSON request body",
       code: "general.input",
     });
@@ -640,6 +641,7 @@ describe("createOperatorPublicProxyPostHandler", () => {
     expect(response.status).toBe(400);
     const json = (await response.json()) as { status?: string; error?: string };
     expect(json).toEqual({
+      status: "error",
       error: "Invalid JSON request body",
       code: "general.input",
     });
@@ -795,6 +797,7 @@ describe("createOperatorPublicProxyPostHandler", () => {
     expect(response.status).toBe(503);
     const json = (await response.json()) as { status?: string; error?: string };
     expect(json).toEqual({
+      status: "error",
       error: "Backend request failed",
       code: "general.unavailable",
     });
