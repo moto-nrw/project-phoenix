@@ -315,6 +315,8 @@ func TestTimetableOperationsPlannedNowPastScopeSelectsFinishedBlocks(t *testing.
 	completed := instanceWithTimes(361, scheduleModels.InstanceStatusCompleted, now.Add(-3*time.Hour), now.Add(-2*time.Hour))
 	expiredSpontaneous := instanceWithTimes(364, scheduleModels.InstanceStatusPlanned, now.Add(-3*time.Hour), now.Add(-2*time.Hour))
 	expiredSpontaneous.IsSpontaneous = true
+	expiredDuty := instanceWithTimes(366, scheduleModels.InstanceStatusPlanned, now.Add(-3*time.Hour), now.Add(-2*time.Hour))
+	expiredDuty.TemplateType = timetable.GroupTypeDuty
 	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
 		instanceWithTimes(360, scheduleModels.InstanceStatusPlanned, now.Add(-135*time.Minute), now.Add(-30*time.Minute)),
 		completed,
@@ -322,6 +324,7 @@ func TestTimetableOperationsPlannedNowPastScopeSelectsFinishedBlocks(t *testing.
 		instanceWithTimes(363, scheduleModels.InstanceStatusCancelled, now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
 		expiredSpontaneous,
 		instanceWithTimes(365, scheduleModels.InstanceStatusActive, now.Add(-time.Hour), now.Add(-30*time.Minute)),
+		expiredDuty,
 	}
 	for _, inst := range deps.instanceRepo.byDate {
 		deps.staffRepo.byInstance[inst.ID] = []*scheduleModels.InstanceStaff{{StaffID: 231}}

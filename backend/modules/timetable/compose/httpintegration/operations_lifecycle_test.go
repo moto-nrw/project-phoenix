@@ -11,6 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -172,6 +174,14 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 				allowed:  true,
 			},
 			{
+				name: "planned duty today and expired",
+				instance: func() *scheduleModels.ActivityInstance {
+					inst := instanceWithTimes(instanceID, scheduleModels.InstanceStatusPlanned, now.Add(-2*time.Hour), now)
+					inst.TemplateType = timetable.GroupTypeDuty
+					return inst
+				}(),
+			},
+			{
 				name:     "planned today and not yet over",
 				instance: instanceWithTimes(instanceID, scheduleModels.InstanceStatusPlanned, now, now.Add(time.Hour)),
 			},
@@ -218,6 +228,59 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 				assert.False(t, roster.CanOperate)
 				assert.False(t, roster.CanStart)
 				assert.False(t, roster.CanEnd)
+			})
+		}
+	})
+
+	// A roster reached only through the past overview is a historical read:
+	// the dedicated action scopes must not turn it back into a write surface.
+	t.Run("all_staff scope keeps past overview rosters read-only", func(t *testing.T) {
+		now := time.Date(2026, time.May, 10, 14, 0, 0, 0, calendar.Berlin)
+		for _, tc := range []struct {
+			name     string
+			instance *scheduleModels.ActivityInstance
+			patchErr error
+		}{
+			{
+				name:     "completed",
+				instance: instanceWithTimes(instanceID, scheduleModels.InstanceStatusCompleted, now.Add(-2*time.Hour), now.Add(-time.Hour)),
+				patchErr: timetable.ErrTimetableOperationConflict,
+			},
+			{
+				name:     "expired planned",
+				instance: instanceWithTimes(instanceID, scheduleModels.InstanceStatusPlanned, now.Add(-2*time.Hour), now.Add(-time.Hour)),
+				patchErr: timetable.ErrTimetableOperationForbidden,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				deps := newTimetableOpsDeps()
+				deps.now = func() time.Time { return now }
+				deps.settings.scope = overviewScopeAllStaff
+				deps.settings.startScope = blockStartScopeAllStaff
+				wireAssignedStaff(deps, 695, 517, 276, instanceID)
+				deps.staffRepo.byInstance[instanceID] = nil
+				deps.instanceRepo.byID[instanceID] = tc.instance
+				studentID := int64(277)
+				row := &scheduleModels.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Status: scheduleModels.AttendanceStatusExpected}
+				row.ID = 278
+				deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
+				ctx := testpkg.IdentityContext(tenant.WithTenantID(context.Background(), 279), 695, 279, "", []string{"schedules:read"})
+
+				roster, err := deps.service.Roster(ctx, 695, false, instanceID)
+				require.NoError(t, err)
+				assert.False(t, roster.CanOperate)
+				assert.False(t, roster.CanStart)
+				assert.False(t, roster.CanEnd)
+				assert.False(t, roster.CanEditAttendance)
+				assert.False(t, roster.CanReportAbsence)
+
+				status, substatus := scheduleModels.AttendanceStatusAbsent, scheduleModels.AttendanceSubstatusSick
+				_, err = deps.service.PatchAttendance(ctx, 695, false, instanceID, studentID, timetable.AttendancePatch{Status: &status, Substatus: &substatus})
+				require.ErrorIs(t, err, tc.patchErr)
+				_, err = deps.service.Start(ctx, 695, false, instanceID)
+				require.ErrorIs(t, err, timetable.ErrTimetableOperationForbidden)
+				assert.Empty(t, deps.studentRepo.updates)
+				assert.Empty(t, deps.instanceService.started)
 			})
 		}
 	})
