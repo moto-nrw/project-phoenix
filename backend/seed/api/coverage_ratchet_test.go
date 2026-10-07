@@ -70,11 +70,7 @@ var seedCoverageExemptions = map[string]string{
 	"auth.parent_declaration_permission_grants": "one-time migration ledger; only upgrades with existing guardian relationships write it",
 
 	"calendar.appointment_occurrence_overrides":     "empty in prod too",
-	"calendar.appointment_recipient_students":       "empty in prod too",
-	"calendar.appointment_recipients":               "empty in prod too",
 	"calendar.appointment_reminder_push_deliveries": "empty in prod too",
-	"calendar.appointment_targets":                  "empty in prod too",
-	"calendar.appointments":                         "empty in prod too",
 	"calendar.recurrence_rules":                     "empty in prod too",
 
 	"config.work_time_model_entries": "empty in prod too",
