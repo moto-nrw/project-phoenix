@@ -158,6 +158,9 @@ export function PwaInstallHint({
         if (outcome === "accepted") dismiss();
       })
       .catch((err: unknown) => {
+        // Bewusst ohne Meldung: der Browser hat seinen Dialog nicht
+        // gezeigt, die Karte bleibt stehen und kann erneut getippt werden.
+        // Es gibt keinen Server-Fehler, den die Person verstehen könnte.
         logger.error("pwa_install_prompt_failed", {
           error: err instanceof Error ? err.message : String(err),
         });

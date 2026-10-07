@@ -1,15 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { ParentSection } from "~/components/parent/shell/parent-section";
 import { ParentSectionSkeleton } from "~/components/parent/parent-page";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
+import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import {
   getChildCourses,
@@ -57,12 +68,28 @@ export function CoursesSection({
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [busyCourseId, setBusyCourseId] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [note, setNote] = useState("");
-  const [noteError, setNoteError] = useState<string | null>(null);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  // Eine Anfrage trägt die Nachricht aus dem Textfeld: ihr Fehler steht im
+  // Abschnitt, ein Feldfehler am Feld.
+  const actionErrors = useApiFormError();
+  const {
+    show: showActionError,
+    clear: clearActionError,
+    invalid: invalidAction,
+  } = actionErrors;
+  const latestLoadRef = useRef<() => void>(() => undefined);
+  const latestRunRef = useRef<
+    (courseId: string, kind: "request" | "withdraw") => void
+  >(() => undefined);
 
   const load = useCallback(async () => {
     setLoading(true);
+    clearLoadError();
     try {
       setCourses(await getChildCourses(studentId));
       setLoadFailed(false);
@@ -73,10 +100,18 @@ export function CoursesSection({
         error: err instanceof Error ? err.message : String(err),
         student_id: studentId,
       });
+      void showLoadError(err, {
+        object: t("courses.errorObjectList"),
+        retry: () => latestLoadRef.current(),
+      });
     } finally {
       setLoading(false);
     }
-  }, [studentId]);
+  }, [clearLoadError, showLoadError, studentId, t]);
+
+  useLayoutEffect(() => {
+    latestLoadRef.current = () => void load();
+  });
 
   useEffect(() => {
     void load();
@@ -98,36 +133,72 @@ export function CoursesSection({
   );
 
   const runAction = useCallback(
-    async (courseId: string, action: () => Promise<ChildCourses>) => {
+    async (courseId: string, kind: "request" | "withdraw") => {
       setBusyCourseId(courseId);
-      setActionError(null);
+      clearActionError();
       try {
-        setCourses(await action());
+        setCourses(
+          kind === "request"
+            ? await requestChildCourse(studentId, courseId, note)
+            : await withdrawChildCourseRequest(
+                studentId,
+                courses?.pending_request_id ?? "",
+              ),
+        );
       } catch (err: unknown) {
-        // Der Grund steht im Log, nicht auf dem Bildschirm: er ist auf
-        // Englisch und nennt Dinge, mit denen eine Familie nichts anfangen
-        // kann. Die Liste wird neu geladen, damit ein inzwischen voller Kurs
-        // sofort als voll dasteht.
+        // Der Satz des Servers steht im Log, auf dem Bildschirm steht der
+        // Text des Fehlerkatalogs. Die Liste wird neu geladen, damit ein
+        // inzwischen voller Kurs sofort als voll dasteht.
         logger.warn("parent_course_action_failed", {
           error: err instanceof Error ? err.message : String(err),
           student_id: studentId,
           course_id: courseId,
         });
-        setActionError(t("courses.actionError"));
+        // Der Katalogtext zu diesem Code spricht das Team an ("lehnen Sie
+        // ab"). Eltern brauchen hier den Weg zur Schule.
+        if (
+          err instanceof ApiError &&
+          err.code === "students.offering_changes_no_enrollment"
+        ) {
+          invalidAction(t("errorNoEnrollment"));
+          void load();
+          return;
+        }
+        void showActionError(err, {
+          object:
+            kind === "request"
+              ? t("courses.errorObjectRequest")
+              : t("courses.errorObjectWithdraw"),
+          // Wiederholen sendet die Nachricht, die jetzt im Feld steht.
+          retry: () => latestRunRef.current(courseId, kind),
+        });
         void load();
       } finally {
         setBusyCourseId(null);
       }
     },
-    [load, studentId, t],
+    [
+      clearActionError,
+      courses?.pending_request_id,
+      invalidAction,
+      load,
+      note,
+      showActionError,
+      studentId,
+      t,
+    ],
   );
+
+  useLayoutEffect(() => {
+    latestRunRef.current = (courseId, kind) => void runAction(courseId, kind);
+  });
 
   if (loading) return <ParentSectionSkeleton rows={3} />;
 
   if (loadFailed) {
     return (
       <ParentSection title={t("courses.title")} concept="activities">
-        <Alert type="error" message={t("courses.loadError")} />
+        <LoadErrorAlert error={loadError} />
       </ParentSection>
     );
   }
@@ -158,6 +229,7 @@ export function CoursesSection({
       description={t("courses.description")}
       concept="activities"
     >
+      <FormErrorAlert message={actionErrors.error} />
       {courses.items.length === 0 ? (
         <EmptyState
           className="border-t border-gray-100"
@@ -200,21 +272,14 @@ export function CoursesSection({
                   busy={busyCourseId === course.id}
                   onRequest={() => {
                     if (reasonMissing) {
-                      setNoteError(t("courses.reasonRequired"));
+                      invalidAction(t("courses.reasonRequired"), {
+                        note: t("courses.reasonRequired"),
+                      });
                       return;
                     }
-                    void runAction(course.id, () =>
-                      requestChildCourse(studentId, course.id, note),
-                    );
+                    void runAction(course.id, "request");
                   }}
-                  onWithdraw={() =>
-                    void runAction(course.id, () =>
-                      withdrawChildCourseRequest(
-                        studentId,
-                        courses.pending_request_id ?? "",
-                      ),
-                    )
-                  }
+                  onWithdraw={() => void runAction(course.id, "withdraw")}
                   careEnded={careEnded}
                 />
               </div>
@@ -229,13 +294,14 @@ export function CoursesSection({
       {courses.reason_required && requestable ? (
         <Textarea
           id="course-request-reason"
+          name="note"
           label={t("courses.reasonLabel")}
           value={note}
           onChange={(event) => {
             setNote(event.target.value);
-            setNoteError(null);
+            if (actionErrors.fieldError("note")) clearActionError();
           }}
-          error={noteError ?? undefined}
+          error={actionErrors.fieldError("note")}
           required
         />
       ) : null}
@@ -256,7 +322,6 @@ export function CoursesSection({
           })}
         </p>
       ) : null}
-      {actionError ? <Alert type="error" message={actionError} /> : null}
     </ParentSection>
   );
 }

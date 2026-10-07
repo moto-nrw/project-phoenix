@@ -9,11 +9,13 @@ export function cancelledToast(
   notice: GuardianNoticeResult | undefined,
 ): string {
   if (!notice) return base;
+  // `base` may already be a full sentence ("Die Aktivität ist abgesagt.").
+  const head = base.replace(/\.$/, "");
   if (notice.familyCount === 0) {
-    return `${base}. Keine Familie mit Elternportal-Zugang betroffen.`;
+    return `${head}. Keine betroffene Familie nutzt das Elternportal.`;
   }
   if (notice.familyCount === 1) {
-    return `${base}. 1 Familie wurde informiert.`;
+    return `${head}. 1 Familie wurde informiert.`;
   }
-  return `${base}. ${notice.familyCount} Familien wurden informiert.`;
+  return `${head}. ${notice.familyCount} Familien wurden informiert.`;
 }

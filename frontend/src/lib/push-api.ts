@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { ApiError, enrichApiError, transportFetch } from "./api-error";
 /**
  * Web Push client (#2003): service worker registration, permission +
  * subscription lifecycle, and the proxy-route calls that persist the
@@ -70,7 +70,8 @@ export function needsIOSInstall(): boolean {
 }
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
+  // A request that never reaches the API is general.unavailable (#2517).
+  const response = await transportFetch(url, {
     credentials: "include",
     ...init,
     headers: {

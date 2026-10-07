@@ -10,6 +10,7 @@
 export const DELIBERATE_LOGOUT_KEY = "deliberateLogout";
 
 import { getSession } from "next-auth/react";
+import { ApiError, unavailableApiError } from "./api-error";
 import { clearRateLimitBackoff } from "./rate-limit-backoff";
 
 let cached: {
@@ -24,6 +25,35 @@ let inflight: Promise<Awaited<ReturnType<typeof getSession>>> | null = null;
 let cachedTenantId: number | undefined;
 
 const TTL_MS = 10_000; // 10 second cache window
+
+async function transportFetch(
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (error) {
+    throw unavailableApiError(error);
+  }
+}
+
+async function getSessionOrUnavailable() {
+  try {
+    return await getCachedSession();
+  } catch (error) {
+    // The session endpoint is a network dependency just like the API route.
+    // Preserve an already normalized error, but never let its raw transport
+    // failure bypass the shared API error presentation.
+    if (error instanceof ApiError) throw error;
+    throw unavailableApiError(error);
+  }
+}
+
+function authenticationRequiredError(): ApiError {
+  return new ApiError("Authentication required", 401, {
+    code: "general.permission",
+  });
+}
 
 /**
  * Invalidate the cached session so the next call fetches a fresh one.
@@ -104,11 +134,11 @@ export async function sessionFetch(
   url: string,
   init?: RequestInit,
 ): Promise<Response> {
-  const session = await getCachedSession();
+  const session = await getSessionOrUnavailable();
   const token = session?.user?.token;
 
   if (!token) {
-    throw new Error("No authentication token available");
+    throw authenticationRequiredError();
   }
 
   const mergedInit: RequestInit = {
@@ -120,7 +150,7 @@ export async function sessionFetch(
     },
   };
 
-  const response = await fetch(url, mergedInit);
+  const response = await transportFetch(url, mergedInit);
 
   if (response.status === 401) {
     clearSessionCache();
@@ -131,9 +161,10 @@ export async function sessionFetch(
     const { handleAuthFailure } = await import("./auth-failure");
     const refreshed = await handleAuthFailure();
     if (refreshed) {
-      const freshSession = await getCachedSession();
+      const freshSession = await getSessionOrUnavailable();
       const freshToken = freshSession?.user?.token;
-      return fetch(url, {
+      if (!freshToken) throw authenticationRequiredError();
+      return transportFetch(url, {
         ...init,
         headers: {
           "Content-Type": "application/json",
@@ -143,7 +174,7 @@ export async function sessionFetch(
       });
     }
     // handleAuthFailure already signed out
-    throw new Error("Authentication expired");
+    throw authenticationRequiredError();
   }
 
   return response;

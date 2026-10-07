@@ -6,7 +6,7 @@
  * the other tests render.
  */
 import {
-  render,
+  render as rtlRender,
   screen,
   waitFor,
   cleanup,
@@ -345,6 +345,14 @@ import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import MeinRaumPage from "./page";
+
+import { ToastProvider } from "~/contexts/ToastContext";
+
+// Aktionen melden Fehler als Toast oder im Dialog (#2517); der Provider
+// zeigt den Toast echt an.
+function render(ui: Parameters<typeof rtlRender>[0]) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 const defaultPageHeader = vi
   .mocked(PageHeaderWithSearch)

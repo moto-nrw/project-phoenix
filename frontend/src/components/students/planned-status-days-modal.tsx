@@ -1,7 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useFormError } from "~/components/ui/form-error";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { addDays } from "date-fns/addDays";
 import { differenceInCalendarDays } from "date-fns/differenceInCalendarDays";
 import { format } from "date-fns/format";
@@ -12,6 +18,7 @@ import { Pencil, Trash2, X } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -27,6 +34,7 @@ import {
 } from "~/components/ui/slide-over";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import {
   SegmentedControl,
   type SegmentedControlItem,
@@ -38,7 +46,6 @@ import {
 } from "~/lib/date-helpers";
 import {
   StudentStatusDayConflictError,
-  StudentStatusDayPartialAbsenceConflictError,
   type StudentStatusDay,
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
@@ -122,16 +129,28 @@ export function PlannedStatusDaysModal({
   const [rangeEnd, setRangeEnd] = useState("");
   // Save error of the form (Bauart 2 Regel 5): shown in the body's error
   // slot, not as a toast by the caller.
-  const [submitError, setSubmitError] = useFormError();
+  const submitErrors = useApiFormError();
+  const clearSubmitError = submitErrors.clear;
+  const reportInvalid = submitErrors.invalid;
+  // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehler.
+  const latestSubmitRef = useRef<() => Promise<void>>(async () => undefined);
+  // Failed check of existing entries: shown in place, saving stays blocked.
+  const conflictLoad = useApiLoadError();
+  const showConflictLoadError = conflictLoad.show;
+  const clearConflictLoadError = conflictLoad.clear;
+  const conflictCheckFailed = conflictLoad.error !== null;
+  // Failed removal of a partial excusal: shown in its confirmation dialog.
+  const partialDeleteErrors = useApiFormError();
+  // Failed removal of a planned status day: shown in its confirmation dialog.
+  const statusDayDeleteErrors = useApiFormError();
+  const clearStatusDayDeleteError = statusDayDeleteErrors.clear;
+  const clearPartialDeleteError = partialDeleteErrors.clear;
   const [checkedExistingDays, setCheckedExistingDays] = useState<
     StudentStatusDay[]
   >([]);
   const [checkedSelectionKey, setCheckedSelectionKey] = useState("");
   const [conflictCheckRevision, setConflictCheckRevision] = useState(0);
   const [isCheckingConflicts, setIsCheckingConflicts] = useState(false);
-  const [conflictCheckError, setConflictCheckError] = useState<string | null>(
-    null,
-  );
   const [reason, setReason] = useState("");
   const [excusalScope, setExcusalScope] = useState<ExcusalScope>("full_day");
   const [fromTime, setFromTime] = useState("");
@@ -140,8 +159,6 @@ export function PlannedStatusDaysModal({
   >(null);
   const [partialAbsencePendingDeletion, setPartialAbsencePendingDeletion] =
     useState<StudentPartialAbsence | null>(null);
-  const [partialAbsenceDeleteError, setPartialAbsenceDeleteError] =
-    useState("");
   const [statusDayPendingDeletion, setStatusDayPendingDeletion] = useState<{
     readonly id: string;
     readonly date: string;
@@ -354,23 +371,30 @@ export function PlannedStatusDaysModal({
       const today = new Date();
       const todayKey = toISODate(today);
       setSelectionMode("individual");
-      setSubmitError(null);
+      clearSubmitError();
       setRangeStart(prefillClassTrip && isClassTrip ? todayKey : "");
       setRangeEnd(prefillClassTrip && isClassTrip ? todayKey : "");
       setSelectedDates([]);
       setCheckedExistingDays([]);
       setCheckedSelectionKey("");
-      setConflictCheckError(null);
+      clearConflictLoadError();
       setReason("");
       setExcusalScope("full_day");
       setFromTime("");
       setEditingPartialAbsenceId(null);
       setPartialAbsencePendingDeletion(null);
-      setPartialAbsenceDeleteError("");
+      clearPartialDeleteError();
       setStatusDayPendingDeletion(null);
+      clearStatusDayDeleteError();
       setCarePlanDay(null);
     },
-    [isClassTrip, setSubmitError],
+    [
+      clearConflictLoadError,
+      clearPartialDeleteError,
+      clearStatusDayDeleteError,
+      clearSubmitError,
+      isClassTrip,
+    ],
   );
 
   useEffect(() => {
@@ -419,14 +443,14 @@ export function PlannedStatusDaysModal({
     ) {
       setCheckedExistingDays([]);
       setCheckedSelectionKey("");
-      setConflictCheckError(null);
+      clearConflictLoadError();
       setIsCheckingConflicts(false);
       return;
     }
 
     let isCurrent = true;
     setCheckedSelectionKey("");
-    setConflictCheckError(null);
+    clearConflictLoadError();
     setIsCheckingConflicts(true);
 
     const partialLookup =
@@ -452,12 +476,13 @@ export function PlannedStatusDaysModal({
         }
         setCheckedSelectionKey(selectionKey);
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (!isCurrent) return;
         setCheckedExistingDays([]);
-        setConflictCheckError(
-          "Vorhandene Status-Tage konnten nicht geprüft werden. Speichern ist derzeit nicht möglich.",
-        );
+        void showConflictLoadError(error, {
+          object: "die Prüfung der vorhandenen Einträge",
+          retry: () => setConflictCheckRevision((current) => current + 1),
+        });
       })
       .finally(() => {
         if (isCurrent) setIsCheckingConflicts(false);
@@ -477,6 +502,8 @@ export function PlannedStatusDaysModal({
     loadExistingDays,
     loadPartialAbsences,
     selectionKey,
+    clearConflictLoadError,
+    showConflictLoadError,
   ]);
 
   const setSortedDates = (dates: Date[]) => {
@@ -488,7 +515,7 @@ export function PlannedStatusDaysModal({
       const existingDay = activeExistingDayByDate.get(key);
       if (existingDay) {
         containsExistingDay = true;
-        setSubmitError(
+        reportInvalid(
           `${formatDateLabel(existingDay.date)} ist ${getExistingStatusLabel(
             existingDay.status,
           )}.`,
@@ -498,7 +525,7 @@ export function PlannedStatusDaysModal({
       }
     }
     if (!containsExistingDay) {
-      setSubmitError(null);
+      clearSubmitError();
     }
     if (isPartialExcusal) {
       // While editing an existing partial excusal the date is fixed: clearing
@@ -512,7 +539,7 @@ export function PlannedStatusDaysModal({
         if (editing) {
           const editDate = parseISODate(editing.date);
           setSelectedDates([editDate]);
-          setSubmitError(
+          reportInvalid(
             "Beim Bearbeiten bleibt das Datum fest. Abbrechen, um einen anderen Tag zu wählen.",
           );
           return;
@@ -541,7 +568,7 @@ export function PlannedStatusDaysModal({
     setReason("");
     setEditingPartialAbsenceId(null);
     setPartialAbsencePendingDeletion(null);
-    setPartialAbsenceDeleteError("");
+    clearPartialDeleteError();
     setCarePlanDay(null);
   };
 
@@ -565,10 +592,10 @@ export function PlannedStatusDaysModal({
 
   const handleSelectionModeChange = (next: SelectionMode) => {
     setSelectionMode(next);
-    setSubmitError(null);
+    clearSubmitError();
     setCheckedExistingDays([]);
     setCheckedSelectionKey("");
-    setConflictCheckError(null);
+    clearConflictLoadError();
     if (next === "range") {
       setSelectedDates([]);
     } else {
@@ -587,15 +614,18 @@ export function PlannedStatusDaysModal({
   // Drop the row from the local conflict check only after the caller confirms
   // deletion. Out-of-window deletes never touch the parent SWR range, so a
   // local clear is required on success; a failed delete must keep the row.
-  // The caller owns the user-facing error toast, so failures are swallowed here.
   // Entfernen läuft erst nach der Rückfrage (Bauart 2 Regel 6, #3109).
   const handleDeleteStatusDay = async (statusDayId: string) => {
     if (!onDeleteStatusDay) return;
+    statusDayDeleteErrors.clear();
     try {
       await onDeleteStatusDay(statusDayId);
-    } catch {
-      // The caller owns the error toast; the dialog closes either way.
-      setStatusDayPendingDeletion(null);
+    } catch (error) {
+      // The dialog stays open and says why; no „Wiederholen“, removing runs
+      // only through the confirmation.
+      await statusDayDeleteErrors.show(error, {
+        object: "die geplante Abwesenheit",
+      });
       return;
     }
     setStatusDayPendingDeletion(null);
@@ -607,13 +637,14 @@ export function PlannedStatusDaysModal({
   const handleDeletePartialAbsence = async () => {
     if (!onDeletePartialAbsence || !partialAbsencePendingDeletion) return;
     const partialAbsenceId = partialAbsencePendingDeletion.id;
-    setPartialAbsenceDeleteError("");
+    clearPartialDeleteError();
     try {
       await onDeletePartialAbsence(partialAbsenceId);
-    } catch {
-      setPartialAbsenceDeleteError(
-        "Die Teilentschuldigung konnte nicht entfernt werden. Bitte erneut versuchen.",
-      );
+    } catch (error) {
+      // Kein „Wiederholen“: Entfernen läuft nur über die Rückfrage.
+      await partialDeleteErrors.show(error, {
+        object: "die Teilentschuldigung",
+      });
       return;
     }
     setPartialAbsencePendingDeletion(null);
@@ -626,14 +657,14 @@ export function PlannedStatusDaysModal({
   };
 
   const handleSubmit = async () => {
-    if (!checkedCurrentSelection || conflictCheckError) return;
-    setSubmitError(null);
+    if (!checkedCurrentSelection || conflictCheckFailed) return;
+    clearSubmitError();
     const dateKeys = selectableDateKeys;
     if (dateKeys.length === 0) {
-      setSubmitError(
+      submitErrors.invalid(
         usesRangeSelection
-          ? "Wähle einen Zeitraum ohne bestehenden Status aus."
-          : "Wähle mindestens einen Tag ohne Krankmeldung oder Entschuldigung aus.",
+          ? "Bitte wählen Sie einen Zeitraum ohne bestehenden Status."
+          : "Bitte wählen Sie mindestens einen Tag ohne Krankmeldung oder Entschuldigung.",
       );
       return;
     }
@@ -654,13 +685,12 @@ export function PlannedStatusDaysModal({
           fromTime,
           trimmedReason || undefined,
         );
-      } catch {
+      } catch (error) {
         // The caller logs the failure; the person reads it here, at the form.
-        setSubmitError(
-          editingPartialAbsenceId
-            ? "Die Entschuldigung konnte nicht aktualisiert werden. Bitte erneut versuchen."
-            : "Die Entschuldigung konnte nicht gespeichert werden. Bitte erneut versuchen.",
-        );
+        await submitErrors.show(error, {
+          object: "die Entschuldigung",
+          retry: () => void latestSubmitRef.current(),
+        });
         setConflictCheckRevision((current) => current + 1);
         return;
       }
@@ -676,18 +706,18 @@ export function PlannedStatusDaysModal({
         await onSubmit(dateKeys);
       }
     } catch (err) {
-      if (err instanceof StudentStatusDayPartialAbsenceConflictError) {
-        setSubmitError(err.message);
-      } else if (err instanceof StudentStatusDayConflictError) {
-        setSubmitError(getSaveConflictMessage(err.conflicts));
+      if (err instanceof StudentStatusDayConflictError) {
+        // Names the days from the structured conflict list of the answer.
+        submitErrors.invalid(getSaveConflictMessage(err.conflicts));
       } else {
-        setSubmitError(
-          isSick
-            ? "Die Krankmeldung konnte nicht gespeichert werden. Bitte erneut versuchen."
+        await submitErrors.show(err, {
+          object: isSick
+            ? "die Krankmeldung"
             : isClassTrip
-              ? "Die Klassenfahrt konnte nicht gespeichert werden. Bitte erneut versuchen."
-              : "Die Entschuldigung konnte nicht gespeichert werden. Bitte erneut versuchen.",
-        );
+              ? "die Klassenfahrt"
+              : "die Entschuldigung",
+          retry: () => void latestSubmitRef.current(),
+        });
       }
       // Keep every input intact and refresh conflicts in case the write lost
       // a concurrent race.
@@ -696,6 +726,9 @@ export function PlannedStatusDaysModal({
     }
     resetForm(false);
   };
+  useLayoutEffect(() => {
+    latestSubmitRef.current = handleSubmit;
+  });
 
   const footer = (
     <>
@@ -716,7 +749,7 @@ export function PlannedStatusDaysModal({
           isSubmitting ||
           isCheckingConflicts ||
           !checkedCurrentSelection ||
-          conflictCheckError !== null ||
+          conflictCheckFailed ||
           hasInvalidRangeOrder ||
           hasSelectionTooWide ||
           (isPartialExcusal &&
@@ -756,7 +789,7 @@ export function PlannedStatusDaysModal({
             </div>
             <SlideOverCloseButton aria-label="Fenster schließen" />
           </SlideOverHeader>
-          <SlideOverBody error={submitError}>
+          <SlideOverBody error={submitErrors.error}>
             <div className="space-y-5">
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100">
@@ -984,12 +1017,10 @@ export function PlannedStatusDaysModal({
                   message="Vorhandene Status-Tage werden geprüft…"
                 />
               ) : null}
-              {conflictCheckError ? (
-                <Alert type="error" message={conflictCheckError} />
-              ) : null}
+              <LoadErrorAlert error={conflictLoad.error} />
               {hasIndividualSelectionTooWide ? (
                 <Alert
-                  type="error"
+                  type="warning"
                   message="Die ausgewählten Einzeltage dürfen höchstens 366 Tage auseinanderliegen."
                 />
               ) : null}
@@ -1163,7 +1194,7 @@ export function PlannedStatusDaysModal({
                                       destructive: true,
                                       disabled: isSubmitting,
                                       onClick: () => {
-                                        setPartialAbsenceDeleteError("");
+                                        clearPartialDeleteError();
                                         setPartialAbsencePendingDeletion(
                                           absence,
                                         );
@@ -1230,13 +1261,16 @@ export function PlannedStatusDaysModal({
           if (statusDayPendingDeletion)
             void handleDeleteStatusDay(statusDayPendingDeletion.id);
         }}
-        onClose={() => setStatusDayPendingDeletion(null)}
+        onClose={() => {
+          setStatusDayPendingDeletion(null);
+          clearStatusDayDeleteError();
+        }}
         loading={
           isSubmitting ||
           (deletingStatusDayId !== null &&
             deletingStatusDayId === statusDayPendingDeletion?.id)
         }
-        error=""
+        error={statusDayDeleteErrors.error}
         confirmLabel="Eintrag entfernen"
         loadingLabel="Wird entfernt…"
       />
@@ -1260,10 +1294,10 @@ export function PlannedStatusDaysModal({
         onConfirm={handleDeletePartialAbsence}
         onClose={() => {
           setPartialAbsencePendingDeletion(null);
-          setPartialAbsenceDeleteError("");
+          clearPartialDeleteError();
         }}
         loading={isSubmitting}
-        error={partialAbsenceDeleteError}
+        error={partialDeleteErrors.error}
         confirmLabel="Teilentschuldigung entfernen"
         loadingLabel="Wird entfernt…"
       />

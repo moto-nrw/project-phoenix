@@ -324,7 +324,7 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, capability.ErrDecisionRequestNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(err))
+			common.RenderError(w, r, renderRequestNotFound(err))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -569,9 +569,9 @@ func renderRestoreError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, context.DeadlineExceeded):
 		common.RenderError(w, r, common.ErrorRequestTimeout(err))
 	case errors.Is(err, capability.ErrDecisionRequestNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(err))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentRequestNotFound))
 	case errors.Is(err, capability.ErrRestoreNothingWithdrawn):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentRestoreNothingWithdrawn))
 	case errors.Is(err, capability.ErrRestorePhaseInactive):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentRestorePhaseInactive))
 	case errors.Is(err, capability.ErrRestoreDuplicateActive):
@@ -629,11 +629,15 @@ func (rs *Resource) decideChildWithRetry(r *http.Request, input DecideInput) (*D
 var decideErrorRules = []common.ErrorRule{
 	{Target: context.Canceled, Render: common.ErrorClientClosed},
 	{Target: context.DeadlineExceeded, Render: common.ErrorRequestTimeout},
-	{Target: capability.ErrDecisionChildNotFound, Render: common.ErrorNotFound},
-	{Target: capability.ErrDecisionRequestNotFound, Render: common.ErrorNotFound},
+	{Target: capability.ErrDecisionChildNotFound, Render: renderRequestNotFound},
+	{Target: capability.ErrDecisionRequestNotFound, Render: renderRequestNotFound},
 	{Target: capability.ErrDecisionInvalidStatus, Render: common.ErrorInvalidRequest},
-	{Target: capability.ErrDecisionAlreadyTerminal, Render: common.ErrorInvalidRequest},
-	{Target: capability.ErrDecisionInvalidData, Render: common.ErrorInvalidRequest},
+	{Target: capability.ErrDecisionAlreadyTerminal, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentDecisionAlreadyFinal)
+	}},
+	{Target: capability.ErrDecisionInvalidData, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentApprovalDataInvalid)
+	}},
 	{Target: capability.ErrWaitlistDisabled, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, common.CodeEnrollmentWaitlistDisabled)
 	}},
@@ -690,14 +694,30 @@ type AdminUpdateOfferingSelection struct {
 
 func (req *AdminUpdateOfferingsRequest) Bind(_ *http.Request) error { return nil }
 
+// renderRequestNotFound answers a missing request or child with 404 and a
+// code, so the page can say the enrollment is gone instead of "check input".
+func renderRequestNotFound(err error) render.Renderer {
+	return common.ErrorNotFoundWithCode(err, common.CodeEnrollmentRequestNotFound)
+}
+
 var updateAdminOfferingsErrorRenderer = common.RulesRenderer([]common.ErrorRule{
-	{Target: capability.ErrDecisionChildNotFound, Render: common.ErrorNotFound},
-	{Target: capability.ErrDecisionRequestNotFound, Render: common.ErrorNotFound},
-	{Target: capability.ErrOfferingAdjustmentInvalid, Render: common.ErrorInvalidRequest},
-	{Target: capability.ErrCareOfferingClosed, Render: common.ErrorInvalidRequest},
-	{Target: capability.ErrRequiredCareOfferingMissing, Render: common.ErrorInvalidRequest},
-	{Target: capability.ErrCareOfferingMissing, Render: common.ErrorInvalidRequest},
-	{Target: capability.ErrCareOfferingExactlyOneRequired, Render: common.ErrorInvalidRequest},
+	{Target: capability.ErrDecisionChildNotFound, Render: renderRequestNotFound},
+	{Target: capability.ErrDecisionRequestNotFound, Render: renderRequestNotFound},
+	{Target: capability.ErrOfferingAdjustmentInvalid, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentOfferingAdjustmentInvalid)
+	}},
+	{Target: capability.ErrCareOfferingClosed, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingClosed)
+	}},
+	{Target: capability.ErrRequiredCareOfferingMissing, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentRequiredCareOfferingMissing)
+	}},
+	{Target: capability.ErrCareOfferingMissing, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingMissing)
+	}},
+	{Target: capability.ErrCareOfferingExactlyOneRequired, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingExactlyOne)
+	}},
 	{Target: capability.ErrCareOfferingsDisabled, Render: func(err error) render.Renderer {
 		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingsDisabled)
 	}},
@@ -855,7 +875,7 @@ func (rs *Resource) listAdminChildOfferingAdjustments(w http.ResponseWriter, r *
 	})
 	if err != nil {
 		if errors.Is(err, capability.ErrDecisionChildNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(err))
+			common.RenderError(w, r, renderRequestNotFound(err))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))

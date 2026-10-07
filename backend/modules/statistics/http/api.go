@@ -56,7 +56,9 @@ func (rs *Resource) Router() chi.Router {
 }
 
 var renderError = common.RulesRenderer([]common.ErrorRule{
-	{Target: studentpresence.ErrInvalidStatisticsRange, Render: common.ErrorInvalidRequest},
+	{Target: studentpresence.ErrInvalidStatisticsRange, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, common.CodePresenceStatisticsRangeInvalid)
+	}},
 }, func(err error) render.Renderer {
 	return common.ErrorInternalServerWrap("statistics failed", err)
 })

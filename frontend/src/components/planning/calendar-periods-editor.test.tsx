@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
+import { catalogText } from "~/test/error-catalog-text";
 import type { Phase } from "~/lib/enrollment-phase-api";
 
 const {
@@ -62,7 +64,8 @@ vi.mock("vaul", async () => {
   };
 });
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
 }));
 
@@ -237,14 +240,52 @@ describe("CalendarPeriodsEditor", () => {
     expect(mobileRange).not.toHaveClass("truncate");
   });
 
+  // #2516: Katalogtext vor Ort statt des Serversatzes, kein Leerzustand,
+  // keine „0 Zeiträume“ in der Statuszeile, Wiederholen lädt neu.
   it("does not show the create empty state after a failed period load", async () => {
-    mockListPeriods.mockRejectedValue(new Error("Zeiträume nicht erreichbar"));
+    mockListPeriods
+      .mockRejectedValueOnce(
+        new ApiError("Zeiträume nicht erreichbar", 503, {
+          code: "general.unavailable",
+        }),
+      )
+      .mockResolvedValueOnce([makePeriod({ name: "Schuljahr 26/27" })]);
 
     render(<CalendarPeriodsHost />);
 
     expect(
-      await screen.findByText("Zeiträume nicht erreichbar"),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Zeiträume"),
+      ),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Zeiträume nicht erreichbar"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Noch keine Kalenderzeiträume"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/0 Zeiträume/)).not.toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(await screen.findByText("Schuljahr 26/27")).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        catalogText("general.unavailable", "die Liste der Zeiträume"),
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("never shows the sentence of a failed load that is no API error", async () => {
+    mockListPeriods.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    render(<CalendarPeriodsHost />);
+
+    expect(
+      await screen.findByText(/Die Liste der Zeiträume konnte nicht/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
     expect(
       screen.queryByText("Noch keine Kalenderzeiträume"),
     ).not.toBeInTheDocument();

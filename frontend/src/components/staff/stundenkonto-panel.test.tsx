@@ -33,7 +33,8 @@ vi.mock("~/components/ui/confirm-delete-modal", () => ({
   ConfirmDeleteModal: () => null,
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: vi.fn(),
     error: vi.fn(),
@@ -50,7 +51,9 @@ vi.mock("~/lib/staff-api", () => ({
   },
 }));
 
+import { ApiError } from "~/lib/api-error";
 import { staffBalanceAdjustmentService } from "~/lib/staff-api";
+import { catalogText } from "~/test/error-catalog-text";
 import { StundenkontoPanel } from "./stundenkonto-panel";
 
 describe("StundenkontoPanel", () => {
@@ -191,7 +194,9 @@ describe("StundenkontoPanel", () => {
 
   it("zeigt einen fehlgeschlagenen Eröffnungssaldo als Alert im Formular", async () => {
     vi.mocked(staffBalanceAdjustmentService.createOpening).mockRejectedValue(
-      new Error("Für diese Person ist bereits ein Eröffnungssaldo gebucht."),
+      new ApiError("opening balance already exists", 409, {
+        code: "workforce.opening_balance_already_exists",
+      }),
     );
 
     render(
@@ -215,12 +220,99 @@ describe("StundenkontoPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Buchen" }));
 
     // Bauart 2 Regel 5: the reason stands in the dialog, the form stays open.
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Für diese Person ist bereits ein Eröffnungssaldo gebucht.",
-    );
+    expect(
+      await screen.findByText(
+        catalogText(
+          "workforce.opening_balance_already_exists",
+          "die Buchung des Eröffnungssaldos",
+        ),
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("dialog", { name: "Eröffnungssaldo buchen" }),
     ).toBeInTheDocument();
+  });
+
+  it("offers a retry for a server error that resends the current draft", async () => {
+    const create = vi.mocked(staffBalanceAdjustmentService.create);
+    create.mockRejectedValueOnce(
+      new ApiError("boom", 500, {
+        code: "general.server",
+        instance: "req-payout",
+      }),
+    );
+    create.mockResolvedValueOnce(
+      {} as Awaited<ReturnType<typeof staffBalanceAdjustmentService.create>>,
+    );
+    render(
+      <StundenkontoPanel
+        staffId="4"
+        balanceMinutes={600}
+        accountStartKey="2026-01-01"
+        todayKey="2026-07-24"
+        adjustments={[]}
+        onChanged={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Auszahlung" }));
+    fireEvent.change(screen.getByLabelText("Auszahlung (Stunden)"), {
+      target: { value: "2" },
+    });
+    fireEvent.change(screen.getByLabelText("Begründung (Pflicht)"), {
+      target: { value: "Juli" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Auszahlen" }));
+
+    expect(
+      await screen.findByText(catalogText("general.server", "die Auszahlung")),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-payout");
+
+    fireEvent.change(screen.getByLabelText("Begründung (Pflicht)"), {
+      target: { value: "Juli, korrigiert" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(2));
+    expect(create).toHaveBeenLastCalledWith(
+      "4",
+      expect.objectContaining({ note: "Juli, korrigiert", minutesDelta: -120 }),
+    );
+  });
+
+  it("marks an invalid amount before sending", async () => {
+    const create = vi.mocked(staffBalanceAdjustmentService.create);
+    create.mockClear();
+    render(
+      <StundenkontoPanel
+        staffId="4"
+        balanceMinutes={600}
+        accountStartKey="2026-01-01"
+        todayKey="2026-07-24"
+        adjustments={[]}
+        onChanged={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Auszahlung" }));
+    fireEvent.change(screen.getByLabelText("Auszahlung (Stunden)"), {
+      target: { value: "0" },
+    });
+    fireEvent.change(screen.getByLabelText("Begründung (Pflicht)"), {
+      target: { value: "Juli" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Auszahlen" }));
+
+    expect(
+      await screen.findByText("Bitte prüfen Sie die Stunden."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Auszahlung (Stunden)")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(create).not.toHaveBeenCalled();
   });
 
   it("rejects opening balances with trailing text", () => {

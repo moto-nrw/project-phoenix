@@ -1,3 +1,4 @@
+import { apiErrorFromResponse } from "./api-error";
 import { createLogger } from "./logger";
 import {
   sanitizeHomeBlockPlacements,
@@ -76,7 +77,10 @@ export async function fetchHomeLayout(): Promise<HomeLayoutState> {
 
   if (!response.ok) {
     logger.error("fetch_home_layout_failed", { status: response.status });
-    throw new Error(`home layout request failed (${response.status})`);
+    throw await apiErrorFromResponse(
+      response,
+      `home layout request failed (${response.status})`,
+    );
   }
 
   const result = (await response.json()) as HomeLayoutResponse;
@@ -88,7 +92,7 @@ export async function fetchHomeLayout(): Promise<HomeLayoutState> {
   };
 }
 
-/** Speichert die eigene Auswahl. Wirft, damit der Dialog es anzeigen kann. */
+/** Speichert die eigene Auswahl. Wirft einen ApiError für den Anzeigeweg. */
 export async function saveHomeLayout(
   overrides: HomeLayoutOverrides,
   blocks: readonly HomeBlockPlacement[],
@@ -101,9 +105,7 @@ export async function saveHomeLayout(
 
   if (!response.ok) {
     logger.error("save_home_layout_failed", { status: response.status });
-    throw new Error(
-      `Die Auswahl konnte nicht gespeichert werden (${response.status})`,
-    );
+    throw await apiErrorFromResponse(response, "Home layout save failed");
   }
 }
 
@@ -115,9 +117,7 @@ export async function resetHomeLayout(): Promise<void> {
 
   if (!response.ok) {
     logger.error("reset_home_layout_failed", { status: response.status });
-    throw new Error(
-      `Die Startseite konnte nicht zurückgesetzt werden (${response.status})`,
-    );
+    throw await apiErrorFromResponse(response, "Home layout reset failed");
   }
 }
 
@@ -135,8 +135,9 @@ export async function saveHomeBlockPolicies(
     logger.error("save_home_block_policies_failed", {
       status: response.status,
     });
-    throw new Error(
-      `Die Vorgabe konnte nicht gespeichert werden (${response.status})`,
+    throw await apiErrorFromResponse(
+      response,
+      "Home block policies save failed",
     );
   }
 }

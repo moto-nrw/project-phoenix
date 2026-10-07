@@ -26,9 +26,19 @@ export interface TranslationTarget {
   readonly multiline?: boolean;
 }
 
+// The editor is used by German-speaking staff, so it names each language in
+// German ("Russisch"). The labels in SUPPORTED_LOCALES are endonyms ("Русский")
+// meant for the parents' own language switcher (#3871).
+const GERMAN_LANGUAGE_NAMES = new Intl.DisplayNames([DEFAULT_LOCALE], {
+  type: "language",
+});
+
 const TARGET_LOCALES = SUPPORTED_LOCALES.filter(
   (locale) => locale.code !== DEFAULT_LOCALE,
-).map((locale) => ({ value: locale.code as string, label: locale.label }));
+).map((locale) => ({
+  value: locale.code as string,
+  label: GERMAN_LANGUAGE_NAMES.of(locale.code) ?? locale.label,
+}));
 
 const STATUS_BADGE: Record<
   TranslationStatus,

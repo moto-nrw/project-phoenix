@@ -160,11 +160,11 @@ func (rs *Resource) runCreateInvitation(ctx context.Context, invitationReq ident
 // delegating to the shared invitation error renderer. Returns true if handled.
 func renderCreateInvitationError(w http.ResponseWriter, r *http.Request, err error) bool {
 	if errors.Is(err, identityaccess.ErrEmailAlreadyExists) {
-		common.RenderError(w, r, common.ErrorConflict(identityaccess.ErrEmailAlreadyExists))
+		common.RenderError(w, r, common.ErrorConflictOnField(identityaccess.ErrEmailAlreadyExists, common.CodeIdentityEmailAlreadyExists, "email"))
 		return true
 	}
 	if errors.Is(err, identityaccess.ErrAccountAlreadyHasTenantAccess) {
-		common.RenderError(w, r, common.ErrorConflictWithCode(identityaccess.ErrAccountAlreadyHasTenantAccess, common.CodeIdentityAccountAlreadyHasTenantAccess))
+		common.RenderError(w, r, common.ErrorConflictOnField(identityaccess.ErrAccountAlreadyHasTenantAccess, common.CodeIdentityAccountAlreadyHasTenantAccess, "email"))
 		return true
 	}
 	switch {
@@ -280,7 +280,9 @@ var acceptInvitationErrorRules = []common.ErrorRule{
 	{Target: identityaccess.ErrAccountInactive, Render: func(err error) render.Renderer {
 		return common.ErrorForbiddenWithCode(err, common.CodeIdentityAccountInactive)
 	}},
-	{Target: identityaccess.ErrPasswordTooWeak, Render: common.ErrorInvalidRequest},
+	{Target: identityaccess.ErrPasswordTooWeak, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidOnField(err, common.CodeIdentityPasswordTooWeak, "password")
+	}},
 	{Target: identityaccess.ErrInvitationPasswordMismatch, Render: common.ErrorInvalidRequest},
 	{Target: identityaccess.ErrEmailAlreadyExists, Render: common.FixedRenderer(common.ErrorConflict, identityaccess.ErrEmailAlreadyExists)},
 	{Target: identityaccess.ErrInvitationNameRequired, Render: common.FixedRenderer(common.ErrorInvalidRequest, identityaccess.ErrInvitationNameRequired)},
@@ -528,12 +530,12 @@ func renderInvitationError(w http.ResponseWriter, r *http.Request, err error) bo
 
 	switch {
 	case errors.Is(err, identityaccess.ErrInvitationNotFound):
-		if render.Render(w, r, common.ErrorNotFound(identityaccess.ErrInvitationNotFound)) != nil {
+		if render.Render(w, r, common.ErrorNotFoundWithCode(identityaccess.ErrInvitationNotFound, common.CodeIdentityInvitationNotFound)) != nil {
 			return false
 		}
 		return true
 	case errors.Is(err, identityaccess.ErrInvitationExpired), errors.Is(err, identityaccess.ErrInvitationUsed):
-		if render.Render(w, r, common.ErrorGone(err)) != nil {
+		if render.Render(w, r, common.ErrorGoneWithCode(err, common.CodeIdentityInvitationExpired)) != nil {
 			return false
 		}
 		return true

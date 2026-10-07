@@ -998,9 +998,9 @@ describe.concurrent("bauart rules", () => {
         );
       }`;
       const baselined = await lintSource(
-        // Der Eintrag steht in der Baseline auf Zeile 89; darüber Leerzeilen,
+        // Der Eintrag steht in der Baseline auf Zeile 90; darüber Leerzeilen,
         // damit das Element genau dort landet.
-        `${"\n".repeat(85)}${source}`,
+        `${"\n".repeat(86)}${source}`,
         "src/components/planning/closing-day-modal.tsx",
       );
       expect(baselined.output).not.toContain("bauart(no-edit-overlay)");

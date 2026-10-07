@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { ApiError, enrichApiError, transportFetch } from "./api-error";
 /**
  * Client for the later-pickup block decisions (#3261). A child who is picked
  * up later than before may be on no block for the extra time; the backend
@@ -111,11 +111,14 @@ export async function fetchPickupExtensions(
   studentId?: string,
 ): Promise<PickupExtension[]> {
   const query = studentId ? `?student_id=${encodeURIComponent(studentId)}` : "";
-  const response = await fetch(`/api/timetable/pickup-extensions${query}`, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    credentials: "include",
-  });
+  const response = await transportFetch(
+    `/api/timetable/pickup-extensions${query}`,
+    {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      credentials: "include",
+    },
+  );
   // The BFF route unwraps the backend envelope and wraps its own around the
   // result: { success, message, data: { tasks } } (#3776).
   const responseData = await readData<{
@@ -132,7 +135,7 @@ export async function resolvePickupExtension(
   taskId: string,
   blockIds: readonly string[],
 ): Promise<void> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/timetable/pickup-extensions/${encodeURIComponent(taskId)}/resolve`,
     {
       method: "POST",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DateRange } from "react-day-picker";
 
 import { Alert } from "~/components/ui/alert";
@@ -17,9 +17,8 @@ import {
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { Textarea } from "~/components/ui/textarea";
-import { useFormError } from "~/components/ui/form-error";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { dispatchAbsencesRefresh } from "~/lib/absence-helpers";
 import { createLogger } from "~/lib/logger";
 import { timeTrackingService } from "~/lib/time-tracking-api";
@@ -140,27 +139,6 @@ function rangesOverlap(
   );
 }
 
-function normalizeVacationRequestError(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  if (
-    message.includes("dates overlap with an existing absence") ||
-    message.includes("absence overlaps")
-  ) {
-    return "Der gewählte Zeitraum überschneidet sich mit einem bestehenden Urlaubsantrag.";
-  }
-  // Der Resturlaub darf nicht ins Minus (#3256).
-  if (message.includes("vacation quota exceeded")) {
-    return "Dafür reicht dein Resturlaub nicht. Sprich bitte mit der OGS-Leitung.";
-  }
-  if (message.includes("vacation range contains no working days")) {
-    return "Der gewählte Zeitraum enthält keine Werktage.";
-  }
-  if (message.includes("vacation request must start today or in the future")) {
-    return "Urlaub kann nur für heute oder zukünftige Tage beantragt werden.";
-  }
-  return message || "Antrag konnte nicht gesendet werden.";
-}
-
 // Mirrors backend countWorkingDays: full Mon-Fri count minus 0.5 per
 // boundary half-day flag. Single-day range collapses both flags to one.
 function countWorkingDays(
@@ -208,7 +186,11 @@ export function VacationRequestModal({
   const [endHalf, setEndHalf] = useState(false);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useFormError();
+  // Prüf- und Speicherfehler stehen oben im Panel (SlideOverBody `error`),
+  // nicht als Toast: Bauart 2 Regel 5. Der Text kommt aus dem Fehlerkatalog.
+  const formErrors = useApiFormError();
+  // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
+  const latestSubmitRef = useRef<() => Promise<void>>(async () => undefined);
   const toast = useToast();
 
   const blockingVacations = useMemo(
@@ -277,24 +259,25 @@ export function VacationRequestModal({
   const overBalanceDays = Math.max(0, workingDays - remainingDays);
 
   const handleSubmit = async () => {
-    // Prüf- und Speicherfehler stehen oben im Panel (SlideOverBody `error`),
-    // nicht als Toast: Bauart 2 Regel 5.
     if (!range?.from || !range.to) {
-      setFormError("Bitte Zeitraum auswählen.");
+      formErrors.invalid("Bitte wählen Sie einen Zeitraum.");
       return;
     }
     if (workingDays === 0) {
-      setFormError("Der gewählte Zeitraum enthält keine Werktage.");
+      formErrors.invalid(
+        "Der Zeitraum enthält keine Arbeitstage. Bitte wählen Sie andere Tage.",
+      );
       return;
     }
     if (overlapMessage) {
-      setFormError(null);
+      formErrors.clear();
       return;
     }
     if (exceedsBalance) {
       return;
     }
     setSubmitting(true);
+    formErrors.clear();
     try {
       await timeTrackingService.requestVacation({
         date_start: toIsoDate(range.from),
@@ -303,28 +286,34 @@ export function VacationRequestModal({
         end_half_day: endHalf,
         note: note.trim() || undefined,
       });
-      toast.success("Urlaubsantrag gesendet.");
-      dispatchAbsencesRefresh();
-      onSubmitted();
-      handleReset();
-      onClose();
     } catch (err) {
-      const message = normalizeVacationRequestError(err);
       logger.error("vacation_request_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setFormError(message);
+      await formErrors.show(err, {
+        object: "die Urlaubsanfrage",
+        retry: () => void latestSubmitRef.current(),
+      });
+      return;
     } finally {
       setSubmitting(false);
     }
+    toast.success("Der Urlaubsantrag ist gesendet.");
+    dispatchAbsencesRefresh();
+    onSubmitted();
+    handleReset();
+    onClose();
   };
+  useLayoutEffect(() => {
+    latestSubmitRef.current = handleSubmit;
+  });
 
   const handleReset = () => {
     setRange(undefined);
     setStartHalf(false);
     setEndHalf(false);
     setNote("");
-    setFormError(null);
+    formErrors.clear();
   };
 
   return (
@@ -347,7 +336,7 @@ export function VacationRequestModal({
           </div>
           <SlideOverCloseButton disabled={submitting} />
         </SlideOverHeader>
-        <SlideOverBody error={overlapMessage ?? formError}>
+        <SlideOverBody error={overlapMessage ?? formErrors.error}>
           <div className="space-y-5">
             <div>
               <p className="mb-2 text-xs font-semibold tracking-wider text-gray-500 uppercase">
@@ -358,7 +347,7 @@ export function VacationRequestModal({
                   value={range}
                   onChange={(nextRange) => {
                     setRange(nextRange);
-                    setFormError(null);
+                    formErrors.clear();
                   }}
                   fromMin={today}
                   presets={vacationPresets}
@@ -457,7 +446,7 @@ export function VacationRequestModal({
                 type="error"
                 message={`Das sind ${overBalanceDays} ${
                   overBalanceDays === 1 ? "Tag" : "Tage"
-                } mehr, als du noch hast. Sprich bitte mit der OGS-Leitung.`}
+                } mehr, als Sie noch haben. Bitte sprechen Sie mit der OGS-Leitung.`}
               />
             )}
 
@@ -470,6 +459,8 @@ export function VacationRequestModal({
               </label>
               <Textarea
                 id="vacation-note"
+                name="note"
+                error={formErrors.fieldError("note")}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 rows={3}
@@ -500,7 +491,7 @@ export function VacationRequestModal({
                   </span>
                 </>
               ) : (
-                <span>Wähle einen Zeitraum</span>
+                <span>Bitte wählen Sie einen Zeitraum</span>
               )}
             </div>
             <div className="flex flex-col-reverse gap-2 sm:flex-row">

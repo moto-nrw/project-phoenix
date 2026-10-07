@@ -13,7 +13,8 @@ import {
 
 interface StudentCommonFormSectionsProps {
   readonly formData: Partial<Student>;
-  readonly errors: Record<string, string>;
+  /** Hint per API field name, from the form's shared error path (#2513). */
+  readonly fieldError: (name: string) => string | undefined;
   readonly onChange: (
     field: keyof Student,
     value: string | boolean | number | BusDays | null,
@@ -26,7 +27,7 @@ interface StudentCommonFormSectionsProps {
  */
 export function StudentCommonFormSections({
   formData,
-  errors,
+  fieldError,
   onChange,
 }: Readonly<StudentCommonFormSectionsProps>) {
   return (
@@ -47,7 +48,7 @@ export function StudentCommonFormSections({
       <PrivacyConsentSection
         formData={formData}
         onChange={onChange}
-        errors={errors}
+        fieldError={fieldError}
       />
     </>
   );

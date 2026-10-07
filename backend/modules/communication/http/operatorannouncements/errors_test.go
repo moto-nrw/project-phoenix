@@ -16,9 +16,9 @@ import (
 // Helper to extract the operator error body from render.Renderer
 func extractErrResponse(t *testing.T, renderer render.Renderer) (int, string, string) {
 	t.Helper()
-	errResp, ok := renderer.(*common.OperatorErrResponse)
-	require.True(t, ok, "Expected *common.OperatorErrResponse")
-	return errResp.HTTPStatusCode, errResp.StatusText, errResp.ErrorText
+	errResp, ok := renderer.(*common.ErrResponse)
+	require.True(t, ok, "Expected *common.ErrResponse")
+	return errResp.HTTPStatusCode, errResp.Status, errResp.ErrorText
 }
 
 func TestAnnouncementErrorRenderer_NotFound(t *testing.T) {
@@ -30,6 +30,8 @@ func TestAnnouncementErrorRenderer_NotFound(t *testing.T) {
 	status, _, errorText := extractErrResponse(t, renderer)
 	assert.Equal(t, http.StatusNotFound, status)
 	assert.Equal(t, "Announcement not found", errorText)
+	// #2519: the operator portal shows the reason by code.
+	assert.Equal(t, common.CodeCommunicationAnnouncementNotFound, renderer.(*common.ErrResponse).Code)
 }
 
 func TestAnnouncementErrorRenderer_InvalidData(t *testing.T) {

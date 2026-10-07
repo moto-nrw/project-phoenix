@@ -1,8 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { FormEvent } from "react";
 
-import { useFormError } from "~/components/ui/form-error";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import {
   findPeriodForDate,
@@ -35,7 +45,6 @@ import {
   type PlanningTrack,
 } from "~/lib/planning-track-api";
 import { staffService } from "~/lib/staff-api";
-import { timetableSeriesErrorMessage } from "./scope-error-message";
 import { getSchoolYear } from "~/lib/student-helpers";
 import { useTenant } from "~/lib/tenant-context";
 import { timetableService } from "~/lib/timetable-api";
@@ -69,6 +78,7 @@ import {
   schoolClassLabel,
   seedWeekdayRosters,
   withWeekdayStudentIds,
+  shiftCoverageWarningText,
   sortPeople,
   sourceScopesOverlap,
   targetCohortActionLabel,
@@ -109,13 +119,45 @@ export interface GroupOption {
 }
 
 const MAX_SUPPORTED_TARGET_GRADE_LEVEL = 13;
-const STUDENT_LOAD_ERROR =
-  "Die Kinderliste konnte nicht vollständig geladen werden. Die Kinderzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.";
-const STAFF_LOAD_ERROR =
-  "Die Personalliste konnte nicht vollständig geladen werden. Die Personalzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.";
-const COVERAGE_CHECK_ERROR =
-  "Die Dienstplan-Abdeckung konnte nicht geprüft werden. Speichern ist weiterhin möglich.";
+/**
+ * Advisory probes (Dienstplan coverage, double bookings) never block the
+ * save. Their failure is a hint next to the form, not an error: the person
+ * can still save, and the sentence says so.
+ */
+export const COVERAGE_CHECK_FAILED_HINT =
+  "Der Dienstplan konnte nicht geprüft werden. Sie können trotzdem speichern.";
+export const CONFLICT_CHECK_FAILED_HINT =
+  "Doppelte Einplanungen konnten nicht geprüft werden. Sie können trotzdem speichern.";
 const COVERAGE_CHECK_TIMEOUT_MS = 5_000;
+
+/**
+ * Backend field names (`errors[].field`) mapped to the form's keys, so a
+ * field error from the save marks the same control as the local check.
+ */
+const SERVER_FIELD_KEYS: readonly (readonly [string, string])[] = [
+  ["name", "title"],
+  ["title", "title"],
+  ["date", "date"],
+  ["start_time", "startTime"],
+  ["end_time", "endTime"],
+  ["room_id", "roomId"],
+  ["category_id", "categoryId"],
+  ["calendar_period_id", "calendarPeriodId"],
+  ["weekdays", "weekdays"],
+  ["week_pattern", "weekPattern"],
+  ["max_participants", "maxParticipants"],
+  ["end_date", "seriesEndDate"],
+];
+
+/** `{object}` of the shared error path for a save (feminine or neuter). */
+function saveErrorObject(isSeries: boolean, isCreate: boolean): string {
+  if (isSeries) {
+    return isCreate
+      ? "das Anlegen des Regeltermins"
+      : "die Änderung des Regeltermins";
+  }
+  return isCreate ? "das Anlegen des Termins" : "die Änderung des Termins";
+}
 
 function sameIDSelection(left: string[], right: string[]): boolean {
   if (left.length !== right.length) return false;
@@ -138,6 +180,65 @@ function checkShiftCoverageWithSignal(
     timetableService.checkShiftCoverage(probe, { signal }),
     aborted,
   ]);
+}
+
+/**
+ * Rooms, categories, groups and planning tracks, each sorted for its picker.
+ * A failed list comes back empty; `error` carries the first failure so the
+ * form can say which lists are missing instead of showing empty pickers
+ * without a reason.
+ */
+async function fetchReferenceLists(): Promise<{
+  rooms: RoomOption[];
+  categories: ActivityCategory[];
+  groups: GroupOption[];
+  planningTracks: PlanningTrack[];
+  error: unknown;
+}> {
+  let firstError: unknown = undefined;
+  const failed = <T>(event: string, fallback: T) => {
+    return (err: unknown): T => {
+      logger.error(event, {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      firstError ??= err;
+      return fallback;
+    };
+  };
+  const [rooms, categories, groups, planningTracks] = await Promise.all([
+    fetchPlannerRooms()
+      .then((items) =>
+        items.map((room): RoomOption => ({
+          id: Number(room.id),
+          name: room.name ?? room.room_name ?? `Raum ${room.id}`,
+          building: room.building ?? undefined,
+        })),
+      )
+      .catch(failed<RoomOption[]>("rooms_fetch_failed", [])),
+    fetchPlannerActivityCategories().catch(
+      failed<ActivityCategory[]>("categories_fetch_failed", []),
+    ),
+    fetchPlannerGroups()
+      .then((items) =>
+        items.map((group): GroupOption => ({
+          id: String(group.id),
+          name: group.name,
+        })),
+      )
+      .catch(failed<GroupOption[]>("groups_fetch_failed", [])),
+    planningTrackService
+      .list()
+      .catch(failed<PlanningTrack[]>("planning_tracks_fetch_failed", [])),
+  ]);
+  const byName = (a: { name: string }, b: { name: string }) =>
+    a.name.localeCompare(b.name, "de");
+  return {
+    rooms: [...rooms].sort(byName),
+    categories: [...categories].sort(byName),
+    groups: [...groups].sort(byName),
+    planningTracks,
+    error: firstError,
+  };
 }
 
 export type TimetableEventModalResult =
@@ -184,7 +285,7 @@ const MATERIALIZE_CHUNK_DAYS = 56;
  * re-submitting would duplicate the already-saved template.
  */
 const FOLLOW_UP_WARNING =
-  "Regeltermin gespeichert, aber nicht alle Termine konnten eingetragen werden. Die fehlenden Termine werden beim nächsten automatischen Lauf ergänzt.";
+  "Der Regeltermin ist gespeichert. Einige Termine fehlen noch im Plan. Sie werden später automatisch ergänzt.";
 
 /** Plain-language repeat presets shown in the quick variant. */
 type QuickRepeatPreset =
@@ -261,11 +362,7 @@ export function useEventForm({
   closingDayRanges,
 }: UseEventFormParams) {
   const { tenant } = useTenant();
-  const {
-    success: toastSuccess,
-    error: toastError,
-    warning: toastWarning,
-  } = useToast();
+  const { success: toastSuccess, warning: toastWarning } = useToast();
   const [form, setForm] = useState<EventFormState>(() =>
     emptyForm(
       defaultDate,
@@ -293,16 +390,35 @@ export function useEventForm({
   const [students, setStudents] = useState<PersonOption[]>([]);
   const [staff, setStaff] = useState<PersonOption[]>([]);
   const [loadingRefs, setLoadingRefs] = useState(false);
+  const [referenceLoadFailed, setReferenceLoadFailed] = useState(false);
   const [loadingStudents, setLoadingStudents] = useState(false);
-  const [studentLoadError, setStudentLoadError] = useState<string | null>(null);
+  // Whether the roster lists failed: the roster stays read-only and keeps its
+  // stored assignment. The text comes from the shared load error path.
+  const [studentLoadFailed, setStudentLoadFailed] = useState(false);
   const [loadingStaff, setLoadingStaff] = useState(false);
-  const [staffLoadError, setStaffLoadError] = useState<string | null>(null);
+  const [staffLoadFailed, setStaffLoadFailed] = useState(false);
+  const studentLoad = useApiLoadError();
+  const staffLoad = useApiLoadError();
+  // Rooms, categories, groups and planning tracks load together; one alert
+  // names them, the first failure decides its text.
+  const referenceLoad = useApiLoadError();
   const [submitting, setSubmitting] = useState(false);
-  const [validationError, setValidationError] = useFormError();
+  // The panel's save error (SlideOverBody `error`) and the server's field
+  // errors. Local checks before the send keep their own map below, because
+  // each field clears its hint as soon as it is edited.
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const clearFormError = formErrors.clear;
+  const showFormError = formErrors.show;
+  // „Wiederholen“ sendet das Formular erneut ab, also mit dem Stand von
+  // jetzt und über dieselben Rückfragen (Schließtage, Serienumfang).
+  const retrySave = () => formRef.current?.requestSubmit();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteEffectiveDate, setDeleteEffectiveDate] = useState("");
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  // The delete dialog is open while it fails, so its error stays in it.
+  const deleteErrors = useApiFormError();
+  const clearDeleteError = deleteErrors.clear;
   const [deletingSeries, setDeletingSeries] = useState(false);
   const [expanded, setExpanded] = useState(variant === "full");
   // Validated room id stashed while the Dreifach-Frage dialog (US-5) is open.
@@ -351,9 +467,8 @@ export function useEventForm({
     ShiftCoverageWarningItem[]
   >([]);
   const [coverageWarningCount, setCoverageWarningCount] = useState(0);
-  const [coverageCheckError, setCoverageCheckError] = useState<string | null>(
-    null,
-  );
+  const [coverageCheckFailed, setCoverageCheckFailed] = useState(false);
+  const [conflictCheckFailed, setConflictCheckFailed] = useState(false);
   // Reference data can outlive a close/reopen or a changed edit target. Keep
   // the shared, student, and staff load generations separate so a retry may
   // replace only its own roster while stale completions cannot overwrite a
@@ -520,11 +635,11 @@ export function useEventForm({
   const preservesGradeAboveTenantCap =
     gradeLevelMax !== undefined &&
     form.targetGradeLevels.some((grade) => Number(grade) > gradeLevelMax);
-  const studentRosterEditable = !loadingStudents && studentLoadError === null;
+  const studentRosterEditable = !loadingStudents && !studentLoadFailed;
   const studentIDsForSave = studentRosterEditable
     ? form.studentIds
     : initialStudentIDsSnapshot;
-  const staffRosterEditable = !loadingStaff && staffLoadError === null;
+  const staffRosterEditable = !loadingStaff && !staffLoadFailed;
   const staffIDsForSave = staffRosterEditable
     ? form.staffIds
     : initialStaffIDsSnapshot;
@@ -532,20 +647,150 @@ export function useEventForm({
     ? form.primaryStaffId
     : initialPrimaryStaffIDSnapshot;
 
+  const showStudentLoadError = studentLoad.show;
+  const clearStudentLoadError = studentLoad.clear;
+  const showStaffLoadError = staffLoad.show;
+  const clearStaffLoadError = staffLoad.clear;
+  const showReferenceLoadError = referenceLoad.show;
+  const clearReferenceLoadError = referenceLoad.clear;
+  // „Wiederholen“ der Ladefehler startet den Ladevorgang mit dem Stand von
+  // jetzt, nicht mit dem des fehlgeschlagenen Versuchs.
+  const retryReferenceLoadRef = useRef<() => void>(() => undefined);
+  const retryStudentLoadRef = useRef<() => void>(() => undefined);
+  const retryStaffLoadRef = useRef<() => void>(() => undefined);
+
+  /**
+   * Loads rooms, categories, groups and planning tracks and applies them.
+   * `currentCategoryId` and `seriesCategoryName` keep a stored, meanwhile
+   * archived category of an edited series selectable.
+   */
+  const loadReferenceLists = useCallback(
+    (currentCategoryId: string, seriesCategoryName: string | undefined) => {
+      const referenceSeq = ++referenceLoadSeq.current;
+      const categorySeq = ++categoryLoadSeq.current;
+      const planningTrackSeq = ++planningTrackLoadSeq.current;
+      const isCurrentReferenceLoad = () =>
+        referenceLoadSeq.current === referenceSeq;
+      setLoadingRefs(true);
+      setReferenceLoadFailed(false);
+      clearReferenceLoadError();
+      void fetchReferenceLists().then(
+        ({
+          rooms: roomData,
+          categories: categoryData,
+          groups: groupData,
+          planningTracks: planningTrackData,
+          error,
+        }) => {
+          if (!isCurrentReferenceLoad()) return;
+          setRooms(roomData);
+          setGroups(groupData);
+          if (planningTrackLoadSeq.current === planningTrackSeq) {
+            setPlanningTracks(planningTrackData);
+          }
+          if (categoryLoadSeq.current === categorySeq) {
+            setCategories(
+              seriesCategoryName !== undefined
+                ? withUnavailableCurrentCategory(
+                    categoryData,
+                    currentCategoryId,
+                    [],
+                    seriesCategoryName,
+                  )
+                : categoryData,
+            );
+            setForm((prev) =>
+              prev.categoryId || categoryData.length === 0
+                ? prev
+                : { ...prev, categoryId: categoryData[0]?.id ?? "" },
+            );
+          }
+          if (error !== undefined) {
+            // The lists that did load stay usable; the alert names the gap
+            // instead of leaving an empty picker unexplained.
+            setReferenceLoadFailed(true);
+            void showReferenceLoadError(error, {
+              object: "die Liste der Räume, Kategorien und Gruppen",
+              retry: () => retryReferenceLoadRef.current(),
+            });
+          }
+          setLoadingRefs(false);
+        },
+      );
+    },
+    [clearReferenceLoadError, showReferenceLoadError],
+  );
+
+  const loadStudentList = useCallback(() => {
+    const studentSeq = ++studentLoadSeq.current;
+    const isCurrentStudentLoad = () => studentLoadSeq.current === studentSeq;
+    setLoadingStudents(true);
+    setStudentLoadFailed(false);
+    clearStudentLoadError();
+    // The student catalog has a stricter permission boundary than the shared
+    // planner references. Keep it on an independent lifecycle so users without
+    // users:read can still use rooms, categories and groups immediately.
+    return fetchAllStudentOptions()
+      .then((studentData) => {
+        if (!isCurrentStudentLoad()) return;
+        setStudents(sortPeople(studentData));
+      })
+      .catch((err: unknown) => {
+        logger.error("students_fetch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!isCurrentStudentLoad()) return;
+        setStudents([]);
+        setStudentLoadFailed(true);
+        void showStudentLoadError(err, {
+          object: "die Kinderliste",
+          retry: () => retryStudentLoadRef.current(),
+        });
+      })
+      .finally(() => {
+        if (isCurrentStudentLoad()) setLoadingStudents(false);
+      });
+  }, [clearStudentLoadError, showStudentLoadError]);
+
+  const loadStaffList = useCallback(() => {
+    const staffSeq = ++staffLoadSeq.current;
+    const isCurrentStaffLoad = () => staffLoadSeq.current === staffSeq;
+    setLoadingStaff(true);
+    setStaffLoadFailed(false);
+    clearStaffLoadError();
+    // Staff carries the same users:read boundary as students. Keep it
+    // independent from rooms/categories/groups so a 403 cannot masquerade as
+    // an empty editable roster or delay the planner references.
+    return staffService
+      .getAllStaff()
+      .then((items) => {
+        if (!isCurrentStaffLoad()) return;
+        setStaff(
+          sortPeople(items.map((item) => ({ id: item.id, name: item.name }))),
+        );
+      })
+      .catch((err: unknown) => {
+        logger.error("staff_fetch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!isCurrentStaffLoad()) return;
+        setStaff([]);
+        setStaffLoadFailed(true);
+        void showStaffLoadError(err, {
+          object: "die Personalliste",
+          retry: () => retryStaffLoadRef.current(),
+        });
+      })
+      .finally(() => {
+        if (isCurrentStaffLoad()) setLoadingStaff(false);
+      });
+  }, [clearStaffLoadError, showStaffLoadError]);
+
   useEffect(() => {
     if (!isOpen) {
       invalidateReferenceLoads();
       return;
     }
-    const referenceSeq = ++referenceLoadSeq.current;
-    const categorySeq = ++categoryLoadSeq.current;
-    const planningTrackSeq = ++planningTrackLoadSeq.current;
-    const studentSeq = ++studentLoadSeq.current;
-    const staffSeq = ++staffLoadSeq.current;
-    const isCurrentReferenceLoad = () =>
-      referenceLoadSeq.current === referenceSeq;
-    const isCurrentStudentLoad = () => studentLoadSeq.current === studentSeq;
-    const isCurrentStaffLoad = () => staffLoadSeq.current === staffSeq;
 
     const nextForm = initialSeries
       ? formFromSeries(initialSeries, defaultDate, defaultCalendarPeriodId)
@@ -573,11 +818,11 @@ export function useEventForm({
     createIdempotencyFingerprint.current = null;
     setForm(nextForm);
     initialFormSnapshot.current = nextForm;
-    setValidationError(null);
+    clearFormError();
     setFieldErrors({});
     setDeleteConfirmOpen(false);
     setDeleteEffectiveDate(berlinTodayISO());
-    setDeleteError(null);
+    clearDeleteError();
     setDeletingSeries(false);
     setExpanded(variant === "full");
     setPendingSeriesEdit(null);
@@ -587,139 +832,21 @@ export function useEventForm({
     closingDayChoice.current = null;
     setLostEdits(null);
     setConflictWarnings([]);
+    setConflictCheckFailed(false);
     setCoverageWarnings([]);
     setCoverageWarningCount(0);
-    setCoverageCheckError(null);
-    setLoadingRefs(true);
-    setLoadingStudents(true);
-    setStudentLoadError(null);
+    setCoverageCheckFailed(false);
     setStudents([]);
-    setLoadingStaff(true);
-    setStaffLoadError(null);
     setStaff([]);
 
-    void Promise.all([
-      fetchPlannerRooms()
-        .then((items) =>
-          items.map((room) => ({
-            id: Number(room.id),
-            name: room.name ?? room.room_name ?? `Raum ${room.id}`,
-            building: room.building ?? undefined,
-          })),
-        )
-        .catch((err: unknown) => {
-          logger.error("rooms_fetch_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          return [] as RoomOption[];
-        }),
-      fetchPlannerActivityCategories().catch((err: unknown) => {
-        logger.error("categories_fetch_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return [] as ActivityCategory[];
-      }),
-      fetchPlannerGroups()
-        .then((items) =>
-          items.map((group) => ({ id: String(group.id), name: group.name })),
-        )
-        .catch((err: unknown) => {
-          logger.error("groups_fetch_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          return [] as GroupOption[];
-        }),
-      planningTrackService.list().catch((err: unknown) => {
-        logger.error("planning_tracks_fetch_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return [] as PlanningTrack[];
-      }),
-    ])
-      .then(([roomData, categoryData, groupData, planningTrackData]) => {
-        const sortedRooms = [...roomData].sort((a, b) =>
-          a.name.localeCompare(b.name, "de"),
-        );
-        const sortedCategories = [...categoryData].sort((a, b) =>
-          a.name.localeCompare(b.name, "de"),
-        );
-        const sortedGroups = [...groupData].sort((a, b) =>
-          a.name.localeCompare(b.name, "de"),
-        );
-        if (isCurrentReferenceLoad()) {
-          setRooms(sortedRooms);
-          setGroups(sortedGroups);
-          if (planningTrackLoadSeq.current === planningTrackSeq) {
-            setPlanningTracks(planningTrackData);
-          }
-          if (categoryLoadSeq.current === categorySeq) {
-            setCategories(
-              initialSeries
-                ? withUnavailableCurrentCategory(
-                    sortedCategories,
-                    nextForm.categoryId,
-                    [],
-                    initialSeries.categoryName,
-                  )
-                : sortedCategories,
-            );
-            setForm((prev) =>
-              prev.categoryId || sortedCategories.length === 0
-                ? prev
-                : { ...prev, categoryId: sortedCategories[0]?.id ?? "" },
-            );
-          }
-        }
-      })
-      .finally(() => {
-        if (isCurrentReferenceLoad()) setLoadingRefs(false);
-      });
-
-    // The student catalog has a stricter permission boundary than the shared
-    // planner references. Keep it on an independent lifecycle so users without
-    // users:read can still use rooms, categories and groups immediately.
-    void fetchAllStudentOptions()
-      .then((studentData) => {
-        if (!isCurrentStudentLoad()) return;
-        setStudents(sortPeople(studentData));
-      })
-      .catch((err: unknown) => {
-        logger.error("students_fetch_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        if (!isCurrentStudentLoad()) return;
-        setStudents([]);
-        setStudentLoadError(STUDENT_LOAD_ERROR);
-      })
-      .finally(() => {
-        if (isCurrentStudentLoad()) setLoadingStudents(false);
-      });
-
-    // Staff carries the same users:read boundary as students. Keep it
-    // independent from rooms/categories/groups so a 403 cannot masquerade as
-    // an empty editable roster or delay the planner references.
-    void staffService
-      .getAllStaff()
-      .then((items) => {
-        if (!isCurrentStaffLoad()) return;
-        setStaff(
-          sortPeople(items.map((item) => ({ id: item.id, name: item.name }))),
-        );
-      })
-      .catch((err: unknown) => {
-        logger.error("staff_fetch_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        if (!isCurrentStaffLoad()) return;
-        setStaff([]);
-        setStaffLoadError(STAFF_LOAD_ERROR);
-      })
-      .finally(() => {
-        if (isCurrentStaffLoad()) setLoadingStaff(false);
-      });
+    loadReferenceLists(nextForm.categoryId, initialSeries?.categoryName);
+    void loadStudentList();
+    void loadStaffList();
 
     return invalidateReferenceLoads;
   }, [
+    clearDeleteError,
+    clearFormError,
     convertInstance,
     defaultCalendarPeriodId,
     defaultDate,
@@ -730,7 +857,9 @@ export function useEventForm({
     initialSeries,
     invalidateReferenceLoads,
     isOpen,
-    setValidationError,
+    loadReferenceLists,
+    loadStaffList,
+    loadStudentList,
     variant,
   ]);
 
@@ -756,6 +885,9 @@ export function useEventForm({
   // The convert flow edits an existing instance too — its own slot must not
   // self-conflict, exactly like the regular instance edit.
   const excludeInstanceId = initialInstance?.id ?? convertInstance?.id;
+  // A stored Regeltermin being edited never conflicts with its own
+  // occurrences, whatever their room (a Dienst may have none, #3822).
+  const excludeActivityGroupId = isSeriesFlow ? effectiveSeries?.id : undefined;
 
   // One probe per distinct staff list (#2129). A series that staffs Monday
   // with Anna and Tuesday with Bea must be checked with Monday's dates against
@@ -864,6 +996,7 @@ export function useEventForm({
       probe.studentIds.length > 0;
     if (!probe.date || !probe.startTime || !probe.endTime || !hasResource) {
       setConflictWarnings([]);
+      setConflictCheckFailed(false);
       return;
     }
     const seq = ++probeSeq.current;
@@ -876,27 +1009,38 @@ export function useEventForm({
         staffIds: probe.staffIds.length > 0 ? probe.staffIds : undefined,
         studentIds: probe.studentIds.length > 0 ? probe.studentIds : undefined,
         excludeInstanceId,
+        excludeActivityGroupId,
       })
       .then((result) => {
         if (probeSeq.current !== seq) return; // out-of-order response
         setConflictWarnings(result.warnings);
+        setConflictCheckFailed(false);
       })
       .catch((err: unknown) => {
         logger.warn("conflict_probe_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
         if (probeSeq.current === seq) {
+          // No warnings is not the same as "no double bookings": say that
+          // the check did not run, saving stays possible.
           setConflictWarnings([]);
+          setConflictCheckFailed(true);
         }
       });
-  }, [debouncedProbeKey, excludeInstanceId, isOpen, probeKey]);
+  }, [
+    debouncedProbeKey,
+    excludeActivityGroupId,
+    excludeInstanceId,
+    isOpen,
+    probeKey,
+  ]);
 
   useEffect(() => {
     if (!isOpen) return;
     if (!canCheckShiftCoverage) {
       setCoverageWarnings([]);
       setCoverageWarningCount(0);
-      setCoverageCheckError(null);
+      setCoverageCheckFailed(false);
       return;
     }
     if (debouncedCoverageProbeKey !== coverageProbeKey) {
@@ -909,7 +1053,7 @@ export function useEventForm({
     if (probes.length === 0) {
       setCoverageWarnings([]);
       setCoverageWarningCount(0);
-      setCoverageCheckError(null);
+      setCoverageCheckFailed(false);
       return;
     }
 
@@ -919,7 +1063,7 @@ export function useEventForm({
       () => controller.abort(),
       COVERAGE_CHECK_TIMEOUT_MS,
     );
-    setCoverageCheckError(null);
+    setCoverageCheckFailed(false);
     Promise.all(
       probes.map((probe) =>
         checkShiftCoverageWithSignal(probe, controller.signal),
@@ -935,7 +1079,7 @@ export function useEventForm({
             0,
           ),
         );
-        setCoverageCheckError(null);
+        setCoverageCheckFailed(false);
       })
       .catch((err: unknown) => {
         logger.warn("shift_coverage_probe_failed", {
@@ -944,7 +1088,7 @@ export function useEventForm({
         if (coverageProbeSeq.current === seq) {
           setCoverageWarnings([]);
           setCoverageWarningCount(0);
-          setCoverageCheckError(COVERAGE_CHECK_ERROR);
+          setCoverageCheckFailed(true);
         }
       })
       .finally(() => window.clearTimeout(timeoutID));
@@ -995,13 +1139,16 @@ export function useEventForm({
         result.coverageWarningCount ?? result.coverageWarnings.length;
       setCoverageWarnings(result.coverageWarnings);
       setCoverageWarningCount(warningCount);
-      setCoverageCheckError(null);
+      setCoverageCheckFailed(false);
+      // Hinweise, keine Fehler: gespeichert wird trotzdem, und das Panel
+      // schließt danach. Der Text kommt aus den Feldern, nicht aus dem Satz
+      // des Servers.
       for (const warning of result.coverageWarnings.slice(0, 3)) {
-        toastWarning(warning.message, { duration: 10_000 });
+        toastWarning(shiftCoverageWarningText(warning), { duration: 10_000 });
       }
       if (warningCount > 3) {
         toastWarning(
-          `${warningCount - 3} weitere Dienstplan-Lücken wurden gefunden.`,
+          `Im Dienstplan gibt es ${warningCount - 3} weitere Lücken.`,
           { duration: 10_000 },
         );
       }
@@ -1014,8 +1161,8 @@ export function useEventForm({
       });
       setCoverageWarnings([]);
       setCoverageWarningCount(0);
-      setCoverageCheckError(COVERAGE_CHECK_ERROR);
-      toastWarning(COVERAGE_CHECK_ERROR, { duration: 10_000 });
+      setCoverageCheckFailed(true);
+      toastWarning(COVERAGE_CHECK_FAILED_HINT, { duration: 10_000 });
     } finally {
       window.clearTimeout(timeoutID);
     }
@@ -1036,7 +1183,7 @@ export function useEventForm({
   ) => {
     if (key === "studentIds") studentRosterTouched.current = true;
     setForm((prev) => ({ ...prev, [key]: value }));
-    setValidationError(null);
+    clearFormError();
     clearFieldError(key);
     // The end-before-start error is stored under endTime but depends on both
     // time fields, so correcting the start time must clear it too.
@@ -1065,7 +1212,7 @@ export function useEventForm({
       }
       return { ...prev, repeat, weekPattern };
     });
-    setValidationError(null);
+    clearFormError();
     clearFieldError("repeat");
     clearFieldError("weekPattern");
   };
@@ -1112,7 +1259,7 @@ export function useEventForm({
         : [...prev.weekdays, iso].sort((a, b) => a - b);
       return changeRosterWeekdays(prev, next, iso);
     });
-    setValidationError(null);
+    clearFormError();
     clearFieldError("weekdays");
   };
 
@@ -1138,7 +1285,7 @@ export function useEventForm({
     setForm((prev) =>
       changePerWeekdayRosterMode(prev, enabled, activeRosterWeekday),
     );
-    setValidationError(null);
+    clearFormError();
   };
 
   const setWeekdayRoster = (weekday: number, roster: WeekdayRosterState) => {
@@ -1156,7 +1303,7 @@ export function useEventForm({
       ...prev,
       weekdayRosters: { ...prev.weekdayRosters, [weekday]: roster },
     }));
-    setValidationError(null);
+    clearFormError();
   };
 
   const applyActiveWeekdayRosterToAll = () => {
@@ -1177,7 +1324,7 @@ export function useEventForm({
       }
       return { ...prev, weekdayRosters: next };
     });
-    setValidationError(null);
+    clearFormError();
   };
 
   /**
@@ -1255,7 +1402,7 @@ export function useEventForm({
             )
           : current.weekdayRosters,
     }));
-    setValidationError(null);
+    clearFormError();
     setFieldErrors((current) => {
       const next = { ...current };
       delete next.targetGradeLevel;
@@ -1290,8 +1437,12 @@ export function useEventForm({
     } else if (form.startTime !== "" && form.endTime <= form.startTime) {
       errors.endTime = "Endzeit muss nach der Startzeit liegen.";
     }
-    const roomId = Number.parseInt(form.roomId, 10);
-    if (!Number.isFinite(roomId) || roomId <= 0) {
+    // Ein Dienst (#3822) darf ohne Raum stattfinden, z. B. die Busaufsicht;
+    // 0 heißt dann "kein Raum".
+    const parsedRoomId = Number.parseInt(form.roomId, 10);
+    const hasRoom = Number.isFinite(parsedRoomId) && parsedRoomId > 0;
+    const roomId = hasRoom ? parsedRoomId : 0;
+    if (!hasRoom && form.type !== "duty") {
       errors.roomId = "Bitte einen Raum auswählen.";
     }
     let categoryId: number | undefined;
@@ -1374,7 +1525,7 @@ export function useEventForm({
         errors.weekPattern =
           'Der gewählte Planungszeitraum hat keinen verankerten Zwei-Wochen-Zyklus. Eine 14-tägige Wiederholung ist hier nicht möglich; bitte "Jede Woche" wählen.';
       }
-      if (form.targetGroupType === "jahrgang") {
+      if (form.type !== "duty" && form.targetGroupType === "jahrgang") {
         const invalidGrade = form.targetGradeLevels.some((value) => {
           const gradeLevel = Number(value);
           return (
@@ -1392,12 +1543,14 @@ export function useEventForm({
         }
       }
       if (
+        form.type !== "duty" &&
         form.targetGroupType === "klasse" &&
         form.targetSchoolClasses.length === 0
       ) {
         errors.targetSchoolClass = "Bitte eine Klasse auswählen.";
       }
       if (
+        form.type !== "duty" &&
         form.targetGroupType === "gruppe" &&
         form.educationGroupIds.length === 0
       ) {
@@ -1485,14 +1638,43 @@ export function useEventForm({
       end_time: form.endTime,
       room_id: roomId,
       notes: form.notes.trim() || undefined,
-      list_kind: form.listKind || undefined,
+      // Ein Dienst hat keine Kinder und gehört in keine Tagesliste (#3822).
+      list_kind: form.type === "duty" ? undefined : form.listKind || undefined,
       activity_group_id: activityGroupId ? Number(activityGroupId) : undefined,
       staff_ids: staffIDsForSave.map(Number),
-      student_ids: studentIDsForSave.map(Number),
+      student_ids: form.type === "duty" ? [] : studentIDsForSave.map(Number),
       required_staff: parseRequiredStaffOverride(form.requiredStaff),
     }) satisfies CreateInstanceBody;
 
   const seriesBody = (
+    roomId: number,
+    categoryId: number,
+  ): CreateTemplateBody => {
+    const body = seriesBodyFields(roomId, categoryId);
+    if (form.type !== "duty") return body;
+    // Ein Dienst (#3822) hat keine Zielgruppe, keine Kinder, keine
+    // Teilnehmergrenze und keine Listenart; das Backend lehnt sie ab.
+    return {
+      ...body,
+      list_kind: undefined,
+      education_group_id: undefined,
+      target_group_type: "none",
+      target_grade_level: undefined,
+      target_school_class: undefined,
+      source_care_offering_ids: null,
+      source_grade_levels: null,
+      source_school_classes: null,
+      targets: [],
+      max_participants: null,
+      student_ids: [],
+      weekday_assignments: body.weekday_assignments?.map((assignment) => ({
+        ...assignment,
+        student_ids: [],
+      })),
+    };
+  };
+
+  const seriesBodyFields = (
     roomId: number,
     categoryId: number,
   ): CreateTemplateBody => ({
@@ -2163,6 +2345,7 @@ export function useEventForm({
     if (!parsed) return;
     submitLock.current = true;
     setSubmitting(true);
+    clearFormError();
 
     // US-5 Dreifach-Frage: editing an instance that belongs to a series first
     // asks for the scope instead of writing immediately. Also when the user
@@ -2182,7 +2365,7 @@ export function useEventForm({
             initialInstance.id,
             instanceBody(parsed.roomId, initialInstance.activityGroupId),
           );
-          toastSuccess("Termin gespeichert");
+          toastSuccess("Der Termin ist gespeichert.");
           onSaved({ kind: "instance", instance: saved });
           onClose();
         } catch (err) {
@@ -2225,7 +2408,9 @@ export function useEventForm({
           );
         }
         toastSuccess(
-          initialInstance ? "Termin gespeichert" : "Termin angelegt",
+          initialInstance
+            ? "Der Termin ist gespeichert."
+            : "Der Termin ist angelegt.",
         );
         onSaved({ kind: "instance", instance: saved });
         onClose();
@@ -2268,7 +2453,7 @@ export function useEventForm({
               )
             : await replanTemplateFuture(seriesId);
           if (followUpOk) {
-            toastSuccess("Regeltermin gespeichert");
+            toastSuccess("Der Regeltermin ist gespeichert.");
           } else {
             // oxlint-disable-next-line bauart/no-toast-form-error -- Kein Formularfehler: der Regeltermin ist gespeichert und das Panel schließt; der Hinweis auf die Folgetermine hat keine andere Fläche.
             toastWarning(FOLLOW_UP_WARNING);
@@ -2293,6 +2478,9 @@ export function useEventForm({
             );
             if (probe.count > 0) lost = probe;
           } catch (probeErr) {
+            // Bewusst still: die Rückfrage zu Einzelanpassungen ist ein
+            // Hinweis vor dem Speichern. Fällt die Zählung aus, speichert der
+            // Regeltermin wie ohne Einzelanpassungen; der Ausfall steht im Log.
             logger.warn("edited_in_window_probe_failed", {
               error:
                 probeErr instanceof Error ? probeErr.message : String(probeErr),
@@ -2342,8 +2530,8 @@ export function useEventForm({
         if (await materializePeriodAfterConvert()) {
           toastSuccess(
             convertInstance
-              ? "Termin wiederholt"
-              : "Termin als Serie gespeichert",
+              ? "Der Termin wiederholt sich jetzt."
+              : "Der Termin ist jetzt ein Regeltermin.",
           );
         } else {
           // oxlint-disable-next-line bauart/no-toast-form-error -- Kein Formularfehler: die Serie ist gespeichert und das Panel schließt; der Hinweis auf die Folgetermine hat keine andere Fläche.
@@ -2362,8 +2550,8 @@ export function useEventForm({
         if (followUpOk) {
           toastSuccess(
             totalCreated > 0
-              ? `Regeltermin angelegt: ${totalCreated} Termin${totalCreated === 1 ? "" : "e"} eingetragen`
-              : "Regeltermin angelegt",
+              ? `Der Regeltermin ist angelegt. ${totalCreated === 1 ? "1 Termin steht" : `${totalCreated} Termine stehen`} im Plan.`
+              : "Der Regeltermin ist angelegt.",
           );
         } else {
           // oxlint-disable-next-line bauart/no-toast-form-error -- Kein Formularfehler: der Regeltermin ist angelegt und das Panel schließt; der Hinweis auf die Folgetermine hat keine andere Fläche.
@@ -2376,13 +2564,15 @@ export function useEventForm({
       logger.error("event_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      const msg =
-        err instanceof Error
-          ? err.message
-          : "Termin konnte nicht gespeichert werden";
       // Steht oben im Panel (SlideOverBody `error`), nicht als Toast:
       // Bauart 2 Regel 5.
-      setValidationError(msg);
+      void showFormError(err, {
+        object: saveErrorObject(
+          isSeriesFlow,
+          isSeriesFlow ? !initialSeries : !initialInstance,
+        ),
+        retry: retrySave,
+      });
     } finally {
       submitLock.current = false;
       setSubmitting(false);
@@ -2518,15 +2708,15 @@ export function useEventForm({
       scope,
       error: err instanceof Error ? err.message : String(err),
     });
-    const msg = timetableSeriesErrorMessage(
-      err,
-      "Termin konnte nicht gespeichert werden",
-    );
     setPendingSeriesEdit(null);
     setScopeClosingDayWarning(null);
     setLostEdits(null);
-    // Speicherfehler des Serienumfangs: oben im Panel, nicht als Toast.
-    setValidationError(msg);
+    // Speicherfehler des Serienumfangs: oben im Panel, nicht als Toast. Die
+    // Rückfragen davor sind geschlossen, das Panel ist die offene Fläche.
+    void showFormError(err, {
+      object: saveErrorObject(scope !== "single", false),
+      retry: retrySave,
+    });
   };
 
   /**
@@ -2657,8 +2847,8 @@ export function useEventForm({
         const successorFrom = template.schedules[0]?.validFrom;
         toastSuccess(
           chainScalars.edited && successorFrom
-            ? `Regeltermin gespeichert. Zeit, Raum und Titel gelten ab ${formatDate(successorFrom)}.`
-            : "Regeltermin gespeichert",
+            ? `Der Regeltermin ist gespeichert. Zeit, Raum und Titel gelten ab dem ${formatDate(successorFrom)}.`
+            : "Der Regeltermin ist gespeichert.",
         );
       } else {
         toastWarning(FOLLOW_UP_WARNING);
@@ -2708,7 +2898,9 @@ export function useEventForm({
         }
       }
       if (followUpOk) {
-        toastSuccess(`Regeltermin ab ${formatDate(effectiveDate)} geändert`);
+        toastSuccess(
+          `Der Regeltermin ist ab dem ${formatDate(effectiveDate)} geändert.`,
+        );
       } else {
         toastWarning(FOLLOW_UP_WARNING);
       }
@@ -2716,7 +2908,7 @@ export function useEventForm({
     } else {
       await timetableService.updateTemplate(seriesTemplateId, body);
       if (await replanTemplateFuture(seriesTemplateId, periodEnd)) {
-        toastSuccess("Regeltermin gespeichert");
+        toastSuccess("Der Regeltermin ist gespeichert.");
       } else {
         toastWarning(FOLLOW_UP_WARNING);
       }
@@ -2758,6 +2950,9 @@ export function useEventForm({
       );
       if (probe.count > 0) lost = probe;
     } catch (probeErr) {
+      // Bewusst still: die Rückfrage zu Einzelanpassungen ist ein Hinweis
+      // vor dem Speichern. Fällt die Zählung aus, läuft die Änderung wie ohne
+      // Einzelanpassungen weiter; der Ausfall steht im Log.
       logger.warn("edited_in_window_probe_failed", {
         error: probeErr instanceof Error ? probeErr.message : String(probeErr),
       });
@@ -2806,7 +3001,7 @@ export function useEventForm({
 
     const typedScope = scope === "following" ? "following" : "all";
     setSubmitting(true);
-    setValidationError(null);
+    clearFormError();
     try {
       const template = await timetableService.getTemplate(
         initialInstance.activityGroupId,
@@ -2828,12 +3023,13 @@ export function useEventForm({
       listKindTouched.current = false;
       setSelectedInstanceScope(typedScope);
     } catch (err) {
-      const message = timetableSeriesErrorMessage(
-        err,
-        "Regeltermin konnte nicht geladen werden",
-      );
-      setValidationError(message);
-      toastError(message);
+      logger.error("series_scope_template_load_failed", {
+        scope,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // Die Umfangsfrage ist noch offen und zeigt den Text an; erneut
+      // versuchen heißt dort, den Umfang noch einmal zu wählen.
+      void showFormError(err, { object: "die Serie" });
     } finally {
       setSubmitting(false);
     }
@@ -2857,7 +3053,7 @@ export function useEventForm({
           initialInstance.id,
           instanceBody(pending.roomId, groupId),
         );
-        toastSuccess("Termin gespeichert");
+        toastSuccess("Der Termin ist gespeichert.");
         onSaved({ kind: "instance", instance: saved });
         setPendingSeriesEdit(null);
         onClose();
@@ -2970,38 +3166,55 @@ export function useEventForm({
 
   const openSeriesDeleteConfirm = () => {
     setDeleteEffectiveDate(berlinTodayISO());
-    setDeleteError(null);
+    clearDeleteError();
     setDeleteConfirmOpen(true);
   };
+
+  const changeDeleteEffectiveDate = (next: string) => {
+    setDeleteEffectiveDate(next);
+    clearDeleteError();
+  };
+
+  // „Wiederholen“ löscht mit dem Datum, das jetzt im Dialog steht.
+  const latestDeleteRef = useRef<() => void>(() => undefined);
 
   const handleConfirmSeriesDelete = async () => {
     if (!initialSeries || !onDeleteSeries || deletingSeries) return;
     const minDate = berlinTodayISO();
     if (!deleteEffectiveDate) {
-      setDeleteError("Bitte ein Datum auswählen.");
+      const message = "Bitte wählen Sie ein Datum aus.";
+      deleteErrors.invalid(message, { effective_date: message });
       return;
     }
     if (deleteEffectiveDate < minDate) {
-      setDeleteError("Das Datum darf nicht in der Vergangenheit liegen.");
+      const message = "Bitte wählen Sie heute oder einen späteren Tag.";
+      deleteErrors.invalid(message, { effective_date: message });
       return;
     }
 
     setDeletingSeries(true);
-    setDeleteError(null);
+    clearDeleteError();
     try {
       await onDeleteSeries(initialSeries, deleteEffectiveDate);
       setDeleteConfirmOpen(false);
       onClose();
     } catch (err) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : "Regeltermin konnte nicht gelöscht werden";
-      setDeleteError(msg);
+      logger.error("series_delete_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // Der Löschdialog ist offen: der Fehler bleibt in ihm.
+      void deleteErrors.show(err, {
+        object: "das Löschen des Regeltermins",
+        retry: () => latestDeleteRef.current(),
+      });
     } finally {
       setDeletingSeries(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestDeleteRef.current = () => void handleConfirmSeriesDelete();
+  });
 
   // Bulk-add entries for the Kinder field: every distinct grade, class, and
   // group present in the loaded students, each carrying its member ids.
@@ -3177,9 +3390,10 @@ export function useEventForm({
   const [offeringSources, setOfferingSources] = useState<
     OfferingSourceOption[] | null
   >(null);
-  const [offeringSourcesError, setOfferingSourcesError] = useState<
-    string | null
-  >(null);
+  const offeringSourcesLoad = useApiLoadError();
+  const showOfferingSourcesError = offeringSourcesLoad.show;
+  const clearOfferingSourcesError = offeringSourcesLoad.clear;
+  const [offeringSourcesReload, setOfferingSourcesReload] = useState(0);
   // The manual shared roster as it was before a source was selected in this
   // session — restored when the source is cleared again (#2147 review).
   const preSourceStudentIdsRef = useRef<string[]>([]);
@@ -3194,7 +3408,7 @@ export function useEventForm({
   useEffect(() => {
     if (!wantsOfferingSources) return;
     let cancelled = false;
-    setOfferingSourcesError(null);
+    clearOfferingSourcesError();
     timetableService
       .getOfferingSources(form.calendarPeriodId || undefined)
       .then((options) => {
@@ -3205,16 +3419,25 @@ export function useEventForm({
           error: err instanceof Error ? err.message : String(err),
         });
         if (!cancelled) {
+          // An empty list keeps stored sources removable (they render as
+          // "nicht mehr verfügbar"); the alert says why the list is empty.
           setOfferingSources([]);
-          setOfferingSourcesError(
-            "Betreuungsangebote konnten nicht geladen werden.",
-          );
+          void showOfferingSourcesError(err, {
+            object: "die Liste der Betreuungsangebote",
+            retry: () => setOfferingSourcesReload((count) => count + 1),
+          });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [wantsOfferingSources, form.calendarPeriodId]);
+  }, [
+    wantsOfferingSources,
+    form.calendarPeriodId,
+    offeringSourcesReload,
+    clearOfferingSourcesError,
+    showOfferingSourcesError,
+  ]);
 
   // The selected offerings in stored order — the order matters: it is the
   // union's subtraction order on the backend.
@@ -3242,16 +3465,21 @@ export function useEventForm({
   // Without this the Klassen-Auswahl would sit in "wird ermittelt ..."
   // forever after a failed request — a dead end with nothing the admin can
   // act on (.claude/rules/verstaendlichkeit.md).
-  const [combinedSourceCountsError, setCombinedSourceCountsError] = useState<
-    string | null
-  >(null);
+  const [combinedSourceCountsFailed, setCombinedSourceCountsFailed] =
+    useState(false);
+  const combinedSourceCountsLoad = useApiLoadError();
+  const showCombinedSourceCountsError = combinedSourceCountsLoad.show;
+  const clearCombinedSourceCountsError = combinedSourceCountsLoad.clear;
+  const [combinedSourceCountsReload, setCombinedSourceCountsReload] =
+    useState(0);
   const combinedCountsKey = form.sourceCareOfferingIds.join(",");
   useEffect(() => {
     // Reset FIRST: after adding or removing an offering the previous exact
     // counts describe the old selection — until the new answer lands, the
     // per-offering sums must serve as the preview again.
     setCombinedSourceCounts(null);
-    setCombinedSourceCountsError(null);
+    setCombinedSourceCountsFailed(false);
+    clearCombinedSourceCountsError();
     if (!wantsOfferingSources || combinedCountsKey === "") {
       return;
     }
@@ -3270,15 +3498,24 @@ export function useEventForm({
         });
         if (!cancelled) {
           setCombinedSourceCounts(null);
-          setCombinedSourceCountsError(
-            "Die Kinder der gewählten Angebote konnten nicht geladen werden. Bitte schließen Sie das Fenster und öffnen Sie es erneut.",
-          );
+          setCombinedSourceCountsFailed(true);
+          void showCombinedSourceCountsError(err, {
+            object: "die Kinderzahl der gewählten Angebote",
+            retry: () => setCombinedSourceCountsReload((count) => count + 1),
+          });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [wantsOfferingSources, combinedCountsKey, form.calendarPeriodId]);
+  }, [
+    wantsOfferingSources,
+    combinedCountsKey,
+    form.calendarPeriodId,
+    combinedSourceCountsReload,
+    clearCombinedSourceCountsError,
+    showCombinedSourceCountsError,
+  ]);
 
   // Per-Jahrgang counts shown next to the filter checkboxes: exact when the
   // combined endpoint answered, per-offering sums (upper bound) before that.
@@ -3315,7 +3552,7 @@ export function useEventForm({
   const sourceCountsPending =
     selectedOfferingSources.length > 0 &&
     combinedSourceCounts === null &&
-    combinedSourceCountsError === null;
+    !combinedSourceCountsFailed;
 
   // Klassen offered for the filter: every class with enrolled children plus
   // the already-selected ones, so a saved filter stays visible even when its
@@ -3579,7 +3816,7 @@ export function useEventForm({
               : current.weekdayRosters,
       };
     });
-    setValidationError(null);
+    clearFormError();
   };
 
   useEffect(() => {
@@ -3628,51 +3865,15 @@ export function useEventForm({
     }));
   };
 
-  const retryStudentLoad = async () => {
-    const studentSeq = ++studentLoadSeq.current;
-    const isCurrentStudentLoad = () => studentLoadSeq.current === studentSeq;
-    setLoadingStudents(true);
-    setStudentLoadError(null);
-    try {
-      const studentData = await fetchAllStudentOptions();
-      if (!isCurrentStudentLoad()) return;
-      setStudents(sortPeople(studentData));
-      setValidationError(null);
-    } catch (err) {
-      logger.error("students_retry_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      if (!isCurrentStudentLoad()) return;
-      setStudents([]);
-      setStudentLoadError(STUDENT_LOAD_ERROR);
-    } finally {
-      if (isCurrentStudentLoad()) setLoadingStudents(false);
-    }
-  };
+  const retryStudentLoad = loadStudentList;
+  const retryStaffLoad = loadStaffList;
 
-  const retryStaffLoad = async () => {
-    const staffSeq = ++staffLoadSeq.current;
-    const isCurrentStaffLoad = () => staffLoadSeq.current === staffSeq;
-    setLoadingStaff(true);
-    setStaffLoadError(null);
-    try {
-      const staffData = await staffService.getAllStaff();
-      if (!isCurrentStaffLoad()) return;
-      setStaff(
-        sortPeople(staffData.map((item) => ({ id: item.id, name: item.name }))),
-      );
-      setValidationError(null);
-    } catch (err) {
-      logger.error("staff_retry_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      if (!isCurrentStaffLoad()) return;
-      setStaff([]);
-      setStaffLoadError(STAFF_LOAD_ERROR);
-    } finally {
-      if (isCurrentStaffLoad()) setLoadingStaff(false);
-    }
-  };
+  useLayoutEffect(() => {
+    retryStudentLoadRef.current = () => void loadStudentList();
+    retryStaffLoadRef.current = () => void loadStaffList();
+    retryReferenceLoadRef.current = () =>
+      loadReferenceLists(form.categoryId, effectiveSeries?.categoryName);
+  });
 
   // Datum and Tagesnotiz only apply to the single-instance scope — series-wide
   // scopes write the template, which carries the Wochennotiz instead of the
@@ -3729,6 +3930,9 @@ export function useEventForm({
             : { ...prev, categoryId };
         });
       } catch (err: unknown) {
+        // Bewusst still: der Abgleich läuft ohne Zutun, wenn das Fenster
+        // wieder in den Vordergrund kommt. Die bisherige Liste bleibt
+        // gültig und wählbar; ein Fehler beim ersten Laden steht schon oben.
         logger.error("categories_refresh_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
@@ -3748,11 +3952,25 @@ export function useEventForm({
         setPlanningTracks(planningTracks);
       }
     } catch (err: unknown) {
+      // Bewusst still: wie beim Kategorien-Abgleich oben bleibt die bisherige
+      // Liste gültig; der Abgleich läuft ohne Zutun im Hintergrund.
       logger.error("planning_tracks_refresh_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
     }
   }, []);
+
+  // Local hints win; a server field error marks the same control when the
+  // local check had nothing to say. Without one the local map is passed as
+  // is, so its identity only changes with a new validation result.
+  const serverFieldErrors = SERVER_FIELD_KEYS.flatMap(([wireField, key]) => {
+    const message = formErrors.fieldError(wireField);
+    return message ? [[key, message] as const] : [];
+  });
+  const shownFieldErrors =
+    serverFieldErrors.length === 0
+      ? fieldErrors
+      : { ...Object.fromEntries(serverFieldErrors), ...fieldErrors };
 
   return {
     form,
@@ -3761,8 +3979,11 @@ export function useEventForm({
     selectCalendarPeriod,
     toggleWeekday,
     changeTargetGroupType,
-    fieldErrors,
-    validationError,
+    fieldErrors: shownFieldErrors,
+    formRef,
+    saveError: formErrors.error,
+    referenceLoadError: referenceLoad.error,
+    referenceLoadFailed,
     rooms,
     categories,
     refreshCategories,
@@ -3773,9 +3994,11 @@ export function useEventForm({
     staff,
     loadingRefs,
     loadingStudents,
-    studentLoadError,
+    studentLoadFailed,
+    studentLoadError: studentLoad.error,
     loadingStaff,
-    staffLoadError,
+    staffLoadFailed,
+    staffLoadError: staffLoad.error,
     retryStudentLoad,
     retryStaffLoad,
     submitting,
@@ -3785,9 +4008,9 @@ export function useEventForm({
     deleteConfirmOpen,
     setDeleteConfirmOpen,
     deleteEffectiveDate,
-    setDeleteEffectiveDate,
-    deleteError,
-    setDeleteError,
+    changeDeleteEffectiveDate,
+    deleteError: deleteErrors.error,
+    deleteDateError: deleteErrors.fieldError("effective_date"),
     deletingSeries,
     openSeriesDeleteConfirm,
     handleConfirmSeriesDelete,
@@ -3808,7 +4031,8 @@ export function useEventForm({
     conflictWarnings,
     coverageWarnings,
     coverageWarningCount,
-    coverageCheckError,
+    coverageCheckFailed,
+    conflictCheckFailed,
     isEditingInstance,
     isEditingSeries,
     isSeriesFlow,
@@ -3822,7 +4046,7 @@ export function useEventForm({
     studentBulkOptions,
     targetClassOptions,
     offeringSources,
-    offeringSourcesError,
+    offeringSourcesError: offeringSourcesLoad.error,
     selectedOfferingSources,
     sourcePhaseLockId,
     sourceGradeOptions,
@@ -3831,7 +4055,8 @@ export function useEventForm({
     sourceClassCounts,
     sourceFilteredCount,
     sourceCountsPending,
-    sourceCountsError: combinedSourceCountsError,
+    sourceCountsFailed: combinedSourceCountsFailed,
+    sourceCountsError: combinedSourceCountsLoad.error,
     sourceRosterDiff,
     sourcePhaseKidsFromWarning,
     sourceOverlapWarnings,

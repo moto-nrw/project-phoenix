@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Download, Info, ListChecks, RefreshCw, X } from "lucide-react";
@@ -9,6 +9,7 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
@@ -32,7 +33,16 @@ import {
   type ImportChildQuota,
 } from "~/lib/child-quota-import";
 import { childQuotaMessage } from "~/lib/child-quota-error";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
+import {
+  downloadImportTemplate,
+  importResponseError,
+  postImportFile,
+} from "~/lib/import-request";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentImportPage" });
@@ -166,7 +176,13 @@ export default function StudentImportPage() {
   const [importComplete, setImportComplete] = useState(false);
   const [importInterrupted, setImportInterrupted] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Fehler der Datei und des Imports stehen im Kasten über der Vorlage,
+  // mit Wiederholen (#2517). Ein angehaltener Stapel ist kein Fehler des
+  // Ablaufs, sondern ein Stand: er steht als eigener Hinweis.
+  const importErrors = useApiFormError();
+  const { show: showTemplateError } = useApiErrorDisplay();
+  const [batchNotice, setBatchNotice] = useState<string | null>(null);
+  const latestImportRef = useRef<() => void>(() => undefined);
   const [templateFormat, setTemplateFormat] = useState<"csv" | "xlsx">("xlsx");
   const [mode, setMode] = useState<ImportMode>("create");
 
@@ -189,49 +205,30 @@ export default function StudentImportPage() {
     setImportComplete(false);
     setImportInterrupted(false);
     setImportResult(null);
-    setError(null);
-  }, []);
+    importErrors.clear();
+    setBatchNotice(null);
+  }, [importErrors]);
 
   // Handle template download from backend
   const handleDownloadTemplate = async () => {
     try {
-      const token = session?.user?.token;
-      if (!token) {
-        setError("Keine Authentifizierung");
-        return;
-      }
-
-      const response = await fetch(
+      await downloadImportTemplate(
         `/api/import/students/template?format=${templateFormat}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error("Fehler beim Herunterladen der Vorlage");
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download =
+        session?.user?.token,
         templateFormat === "xlsx"
           ? "schueler-import-vorlage.xlsx"
-          : "schueler-import-vorlage.csv";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+          : "schueler-import-vorlage.csv",
+      );
     } catch (err) {
       logger.error("template_download_failed", {
         error: err instanceof Error ? err.message : String(err),
         format: templateFormat,
       });
-      setError(err instanceof Error ? err.message : "Unbekannter Fehler");
+      // Eine Aktion ohne Formular: Toast mit Wiederholen.
+      void showTemplateError(err, {
+        object: "die Vorlage",
+        retry: () => void handleDownloadTemplate(),
+      });
     }
   };
 
@@ -240,36 +237,27 @@ export default function StudentImportPage() {
     async (file: File, importMode: ImportMode = mode) => {
       const generation = ++previewGeneration.current;
       setUploadedFile(file);
-      setError(null);
+      importErrors.clear();
+      setBatchNotice(null);
       setIsLoading(true);
       setImportComplete(false);
       setImportInterrupted(false);
       setImportResult(null);
 
       try {
-        const token = session?.user?.token;
-        if (!token) {
-          throw new Error("Keine Authentifizierung");
-        }
-
         const formData = new FormData();
         formData.append("file", file);
         formData.append("mode", importMode);
 
-        const response = await fetch("/api/import/students/preview", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        });
-
-        const result = (await response.json()) as Record<string, unknown>;
+        const response = await postImportFile(
+          "/api/import/students/preview",
+          session?.user?.token,
+          formData,
+        );
+        const result = response.body;
 
         if (!response.ok) {
-          throw new Error(
-            (result.message as string | undefined) ?? "Fehler bei der Vorschau",
-          );
+          throw importResponseError(response, "Student import preview failed");
         }
 
         // Transform backend response to display format
@@ -344,13 +332,16 @@ export default function StudentImportPage() {
           error: err instanceof Error ? err.message : String(err),
         });
         if (generation !== previewGeneration.current) return;
-        setError(err instanceof Error ? err.message : "Unbekannter Fehler");
+        void importErrors.show(err, {
+          object: "die Datei",
+          retry: () => void handleFileUpload(file, importMode),
+        });
         setPreviewData([]);
       } finally {
         if (generation === previewGeneration.current) setIsLoading(false);
       }
     },
-    [session, mode],
+    [session, mode, importErrors],
   );
 
   // A new mode changes what the preview means, so the uploaded file is
@@ -359,7 +350,7 @@ export default function StudentImportPage() {
     setMode(next);
     if (uploadedFile) {
       setPreviewData([]);
-      handleFileUpload(uploadedFile, next).catch(() => undefined);
+      void handleFileUpload(uploadedFile, next);
     }
   };
 
@@ -368,27 +359,20 @@ export default function StudentImportPage() {
     if (!uploadedFile || isLoading) return;
 
     setIsImporting(true);
-    setError(null);
+    importErrors.clear();
+    setBatchNotice(null);
 
     try {
-      const token = session?.user?.token;
-      if (!token) {
-        throw new Error("Keine Authentifizierung");
-      }
-
       const formData = new FormData();
       formData.append("file", uploadedFile);
       formData.append("mode", mode);
 
-      const response = await fetch("/api/import/students/import", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      const result = (await response.json()) as Record<string, unknown>;
+      const response = await postImportFile(
+        "/api/import/students/import",
+        session?.user?.token,
+        formData,
+      );
+      const result = response.body;
 
       if (!response.ok) {
         const interrupted = readImportBatchFailure<ImportRowResult>(result);
@@ -398,7 +382,7 @@ export default function StudentImportPage() {
           setPreviewData((interrupted.Errors ?? []).map(toDisplayStudent));
           // Ein Stapel kann am Kinderkontingent scheitern, wenn zwischen
           // Vorschau und Start andere Kinder dazukamen.
-          setError(
+          setBatchNotice(
             importBatchFailureMessage(
               interrupted,
               childQuotaMessage(readImportBatchRejection(result)),
@@ -419,11 +403,7 @@ export default function StudentImportPage() {
           await handleFileUpload(uploadedFile);
           return;
         }
-        throw new Error(
-          (result.error as string | undefined) ??
-            (result.message as string | undefined) ??
-            "Fehler beim Import",
-        );
+        throw importResponseError(response, "Student import failed");
       }
 
       const importData = result.data as ImportResult;
@@ -436,13 +416,13 @@ export default function StudentImportPage() {
         // Don't set importComplete - keep preview visible so user sees which rows failed
         setPreviewData(importData.Errors.map(toDisplayStudent));
         toast.warning(
-          `${childCountLabel(importData.CreatedCount)} importiert, ${importData.UpdatedCount} aktualisiert, ${importData.ErrorCount} übersprungen`,
+          `Der Import ist fertig: ${childCountLabel(importData.CreatedCount)} importiert, ${importData.UpdatedCount} aktualisiert, ${importData.ErrorCount} übersprungen.`,
         );
       } else {
         // Full success: Mark complete, show success toast and reset form for next import
         setImportComplete(true);
         toast.success(
-          `${childCountLabel(importData.CreatedCount)} importiert, ${importData.UpdatedCount} aktualisiert`,
+          `Der Import ist fertig: ${childCountLabel(importData.CreatedCount)} importiert, ${importData.UpdatedCount} aktualisiert.`,
         );
         resetForm();
       }
@@ -450,11 +430,19 @@ export default function StudentImportPage() {
       logger.error("student_import_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(err instanceof Error ? err.message : "Unbekannter Fehler");
+      void importErrors.show(err, {
+        object: "das Importieren der Datei",
+        retry: () => latestImportRef.current(),
+      });
     } finally {
       setIsImporting(false);
     }
   };
+
+  // Wiederholen importiert die Datei, die dann gewählt ist.
+  useLayoutEffect(() => {
+    latestImportRef.current = () => void handleImport();
+  });
 
   // Drag and drop handlers
   const handleDragEnter = (e: React.DragEvent) => {
@@ -490,9 +478,11 @@ export default function StudentImportPage() {
           file.name.endsWith(".csv") ||
           file.name.endsWith(".xlsx"))
       ) {
-        handleFileUpload(file).catch(() => undefined);
+        void handleFileUpload(file);
       } else {
-        setError("Bitte nur CSV- oder Excel-Dateien (.csv, .xlsx) hochladen");
+        importErrors.invalid(
+          "Diese Datei passt nicht. Bitte laden Sie eine CSV- oder Excel-Datei hoch.",
+        );
       }
     }
   };
@@ -570,29 +560,25 @@ export default function StudentImportPage() {
         </ul>
       </SectionCard>
 
-      {/* Error Display */}
-      {error && (
+      <FormErrorAlert message={importErrors.error} />
+      {batchNotice && importResult ? (
         <div className="relative">
           <Alert
-            type={
-              importInterrupted && importResult
-                ? importBatchFailureAlertType(importResult)
-                : "error"
-            }
-            message={error}
+            type={importBatchFailureAlertType(importResult)}
+            message={batchNotice}
           />
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            onClick={() => setError(null)}
+            onClick={() => setBatchNotice(null)}
             className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-2 -translate-y-1/2"
-            aria-label="Fehler schließen"
+            aria-label="Hinweis schließen"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
-      )}
+      ) : null}
 
       {/* Download Template Button */}
       <SectionCard title="Vorlage herunterladen" icon={Download}>
@@ -638,7 +624,7 @@ export default function StudentImportPage() {
               type="button"
               variant="primary"
               size="sm"
-              onClick={() => handleDownloadTemplate().catch(() => undefined)}
+              onClick={() => void handleDownloadTemplate()}
               className="h-10 w-full gap-2"
             >
               <Download className="h-5 w-5" aria-hidden="true" />
@@ -673,7 +659,7 @@ export default function StudentImportPage() {
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
-        onFileSelect={(file) => handleFileUpload(file).catch(() => undefined)}
+        onFileSelect={(file) => void handleFileUpload(file)}
       />
 
       {/* Preview Section */}

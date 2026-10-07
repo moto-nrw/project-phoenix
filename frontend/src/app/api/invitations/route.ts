@@ -42,7 +42,7 @@ interface IncomingCreateInvitationPayload {
 
 interface BackendCreateInvitationPayload {
   email: string;
-  role_id: string;
+  role_id?: string;
   first_name?: string;
   last_name?: string;
   position?: string;
@@ -77,15 +77,14 @@ export const POST = createPostHandler<
     body: IncomingCreateInvitationPayload,
     token: string,
   ) => {
+    // A missing or unusable role goes out as a missing field, never as a
+    // rounded value: the backend then answers 400 with `role_id` in `errors`,
+    // so the form marks the field instead of showing a crash (#2511).
     const roleId = normalizeRoleId(body.role_id ?? body.roleId);
-
-    if (roleId === undefined) {
-      throw new TypeError("Invalid invitation payload: role id missing");
-    }
 
     const payload: BackendCreateInvitationPayload = {
       email: body.email,
-      role_id: roleId,
+      ...(roleId === undefined ? {} : { role_id: roleId }),
       first_name: body.first_name ?? body.firstName,
       last_name: body.last_name ?? body.lastName,
       position: body.position,

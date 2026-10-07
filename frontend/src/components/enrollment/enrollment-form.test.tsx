@@ -122,7 +122,9 @@ vi.mock("next-intl", async () => {
   };
 });
 
-import { EnrollmentForm } from "./enrollment-form";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+import { EnrollmentForm, submitFieldName } from "./enrollment-form";
 import type {
   PublicFormSchema,
   PublicLegalTexts,
@@ -728,16 +730,20 @@ describe("EnrollmentForm", () => {
     // strings, a 200) do NOT trigger this — see the beforeEach default.
     mockFetchPublicLegalTexts.mockReset();
     mockFetchPublicLegalTexts.mockRejectedValue(
-      new Error("legal texts request failed: 500"),
+      new ApiError("legal texts request failed: 500", 500),
     );
     renderForm();
     await waitForLoaded();
 
-    // The error banner surfaces and the schema-driven form body never
-    // renders, so consent can't be collected without the documents.
+    // The load error replaces the form, so consent can't be collected
+    // without the documents; the backend sentence never reaches the parent.
     expect(
-      screen.getByText("legal texts request failed: 500"),
+      await screen.findByText(catalogText("general.server", "die Anmeldung")),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText("legal texts request failed: 500"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /absenden/i })).toBeNull();
     expect(screen.queryByText("Flexible Betreuung")).not.toBeInTheDocument();
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
   });
@@ -1193,6 +1199,27 @@ describe("EnrollmentForm", () => {
       dismissal: { tue: "15:00" },
     });
     expect(onSubmitted).toHaveBeenCalledWith("/status/abc");
+  });
+
+  it("stays quiet when a submitter stops before sending (#2515)", async () => {
+    const onSubmitted = vi.fn();
+    const submitter = vi.fn().mockResolvedValue(null);
+    renderForm({ onSubmitted, submitter });
+    await waitForLoaded();
+
+    await fillRequiredFields();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Fixe Betreuung/ }));
+    fireEvent.change(screen.getByLabelText("Dienstag"), {
+      target: { value: "15:00" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => expect(submitter).toHaveBeenCalledTimes(1));
+    expect(onSubmitted).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Anmeldung absenden" }),
+    ).toBeEnabled();
   });
 
   it("limits pickup weekdays to the child's selected care days", async () => {
@@ -3628,10 +3655,12 @@ describe("EnrollmentForm — fixed pickup times", () => {
     // Server-side defense-in-depth: a stale 12:00 reaches the backend, which
     // rejects it with the stable code. The form must mark the offending
     // schedule field (red), not only show the banner.
-    const message =
-      "Bitte wähle bei den Abholzeiten nur Uhrzeiten aus der vorgegebenen Liste.";
+    const message = catalogText(
+      "enrollment.pickup_time_not_allowed",
+      "die Anmeldung",
+    );
     mockSubmitEnrollment.mockRejectedValueOnce(
-      Object.assign(new Error(message), {
+      new ApiError("pickup time not allowed", 400, {
         code: "enrollment.pickup_time_not_allowed",
       }),
     );
@@ -3656,10 +3685,12 @@ describe("EnrollmentForm — fixed pickup times", () => {
     // the latest phase and rejects it. The precise off-list pass finds nothing,
     // so without the conservative fallback the rejection would be swallowed to
     // a banner-only message and no field would turn red.
-    const message =
-      "Bitte wähle bei den Abholzeiten nur Uhrzeiten aus der vorgegebenen Liste.";
+    const message = catalogText(
+      "enrollment.pickup_time_not_allowed",
+      "die Anmeldung",
+    );
     mockSubmitEnrollment.mockRejectedValueOnce(
-      Object.assign(new Error(message), {
+      new ApiError("pickup time not allowed", 400, {
         code: "enrollment.pickup_time_not_allowed",
       }),
     );
@@ -3674,6 +3705,103 @@ describe("EnrollmentForm — fixed pickup times", () => {
     await waitFor(() =>
       expect(screen.getAllByText(message).length).toBeGreaterThanOrEqual(2),
     );
+  });
+
+  it("marks the field the backend names by its JSON path (#2515)", async () => {
+    mockSubmitEnrollment.mockRejectedValueOnce(
+      new ApiError("child 1 missing name", 400, {
+        code: "general.input",
+        errors: [{ field: "children.0.first_name", reason: "required" }],
+      }),
+    );
+    renderForm({ initialDraft: draftWithPickup({ mon: "14:45" }) });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    expect(
+      await screen.findByText(catalogText("general.input", "die Anmeldung")),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        document.querySelector('input[name="children_0_first_name"]'),
+      ).toHaveAttribute("aria-invalid", "true");
+    });
+    expect(screen.queryByText("child 1 missing name")).not.toBeInTheDocument();
+  });
+
+  it("marks and focuses a child's own form field the backend names (#2515)", async () => {
+    mockSubmitEnrollment.mockRejectedValueOnce(
+      new ApiError("field allergies is required", 400, {
+        code: "enrollment.field_required",
+        errors: [
+          { field: "children.0.custom_data.allergies", reason: "required" },
+        ],
+      }),
+    );
+    renderForm({ initialDraft: draftWithPickup({ mon: "14:45" }) });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    const input = await waitFor(() => {
+      const found = document.querySelector<HTMLInputElement>(
+        'input[name="children_0_custom_allergies"]',
+      );
+      expect(found).toHaveAttribute("aria-invalid", "true");
+      return found!;
+    });
+    await waitFor(() => expect(input).toHaveFocus());
+  });
+
+  it("offers the request ID and resends the current form on a server error", async () => {
+    mockSubmitEnrollment
+      .mockRejectedValueOnce(
+        new ApiError("boom", 500, { instance: "req-2515" }),
+      )
+      .mockResolvedValueOnce({ request_id: "1", status_url: "/status/abc" });
+    const onSubmitted = vi.fn();
+    renderForm({
+      initialDraft: draftWithPickup({ mon: "14:45" }),
+      onSubmitted,
+    });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    expect(
+      await screen.findByText(catalogText("general.server", "die Anmeldung")),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/req-2515/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => expect(onSubmitted).toHaveBeenCalled());
+    expect(mockSubmitEnrollment).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops the load when the form template fails, then retries", async () => {
+    mockFetchPublicActiveSchema.mockReset();
+    mockFetchPublicActiveSchema
+      .mockRejectedValueOnce(new ApiError("schema", 503))
+      .mockResolvedValueOnce(pickupSchema());
+    renderForm();
+    await waitForLoaded();
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Anmeldung"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Anmeldung absenden" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Anmeldung absenden" }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -3781,5 +3909,22 @@ describe("EnrollmentForm restrictToOfferings (#2251)", () => {
     // The offering change is applied.
     expect(payload.children[0]?.offering_ids).toContain(11);
     expect(payload.children[0]?.offering_ids).toContain(12);
+  });
+});
+
+describe("submitFieldName (#2515)", () => {
+  it.each([
+    ["guardian_email", "guardian_email"],
+    ["children.0.first_name", "children_0_first_name"],
+    ["children.1.custom_data.allergies", "children_1_custom_allergies"],
+    [
+      "children.0.custom_data.student.departure_companion_note",
+      "children_0_departure_companion_note",
+    ],
+    ["custom_data.siblings", "custom_siblings"],
+    ["consent_flags.agb", "consent_agb"],
+    ["additional_guardians.1.email", "additional_guardian_1_email"],
+  ])("maps %s to the input name %s", (path, name) => {
+    expect(submitFieldName(path)).toBe(name);
   });
 });

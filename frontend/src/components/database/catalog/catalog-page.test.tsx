@@ -7,6 +7,8 @@ import {
   type CatalogConfig,
 } from "~/components/database/catalog/catalog-page";
 import type { SectionConfig } from "~/lib/database/types";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 const mockUpdateUrlParams = vi.hoisted(() => vi.fn());
 vi.mock("~/hooks/useUpdateUrlParams", () => ({
@@ -23,7 +25,10 @@ vi.mock("next/navigation", () => ({
 const toastSuccess = vi.hoisted(() => vi.fn());
 const toastError = vi.hoisted(() => vi.fn());
 const toastWarning = vi.hoisted(() => vi.fn());
-vi.mock("~/contexts/ToastContext", () => ({
+const showApiError = vi.hoisted(() => vi.fn());
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useApiErrorDisplay: () => ({ show: showApiError }),
   useToast: () => ({
     success: toastSuccess,
     error: toastError,
@@ -230,6 +235,30 @@ describe("CatalogPage", () => {
     expect(onChanged).toHaveBeenCalled();
   });
 
+  it("shows a refused save in the form with the catalog text and the field marked", async () => {
+    const { update } = renderPage({ selectedId: "1" });
+    update.mockRejectedValueOnce(
+      new ApiError("a planning track with this name already exists", 409, {
+        code: "timetable.planning_track_name_taken",
+        errors: [{ field: "name", reason: "taken" }],
+      }),
+    );
+
+    fireEvent.change(screen.getByDisplayValue("Essen"), {
+      target: { value: "Lernzeit" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("timetable.planning_track_name_taken", "die Kategorie"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/already exists/)).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue("Lernzeit")).toBeInTheDocument();
+    expect(showApiError).not.toHaveBeenCalled();
+  });
+
   it("keeps an edit while the catalog page rerenders", () => {
     renderPage({ selectedId: "1" });
 
@@ -293,6 +322,25 @@ describe("CatalogPage", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Wieder anbieten" }));
 
     await waitFor(() => expect(restore).toHaveBeenCalledWith(ITEMS[2]));
+  });
+
+  it("reports a failed write through the shared error path, never its message", async () => {
+    const failure = new ApiError("category is archived", 409, {
+      code: "general.business_rejection",
+    });
+    const { restore } = renderPage({ selectedId: "3" });
+    restore.mockRejectedValueOnce(failure);
+
+    fireEvent.click(screen.getByRole("button", { name: /Aktionen für Altes/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Wieder anbieten" }));
+
+    await waitFor(() =>
+      expect(showApiError).toHaveBeenCalledWith(failure, {
+        object: "die Kategorie",
+      }),
+    );
+    expect(toastError).not.toHaveBeenCalled();
+    expect(toastSuccess).not.toHaveBeenCalled();
   });
 
   it("requires restoration before an archived read-only entry can be edited", async () => {

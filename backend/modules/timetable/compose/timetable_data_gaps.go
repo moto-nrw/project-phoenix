@@ -31,7 +31,7 @@ func (d *timetableData) ListUnderstaffedInstances(ctx context.Context, from, to 
 	gaps := make([]timetable.UnderstaffedInstance, 0)
 	for _, inst := range candidates {
 		rows := rowsByInstance[inst.ID]
-		if timetable.IsUnderstaffed(staffingRowsOf(rows)) {
+		if timetable.IsUnderstaffedWithMinimum(staffingRowsOf(rows), dutyMinimumStaff(inst)) {
 			gaps = append(gaps, understaffedInstanceOf(inst, rows))
 		}
 	}
@@ -52,6 +52,20 @@ func understaffedInstanceOf(inst *scheduleModels.ActivityInstance, rows []*sched
 		}
 	}
 	return gap
+}
+
+// dutyMinimumStaff is the staffing floor of a duty (#3822): its occurrence
+// pin, otherwise the template's „Benötigtes Personal“. Other blocks have none;
+// their gap rule stays the absence rule.
+func dutyMinimumStaff(inst *scheduleModels.ActivityInstance) int {
+	if inst == nil || inst.TemplateType != timetable.GroupTypeDuty {
+		return 0
+	}
+	override := inst.RequiredStaff
+	if override == nil {
+		override = inst.TemplateRequiredStaff
+	}
+	return timetable.EffectiveRequiredStaff(override, 0, 1)
 }
 
 // staffingRowsOf maps staff rows onto the owner's staffing vocabulary.

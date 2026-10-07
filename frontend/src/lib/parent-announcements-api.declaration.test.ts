@@ -91,6 +91,7 @@ describe("Einverständnisse in the staff client (#3430)", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/parent-announcements/42/declaration-export?format=csv",
+      undefined,
     );
     expect(downloadBlobMock).toHaveBeenCalledWith(
       expect.any(Blob),
@@ -114,6 +115,7 @@ describe("Einverständnisse in the staff client (#3430)", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/parent-announcements/42/declaration-export?format=pdf",
+      undefined,
     );
     expect(downloadBlobMock).toHaveBeenCalledWith(
       expect.any(Blob),

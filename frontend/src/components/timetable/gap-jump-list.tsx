@@ -29,7 +29,7 @@ interface GapJumpListProps {
    * Solange die Lücken-Abfrage läuft, zeigt der Chip einen neutralen
    * Prüf-Hinweis statt der Entwarnung "Keine Lücken" — ein leeres Array vor
    * Datenankunft ist keine bestätigte Aussage. Den Fehlerfall blendet der
-   * Aufrufer aus (der Fehler wird dort getoastet).
+   * Aufrufer aus; er zeigt den Ladefehler vor Ort an (#2516).
    */
   state?: "ready" | "loading";
 }

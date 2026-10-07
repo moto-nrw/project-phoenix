@@ -1,16 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ParentSection } from "~/components/parent/shell/parent-section";
 import { ParentSectionSkeleton } from "~/components/parent/parent-page";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   StatusBadge,
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { formatBerlinDate } from "~/lib/date-helpers";
 import {
   getChildConsents,
@@ -34,11 +39,17 @@ export function ChildConsentsSection({
     null,
   );
   const [submittingAction, setSubmittingAction] = useState(false);
-  const [failedAction, setFailedAction] = useState<PhotoConsentAction | null>(
-    null,
-  );
   const [successfulAction, setSuccessfulAction] =
     useState<PhotoConsentAction | null>(null);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  // Der Fehler einer Änderung steht im offenen Dialog: ein Toast läge
+  // unsichtbar unter ihm.
+  const actionErrors = useApiFormError();
+  const latestConfirmRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     let active = true;
@@ -48,22 +59,31 @@ export function ChildConsentsSection({
         if (!active) return;
         setConsents(next);
         setLoadFailed(false);
-      } catch {
-        if (active) setLoadFailed(true);
+      } catch (err) {
+        if (!active) return;
+        setLoadFailed(true);
+        void showLoadError(err, {
+          object: t("errorObjectList"),
+          retry: () => {
+            clearLoadError();
+            setLoadFailed(false);
+            setReloadKey((key) => key + 1);
+          },
+        });
       }
     }
     void loadConsents();
     return () => {
       active = false;
     };
-  }, [reloadKey, studentId]);
+  }, [clearLoadError, reloadKey, showLoadError, studentId, t]);
 
   async function confirmAction() {
     const action = pendingAction;
     if (!action) return;
 
     setSubmittingAction(true);
-    setFailedAction(null);
+    actionErrors.clear();
     try {
       const updatedConsents =
         action === "grant"
@@ -72,37 +92,24 @@ export function ChildConsentsSection({
       setConsents(updatedConsents);
       setPendingAction(null);
       setSuccessfulAction(action);
-    } catch {
-      setFailedAction(action);
+    } catch (err) {
+      void actionErrors.show(err, {
+        object: t("errorObjectPhoto"),
+        retry: () => latestConfirmRef.current(),
+      });
     } finally {
       setSubmittingAction(false);
     }
   }
 
+  useLayoutEffect(() => {
+    latestConfirmRef.current = () => void confirmAction();
+  });
+
   if (consents === null && !loadFailed) {
     return <ParentSectionSkeleton rows={4} />;
   }
-  if (loadFailed) {
-    return (
-      <Alert
-        type="error"
-        message={t("loadError")}
-        action={
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={() => {
-              setLoadFailed(false);
-              setReloadKey((key) => key + 1);
-            }}
-          >
-            {t("retry")}
-          </Button>
-        }
-      />
-    );
-  }
+  if (loadFailed) return <LoadErrorAlert error={loadError} />;
 
   const visibleConsents =
     consents?.filter((consent) => consent.state !== "not_recorded") ?? [];
@@ -129,12 +136,6 @@ export function ChildConsentsSection({
         ) : null}
         {successfulAction === "grant" ? (
           <Alert type="success" message={t("grantSuccess")} />
-        ) : null}
-        {failedAction === "withdraw" ? (
-          <Alert type="error" message={t("withdrawError")} />
-        ) : null}
-        {failedAction === "grant" ? (
-          <Alert type="error" message={t("grantError")} />
         ) : null}
         <ul className="divide-y divide-gray-100">
           {visibleConsents.map((consent) => (
@@ -164,7 +165,7 @@ export function ChildConsentsSection({
                       className="text-moto-red-strong hover:text-moto-red-strong mt-1 h-auto min-h-12 px-0 underline-offset-4 hover:bg-transparent hover:underline"
                       aria-label={t("withdrawButton")}
                       onClick={() => {
-                        setFailedAction(null);
+                        actionErrors.clear();
                         setSuccessfulAction(null);
                         setPendingAction("withdraw");
                       }}
@@ -184,7 +185,7 @@ export function ChildConsentsSection({
                       className="text-moto-green-strong hover:text-moto-green-strong mt-1 h-auto min-h-12 px-0 underline-offset-4 hover:bg-transparent hover:underline"
                       aria-label={t("grantButton")}
                       onClick={() => {
-                        setFailedAction(null);
+                        actionErrors.clear();
                         setSuccessfulAction(null);
                         setPendingAction("grant");
                       }}
@@ -206,7 +207,10 @@ export function ChildConsentsSection({
       </ParentSection>
       <ConfirmationModal
         isOpen={pendingAction !== null}
-        onClose={() => setPendingAction(null)}
+        onClose={() => {
+          actionErrors.clear();
+          setPendingAction(null);
+        }}
         onConfirm={() => void confirmAction()}
         title={
           pendingAction === "grant" ? t("grantConfirmTitle") : t("confirmTitle")
@@ -227,6 +231,7 @@ export function ChildConsentsSection({
         backdropLabel={t("close")}
         mobileSheet
       >
+        <FormErrorAlert message={actionErrors.error} className="mb-3" />
         <p>
           {pendingAction === "grant" ? t("grantConfirmBody") : t("confirmBody")}
         </p>

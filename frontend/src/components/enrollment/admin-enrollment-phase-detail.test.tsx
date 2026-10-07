@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   listAdminRequests: vi.fn(),
   listPhases: vi.fn(),
   setAdminRequestRead: vi.fn(),
+  showActionError: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
   useCareOfferingsEnabled: vi.fn(),
@@ -69,11 +70,15 @@ vi.mock("~/components/ui/mobile-back-button", () => ({
   MobileBackButton: () => null,
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+// Load errors run through the real hooks (#2515); only the toast surface and
+// the toast path for actions without a form are doubles.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   useToast: () => ({
     error: mocks.toastError,
     success: mocks.toastSuccess,
   }),
+  useApiErrorDisplay: () => ({ show: mocks.showActionError }),
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({
@@ -91,6 +96,8 @@ vi.mock("~/lib/api", () => ({
 }));
 
 import { AdminEnrollmentPhaseDetail } from "./admin-enrollment-phase-detail";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 const phase = {
   id: "1",
@@ -600,7 +607,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     expect(screen.getByText("Lina Muster")).toBeVisible();
 
     mocks.getCareUsageReport.mockRejectedValueOnce(
-      new Error("Auswertung konnte nicht geladen werden"),
+      new ApiError("report failed", 503, { code: "general.unavailable" }),
     );
 
     fireEvent.click(
@@ -608,13 +615,17 @@ describe("AdminEnrollmentPhaseDetail", () => {
     );
     fireEvent.click(screen.getByRole("checkbox", { name: /OGS Ganztag/ }));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("Auswertung konnte nicht geladen werden"),
-      ).toBeVisible();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Auswertung"),
+      ),
+    ).toBeVisible();
     expect(screen.queryByText("Lina Muster")).not.toBeInTheDocument();
     expect(screen.queryByText("Tom Muster")).not.toBeInTheDocument();
+    // Keine leere Tabelle, die nach "keine Anmeldungen" aussieht.
+    expect(
+      screen.queryByText("Noch keine Anmeldungen eingegangen"),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps quick decisions on non-terminal rows", async () => {
@@ -630,22 +641,65 @@ describe("AdminEnrollmentPhaseDetail", () => {
       );
     });
     expect(mocks.toastSuccess).toHaveBeenCalledWith(
-      "Entscheidung gespeichert: Bestätigt",
+      "Die Entscheidung wurde gespeichert: Bestätigt.",
     );
   });
 
   it("keeps the table when a quick decision is refused (#3570)", async () => {
-    const message =
-      "Das Kinderkontingent Ihrer Schule ist voll. Die Kontingentzahl beträgt 115 von 115 Kindern. Für weitere Kinder melden Sie sich bitte beim moto-Team.";
-    mocks.decideAdminChild.mockRejectedValue(new Error(message));
+    const refused = new ApiError("child quota reached", 409, {
+      code: "students.child_quota_reached",
+      details: { booked_places: 115, occupied_places: 115 },
+    });
+    mocks.decideAdminChild.mockRejectedValue(refused);
     await renderPhase();
 
     fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
 
     await waitFor(() => {
-      expect(mocks.toastError).toHaveBeenCalledWith(message);
+      expect(mocks.showActionError).toHaveBeenCalledWith(refused, {
+        object: "die Entscheidung",
+      });
     });
     expect(screen.getByRole("button", { name: "Bestätigen" })).toBeVisible();
+  });
+
+  it("reports a failed report export through the toast path", async () => {
+    const failed = new ApiError("export failed", 500, {
+      code: "general.server",
+    });
+    mocks.exportCareUsageReport.mockRejectedValueOnce(failed);
+    await renderPhase();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Auswertung exportieren" }),
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Als Excel-Datei exportieren" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.showActionError).toHaveBeenCalledWith(failed, {
+        object: "die Auswertung",
+      });
+    });
+    expect(mocks.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("shows a failed phase load in place of the page", async () => {
+    mocks.listAdminRequests.mockRejectedValueOnce(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
+
+    render(<AdminEnrollmentPhaseDetail phaseId="1" />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Anmeldephase"),
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("Anmeldephase nicht gefunden"),
+    ).not.toBeInTheDocument();
   });
 
   it("marks the row of a renewal the Kinderkontingent held back (#3570)", async () => {

@@ -164,7 +164,7 @@ func (rs *Resource) sendTestNotification(w http.ResponseWriter, r *http.Request)
 	})
 	switch {
 	case errors.Is(err, notificationsService.ErrDisabled):
-		common.RenderError(w, r, common.ErrorConflict(errors.New("notifications are disabled for this tenant")))
+		common.RenderError(w, r, common.ErrorConflictWithCode(errors.New("notifications are disabled for this tenant"), common.CodeCommunicationNotificationsDisabled))
 		return
 	case err != nil:
 		common.RenderError(w, r, common.ErrorInternalServer(err))

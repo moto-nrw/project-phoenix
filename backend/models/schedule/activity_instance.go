@@ -24,6 +24,10 @@ const (
 	ActivityInstanceIdempotencyKeyMaxLength = 128
 )
 
+// templateTypeDuty mirrors activities.GroupTypeDuty: the duty block type
+// (#3822), the one template type whose occurrences may lack a room.
+const templateTypeDuty = "duty"
+
 // ActivityInstance is the concrete materialized occurrence of a template on a
 // given date (or a spontaneous instance created without a template). It lives
 // in the "instance layer" between the template layer (activities.*) and the
@@ -46,7 +50,8 @@ type ActivityInstance struct {
 	Description      *string   `bun:"description" json:"description,omitempty"`
 	StartTime        time.Time `bun:"start_time,notnull" json:"start_time"`
 	EndTime          time.Time `bun:"end_time,notnull" json:"end_time"`
-	RoomID           int64     `bun:"room_id,notnull" json:"room_id"`
+	// RoomID 0 binds NULL: only a duty occurrence has no room (#3822).
+	RoomID int64 `bun:"room_id,nullzero" json:"room_id"`
 	// RequiredStaff is the per-occurrence Personalbedarf pin (issue #1839).
 	// NULL means "inherit": template-backed instances fall back to the
 	// template's override, then to the Betreuungsschlüssel (issue #1869).
@@ -69,17 +74,24 @@ type ActivityInstance struct {
 	UnderstaffedNote *string `bun:"understaffed_note" json:"understaffed_note,omitempty"`
 	// CancelReason is an optional short "why" captured when a block is cancelled
 	// (Vertretungsplan, issue #1840).
-	CancelReason           *string         `bun:"cancel_reason" json:"cancel_reason,omitempty"`
-	Notes                  *string         `bun:"notes" json:"notes,omitempty"`
-	IdempotencyKey         *string         `bun:"idempotency_key" json:"-"`
-	IdempotencyFingerprint *string         `bun:"idempotency_fingerprint" json:"-"`
-	CreatedBy              *int64          `bun:"created_by" json:"created_by,omitempty"`
-	StartedBy              *int64          `bun:"started_by" json:"started_by,omitempty"`
-	StartedAt              *time.Time      `bun:"started_at" json:"started_at,omitempty"`
-	CompletedAt            *time.Time      `bun:"completed_at" json:"completed_at,omitempty"`
-	CompletedBy            *int64          `bun:"completed_by" json:"completed_by,omitempty"`
-	ReopenUntil            *time.Time      `bun:"reopen_until" json:"reopen_until,omitempty"`
-	CompletionSnapshot     json.RawMessage `bun:"completion_snapshot,type:jsonb" json:"-"`
+	CancelReason           *string `bun:"cancel_reason" json:"cancel_reason,omitempty"`
+	Notes                  *string `bun:"notes" json:"notes,omitempty"`
+	IdempotencyKey         *string `bun:"idempotency_key" json:"-"`
+	IdempotencyFingerprint *string `bun:"idempotency_fingerprint" json:"-"`
+	CreatedBy              *int64  `bun:"created_by" json:"created_by,omitempty"`
+	// TemplateType is the block type of the linked template (#3822), read
+	// along by the presence projection's instance list; empty without a
+	// template or outside that read. Not a column of this table.
+	TemplateType string `bun:"-" json:"-"`
+	// TemplateRequiredStaff is the template's Personalbedarf override, read
+	// along with TemplateType; a duty's gap rule needs it (#3822).
+	TemplateRequiredStaff *int            `bun:"-" json:"-"`
+	StartedBy             *int64          `bun:"started_by" json:"started_by,omitempty"`
+	StartedAt             *time.Time      `bun:"started_at" json:"started_at,omitempty"`
+	CompletedAt           *time.Time      `bun:"completed_at" json:"completed_at,omitempty"`
+	CompletedBy           *int64          `bun:"completed_by" json:"completed_by,omitempty"`
+	ReopenUntil           *time.Time      `bun:"reopen_until" json:"reopen_until,omitempty"`
+	CompletionSnapshot    json.RawMessage `bun:"completion_snapshot,type:jsonb" json:"-"`
 }
 
 // MarkCompleted applies the persisted lifecycle state after the live session
@@ -154,7 +166,8 @@ func (i *ActivityInstance) Validate() error {
 	if !i.EndTime.After(i.StartTime) {
 		return errors.New("end_time must be after start_time")
 	}
-	if i.RoomID <= 0 {
+	// Only a duty (#3822) may lack a room; the type comes from its template.
+	if i.RoomID < 0 || (i.RoomID == 0 && i.TemplateType != templateTypeDuty) {
 		return errors.New("room_id is required")
 	}
 	if !IsValidInstanceStatus(i.Status) {

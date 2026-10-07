@@ -200,7 +200,8 @@ const mockToast = {
   warning: vi.fn(),
   info: vi.fn(),
 };
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => mockToast,
 }));
 

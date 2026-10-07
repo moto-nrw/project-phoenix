@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { DatePicker } from "~/components/ui/date-picker";
+import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
-import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
+import { useApiFormError } from "~/contexts/ToastContext";
+import { todayISO } from "~/lib/date-helpers";
 import { AUDIENCE_LABELS } from "~/lib/staff-notices-api";
 import type {
   StaffNotice,
@@ -120,17 +120,20 @@ export function StaffNoticeModal({
   readonly onSubmit: (input: StaffNoticeInput) => Promise<void>;
 }) {
   const [form, setForm] = useState<FormState>(() => initialState(notice));
-  const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const clearErrors = formErrors.clear;
+  const latestSubmitRef = useRef<() => void>(() => undefined);
 
   // Beim Öffnen mit den Werten des gewählten Hinweises starten (oder leer für
   // einen neuen), damit ein zweiter Aufruf nicht die vorige Eingabe zeigt.
   useEffect(() => {
     if (isOpen) {
       setForm(initialState(notice));
-      setError("");
+      clearErrors();
     }
-  }, [isOpen, notice]);
+  }, [isOpen, notice, clearErrors]);
 
   const toggleWeekday = (day: number) => {
     setForm((prev) => ({
@@ -142,17 +145,14 @@ export function StaffNoticeModal({
   };
 
   const handleSubmit = async () => {
-    if (!form.title.trim()) {
-      setError("Bitte einen Titel angeben.");
-      return;
-    }
-    if (form.validUntil && form.validUntil < form.validFrom) {
-      setError("Das Ende darf nicht vor dem Beginn liegen.");
+    const fields = noticeFieldErrors(form);
+    if (Object.keys(fields).length > 0) {
+      formErrors.invalid("Bitte prüfen Sie die markierten Felder.", fields);
       return;
     }
 
     setSaving(true);
-    setError("");
+    formErrors.clear();
     try {
       await onSubmit({
         title: form.title.trim(),
@@ -168,21 +168,26 @@ export function StaffNoticeModal({
       });
       onClose();
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Die Tagesinformation konnte nicht gespeichert werden.",
-      );
+      // Protokolliert hat die Seite schon. Der Fehler bleibt im Dialog.
+      await formErrors.show(err, {
+        object: "das Speichern der Tagesinformation",
+        retry: () => latestSubmitRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+  // „Wiederholen“ sendet den Stand, der dann im Formular steht.
+  useLayoutEffect(() => {
+    latestSubmitRef.current = () => void handleSubmit();
+  });
 
   return (
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
       title={notice ? "Tagesinformation bearbeiten" : "Neue Tagesinformation"}
+      error={formErrors.error}
       footer={
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" size="md" onClick={onClose}>
@@ -200,20 +205,22 @@ export function StaffNoticeModal({
         </div>
       }
     >
-      <div className="space-y-4">
-        {error && <Alert type="error" message={error} />}
-
+      <div ref={formRef} className="space-y-4">
         <Input
           label="Titel"
+          name="title"
           value={form.title}
+          error={formErrors.fieldError("title")}
           maxLength={200}
           onChange={(e) => setForm({ ...form, title: e.target.value })}
         />
 
         <Textarea
           label="Hinweis"
+          name="body"
           rows={4}
           value={form.body}
+          error={formErrors.fieldError("body")}
           onChange={(e) => setForm({ ...form, body: e.target.value })}
         />
 
@@ -271,12 +278,15 @@ export function StaffNoticeModal({
             <span className="mb-1 block text-sm font-medium text-gray-700">
               Gilt ab
             </span>
-            <DatePicker
-              value={parseISODate(form.validFrom)}
+            <ISODatePicker
+              id="notice-valid-from"
+              name="valid_from"
+              value={form.validFrom}
               hideClearButton
               calendarLayout="popover"
-              onChange={(date) => {
-                if (date) setForm({ ...form, validFrom: toISODate(date) });
+              error={formErrors.fieldError("valid_from")}
+              onChange={(value) => {
+                if (value) setForm({ ...form, validFrom: value });
               }}
             />
           </div>
@@ -284,12 +294,13 @@ export function StaffNoticeModal({
             <span className="mb-1 block text-sm font-medium text-gray-700">
               Gilt bis (optional)
             </span>
-            <DatePicker
-              value={form.validUntil ? parseISODate(form.validUntil) : null}
+            <ISODatePicker
+              id="notice-valid-until"
+              name="valid_until"
+              value={form.validUntil}
               calendarLayout="popover"
-              onChange={(date) =>
-                setForm({ ...form, validUntil: date ? toISODate(date) : "" })
-              }
+              error={formErrors.fieldError("valid_until")}
+              onChange={(value) => setForm({ ...form, validUntil: value })}
             />
           </div>
         </div>
@@ -351,4 +362,13 @@ export function StaffNoticeModal({
       </div>
     </FormModal>
   );
+}
+
+/** Prüfung vor dem Senden. Schlüssel sind die Feldnamen des Backends. */
+function noticeFieldErrors(form: FormState): Record<string, string> {
+  const fields: Record<string, string> = {};
+  if (!form.title.trim()) fields.title = "Bitte geben Sie einen Titel an.";
+  if (form.validUntil && form.validUntil < form.validFrom)
+    fields.valid_until = "Das Ende darf nicht vor dem Beginn liegen.";
+  return fields;
 }

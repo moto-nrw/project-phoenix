@@ -2,13 +2,20 @@ import "@testing-library/jest-dom/vitest";
 import {
   cleanup,
   fireEvent,
-  render,
+  render as rtlRender,
   screen,
   waitFor,
 } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import OpeningBalanceImportPage from "./page";
+import { ToastProvider } from "~/contexts/ToastContext";
+
+// Fehler einer Aktion ohne Formular kommen als Toast (#2517).
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
@@ -27,7 +34,8 @@ const mockToast = {
   warning: vi.fn(),
   info: vi.fn(),
 };
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => mockToast,
 }));
 
@@ -171,7 +179,7 @@ describe("OpeningBalanceImportPage", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          "Bitte zuerst Stichtag und Begründung angeben, dann wird die Vorschau erstellt.",
+          "Bitte geben Sie zuerst Stichtag und Begründung an. Dann wird die Vorschau erstellt.",
         ),
       ).toBeInTheDocument();
     });
@@ -304,7 +312,7 @@ describe("OpeningBalanceImportPage", () => {
         expect.objectContaining({ method: "POST" }),
       );
       expect(mockToast.warning).toHaveBeenCalledWith(
-        "2 übernommen, 1 übersprungen",
+        "Die Übernahme ist fertig: 2 übernommen, 1 übersprungen.",
       );
     });
     expect(screen.getByText("Import abgeschlossen")).toBeInTheDocument();

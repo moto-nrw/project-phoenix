@@ -261,11 +261,10 @@ describe("Anfragen: Liste und Detail", () => {
       screen.getAllByRole("button", { name: "2 Anfragen freigeben" }).at(-1)!,
     );
 
+    // Der Code der veralteten Anfrage kommt als Toast aus dem Katalog.
     expect(
-      await screen.findByText(
-        "Die Anfrage wurde inzwischen geändert. Die neue Fassung wird geladen.",
-      ),
-    ).toBeVisible();
+      await screen.findByRole("alert", { name: /^Fehler:/ }),
+    ).toHaveTextContent(/wurde inzwischen geändert/);
     // Erstabruf plus genau ein Nachladen.
     await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(2));
     expect(screen.getByText("excused-item-1")).toBeVisible();

@@ -85,7 +85,10 @@ export function PlannedNowSection({
 
   if (sortedPlanned.length === 0) {
     return (
-      <section className="moto-content-surface mb-4 rounded-2xl border p-4 shadow-sm backdrop-blur-md">
+      <section
+        className="moto-content-surface mb-4 rounded-2xl border p-4 shadow-sm backdrop-blur-md"
+        data-setup-tour="supervision-next"
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-base font-semibold text-gray-900">
@@ -136,7 +139,10 @@ export function PlannedNowSection({
   const isSectionExpanded = sectionExpanded ?? hasActionableSlot;
 
   return (
-    <section className="moto-content-surface mb-5 overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+    <section
+      className="moto-content-surface mb-5 overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md"
+      data-setup-tour="supervision-next"
+    >
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <button
           type="button"

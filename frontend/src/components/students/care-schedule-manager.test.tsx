@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CareScheduleManager } from "./care-schedule-manager";
+import { ApiError } from "~/lib/api-error";
 import type { ArrivalScheduleFormEntry } from "~/lib/arrival-schedule-helpers";
 import type {
   ArrivalData,
@@ -1076,13 +1077,67 @@ describe("CareScheduleManager", () => {
     });
   });
 
-  it("shows a load error", async () => {
-    mockFetchArrivalData.mockRejectedValueOnce(new Error("Netzwerkfehler"));
+  it("keeps a failed status-day removal inside the dialog", async () => {
+    const onDeleteStatusDay = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError("gone", 403, { code: "general.permission" }),
+      );
+
+    render(
+      <CareScheduleManager
+        studentId="42"
+        statusDays={statusDays}
+        onDeleteStatusDay={onDeleteStatusDay}
+      />,
+    );
+    await screen.findByText("Betreuungszeiten");
+
+    fireEvent.click(
+      screen.getAllByLabelText("Ganztägig entschuldigt entfernen")[0]!,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Endgültig entfernen" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Für die geplante Abwesenheit fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Geplanten Status entfernen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a load error from the catalog and loads again on Wiederholen", async () => {
+    mockFetchArrivalData.mockRejectedValueOnce(
+      new ApiError("Netzwerkfehler", 500, {
+        code: "general.server",
+        instance: "req-care",
+      }),
+    );
 
     render(<CareScheduleManager studentId="42" />);
 
-    await waitFor(() => {
-      expect(screen.getByText("Netzwerkfehler")).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        "Die Übersicht der Betreuungszeiten konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Netzwerkfehler")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-care");
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => expect(mockFetchArrivalData).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(
+        screen.queryByText(/Übersicht der Betreuungszeiten/),
+      ).not.toBeInTheDocument(),
+    );
   });
 });

@@ -6,16 +6,25 @@
 // time_tracking:manage (the page never mounts it otherwise, so no request
 // fires without the permission).
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   FIELD_LABELS,
   formatEditValue,
 } from "~/components/time-tracking/edit-history-accordion";
+import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   auditLogSourceLabels,
@@ -229,8 +238,17 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [retentionCutoff, setRetentionCutoff] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Ein Ladefehler steht an der Stelle der Tabelle, nie als „Keine Einträge
+  // gefunden“; „Weitere Einträge laden“ ist eine Aktion und meldet als Toast
+  // (#2514).
+  const load = useApiLoadError();
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
+  const { show: showMoreError } = useApiErrorDisplay();
+  const [reload, setReload] = useState(0);
   const requestVersionRef = useRef(0);
+  // „Wiederholen“ lädt ab dem aktuellen Stand weiter.
+  const loadMoreRef = useRef<() => void>(() => undefined);
 
   const query = useMemo(
     () => ({
@@ -250,7 +268,7 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
     setEvents([]);
     setNextCursor(null);
     setIsLoading(true);
-    setError(null);
+    clearLoadError();
     staffAuditLogService
       .getAuditLog(query)
       .then((page) => {
@@ -261,8 +279,15 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
       })
       .catch((err: unknown) => {
         if (requestVersionRef.current !== requestVersion) return;
-        log.error("failed to load audit log", { error: err });
-        setError("Änderungsprotokoll konnte nicht geladen werden.");
+        log.error("failed to load audit log", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Die Tabelle lädt weiter, bis der Fehler steht: kein kurzes „Keine
+        // Einträge gefunden“ dazwischen.
+        return showLoadError(err, {
+          object: "das Änderungsprotokoll",
+          retry: () => setReload((count) => count + 1),
+        });
       })
       .finally(() => {
         if (requestVersionRef.current === requestVersion) setIsLoading(false);
@@ -272,7 +297,7 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
         requestVersionRef.current++;
       }
     };
-  }, [query]);
+  }, [query, reload, showLoadError, clearLoadError]);
 
   const loadMore = useCallback(() => {
     if (!nextCursor) return;
@@ -287,13 +312,21 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
       })
       .catch((err: unknown) => {
         if (requestVersionRef.current !== requestVersion) return;
-        log.error("failed to load more audit log entries", { error: err });
-        setError("Weitere Einträge konnten nicht geladen werden.");
+        log.error("failed to load more audit log entries", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        void showMoreError(err, {
+          object: "die nächste Seite des Änderungsprotokolls",
+          retry: () => loadMoreRef.current(),
+        });
       })
       .finally(() => {
         if (requestVersionRef.current === requestVersion) setIsLoading(false);
       });
-  }, [nextCursor, query]);
+  }, [nextCursor, query, showMoreError]);
+  useLayoutEffect(() => {
+    loadMoreRef.current = loadMore;
+  });
 
   const columns: DataTableColumn<AuditLogEvent>[] = useMemo(
     () => [
@@ -448,22 +481,26 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
         />
       )}
 
-      {error && <Alert type="error" message={error} />}
-
-      <DataTable
-        columns={columns}
-        rows={events}
-        getRowKey={(row) => `${row.source}:${row.entryId}`}
-        isLoading={isLoading && events.length === 0}
-        emptyState={
-          <div className="py-10 text-center">
-            <p className="font-medium text-gray-900">Keine Einträge gefunden</p>
-            <p className="text-sm text-gray-600">
-              Zeitraum erweitern oder Filter zurücksetzen.
-            </p>
-          </div>
-        }
-      />
+      {load.error ? (
+        <LoadErrorAlert error={load.error} />
+      ) : (
+        <DataTable
+          columns={columns}
+          rows={events}
+          getRowKey={(row) => `${row.source}:${row.entryId}`}
+          isLoading={isLoading && events.length === 0}
+          emptyState={
+            <div className="py-10 text-center">
+              <p className="font-medium text-gray-900">
+                Keine Einträge gefunden
+              </p>
+              <p className="text-sm text-gray-600">
+                Zeitraum erweitern oder Filter zurücksetzen.
+              </p>
+            </div>
+          }
+        />
+      )}
 
       {nextCursor && (
         <div className="flex justify-center">

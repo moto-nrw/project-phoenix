@@ -20,6 +20,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -34,7 +35,10 @@ import { BulkCancelAppointmentsModal } from "~/components/timetable/bulk-cancel-
 import { buildPlanningTrackLegend } from "~/components/timetable/planning-track-legend";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
-import { Alert } from "~/components/ui/alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OriginChip } from "~/components/ui/origin-chip";
@@ -47,7 +51,12 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { PlanLegend } from "~/components/ui/plan-legend";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import {
   ConflictWarningsBanner,
@@ -61,7 +70,6 @@ import {
 } from "~/components/timetable/instance-detail-modal";
 import { cancelledToast } from "~/components/timetable/guardian-notice-toast";
 import { StaffPoolSlideOver } from "~/components/timetable/staff-pool-slide-over";
-import { timetableSeriesErrorMessage } from "~/components/timetable/event-form/scope-error-message";
 import { TimetableAddMenu } from "~/components/timetable/timetable-add-menu";
 import { MonthPlannerGrid } from "~/components/timetable/month-planner-grid";
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
@@ -95,7 +103,6 @@ import {
   mapPeriodsForDates,
   uniqueAssignedPeriods,
 } from "~/lib/calendar-period-helpers";
-import { capacityErrorMessage } from "~/lib/capacity-error";
 import { timetableService } from "~/lib/timetable-api";
 import {
   DENSITY_TO_HOUR_HEIGHT_PX,
@@ -129,6 +136,22 @@ const logger = createLogger({ component: "TimetablesPage" });
 const PERIODS_SWR_KEY = "database-calendar-periods-list";
 const PHASES_SWR_KEY = "timetable-enrollment-phases";
 const CONFLICT_ACKS_SWR_KEY = "timetable-conflict-acks";
+
+// Was ein fehlgeschlagener Schritt im Raster nennt (#2516). Der Katalog setzt
+// das Objekt in Nominativ und Akkusativ ein, deshalb nur feminine oder
+// neutrale Nominalphrasen.
+const LIFECYCLE_ERROR_OBJECT: Record<LifecycleAction, string> = {
+  start: "die Aktivität",
+  complete: "die Aktivität",
+  reopen: "die Aktivität",
+  cancel: "die Absage",
+};
+
+const LIFECYCLE_SUCCESS: Record<Exclude<LifecycleAction, "cancel">, string> = {
+  start: "Die Aktivität ist gestartet.",
+  complete: "Die Aktivität ist beendet.",
+  reopen: "Die Aktivität ist wieder geöffnet.",
+};
 
 // Das verbindliche Drei-Parameter-Vokabular (06 §2.1). updateUrlParams baut die
 // URL aus dieser Allowlist neu auf, damit fremde Params (?utm_source=…) nicht
@@ -216,6 +239,10 @@ function TimetablesContent() {
     "activities:manage_categories",
   );
   const toast = useToast();
+  // Schritte ohne Formular (Raster, Detailpanel, Serienliste) melden ihren
+  // Fehler als Toast mit Katalogtext (#2516). Ein offener Bestätigungsdialog
+  // zeigt seinen Fehler dagegen selbst, weil er über den Toasts liegt.
+  const { show: showActionError } = useApiErrorDisplay();
   const tenantMutate = useTenantMutate();
   const tenantPath = useTenantAwarePath();
 
@@ -459,7 +486,7 @@ function TimetablesContent() {
     status === "authenticated" && shouldLoadGaps ? gapsSWRKey : null,
     () => timetableService.getGaps(gapsFromISO, fetchToISO),
   );
-  const { data: staffData } = useSWRAuth(
+  const { data: staffData, error: staffError } = useSWRAuth(
     status === "authenticated" && canReadTenantRosters
       ? "timetable-staff-list"
       : null,
@@ -468,7 +495,7 @@ function TimetablesContent() {
   // Ohne users:read fehlt die Personalliste. Die Namen für die Blöcke (#3817)
   // kommen dann aus der Vertretungsübersicht, die nur schedules:read braucht.
   // Die Monatsansicht zeigt keine Blöcke und lädt deshalb nichts.
-  const { data: planStaffOverview } = useSWRAuth(
+  const { data: planStaffOverview, error: planStaffOverviewError } = useSWRAuth(
     status === "authenticated" &&
       !canReadTenantRosters &&
       (view === "week" || view === "day")
@@ -476,7 +503,7 @@ function TimetablesContent() {
       : null,
     () => substitutionService.fetchScheduleOverview(fetchFromISO, fetchToISO),
   );
-  const { data: studentData } = useSWRAuth(
+  const { data: studentData, error: studentError } = useSWRAuth(
     status === "authenticated" && canReadTenantRosters
       ? "timetable-student-list"
       : null,
@@ -512,38 +539,54 @@ function TimetablesContent() {
   const timetableDisabled =
     getSettingValue(settingsSchema, "timetable.enabled") === false;
 
-  // SWR retries (errorRetryCount=3) produce a fresh Error per attempt. Keying
-  // the effect on the message string keeps the toast from firing once per
-  // retry when the underlying message is unchanged.
-  const errorMessage = error
-    ? error instanceof Error
-      ? error.message
-      : String(error)
-    : null;
-  const gapsErrorMessage = gapsError
-    ? gapsError instanceof Error
-      ? gapsError.message
-      : String(gapsError)
-    : null;
-  const planQualityErrorMessage = gapsErrorMessage
-    ? `Personal-Lücken konnten nicht geprüft werden: ${gapsErrorMessage}`
-    : null;
+  // Ladefehler stehen dort, wo die Daten fehlen (#2516): Katalogtext mit
+  // Wiederholen, nie der Satz des Browsers („Failed to fetch“) oder des
+  // Servers und nie ein Toast ohne Handlung.
+  const weekLoadError = useSwrLoadError(error, "die Liste der Termine", () =>
+    tenantMutate(swrKey),
+  );
+  const gapsLoadError = useSwrLoadError(
+    gapsError,
+    "die Prüfung der Besetzung",
+    () => tenantMutate(gapsSWRKey),
+  );
+  const periodsLoadError = useSwrLoadError(
+    periodsError,
+    "die Liste der Planungszeiträume",
+    () => tenantMutate(PERIODS_SWR_KEY),
+  );
+  // Ohne Namen zeigen Raster und Detailpanel nur Nummern („Personal #11“).
+  // Ein Abruf genügt für den Hinweis; Wiederholen lädt alle drei neu.
+  const namesError = staffError ?? studentError ?? planStaffOverviewError;
+  const namesLoadError = useSwrLoadError(
+    namesError,
+    "die Liste der Namen",
+    () =>
+      Promise.all([
+        tenantMutate("timetable-staff-list"),
+        tenantMutate("timetable-student-list"),
+        tenantMutate(
+          `timetable-plan-staff-names-${fetchFromISO}-${fetchToISO}`,
+        ),
+      ]),
+  );
 
   useEffect(() => {
-    if (!errorMessage) return;
-    logger.error("week_load_failed", { error: errorMessage });
-    toast.error(`Betreuungsplan konnte nicht geladen werden: ${errorMessage}`);
-  }, [errorMessage, toast]);
+    if (!error) return;
+    logger.error("week_load_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }, [error]);
 
   useEffect(() => {
     if (!periodsError) return;
-    const message =
-      periodsError instanceof Error
-        ? periodsError.message
-        : String(periodsError);
-    logger.error("periods_load_failed", { error: message });
-    toast.error(`Planungszeiträume konnten nicht geladen werden: ${message}`);
-  }, [periodsError, toast]);
+    logger.error("periods_load_failed", {
+      error:
+        periodsError instanceof Error
+          ? periodsError.message
+          : String(periodsError),
+    });
+  }, [periodsError]);
 
   // Phase 2: silently create the default school-year period when the
   // tenant has none. The backend POST /periods/bootstrap is idempotent;
@@ -561,6 +604,9 @@ function TimetablesContent() {
       .bootstrap()
       .then(() => tenantMutate(PERIODS_SWR_KEY))
       .catch((err: unknown) => {
+        // Bewusst still: der Standard-Zeitraum ist eine Vorbelegung. Fehlt
+        // er, zeigt die Fläche den Leerzustand „Noch kein Planungszeitraum“
+        // mit dem Weg zum Anlegen; ein zusätzlicher Fehler hülfe niemandem.
         // 403 (missing SchedulesCreate permission) is expected for
         // non-admin staff opening the planner — warn instead of error.
         const httpStatus =
@@ -588,12 +634,11 @@ function TimetablesContent() {
   ]);
 
   useEffect(() => {
-    if (!planQualityErrorMessage) return;
+    if (!gapsError) return;
     logger.error("plan_quality_load_failed", {
-      error: planQualityErrorMessage,
+      error: gapsError instanceof Error ? gapsError.message : String(gapsError),
     });
-    toast.error("Planstatus konnte nicht vollständig geladen werden.");
-  }, [planQualityErrorMessage, toast]);
+  }, [gapsError]);
 
   // Memoise on data?.instances so the reference is stable between renders
   // when SWR returns the same response (the linter warns when arrays are
@@ -694,11 +739,20 @@ function TimetablesContent() {
   );
   const templatePeriodID = visiblePeriod?.id ?? assignedPeriods[0]?.id;
   const focusedPeriodID = templatePeriodID ?? null;
-  const { data: templateData, isLoading: templatesLoading } = useSWRAuth(
+  const {
+    data: templateData,
+    error: templatesError,
+    isLoading: templatesLoading,
+  } = useSWRAuth(
     status === "authenticated" && templatePeriodID
       ? `timetable-templates-${templatePeriodID}`
       : null,
     () => timetableService.getTemplates(templatePeriodID),
+  );
+  const templatesLoadError = useSwrLoadError(
+    templatesError,
+    "die Liste der Regeltermine",
+    () => tenantMutate(`timetable-templates-${templatePeriodID}`),
   );
   const templates = useMemo(
     () => templateData?.templates ?? [],
@@ -729,11 +783,18 @@ function TimetablesContent() {
   // Konflikte (#2139): fensterweite Personen-Doppelbelegungen, aggregiert
   // nach Fingerprint (beide beteiligten Termine tragen denselben). Die
   // Quittierung ist Nutzerdatenzustand und kommt pro Konto vom Backend.
-  const { data: ackData } = useSWRAuth(
+  const { data: ackData, error: ackError } = useSWRAuth(
     status === "authenticated" && canManageSchedules
       ? CONFLICT_ACKS_SWR_KEY
       : null,
     () => timetableService.getConflictAcks(),
+  );
+  // Ohne die Liste wirken ausgeblendete Konflikte wieder offen; das muss
+  // die Fläche sagen, sonst sieht es aus, als sei das Ausblenden verloren.
+  const ackLoadError = useSwrLoadError(
+    ackError,
+    "die Liste der ausgeblendeten Konflikte",
+    () => tenantMutate(CONFLICT_ACKS_SWR_KEY),
   );
   const ackedFingerprints = useMemo(() => new Set(ackData ?? []), [ackData]);
 
@@ -809,6 +870,14 @@ function TimetablesContent() {
     [instances, ackedFingerprints, canManageSchedules],
   );
 
+  // Wiederholen ruft die Aktion mit dem aktuellen Stand auf (Latest-Ref):
+  // „Alle ausblenden“ nimmt dann nur noch die Konflikte, die offen sind.
+  const latestConflictActionsRef = useRef<{
+    hide: (entry: ConflictBannerEntry) => Promise<void>;
+    hideAll: () => Promise<void>;
+    unhide: (entry: ConflictBannerEntry) => Promise<void>;
+  } | null>(null);
+
   const handleHideConflict = useCallback(
     async (entry: ConflictBannerEntry) => {
       try {
@@ -819,10 +888,13 @@ function TimetablesContent() {
           fingerprint: entry.fingerprint,
           error: err instanceof Error ? err.message : String(err),
         });
-        toast.error("Konflikt konnte nicht ausgeblendet werden");
+        void showActionError(err, {
+          object: "das Ausblenden des Konflikts",
+          retry: () => void latestConflictActionsRef.current?.hide(entry),
+        });
       }
     },
-    [tenantMutate, toast],
+    [showActionError, tenantMutate],
   );
 
   // Sammel-Quittierung: jeder offene Konflikt wird einzeln über seinen
@@ -840,11 +912,14 @@ function TimetablesContent() {
         count: openConflicts.length,
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error("Konflikte konnten nicht ausgeblendet werden");
+      void showActionError(err, {
+        object: "das Ausblenden der Konflikte",
+        retry: () => void latestConflictActionsRef.current?.hideAll(),
+      });
       // Teil-Erfolge sichtbar machen: was durchging, ist quittiert.
       await tenantMutate(CONFLICT_ACKS_SWR_KEY);
     }
-  }, [openConflicts, tenantMutate, toast]);
+  }, [openConflicts, showActionError, tenantMutate]);
 
   const handleUnhideConflict = useCallback(
     async (entry: ConflictBannerEntry) => {
@@ -856,11 +931,22 @@ function TimetablesContent() {
           fingerprint: entry.fingerprint,
           error: err instanceof Error ? err.message : String(err),
         });
-        toast.error("Konflikt konnte nicht wieder angezeigt werden");
+        void showActionError(err, {
+          object: "das erneute Anzeigen des Konflikts",
+          retry: () => void latestConflictActionsRef.current?.unhide(entry),
+        });
       }
     },
-    [tenantMutate, toast],
+    [showActionError, tenantMutate],
   );
+
+  useLayoutEffect(() => {
+    latestConflictActionsRef.current = {
+      hide: handleHideConflict,
+      hideAll: handleHideAllConflicts,
+      unhide: handleUnhideConflict,
+    };
+  });
 
   const handleJumpToConflict = useCallback(
     (entry: ConflictBannerEntry, instanceId: string) => {
@@ -925,37 +1011,52 @@ function TimetablesContent() {
     [phases, visiblePeriod, dayISO],
   );
 
-  const handleLifecycle = useCallback(
-    async (action: LifecycleAction, options?: LifecycleActionOptions) => {
-      if (!selectedInstance) return;
+  // Start, Abschluss, Wiederöffnen und Absage laufen aus dem Detailpanel; die
+  // Rückfrage ist dann schon zu, also meldet ein Toast den Fehler (#2516).
+  // Der Katalog nennt volle Räume mit Namen und Belegung aus den Details
+  // (#3633). Wiederholen trifft denselben Termin mit derselben Absage-Notiz.
+  const latestLifecycleRef = useRef<
+    (
+      instanceId: string,
+      action: LifecycleAction,
+      options?: LifecycleActionOptions,
+    ) => Promise<void>
+  >(() => Promise.resolve());
+
+  const runLifecycle = useCallback(
+    async (
+      instanceId: string,
+      action: LifecycleAction,
+      options?: LifecycleActionOptions,
+    ) => {
       try {
         if (action === "start") {
-          const res = await timetableService.start(selectedInstance.id);
+          const res = await timetableService.start(instanceId);
           if (res.warnings.length > 0) {
             toast.success(
-              `Gestartet: ${res.warnings.length} Hinweis(e): ${res.warnings.map((w) => w.message).join(", ")}`,
+              `Die Aktivität ist gestartet. ${res.warnings.length === 1 ? "Ein Hinweis" : `${res.warnings.length} Hinweise`}: ${res.warnings.map((w) => w.message).join(", ")}`,
             );
           } else {
-            toast.success("Aktivität gestartet");
+            toast.success(LIFECYCLE_SUCCESS.start);
           }
         } else if (action === "complete") {
-          await timetableService.complete(selectedInstance.id, []);
-          toast.success("Aktivität beendet");
+          await timetableService.complete(instanceId, []);
+          toast.success(LIFECYCLE_SUCCESS.complete);
         } else if (action === "reopen") {
-          await timetableService.reopen(selectedInstance.id);
-          toast.success("Aktivität wieder geöffnet");
+          await timetableService.reopen(instanceId);
+          toast.success(LIFECYCLE_SUCCESS.reopen);
         } else {
           // Plain cancels keep the single-argument call; the notice rides
           // along only when the dialog produced one (#2601).
           const res = options?.guardianNotice
             ? await timetableService.cancel(
-                selectedInstance.id,
+                instanceId,
                 undefined,
                 options.guardianNotice,
               )
-            : await timetableService.cancel(selectedInstance.id);
+            : await timetableService.cancel(instanceId);
           toast.success(
-            cancelledToast("Aktivität abgesagt", res.guardianNotice),
+            cancelledToast("Die Aktivität ist abgesagt.", res.guardianNotice),
           );
         }
         await tenantMutate(swrKey);
@@ -963,21 +1064,44 @@ function TimetablesContent() {
       } catch (err) {
         logger.error("lifecycle_action_failed", {
           action,
-          instance_id: selectedInstance.id,
+          instance_id: instanceId,
           error: err instanceof Error ? err.message : String(err),
         });
-        // Reopening into a full room names the room (#3633).
-        toast.error(
-          capacityErrorMessage(err) ??
-            (err instanceof Error
-              ? err.message
-              : "Aktion konnte nicht durchgeführt werden"),
-        );
+        void showActionError(err, {
+          object: LIFECYCLE_ERROR_OBJECT[action],
+          retry: () =>
+            void latestLifecycleRef
+              .current(instanceId, action, options)
+              // Bewusst still: der erneute Versuch hat seinen Fehler schon
+              // selbst als Toast gemeldet.
+              .catch(() => undefined),
+        });
         throw err;
       }
     },
-    [selectedInstance, swrKey, gapsSWRKey, tenantMutate, toast],
+    [gapsSWRKey, showActionError, swrKey, tenantMutate, toast],
   );
+
+  useLayoutEffect(() => {
+    latestLifecycleRef.current = runLifecycle;
+  });
+
+  const handleLifecycle = useCallback(
+    async (action: LifecycleAction, options?: LifecycleActionOptions) => {
+      if (!selectedInstance) return;
+      await runLifecycle(selectedInstance.id, action, options);
+    },
+    [runLifecycle, selectedInstance],
+  );
+
+  // Anwesenheit aus dem Detailpanel: Knopf ohne Formular, also Toast.
+  const latestAttendancePatchRef = useRef<
+    (
+      instanceId: string,
+      studentId: string,
+      body: Parameters<typeof timetableService.patchAttendance>[2],
+    ) => Promise<void>
+  >(() => Promise.resolve());
 
   const handleAttendancePatch = useCallback(
     async (
@@ -987,7 +1111,7 @@ function TimetablesContent() {
     ) => {
       try {
         await timetableService.patchAttendance(instanceId, studentId, body);
-        toast.success("Kinderstatus aktualisiert");
+        toast.success("Der Status des Kindes ist gespeichert.");
         await tenantMutate(swrKey);
       } catch (err) {
         logger.error("attendance_patch_failed", {
@@ -995,22 +1119,32 @@ function TimetablesContent() {
           student_id: studentId,
           error: err instanceof Error ? err.message : String(err),
         });
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : "Kinderstatus konnte nicht aktualisiert werden",
-        );
+        void showActionError(err, {
+          object: "die Anwesenheit",
+          retry: () =>
+            void latestAttendancePatchRef
+              .current(instanceId, studentId, body)
+              // Bewusst still: der erneute Versuch meldet sich selbst.
+              .catch(() => undefined),
+        });
         throw err;
       }
     },
-    [swrKey, tenantMutate, toast],
+    [showActionError, swrKey, tenantMutate, toast],
   );
 
+  useLayoutEffect(() => {
+    latestAttendancePatchRef.current = handleAttendancePatch;
+  });
+
+  // Löschen läuft im Bestätigungsdialog des Detailpanels. Der Dialog liegt
+  // über den Toasts und zeigt den Fehler deshalb selbst; hier wird nur
+  // protokolliert und weitergeworfen.
   const handleDeleteCancelledInstance = useCallback(
     async (instance: EnrichedInstance) => {
       try {
         await timetableService.deleteCancelled(instance.id);
-        toast.success("Termin gelöscht");
+        toast.success("Der Termin ist gelöscht.");
         updateUrlParams({ block: null });
         await tenantMutate(swrKey);
         await tenantMutate(gapsSWRKey);
@@ -1019,11 +1153,6 @@ function TimetablesContent() {
           instance_id: instance.id,
           error: err instanceof Error ? err.message : String(err),
         });
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : "Termin konnte nicht gelöscht werden",
-        );
         throw err;
       }
     },
@@ -1033,13 +1162,15 @@ function TimetablesContent() {
   const handleDeleteFollowingInstances = useCallback(
     async (instance: EnrichedInstance) => {
       if (!instance.activityGroupId) return;
-      // Das Modal blendet die Option für vergangene Termine aus; bleibt es
-      // über Mitternacht offen, würde das Backend mit einer englischen
-      // Fehlermeldung antworten (effective_date must not be in the past).
+      // Das Modal blendet die Option für vergangene Termine aus und prüft
+      // das Datum vor dem Aufruf erneut. Diese Sperre fängt nur einen
+      // Aufrufer ab, der das nicht tut; der Dialog meldet die Ablehnung.
       if (instance.date < berlinTodayISO()) {
-        toast.error(
-          "Ein Regeltermin kann nur ab heute beendet werden. Vergangene Termine lassen sich nur einzeln löschen.",
-        );
+        logger.warn("template_end_in_past_refused", {
+          template_id: instance.activityGroupId,
+          instance_id: instance.id,
+          effective_date: instance.date,
+        });
         throw new Error("effective_date in the past");
       }
       try {
@@ -1050,7 +1181,7 @@ function TimetablesContent() {
           },
         );
         toast.success(
-          `Regeltermin ab ${formatDate(result.effectiveDate)} beendet`,
+          `Der Regeltermin ist ab ${formatDate(result.effectiveDate)} beendet.`,
         );
         updateUrlParams({ block: null });
         if (templatePeriodID) {
@@ -1065,12 +1196,6 @@ function TimetablesContent() {
           effective_date: instance.date,
           error: err instanceof Error ? err.message : String(err),
         });
-        toast.error(
-          timetableSeriesErrorMessage(
-            err,
-            "Folgetermine konnten nicht gelöscht werden",
-          ),
-        );
         throw err;
       }
     },
@@ -1084,6 +1209,8 @@ function TimetablesContent() {
     ],
   );
 
+  // Aufrufer ist der Löschdialog im Termin-Formular; er zeigt den Fehler
+  // selbst, weil er über den Toasts liegt.
   const handleDeleteSeriesTemplate = useCallback(
     async (template: TimetableTemplate, effectiveDate: string) => {
       try {
@@ -1091,7 +1218,7 @@ function TimetablesContent() {
           effective_date: effectiveDate,
         });
         toast.success(
-          `Regeltermin ab ${formatDate(result.effectiveDate)} gelöscht`,
+          `Der Regeltermin ist ab ${formatDate(result.effectiveDate)} gelöscht.`,
         );
         setEventModalOpen(false);
         setEditingInstance(null);
@@ -1108,11 +1235,6 @@ function TimetablesContent() {
           effective_date: effectiveDate,
           error: err instanceof Error ? err.message : String(err),
         });
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : "Regeltermin konnte nicht gelöscht werden",
-        );
         throw err;
       }
     },
@@ -1169,6 +1291,9 @@ function TimetablesContent() {
     [todayISO, updateUrlParams],
   );
 
+  const latestApplyTemplateRef = useRef<
+    (template: TimetableTemplate) => Promise<void>
+  >(() => Promise.resolve());
   const handleApplyTemplate = useCallback(
     async (template: TimetableTemplate) => {
       // Resolve which calendar period the template's schedules belong to.
@@ -1217,9 +1342,9 @@ function TimetablesContent() {
           }
         } else {
           toast.success(
-            `${totalCreated} ${
-              totalCreated === 1 ? "Termin" : "Termine"
-            } für "${template.name}" angelegt`,
+            totalCreated === 1
+              ? `Für „${template.name}“ ist 1 Termin angelegt.`
+              : `Für „${template.name}“ sind ${totalCreated} Termine angelegt.`,
           );
         }
         await tenantMutate(swrKey);
@@ -1229,11 +1354,12 @@ function TimetablesContent() {
           template_id: template.id,
           error: err instanceof Error ? err.message : String(err),
         });
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : "Regeltermin konnte nicht eingetragen werden",
-        );
+        // Knopf in der Serienliste, kein Dialog: Toast. Wiederholen trägt
+        // denselben Regeltermin mit dem aktuellen Zeitraum ein.
+        void showActionError(err, {
+          object: "das Eintragen des Regeltermins",
+          retry: () => void latestApplyTemplateRef.current(template),
+        });
       }
     },
     [
@@ -1241,19 +1367,34 @@ function TimetablesContent() {
       visiblePeriod,
       gapsSWRKey,
       openPeriodCreate,
+      showActionError,
       swrKey,
       tenantMutate,
       toast,
     ],
   );
 
+  useLayoutEffect(() => {
+    latestApplyTemplateRef.current = handleApplyTemplate;
+  });
+
+  // Der Archivieren-Dialog bleibt bei einem Fehler offen und zeigt ihn
+  // selbst: ein Toast läge unter dem Dialog.
+  const archiveRef = useRef<HTMLDivElement>(null);
+  const archiveErrors = useApiFormError(archiveRef);
+  const { clear: clearArchiveError, show: showArchiveError } = archiveErrors;
+  const latestArchiveRef = useRef<() => void>(() => undefined);
+
   const handleArchiveTemplate = useCallback(async () => {
     if (!archivingTemplate) return;
 
     setArchiveLoading(true);
+    clearArchiveError();
     try {
       await timetableService.archiveTemplate(archivingTemplate.id);
-      toast.success(`Regeltermin "${archivingTemplate.name}" archiviert`);
+      toast.success(
+        `Der Regeltermin „${archivingTemplate.name}“ ist archiviert.`,
+      );
       setArchivingTemplate(null);
       if (templatePeriodID) {
         await tenantMutate(`timetable-templates-${templatePeriodID}`);
@@ -1261,26 +1402,39 @@ function TimetablesContent() {
       await tenantMutate(swrKey);
       await tenantMutate(gapsSWRKey);
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Regeltermin konnte nicht archiviert werden";
       logger.error("template_archive_failed", {
         template_id: archivingTemplate.id,
-        error: message,
+        error: err instanceof Error ? err.message : String(err),
       });
-      toast.error(message);
+      void showArchiveError(err, {
+        object: "das Archivieren des Regeltermins",
+        retry: () => latestArchiveRef.current(),
+      });
     } finally {
       setArchiveLoading(false);
     }
   }, [
     archivingTemplate,
+    clearArchiveError,
     gapsSWRKey,
+    showArchiveError,
     swrKey,
     templatePeriodID,
     tenantMutate,
     toast,
   ]);
+
+  useLayoutEffect(() => {
+    latestArchiveRef.current = () => void handleArchiveTemplate();
+  });
+
+  const openArchiveConfirm = useCallback(
+    (template: TimetableTemplate) => {
+      clearArchiveError();
+      setArchivingTemplate(template);
+    },
+    [clearArchiveError],
+  );
 
   // While the session or the settings schema loads we cannot tell yet
   // whether the feature is enabled or what the caller may do. The
@@ -1405,7 +1559,6 @@ function TimetablesContent() {
   // bootstrap() legt in der Regel einen Default-Zeitraum an; bei fehlender
   // Berechtigung (403) bleibt es leer und der Hinweis führt zum Anlegen-Dialog.
   const showEmptyPeriodState = periodsReady && calendarPeriods.length === 0;
-  const periodLoadError = periodsError !== undefined;
 
   // Zeitraum, den die Fläche gerade zeigt: Überschrift der Zeitleiste und
   // erstes Stück der Statuszeile.
@@ -1426,27 +1579,51 @@ function TimetablesContent() {
   const statsLoading =
     showSkeleton ||
     (view === "series" ? templatesLoading : isInstanceDataLoading);
+  // Ein Ladefehler ohne Daten ersetzt den Inhalt; mit älteren Daten bleibt
+  // der Plan stehen und der Hinweis steht darüber.
+  const contentError =
+    view === "series"
+      ? templatesError && !templateData
+        ? templatesLoadError
+        : null
+      : shouldLoadInstances && error && !data
+        ? weekLoadError
+        : null;
+  const contentErrorPending =
+    view === "series"
+      ? Boolean(templatesError) && !templateData && templatesLoadError === null
+      : shouldLoadInstances &&
+        Boolean(error) &&
+        !data &&
+        weekLoadError === null;
   // Ladezustand des Inhalts: dieselbe Bedingung, die vorher je Ansicht ein
-  // eigenes Skelett einblendete — jetzt einmal an das Gerüst gereicht.
-  const contentLoading = statsLoading;
+  // eigenes Skelett einblendete — jetzt einmal an das Gerüst gereicht. Bis
+  // der Katalogtext eines Ladefehlers da ist, bleibt das Skelett stehen:
+  // ohne Daten darf kein leerer Plan erscheinen.
+  const contentLoading = statsLoading || contentErrorPending;
   const instanceCount = visibleInstances.length;
   // Kein Zeitraum in der Statuszeile: den trägt das Bedienband direkt
   // darunter, mit Pfeilen. Zweimal dieselbe Woche in der Kopfkarte kostete
   // auf dem Telefon eine Zeile, die nichts sagte.
-  const statusLine = [
-    ...(view === "series"
-      ? [
-          `${templates.length} ${templates.length === 1 ? "Regeltermin" : "Regeltermine"}`,
-        ]
+  // Ohne geladene Daten gibt es keine Zahl: „0 Termine“ neben dem Ladefehler
+  // läse sich als leere Woche.
+  const statusLine =
+    (contentError ?? contentErrorPending)
+      ? ""
       : [
-          `${instanceCount} ${instanceCount === 1 ? "Termin" : "Termine"}`,
-          ...(canManageSchedules && openConflicts.length > 0
+          ...(view === "series"
             ? [
-                `${openConflicts.length} ${openConflicts.length === 1 ? "Konflikt" : "Konflikte"}`,
+                `${templates.length} ${templates.length === 1 ? "Regeltermin" : "Regeltermine"}`,
               ]
-            : []),
-        ]),
-  ].join(" · ");
+            : [
+                `${instanceCount} ${instanceCount === 1 ? "Termin" : "Termine"}`,
+                ...(canManageSchedules && openConflicts.length > 0
+                  ? [
+                      `${openConflicts.length} ${openConflicts.length === 1 ? "Konflikt" : "Konflikte"}`,
+                    ]
+                  : []),
+              ]),
+        ].join(" · ");
 
   const overlays = (
     <>
@@ -1494,7 +1671,7 @@ function TimetablesContent() {
             ? (instance) => {
                 if (assignedPeriods.length === 0) {
                   toast.warning(
-                    "Lege zuerst einen Planungszeitraum für diese Woche an.",
+                    "Bitte legen Sie zuerst einen Planungszeitraum für diese Woche an.",
                   );
                   openPeriodCreate();
                   return;
@@ -1633,6 +1810,9 @@ function TimetablesContent() {
         cancelText="Abbrechen"
         isConfirmLoading={archiveLoading}
       >
+        <div ref={archiveRef}>
+          <FormErrorAlert message={archiveErrors.error} className="mb-3" />
+        </div>
         <p className="text-sm leading-relaxed text-gray-600">
           Der Regeltermin
           {archivingTemplate ? (
@@ -1746,24 +1926,7 @@ function TimetablesContent() {
         contentLoading ? <TimetableContentSkeleton view={view} /> : false
       }
       loadingLabel="Betreuungsplan wird geladen…"
-      error={
-        errorMessage && !data
-          ? {
-              message:
-                "Betreuungsplan konnte nicht geladen werden. Die Termine konnten nicht abgerufen werden.",
-              action: (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={() => void tenantMutate(swrKey)}
-                >
-                  Erneut versuchen
-                </Button>
-              ),
-            }
-          : null
-      }
+      error={contentError}
       empty={
         showEmptyPeriodState
           ? {
@@ -1786,13 +1949,18 @@ function TimetablesContent() {
           : null
       }
     >
-      {periodLoadError && (
-        <Alert
-          type="error"
-          title="Planungszeiträume konnten nicht geladen werden"
-          message="Bitte laden Sie die Seite neu."
-        />
-      )}
+      <LoadErrorAlert error={periodsLoadError} />
+      {/* Ein Ladefehler bei vorhandenen Daten: der Plan bleibt stehen. */}
+      {view === "series" ? (
+        templateData ? (
+          <LoadErrorAlert error={templatesLoadError} />
+        ) : null
+      ) : data ? (
+        <LoadErrorAlert error={weekLoadError} />
+      ) : null}
+      <LoadErrorAlert error={gapsLoadError} />
+      <LoadErrorAlert error={namesLoadError} />
+      {canManageSchedules && <LoadErrorAlert error={ackLoadError} />}
 
       {canManageSchedules && shouldLoadInstances && (
         <ConflictWarningsBanner
@@ -1909,7 +2077,7 @@ function TimetablesContent() {
             setEventModalOpen(true);
           }}
           onApply={(template) => void handleApplyTemplate(template)}
-          onArchive={setArchivingTemplate}
+          onArchive={openArchiveConfirm}
         />
       )}
     </TenantPage>

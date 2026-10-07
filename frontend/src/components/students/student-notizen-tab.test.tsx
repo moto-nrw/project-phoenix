@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StudentNotizenTab } from "./student-notizen-tab";
+import { ApiError } from "~/lib/api-error";
 import type { StudentNote } from "~/lib/student-notes-api";
 
 // The tab renders the authority the backend sent and nothing else: an entry
@@ -298,5 +299,84 @@ describe("StudentNotizenTab", () => {
     renderTab([]);
     fireEvent.click(screen.getAllByRole("button", { name: "Neue Notiz" })[0]!);
     expect(screen.queryByText("Gruppenleitung")).not.toBeInTheDocument();
+  });
+
+  it("shows a failed load in place with its request ID and a retry", async () => {
+    swrState.started = true;
+    swrState.data = undefined;
+    swrState.isLoading = false;
+    swrState.error = new ApiError("boom", 500, {
+      code: "general.server",
+      instance: "req-notes",
+    });
+    render(<StudentNotizenTab studentId="7" />);
+
+    expect(
+      await screen.findByText(
+        "Die Liste der Notizen konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-notes");
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(swrState.mutate).toHaveBeenCalled();
+  });
+
+  it("reports a refused save in the form and marks the note field", async () => {
+    createMock.mockRejectedValue(
+      new ApiError("invalid", 400, {
+        code: "general.input",
+        errors: [{ field: "body", reason: "too long" }],
+      }),
+    );
+    renderTab([]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Neue Notiz" })[0]!);
+    fireEvent.change(screen.getByLabelText("Notiz"), {
+      target: { value: "Kurz." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        "Die Notiz konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByLabelText("Notiz")).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      ),
+    );
+  });
+
+  it("names the missing permission when a delete is refused", async () => {
+    removeMock.mockRejectedValue(
+      new ApiError("forbidden", 403, { code: "general.permission" }),
+    );
+    renderTab([note({ canDelete: true })]);
+    fireEvent.click(screen.getByRole("button", { name: "Aktionen zur Notiz" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
+
+    const dialog = await screen.findByRole("dialog");
+    const advance = dialog.querySelectorAll("button");
+    // Two-step gate: advance first, then confirm.
+    fireEvent.click(
+      [...advance].find((button) => /löschen/i.test(button.textContent ?? ""))!,
+    );
+    const confirm = await waitFor(() => {
+      const found = [...dialog.querySelectorAll("button")].find((button) =>
+        /Endgültig löschen/.test(button.textContent ?? ""),
+      );
+      expect(found).toBeDefined();
+      return found!;
+    });
+    fireEvent.click(confirm);
+
+    expect(
+      await screen.findByText(
+        "Für die Notiz fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+      ),
+    ).toBeInTheDocument();
   });
 });

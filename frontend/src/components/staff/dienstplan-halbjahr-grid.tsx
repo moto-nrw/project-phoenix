@@ -11,14 +11,15 @@ import {
 } from "react";
 
 import { ClosingDayChip } from "~/components/planning/closing-day-marker";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CoverageIndicator } from "~/components/ui/coverage-indicator";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   ResourceGrid,
   type ResourceGridColumn,
 } from "~/components/ui/resource-grid";
 import { Skeleton } from "~/components/ui/skeleton";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import {
   findPeriodForDate,
@@ -557,6 +558,24 @@ export function DienstplanHalbjahrGrid({
     "database-calendar-periods-list",
     () => calendarPeriodService.list(),
   );
+  const periodsLoad = useApiLoadError();
+  const { show: showPeriodsLoadError, clear: clearPeriodsLoadError } =
+    periodsLoad;
+  useEffect(() => {
+    if (periodsError) {
+      void showPeriodsLoadError(periodsError, {
+        object: "die Liste der Kalenderzeiträume",
+        retry: () => void mutatePeriods(),
+      });
+    } else {
+      clearPeriodsLoadError();
+    }
+  }, [
+    periodsError,
+    mutatePeriods,
+    showPeriodsLoadError,
+    clearPeriodsLoadError,
+  ]);
 
   if (periodsLoading || (!periods && !periodsError)) {
     return (
@@ -571,22 +590,14 @@ export function DienstplanHalbjahrGrid({
   }
 
   if (periodsError) {
+    // Ohne Zeiträume gibt es keine Spalten; der Fehler steht an ihrer Stelle.
     return (
       <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        <div className="space-y-3">
-          <Alert
-            type="error"
-            message="Die Planungszeiträume konnten nicht geladen werden. Die Halbjahres-Sicht ist erst verfügbar, wenn sie erfolgreich geladen wurden."
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={() => void mutatePeriods()}
-          >
-            Erneut laden
-          </Button>
-        </div>
+        {periodsLoad.error ? (
+          <LoadErrorAlert error={periodsLoad.error} />
+        ) : (
+          <Skeleton className="h-8 w-full" />
+        )}
       </div>
     );
   }

@@ -17,6 +17,7 @@ import { absenceTypeService, type AbsenceType } from "~/lib/absence-type-api";
 import { CARRYOVER_OPTIONS, carryoverRuleLabel } from "~/lib/absence-helpers";
 import type { SectionConfig } from "~/lib/database/types";
 import { formatCount } from "~/lib/format-utils";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 const CACHE_KEY = "database-absence-types";
@@ -132,13 +133,15 @@ const config: CatalogConfig<AbsenceType> = {
       `„${type.name}“ steht bei neuen Abwesenheiten nicht mehr zur Auswahl. Bereits eingetragene Abwesenheiten behalten den Namen.`,
     run: (type) =>
       absenceTypeService.updateAbsenceType(type.id, { isActive: false }),
-    toast: (type) => `„${type.name}“ wird nicht mehr angeboten`,
+    toast: (type) =>
+      `Die Abwesenheitsart „${type.name}“ wird nicht mehr angeboten.`,
   },
   restore: {
     menuLabel: "Wieder anbieten",
     run: (type) =>
       absenceTypeService.updateAbsenceType(type.id, { isActive: true }),
-    toast: (type) => `„${type.name}“ wird wieder angeboten`,
+    toast: (type) =>
+      `Die Abwesenheitsart „${type.name}“ wird wieder angeboten.`,
   },
 };
 
@@ -149,9 +152,17 @@ function AbsenceTypesPageContent() {
   const {
     data,
     isLoading,
-    error: loadError,
+    error: swrError,
+    mutate,
   } = useSWRAuth<AbsenceType[]>(CACHE_KEY, () =>
     absenceTypeService.getAbsenceTypes(),
+  );
+  // Ladefehler mit Katalogtext und Wiederholen statt eines eigenen Satzes
+  // (#2517).
+  const loadError = useSwrLoadError(
+    swrError,
+    "die Liste der Abwesenheitsarten",
+    () => mutate(),
   );
 
   const onChanged = useCallback(() => tenantMutate(CACHE_KEY), [tenantMutate]);
@@ -168,12 +179,13 @@ function AbsenceTypesPageContent() {
     <CatalogPage
       config={config}
       items={items}
-      isLoading={isLoading && data === undefined}
-      error={
-        loadError
-          ? "Die Abwesenheitsarten konnten nicht geladen werden. Bitte laden Sie die Seite neu."
-          : null
+      // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett
+      // stehen: sonst blitzt der Leerzustand auf.
+      isLoading={
+        (isLoading && data === undefined) ||
+        (swrError !== undefined && loadError === null)
       }
+      error={loadError}
       onChanged={onChanged}
       // Die Route liegt hinter time_tracking:manage (database/layout).
       canManage

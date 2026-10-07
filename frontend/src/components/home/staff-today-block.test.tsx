@@ -1,13 +1,16 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import type { DashboardSummary } from "~/lib/staff-overview-api";
+import { catalogText } from "~/test/error-catalog-text";
 
 const swr = vi.hoisted(() => ({
   data: undefined as DashboardSummary | undefined,
   error: undefined as Error | undefined,
   isLoading: false,
+  mutate: vi.fn(),
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -79,13 +82,19 @@ describe("StaffTodayBlock (#2180)", () => {
     expect(staffTiles(summary(), analytics)).toHaveLength(4);
   });
 
-  it("unterscheidet einen Ladefehler von Nullen", () => {
+  it("unterscheidet einen Ladefehler von Nullen", async () => {
     swr.data = undefined;
-    swr.error = new Error("boom");
+    swr.error = new ApiError("boom", 503, { code: "general.unavailable" });
 
     render(<StaffTodayBlock analytics={analytics} />);
 
-    expect(screen.getByText(/konnte nicht geladen werden/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Karte „Personal heute“"),
+      ),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Krank")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(swr.mutate).toHaveBeenCalled();
   });
 });

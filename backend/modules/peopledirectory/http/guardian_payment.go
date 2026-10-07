@@ -112,6 +112,16 @@ var paymentErrorMessages = []struct {
 	{peopledirectory.ErrGuardianStudentRequired, "Das Kind konnte nicht zugeordnet werden."},
 }
 
+// paymentInputError keeps the German sentence as the diagnostic text and the
+// owner sentinel for errors.Is.
+type paymentInputError struct {
+	message  string
+	sentinel error
+}
+
+func (e paymentInputError) Error() string { return e.message }
+func (e paymentInputError) Unwrap() error { return e.sentinel }
+
 // renderPaymentError maps the owner sentinels to their status and to a
 // message the reader can act on.
 func (rs *GuardianResource) renderPaymentError(w http.ResponseWriter, r *http.Request, err error) {
@@ -121,7 +131,9 @@ func (rs *GuardianResource) renderPaymentError(w http.ResponseWriter, r *http.Re
 	}
 	for _, rule := range paymentErrorMessages {
 		if errors.Is(err, rule.sentinel) {
-			rs.failMessage(w, r, FailureInvalidRequest, rule.message)
+			// The sentinel stays in the chain so the root can answer with
+			// the input's own code (#2517).
+			rs.fail(w, r, FailureInvalidRequest, paymentInputError{message: rule.message, sentinel: rule.sentinel})
 			return
 		}
 	}

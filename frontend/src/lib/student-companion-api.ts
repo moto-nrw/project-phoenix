@@ -1,3 +1,4 @@
+import { apiErrorFromText, transportFetch } from "./api-error";
 import { getCachedSession } from "./session-cache";
 
 /**
@@ -148,11 +149,11 @@ async function authHeaders(): Promise<HeadersInit> {
 }
 
 /**
- * Pulls the German error text out of the backend's error envelope
+ * Pulls the backend's diagnostic text out of its error envelope
  * ({ status, error }), falling back to the raw body and finally the status.
+ * The text stays developer diagnosis; what the user reads comes from the code.
  */
-async function errorMessage(response: Response): Promise<string> {
-  const text = await response.text().catch(() => "");
+function errorMessage(text: string, status: number): string {
   if (text) {
     try {
       const parsed: unknown = JSON.parse(text);
@@ -169,14 +170,19 @@ async function errorMessage(response: Response): Promise<string> {
       return text;
     }
   }
-  return `Anfrage fehlgeschlagen (${response.status})`;
+  return `Anfrage fehlgeschlagen (${status})`;
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    // The backend returns German validation messages verbatim (self-link,
-    // unknown child, missing weekday) — surface them instead of a status code.
-    throw new Error(await errorMessage(response));
+    // ApiError keeps code, field errors and request ID for the shared error
+    // path (#2513); the message is diagnosis only.
+    const text = await response.text().catch(() => "");
+    throw apiErrorFromText(
+      errorMessage(text, response.status),
+      response.status,
+      text,
+    );
   }
   if (response.status === 204) {
     return undefined as T;
@@ -269,11 +275,14 @@ export function notifyStudentCompanionDisplayChanged(): void {
 export async function fetchStudentCompanions(
   studentId: string,
 ): Promise<StudentCompanion[]> {
-  const response = await fetch(`/api/students/${studentId}/companions`, {
-    method: "GET",
-    headers: await authHeaders(),
-    credentials: "include",
-  });
+  const response = await transportFetch(
+    `/api/students/${studentId}/companions`,
+    {
+      method: "GET",
+      headers: await authHeaders(),
+      credentials: "include",
+    },
+  );
   const raw =
     (await parseResponse<RawStudentCompanion[] | null>(response)) ?? [];
   return raw.map((companion) => ({

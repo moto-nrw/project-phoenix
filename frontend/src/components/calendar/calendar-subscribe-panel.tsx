@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   CalendarDays,
@@ -13,8 +13,8 @@ import {
 
 import { Button, ButtonLink } from "~/components/ui/button";
 import { SectionCard } from "~/components/ui/section-card";
-import { useToast } from "~/contexts/ToastContext";
-import { getApiErrorMessage } from "~/lib/api-error-message";
+import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
+import { createLogger } from "~/lib/logger";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import {
   getParentCalendarFeed,
@@ -23,6 +23,8 @@ import {
   rotateStaffCalendarFeed,
   type CalendarFeedInfo,
 } from "~/lib/personal-calendar-api";
+
+const logger = createLogger({ component: "CalendarSubscribePanel" });
 
 interface CalendarSubscribeCopy {
   readonly title: string;
@@ -40,8 +42,8 @@ interface CalendarSubscribeCopy {
   readonly howToApple: string;
   readonly howToAndroid: string;
   readonly alreadyActive: string;
-  readonly loadError: string;
-  readonly rotateError: string;
+  readonly loadObject: string;
+  readonly rotateObject: string;
   readonly regenerated: string;
   readonly copied: string;
   readonly copyFailed: string;
@@ -144,8 +146,8 @@ export function CalendarSubscribePanel({
     howToApple: t("howToApple"),
     howToAndroid: t("howToAndroid"),
     alreadyActive: isStaff ? staffT("alreadyActive") : t("alreadyActive"),
-    loadError: t("loadError"),
-    rotateError: t("rotateError"),
+    loadObject: t("loadObject"),
+    rotateObject: t("rotateObject"),
     regenerated: isStaff ? staffT("regenerated") : t("regenerated"),
     copied: t("copied"),
     copyFailed: t("copyFailed"),
@@ -155,9 +157,13 @@ export function CalendarSubscribePanel({
     ? rotateStaffCalendarFeed
     : rotateParentCalendarFeed;
   const toast = useToast();
+  const { show: showError } = useApiErrorDisplay();
   const [feed, setFeed] = useState<CalendarFeedInfo | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  // „Wiederholen“ im Toast läuft über die jeweils aktuelle Fassung.
+  const latestLoadRef = useRef<() => void>(() => undefined);
+  const latestRotateRef = useRef<() => void>(() => undefined);
 
   const load = async () => {
     setLoading(true);
@@ -165,16 +171,16 @@ export function CalendarSubscribePanel({
       setFeed(await loadFeed());
       setOpen(true);
     } catch (err) {
+      logger.error("calendar_feed_load_failed", {
+        audience,
+        error: err instanceof Error ? err.message : String(err),
+      });
       // Showing the link creates it on first use, so the read-only staff
-      // preview blocks this call — say that instead of a generic failure.
-      toast.error(
-        getApiErrorMessage(
-          err,
-          "anzeigen",
-          "den Kalender-Link",
-          copy.loadError,
-        ),
-      );
+      // preview blocks this call: its code names that case in the catalog.
+      void showError(err, {
+        object: copy.loadObject,
+        retry: () => latestLoadRef.current(),
+      });
     } finally {
       setLoading(false);
     }
@@ -185,12 +191,23 @@ export function CalendarSubscribePanel({
     try {
       setFeed(await rotateFeed());
       toast.success(copy.regenerated);
-    } catch {
-      toast.error(copy.rotateError);
+    } catch (err) {
+      logger.error("calendar_feed_rotate_failed", {
+        audience,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showError(err, {
+        object: copy.rotateObject,
+        retry: () => latestRotateRef.current(),
+      });
     } finally {
       setLoading(false);
     }
   };
+  useLayoutEffect(() => {
+    latestLoadRef.current = () => void load();
+    latestRotateRef.current = () => void rotate();
+  });
 
   return (
     <SectionCard

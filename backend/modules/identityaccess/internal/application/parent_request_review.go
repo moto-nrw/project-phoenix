@@ -10,12 +10,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
-// Parent absence review scopes of the tenant setting.
+// Parent request review scopes of the tenant settings. The request scope
+// inherits the group-leader switch, the absence scope the request scope.
 const (
-	absenceScopeInherit      = "inherit"
-	absenceScopeAdmins       = "admins"
-	absenceScopeGroupLeaders = "group_leaders"
-	absenceScopeAllStaff     = "all_staff"
+	reviewScopeInherit      = "inherit"
+	reviewScopeAdmins       = "admins"
+	reviewScopeGroupLeaders = "group_leaders"
+	reviewScopeAllStaff     = "all_staff"
 )
 
 // ParentRequestReviewDependencies binds the parent request review policy.
@@ -26,13 +27,14 @@ type ParentRequestReviewDependencies struct {
 	Permissions           func([]string) domain.ReviewPermissions
 	Settings              ports.ReviewSettings
 	GroupLeaderSettingKey string
+	RequestSettingKey     string
 	AbsenceSettingKey     string
 	AbsenceReadRequired   error
 }
 
 // ParentRequestReview narrows parent request review behind the route-level
-// permissions. Administrators stay school-wide; group leaders are opt-in
-// per school.
+// permissions. Administrators stay school-wide; group leaders and the whole
+// team are opt-in per school.
 type ParentRequestReview struct {
 	caller *CallerContext
 	deps   ParentRequestReviewDependencies
@@ -62,25 +64,47 @@ func (p *ParentRequestReview) Scope(ctx context.Context, permissions []string) (
 	if !facts.CanReviewExcused {
 		return false, nil, nil
 	}
-	if p.deps.Settings == nil || p.deps.GroupLeaderSettingKey == "" {
+	if p.deps.Settings == nil || p.deps.GroupLeaderSettingKey == "" || p.deps.RequestSettingKey == "" {
 		return false, nil, errors.New("parent request review policy is not configured")
 	}
-	enabled, err := p.deps.Settings.ResolveBool(ctx, p.deps.GroupLeaderSettingKey)
+	scope, err := p.deps.Settings.ResolveString(ctx, p.deps.RequestSettingKey)
 	if err != nil {
-		return false, nil, fmt.Errorf("resolve group-leader request review setting: %w", err)
+		return false, nil, fmt.Errorf("resolve parent request review scope: %w", err)
 	}
-	if !enabled {
-		return false, nil, nil
+	if scope == reviewScopeInherit {
+		enabled, err := p.deps.Settings.ResolveBool(ctx, p.deps.GroupLeaderSettingKey)
+		if err != nil {
+			return false, nil, fmt.Errorf("resolve group-leader request review setting: %w", err)
+		}
+		scope = reviewScopeAdmins
+		if enabled {
+			scope = reviewScopeGroupLeaders
+		}
 	}
-	groups, err := p.reviewGroupIDs(ctx)
-	if err != nil {
-		return false, nil, fmt.Errorf("resolve request review groups: %w", err)
-	}
-	return false, groups, nil
+	return p.scopeOf(ctx, scope)
 }
 
-// AbsenceScope applies only to sick and excused parent requests. Other
-// request kinds keep Scope with its own group-leader switch.
+// scopeOf evaluates an explicit scope for a caller who already passed the
+// route-level permission facts.
+func (p *ParentRequestReview) scopeOf(ctx context.Context, scope string) (bool, []int64, error) {
+	switch scope {
+	case reviewScopeAdmins:
+		return false, nil, nil
+	case reviewScopeGroupLeaders:
+		groups, err := p.reviewGroupIDs(ctx)
+		if err != nil {
+			return false, nil, fmt.Errorf("resolve request review groups: %w", err)
+		}
+		return false, groups, nil
+	case reviewScopeAllStaff:
+		return p.allStaffScope(ctx)
+	default:
+		return false, nil, fmt.Errorf("unknown parent request review scope %q", scope)
+	}
+}
+
+// AbsenceScope applies only to sick and excused parent requests. Its
+// inherit value follows Scope, the scope of the other request kinds.
 func (p *ParentRequestReview) AbsenceScope(ctx context.Context, permissions []string) (bool, []int64, error) {
 	facts := p.deps.Permissions(permissions)
 	if p.caller.principal(ctx).EffectiveAdmin() || facts.AdminWildcard {
@@ -99,22 +123,10 @@ func (p *ParentRequestReview) AbsenceScope(ctx context.Context, permissions []st
 	if err != nil {
 		return false, nil, fmt.Errorf("resolve parent absence review scope: %w", err)
 	}
-	switch scope {
-	case absenceScopeInherit:
+	if scope == reviewScopeInherit {
 		return p.Scope(ctx, permissions)
-	case absenceScopeAdmins:
-		return false, nil, nil
-	case absenceScopeGroupLeaders:
-		groups, err := p.reviewGroupIDs(ctx)
-		if err != nil {
-			return false, nil, fmt.Errorf("resolve absence review groups: %w", err)
-		}
-		return false, groups, nil
-	case absenceScopeAllStaff:
-		return p.allStaffScope(ctx)
-	default:
-		return false, nil, fmt.Errorf("unknown parent absence review scope %q", scope)
 	}
+	return p.scopeOf(ctx, scope)
 }
 
 // allStaffScope lets every verified staff member of the token's own school
@@ -127,21 +139,25 @@ func (p *ParentRequestReview) allStaffScope(ctx context.Context) (bool, []int64,
 	}
 	staffID, err := p.caller.StaffID(ctx)
 	if err != nil {
-		return false, nil, fmt.Errorf("resolve absence reviewer staff: %w", err)
+		return false, nil, fmt.Errorf("resolve team reviewer staff: %w", err)
 	}
 	return staffID > 0, nil, nil
 }
 
 // AccessLevel reports the union of the queues the caller can review: why a
 // queue may be empty, not what is in it. Each queue still applies its own
-// scope to rows, notes, counts and decisions.
+// scope to rows, notes, counts and decisions. Only administrators report
+// admin; a school-wide team scope reports team.
 func (p *ParentRequestReview) AccessLevel(ctx context.Context, permissions []string) (string, error) {
+	if p.caller.principal(ctx).EffectiveAdmin() || p.deps.Permissions(permissions).AdminWildcard {
+		return domain.ReviewAccessAdmin, nil
+	}
 	schoolWide, groups, err := p.Scope(ctx, permissions)
 	if err != nil {
 		return "", err
 	}
 	if schoolWide {
-		return domain.ReviewAccessAdmin, nil
+		return domain.ReviewAccessTeam, nil
 	}
 	absenceWide, absenceGroups, err := p.AbsenceScope(ctx, permissions)
 	if err != nil {

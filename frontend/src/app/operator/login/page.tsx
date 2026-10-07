@@ -6,6 +6,9 @@ import { redirect, useRouter } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { credentialError } from "~/components/auth/credential-error";
+import { useApiFormError } from "~/contexts/ToastContext";
 import {
   AuthShell,
   OperatorBrand,
@@ -17,17 +20,11 @@ import { PasswordToggleButton } from "~/components/shared/password-toggle-button
 import { operatorPath } from "~/lib/operator-url";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
-import {
-  login as loginApi,
-  germanMFAErrorMessage,
-  MFAApiError,
-  type MFATokenResponse,
-} from "~/lib/mfa-api";
+import { login as loginApi, type MFATokenResponse } from "~/lib/mfa-api";
 import {
   isPasskeySupported,
   isPasskeyCeremonyIncompleteError,
   loginWithPasskey,
-  PasskeyApiError,
 } from "~/lib/passkey-api";
 import { createLogger } from "~/lib/logger";
 
@@ -51,7 +48,10 @@ interface MFAEnrollmentStep {
 export default function OperatorLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { show: showLoginError, clear: clearLoginError } = formErrors;
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
@@ -72,7 +72,7 @@ export default function OperatorLoginPage() {
   useEffect(() => {
     const url = new URL(window.location.href);
     if (url.searchParams.get("error") !== "SessionExpired") return;
-    setError("Ihre Anmeldung ist abgelaufen. Bitte melden Sie sich erneut an.");
+    setSessionExpired(true);
     url.searchParams.delete("error");
     window.history.replaceState(
       {},
@@ -95,7 +95,12 @@ export default function OperatorLoginPage() {
         setIsCleaningUp(true);
         try {
           await signOut({ redirect: false });
-        } catch {
+        } catch (err) {
+          // Nothing is shown: no one asked for this cleanup (no error
+          // without a user action, #2501), and the login form still works.
+          logger.warn("stale_session_cleanup_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
           cleanupStartedRef.current = false;
         }
         setIsCleaningUp(false);
@@ -139,8 +144,11 @@ export default function OperatorLoginPage() {
       refreshToken: tokens.refresh_token,
     });
     if (result?.error) {
-      setError("Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.");
       logger.error("operator_session_seed_failed", { error: result.error });
+      // Kein ApiError: der Weg zeigt den allgemeinen Text für die Anmeldung.
+      void showLoginError(new Error(result.error), {
+        object: "die Anmeldung",
+      });
       return;
     }
     router.push(operatorPath("/operator/organizations"));
@@ -151,30 +159,11 @@ export default function OperatorLoginPage() {
     await seedSessionWithTokens(tokens);
   };
 
-  // Map login failures to a German UI message. Kept outside the
-  // handler to keep its cognitive complexity below the linter cap.
-  const operatorLoginErrorMessage = (err: unknown): string => {
-    if (err instanceof MFAApiError) {
-      if (err.status === 403) {
-        return "Ihr Konto ist deaktiviert. Bitte kontaktieren Sie den Administrator.";
-      }
-      if (err.status === 429) {
-        return "Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut.";
-      }
-      if (err.status === 401) {
-        return "Ungültige Anmeldedaten";
-      }
-      return germanMFAErrorMessage(err);
-    }
-    return err instanceof Error
-      ? err.message
-      : "Anmeldefehler. Bitte versuchen Sie es erneut.";
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setError("");
+    clearLoginError();
+    setSessionExpired(false);
 
     try {
       const response = await loginApi("operator", { email, password });
@@ -206,10 +195,11 @@ export default function OperatorLoginPage() {
         refresh_token: response.refresh_token,
       });
     } catch (err) {
-      setError(operatorLoginErrorMessage(err));
-      logger.error("operator_login_failed", {
+      logger.warn("operator_login_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
+      // Vor der Anmeldung heißt 401 "abgelehnt", nicht "Sitzung abgelaufen".
+      void showLoginError(credentialError(err), { object: "die Anmeldung" });
     } finally {
       setIsLoading(false);
     }
@@ -217,7 +207,8 @@ export default function OperatorLoginPage() {
 
   const handlePasskeyLogin = async () => {
     setIsLoading(true);
-    setError("");
+    clearLoginError();
+    setSessionExpired(false);
     try {
       const response = await loginWithPasskey("operator");
       await seedSessionWithTokens({
@@ -231,17 +222,11 @@ export default function OperatorLoginPage() {
         });
         return;
       }
-      if (err instanceof PasskeyApiError && err.status === 401) {
-        setError("Passkey-Anmeldung fehlgeschlagen.");
-      } else {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Passkey-Anmeldung fehlgeschlagen.",
-        );
-      }
-      logger.error("operator_passkey_login_failed", {
+      logger.warn("operator_passkey_login_failed", {
         error: err instanceof Error ? err.message : String(err),
+      });
+      void showLoginError(credentialError(err), {
+        object: "die Anmeldung mit Passkey",
       });
     } finally {
       setIsLoading(false);
@@ -267,7 +252,7 @@ export default function OperatorLoginPage() {
           onSuccess={handleMFASuccess}
           onCancel={() => {
             setMfaStep(null);
-            setError("");
+            clearLoginError();
             setPassword("");
           }}
         />
@@ -278,7 +263,7 @@ export default function OperatorLoginPage() {
           userEmail={enrollmentStep.email}
           onExit={() => {
             setEnrollmentStep(null);
-            setError("");
+            clearLoginError();
             setPassword("");
           }}
           onComplete={async (tokens) => {
@@ -293,8 +278,20 @@ export default function OperatorLoginPage() {
           }}
         />
       ) : (
-        <form onSubmit={handleSubmit} noValidate className="space-y-6">
-          {error && <Alert type="error" message={error} />}
+        <form
+          ref={formRef}
+          onSubmit={handleSubmit}
+          noValidate
+          className="space-y-6"
+        >
+          {formErrors.error ? (
+            <FormErrorAlert message={formErrors.error} />
+          ) : sessionExpired ? (
+            <Alert
+              type="info"
+              message="Ihre Anmeldung ist abgelaufen. Bitte melden Sie sich erneut an."
+            />
+          ) : null}
 
           <div className="space-y-4">
             <div className="text-left">

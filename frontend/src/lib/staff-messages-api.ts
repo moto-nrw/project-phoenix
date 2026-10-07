@@ -1,5 +1,5 @@
 import type { ErrorCode } from "~/lib/error-codes.generated";
-import { ApiError, enrichApiError } from "./api-error";
+import { ApiError, enrichApiError, transportFetch } from "./api-error";
 /**
  * Client for the OGS-internal colleague chat (#2598). Chat model: one
  * continuous conversation between two staff accounts of the same school (no
@@ -134,10 +134,9 @@ export function isStaffMessagingDisabled(err: unknown): boolean {
 }
 
 /**
- * Reads the backend error message off a failed response and throws it, falling
- * back to the supplied German default only when the body carries no `error`.
- * Without this a 403 "Team-Chat nicht aktiviert" would surface as a generic
- * "konnte nicht geladen werden" and the real reason would be lost.
+ * Throws a failed response as a StaffMessagesError carrying the envelope's
+ * code, status, field errors and request ID (#2517). The message is a
+ * developer diagnostic; the shared display path shows the catalog text.
  */
 async function unwrap<T>(
   response: Response,
@@ -154,11 +153,16 @@ async function unwrap<T>(
   return body;
 }
 
+/** A success response without the expected payload. */
+function missingData(fallback: string): ApiError {
+  return new ApiError(fallback, 500);
+}
+
 async function getEnvelope<T>(
   url: string,
   fallbackMessage: string,
 ): Promise<ApiResponse<T>> {
-  return unwrap<T>(await fetch(url), fallbackMessage);
+  return unwrap<T>(await transportFetch(url), fallbackMessage);
 }
 
 async function postEnvelope<T>(
@@ -166,7 +170,7 @@ async function postEnvelope<T>(
   payload: unknown,
   fallbackMessage: string,
 ): Promise<ApiResponse<T>> {
-  const response = await fetch(url, {
+  const response = await transportFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -230,7 +234,7 @@ export function createStaffMessagesApi(basePath: string): StaffMessagesApi {
         fallback,
       );
       if (!result.data) {
-        throw new Error(fallback);
+        throw missingData(fallback);
       }
       return result.data;
     },
@@ -243,7 +247,7 @@ export function createStaffMessagesApi(basePath: string): StaffMessagesApi {
         fallback,
       );
       if (!result.data) {
-        throw new Error(fallback);
+        throw missingData(fallback);
       }
       return result.data;
     },
@@ -256,7 +260,7 @@ export function createStaffMessagesApi(basePath: string): StaffMessagesApi {
         fallback,
       );
       if (!result.data) {
-        throw new Error(fallback);
+        throw missingData(fallback);
       }
       return result.data;
     },

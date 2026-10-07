@@ -29,6 +29,9 @@ interface PersonCardProps {
   substituteDisabled: boolean;
   staffLoadError: boolean;
   fullyCovered: boolean;
+  /** Der Server hat die gewählte Ersatzperson abgelehnt (Feldfehler
+   *  `substitute_staff_id`): das Feld wird markiert und fokussiert. */
+  substituteInvalid?: boolean;
   onUpdate: (patch: Partial<PersonForm>) => void;
   onChooseScope: (scope: "all" | "selected") => void;
   onToggleAppointment: (instanceId: string) => void;
@@ -370,6 +373,8 @@ function SubstitutePicker(props: PersonCardProps) {
           value={person.substituteId}
           options={substituteOptions}
           ariaLabel={`Vertretung für ${name}`}
+          name="substitute_staff_id"
+          invalid={props.substituteInvalid}
           placeholder="Ersatzperson wählen…"
           disabled={props.substituteDisabled}
           onChange={(value) => onUpdate({ substituteId: value })}

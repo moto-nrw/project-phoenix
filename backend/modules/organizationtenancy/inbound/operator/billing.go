@@ -251,7 +251,7 @@ func sanitizeCSVCell(value string) string {
 // failure before it answers 500 without details.
 func (rs *BillingResource) billingError(r *http.Request, err error) render.Renderer {
 	if errors.Is(err, organizationtenancy.ErrInvalidBillingKeyDay) {
-		return common.OperatorInvalidRequest(err)
+		return common.OperatorInvalidField(common.CodeBillingInvalidKeyDay, "key_day", err.Error())
 	}
 	rs.logger.ErrorContext(r.Context(), "operator billing request failed",
 		"path", r.URL.Path,

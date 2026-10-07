@@ -1,3 +1,4 @@
+import { apiErrorFromResponse } from "./api-error";
 import { downloadBlob, filenameFromDisposition } from "./file-download";
 import { sessionFetch } from "./session-cache";
 
@@ -65,33 +66,15 @@ interface BackendOverviewRow {
   iban_masked: string;
 }
 
-// The backend answers errors as {"status":"error","error":"..."}. Surfacing the
-// inner string keeps German validation messages ("malformed IBAN") readable in
-// the toast instead of a bare status code.
-async function readError(
-  response: Response,
-  fallback: string,
-): Promise<string> {
-  try {
-    const json = (await response.json()) as { error?: unknown };
-    if (typeof json.error === "string" && json.error.trim()) return json.error;
-  } catch {
-    // Not JSON — fall through.
-  }
-  return fallback;
-}
-
+// A failed request becomes an ApiError with the wire code, field errors and
+// request ID, so the shared error display shows the catalog text (#2517).
+// The message is a diagnostic for the logs.
 export async function fetchGuardianPayment(
   guardianId: string,
 ): Promise<GuardianPaymentMasked> {
   const response = await sessionFetch(`/api/guardians/${guardianId}/payment`);
   if (!response.ok) {
-    throw new Error(
-      await readError(
-        response,
-        "Die Bankverbindung konnte nicht geladen werden. Bitte noch einmal versuchen.",
-      ),
-    );
+    throw await apiErrorFromResponse(response, "load guardian payment failed");
   }
   const json = (await response.json()) as { data: BackendMasked };
   return {
@@ -109,11 +92,9 @@ export async function revealGuardianPayment(
     { method: "POST", headers: { "Content-Type": "application/json" } },
   );
   if (!response.ok) {
-    throw new Error(
-      await readError(
-        response,
-        "Die IBAN konnte nicht angezeigt werden. Bitte noch einmal versuchen.",
-      ),
+    throw await apiErrorFromResponse(
+      response,
+      "reveal guardian payment failed",
     );
   }
   const json = (await response.json()) as { data: BackendPlain };
@@ -137,11 +118,9 @@ export async function updateGuardianPayment(
     }),
   });
   if (!response.ok) {
-    throw new Error(
-      await readError(
-        response,
-        "Die Bankverbindung konnte nicht gespeichert werden. Bitte noch einmal versuchen.",
-      ),
+    throw await apiErrorFromResponse(
+      response,
+      "update guardian payment failed",
     );
   }
 }
@@ -160,24 +139,14 @@ export async function setStudentPayer(
     },
   );
   if (!response.ok) {
-    throw new Error(
-      await readError(
-        response,
-        "Das Zahlungskonto konnte nicht gespeichert werden. Bitte noch einmal versuchen.",
-      ),
-    );
+    throw await apiErrorFromResponse(response, "set student payer failed");
   }
 }
 
 export async function fetchPaymentOverview(): Promise<PaymentOverviewRow[]> {
   const response = await sessionFetch("/api/guardians/payment-overview");
   if (!response.ok) {
-    throw new Error(
-      await readError(
-        response,
-        "Die Liste konnte nicht geladen werden. Bitte noch einmal versuchen.",
-      ),
-    );
+    throw await apiErrorFromResponse(response, "load payment overview failed");
   }
   const json = (await response.json()) as { data: BackendOverviewRow[] | null };
   return (json.data ?? []).map((row) => ({
@@ -208,11 +177,9 @@ export async function exportPaymentOverview(
     },
   );
   if (!response.ok) {
-    throw new Error(
-      await readError(
-        response,
-        "Der Export hat nicht geklappt. Bitte noch einmal versuchen.",
-      ),
+    throw await apiErrorFromResponse(
+      response,
+      "export payment overview failed",
     );
   }
   downloadBlob(

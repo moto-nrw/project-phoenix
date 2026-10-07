@@ -49,14 +49,14 @@ describe("StudentCommonFormSections", () => {
     extra_info: "Test extra",
   };
 
-  const mockErrors = {};
+  const noFieldError = () => undefined;
   const mockOnChange = vi.fn();
 
   it("renders all form sections", () => {
     const { getByTestId, queryByTestId } = render(
       <StudentCommonFormSections
         formData={mockFormData}
-        errors={mockErrors}
+        fieldError={noFieldError}
         onChange={mockOnChange}
       />,
     );

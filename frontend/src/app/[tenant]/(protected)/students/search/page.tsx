@@ -1,12 +1,13 @@
 "use client";
 
 import {
-  useState,
-  useEffect,
-  useRef,
   Suspense,
-  useMemo,
   useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 import { CalendarRange, Download, Search } from "lucide-react";
 // SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
@@ -18,9 +19,12 @@ import { HELP_TOPICS } from "~/lib/help-topics";
 import { CollectionGrid } from "~/components/ui/collection-grid";
 import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { ConfirmationModal, Modal } from "~/components/ui/modal";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
+import { errorAlertActions } from "~/components/ui/form-error-alert";
+import { useApiLoadError } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import { SectionCard } from "~/components/ui/section-card";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type {
@@ -69,10 +73,35 @@ import {
 } from "~/components/students/student-card";
 import {
   SearchStudentCard,
+  SearchStudentStatusBadge,
   dailyDepartureLabelForStudent,
+  searchStudentDay,
 } from "~/components/students/search-student-card";
+import {
+  StudentTable,
+  arrivalColumn,
+  classColumn,
+  columnDefaults,
+  compactColumns,
+  departureColumn,
+  groupColumn,
+  nameColumn,
+  pickupColumn,
+  statusColumn,
+  trackingColumn,
+} from "~/components/students/student-table";
+import { StudentSelectionScope } from "~/components/students/student-selection-scope";
+import {
+  CollectionViewSwitch,
+  columnMenuEntries,
+  phoneDetailMenuEntries,
+} from "~/components/ui/collection-view-switch";
+import { useCollectionView } from "~/lib/hooks/use-collection-view";
+import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
+import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { StudentCardClockProvider } from "~/components/students/student-card-clock";
 import { StudentExportModal } from "~/components/students/student-export-modal";
+import { useBulkCheckinActions } from "~/components/students/use-bulk-checkin-actions";
 import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
@@ -84,8 +113,6 @@ import {
 } from "~/lib/hooks/use-school-checkin-mode";
 import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
-import type { SchoolCheckinAction } from "~/lib/student-api";
-import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { SEARCH_ROOMS_LIST_CACHE_KEY } from "~/lib/swr/room-derived-caches";
 import {
@@ -210,7 +237,8 @@ const SORT_OPTIONS: Array<{ value: SortMode; label: string }> = [
 ];
 
 const GROUP_OPTIONS: Array<{ value: GroupMode; label: string }> = [
-  { value: "none", label: "Liste" },
+  // Nicht „Liste“: so heißt seit #3834 der Umschalter Kacheln/Liste.
+  { value: "none", label: "Nicht gruppiert" },
   { value: "status", label: "Nach Status" },
   { value: "room", label: "Nach Raum" },
   { value: "arrival", label: "Nach Ankunftszeit" },
@@ -552,6 +580,8 @@ function readStoredFilters(storageKey: string | null) {
       normalizeStoredFilters(parsed as PersistedSearchFilters),
     );
   } catch {
+    // Bewusst still: ein kaputter oder gesperrter Speicher startet die Suche
+    // ohne gemerkte Filter, die Adresse trägt sie weiter.
     safelyRemoveStoredFilters(storageKey);
     return null;
   }
@@ -607,27 +637,6 @@ function compareByName(a: Student, b: Student) {
   );
   if (lastCmp !== 0) return lastCmp;
   return (a.first_name ?? "").localeCompare(b.first_name ?? "", "de");
-}
-
-/**
- * Snapshot of one student a bulk action operates on (#2359): the id for the
- * API call plus the display name for the failure dialog. Taken from the
- * Student row at snapshot time because the row itself can leave the result
- * set (live update, changed filter) while a dialog still has to name — and
- * retry — the child (review #2372).
- */
-interface BulkStudentRef {
-  id: string;
-  name: string;
-}
-
-function toBulkStudentRef(student: Student): BulkStudentRef {
-  return {
-    id: student.id.toString(),
-    name:
-      `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
-      student.name,
-  };
 }
 
 function statusLabelForStudent(student: Student): string {
@@ -1371,31 +1380,6 @@ function SearchPageContent() {
     studentName: string;
     room: string;
   } | null>(null);
-  // Bulk checkout of a selection containing children who are currently in
-  // rooms mirrors the single-tap confirmation (#2220): ending running room
-  // visits deserves one explicit ok — but one for the whole batch, not per
-  // child (#2359). The dialog holds a SNAPSHOT of the selection taken when it
-  // opened, and confirming executes exactly that snapshot: the live selection
-  // can shift underneath an open dialog (an SWR/SSE update re-shaping the
-  // visible list), and the operation must stay the one the user confirmed
-  // (review #2372).
-  const [pendingBulkCheckout, setPendingBulkCheckout] = useState<{
-    students: BulkStudentRef[];
-    roomCount: number;
-  } | null>(null);
-  // Per-child failures of a bulk action, named for the user (#2359
-  // acceptance criteria). The successful part of the batch is already
-  // processed when this shows. Carries id+name snapshots, not just names:
-  // the dialog's own retry button executes exactly this list, which keeps
-  // the promised one-tap retry reachable even when a scope change during
-  // the run hid the retained marks from the selection bar (review #2372).
-  const [bulkFailures, setBulkFailures] = useState<{
-    action: SchoolCheckinAction;
-    succeeded: number;
-    students: BulkStudentRef[];
-  } | null>(null);
-  const [runningBulkAction, setRunningBulkAction] =
-    useState<SchoolCheckinAction | null>(null);
   const {
     enabled: studentPhotosEnabled,
     isLoading: studentPhotosSettingLoading,
@@ -1408,7 +1392,9 @@ function SearchPageContent() {
       try {
         return await groupService.getGroups();
       } catch {
-        // User might not have groups:read permission - continue with empty list
+        // Bewusst still: ohne groups:read fehlt die Liste regelmäßig. Der
+        // Filter bietet dann keine Gruppen an, die Kinderliste selbst lädt
+        // und filtert unverändert weiter.
         logger.warn("could not load groups for filter");
         return [];
       }
@@ -1423,6 +1409,8 @@ function SearchPageContent() {
       try {
         return await roomService.getRooms({ page: 1, pageSize: 1000 });
       } catch {
+        // Bewusst still wie bei den Gruppen: ohne Raumliste bietet der
+        // Filter keine Räume an, die Kinderliste lädt unverändert weiter.
         logger.warn("could not load rooms for filter");
         return [];
       }
@@ -1895,32 +1883,27 @@ function SearchPageContent() {
     if (next !== trackingFilter) updateTrackingFilter(next);
   }, [trackingData, trackingFilter, updateTrackingFilter]);
 
-  // Error type for proper heading display (Fix P3: substring matching on transformed string)
-  type ErrorType = "permission" | "session" | "generic" | null;
-
-  // Parse error messages for user-friendly display, returning both type and message
-  const [errorType, errorMessage]: [ErrorType, string | null] = useMemo(() => {
-    if (!studentsError) return [null, null];
-
-    const rawMessage =
-      studentsError instanceof Error
-        ? studentsError.message
-        : String(studentsError);
-
-    if (rawMessage.includes("403")) {
-      return [
-        "permission",
-        "Sie haben keine Berechtigung, Kinderdaten anzuzeigen. Bitte wenden Sie sich an einen Administrator.",
-      ];
+  // Ein Ladefehler kommt über den gemeinsamen Fehlerweg (#2513): Text aus dem
+  // Katalog nach Code und Klasse, Vorgangskennung bei Serverfehlern, eine
+  // abgelaufene Sitzung führt zur Anmeldung. Fehlende Rechte erkennt die
+  // Seite am Status, nie am Meldungstext.
+  const load = useApiLoadError();
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
+  const reloadStudentsRef = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    if (studentsError) {
+      void showLoadError(studentsError, {
+        object: "die Liste der Kinder",
+        retry: () => reloadStudentsRef.current(),
+      });
+    } else {
+      clearLoadError();
     }
-    if (rawMessage.includes("401")) {
-      return [
-        "session",
-        "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
-      ];
-    }
-    return ["generic", "Fehler beim Laden der Kinderdaten."];
-  }, [studentsError]);
+  }, [studentsError, showLoadError, clearLoadError]);
+  const isPermissionError =
+    studentsError instanceof ApiError && studentsError.status === 403;
+  const hasLoadError = studentsError !== undefined && studentsError !== null;
 
   // Fix P1: Detect when auth prevents fetching (user can't fetch but no error from SWR)
   const canFetch = status === "authenticated" && !!session?.user?.token;
@@ -1931,6 +1914,9 @@ function SearchPageContent() {
   const isInitializing = status === "loading";
   const hasFetchedOnce =
     studentsData !== undefined || studentsError !== undefined;
+  // Zähler gibt es nur aus Zeilen, die für das gewählte Datum geladen sind:
+  // hasFetchedOnce ist auch nach einem Fehler wahr (#2517).
+  const rowsLoaded = studentsData !== undefined && !isDateTransition;
 
   // Show the skeleton while the session is still resolving, while the first
   // fetch is in progress (not yet hasFetchedOnce), or while a date switch is in
@@ -1943,7 +1929,7 @@ function SearchPageContent() {
   const showGridSkeleton =
     isInitializing ||
     isAuthError ||
-    (!errorMessage && ((isSearching && !hasFetchedOnce) || isDateTransition));
+    (!hasLoadError && ((isSearching && !hasFetchedOnce) || isDateTransition));
 
   // The stall is tied to the request it was measured for, so a new key or a
   // requested reload starts over without resetting state from an effect.
@@ -1970,6 +1956,9 @@ function SearchPageContent() {
     if (isAuthError) void updateSession();
     requestReload();
   }, [isAuthError, requestReload, updateSession]);
+  useLayoutEffect(() => {
+    reloadStudentsRef.current = reloadStudents;
+  });
   const reloadAction = (
     <Button type="button" variant="outline" size="md" onClick={reloadStudents}>
       Erneut laden
@@ -2281,7 +2270,8 @@ function SearchPageContent() {
       },
       {
         id: "groupMode",
-        label: "Ansicht",
+        // Nicht „Ansicht“: das ist der Umschalter Kacheln/Liste (#3834).
+        label: "Gruppieren",
         type: "dropdown",
         value: effectiveGroupMode,
         onChange: (value) => updateGroupMode(value as GroupMode),
@@ -2533,9 +2523,9 @@ function SearchPageContent() {
     if (effectiveGroupMode !== "none") {
       filters.push({
         id: "groupMode",
-        label: `Ansicht: ${
+        label: `Gruppiert: ${
           GROUP_OPTIONS.find((option) => option.value === effectiveGroupMode)
-            ?.label ?? "Ansicht"
+            ?.label ?? "Gruppiert"
         }`,
         onRemove: () => updateGroupMode("none"),
       });
@@ -2749,8 +2739,11 @@ function SearchPageContent() {
   // list too — selectedIds may still hold students a live update removed,
   // and a count the bar shows must never exceed what a bulk action executes.
   // Statuszeile unter dem Seitentitel, allein aus der bereits geladenen
-  // Kinderliste: Gesamtzahl, wie viele zuhause sind, wie viele krank.
+  // Kinderliste: Gesamtzahl, wie viele zuhause sind, wie viele krank. Ohne
+  // geladene Liste für das gewählte Datum steht keine "0 Kinder" neben dem
+  // Ladefehler (#2517).
   const studentSummary = useMemo(() => {
+    if (!rowsLoaded) return null;
     const total = students.length;
     if (!isToday) {
       return `${total} ${total === 1 ? "Kind" : "Kinder"}`;
@@ -2792,7 +2785,7 @@ function SearchPageContent() {
       }
     }
     return `${total} ${total === 1 ? "Kind" : "Kinder"} · ${atSchool} in der Schule · ${atHome} zuhause · ${sick} krank`;
-  }, [isToday, students]);
+  }, [isToday, students, rowsLoaded]);
 
   const selectedStudentsForBulk = useMemo(
     () =>
@@ -2802,76 +2795,11 @@ function SearchPageContent() {
     [filteredStudents, schoolCheckin.selectedIds],
   );
 
-  // Runs the bulk action for an explicit snapshot list: the caller passes
-  // the visible selection for the direct path, the confirmation dialog's
-  // snapshot, or the failure dialog's retry snapshot — never the live
-  // selection at execute time, so a dialog always executes what it
-  // displayed (review #2372). runBulk executes the snapshot exactly as
-  // given — deliberately NOT intersected with the live selection: a
-  // search/filter change committing while a dialog is open clears the
-  // selection, and an intersected run would silently shrink to nothing
-  // despite the dialog's promise (review #2372). Every snapshot was on
-  // screen when the user triggered it, so nothing runs sight-unseen.
-  const executeBulk = useCallback(
-    async (action: SchoolCheckinAction, targets: readonly BulkStudentRef[]) => {
-      // The snapshot names travel with the ids: after the run the hook
-      // shrinks the selection to the failed students, and the failure
-      // dialog must still name (and be able to retry) them.
-      const nameById = new Map(
-        targets.map((target) => [target.id, target.name]),
-      );
-
-      setRunningBulkAction(action);
-      try {
-        const outcome = await schoolCheckin.runBulk(
-          action,
-          targets.map((target) => target.id),
-        );
-        // null: nothing selected or whole request failed (hook toasted the
-        // error). failed === 0: the hook toasted the success summary.
-        if (!outcome || outcome.failed === 0) return;
-
-        setBulkFailures({
-          action,
-          succeeded: outcome.succeeded,
-          students: outcome.results
-            .filter((result) => !result.ok)
-            .map((result) => ({
-              id: result.studentId,
-              name:
-                nameById.get(result.studentId) ?? `Kind #${result.studentId}`,
-            })),
-        });
-      } finally {
-        setRunningBulkAction(null);
-      }
-    },
-    [schoolCheckin],
+  const bulkCheckin = useBulkCheckinActions(
+    schoolCheckin,
+    selectedStudentsForBulk,
   );
-
-  const handleBulkAction = useCallback(
-    (action: SchoolCheckinAction) => {
-      if (selectedStudentsForBulk.length === 0) return;
-      if (action === "out") {
-        // Same rule as the single tap (#2220): checking a child out of a room
-        // ends the running visit, so that asks first — once per batch. The
-        // dialog snapshots the selection it is asking about (review #2372).
-        const roomCount = selectedStudentsForBulk.filter(
-          (student) =>
-            checkoutConfirmationRoom(student.current_location) !== null,
-        ).length;
-        if (roomCount > 0) {
-          setPendingBulkCheckout({
-            students: selectedStudentsForBulk.map(toBulkStudentRef),
-            roomCount,
-          });
-          return;
-        }
-      }
-      void executeBulk(action, selectedStudentsForBulk.map(toBulkStudentRef));
-    },
-    [selectedStudentsForBulk, executeBulk],
-  );
+  const { handleBulkAction, runningBulkAction } = bulkCheckin;
 
   const groupedStudents = useMemo(
     () => groupStudents(sortedStudents, effectiveGroupMode),
@@ -2938,6 +2866,66 @@ function SearchPageContent() {
   const handleOpenStudent = useCallback(
     (student: Student) => openStudentRef.current(student),
     [openStudentRef],
+  );
+
+  // Kacheln oder Tabelle (#3834). Die Tabelle trägt dieselben Angaben wie
+  // die Karte, eine Spalte je Angabe, und markiert Kinder per Kästchen für
+  // die Sammelaktionen. Auf dem Telefon wird sie zur dichten Zeilenliste.
+  const tableColumns = useMemo(
+    () =>
+      compactColumns<Student>([
+        nameColumn(
+          (student) => `/students/${student.id}?from=${fromParam}`,
+          studentPhotosEnabled,
+        ),
+        statusColumn(isToday ? "Aufenthalt" : "Planung", (student) => (
+          <SearchStudentStatusBadge
+            student={student}
+            isToday={isToday}
+            userGroups={myGroups}
+            groupRooms={myGroupRooms}
+            supervisedRooms={mySupervisedRooms}
+          />
+        )),
+        classColumn(),
+        groupColumn(),
+        arrivalColumn((student) => searchStudentDay(student, isToday)),
+        pickupColumn((student) => searchStudentDay(student, isToday)),
+        departureColumn(dailyDepartureLabelForStudent),
+        trackingColumn(trackingData, isToday),
+      ]),
+    [
+      fromParam,
+      studentPhotosEnabled,
+      isToday,
+      myGroups,
+      myGroupRooms,
+      mySupervisedRooms,
+      trackingData,
+    ],
+  );
+  const tableColumnDefaults = useMemo(
+    () => columnDefaults(tableColumns),
+    [tableColumns],
+  );
+  const collectionView = useCollectionView(
+    "student-search",
+    tableColumnDefaults,
+    // Ohne eigene Wahl zeigt die Handy-Liste unter dem Namen die Gehzeit.
+    "pickup",
+  );
+  const showTable = collectionView.view === "table";
+  // Die Spaltenwahl wirkt nur am Computer: auf dem Handy zeigt die Liste
+  // je Kind eine Zeile mit Name, Status und Gehzeit (#3834).
+  const isPhone = useMediaQuery(BELOW_MD);
+  const changeView = useCallback(
+    (next: "tiles" | "table") => {
+      if (next === collectionView.view) return;
+      // Der An- und Abmelde-Modus gehört zu den Kacheln.
+      schoolCheckin.deactivate();
+      collectionView.setView(next);
+    },
+    [collectionView, schoolCheckin],
   );
   const checkinClick = useCallback(
     (student: Student) => {
@@ -3012,6 +3000,12 @@ function SearchPageContent() {
         statsLoading={!hasFetchedOnce || isDateTransition}
         actions={
           <>
+            <div data-icon-only="">
+              <CollectionViewSwitch
+                value={collectionView.view}
+                onChange={changeView}
+              />
+            </div>
             <OverflowMenu
               items={[
                 {
@@ -3026,8 +3020,24 @@ function SearchPageContent() {
                   label: "Exportieren",
                   icon: <Download className="h-4 w-4" aria-hidden />,
                   onClick: () => setIsExportOpen(true),
-                  badge: filteredStudents.length,
+                  badge: rowsLoaded ? filteredStudents.length : undefined,
                 },
+                // Die Spaltenwahl der Liste (#3834) steht hier und nicht
+                // als eigener Knopf neben dem Umschalter.
+                ...(showTable && !isPhone
+                  ? columnMenuEntries(
+                      tableColumns,
+                      collectionView.hiddenColumns,
+                      collectionView.setColumnVisible,
+                    )
+                  : []),
+                ...(showTable && isPhone
+                  ? phoneDetailMenuEntries(
+                      tableColumns,
+                      collectionView.phoneDetail,
+                      collectionView.setPhoneDetail,
+                    )
+                  : []),
               ]}
               ariaLabel="Weitere Aktionen"
             />
@@ -3035,12 +3045,16 @@ function SearchPageContent() {
         }
         // Der Zähler ändert sich mit der Filterung und gehört deshalb in
         // die Filterzeile, nicht in die Titelzeile.
-        badge={{
-          count: filteredStudents.length,
-          icon: <MotoConceptIcon concept="children" size={20} />,
-        }}
+        badge={
+          rowsLoaded
+            ? {
+                count: filteredStudents.length,
+                icon: <MotoConceptIcon concept="children" size={20} />,
+              }
+            : undefined
+        }
         primaryAction={
-          checkinModeAvailable && !schoolCheckin.isActive ? (
+          checkinModeAvailable && !schoolCheckin.isActive && !showTable ? (
             <SchoolCheckinFab
               variant="inline"
               isActive={schoolCheckin.isActive}
@@ -3074,12 +3088,15 @@ function SearchPageContent() {
         // Ein Ladefehler ist der Fehlerzustand des Gerüsts. Fehlende Rechte
         // stehen als eingebetteter Standardzustand im Inhalt.
         error={(() => {
-          if (errorMessage && errorType !== "permission") {
-            // A reload cannot fix an expired session; every other load error
-            // may be a dropped connection, so offer the retry next to it.
-            return errorType === "generic"
-              ? { message: errorMessage, action: reloadAction }
-              : errorMessage;
+          if (hasLoadError && !isPermissionError) {
+            // Until the catalog text is there, the skeleton stays hidden and
+            // nothing is shown; a server or unavailable error carries its own
+            // retry, every other one gets the reload next to it.
+            if (!load.error) return null;
+            return {
+              message: load.error.message,
+              action: errorAlertActions(load.error) ?? reloadAction,
+            };
           }
           if (loadingStalled) {
             return {
@@ -3091,7 +3108,7 @@ function SearchPageContent() {
           return null;
         })()}
         empty={
-          !errorMessage &&
+          !hasLoadError &&
           hasFetchedOnce &&
           !isInitializing &&
           !isAuthError &&
@@ -3154,108 +3171,7 @@ function SearchPageContent() {
               </p>
             </ConfirmationModal>
 
-            {/* Bulk checkout of a selection with children currently in rooms: one
-          confirmation for the whole batch (#2359), mirroring the single-tap
-          room dialog above. Confirming executes the snapshot the dialog
-          displays — not the live selection, which may have shifted while it
-          was open (review #2372). */}
-            <ConfirmationModal
-              isOpen={pendingBulkCheckout !== null}
-              onClose={() => setPendingBulkCheckout(null)}
-              onConfirm={() => {
-                if (!pendingBulkCheckout) return;
-                const snapshot = pendingBulkCheckout.students;
-                setPendingBulkCheckout(null);
-                void executeBulk("out", snapshot);
-              }}
-              title="Ausgewählte Kinder abmelden?"
-              confirmText="Abmelden"
-              confirmVariant="danger"
-            >
-              <p className="text-sm text-gray-600">
-                <span className="font-medium text-gray-900">
-                  {pendingBulkCheckout?.students.length}
-                </span>{" "}
-                {pendingBulkCheckout?.students.length === 1
-                  ? "Kind ist"
-                  : "Kinder sind"}{" "}
-                ausgewählt,{" "}
-                <span className="font-medium text-gray-900">
-                  {pendingBulkCheckout?.roomCount}
-                </span>{" "}
-                davon {pendingBulkCheckout?.roomCount === 1 ? "ist" : "sind"}{" "}
-                gerade in einem Raum. Beim Abmelden werden laufende Raumbesuche
-                beendet und die Kinder gelten für heute als gegangen.
-              </p>
-            </ConfirmationModal>
-
-            {/* Per-child failures of a bulk action, named (#2359). The successful
-          part of the batch is already applied at this point. The retry
-          button executes the dialog's OWN snapshot — the named children on
-          screen right here — not the selection bar's visible-rows view: a
-          scope change during the run keeps the failed students selected but
-          may hide their cards, and the promised one-tap retry must stay
-          reachable then (review #2372). Acting on the snapshot is not
-          sight-unseen (the dialog lists every child by name), and runBulk
-          executes exactly this snapshot — a scope change committing while
-          this dialog is open may clear the selection, and an intersected
-          retry would then be a silent no-op (review #2372). */}
-            <Modal
-              isOpen={bulkFailures !== null}
-              onClose={() => setBulkFailures(null)}
-              title={
-                bulkFailures?.action === "in"
-                  ? "Nicht alle Kinder angemeldet"
-                  : "Nicht alle Kinder abgemeldet"
-              }
-            >
-              <div className="space-y-3">
-                <p className="text-sm text-gray-600">
-                  {bulkFailures?.succeeded === 1
-                    ? "1 Kind wurde"
-                    : `${bulkFailures?.succeeded} Kinder wurden`}{" "}
-                  {bulkFailures?.action === "in" ? "angemeldet" : "abgemeldet"}.
-                  Bei
-                  {bulkFailures?.students.length === 1
-                    ? " diesem Kind"
-                    : ` diesen ${bulkFailures?.students.length} Kindern`}{" "}
-                  hat es nicht geklappt:
-                </p>
-                <ul className="list-inside list-disc text-sm font-medium text-gray-900">
-                  {bulkFailures?.students.map((student) => (
-                    <li key={student.id}>{student.name}</li>
-                  ))}
-                </ul>
-                <p className="text-sm text-gray-600">
-                  Diese Kinder bleiben ausgewählt. Mit „Erneut versuchen“ führen
-                  Sie die Aktion für diese Kinder noch einmal aus. Geänderte
-                  Filter blenden sie dabei nicht aus.
-                </p>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="md"
-                    onClick={() => setBulkFailures(null)}
-                  >
-                    Schließen
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="md"
-                    onClick={() => {
-                      if (!bulkFailures) return;
-                      const { action, students: failedStudents } = bulkFailures;
-                      setBulkFailures(null);
-                      void executeBulk(action, failedStudents);
-                    }}
-                  >
-                    Erneut versuchen
-                  </Button>
-                </div>
-              </div>
-            </Modal>
+            {bulkCheckin.dialogs}
 
             {isExportOpen && (
               <StudentExportModal
@@ -3268,10 +3184,10 @@ function SearchPageContent() {
           </>
         }
       >
-        {errorMessage && errorType === "permission" ? (
-          <ForbiddenPage embedded message={errorMessage} />
+        {isPermissionError && load.error ? (
+          <ForbiddenPage embedded message={load.error.message} />
         ) : null}
-        <div hidden={errorMessage !== null && errorType === "permission"}>
+        <div hidden={isPermissionError}>
           {/* Planning-date context banner (#1939). The day chooser itself lives in
           the filter panel, in the "Anwesenheit" section right above the
           Kommt/Kommt-nicht filter it scopes. This banner only appears for a
@@ -3311,7 +3227,9 @@ function SearchPageContent() {
 
           {/* Mobile (<md) check-in mode trigger, inline pill / sticky bar.
           Check-in toggles TODAY's attendance, so it hides on other dates. */}
-          {checkinModeAvailable && (
+          {/* In der Liste markieren die Kästchen; der Modus gehört zu den
+              Kacheln (#3834). */}
+          {checkinModeAvailable && !showTable && (
             <div className="mb-3 md:hidden">
               <SchoolCheckinModeMobile
                 isActive={schoolCheckin.isActive}
@@ -3360,6 +3278,51 @@ function SearchPageContent() {
               {(() => {
                 if (showGridSkeleton) {
                   return <StudentCardGridSkeleton />;
+                }
+                if (showTable) {
+                  return (
+                    <StudentSelectionScope
+                      visibleStudents={filteredStudents}
+                      scopeKey={selectionScopeSignature}
+                      checkinAllowed={isToday}
+                      exportContext={{
+                        ...(isToday ? {} : { date: selectedDate }),
+                        sort: sortMode,
+                      }}
+                    >
+                      {(tableSelection) =>
+                        effectiveGroupMode === "none" ? (
+                          <StudentTable
+                            rows={sortedStudents}
+                            columns={tableColumns}
+                            hiddenColumns={collectionView.hiddenColumns}
+                            phoneDetail={collectionView.phoneDetail}
+                            onOpen={handleOpenStudent}
+                            selection={tableSelection}
+                          />
+                        ) : (
+                          <div className="space-y-6">
+                            {groupedStudents.map((group) => (
+                              <div key={group.key} data-testid="student-group">
+                                <StudentTable
+                                  heading={{
+                                    title: group.label,
+                                    count: group.items.length,
+                                  }}
+                                  rows={group.items}
+                                  columns={tableColumns}
+                                  hiddenColumns={collectionView.hiddenColumns}
+                                  phoneDetail={collectionView.phoneDetail}
+                                  onOpen={handleOpenStudent}
+                                  selection={tableSelection}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      }
+                    </StudentSelectionScope>
+                  );
                 }
                 // Fehler und Leerzustand liegen im Gerüst (`error`/`empty`)
                 // und ersetzen den Inhalt dort.
@@ -3662,7 +3625,7 @@ function SearchPageContent() {
           desktopFiltersFrom="xl". Both the filter sheet and the FAB
           live under the same boundary so iPad Air gets the consistent
           tablet UX. */}
-      {checkinModeAvailable && !schoolCheckin.isActive && (
+      {checkinModeAvailable && !schoolCheckin.isActive && !showTable && (
         <div className="hidden md:block xl:hidden">
           <SchoolCheckinFab
             variant="floating"

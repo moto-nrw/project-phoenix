@@ -1,11 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert } from "~/components/ui/alert";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
+import { credentialError } from "./credential-error";
 import {
-  germanMFAErrorMessage,
   resendChallenge,
   verifyMFA,
   type LoginScope,
@@ -58,7 +65,12 @@ export function MFAChallengeForm({
   trustedDeviceDays = 90,
 }: MFAChallengeFormProps) {
   const [rememberDevice, setRememberDevice] = useState(false);
-  const [error, setError] = useState("");
+  // Fehler über den gemeinsamen Weg (#2517). Vor der Sitzung heißt 401
+  // "Code abgelehnt", deshalb credentialError.
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { show: showError, clear: clearError } = formErrors;
+  const latestResendRef = useRef<() => void>(() => undefined);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendIn, setResendIn] = useState(resendCooldownSeconds);
@@ -80,7 +92,7 @@ export function MFAChallengeForm({
   const performVerify = useCallback(
     async (submittedCode: string) => {
       setIsVerifying(true);
-      setError("");
+      clearError();
       try {
         const tokens = await verifyMFA(scope, {
           challengeToken: activeToken,
@@ -92,24 +104,35 @@ export function MFAChallengeForm({
         if (await onError?.(err)) {
           return;
         }
-        const msg = germanMFAErrorMessage(err);
-        setError(msg);
         logger.warn("mfa_verify_failed", {
           scope,
           error: err instanceof Error ? err.message : String(err),
         });
         otpRef.current?.reset();
+        // Kein Wiederholen: der Code steht nicht mehr im Feld, man tippt
+        // ihn neu ein.
+        void showError(credentialError(err), {
+          object: "die Prüfung des Codes",
+        });
       } finally {
         setIsVerifying(false);
       }
     },
-    [scope, activeToken, rememberDevice, onSuccess, onError],
+    [
+      scope,
+      activeToken,
+      rememberDevice,
+      onSuccess,
+      onError,
+      clearError,
+      showError,
+    ],
   );
 
   const handleResend = async () => {
     if (resendIn > 0 || isResending) return;
     setIsResending(true);
-    setError("");
+    clearError();
     try {
       const renewed = await resendChallenge(scope, {
         challengeToken: activeToken,
@@ -120,15 +143,22 @@ export function MFAChallengeForm({
       setResendIn(resendCooldownSeconds);
       otpRef.current?.reset();
     } catch (err) {
-      setError(germanMFAErrorMessage(err));
       logger.warn("mfa_resend_failed", {
         scope,
         error: err instanceof Error ? err.message : String(err),
+      });
+      void showError(credentialError(err), {
+        object: "das Senden eines neuen Codes",
+        retry: () => latestResendRef.current(),
       });
     } finally {
       setIsResending(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestResendRef.current = () => void handleResend();
+  });
 
   let resendLabel: string;
   if (resendIn > 0) {
@@ -146,7 +176,7 @@ export function MFAChallengeForm({
   const showBack = Boolean(onCancel);
 
   return (
-    <div className="space-y-6 text-left">
+    <div ref={formRef} className="space-y-6 text-left">
       {showBack && (
         <div>
           <button
@@ -184,7 +214,7 @@ export function MFAChallengeForm({
         </p>
       </div>
 
-      {error && <Alert type="error" message={error} />}
+      <FormErrorAlert message={formErrors.error} />
 
       <div className="space-y-3">
         <OTPInputGrid

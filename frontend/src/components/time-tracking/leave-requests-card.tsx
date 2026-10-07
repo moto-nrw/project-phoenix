@@ -1,15 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { Textarea } from "~/components/ui/textarea";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
-import { useFormError } from "~/components/ui/form-error";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import {
   absenceStatusMeta,
   dayCountFor as sharedDayCountFor,
@@ -68,6 +81,13 @@ export function LeaveRequestsCard() {
   >([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
+  // A failed load stays in the card (#2514): without the quota the tiles
+  // would read as "0 Tage", which is wrong, not empty.
+  const load = useApiLoadError();
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
+  const cancelErrors = useApiFormError();
+  const loadAllRef = useRef<() => Promise<void>>(async () => undefined);
 
   const year = useMemo(() => new Date().getFullYear(), []);
 
@@ -88,17 +108,27 @@ export function LeaveRequestsCard() {
           (a) => a.absenceType === "vacation" && a.status === "question",
         ),
       );
+      clearLoadError();
     } catch (err) {
       logger.error("load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
+      await showLoadError(err, {
+        object: "die Urlaubsübersicht",
+        retry: () => void loadAllRef.current(),
+      });
     } finally {
       setLoading(false);
     }
-  }, [year]);
+  }, [year, showLoadError, clearLoadError]);
+
+  useLayoutEffect(() => {
+    loadAllRef.current = loadAll;
+  });
 
   useEffect(() => {
-    loadAll();
+    // loadAll shows its own failure in the card.
+    void loadAll();
   }, [loadAll]);
 
   const counts = useMemo(() => {
@@ -155,6 +185,7 @@ export function LeaveRequestsCard() {
   const [cancelSubmitting, setCancelSubmitting] = useState(false);
 
   const handleCancel = (absence: StaffAbsence) => {
+    cancelErrors.clear();
     setCancelTarget(absence);
   };
 
@@ -166,21 +197,26 @@ export function LeaveRequestsCard() {
   const confirmCancel = async () => {
     if (!cancelTarget) return;
     setCancelSubmitting(true);
+    cancelErrors.clear();
     try {
       await timeTrackingService.cancelAbsence(cancelTarget.id);
-      toast.success("Antrag storniert.");
-      setCancelTarget(null);
-      dispatchAbsencesRefresh();
-      await loadAll();
     } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : "Antrag konnte nicht storniert werden.",
-      );
+      logger.error("cancel_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // The dialog stays open and shows why (#2514).
+      await cancelErrors.show(err, {
+        object: "die Stornierung",
+        retry: () => void confirmCancel(),
+      });
+      return;
     } finally {
       setCancelSubmitting(false);
     }
+    toast.success("Der Antrag ist storniert.");
+    setCancelTarget(null);
+    dispatchAbsencesRefresh();
+    await loadAll();
   };
 
   const remainingDays = quota?.remaining_days ?? 0;
@@ -198,7 +234,7 @@ export function LeaveRequestsCard() {
               variant="primary"
               size="md"
               onClick={() => setModalOpen(true)}
-              disabled={loading}
+              disabled={loading || load.error !== null}
             >
               Urlaub beantragen
             </Button>
@@ -206,83 +242,89 @@ export function LeaveRequestsCard() {
         }
         bodyClassName="mt-5"
       >
-        <div
-          className={`grid grid-cols-2 gap-4 ${counts.question > 0 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}
-        >
-          <Tile
-            label="Resturlaub"
-            value={loading ? "-" : `${remainingDays} Tage`}
-            hint={
-              quota
-                ? `${quota.entitled_days + quota.carryover_days} Anspruch`
-                : "lädt…"
-            }
-            tone="primary"
-          />
-          <Tile
-            label="Beantragt"
-            value={loading ? "-" : String(counts.reserved)}
-            hint="wartet auf Antwort"
-            tone={counts.reserved > 0 ? "amber" : "muted"}
-          />
-          {counts.question > 0 && (
-            <Tile
-              label="Rückfrage"
-              value={String(counts.question)}
-              hint="Antwort nötig"
-              tone="amber"
-            />
-          )}
-          <Tile
-            label="Genehmigt"
-            value={loading ? "-" : String(counts.approved)}
-            hint="kommende Tage"
-            tone={counts.approved > 0 ? "success" : "muted"}
-          />
-          <Tile
-            label="Abgelehnt"
-            value={loading ? "-" : String(counts.declined)}
-            hint="dieses Jahr"
-            tone="muted"
-          />
-        </div>
-
-        {sortedQuestionedVacations.length > 0 && (
-          <div className="mt-5 border-t border-gray-100 pt-5">
-            <h3 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-              Rückfragen
-            </h3>
-            <ul className="space-y-2">
-              {sortedQuestionedVacations.map((vacation) => (
-                <AbsenceRequestItem
-                  key={vacation.id}
-                  absence={vacation}
-                  currentTimestamp={currentTimestamp}
-                  onCancel={handleCancel}
-                  onResubmitted={handleResubmitted}
-                  showResubmit
+        {load.error ? (
+          <LoadErrorAlert error={load.error} />
+        ) : (
+          <>
+            <div
+              className={`grid grid-cols-2 gap-4 ${counts.question > 0 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}
+            >
+              <Tile
+                label="Resturlaub"
+                value={loading ? "-" : `${remainingDays} Tage`}
+                hint={
+                  quota
+                    ? `${quota.entitled_days + quota.carryover_days} Anspruch`
+                    : "lädt…"
+                }
+                tone="primary"
+              />
+              <Tile
+                label="Beantragt"
+                value={loading ? "-" : String(counts.reserved)}
+                hint="wartet auf Antwort"
+                tone={counts.reserved > 0 ? "amber" : "muted"}
+              />
+              {counts.question > 0 && (
+                <Tile
+                  label="Rückfrage"
+                  value={String(counts.question)}
+                  hint="Antwort nötig"
+                  tone="amber"
                 />
-              ))}
-            </ul>
-          </div>
-        )}
+              )}
+              <Tile
+                label="Genehmigt"
+                value={loading ? "-" : String(counts.approved)}
+                hint="kommende Tage"
+                tone={counts.approved > 0 ? "success" : "muted"}
+              />
+              <Tile
+                label="Abgelehnt"
+                value={loading ? "-" : String(counts.declined)}
+                hint="dieses Jahr"
+                tone="muted"
+              />
+            </div>
 
-        {recentVacations.length > 0 && (
-          <div className="mt-5 border-t border-gray-100 pt-5">
-            <h3 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-              Meine Anträge
-            </h3>
-            <ul className="space-y-2">
-              {recentVacations.map((vacation) => (
-                <AbsenceRequestItem
-                  key={vacation.id}
-                  absence={vacation}
-                  currentTimestamp={currentTimestamp}
-                  onCancel={handleCancel}
-                />
-              ))}
-            </ul>
-          </div>
+            {sortedQuestionedVacations.length > 0 && (
+              <div className="mt-5 border-t border-gray-100 pt-5">
+                <h3 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                  Rückfragen
+                </h3>
+                <ul className="space-y-2">
+                  {sortedQuestionedVacations.map((vacation) => (
+                    <AbsenceRequestItem
+                      key={vacation.id}
+                      absence={vacation}
+                      currentTimestamp={currentTimestamp}
+                      onCancel={handleCancel}
+                      onResubmitted={handleResubmitted}
+                      showResubmit
+                    />
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {recentVacations.length > 0 && (
+              <div className="mt-5 border-t border-gray-100 pt-5">
+                <h3 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                  Meine Anträge
+                </h3>
+                <ul className="space-y-2">
+                  {recentVacations.map((vacation) => (
+                    <AbsenceRequestItem
+                      key={vacation.id}
+                      absence={vacation}
+                      currentTimestamp={currentTimestamp}
+                      onCancel={handleCancel}
+                    />
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
         )}
       </SectionCard>
 
@@ -300,7 +342,7 @@ export function LeaveRequestsCard() {
         isOpen={cancelTarget !== null}
         onClose={() => !cancelSubmitting && setCancelTarget(null)}
         onConfirm={() => {
-          confirmCancel();
+          void confirmCancel();
         }}
         title="Antrag stornieren"
         confirmText="Stornieren"
@@ -310,7 +352,8 @@ export function LeaveRequestsCard() {
       >
         {cancelTarget && (
           <div className="space-y-2 text-sm text-gray-700">
-            <p>Möchtest du diesen Urlaubsantrag wirklich stornieren?</p>
+            <FormErrorAlert message={cancelErrors.error} />
+            <p>Möchten Sie diesen Urlaubsantrag wirklich stornieren?</p>
             <p className="text-xs text-gray-500">
               {formatRange(cancelTarget.dateStart, cancelTarget.dateEnd)}
               {cancelTarget.status === "approved" && " (bereits genehmigt)"}
@@ -401,53 +444,60 @@ function ResubmitAbsenceForm({
   const [submitting, setSubmitting] = useState(false);
   // Fehler stehen am Formular (Alert oben, Feldfehler am Feld), nicht als
   // Toast: Bauart 2 Regel 5.
-  const [noteError, setNoteError] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useFormError();
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  // „Wiederholen“ sendet die aktuelle Antwort.
+  const latestSubmitRef = useRef<() => Promise<void>>(async () => undefined);
   const toast = useToast();
 
   const handleSubmit = async () => {
-    setNoteError(null);
-    setSubmitError(null);
+    formErrors.clear();
     if (note.trim().length < 3) {
-      setNoteError("Bitte gib eine kurze Antwort ein.");
+      formErrors.invalid("Bitte prüfen Sie das markierte Feld.", {
+        note: "Bitte geben Sie eine kurze Antwort ein.",
+      });
       return;
     }
     setSubmitting(true);
     try {
       await timeTrackingService.resubmitAbsence(absence.id, note.trim());
-      toast.success("Antrag erneut eingereicht.");
-      onResubmitted();
     } catch (err) {
-      setSubmitError(
-        err instanceof Error
-          ? err.message
-          : "Antrag konnte nicht erneut eingereicht werden.",
-      );
+      logger.error("resubmit_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await formErrors.show(err, {
+        object: "die Antwort",
+        retry: () => void latestSubmitRef.current(),
+      });
+      return;
     } finally {
       setSubmitting(false);
     }
+    toast.success("Ihre Antwort ist gesendet.");
+    onResubmitted();
   };
+  useLayoutEffect(() => {
+    latestSubmitRef.current = handleSubmit;
+  });
 
   return (
-    <div className="mt-3 border-t border-gray-100 pt-3">
-      <FormErrorAlert message={submitError} className="mb-3" />
+    <div ref={formRef} className="mt-3 border-t border-gray-100 pt-3">
+      <FormErrorAlert message={formErrors.error} className="mb-3" />
       <label
         htmlFor={`resubmit-note-${absence.id}`}
         className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
       >
-        Deine Antwort
+        Ihre Antwort
       </label>
       <Textarea
         id={`resubmit-note-${absence.id}`}
+        name="note"
         value={note}
-        onChange={(e) => {
-          setNote(e.target.value);
-          setNoteError(null);
-        }}
+        onChange={(e) => setNote(e.target.value)}
         rows={2}
         maxLength={500}
         placeholder="Antwort auf die Rückfrage ergänzen…"
-        error={noteError ?? undefined}
+        error={formErrors.fieldError("note")}
       />
       <div className="mt-2 flex justify-end">
         <Button

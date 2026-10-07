@@ -175,7 +175,7 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if resolveErr != nil {
-		common.RenderError(w, r, common.ErrorNotFound(resolveErr))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(resolveErr, common.CodeEnrollmentFormNotFound))
 		return
 	}
 
@@ -228,7 +228,8 @@ func BuildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 	for i, c := range wireReq.Children {
 		dob, err := timezone.ParseDate(c.DateOfBirth)
 		if err != nil {
-			return out, fmt.Errorf("child %d: invalid date_of_birth (expected YYYY-MM-DD)", i)
+			return out, capability.InvalidInput(common.CodeEnrollmentChildBirthDateInvalid, fmt.Sprintf("children.%d.date_of_birth", i),
+				fmt.Errorf("child %d: invalid date_of_birth (expected YYYY-MM-DD)", i))
 		}
 		offeringDays := make([]SubmitOfferingDays, 0, len(c.OfferingDays))
 		for _, row := range c.OfferingDays {
@@ -263,9 +264,10 @@ func int64PtrValue(v *int64) int64 {
 // status codes. Unknown errors fall through to 500.
 func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, capability.ErrEnrollmentDisabled),
-		errors.Is(err, capability.ErrEnrollmentWindowClosed):
-		common.RenderError(w, r, common.ErrorForbidden(err))
+	case errors.Is(err, capability.ErrEnrollmentDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentDisabled))
+	case errors.Is(err, capability.ErrEnrollmentWindowClosed):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentWindowClosed))
 	case errors.Is(err, capability.ErrLateInviteInvalid):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentLateInviteInvalid))
 	case errors.Is(err, capability.ErrPhaseNotEligible):
@@ -318,8 +320,9 @@ func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentDaySelectionRequired))
 	case errors.Is(err, capability.ErrDaySelectionNotAllowed):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentDaySelectionNotAllowed))
-	case errors.Is(err, capability.ErrCareOfferingClosed),
-		errors.Is(err, capability.ErrInvalidSubmission):
+	case errors.Is(err, capability.ErrCareOfferingClosed):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingClosed))
+	case errors.Is(err, capability.ErrInvalidSubmission):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, capability.ErrCareOfferingFull):
 		// 409 Conflict: the request is well-formed but a selected
@@ -335,24 +338,27 @@ func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		// children in this phase. JSON envelope so the frontend's
 		// readError helper surfaces the German message instead of
 		// falling back to "(HTTP 409)".
-		common.RenderError(w, r, common.ErrorConflictMessage("Für dieses Kind liegt in dieser Phase bereits eine Anmeldung vor."))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentRequestDuplicate))
 	case errors.Is(err, capability.ErrExistingStudentAlreadyRequested):
 		// 409 Conflict: another active request in this phase already targets the
 		// same already-enrolled student this child matched (a different guardian
 		// email, so the email-scoped duplicate check missed it). Distinct German
 		// message so parents understand the child is already being re-enrolled.
-		common.RenderError(w, r, common.ErrorConflictMessage("Für dieses Kind liegt in dieser Phase bereits eine Anmeldung von einer anderen Person vor."))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentChildAlreadyRequested))
 	case errors.Is(err, capability.ErrRateLimited):
 		// 429 Too Many Requests. Hard-coded retry hint avoids leaking
 		// the exact remaining seconds.
 		w.Header().Set("Retry-After", "3600")
-		http.Error(w, err.Error(), http.StatusTooManyRequests)
+		resp := common.ErrorTooManyRequests(err).(*common.ErrResponse)
+		resp.Code = common.CodeEnrollmentSubmissionRateLimited
+		common.RenderError(w, r, resp)
+	case errors.Is(err, capability.ErrCaptchaRequired):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCaptchaRequired))
+	case errors.Is(err, capability.ErrCaptchaFailed):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCaptchaFailed))
 	default:
-		// Capture captcha-shaped errors built with fmt.Errorf above.
-		if strings.Contains(err.Error(), "captcha") {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
-			return
-		}
+		// A captcha the server cannot check (missing secret, provider down)
+		// lands here as a server error, not as the parent's mistake.
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 	}
 }
@@ -486,7 +492,7 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	token := strings.TrimSpace(chi.URLParam(r, "statusToken"))
 	if token == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("status token is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(errors.New("status token is required"), common.CodeEnrollmentStatusLinkInvalid))
 		return
 	}
 
@@ -526,7 +532,7 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorInternalServer(statusErr))
 			return
 		}
-		common.RenderError(w, r, common.ErrorNotFound(err))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentStatusLinkInvalid))
 		return
 	}
 
@@ -610,7 +616,7 @@ func (rs *Resource) getEditBootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 	token := strings.TrimSpace(chi.URLParam(r, "statusToken"))
 	if token == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("status token is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(errors.New("status token is required"), common.CodeEnrollmentStatusLinkInvalid))
 		return
 	}
 
@@ -755,7 +761,7 @@ func (rs *Resource) patchStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	token := strings.TrimSpace(chi.URLParam(r, "statusToken"))
 	if token == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("status token is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(errors.New("status token is required"), common.CodeEnrollmentStatusLinkInvalid))
 		return
 	}
 	patchReq := &EditPatchRequest{}
@@ -777,9 +783,9 @@ func (rs *Resource) patchStatus(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, capability.ErrRequestNotFound):
-			common.RenderError(w, r, common.ErrorNotFound(err))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentStatusLinkInvalid))
 		case errors.Is(err, capability.ErrEditNotAllowed):
-			common.RenderError(w, r, common.ErrorForbidden(err))
+			common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentEditNotAllowed))
 		case errors.Is(err, capability.ErrInvalidGuardianPhone):
 			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentInvalidPhone))
 		default:
@@ -797,7 +803,7 @@ func (rs *Resource) replaceStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	token := strings.TrimSpace(chi.URLParam(r, "statusToken"))
 	if token == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("status token is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(errors.New("status token is required"), common.CodeEnrollmentStatusLinkInvalid))
 		return
 	}
 	wireReq := &SubmitEnrollmentRequest{}
@@ -825,9 +831,9 @@ func (rs *Resource) replaceStatus(w http.ResponseWriter, r *http.Request) {
 func mapEditError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, capability.ErrRequestNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(err))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentStatusLinkInvalid))
 	case errors.Is(err, capability.ErrEditNotAllowed):
-		common.RenderError(w, r, common.ErrorForbidden(err))
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentEditNotAllowed))
 	default:
 		MapSubmitError(w, r, err)
 	}
@@ -848,7 +854,7 @@ func (rs *Resource) withdrawStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	token := strings.TrimSpace(chi.URLParam(r, "statusToken"))
 	if token == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("status token is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(errors.New("status token is required"), common.CodeEnrollmentStatusLinkInvalid))
 		return
 	}
 
@@ -875,9 +881,9 @@ func (rs *Resource) withdrawStatus(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, capability.ErrRequestNotFound):
-			common.RenderError(w, r, common.ErrorNotFound(err))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentStatusLinkInvalid))
 		case errors.Is(err, capability.ErrWithdrawNotAllowed):
-			common.RenderError(w, r, common.ErrorForbidden(err))
+			common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentWithdrawNotAllowed))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
@@ -902,7 +908,7 @@ func (rs *Resource) confirmRenewal(w http.ResponseWriter, r *http.Request) {
 	}
 	token := strings.TrimSpace(chi.URLParam(r, "statusToken"))
 	if token == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("status token is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(errors.New("status token is required"), common.CodeEnrollmentStatusLinkInvalid))
 		return
 	}
 
@@ -915,7 +921,7 @@ func (rs *Resource) confirmRenewal(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, capability.ErrRequestNotFound):
-			common.RenderError(w, r, common.ErrorNotFound(err))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentStatusLinkInvalid))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}

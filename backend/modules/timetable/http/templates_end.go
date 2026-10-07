@@ -76,7 +76,7 @@ func renderTemplateEndError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, timetableModule.ErrSplitTemplateNotFound):
 		renderTemplateNotFound(w, r)
 	case errors.Is(err, timetableModule.ErrSplitInvalidInput):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, templateSplitInvalidRenderer(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("end template failed", err))
 	}

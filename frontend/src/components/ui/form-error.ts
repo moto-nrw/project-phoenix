@@ -9,9 +9,25 @@ import { useReducer } from "react";
  * React skips a re-render for an unchanged string, so a plain string state
  * cannot tell the second attempt from the first.
  */
-export interface FormError {
-  readonly message: string;
+export interface FormError extends FormErrorDetail {
   readonly attempt: number;
+}
+
+/**
+ * What the shared API error path hands to the form (#2511): the localized
+ * message and, for server and unavailable errors, the request ID to copy and
+ * a retry. The labels travel along because the catalog loads on demand.
+ */
+export interface FormErrorDetail {
+  readonly message: string;
+  readonly requestId?: {
+    readonly value: string;
+    readonly label: string;
+    readonly copyLabel: string;
+    readonly copiedLabel: string;
+    readonly copyFailedLabel: string;
+  };
+  readonly retry?: { readonly label: string; readonly onClick: () => void };
 }
 
 /** What the error slots accept: a plain string still works for one-shot
@@ -22,6 +38,10 @@ export function formErrorMessage(error: FormErrorInput): string | null {
   if (!error) return null;
   const message = typeof error === "string" ? error : error.message;
   return message ? message : null;
+}
+
+export function formErrorDetail(error: FormErrorInput): FormErrorDetail | null {
+  return typeof error === "object" && error !== null ? error : null;
 }
 
 export function formErrorAttempt(error: FormErrorInput): number {
@@ -38,7 +58,7 @@ export function formErrorAttempt(error: FormErrorInput): number {
  */
 export function useFormError(): readonly [
   FormError | null,
-  (message: string | null | undefined) => void,
+  (message: string | FormErrorDetail | null | undefined) => void,
 ] {
   // useReducer: the dispatch is identity-stable for the component's life, so
   // a handler may list `setError` in its dependency array without re-creating
@@ -60,13 +80,14 @@ const EMPTY_STATE: FormErrorState = { error: null, attempts: 0 };
 
 function nextFormErrorState(
   previous: FormErrorState,
-  message: string | null | undefined,
+  next: string | FormErrorDetail | null | undefined,
 ): FormErrorState {
-  if (!message) {
+  const detail = typeof next === "string" ? { message: next } : next;
+  if (!detail?.message) {
     return previous.error === null
       ? previous
       : { error: null, attempts: previous.attempts };
   }
   const attempts = previous.attempts + 1;
-  return { error: { message, attempt: attempts }, attempts };
+  return { error: { ...detail, attempt: attempts }, attempts };
 }

@@ -9,6 +9,8 @@
  * Verwaltung und Bestätigungsliste bleiben im OGS-Portal.
  */
 
+import { ApiError, apiErrorFromText, transportFetch } from "./api-error";
+
 export type StaffNoticePriority = "info" | "important";
 
 /**
@@ -74,18 +76,34 @@ interface ApiResponse<T> {
   error?: string;
 }
 
+/**
+ * Wirft die gescheiterte Antwort als ApiError mit Code, Feldfehlern und
+ * Vorgangskennung aus der Hülle (#2517). Die Meldung bleibt der Backend-Satz,
+ * weil die Tagesinformationen-Verwaltung ihn bis #2520 noch anzeigt.
+ */
 async function throwApiError(
   response: Response,
   fallback: string,
 ): Promise<never> {
+  let text = "";
+  try {
+    text = await response.text();
+  } catch {
+    // Körper nicht lesbar: der Status klassifiziert trotzdem.
+  }
   let message = fallback;
   try {
-    const body = (await response.json()) as { error?: string };
+    const body = (text ? JSON.parse(text) : {}) as { error?: string };
     if (body.error) message = body.error;
   } catch {
     // Kein JSON im Körper — beim deutschen Ersatztext bleiben.
   }
-  throw new Error(message);
+  throw apiErrorFromText(message, response.status, text);
+}
+
+/** Erfolgsantwort ohne die erwarteten Daten. */
+function missingData(fallback: string): ApiError {
+  return new ApiError(fallback, 500);
 }
 
 async function request<T>(
@@ -93,7 +111,7 @@ async function request<T>(
   init: RequestInit | undefined,
   fallback: string,
 ): Promise<T | undefined> {
-  const response = await fetch(url, init);
+  const response = await transportFetch(url, init);
   if (!response.ok) await throwApiError(response, fallback);
   if (response.status === 204) return undefined;
   const body = (await response.json()) as ApiResponse<T>;
@@ -174,7 +192,7 @@ export async function createStaffNotice(
     jsonBody(input),
     "Tagesinformation konnte nicht erstellt werden",
   );
-  if (!data) throw new Error("Tagesinformation konnte nicht erstellt werden");
+  if (!data) throw missingData("Tagesinformation konnte nicht erstellt werden");
   return data;
 }
 
@@ -188,7 +206,7 @@ export async function updateStaffNotice(
     "Tagesinformation konnte nicht gespeichert werden",
   );
   if (!data)
-    throw new Error("Tagesinformation konnte nicht gespeichert werden");
+    throw missingData("Tagesinformation konnte nicht gespeichert werden");
   return data;
 }
 

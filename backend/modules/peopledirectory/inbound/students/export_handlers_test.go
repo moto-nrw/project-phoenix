@@ -1,8 +1,11 @@
 package students
 
 import (
+	"net/http"
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/api/common"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
@@ -25,6 +28,7 @@ func TestExportRequestToListParamsPreservesRoomFilter(t *testing.T) {
 			GroupID:     "17",
 			RoomID:      "42",
 			SchoolClass: "3a",
+			StudentIDs:  []string{"12", "7", "12"},
 		},
 	}, testExportDate)
 
@@ -32,6 +36,7 @@ func TestExportRequestToListParamsPreservesRoomFilter(t *testing.T) {
 	assert.Equal(t, []int64{17}, params.groupIDs)
 	assert.Equal(t, int64(42), params.roomID)
 	assert.Equal(t, []string{"3a"}, params.schoolClasses)
+	assert.Equal(t, []int64{12, 7}, params.studentIDs)
 	assert.Equal(t, studentExportPageSize, params.pageSize)
 	assert.Equal(t, CareStatusRunning, params.careStatus)
 	assert.Equal(t, testExportDate, params.careStatusOn)
@@ -85,7 +90,19 @@ func TestExportSelectionCapError(t *testing.T) {
 
 	assert.Nil(t, exportSelectionCapError(0))
 	assert.Nil(t, exportSelectionCapError(studentExportPageSize))
-	require.NotNil(t, exportSelectionCapError(studentExportPageSize+1))
+	rendered := exportSelectionCapError(studentExportPageSize + 1)
+	require.NotNil(t, rendered)
+
+	// The frontend words the refusal from the code and these two numbers
+	// (ADR 0006), never from the diagnostic sentence.
+	resp, ok := rendered.(*common.ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
+	assert.Equal(t, common.CodeStudentsExportSelectionTooLarge, resp.Code)
+	assert.Equal(t, map[string]any{
+		"total": studentExportPageSize + 1,
+		"limit": studentExportPageSize,
+	}, resp.Details)
 }
 
 func TestApplyExportFiltersAdministrativeFilters(t *testing.T) {

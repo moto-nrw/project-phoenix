@@ -25,6 +25,13 @@ func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Rendere
 	if errResp, ok := renderer.(*ErrResponse); ok && errResp.HTTPStatusCode >= 500 && IsBusinessRejection(errResp.Err) {
 		renderer = ErrorBusinessRejection(errResp.Err)
 	}
+	// A rejected input value is never a server error either: it keeps its
+	// 400, code and field (#2515).
+	if errResp, ok := renderer.(*ErrResponse); ok && errResp.HTTPStatusCode >= 500 {
+		if _, rejected := asInputRejection(errResp.Err); rejected {
+			renderer = ErrorInputRejection(errResp.Err)
+		}
+	}
 	// A rejected operation may already have written its first rows (a person
 	// before the refused membership). The request transaction commits every
 	// non-5xx answer, so the rejection asks for its rollback explicitly.
@@ -140,9 +147,11 @@ func newErrResponse(status int, err error) *ErrResponse {
 	}
 }
 
-// ErrorInvalidRequest returns a 400 Bad Request error response
+// ErrorInvalidRequest returns a 400 Bad Request error response. A failed
+// ozzo-validation Bind also lists its fields in `errors`; an InputRejection
+// in the chain adds its code and field.
 func ErrorInvalidRequest(err error) render.Renderer {
-	return newErrResponse(http.StatusBadRequest, err)
+	return ErrorInputRejection(err)
 }
 
 // ErrorInvalidRequestWithCode returns a 400 Bad Request with a stable
@@ -151,6 +160,17 @@ func ErrorInvalidRequest(err error) render.Renderer {
 func ErrorInvalidRequestWithCode(err error, code string) render.Renderer {
 	resp := newErrResponse(http.StatusBadRequest, err)
 	resp.Code = code
+	resp.Errors = validationFieldErrors(err)
+	applyInputRejection(resp, err)
+	return resp
+}
+
+// ErrorInvalidOnField returns a 400 Bad Request with a stable code that
+// names the one field the refusal is about, so the form can mark it (#2516).
+func ErrorInvalidOnField(err error, code, field string) render.Renderer {
+	resp := newErrResponse(http.StatusBadRequest, err)
+	resp.Code = code
+	resp.Errors = []FieldError{{Field: field, Reason: resp.ErrorText}}
 	return resp
 }
 
@@ -181,6 +201,16 @@ func ErrorUnauthorized(err error) render.Renderer {
 func ErrorUnauthorizedWithCode(err error, code string) render.Renderer {
 	resp := newErrResponse(http.StatusUnauthorized, err)
 	resp.Code = code
+	return resp
+}
+
+// ErrorUnauthorizedOnField returns a 401 with a stable code that names the
+// field a credential check refused (the current password), so the form can
+// mark it (#2517).
+func ErrorUnauthorizedOnField(err error, code, field string) render.Renderer {
+	resp := newErrResponse(http.StatusUnauthorized, err)
+	resp.Code = code
+	resp.Errors = []FieldError{{Field: field, Reason: resp.ErrorText}}
 	return resp
 }
 
@@ -250,6 +280,15 @@ func ErrorConflictWithCode(err error, code string) render.Renderer {
 	return resp
 }
 
+// ErrorConflictOnField returns a 409 Conflict with a stable code that names
+// the one field the conflict is about, so the form can mark it (#2511).
+func ErrorConflictOnField(err error, code, field string) render.Renderer {
+	resp := newErrResponse(http.StatusConflict, err)
+	resp.Code = code
+	resp.Errors = []FieldError{{Field: field, Reason: resp.ErrorText}}
+	return resp
+}
+
 // ErrorConflictWithDetails returns a 409 Conflict carrying both a stable code
 // and a structured details payload. Use this when the frontend needs concrete
 // fields (e.g. the conflicting session_id) to drive a follow-up action — it
@@ -263,6 +302,16 @@ func ErrorConflictWithDetails(err error, code string, details map[string]any) re
 		Code:           code,
 		Details:        details,
 	}
+}
+
+// ErrorInvalidRequestWithDetails returns a 400 Bad Request carrying a stable
+// code and the values the refused input names (#2514), so the client words
+// the limit itself instead of reading the message.
+func ErrorInvalidRequestWithDetails(err error, code string, details map[string]any) render.Renderer {
+	resp := newErrResponse(http.StatusBadRequest, err)
+	resp.Code = code
+	resp.Details = details
+	return resp
 }
 
 // BusinessRejection is an error a module raises when a valid request cannot
@@ -407,6 +456,13 @@ func ErrorTooManyRequests(err error) render.Renderer {
 	return newErrResponse(http.StatusTooManyRequests, err)
 }
 
+// ErrorTooManyRequestsWithCode returns a 429 with a stable error code.
+func ErrorTooManyRequestsWithCode(err error, code string) render.Renderer {
+	resp := newErrResponse(http.StatusTooManyRequests, err)
+	resp.Code = code
+	return resp
+}
+
 // ErrorRequestTimeout returns a 408 Request Timeout response for request
 // contexts whose deadline expired before the handler could complete.
 func ErrorRequestTimeout(err error) render.Renderer {
@@ -492,6 +548,13 @@ func IsConstraintViolation(err error) bool {
 // ErrorGone returns a 410 Gone error response
 func ErrorGone(err error) render.Renderer {
 	return newErrResponse(http.StatusGone, err)
+}
+
+// ErrorGoneWithCode returns a 410 Gone with a stable error code.
+func ErrorGoneWithCode(err error, code string) render.Renderer {
+	resp := newErrResponse(http.StatusGone, err)
+	resp.Code = code
+	return resp
 }
 
 // RequireDependency writes a 503 response built from unavailableErr when ok

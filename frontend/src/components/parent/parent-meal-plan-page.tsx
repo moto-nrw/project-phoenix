@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, Utensils } from "lucide-react";
 
@@ -8,7 +15,11 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
-import { Alert } from "~/components/ui/alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import type { FormErrorInput } from "~/components/ui/form-error";
 import { Checkbox } from "~/components/ui/checkbox";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
@@ -26,6 +37,7 @@ import {
   type MealPlanEntry,
 } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 
 const logger = createLogger({ component: "ParentMealPlanPage" });
 
@@ -349,7 +361,7 @@ function ParticipationWeek({
   mondayISO: string;
   weekRange: string;
   weekReady: boolean;
-  weekError: boolean;
+  weekError: FormErrorInput;
   dishesByDate: ReadonlyMap<string, MealPlanEntry[]>;
   onWeekChange: (offset: 0 | 1) => void;
   onEditingChange: (editing: boolean) => void;
@@ -365,7 +377,18 @@ function ParticipationWeek({
   const [dayChange, setDayChange] = useState<DraftDayChange | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(false);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  const {
+    error: saveError,
+    show: showSaveError,
+    clear: clearSaveError,
+  } = useApiFormError();
+  // Retry sends the draft as it is now, not as it was when saving failed.
+  const retrySaveRef = useRef<() => void>(() => undefined);
   const dayEditorRef = useRef<HTMLFieldSetElement | null>(null);
   const dayEditTriggerRefs = useRef(
     new Map<string, HTMLButtonElement | null>(),
@@ -406,24 +429,26 @@ function ParticipationWeek({
 
   const load = useCallback(async (): Promise<boolean> => {
     setLoading(true);
-    setError(false);
+    clearLoadError();
     setParticipation(null);
     try {
       const value = await getMealParticipation(studentId, range.from, range.to);
       setParticipation(value);
       setWeekdays(value.weekdays);
       return true;
-    } catch (loadError) {
+    } catch (err) {
       logger.error("parent_meal_participation_load_failed", {
-        error:
-          loadError instanceof Error ? loadError.message : String(loadError),
+        error: err instanceof Error ? err.message : String(err),
       });
-      setError(true);
+      await showLoadError(err, {
+        object: t("errorObjectParticipation"),
+        retry: () => void load(),
+      });
       return false;
     } finally {
       setLoading(false);
     }
-  }, [range.from, range.to, studentId]);
+  }, [clearLoadError, range.from, range.to, showLoadError, studentId, t]);
 
   useEffect(() => {
     void load();
@@ -439,32 +464,45 @@ function ParticipationWeek({
 
   async function saveRegularDays() {
     setSaving(true);
+    clearSaveError();
     try {
       await replaceMealParticipationSchedule(studentId, weekdays);
-      if (await load()) setEditingRegularDays(false);
-    } catch (saveError) {
+    } catch (err) {
       logger.error("parent_meal_participation_schedule_failed", {
-        error:
-          saveError instanceof Error ? saveError.message : String(saveError),
+        error: err instanceof Error ? err.message : String(err),
       });
-      setError(true);
-    } finally {
+      void showSaveError(err, {
+        object: t("errorObjectParticipation"),
+        retry: () => retrySaveRef.current(),
+      });
       setSaving(false);
+      return;
     }
+    // A failed reload after a successful save shows as load error.
+    if (await load()) setEditingRegularDays(false);
+    setSaving(false);
+  }
+
+  function beginRegularDaysEdit() {
+    clearSaveError();
+    setEditingRegularDays(true);
   }
 
   function cancelRegularDaysEdit() {
+    clearSaveError();
     setWeekdays(participation?.weekdays ?? []);
     setEditingRegularDays(false);
   }
 
   function beginDayEdit(date: string) {
+    clearSaveError();
     restoreFocusDateRef.current = date;
     setDayChange(null);
     setEditingDate(date);
   }
 
   function cancelDayEdit() {
+    clearSaveError();
     setDayChange(null);
     setEditingDate(null);
   }
@@ -491,6 +529,7 @@ function ParticipationWeek({
     }
 
     setSaving(true);
+    clearSaveError();
     try {
       if (dayChange.mode === "reset") {
         await clearMealParticipationDay(studentId, editingDate);
@@ -501,17 +540,26 @@ function ParticipationWeek({
           dayChange.participating,
         );
       }
-      if (await load()) cancelDayEdit();
-    } catch (saveError) {
+    } catch (err) {
       logger.error("parent_meal_participation_day_failed", {
-        error:
-          saveError instanceof Error ? saveError.message : String(saveError),
+        error: err instanceof Error ? err.message : String(err),
       });
-      setError(true);
-    } finally {
+      void showSaveError(err, {
+        object: t("errorObjectParticipation"),
+        retry: () => retrySaveRef.current(),
+      });
       setSaving(false);
+      return;
     }
+    // A failed reload after a successful save shows as load error.
+    if (await load()) cancelDayEdit();
+    setSaving(false);
   }
+
+  useLayoutEffect(() => {
+    retrySaveRef.current = () =>
+      void (editingRegularDays ? saveRegularDays() : saveDayChange());
+  });
 
   const regularDaysLabel = useMemo(() => {
     if (!participation || participation.weekdays.length === 0)
@@ -546,19 +594,8 @@ function ParticipationWeek({
           {t("participationTitle", { name: childName })}
         </h2>
 
-        {error ? (
-          <div className="mt-4 space-y-3">
-            <Alert type="error" message={t("participationError")} />
-            <Button
-              type="button"
-              size="md"
-              variant="outline"
-              onClick={() => void load()}
-              disabled={loading}
-            >
-              {t("retry")}
-            </Button>
-          </div>
+        {loadError ? (
+          <LoadErrorAlert error={loadError} className="mt-4" />
         ) : loading || !participation ? (
           <div
             className="mt-4 rounded-xl bg-gray-50 p-4 ring-1 ring-gray-200"
@@ -594,6 +631,7 @@ function ParticipationWeek({
                   ))}
                 </div>
                 <p className="mt-3 text-xs text-gray-500">{t("finishEdit")}</p>
+                <FormErrorAlert message={saveError} className="mt-3" />
                 <MealParticipationEditActions
                   saving={saving}
                   onCancel={cancelRegularDaysEdit}
@@ -631,7 +669,7 @@ function ParticipationWeek({
                     size="compact"
                     className="min-h-11 shrink-0"
                     aria-expanded={false}
-                    onClick={() => setEditingRegularDays(true)}
+                    onClick={beginRegularDaysEdit}
                   >
                     {t("edit")}
                   </Button>
@@ -664,7 +702,7 @@ function ParticipationWeek({
         <>
           {weekError ? (
             <div className="border-b border-gray-200 p-4">
-              <Alert type="error" message={t("loadError")} />
+              <LoadErrorAlert error={weekError} />
             </div>
           ) : null}
           <ul className="divide-y divide-gray-100">
@@ -831,6 +869,7 @@ function ParticipationWeek({
                         <p className="mt-2 text-xs text-gray-500">
                           {t("finishEdit")}
                         </p>
+                        <FormErrorAlert message={saveError} className="mt-2" />
                         <MealParticipationEditActions
                           saving={saving}
                           onCancel={cancelDayEdit}
@@ -875,8 +914,19 @@ export function ParentMealPlanPage() {
   // Distinguish operational failures (backend/network/session errors) from a
   // genuinely empty result. Without these flags a failed request would render
   // as "no meal plan available" / "no plan entered" — false information.
-  const [schoolsError, setSchoolsError] = useState(false);
-  const [weekError, setWeekError] = useState(false);
+  const {
+    error: schoolsError,
+    show: showSchoolsError,
+    clear: clearSchoolsError,
+  } = useApiLoadError();
+  const {
+    error: weekError,
+    show: showWeekError,
+    clear: clearWeekError,
+  } = useApiLoadError();
+  // Bumped by Wiederholen to run the matching load effect again.
+  const [schoolsAttempt, setSchoolsAttempt] = useState(0);
+  const [weekAttempt, setWeekAttempt] = useState(0);
   const [participationEditing, setParticipationEditing] = useState(false);
 
   // useBerlinToday re-renders on the Berlin midnight rollover, so a page left
@@ -897,7 +947,7 @@ export function ParentMealPlanPage() {
     let cancelled = false;
     void (async () => {
       setLoadingSchools(true);
-      setSchoolsError(false);
+      clearSchoolsError();
       try {
         const children = await listMyChildren();
         // Let a failed feature lookup reject the whole resolution. A transient
@@ -928,7 +978,11 @@ export function ParentMealPlanPage() {
         logger.error("parent_meal_plan_schools_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        setSchoolsError(true);
+        // Awaited so no empty state flashes before the error arrives.
+        await showSchoolsError(err, {
+          object: t("errorObjectSchools"),
+          retry: () => setSchoolsAttempt((attempt) => attempt + 1),
+        });
       } finally {
         if (!cancelled) setLoadingSchools(false);
       }
@@ -936,7 +990,7 @@ export function ParentMealPlanPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [clearSchoolsError, schoolsAttempt, showSchoolsError, t]);
 
   const selectedSchool = useMemo(
     () =>
@@ -960,7 +1014,7 @@ export function ParentMealPlanPage() {
     if (!selectedSchool) return;
     let cancelled = false;
     const { studentId } = selectedSchool;
-    setWeekError(false);
+    clearWeekError();
     void (async () => {
       try {
         const rows = await getChildMealPlan(studentId, mondayISO);
@@ -971,10 +1025,13 @@ export function ParentMealPlanPage() {
         logger.error("parent_meal_plan_week_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        // Operational failure — show the load-error copy, not an empty week
+        // Operational failure — show the load error, not an empty week
         // (which would falsely tell parents no plan was entered).
         setEntries([]);
-        setWeekError(true);
+        await showWeekError(err, {
+          object: t("errorObjectWeek"),
+          retry: () => setWeekAttempt((attempt) => attempt + 1),
+        });
       } finally {
         if (!cancelled) {
           // Mark which week `entries` now reflects (success or error) so the
@@ -986,7 +1043,14 @@ export function ParentMealPlanPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedSchool, mondayISO]);
+  }, [
+    clearWeekError,
+    mondayISO,
+    selectedSchool,
+    showWeekError,
+    t,
+    weekAttempt,
+  ]);
 
   const dishesByDate = useMemo(() => {
     const map = new Map<string, MealPlanEntry[]>();
@@ -1075,7 +1139,7 @@ export function ParentMealPlanPage() {
       {loadingSchools ? (
         <MealPlanLoadingSection loadingLabel={t("loading")} />
       ) : schoolsError ? (
-        <Alert type="error" message={t("loadError")} />
+        <LoadErrorAlert error={schoolsError} />
       ) : !hasLinkedChildren ? (
         <EmptyState
           icon={<Utensils className="h-10 w-10" />}
@@ -1120,7 +1184,7 @@ export function ParentMealPlanPage() {
             <MealPlanWeekSkeleton loadingLabel={t("loading")} />
           ) : weekError ? (
             <div className="p-4">
-              <Alert type="error" message={t("loadError")} />
+              <LoadErrorAlert error={weekError} />
             </div>
           ) : weekIsEmpty ? (
             <EmptyState

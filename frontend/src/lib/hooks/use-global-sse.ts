@@ -90,6 +90,7 @@ const STAFF_TIME_TRACKING_CACHE_KEY_PARTS = [
   "time-tracking-schedule-targets-",
   "time-tracking-own-schedule-",
   "time-tracking-own-shifts-today-",
+  "time-tracking-own-shifts-week-",
 ] as const;
 
 // Per-student SWR keys carry the id as a segment: "student-detail-<id>",
@@ -176,6 +177,7 @@ function revalidateKeyParts(parts: readonly string[], scope: string): void {
     (key) =>
       typeof key === "string" && parts.some((part) => key.includes(part)),
   ).catch((err) => {
+    // Fire-and-forget: the screen keeps its data until the next event or load.
     logger.debug("swr_revalidation_failed", {
       error: err instanceof Error ? err.message : String(err),
       scope,
@@ -342,6 +344,7 @@ export function useGlobalSSE(): SSEHookState {
             key.includes(part),
           ),
       ).catch((err) => {
+        // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "staff_time_tracking",
@@ -394,6 +397,7 @@ export function useGlobalSSE(): SSEHookState {
                   keyTargetsId(key, gid, [OGS_STUDENTS_KEY_PREFIX]),
                 )),
         ).catch((err) => {
+          // Fire-and-forget: the screen keeps its data until the next event or load.
           logger.debug("swr_revalidation_failed", {
             error: err instanceof Error ? err.message : String(err),
             scope: "ogs_students",
@@ -447,6 +451,7 @@ export function useGlobalSSE(): SSEHookState {
                 searchStudentsKeyTargetsGroup(key, gid),
               )),
         ).catch((err) => {
+          // Fire-and-forget: the screen keeps its data until the next event or load.
           logger.debug("swr_revalidation_failed", {
             error: err instanceof Error ? err.message : String(err),
             scope: "search_students",
@@ -509,6 +514,7 @@ export function useGlobalSSE(): SSEHookState {
             // silently re-broaden the #2057 scoping if swapped in.)
             ROOM_LIST_CACHE_KEYS.some((cacheKey) => key.includes(cacheKey))),
       ).catch((err) => {
+        // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "student_lists",
@@ -528,6 +534,7 @@ export function useGlobalSSE(): SSEHookState {
       mutate(
         (key) => typeof key === "string" && keyTargetsId(key, studentId),
       ).catch((err) => {
+        // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "student_detail",
@@ -578,6 +585,7 @@ export function useGlobalSSE(): SSEHookState {
         (key) =>
           typeof key === "string" && key.includes(SEARCH_STUDENTS_KEY_PREFIX),
       ).catch((err) => {
+        // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "student_companions",
@@ -649,6 +657,7 @@ export function useGlobalSSE(): SSEHookState {
           typeof key === "string" &&
           DASHBOARD_COUNT_CACHE_KEYS.some((cacheKey) => key.includes(cacheKey)),
       ).catch((err) => {
+        // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "dashboard",
@@ -679,6 +688,7 @@ export function useGlobalSSE(): SSEHookState {
         (key) =>
           typeof key === "string" && key.includes("room-bulk-active-groups"),
       ).catch((err) => {
+        // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "room_move_active_groups",
@@ -700,6 +710,7 @@ export function useGlobalSSE(): SSEHookState {
             key.includes("room-detail-") ||
             key.includes("tracking-indicators-")),
       ).catch((err) => {
+        // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "active_supervision",
@@ -723,6 +734,7 @@ export function useGlobalSSE(): SSEHookState {
             key.includes("user-context") ||
             key.includes("change-request-access")),
       ).catch((err) => {
+        // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "group_access",
@@ -770,6 +782,7 @@ export function useGlobalSSE(): SSEHookState {
             key.includes("care-plan-day-") ||
             key.includes("care-plan-week-")),
       ).catch((err) => {
+        // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "timetable",

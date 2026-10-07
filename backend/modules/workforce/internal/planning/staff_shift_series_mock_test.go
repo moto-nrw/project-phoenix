@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -260,6 +261,28 @@ func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
 		assert.ErrorIs(t, err, ErrSeriesInvalid)
 	})
 
+	// The period-dependent refusals carry their own reason, so the HTTP edge
+	// names each with its own code (#2514); the wording stays the series'.
+	t.Run("week A/B without a week cycle", func(t *testing.T) {
+		service := newSeriesServiceForTest(seriesServiceMocks{})
+		series := unitSeries(t)
+		series.WeekPattern = WeekPatternA
+		_, err := service.CreateSeries(context.Background(), series)
+		require.ErrorIs(t, err, ErrSeriesInvalid)
+		assert.ErrorIs(t, err, workforce.ErrShiftSeriesWeekCycleMissing)
+		assert.Equal(t, "invalid shift series: week A/B requires a calendar period with a week cycle", err.Error())
+	})
+
+	t.Run("valid from outside the calendar period", func(t *testing.T) {
+		service := newSeriesServiceForTest(seriesServiceMocks{})
+		series := unitSeries(t)
+		series.ValidFrom = timezone.Date(timezone.NewDate(2026, 8, 24).AddDays(-60))
+		_, err := service.CreateSeries(context.Background(), series)
+		require.ErrorIs(t, err, ErrSeriesInvalid)
+		assert.ErrorIs(t, err, workforce.ErrShiftSeriesOutsidePeriod)
+		assert.NotErrorIs(t, err, workforce.ErrShiftSeriesWeekCycleMissing)
+	})
+
 	t.Run("series insert failure", func(t *testing.T) {
 		service := newSeriesServiceForTest(seriesServiceMocks{
 			series: &seriesMockRepo{createFn: func(context.Context, *StaffShiftSeries) error {
@@ -317,6 +340,7 @@ func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
 		series.ValidUntil = &until
 		_, err := service.CreateSeries(context.Background(), series)
 		require.ErrorIs(t, err, ErrSeriesInvalid)
+		assert.ErrorIs(t, err, workforce.ErrShiftSeriesNoOccurrences)
 		assert.Contains(t, err.Error(), "no occurrences left to create")
 		assert.False(t, created)
 	})
@@ -596,6 +620,7 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 		input.ValidUntilSet = true
 		_, err := service.SplitSeries(context.Background(), input)
 		assert.ErrorIs(t, err, ErrSeriesInvalid)
+		assert.ErrorIs(t, err, workforce.ErrShiftSeriesOutsidePeriod)
 	})
 
 	t.Run("bounds successor at next lineage segment", func(t *testing.T) {

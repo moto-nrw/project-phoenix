@@ -1,9 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { usePathname } from "next/navigation";
 import { CoachMark } from "~/components/ui/coach-mark";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { useApiFormError } from "~/contexts/ToastContext";
 import {
   buildHelpGroupHref,
   buildHelpHref,
@@ -19,22 +26,18 @@ import {
 } from "~/lib/school-setup-api";
 import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import { useNFCEnabled } from "~/lib/tenant-context";
-import {
-  SchoolSetupBeacon,
-  SchoolSetupChecklist,
-} from "./school-setup-checklist";
+import { SetupBeacon, SchoolSetupChecklist } from "./school-setup-checklist";
 import {
   applicableSteps,
   firstOpenStep,
   setupProgress,
 } from "./school-setup-steps";
 import { useSchoolSetup } from "./use-school-setup";
+import { SETUP_TOURS } from "./setup-tours";
 import { useSetupTour } from "./use-setup-tour";
 
 const logger = createLogger({ component: "SchoolSetupWizard" });
 
-const SAVE_FAILED =
-  "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
 /** Nachladen nach dem Tourende, bis laufende Anfragen durch sind. */
 const TOUR_FOLLOW_UP_MS = [500, 2000, 5000];
 const TOUR_LEFT =
@@ -42,6 +45,12 @@ const TOUR_LEFT =
 const CLICK_ACTION = "Klicken Sie auf die grün umrandete Stelle.";
 const TARGET_MISSING =
   "Diese Stelle ist gerade nicht zu sehen. Vielleicht fehlt Ihnen ein Recht, oder die Seite lädt noch.";
+
+type RunAction = (
+  action: () => Promise<SchoolSetupState>,
+  after?: (next: SchoolSetupState) => void,
+  onFail?: () => void,
+) => void | Promise<void>;
 
 /** Knopf unten rechts oder offene Checkliste. */
 type View = "beacon" | "checklist";
@@ -83,9 +92,37 @@ function SchoolSetupWizardForAdmin() {
   const [expandedByPerson, setExpandedByPerson] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirmDismiss, setConfirmDismiss] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Eine gescheiterte Änderung steht oben in der Checkliste: Katalogtext,
+  // Wiederholen und Vorgangskennung (#2517).
+  const formErrors = useApiFormError();
+  const latestRunRef = useRef<RunAction>(() => undefined);
   const [notice, setNotice] = useState<string | null>(null);
   const pathname = usePathname();
+  const run: RunAction = async (action, after, onFail) => {
+    setBusy(true);
+    formErrors.clear();
+    try {
+      const next = await action();
+      await replace(next);
+      after?.(next);
+    } catch (err) {
+      logger.warn("school_setup_action_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      onFail?.();
+      void formErrors.show(err, {
+        object: "die Änderung der ersten Schritte",
+        retry: () => latestRunRef.current(action, after, onFail),
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+  useLayoutEffect(() => {
+    latestRunRef.current = (action, after, onFail) =>
+      void run(action, after, onFail);
+  });
+
   const nfcEnabled = useNFCEnabled();
   // Die letzte Station löst oft eine Anfrage aus (Einladung senden, Kind
   // anlegen), die beim Tourende noch läuft. Mehrmals nachladen, damit der
@@ -111,7 +148,7 @@ function SchoolSetupWizardForAdmin() {
     setExpandedByPerson(true);
     setNotice(TOUR_LEFT);
   }, []);
-  const tour = useSetupTour(onTourFinished, onTourLeft);
+  const tour = useSetupTour(SETUP_TOURS, onTourFinished, onTourLeft);
 
   const visible = state !== null && !state.completed && !state.dismissed;
   const nextOpen = state ? firstOpenStep(state) : null;
@@ -152,26 +189,6 @@ function SchoolSetupWizardForAdmin() {
   const helpGroupHref = (group: string) =>
     buildHelpGroupHref(helpContext, group);
 
-  const run = async (
-    action: () => Promise<SchoolSetupState>,
-    after?: (next: SchoolSetupState) => void,
-  ) => {
-    setBusy(true);
-    setError(null);
-    try {
-      const next = await action();
-      await replace(next);
-      after?.(next);
-    } catch (err) {
-      logger.warn("school_setup_action_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setError(SAVE_FAILED);
-    } finally {
-      setBusy(false);
-    }
-  };
-
   // Während der Tour tritt die Checkliste zurück.
   if (tour.active) {
     const {
@@ -198,7 +215,9 @@ function SchoolSetupWizardForAdmin() {
         beside={stop.nav === true}
         title={stop.title}
         text={
-          missing && !target ? (stop.missingText ?? TARGET_MISSING) : stop.text
+          missing && !target
+            ? (stop.missingText ?? TARGET_MISSING)
+            : tour.active.text
         }
         progress={`Station ${stopIndex + 1} von ${stopTotal}`}
         action={stop.advance === "click" && target ? CLICK_ACTION : undefined}
@@ -215,7 +234,7 @@ function SchoolSetupWizardForAdmin() {
 
   if (view === "beacon") {
     return (
-      <SchoolSetupBeacon
+      <SetupBeacon
         open={total - finished}
         onOpen={() => {
           setView("checklist");
@@ -231,12 +250,12 @@ function SchoolSetupWizardForAdmin() {
         steps={steps}
         expanded={expanded}
         busy={busy}
-        error={error}
+        error={formErrors.error}
         notice={notice}
         helpHref={helpHref}
         helpGroupHref={helpGroupHref}
         onExpand={(step) => {
-          setError(null);
+          formErrors.clear();
           setNotice(null);
           setExpanded(step);
           setExpandedByPerson(true);
@@ -260,6 +279,9 @@ function SchoolSetupWizardForAdmin() {
         onConfirm={() =>
           void run(
             () => setSchoolSetupDismissed(true),
+            () => setConfirmDismiss(false),
+            // Der Grund steht in der Checkliste; der Dialog davor würde ihn
+            // verdecken.
             () => setConfirmDismiss(false),
           )
         }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { useSWRAuth } from "~/lib/swr";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type { TimetableRoster } from "~/lib/timetable-operations-types";
@@ -57,10 +58,11 @@ export function useTimetableRoster(options: {
         if (!currentRoomId) return null;
         return await timetableOperationsApi.rosterByActiveGroup(currentRoomId);
       } catch (err) {
+        // No timetable block behind this session: a plain supervision, not
+        // an error (ADR 0006: the code, never the text).
         if (
-          err instanceof Error &&
-          (err.message.includes("404") ||
-            err.message.toLowerCase().includes("not found"))
+          err instanceof ApiError &&
+          wireErrorCode(err.code) === "timetable.instance_not_found"
         ) {
           if (!selectedTimetableInstanceId && currentRoomId) {
             setMissingRosterActiveGroupIds((current) => {

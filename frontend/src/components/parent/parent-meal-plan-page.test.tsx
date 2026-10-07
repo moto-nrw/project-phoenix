@@ -8,6 +8,20 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import deMessages from "~/i18n/messages/de.json";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+const unavailable = () =>
+  new ApiError("diag", 503, { code: "general.unavailable" });
+const SCHOOLS_ERROR = catalogText(
+  "general.unavailable",
+  deMessages.parentMealPlan.errorObjectSchools,
+);
+const WEEK_ERROR = catalogText(
+  "general.unavailable",
+  deMessages.parentMealPlan.errorObjectWeek,
+);
 
 const mocks = vi.hoisted(() => ({
   getChildFeatures: vi.fn(),
@@ -410,13 +424,12 @@ describe("ParentMealPlanPage", () => {
   });
 
   it("shows a load error when resolving the schools fails", async () => {
-    mocks.listMyChildren.mockRejectedValue(new Error("network failed"));
+    mocks.listMyChildren.mockRejectedValue(unavailable());
 
     render(<ParentMealPlanPage />);
 
-    expect(
-      await screen.findByText("Essensplan konnte nicht geladen werden."),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(SCHOOLS_ERROR)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Wiederholen" })).toBeVisible();
     expect(
       screen.queryByText(
         "Für diese Woche ist noch kein Essensplan eingetragen",
@@ -425,13 +438,11 @@ describe("ParentMealPlanPage", () => {
   });
 
   it("shows a load error when the selected week fails", async () => {
-    mocks.getChildMealPlan.mockRejectedValue(new Error("network failed"));
+    mocks.getChildMealPlan.mockRejectedValue(unavailable());
 
     render(<ParentMealPlanPage />);
 
-    expect(
-      await screen.findByText("Essensplan konnte nicht geladen werden."),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(WEEK_ERROR)).toBeInTheDocument();
     expect(
       screen.queryByText(
         "Für diese Woche ist noch kein Essensplan eingetragen",
@@ -495,13 +506,11 @@ describe("ParentMealPlanPage", () => {
     unmount();
 
     // Selected week could not be loaded.
-    mocks.getChildMealPlan.mockRejectedValue(new Error("network failed"));
+    mocks.getChildMealPlan.mockRejectedValue(unavailable());
     const { unmount: unmountWeekError } = render(
       <ParentMealPlanPage key="week-error" />,
     );
-    expect(
-      await screen.findByText("Essensplan konnte nicht geladen werden."),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(WEEK_ERROR)).toBeInTheDocument();
     expect(screen.queryByText(SUBTITLE_MEALS_ONLY)).not.toBeInTheDocument();
     unmountWeekError();
 
@@ -563,11 +572,161 @@ describe("ParentMealPlanPage", () => {
     unmount();
 
     // Resolving the schools failed.
-    mocks.listMyChildren.mockRejectedValue(new Error("network failed"));
+    mocks.listMyChildren.mockRejectedValue(unavailable());
     render(<ParentMealPlanPage key="schools-error" />);
-    expect(
-      await screen.findByText("Essensplan konnte nicht geladen werden."),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(SCHOOLS_ERROR)).toBeInTheDocument();
     expect(screen.queryByText(SUBTITLE_MEALS_ONLY)).not.toBeInTheDocument();
+  });
+
+  it("reloads the schools from the load error's Wiederholen", async () => {
+    mocks.listMyChildren.mockRejectedValueOnce(unavailable());
+
+    render(<ParentMealPlanPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Wiederholen" }));
+
+    expect(
+      await screen.findByText(
+        "Für diese Woche ist noch kein Essensplan eingetragen",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(SCHOOLS_ERROR)).not.toBeInTheDocument();
+    expect(mocks.listMyChildren).toHaveBeenCalledTimes(2);
+  });
+
+  it("reloads the week from the load error's Wiederholen", async () => {
+    mocks.getChildMealPlan.mockRejectedValueOnce(unavailable());
+
+    render(<ParentMealPlanPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Wiederholen" }));
+
+    expect(
+      await screen.findByText(
+        "Für diese Woche ist noch kein Essensplan eingetragen",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(WEEK_ERROR)).not.toBeInTheDocument();
+  });
+
+  describe("participation errors", () => {
+    const PARTICIPATION = {
+      weekdays: [1, 3],
+      effective_from: "2026-08-10",
+      cutoff_time: "09:00",
+      days: [
+        {
+          date: "2026-08-12",
+          participating: false,
+          source: "none",
+          changeable: true,
+        },
+      ],
+    };
+
+    beforeEach(() => {
+      mocks.getChildFeatures.mockResolvedValue({
+        meal_plan_enabled: true,
+        meal_registration_enabled: true,
+      });
+    });
+
+    it("shows a failed participation load in place with Wiederholen", async () => {
+      mocks.getMealParticipation
+        .mockRejectedValueOnce(unavailable())
+        .mockResolvedValue(PARTICIPATION);
+
+      render(<ParentMealPlanPage />);
+
+      expect(
+        await screen.findByText(
+          catalogText(
+            "general.unavailable",
+            deMessages.parentMealPlan.errorObjectParticipation,
+          ),
+        ),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+      expect(
+        await screen.findByText("Montag und Mittwoch"),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps the regular-days draft open and shows the save error in it", async () => {
+      mocks.getMealParticipation.mockResolvedValue(PARTICIPATION);
+      mocks.replaceMealParticipationSchedule
+        .mockRejectedValueOnce(
+          new ApiError("diag", 409, { code: "general.business_rejection" }),
+        )
+        .mockResolvedValue({ effective_from: "2026-08-17" });
+
+      render(<ParentMealPlanPage />);
+
+      fireEvent.click(await screen.findByRole("button", { name: "Ändern" }));
+      fireEvent.click(screen.getByRole("checkbox", { name: "Dienstag" }));
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      expect(
+        await screen.findByText(
+          catalogText(
+            "general.business_rejection",
+            deMessages.parentMealPlan.errorObjectParticipation,
+          ),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: "Dienstag" })).toBeChecked();
+
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+      await waitFor(() =>
+        expect(mocks.replaceMealParticipationSchedule).toHaveBeenLastCalledWith(
+          "child-1",
+          [1, 2, 3],
+        ),
+      );
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("checkbox", { name: "Dienstag" }),
+        ).not.toBeInTheDocument(),
+      );
+    });
+
+    it("retries a failed day change with the current draft", async () => {
+      mocks.getMealParticipation.mockResolvedValue(PARTICIPATION);
+      mocks.setMealParticipationDay
+        .mockRejectedValueOnce(unavailable())
+        .mockResolvedValue(undefined);
+
+      render(<ParentMealPlanPage />);
+
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Anmeldung ändern: Mittwoch, 12. August",
+        }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      expect(
+        await screen.findByText(
+          catalogText(
+            "general.unavailable",
+            deMessages.parentMealPlan.errorObjectParticipation,
+          ),
+        ),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+      await waitFor(() =>
+        expect(mocks.setMealParticipationDay).toHaveBeenCalledTimes(2),
+      );
+      expect(mocks.setMealParticipationDay).toHaveBeenLastCalledWith(
+        "child-1",
+        "2026-08-12",
+        true,
+      );
+    });
   });
 });

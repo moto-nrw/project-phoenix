@@ -16,6 +16,9 @@ const confidentialityNote = "Vertraulich, nur für berechtigte Personen. Nach Ge
 // Service renders the printable weekly plans.
 type Service interface {
 	ExportDienstplan(ctx context.Context, params Params) (listexport.File, error)
+	// ExportDienstplanHours renders the hours sheet (#3819). The weekly
+	// figures come from the caller's reader, which owns the summaries.
+	ExportDienstplanHours(ctx context.Context, params Params, hours WeeklyHoursReader) (listexport.File, error)
 	ExportBetreuungsplan(ctx context.Context, params Params) (listexport.File, error)
 }
 

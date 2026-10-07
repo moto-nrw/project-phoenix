@@ -5,7 +5,6 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/xuri/excelize/v2"
 
@@ -77,7 +76,7 @@ func ParseStaffCSV(reader io.Reader) ([]importModels.StaffImportRow, error) {
 		mapping[normalizeHeaderKey(col)] = i
 	}
 	if missing := missingStaffColumns(mapping); len(missing) > 0 {
-		return nil, fmt.Errorf("fehlende erforderliche Spalten: %s", strings.Join(missing, ", "))
+		return nil, missingColumns(missing)
 	}
 
 	var rows []importModels.StaffImportRow
@@ -88,7 +87,7 @@ func ParseStaffCSV(reader io.Reader) ([]importModels.StaffImportRow, error) {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("row %d: %w", rowNum, err)
+			return nil, rowError(rowNum, err)
 		}
 
 		if isEmptyRow(values) {
@@ -102,7 +101,7 @@ func ParseStaffCSV(reader io.Reader) ([]importModels.StaffImportRow, error) {
 	}
 
 	if len(rows) == 0 {
-		return nil, fmt.Errorf("die CSV-Datei enthält keine Datenzeilen. Möglicherweise haben Sie versehentlich die Vorlage hochgeladen")
+		return nil, noCSVDataRows()
 	}
 
 	return rows, nil
@@ -141,7 +140,7 @@ func ParseStaffXLSX(reader io.Reader) ([]importModels.StaffImportRow, error) {
 		mapping[normalizeHeaderKey(col)] = i
 	}
 	if missing := missingStaffColumns(mapping); len(missing) > 0 {
-		return nil, fmt.Errorf("fehlende erforderliche Spalten: %s", strings.Join(missing, ", "))
+		return nil, missingColumns(missing)
 	}
 
 	var rows []importModels.StaffImportRow
@@ -155,7 +154,7 @@ func ParseStaffXLSX(reader io.Reader) ([]importModels.StaffImportRow, error) {
 	}
 
 	if len(rows) == 0 {
-		return nil, fmt.Errorf("die Excel-Datei enthält keine Datenzeilen. Möglicherweise haben Sie versehentlich die Vorlage hochgeladen")
+		return nil, noExcelDataRows()
 	}
 
 	return rows, nil

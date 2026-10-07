@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { ApiError, enrichApiError, transportFetch } from "./api-error";
 // Closing day API client (#1418 3b). Talks to the Next.js proxy at
 // /api/timetable/closing-days, which forwards to the Go backend
 // /api/timetable/closing-days (CRUD via SchedulesRead/Create/Update/Delete).
@@ -58,7 +58,7 @@ async function unwrap<T>(response: Response): Promise<T> {
 
 class ClosingDayService {
   async list(): Promise<ClosingDay[]> {
-    const response = await fetch("/api/timetable/closing-days", {
+    const response = await transportFetch("/api/timetable/closing-days", {
       method: "GET",
       headers: { Accept: "application/json" },
       credentials: "include",
@@ -68,7 +68,7 @@ class ClosingDayService {
   }
 
   async create(body: ClosingDayInput): Promise<ClosingDay> {
-    const response = await fetch("/api/timetable/closing-days", {
+    const response = await transportFetch("/api/timetable/closing-days", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -83,7 +83,7 @@ class ClosingDayService {
   }
 
   async update(id: string, body: ClosingDayInput): Promise<ClosingDay> {
-    const response = await fetch(`/api/timetable/closing-days/${id}`, {
+    const response = await transportFetch(`/api/timetable/closing-days/${id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -98,7 +98,7 @@ class ClosingDayService {
   }
 
   async delete(id: string): Promise<void> {
-    const response = await fetch(`/api/timetable/closing-days/${id}`, {
+    const response = await transportFetch(`/api/timetable/closing-days/${id}`, {
       method: "DELETE",
       headers: { Accept: "application/json" },
       credentials: "include",

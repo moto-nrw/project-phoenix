@@ -12,7 +12,8 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { StudentCreateModal } from "./student-create-modal";
-import { handleStudentFormSubmit } from "~/lib/student-form-validation";
+import { validateStudentForm } from "~/lib/student-form-validation";
+import { ApiError } from "~/lib/api-error";
 
 const { mockFetchArrivalSettings } = vi.hoisted(() => ({
   mockFetchArrivalSettings: vi.fn(),
@@ -85,19 +86,21 @@ vi.mock("./student-form-fields", () => ({
   PersonalInfoSection: ({
     formData,
     onChange,
-    errors,
+    fieldError,
   }: {
     formData: Record<string, unknown>;
     onChange: (field: string, value: unknown) => void;
-    errors: Record<string, string>;
+    fieldError: (name: string) => string | undefined;
     groups?: Array<{ value: string; label: string }>;
   }) => (
     <div data-testid="personal-info-section">
-      {errors.first_name && (
-        <div data-testid="error-first-name">{errors.first_name}</div>
+      {fieldError("first_name") && (
+        <div data-testid="error-first-name">{fieldError("first_name")}</div>
       )}
       <input
         data-testid="first-name-input"
+        name="first_name"
+        aria-invalid={fieldError("first_name") ? true : undefined}
         value={(formData.first_name as string) ?? ""}
         onChange={(e) => onChange("first_name", e.target.value)}
       />
@@ -128,11 +131,10 @@ vi.mock("./student-form-fields", () => ({
 vi.mock("./student-common-form-sections", () => ({
   StudentCommonFormSections: ({
     formData,
-    errors: _errors,
     onChange,
   }: {
     formData: Record<string, unknown>;
-    errors: Record<string, string>;
+    fieldError: (name: string) => string | undefined;
     onChange: (field: string, value: unknown) => void;
   }) => (
     <div data-testid="common-form-sections">
@@ -322,23 +324,6 @@ vi.mock("~/components/guardians/guardian-picker-panel", () => ({
 // Mock validation utilities
 vi.mock("~/lib/student-form-validation", () => ({
   validateStudentForm: vi.fn(() => ({})),
-
-  handleStudentFormSubmit: vi.fn(
-    (
-      e: Event,
-      _formData: unknown,
-      _validateForm: unknown,
-      onCreate: (data: Record<string, unknown>) => Promise<void>,
-      setSaveLoading: (loading: boolean) => void,
-      _setErrors: unknown,
-    ) => {
-      e.preventDefault();
-      setSaveLoading(true);
-      void onCreate({})
-        .then(() => setSaveLoading(false))
-        .catch(() => setSaveLoading(false));
-    },
-  ),
 }));
 
 describe("StudentCreateModal", () => {
@@ -532,8 +517,84 @@ describe("StudentCreateModal", () => {
     });
   });
 
-  it("passes a scroll-to-error callback to the submit helper", async () => {
-    mockOnCreate.mockResolvedValue(undefined);
+  it("shows a failed save in the form with the catalog text and keeps the draft", async () => {
+    mockOnCreate.mockRejectedValueOnce(
+      new ApiError("quota", 409, {
+        code: "students.child_quota_reached",
+        details: { booked_places: 50, occupied_places: 50 },
+      }),
+    );
+
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await screen.findByTestId("personal-info-section");
+    fireEvent.change(screen.getByTestId("first-name-input"), {
+      target: { value: "Mia" },
+    });
+    const form = screen.getByTestId("modal").querySelector("form");
+    await act(async () => {
+      fireEvent.submit(form!);
+    });
+
+    expect(
+      await screen.findByText(
+        "Das Kinderkontingent Ihrer Schule ist voll (50 von 50 Kindern). Bitte melden Sie sich beim moto-Team.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockOnClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId("first-name-input")).toHaveValue("Mia");
+  });
+
+  it("retries a server error with the current draft", async () => {
+    mockOnCreate
+      .mockRejectedValueOnce(
+        new ApiError("boom", 500, {
+          code: "general.server",
+          instance: "req-create",
+        }),
+      )
+      .mockResolvedValueOnce(undefined);
+
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await screen.findByTestId("personal-info-section");
+    const form = screen.getByTestId("modal").querySelector("form");
+    await act(async () => {
+      fireEvent.submit(form!);
+    });
+    expect(
+      await screen.findByText("Vorgangskennung: req-create"),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("first-name-input"), {
+      target: { value: "Lea" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    });
+
+    await waitFor(() => expect(mockOnCreate).toHaveBeenCalledTimes(2));
+    expect(mockOnCreate.mock.calls[1]?.[0]).toMatchObject({
+      first_name: "Lea",
+    });
+  });
+
+  it("reports a local check in the form and marks the field without sending", async () => {
+    vi.mocked(validateStudentForm).mockReturnValueOnce({
+      first_name: "Bitte geben Sie den Vornamen ein.",
+    });
 
     render(
       <StudentCreateModal
@@ -549,13 +610,16 @@ describe("StudentCreateModal", () => {
       fireEvent.submit(form!);
     });
 
-    await waitFor(() => {
-      expect(handleStudentFormSubmit).toHaveBeenCalled();
-    });
-    // 7th arg drives scroll-to-first-error on a failed submit (shared with the
-    // parents' enrollment form via useScrollToFirstError).
-    const onError = vi.mocked(handleStudentFormSubmit).mock.calls[0]?.[6];
-    expect(onError).toBeTypeOf("function");
+    expect(
+      await screen.findByText("Bitte prüfen Sie die markierten Felder."),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("error-first-name")).toHaveTextContent(
+      "Bitte geben Sie den Vornamen ein.",
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("first-name-input")).toHaveFocus(),
+    );
+    expect(mockOnCreate).not.toHaveBeenCalled();
   });
 
   it("updates form data when input changes", async () => {
@@ -757,13 +821,15 @@ describe("StudentCreateModal", () => {
     });
 
     await waitFor(() => {
-      expect(handleStudentFormSubmit).toHaveBeenCalled();
+      expect(mockOnCreate).toHaveBeenCalled();
     });
 
-    // handleSubmit must hand the form payload (arg index 1) a snake_case-mapped
+    // handleSubmit must hand the form payload (its first argument) a snake_case-mapped
     // guardians array, nested exactly as the create endpoint expects.
-    const submitted = vi.mocked(handleStudentFormSubmit).mock
-      .calls[0]?.[1] as Record<string, unknown>;
+    const submitted = mockOnCreate.mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
     expect(submitted).toMatchObject({
       guardians: [
         {
@@ -805,10 +871,12 @@ describe("StudentCreateModal", () => {
     });
 
     await waitFor(() => {
-      expect(handleStudentFormSubmit).toHaveBeenCalled();
+      expect(mockOnCreate).toHaveBeenCalled();
     });
-    const submitted = vi.mocked(handleStudentFormSubmit).mock
-      .calls[0]?.[1] as Record<string, unknown>;
+    const submitted = mockOnCreate.mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
     expect(submitted).not.toHaveProperty("guardians");
   });
 
@@ -828,10 +896,12 @@ describe("StudentCreateModal", () => {
     });
 
     await waitFor(() => {
-      expect(handleStudentFormSubmit).toHaveBeenCalled();
+      expect(mockOnCreate).toHaveBeenCalled();
     });
-    const submitted = vi.mocked(handleStudentFormSubmit).mock
-      .calls[0]?.[1] as Record<string, unknown>;
+    const submitted = mockOnCreate.mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
     // The new UI semantics say "no selected days = goes home alone", and that
     // must be sent as an explicit empty map (not omitted) so the stored
     // pickup_days/pickup_status pair is correct without anyone editing later.
@@ -945,8 +1015,10 @@ describe("StudentCreateModal", () => {
     expect(screen.getByText("Erstellen")).toBeInTheDocument();
   });
 
-  it("blocks direct creation when care days cannot be loaded", async () => {
-    mockFetchArrivalSettings.mockRejectedValueOnce(new Error("offline"));
+  it("blocks direct creation when care days cannot be loaded and offers a retry", async () => {
+    mockFetchArrivalSettings.mockRejectedValueOnce(
+      new ApiError("offline", 503, { code: "general.unavailable" }),
+    );
 
     render(
       <StudentCreateModal
@@ -958,11 +1030,22 @@ describe("StudentCreateModal", () => {
 
     expect(
       await screen.findByText(
-        "Die Betreuungstage konnten nicht geladen werden. Schließen Sie das Fenster und öffnen Sie es erneut.",
+        "Die Einstellung für Betreuungstage ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
       ),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("care-weekly-plan-modal"),
+      screen.queryByTestId("personal-info-section"),
+    ).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    });
+
+    expect(
+      await screen.findByTestId("personal-info-section"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/ist gerade nicht erreichbar/),
     ).not.toBeInTheDocument();
   });
 
@@ -1059,13 +1142,15 @@ describe("StudentCreateModal", () => {
     });
 
     await waitFor(() => {
-      expect(handleStudentFormSubmit).toHaveBeenCalled();
+      expect(mockOnCreate).toHaveBeenCalled();
     });
 
     // Arrival entries travel backend-shaped already; pickup entries are mapped
     // from the care-plan form (pickupTime → pickup_time) before submit.
-    const submitted = vi.mocked(handleStudentFormSubmit).mock
-      .calls[0]?.[1] as Record<string, unknown>;
+    const submitted = mockOnCreate.mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
     expect(submitted).toMatchObject({
       arrival_schedules: [
         {
@@ -1101,10 +1186,12 @@ describe("StudentCreateModal", () => {
     });
 
     await waitFor(() => {
-      expect(handleStudentFormSubmit).toHaveBeenCalled();
+      expect(mockOnCreate).toHaveBeenCalled();
     });
-    const submitted = vi.mocked(handleStudentFormSubmit).mock
-      .calls[0]?.[1] as Record<string, unknown>;
+    const submitted = mockOnCreate.mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
     expect(submitted).not.toHaveProperty("arrival_schedules");
     expect(submitted).not.toHaveProperty("pickup_schedules");
   });
@@ -1181,13 +1268,15 @@ describe("StudentCreateModal", () => {
     });
 
     await waitFor(() => {
-      expect(handleStudentFormSubmit).toHaveBeenCalled();
+      expect(mockOnCreate).toHaveBeenCalled();
     });
 
     // The existing selection must carry guardian_profile_id (link, not create)
     // and the relationship flags, with no phone numbers.
-    const submitted = vi.mocked(handleStudentFormSubmit).mock
-      .calls[0]?.[1] as Record<string, unknown>;
+    const submitted = mockOnCreate.mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
     expect(submitted).toMatchObject({
       guardians: [
         {

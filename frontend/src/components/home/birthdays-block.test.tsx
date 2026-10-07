@@ -1,10 +1,12 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import type {
   BirthdayCelebration,
   BirthdayOverview,
 } from "~/lib/birthdays-api";
+import { catalogText } from "~/test/error-catalog-text";
 
 const swr = vi.hoisted(() => ({
   keys: [] as (string | null)[],
@@ -15,7 +17,12 @@ vi.mock("~/lib/swr", () => ({
   useSWRAuth: (key: string | null) => {
     swr.keys.push(key);
     const data = key ? swr.byKey.get(key) : undefined;
-    return { data, error: undefined, isLoading: key !== null && !data };
+    return {
+      data,
+      error: undefined,
+      isLoading: key !== null && !data,
+      mutate: vi.fn(),
+    };
   },
 }));
 vi.mock("~/lib/hooks/use-media-query", () => ({
@@ -149,18 +156,22 @@ describe("BirthdaysBlock", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows an error instead of an empty week when the initial request fails", () => {
+  it("shows an error instead of an empty week when the initial request fails", async () => {
+    const retry = vi.fn();
     render(
       <BirthdaysBlock
         current={undefined}
         currentLoading={false}
-        currentError={new Error("Birthday fetch failed: 500")}
+        currentError={new ApiError("Birthday fetch failed", 500)}
+        onRetryCurrent={retry}
       />,
     );
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Die Geburtstage konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      catalogText("general.server", "die Liste der Geburtstage"),
     );
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(retry).toHaveBeenCalled();
     expect(
       screen.queryByText("Keine Geburtstage in dieser Woche"),
     ).not.toBeInTheDocument();
@@ -171,7 +182,7 @@ describe("BirthdaysBlock", () => {
       <BirthdaysBlock
         current={current}
         currentLoading={false}
-        currentError={new Error("Birthday fetch failed: 500")}
+        currentError={new ApiError("Birthday fetch failed", 500)}
       />,
     );
 

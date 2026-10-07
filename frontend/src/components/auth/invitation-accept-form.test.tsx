@@ -10,6 +10,8 @@ import {
   fireEvent,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ApiError, unavailableApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { InvitationAcceptForm } from "./invitation-accept-form";
 import type { InvitationValidation } from "~/lib/invitation-helpers";
 
@@ -28,7 +30,8 @@ vi.mock("next/navigation", () => ({
 
 // Mock ToastContext
 const mockToastSuccess = vi.fn();
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: mockToastSuccess,
   }),
@@ -235,9 +238,16 @@ describe("InvitationAcceptForm", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/Bitte gib Vor- und Nachname an/i),
+        screen.getByText("Bitte prüfen Sie die markierten Felder."),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Bitte geben Sie Ihren Vornamen an."),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Bitte geben Sie Ihren Nachnamen an."),
       ).toBeInTheDocument();
     });
+    expect(mockAcceptInvitation).not.toHaveBeenCalled();
   });
 
   it("validates password mismatch", async () => {
@@ -278,8 +288,11 @@ describe("InvitationAcceptForm", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/Sicherheitsanforderungen/i)).toBeInTheDocument();
+      expect(
+        screen.getByText("Das Passwort erfüllt noch nicht alle Anforderungen."),
+      ).toBeInTheDocument();
     });
+    expect(mockAcceptInvitation).not.toHaveBeenCalled();
   });
 
   it("shows success state after successful submission", async () => {
@@ -300,16 +313,17 @@ describe("InvitationAcceptForm", () => {
     await waitFor(() => {
       expect(screen.getByText(/Konto erstellt/i)).toBeInTheDocument();
       expect(
-        screen.getByText(/Bitte melde dich mit deinen neuen Zugangsdaten an/i),
+        screen.getByText(
+          /Bitte melden Sie sich mit Ihren neuen Zugangsdaten an/i,
+        ),
       ).toBeInTheDocument();
     });
   });
 
   it("shows error for 410 expired invitation", async () => {
-    mockAcceptInvitation.mockRejectedValueOnce({
-      status: 410,
-      message: "Expired",
-    });
+    mockAcceptInvitation.mockRejectedValueOnce(
+      new ApiError("Expired", 410, { code: "identity.invitation_expired" }),
+    );
 
     render(
       <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
@@ -325,15 +339,16 @@ describe("InvitationAcceptForm", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/nicht mehr gültig/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          catalogText("identity.invitation_expired", "die Einladung"),
+        ),
+      ).toBeInTheDocument();
     });
   });
 
   it("shows error for 409 email conflict", async () => {
-    mockAcceptInvitation.mockRejectedValueOnce({
-      status: 409,
-      message: "Conflict",
-    });
+    mockAcceptInvitation.mockRejectedValueOnce(new ApiError("Conflict", 409));
 
     render(
       <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
@@ -349,15 +364,20 @@ describe("InvitationAcceptForm", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/bereits ein Konto/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          catalogText("general.business_rejection", "die Einladung"),
+        ),
+      ).toBeInTheDocument();
     });
   });
 
   it("shows error for 404 not found", async () => {
-    mockAcceptInvitation.mockRejectedValueOnce({
-      status: 404,
-      message: "Not found",
-    });
+    mockAcceptInvitation.mockRejectedValueOnce(
+      new ApiError("Not found", 404, {
+        code: "identity.invitation_not_found",
+      }),
+    );
 
     render(
       <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
@@ -373,15 +393,21 @@ describe("InvitationAcceptForm", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/nicht gefunden/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          catalogText("identity.invitation_not_found", "die Einladung"),
+        ),
+      ).toBeInTheDocument();
     });
   });
 
-  it("shows error for 400 bad request with message", async () => {
-    mockAcceptInvitation.mockRejectedValueOnce({
-      status: 400,
-      message: "Passwort zu schwach",
-    });
+  it("shows the catalog text of a weak password and marks the field", async () => {
+    mockAcceptInvitation.mockRejectedValueOnce(
+      new ApiError("password too weak", 400, {
+        code: "identity.password_too_weak",
+        errors: [{ field: "password", reason: "password too weak" }],
+      }),
+    );
 
     render(
       <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
@@ -397,7 +423,16 @@ describe("InvitationAcceptForm", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/Passwort zu schwach/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          catalogText("identity.password_too_weak", "die Einladung"),
+        ),
+      ).toBeInTheDocument();
+      // The backend names the field; the form marks it.
+      expect(screen.getByLabelText(/^Passwort$/)).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
     });
   });
 
@@ -418,7 +453,10 @@ describe("InvitationAcceptForm", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/Fehler aufgetreten/i)).toBeInTheDocument();
+      // Not an API error: the general text, never a backend sentence.
+      expect(
+        screen.getByText(catalogText("general.server", "die Einladung")),
+      ).toBeInTheDocument();
     });
   });
 
@@ -547,7 +585,7 @@ describe("InvitationAcceptForm", () => {
       await waitFor(() => {
         // Should show the final fallback message, not redirect
         expect(
-          screen.getByText(/lösche die Websitedaten/i),
+          screen.getByText(/löschen Sie die Websitedaten/i),
         ).toBeInTheDocument();
         // Button should be gone
         expect(
@@ -619,14 +657,10 @@ describe("InvitationAcceptForm", () => {
     }
   });
 
-  it("shows offline error when navigator is offline", async () => {
-    mockAcceptInvitation.mockRejectedValueOnce(new Error("Failed to fetch"));
-
-    // Simulate offline
-    Object.defineProperty(navigator, "onLine", {
-      value: false,
-      configurable: true,
-    });
+  it("shows the unavailable text when the request never reached the API", async () => {
+    mockAcceptInvitation.mockRejectedValueOnce(
+      unavailableApiError(new TypeError("Failed to fetch")),
+    );
 
     render(
       <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
@@ -642,13 +676,15 @@ describe("InvitationAcceptForm", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/Keine Netzwerkverbindung/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(catalogText("general.unavailable", "die Einladung")),
+      ).toBeInTheDocument();
     });
-
-    // Restore
-    Object.defineProperty(navigator, "onLine", {
-      value: true,
-      configurable: true,
+    // Retryable: the alert offers "Wiederholen" with the current form.
+    mockAcceptInvitation.mockResolvedValueOnce({ tenantSubdomain: "burbach" });
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => {
+      expect(mockAcceptInvitation).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -677,11 +713,11 @@ describe("InvitationAcceptForm", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText(/Bitte gib Vor- und Nachname an/i),
+          screen.getByText("Bitte prüfen Sie die markierten Felder."),
         ).toBeInTheDocument();
         expect(scrollIntoViewMock).toHaveBeenCalledWith({
           behavior: "smooth",
-          block: "start",
+          block: "nearest",
         });
       });
     });
@@ -704,7 +740,9 @@ describe("InvitationAcceptForm", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText(/Sicherheitsanforderungen/i),
+          screen.getByText(
+            "Das Passwort erfüllt noch nicht alle Anforderungen.",
+          ),
         ).toBeInTheDocument();
       });
 

@@ -1,3 +1,4 @@
+import { ApiError } from "./api-error";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fetchStudentFeedback } from "./feedback-api";
 
@@ -82,7 +83,12 @@ describe("fetchStudentFeedback", () => {
       statusText: "Forbidden",
     });
 
-    await expect(fetchStudentFeedback("1")).rejects.toThrow("feature_disabled");
+    const error = await fetchStudentFeedback("1").catch(
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(403);
+    expect((error as ApiError).code).toBe("general.permission");
   });
 
   it("throws on non-404 error", async () => {

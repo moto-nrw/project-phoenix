@@ -59,7 +59,7 @@ func (rs *Resource) createRole(w http.ResponseWriter, r *http.Request) {
 
 	role, err := rs.Sessions.CreateRole(r.Context(), req.Name, req.Description, req.BaseRole)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, renderRoleMutationError(err))
 		return
 	}
 
@@ -148,6 +148,9 @@ func (rs *Resource) deleteRole(w http.ResponseWriter, r *http.Request) {
 
 // renderRoleMutationError maps role administration errors to appropriate HTTP responses.
 func renderRoleMutationError(err error) render.Renderer {
+	if errors.Is(err, identityaccess.ErrRoleNameTaken) {
+		return common.ErrorConflictOnField(err, common.CodeIdentityRoleNameTaken, "name")
+	}
 	var roleErr *identityaccess.AuthenticationError
 	if errors.As(err, &roleErr) {
 		if errors.Is(roleErr.Err, identityaccess.ErrSystemRoleImmutable) {

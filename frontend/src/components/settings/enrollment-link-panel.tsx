@@ -5,6 +5,7 @@ import { useTenantSlugSafe } from "~/lib/tenant-context";
 import type { SchemaTab } from "~/lib/settings-api";
 import { createLogger } from "~/lib/logger";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { useToast } from "~/contexts/ToastContext";
 
 const logger = createLogger({ component: "EnrollmentLinkPanel" });
 
@@ -25,9 +26,8 @@ interface Props {
 export function EnrollmentLinkPanel({ tab }: Props) {
   const tenantSlug = useTenantSlugSafe();
   const [origin, setOrigin] = useState<string>("");
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">(
-    "idle",
-  );
+  const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
+  const toast = useToast();
 
   // Window access is client-only; defer until mount.
   useEffect(() => {
@@ -73,8 +73,11 @@ export function EnrollmentLinkPanel({ tab }: Props) {
       logger.error("enrollment_link_copy_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setCopyState("error");
-      window.setTimeout(() => setCopyState("idle"), 2500);
+      // Kein API-Fehler: der Browser hat das Kopieren verweigert. Der Link
+      // steht daneben und lässt sich von Hand markieren.
+      toast.error(
+        "Der Link konnte nicht kopiert werden. Bitte markieren und kopieren Sie ihn selbst.",
+      );
     }
   };
 
@@ -99,16 +102,10 @@ export function EnrollmentLinkPanel({ tab }: Props) {
             className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
               copyState === "copied"
                 ? "bg-moto-green text-gray-950"
-                : copyState === "error"
-                  ? "bg-moto-red text-white"
-                  : "bg-gray-900 text-white hover:bg-gray-800"
+                : "bg-gray-900 text-white hover:bg-gray-800"
             }`}
           >
-            {copyState === "copied"
-              ? "Kopiert"
-              : copyState === "error"
-                ? "Fehler"
-                : "Kopieren"}
+            {copyState === "copied" ? "Kopiert" : "Kopieren"}
           </button>
           <a
             href={enrollUrl}

@@ -7,18 +7,25 @@
  */
 import {
   act,
-  render,
+  render as renderPlain,
   screen,
   fireEvent,
   waitFor,
   within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
 
 vi.mock("~/components/operator/transfer-device-modal", () => ({
   TransferDeviceModal: () => null,
 }));
 import { Suspense } from "react";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 const {
   mockUseSession,
@@ -213,6 +220,9 @@ const mockSchool = {
 interface SetupOpts {
   orgs?: (typeof mockOrg)[];
   schools?: (typeof mockSchool)[];
+  accountsError?: Error;
+  devicesError?: Error;
+  personsError?: Error;
   accounts?: unknown[];
   devices?: unknown[];
   persons?: unknown[];
@@ -228,6 +238,9 @@ function setupSWR(opts: SetupOpts = {}) {
   const {
     orgs = [mockOrg],
     schools = [mockSchool],
+    accountsError,
+    devicesError,
+    personsError,
     accounts = [],
     devices = [],
     persons = [],
@@ -247,18 +260,21 @@ function setupSWR(opts: SetupOpts = {}) {
       case "operator-school-accounts":
         return {
           data: accounts,
+          error: accountsError,
           isLoading: false,
           mutate: mockMutateAccounts,
         };
       case "operator-school-devices":
         return {
           data: devices,
+          error: devicesError,
           isLoading: false,
           mutate: mockMutateDevices,
         };
       case "operator-school-persons":
         return {
           data: persons,
+          error: personsError,
           isLoading: false,
           mutate: mockMutatePersons,
         };
@@ -552,6 +568,21 @@ describe("OperatorSchoolDetailPage", () => {
         await screen.findByText("Keine Konten für diese Schule."),
       ).toBeInTheDocument();
     });
+
+    it("withholds the accounts table after a failed load", async () => {
+      currentSearchParams = new URLSearchParams("tab=konten");
+      setupSWR({ accountsError: new ApiError("down", 503) });
+
+      await renderPage();
+
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "die Liste der Konten"),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Keine Konten für diese Schule.")).toBeNull();
+      expect(screen.queryByRole("table")).toBeNull();
+    });
   });
 
   describe("with the Geräte tab active", () => {
@@ -600,6 +631,21 @@ describe("OperatorSchoolDetailPage", () => {
       await renderPage();
 
       expect(await screen.findByText("Neues Gerät")).toBeInTheDocument();
+    });
+
+    it("withholds the devices table after a failed load", async () => {
+      currentSearchParams = new URLSearchParams("tab=geraete");
+      setupSWR({ devicesError: new ApiError("down", 503) });
+
+      await renderPage();
+
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "die Liste der Geräte"),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Keine Geräte für diese Schule.")).toBeNull();
+      expect(screen.queryByRole("table")).toBeNull();
     });
 
     it("opens the delete-device modal when a device delete is requested", async () => {
@@ -688,6 +734,21 @@ describe("OperatorSchoolDetailPage", () => {
       expect(
         await screen.findByText("Keine Personen für diese Schule."),
       ).toBeInTheDocument();
+    });
+
+    it("withholds the persons table after a failed load", async () => {
+      currentSearchParams = new URLSearchParams("tab=personen");
+      setupSWR({ personsError: new ApiError("down", 503) });
+
+      await renderPage();
+
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "die Liste der Personen"),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Keine Personen für diese Schule.")).toBeNull();
+      expect(screen.queryByRole("table")).toBeNull();
     });
 
     it("opens the soft-delete person modal when delete is requested", async () => {
@@ -791,19 +852,18 @@ describe("OperatorSchoolDetailPage", () => {
 
   it("surfaces an error message when toggling the school status fails", async () => {
     setupSWR();
-    mockUpdateSchool.mockRejectedValue(new Error("network down"));
+    mockUpdateSchool.mockRejectedValue(new ApiError("network down", 503));
 
     await renderPage();
 
     fireEvent.click(await screen.findByLabelText("Deaktivieren"));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          "Fehler beim Ändern des Status. Bitte versuchen Sie es erneut.",
-        ),
-      ).toBeInTheDocument();
-    });
+    // #2519: catalog text by code in a toast, not a local sentence.
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Änderung des Status"),
+      ),
+    ).toBeInTheDocument();
   });
 
   // --- School not found / org not found redirect branches ---

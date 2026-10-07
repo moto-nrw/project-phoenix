@@ -594,17 +594,20 @@ func TestFullDemoWorkflowSeedsParentLetterAfterParentAccounts(t *testing.T) {
 	t.Parallel()
 
 	workflow := fullDemoWorkflow(&Seeder{})
-	parentAccounts, parentLetter := -1, -1
+	parentAccounts, parentLetter, parentPoll := -1, -1, -1
 	for i, step := range workflow.Steps {
 		switch step.(type) {
 		case parentEnrollmentSeedStep:
 			parentAccounts = i
 		case seedParentLetterStep:
 			parentLetter = i
+		case seedParentPollStep:
+			parentPoll = i
 		}
 	}
 	require.GreaterOrEqual(t, parentAccounts, 0, "parent enrollment step missing")
 	require.Greater(t, parentLetter, parentAccounts, "parent letter must follow parent accounts")
+	require.Greater(t, parentPoll, parentAccounts, "parent poll must follow parent accounts")
 }
 
 func TestSeeder_Seed_FullWorkflow(t *testing.T) {

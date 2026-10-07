@@ -1,11 +1,11 @@
-import { useState, useCallback, useEffect } from "react";
+import { API_KEY_COPY_FAILED_MESSAGE } from "~/lib/operator/provisioning-helpers";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Modal } from "~/components/ui/modal";
-import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OperatorDevice } from "~/lib/operator/provisioning-helpers";
-import { isOperatorApiError } from "~/lib/operator/api-helpers";
 import { createLogger } from "~/lib/logger";
-import { FormError } from "./provisioning-shared";
 
 const logger = createLogger({ component: "SetApiKeyModal" });
 
@@ -23,8 +23,10 @@ export function SetApiKeyModal({
   const [mode, setMode] = useState<"auto" | "manual">("auto");
   const [customKey, setCustomKey] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState("");
-  const errorRef = useScrollToError(error);
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { show: showError, clear: clearError } = formErrors;
+  const { error: toastError } = useToast();
 
   const [updatedDevice, setUpdatedDevice] = useState<OperatorDevice | null>(
     null,
@@ -35,17 +37,17 @@ export function SetApiKeyModal({
     if (isOpen) {
       setMode("auto");
       setCustomKey("");
-      setError("");
+      clearError();
       setUpdatedDevice(null);
       setCopied(false);
     }
-  }, [isOpen]);
+  }, [isOpen, clearError]);
 
   const handleSubmit = useCallback(async () => {
     if (!device) return;
 
     setIsSaving(true);
-    setError("");
+    clearError();
     try {
       const apiKey =
         mode === "manual" && customKey.trim() ? customKey.trim() : undefined;
@@ -56,25 +58,15 @@ export function SetApiKeyModal({
       setUpdatedDevice(result);
       onKeySet(result);
     } catch (err) {
-      if (isOperatorApiError(err) && err.status === 409) {
-        setError("Dieser API-Key wird bereits verwendet.");
-      } else if (isOperatorApiError(err) && err.status === 404) {
-        setError("Gerät nicht gefunden.");
-      } else {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Fehler beim Ändern des API-Keys.",
-        );
-        logger.error("set_api_key_failed", {
-          error: err instanceof Error ? err.message : String(err),
-          device_id: device.id,
-        });
-      }
+      logger.error("set_api_key_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        device_id: device.id,
+      });
+      void showError(err, { object: "die Änderung des API-Keys" });
     } finally {
       setIsSaving(false);
     }
-  }, [device, mode, customKey, onKeySet]);
+  }, [device, mode, customKey, onKeySet, clearError, showError]);
 
   const handleCopyApiKey = useCallback(async () => {
     if (!updatedDevice?.apiKey) return;
@@ -86,8 +78,9 @@ export function SetApiKeyModal({
       logger.error("clipboard_copy_failed", {
         error: "Failed to copy API key to clipboard",
       });
+      toastError(API_KEY_COPY_FAILED_MESSAGE);
     }
-  }, [updatedDevice]);
+  }, [updatedDevice, toastError]);
 
   const deviceLabel = device?.name ?? device?.deviceId ?? "Gerät";
 
@@ -163,7 +156,8 @@ export function SetApiKeyModal({
         </>
       }
     >
-      <div className="space-y-4">
+      <div ref={formRef} className="space-y-4">
+        <FormErrorAlert message={formErrors.error} />
         <p className="text-sm text-gray-600">
           API-Key für <span className="font-medium">{deviceLabel}</span> ändern.
         </p>
@@ -201,6 +195,14 @@ export function SetApiKeyModal({
           {mode === "manual" && (
             <input
               type="text"
+              name="api_key"
+              aria-label="API-Key"
+              aria-invalid={formErrors.fieldError("api_key") ? true : undefined}
+              aria-describedby={
+                formErrors.fieldError("api_key")
+                  ? "set-api-key-error"
+                  : undefined
+              }
               value={customKey}
               onChange={(e) => setCustomKey(e.target.value)}
               placeholder="API-Key eingeben..."
@@ -208,9 +210,12 @@ export function SetApiKeyModal({
               className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
             />
           )}
+          {mode === "manual" && formErrors.fieldError("api_key") ? (
+            <p id="set-api-key-error" className="text-moto-red text-xs">
+              {formErrors.fieldError("api_key")}
+            </p>
+          ) : null}
         </div>
-
-        {error && <FormError ref={errorRef} message={error} />}
       </div>
     </Modal>
   );

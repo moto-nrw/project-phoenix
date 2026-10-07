@@ -93,23 +93,17 @@ func (rs *Resource) applyStatusDaysForDate(ctx context.Context, responses []Stud
 	return nil
 }
 
-func (rs *Resource) applyStatusDaysForDateToResponse(ctx context.Context, response *StudentResponse, now time.Time) {
+func (rs *Resource) applyStatusDaysForDateToResponse(ctx context.Context, response *StudentResponse, now time.Time) error {
 	if response == nil || rs.StudentStatusDayService == nil {
-		return
+		return nil
 	}
 	date := timezone.DateFromTime(now)
 	rows, err := rs.StudentStatusDayService.GetActiveByStudentAndDateRange(ctx, response.ID, date, date)
 	if err != nil {
-		if rs.Logger != nil {
-			rs.Logger.Warn(
-				"failed to apply student status days to response",
-				"student_id", response.ID,
-				"error", err.Error(),
-			)
-		}
-		return
+		return err
 	}
 	applyEffectiveStatusDays(response, rows)
+	return nil
 }
 
 func applyEffectiveStatusDays(response *StudentResponse, statusRows []*absencerecords.StudentStatusDay) {

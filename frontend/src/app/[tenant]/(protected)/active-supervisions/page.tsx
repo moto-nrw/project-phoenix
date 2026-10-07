@@ -16,7 +16,9 @@ import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -43,6 +45,7 @@ import { SpontaneousActivityStart } from "~/components/active-supervisions/spont
 import { TransitStudentsSection } from "~/components/rooms/transit-students-section";
 import {
   additionalSupervisionTarget,
+  canBulkCheckinFromSupervision,
   hasOwnBlock,
   occupiedRoomIdsForSpontaneousStart,
   openRoomSections,
@@ -57,7 +60,23 @@ import { useReopenBanner } from "~/components/active-supervisions/use-reopen-ban
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
 import { useSchulhofActions } from "~/components/active-supervisions/use-schulhof-actions";
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
-import { SupervisionStudentGrid } from "~/components/active-supervisions/student-grid";
+import {
+  SupervisionStudentGrid,
+  buildSupervisionTableColumns,
+} from "~/components/active-supervisions/student-grid";
+import { columnDefaults } from "~/components/students/student-table";
+import {
+  StudentSelectionScope,
+  type StudentTableSelection,
+} from "~/components/students/student-selection-scope";
+import {
+  CollectionViewSwitch,
+  columnMenuEntries,
+  phoneDetailMenuEntries,
+} from "~/components/ui/collection-view-switch";
+import { useCollectionView } from "~/lib/hooks/use-collection-view";
+import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
+import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { OpenRoomSections } from "~/components/active-supervisions/open-room-sections";
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
 
@@ -105,8 +124,7 @@ function MeinRaumPageContent() {
     currentOpenRoom,
     selectedTimetableInstanceId,
     students,
-    error,
-    setError,
+    loadError,
     mutateDashboard,
     refresh,
   } = dashboard;
@@ -144,7 +162,6 @@ function MeinRaumPageContent() {
     refresh,
     adoptSession: dashboard.adoptSession,
     setSelectedTimetableInstanceId: dashboard.setSelectedTimetableInstanceId,
-    setError,
     router,
     reopenableInstanceId: reopen.reopenableInstanceId,
     rememberReopenable: reopen.rememberReopenable,
@@ -167,7 +184,6 @@ function MeinRaumPageContent() {
       ? undefined
       : spontaneousStartBlockedReason,
     refresh,
-    setError,
   });
 
   // The Schulhof's own supervision offer (#2161) belongs to the Schulhof room,
@@ -454,7 +470,66 @@ function MeinRaumPageContent() {
     openRooms.length === 0 &&
     plannedNow.length === 0;
 
-  const studentGridProps = {
+  // Kacheln oder Tabelle (#3834). Die Tabelle gilt für die Kinderliste der
+  // Aufsicht und der offenen Räume; die Stundenplan-Liste hat ihre eigene
+  // Form und bleibt, wie sie ist.
+  const { enabled: photosEnabled } = useStudentPhotosEnabled();
+  const tableColumns = useMemo(
+    () =>
+      buildSupervisionTableColumns({
+        pickupTimesData: dashboard.pickupTimesData,
+        arrivalTimesData: dashboard.arrivalTimesData,
+        trackingData: dashboard.trackingData,
+        myGroupIds: dashboard.myGroupIds,
+        myGroupRooms: dashboard.myGroupRooms,
+        now,
+        photosEnabled,
+        hrefFor: (student) =>
+          `/students/${student.id}?from=/active-supervisions`,
+      }),
+    [
+      dashboard.pickupTimesData,
+      dashboard.arrivalTimesData,
+      dashboard.trackingData,
+      dashboard.myGroupIds,
+      dashboard.myGroupRooms,
+      now,
+      photosEnabled,
+    ],
+  );
+  const tableColumnDefaults = useMemo(
+    () => columnDefaults(tableColumns),
+    [tableColumns],
+  );
+  const collectionView = useCollectionView(
+    "active-supervisions",
+    tableColumnDefaults,
+    // Ohne eigene Wahl zeigt die Handy-Liste unter dem Namen die Gehzeit.
+    "pickup",
+  );
+  const tableApplies = openRoomLayout !== null || !currentTimetableRoster;
+  const showTable = collectionView.view === "table" && tableApplies;
+  // Die Spaltenwahl wirkt nur am Computer: auf dem Handy zeigt die Liste
+  // je Kind eine Zeile mit Name, Status und Gehzeit (#3834).
+  const isPhone = useMediaQuery(BELOW_MD);
+  // Eine Markierung gilt nur für die Liste, in der sie gesetzt wurde: ein
+  // anderer Raum, eine andere Suche oder ein anderer Filter leeren sie (wie
+  // in der Kindersuche, review #2372).
+  const selectionScope = [
+    currentRoom?.id,
+    currentOpenRoom?.roomId,
+    filters.searchTerm,
+    ...filters.activeFilters.map((filter) => `${filter.id}:${filter.label}`),
+  ].join("|");
+  const checkinAllowed = canBulkCheckinFromSupervision(
+    currentRoom,
+    currentOpenRoom,
+  );
+  const changeView = collectionView.setView;
+
+  const buildStudentGridProps = (
+    tableSelection: StudentTableSelection | null,
+  ) => ({
     pickupTimesData: dashboard.pickupTimesData,
     arrivalTimesData: dashboard.arrivalTimesData,
     trackingData: dashboard.trackingData,
@@ -463,10 +538,21 @@ function MeinRaumPageContent() {
     now,
     onOpenStudent: (studentId: string) =>
       router.push(`/students/${studentId}?from=/active-supervisions`),
-  };
+    table: tableSelection
+      ? {
+          columns: tableColumns,
+          hiddenColumns: collectionView.hiddenColumns,
+          phoneDetail: collectionView.phoneDetail,
+          selection: tableSelection,
+        }
+      : null,
+  });
 
   // Render helper for student grid content
-  const renderStudentContent = () => {
+  const renderStudentContent = (
+    tableSelection: StudentTableSelection | null,
+  ) => {
+    const studentGridProps = buildStudentGridProps(tableSelection);
     if (
       dashboard.isWaitingForUrlRoomSelection ||
       roster.isWaitingForTimetableRoster
@@ -489,7 +575,6 @@ function MeinRaumPageContent() {
             adoptSession: dashboard.adoptSession,
             setSelectedTimetableInstanceId:
               dashboard.setSelectedTimetableInstanceId,
-            setError,
             router,
             reopenableInstanceId: reopen.reopenableInstanceId,
             rememberReopenable: reopen.rememberReopenable,
@@ -560,8 +645,16 @@ function MeinRaumPageContent() {
       title={supervisionName ?? "Aktuelle Aufsicht"}
       stats={supervisionSummary}
       actions={
-        hasHeadActions ? (
+        hasHeadActions || tableApplies ? (
           <>
+            {tableApplies ? (
+              <div data-icon-only="">
+                <CollectionViewSwitch
+                  value={collectionView.view}
+                  onChange={changeView}
+                />
+              </div>
+            ) : null}
             {/* Die Abzeichen sind eine Zeile: das Gerüst gibt unter sm jedem
                 Kopf-Element eine eigene volle Zeile, zwei gestreckte Pillen
                 untereinander läsen sich wie zwei Knöpfe. */}
@@ -574,6 +667,26 @@ function MeinRaumPageContent() {
             {addSupervisorButton}
             {superviseAction}
             {releaseAction}
+            {/* Die Spaltenwahl der Liste (#3834) im ⋮-Menü, nicht als
+                eigener Knopf neben dem Umschalter. */}
+            {showTable ? (
+              <OverflowMenu
+                items={
+                  isPhone
+                    ? phoneDetailMenuEntries(
+                        tableColumns,
+                        collectionView.phoneDetail,
+                        collectionView.setPhoneDetail,
+                      )
+                    : columnMenuEntries(
+                        tableColumns,
+                        collectionView.hiddenColumns,
+                        collectionView.setColumnVisible,
+                      )
+                }
+                ariaLabel="Weitere Aktionen"
+              />
+            ) : null}
           </>
         ) : undefined
       }
@@ -606,6 +719,7 @@ function MeinRaumPageContent() {
             isOpen={actions.showCompleteConfirmation}
             roster={currentTimetableRoster}
             isCompleting={actions.isCompletingInstance}
+            error={actions.completeError}
             onClose={() => actions.setShowCompleteConfirmation(false)}
             onConfirm={() => void actions.confirmCompleteTimetableInstance()}
           />
@@ -617,6 +731,7 @@ function MeinRaumPageContent() {
               schulhof.handleReleaseSupervision().catch(() => undefined)
             }
             isConfirmLoading={schulhof.isReleasingSupervision}
+            error={schulhof.releaseError}
           />
           {addSupervisorTarget ? (
             <AddSupervisorModal
@@ -629,11 +744,10 @@ function MeinRaumPageContent() {
         </>
       }
     >
-      {/* Fehler der Seite stehen als Alert oben im Inhalt und nicht im
-          `error`-Zustand des Geruests: hier meldet auch eine misslungene
-          Einzelaktion (Kind hinzufuegen, Aufsicht wechseln), und die Flaeche
-          darunter muss bedienbar bleiben, damit man es erneut versuchen kann. */}
-      {error && !hasNoAccess ? <Alert type="error" message={error} /> : null}
+      {/* Ein Ladefehler steht oben im Inhalt und nicht im `error`-Zustand des
+          Geruests: der zuletzt geladene Stand bleibt darunter bedienbar.
+          Einzelaktionen melden sich als Toast oder in ihrem Dialog (#2517). */}
+      {!hasNoAccess ? <LoadErrorAlert error={loadError} /> : null}
       {showUnclaimedOnly ? (
         <>
           {reopenBanner}
@@ -690,8 +804,17 @@ function MeinRaumPageContent() {
             </Suspense>
           ) : null}
 
-          {/* Student Grid - Mobile Optimized */}
-          {renderStudentContent()}
+          {showTable ? (
+            <StudentSelectionScope
+              visibleStudents={filters.filteredStudents}
+              scopeKey={selectionScope}
+              checkinAllowed={checkinAllowed}
+            >
+              {(selection) => renderStudentContent(selection)}
+            </StudentSelectionScope>
+          ) : (
+            renderStudentContent(null)
+          )}
 
           {/* Read-only end-of-day review of finished and expired blocks (#2335) */}
           <PastBlocksSection />

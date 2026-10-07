@@ -44,6 +44,14 @@ type WeeklySummaryResponse struct {
 	PlannedMinutes int    `json:"planned_minutes"`
 	TargetMinutes  *int   `json:"target_minutes"`
 	DeltaMinutes   *int   `json:"delta_minutes"`
+	// PlannedByShiftType splits planned_minutes by Schichtart (#3819); a null
+	// shift_type_id collects the shifts without one.
+	PlannedByShiftType []ShiftTypeMinutesResponse `json:"planned_by_shift_type"`
+}
+
+type ShiftTypeMinutesResponse struct {
+	ShiftTypeID    *int64 `json:"shift_type_id,string"`
+	PlannedMinutes int    `json:"planned_minutes"`
 }
 
 type OverviewResponse struct {
@@ -99,12 +107,17 @@ func toOverviewResponse(overview workforce.StaffScheduleOverview) OverviewRespon
 
 	weeklySummaries := make([]WeeklySummaryResponse, 0, len(overview.WeeklySummaries))
 	for _, summary := range overview.WeeklySummaries {
+		byType := make([]ShiftTypeMinutesResponse, 0, len(summary.ByShiftType))
+		for _, entry := range summary.ByShiftType {
+			byType = append(byType, ShiftTypeMinutesResponse{ShiftTypeID: entry.ShiftTypeID, PlannedMinutes: entry.Minutes})
+		}
 		weeklySummaries = append(weeklySummaries, WeeklySummaryResponse{
-			StaffID:        summary.StaffID,
-			WeekStart:      summary.WeekStart,
-			PlannedMinutes: summary.PlannedMinutes,
-			TargetMinutes:  summary.TargetMinutes,
-			DeltaMinutes:   summary.DeltaMinutes,
+			StaffID:            summary.StaffID,
+			WeekStart:          summary.WeekStart,
+			PlannedMinutes:     summary.PlannedMinutes,
+			TargetMinutes:      summary.TargetMinutes,
+			DeltaMinutes:       summary.DeltaMinutes,
+			PlannedByShiftType: byType,
 		})
 	}
 

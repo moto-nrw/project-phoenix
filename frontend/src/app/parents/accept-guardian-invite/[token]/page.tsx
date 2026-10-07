@@ -3,9 +3,12 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { AuthShell } from "~/components/auth/auth-shell";
 import { buildParentAuthShellCopy } from "~/components/auth/parent-auth-shell-copy";
-import { GuardianInvitationAcceptForm } from "~/components/auth/guardian-invitation-accept-form";
+import {
+  GuardianInvitationAcceptForm,
+  GuardianInvitationLoadError,
+  type GuardianInvitationLoadFailure,
+} from "~/components/auth/guardian-invitation-accept-form";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
-import { Alert } from "~/components/ui/alert";
 import {
   validateGuardianInvitation,
   type GuardianInvitationValidation,
@@ -22,15 +25,41 @@ interface PageProps {
 
 interface ValidationOutcome {
   invitation: GuardianInvitationValidation | null;
-  error: {
-    message: string;
-    contactOgs: boolean;
-  } | null;
+  failure: GuardianInvitationLoadFailure | null;
+}
+
+/**
+ * The failure as code and status for the shared error path (#2518). An
+ * uncoded 410 or 404 from this endpoint still means the invitation.
+ */
+async function loadFailure(
+  response: Response,
+): Promise<GuardianInvitationLoadFailure> {
+  let body: { code?: unknown; instance?: unknown } | undefined;
+  try {
+    body = (await response.json()) as typeof body;
+  } catch {
+    // No JSON envelope: status alone decides.
+    body = undefined;
+  }
+  const wireCode =
+    typeof body?.code === "string" && body.code ? body.code : undefined;
+  const code =
+    wireCode ??
+    (response.status === 410
+      ? "identity.invitation_expired"
+      : response.status === 404
+        ? "identity.invitation_not_found"
+        : undefined);
+  return {
+    status: response.status,
+    code,
+    requestId: typeof body?.instance === "string" ? body.instance : undefined,
+  };
 }
 
 async function fetchInvitationServer(
   token: string,
-  t: Awaited<ReturnType<typeof getTranslations>>,
 ): Promise<ValidationOutcome> {
   // Server-side fetch bypasses the route handler because this page runs on the server.
   try {
@@ -39,22 +68,7 @@ async function fetchInvitationServer(
       { cache: "no-store" },
     );
     if (!response.ok) {
-      if (response.status === 410) {
-        return {
-          invitation: null,
-          error: { message: t("errors.expired"), contactOgs: true },
-        };
-      }
-      if (response.status === 404) {
-        return {
-          invitation: null,
-          error: { message: t("errors.notFound"), contactOgs: false },
-        };
-      }
-      return {
-        invitation: null,
-        error: { message: t("errors.load"), contactOgs: false },
-      };
+      return { invitation: null, failure: await loadFailure(response) };
     }
 
     const raw = (await response.json()) as {
@@ -78,9 +92,13 @@ async function fetchInvitationServer(
 
     const payload = raw.data ?? raw;
     if (!payload?.email || !payload?.expires_at) {
+      logger.error("guardian_invitation_validation_incomplete", {
+        has_email: Boolean(payload?.email),
+        has_expiry: Boolean(payload?.expires_at),
+      });
       return {
         invitation: null,
-        error: { message: t("errors.incomplete"), contactOgs: false },
+        failure: { status: 500, code: "general.server" },
       };
     }
 
@@ -94,7 +112,7 @@ async function fetchInvitationServer(
         tenantSlug: payload.tenant_slug,
         schoolLogoUrl: payload.school_logo_url,
       },
-      error: null,
+      failure: null,
     };
   } catch (error) {
     logger.error("guardian_invitation_validation_failed_server", {
@@ -102,7 +120,7 @@ async function fetchInvitationServer(
     });
     return {
       invitation: null,
-      error: { message: t("errors.load"), contactOgs: false },
+      failure: { status: 503, code: "general.unavailable" },
     };
   }
 }
@@ -113,11 +131,11 @@ export default async function AcceptGuardianInvitePage({ params }: PageProps) {
   const t = await getTranslations("guardianInvite");
   const tAuthShell = await getTranslations("parentAuthShell");
   const { token } = await params;
-  const { invitation, error } = token
-    ? await fetchInvitationServer(token, t)
+  const { invitation, failure } = token
+    ? await fetchInvitationServer(token)
     : {
         invitation: null,
-        error: { message: t("errors.missingToken"), contactOgs: false },
+        failure: { code: "identity.invitation_not_found" },
       };
 
   const schoolName = invitation?.schoolName?.trim() || t("fallbackSchool");
@@ -143,16 +161,9 @@ export default async function AcceptGuardianInvitePage({ params }: PageProps) {
       footer={<LanguageSwitcher />}
       testimonialPanelCopy={testimonialPanelCopy}
     >
-      {error && (
+      {failure && (
         <div className="space-y-4">
-          <Alert
-            type="error"
-            message={
-              error.contactOgs
-                ? `${error.message} ${t("contactOgs")}`
-                : error.message
-            }
-          />
+          <GuardianInvitationLoadError failure={failure} />
           <div className="text-center text-sm text-gray-600">
             <p>
               {t("errorHelpBefore")}{" "}
@@ -168,7 +179,7 @@ export default async function AcceptGuardianInvitePage({ params }: PageProps) {
         </div>
       )}
 
-      {!error && invitation && token && (
+      {!failure && invitation && token && (
         <GuardianInvitationAcceptForm token={token} invitation={invitation} />
       )}
     </AuthShell>

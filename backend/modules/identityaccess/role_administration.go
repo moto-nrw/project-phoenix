@@ -17,6 +17,8 @@ import (
 var (
 	ErrSystemRoleImmutable = errors.New("system roles cannot be modified")
 	ErrPermissionNotFound  = errors.New("permission not found")
+	// ErrRoleNameTaken rejects a role name the school already uses (#2517).
+	ErrRoleNameTaken = errors.New("role name already exists")
 
 	// ErrRoleNotAssignable is returned when the requested role does not exist
 	// (or is not a role that may be handed out for a school at all).

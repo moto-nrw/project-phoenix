@@ -60,6 +60,10 @@ type SeriesRequest struct {
 	// permanent edit effective today it is updated in place before the series
 	// is re-planned from tomorrow.
 	OccurrenceShiftID occurrenceShiftID `json:"occurrence_shift_id"`
+	// IncludeSchoolBreaks also plans the series in the Ferien and on closing
+	// days (#3820); statutory holidays stay free. Omitted: create = false,
+	// split = keep the predecessor's choice.
+	IncludeSchoolBreaks *bool `json:"include_school_breaks"`
 }
 
 // SeriesResponse is the wire format for series create/split/end results.
@@ -73,6 +77,9 @@ type SeriesResponse struct {
 	Created      int      `json:"created"`
 	Deleted      int64    `json:"deleted"`
 	SkippedDates []string `json:"skipped_dates"`
+	// SkippedNonWorkingDays counts occurrences left out on statutory
+	// holidays, Ferien days and closing days (#3820).
+	SkippedNonWorkingDays int `json:"skipped_non_working_days"`
 }
 
 func toSeriesResponse(result workforce.StaffShiftSeriesResult) SeriesResponse {
@@ -81,11 +88,12 @@ func toSeriesResponse(result workforce.StaffShiftSeriesResult) SeriesResponse {
 		skipped = []string{}
 	}
 	return SeriesResponse{
-		SeriesID:     result.SeriesID,
-		OldSeriesID:  result.OldSeriesID,
-		Created:      result.Created,
-		Deleted:      result.Deleted,
-		SkippedDates: skipped,
+		SeriesID:              result.SeriesID,
+		OldSeriesID:           result.OldSeriesID,
+		Created:               result.Created,
+		Deleted:               result.Deleted,
+		SkippedDates:          skipped,
+		SkippedNonWorkingDays: result.SkippedNonWorkingDays,
 	}
 }
 
@@ -121,23 +129,27 @@ type SeriesDetailResponse struct {
 	WeekPattern      int     `json:"week_pattern"`
 	ValidFrom        string  `json:"valid_from"`
 	ValidUntil       *string `json:"valid_until"`
+	// IncludeSchoolBreaks: the series is also planned in the Ferien and on
+	// closing days (#3820).
+	IncludeSchoolBreaks bool `json:"include_school_breaks"`
 }
 
 func toSeriesDetailResponse(series workforce.StaffShiftSeries) SeriesDetailResponse {
 	weekdays := make([]int, 0, len(series.Weekdays))
 	weekdays = append(weekdays, series.Weekdays...)
 	resp := SeriesDetailResponse{
-		ID:               series.ID,
-		StaffID:          series.StaffID,
-		Weekdays:         weekdays,
-		StartTime:        FormatWallClock(series.StartTime),
-		EndTime:          FormatWallClock(series.EndTime),
-		BreakMinutes:     series.BreakMinutes,
-		ShiftTypeID:      series.ShiftTypeID,
-		Notes:            series.Notes,
-		CalendarPeriodID: series.CalendarPeriodID,
-		WeekPattern:      series.WeekPattern,
-		ValidFrom:        series.ValidFrom,
+		ID:                  series.ID,
+		StaffID:             series.StaffID,
+		Weekdays:            weekdays,
+		StartTime:           FormatWallClock(series.StartTime),
+		EndTime:             FormatWallClock(series.EndTime),
+		BreakMinutes:        series.BreakMinutes,
+		ShiftTypeID:         series.ShiftTypeID,
+		Notes:               series.Notes,
+		CalendarPeriodID:    series.CalendarPeriodID,
+		WeekPattern:         series.WeekPattern,
+		ValidFrom:           series.ValidFrom,
+		IncludeSchoolBreaks: series.IncludeSchoolBreaks,
 	}
 	if series.ValidUntil != "" {
 		until := series.ValidUntil
@@ -187,17 +199,18 @@ func buildSeries(req SeriesRequest) (workforce.StaffShiftSeriesInput, error) {
 		return workforce.StaffShiftSeriesInput{}, err
 	}
 	return workforce.StaffShiftSeriesInput{
-		StaffID:          req.StaffID,
-		Weekdays:         weekdays,
-		StartTime:        start,
-		EndTime:          end,
-		BreakMinutes:     req.BreakMinutes,
-		ShiftTypeID:      req.ShiftTypeID.Value,
-		Notes:            notes,
-		CalendarPeriodID: req.CalendarPeriodID,
-		WeekPattern:      weekPattern,
-		ValidFrom:        validFrom,
-		ValidUntil:       validUntil,
+		StaffID:             req.StaffID,
+		Weekdays:            weekdays,
+		StartTime:           start,
+		EndTime:             end,
+		BreakMinutes:        req.BreakMinutes,
+		ShiftTypeID:         req.ShiftTypeID.Value,
+		Notes:               notes,
+		CalendarPeriodID:    req.CalendarPeriodID,
+		WeekPattern:         weekPattern,
+		ValidFrom:           validFrom,
+		ValidUntil:          validUntil,
+		IncludeSchoolBreaks: req.IncludeSchoolBreaks != nil && *req.IncludeSchoolBreaks,
 	}, nil
 }
 
@@ -219,19 +232,20 @@ func buildSplit(id int64, req SeriesRequest) (workforce.SplitStaffShiftSeries, e
 		return workforce.SplitStaffShiftSeries{}, err
 	}
 	return workforce.SplitStaffShiftSeries{
-		SeriesID:          id,
-		EffectiveDate:     effective,
-		OccurrenceShiftID: int64(req.OccurrenceShiftID),
-		Weekdays:          weekdays,
-		StartTime:         start,
-		EndTime:           end,
-		BreakMinutes:      req.BreakMinutes,
-		ShiftTypeID:       req.ShiftTypeID.Value,
-		ShiftTypeIDSet:    req.ShiftTypeID.Present,
-		Notes:             req.Notes,
-		ValidUntil:        validUntil,
-		ValidUntilSet:     req.ValidUntil.Present,
-		WeekPattern:       req.WeekPattern,
+		SeriesID:            id,
+		EffectiveDate:       effective,
+		OccurrenceShiftID:   int64(req.OccurrenceShiftID),
+		Weekdays:            weekdays,
+		StartTime:           start,
+		EndTime:             end,
+		BreakMinutes:        req.BreakMinutes,
+		ShiftTypeID:         req.ShiftTypeID.Value,
+		ShiftTypeIDSet:      req.ShiftTypeID.Present,
+		Notes:               req.Notes,
+		ValidUntil:          validUntil,
+		ValidUntilSet:       req.ValidUntil.Present,
+		WeekPattern:         req.WeekPattern,
+		IncludeSchoolBreaks: req.IncludeSchoolBreaks,
 	}, nil
 }
 

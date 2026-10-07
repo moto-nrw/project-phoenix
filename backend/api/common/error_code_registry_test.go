@@ -178,7 +178,7 @@ func (tree *sourceTree) checkFile(pkg *sourcePackage, file *sourceFile, registry
 			}
 		case *ast.CompositeLit:
 			name, ok := tree.commonName(file, inCommon, n.Type)
-			isResponse := ok && (name == "ErrResponse" || name == "OperatorErrResponse")
+			isResponse := ok && name == "ErrResponse"
 			for _, element := range n.Elts {
 				field, ok := element.(*ast.KeyValueExpr)
 				if !ok || !strings.EqualFold(identName(field.Key), "code") {

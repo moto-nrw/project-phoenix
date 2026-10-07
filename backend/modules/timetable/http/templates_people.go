@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -41,9 +42,14 @@ func (rs *Resource) templateRosterValidFrom(
 	}
 	if startDate != nil {
 		if startDate.Before(calendar.Date(period.StartDate)) || startDate.After(calendar.Date(period.EndDate)) {
-			return calendar.Date(""), fmt.Errorf("%w (%s to %s)",
+			return calendar.Date(""), timetableModule.WithCode(fmt.Errorf("%w (%s to %s)",
 				errTemplateStartDateOutsidePeriod,
-				period.StartDate, period.EndDate)
+				period.StartDate, period.EndDate),
+				common.CodeTimetableTemplateStartOutsidePeriod,
+				timetableModule.RefusalValues{
+					Start: calendar.Date(period.StartDate).Format(timetableModule.RefusalDateLayout),
+					End:   calendar.Date(period.EndDate).Format(timetableModule.RefusalDateLayout),
+				})
 		}
 		return *startDate, nil
 	}
@@ -52,11 +58,11 @@ func (rs *Resource) templateRosterValidFrom(
 
 func renderTemplatePeriodLookupError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, schoolcalendar.ErrCalendarPeriodNotFound) {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
+		common.RenderError(w, r, calendarPeriodNotFound())
 		return
 	}
 	if errors.Is(err, errTemplateStartDateOutsidePeriod) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, codedInvalidOnField(err, "start_date"))
 		return
 	}
 	common.RenderError(w, r, common.ErrorInternalServerWrap("load calendar period failed", err))
@@ -96,8 +102,18 @@ func renderTemplateEducationGroupError(w http.ResponseWriter, r *http.Request, e
 	if !errors.As(err, &egErr) {
 		return false
 	}
-	common.RenderError(w, r, common.ErrorInvalidRequest(egErr))
+	common.RenderError(w, r, common.ErrorInvalidOnField(egErr, common.CodeTimetableTemplateEducationGroupInvalid, "education_group_id"))
 	return true
+}
+
+// templateEducationGroupRenderer answers a failed education-group check: a
+// precheck refusal marks the field, anything else stays a 400 as before.
+func templateEducationGroupRenderer(err error) render.Renderer {
+	var egErr *timetableModule.TemplateEducationGroupError
+	if errors.As(err, &egErr) {
+		return common.ErrorInvalidOnField(egErr, common.CodeTimetableTemplateEducationGroupInvalid, "education_group_id")
+	}
+	return common.ErrorInvalidRequest(err)
 }
 
 // parsedTemplateTiming holds the clock window and defaulted numeric fields
@@ -132,8 +148,8 @@ func parseTemplateTiming(
 		return parsedTemplateTiming{}, false
 	}
 	if !endTime.After(startTime) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(
-			errors.New("end_time must be after start_time")))
+		common.RenderError(w, r, invalidOnField(common.CodeTimetableTemplateEndBeforeStart, "end_time",
+			"end_time must be after start_time"))
 		return parsedTemplateTiming{}, false
 	}
 	weekPattern := 0
@@ -141,15 +157,15 @@ func parseTemplateTiming(
 		weekPattern = *weekPatternPtr
 	}
 	if weekPattern < 0 || weekPattern > 2 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(
-			errors.New("week_pattern must be 0 (every), 1 (A), or 2 (B)")))
+		common.RenderError(w, r, invalidOnField(common.CodeTimetableTemplateWeekPatternInvalid, "week_pattern",
+			"week_pattern must be 0 (every), 1 (A), or 2 (B)"))
 		return parsedTemplateTiming{}, false
 	}
 	maxParticipants := 0
 	if maxParticipantsPtr != nil {
 		if *maxParticipantsPtr <= 0 {
-			common.RenderError(w, r, common.ErrorInvalidRequest(
-				errors.New("max_participants must be greater than zero when set")))
+			common.RenderError(w, r, invalidOnField(common.CodeTimetableTemplateMaxParticipantsInvalid, "max_participants",
+				"max_participants must be greater than zero when set"))
 			return parsedTemplateTiming{}, false
 		}
 		maxParticipants = *maxParticipantsPtr

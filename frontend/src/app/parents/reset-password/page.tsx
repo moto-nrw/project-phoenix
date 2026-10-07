@@ -33,17 +33,13 @@ export default function ParentResetPasswordPage() {
         testimonialPanelCopy={testimonialPanelCopy}
         copy={{
           missingToken: t("errors.missingToken"),
-          invalidToken: t("errors.invalidToken"),
+          errorObject: t("errorObject"),
           passwordTooShort: t("validation.tooShort"),
           passwordMissingUppercase: t("validation.missingUppercase"),
           passwordMissingLowercase: t("validation.missingLowercase"),
           passwordMissingNumber: t("validation.missingNumber"),
           passwordMissingSpecial: t("validation.missingSpecial"),
           passwordMismatch: t("validation.passwordMismatch"),
-          genericError: t("errors.generic"),
-          invalidRequest: t("errors.invalidRequest"),
-          expiredLink: t("errors.expired"),
-          notFoundLink: t("errors.notFound"),
           successEyebrow: t("success.eyebrow"),
           successTitle: t("success.title"),
           successSubtitle: t("success.subtitle"),

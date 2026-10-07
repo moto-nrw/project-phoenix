@@ -1772,9 +1772,10 @@
     "status": 403,
     "body": {
       "code": "general.permission",
-      "detail": "",
+      "detail": "Forbidden",
+      "error": "Forbidden",
       "instance": "",
-      "status": "Forbidden",
+      "status": "error",
       "title": "Forbidden",
       "type": "https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen"
     }
@@ -1785,9 +1786,10 @@
     "status": 403,
     "body": {
       "code": "general.permission",
-      "detail": "",
+      "detail": "Forbidden",
+      "error": "Forbidden",
       "instance": "",
-      "status": "Forbidden",
+      "status": "error",
       "title": "Forbidden",
       "type": "https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen"
     }

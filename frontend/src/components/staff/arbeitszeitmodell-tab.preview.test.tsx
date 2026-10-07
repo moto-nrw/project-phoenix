@@ -1,9 +1,11 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import type { StaffSchedule } from "~/lib/staff-api";
 import type { DayProjection } from "~/lib/time-tracking-helpers";
 import { setTestClock } from "~/test/clock";
+import { catalogText } from "~/test/error-catalog-text";
 import { ArbeitszeitmodellTab } from "./arbeitszeitmodell-tab";
 
 const mocks = vi.hoisted(() => ({
@@ -52,7 +54,8 @@ vi.mock("~/lib/staff-api", () => ({
   staffMonthSummaryService: { getDailyProjection: vi.fn() },
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
 }));
 
@@ -134,17 +137,19 @@ describe("Arbeitszeitmodell preview", () => {
     expect(within(row).getAllByText("–")).toHaveLength(4);
   });
 
-  it("invents no Soll from the current model while the daily Soll is missing", () => {
+  it("invents no Soll from the current model while the daily Soll is missing", async () => {
     mocks.projection = undefined;
-    mocks.projectionError = new Error("offline");
+    mocks.projectionError = new ApiError("offline", 503, {
+      code: "general.unavailable",
+    });
     render(<ArbeitszeitmodellTab staffId="42" canEdit={false} />);
 
     expect(within(weekRow("KW 38")).queryByText("8h")).toBeNull();
     expect(within(weekRow("KW 38")).queryByText("?")).toBeNull();
     expect(within(weekRow("KW 38")).getAllByText("–")).toHaveLength(6);
     expect(
-      screen.getByText(
-        "Das Soll der nächsten Wochen konnte nicht geladen werden. Bitte laden Sie die Seite neu.",
+      await screen.findByText(
+        catalogText("general.unavailable", "das Soll der nächsten Wochen"),
       ),
     ).toBeInTheDocument();
   });

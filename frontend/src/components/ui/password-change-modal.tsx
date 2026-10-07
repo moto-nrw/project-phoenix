@@ -1,14 +1,26 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import {
+  useState,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  type RefObject,
+} from "react";
 import { Modal } from "./modal";
 import { Alert } from "./alert";
+import { FormErrorAlert } from "./form-error-alert";
+import type { DatabaseFormErrorPath } from "./database/database-form";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { EyeIcon, EyeOffIcon, CheckIcon, SpinnerIcon } from "./icons";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PasswordChange" });
 
+// Legacy texts for owners without `errorPath`. No owner uses this path
+// since #2519; #2520 deletes it. The shared path shows the catalog text of
+// the code instead (#2517).
 const ERROR_MAPPINGS: Array<{
   test: (msg: string) => boolean;
   message: string;
@@ -56,11 +68,76 @@ function PasswordToggle({ show, onToggle }: PasswordToggleProps) {
   );
 }
 
+/** Default for `mapError`: the error as it came. */
+function keepError(error: unknown): unknown {
+  return error;
+}
+
 interface PasswordChangeModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly onSuccess?: () => void;
   readonly apiEndpoint?: string;
+  /**
+   * The owner's shared API error path (`useApiFormError`), handed in because
+   * the kit may not import contexts (#2517). With it, a refused change shows
+   * the catalog text of its code in the dialog and marks the field the
+   * backend names (`current_password`, `new_password`).
+   */
+  readonly errorPath?: DatabaseFormErrorPath;
+  /** The element `errorPath` searches for a refused field to focus. */
+  readonly formRef?: RefObject<HTMLFormElement | null>;
+  /**
+   * Turns a refused credential check (401 with its code) into an error the
+   * path shows in place, instead of a jump to the login screen.
+   */
+  readonly mapError?: (error: unknown) => unknown;
+}
+
+/** Prüfung vor dem Senden. Schlüssel sind die Feldnamen des Backends. */
+function passwordChangeCheck(
+  currentPassword: string,
+  newPassword: string,
+  confirmPassword: string,
+): { message: string; field: string } | null {
+  if (!currentPassword) {
+    return {
+      message: "Bitte füllen Sie alle Felder aus.",
+      field: "current_password",
+    };
+  }
+  if (!newPassword) {
+    return {
+      message: "Bitte füllen Sie alle Felder aus.",
+      field: "new_password",
+    };
+  }
+  if (!confirmPassword) {
+    return {
+      message: "Bitte füllen Sie alle Felder aus.",
+      field: "confirm_password",
+    };
+  }
+  if (newPassword !== confirmPassword) {
+    return {
+      message: "Die neuen Passwörter stimmen nicht überein.",
+      field: "confirm_password",
+    };
+  }
+  if (newPassword.length < 8) {
+    return {
+      message: "Das neue Passwort muss mindestens 8 Zeichen lang sein.",
+      field: "new_password",
+    };
+  }
+  if (currentPassword === newPassword) {
+    return {
+      message:
+        "Das neue Passwort darf nicht mit dem aktuellen Passwort identisch sein.",
+      field: "new_password",
+    };
+  }
+  return null;
 }
 
 export function PasswordChangeModal({
@@ -68,6 +145,9 @@ export function PasswordChangeModal({
   onClose,
   onSuccess,
   apiEndpoint = "/api/auth/password",
+  errorPath,
+  formRef,
+  mapError = keepError,
 }: PasswordChangeModalProps) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -80,45 +160,37 @@ export function PasswordChangeModal({
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const latestSubmitRef = useRef<() => void>(() => undefined);
+  const clearPathError = errorPath?.clear;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  /** The refusal of a field, from the shared path or the legacy state. */
+  const fieldInvalid = (name: string): boolean =>
+    errorPath ? Boolean(errorPath.fieldError(name)) : errorFieldName === name;
+
+  const submit = async () => {
     setError(null);
     setErrorFieldName(null);
 
-    // Validation
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      setError("Bitte füllen Sie alle Felder aus.");
-      if (!currentPassword) setErrorFieldName("current-password");
-      else if (!newPassword) setErrorFieldName("new-password");
-      else setErrorFieldName("confirm-password");
+    const check = passwordChangeCheck(
+      currentPassword,
+      newPassword,
+      confirmPassword,
+    );
+    if (check) {
+      if (errorPath) {
+        errorPath.invalid(check.message, { [check.field]: check.message });
+      } else {
+        setError(check.message);
+        setErrorFieldName(check.field);
+      }
       return;
     }
 
-    if (newPassword !== confirmPassword) {
-      setError("Die neuen Passwörter stimmen nicht überein.");
-      setErrorFieldName("confirm-password");
-      return;
-    }
-
-    if (newPassword.length < 8) {
-      setError("Das neue Passwort muss mindestens 8 Zeichen lang sein.");
-      setErrorFieldName("new-password");
-      return;
-    }
-
-    if (currentPassword === newPassword) {
-      setError(
-        "Das neue Passwort darf nicht mit dem aktuellen Passwort identisch sein.",
-      );
-      setErrorFieldName("new-password");
-      return;
-    }
-
+    errorPath?.clear();
     setIsLoading(true);
 
     try {
-      const response = await fetch(apiEndpoint, {
+      const response = await transportFetch(apiEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -129,6 +201,9 @@ export function PasswordChangeModal({
       });
 
       if (!response.ok) {
+        if (errorPath) {
+          throw await apiErrorFromResponse(response, "password change failed");
+        }
         const data = (await response.json()) as { error?: string };
         throw new Error(mapBackendError(data.error ?? ""));
       }
@@ -142,15 +217,32 @@ export function PasswordChangeModal({
       logger.error("password_change_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Ein unerwarteter Fehler ist aufgetreten.",
-      );
+      if (errorPath) {
+        void errorPath.show(mapError(err), {
+          object: "das Ändern des Passworts",
+          retry: () => latestSubmitRef.current(),
+        });
+      } else {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Ein unerwarteter Fehler ist aufgetreten.",
+        );
+      }
     } finally {
       setIsLoading(false);
     }
   };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void submit();
+  };
+
+  // „Wiederholen“ sendet den Stand, der dann im Formular steht.
+  useLayoutEffect(() => {
+    latestSubmitRef.current = () => void submit();
+  });
 
   const handleClose = useCallback(() => {
     setCurrentPassword("");
@@ -158,12 +250,13 @@ export function PasswordChangeModal({
     setConfirmPassword("");
     setError(null);
     setErrorFieldName(null);
+    clearPathError?.();
     setSuccess(false);
     setShowCurrentPassword(false);
     setShowNewPassword(false);
     setShowConfirmPassword(false);
     onClose();
-  }, [onClose]);
+  }, [onClose, clearPathError]);
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Passwort ändern">
@@ -180,30 +273,41 @@ export function PasswordChangeModal({
           </p>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
-          {error && (
-            <div ref={errorRef}>
-              <Alert type="error" message={error} />
-            </div>
+        <form
+          ref={formRef}
+          onSubmit={handleSubmit}
+          noValidate
+          className="space-y-4"
+        >
+          {errorPath ? (
+            <FormErrorAlert message={errorPath.error} />
+          ) : (
+            error && (
+              <div ref={errorRef}>
+                <Alert type="error" message={error} />
+              </div>
+            )
           )}
 
           {/* Current Password */}
           <div>
             <label
               htmlFor="current-password"
-              className={`mb-1 block text-sm font-medium ${errorFieldName === "current-password" ? "text-moto-red" : "text-gray-700"}`}
+              className={`mb-1 block text-sm font-medium ${fieldInvalid("current_password") ? "text-moto-red" : "text-gray-700"}`}
             >
               Aktuelles Passwort
             </label>
             <div className="relative">
               <input
                 id="current-password"
+                name="current_password"
+                aria-invalid={fieldInvalid("current_password")}
                 type={showCurrentPassword ? "text" : "password"}
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className={`block w-full rounded-lg border ${errorFieldName === "current-password" ? "border-moto-red/40" : "border-gray-200"} focus:border-moto-blue focus:ring-moto-blue bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:ring-1`}
+                className={`block w-full rounded-lg border ${fieldInvalid("current_password") ? "border-moto-red/40" : "border-gray-200"} focus:border-moto-blue focus:ring-moto-blue bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:ring-1`}
               />
               <PasswordToggle
                 show={showCurrentPassword}
@@ -216,19 +320,21 @@ export function PasswordChangeModal({
           <div>
             <label
               htmlFor="new-password"
-              className={`mb-1 block text-sm font-medium ${errorFieldName === "new-password" ? "text-moto-red" : "text-gray-700"}`}
+              className={`mb-1 block text-sm font-medium ${fieldInvalid("new_password") ? "text-moto-red" : "text-gray-700"}`}
             >
               Neues Passwort
             </label>
             <div className="relative">
               <input
                 id="new-password"
+                name="new_password"
+                aria-invalid={fieldInvalid("new_password")}
                 type={showNewPassword ? "text" : "password"}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className={`block w-full rounded-lg border ${errorFieldName === "new-password" ? "border-moto-red/40" : "border-gray-200"} focus:border-moto-blue focus:ring-moto-blue bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:ring-1`}
+                className={`block w-full rounded-lg border ${fieldInvalid("new_password") ? "border-moto-red/40" : "border-gray-200"} focus:border-moto-blue focus:ring-moto-blue bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:ring-1`}
               />
               <PasswordToggle
                 show={showNewPassword}
@@ -241,19 +347,21 @@ export function PasswordChangeModal({
           <div>
             <label
               htmlFor="confirm-password"
-              className={`mb-1 block text-sm font-medium ${errorFieldName === "confirm-password" ? "text-moto-red" : "text-gray-700"}`}
+              className={`mb-1 block text-sm font-medium ${fieldInvalid("confirm_password") ? "text-moto-red" : "text-gray-700"}`}
             >
               Neues Passwort bestätigen
             </label>
             <div className="relative">
               <input
                 id="confirm-password"
+                name="confirm_password"
+                aria-invalid={fieldInvalid("confirm_password")}
                 type={showConfirmPassword ? "text" : "password"}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className={`block w-full rounded-lg border ${errorFieldName === "confirm-password" ? "border-moto-red/40" : "border-gray-200"} focus:border-moto-blue focus:ring-moto-blue bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:ring-1`}
+                className={`block w-full rounded-lg border ${fieldInvalid("confirm_password") ? "border-moto-red/40" : "border-gray-200"} focus:border-moto-blue focus:ring-moto-blue bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:ring-1`}
               />
               <PasswordToggle
                 show={showConfirmPassword}

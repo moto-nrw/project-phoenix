@@ -103,22 +103,30 @@ func TestTargetOverridesAPI_RejectsInvalidInput(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.tc.db, "Sonder", "Invalid")
 	path := overridesPath(staff.ID)
 
+	// The refusals the form cannot rule out carry their own code and the
+	// limit as details (#2514), so the client words them from the catalog.
+	hoursInvalid := `"code":"workforce.target_override_hours_invalid","details":{"max_hours":12}`
 	for name, tc := range map[string]struct {
 		body    string
 		message string
+		wire    string
 	}{
-		"over 12 hours":   {body: overrideBody("2026-10-19", "2026-10-23", 721)},
-		"negative":        {body: overrideBody("2026-10-19", "2026-10-23", -1)},
-		"inverted range":  {body: overrideBody("2026-10-23", "2026-10-19", 60)},
+		"over 12 hours":   {body: overrideBody("2026-10-19", "2026-10-23", 721), wire: hoursInvalid},
+		"negative":        {body: overrideBody("2026-10-19", "2026-10-23", -1), wire: hoursInvalid},
+		"inverted range":  {body: overrideBody("2026-10-23", "2026-10-19", 60), wire: `"code":"workforce.target_override_range_invalid"`},
+		"too long":        {body: overrideBody("2026-01-01", "2027-01-02", 60), wire: `"code":"workforce.target_override_too_long","details":{"max_days":366}`},
 		"missing minutes": {body: `{"start_date":"2026-10-19","end_date":"2026-10-23"}`, message: "Bitte geben Sie Stunden pro Tag oder Stunden für die Wochentage ein."},
 		"both targets":    {body: `{"start_date":"2026-10-19","end_date":"2026-10-23","daily_minutes":60,"weekday_minutes":[60,60,60,60,60]}`, message: "Bitte geben Sie entweder Stunden pro Tag oder Stunden für die Wochentage ein."},
 		"four weekdays":   {body: `{"start_date":"2026-10-19","end_date":"2026-10-23","weekday_minutes":[60,60,60,60]}`, message: "Bitte geben Sie für Montag bis Freitag jeweils Stunden ein."},
-		"weekday over 12": {body: `{"start_date":"2026-10-19","end_date":"2026-10-23","weekday_minutes":[60,721,60,60,60]}`},
+		"weekday over 12": {body: `{"start_date":"2026-10-19","end_date":"2026-10-23","weekday_minutes":[60,721,60,60,60]}`, wire: hoursInvalid},
 	} {
 		rec := ctx.post(path, tc.body, "time_tracking:manage")
 		assert.Equal(t, http.StatusBadRequest, rec.Code, "%s: %s", name, rec.Body.String())
 		if tc.message != "" {
 			assert.Contains(t, rec.Body.String(), tc.message, name)
+		}
+		if tc.wire != "" {
+			assert.Contains(t, rec.Body.String(), tc.wire, name)
 		}
 	}
 }
@@ -138,6 +146,8 @@ func TestTargetOverridesAPI_RejectsOverlap(t *testing.T) {
 	rec = ctx.post(path, overrideBody("2026-10-23", "2026-10-30", 300), "time_tracking:manage")
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "Sonderarbeitszeit (19.10.2026 bis 23.10.2026)")
+	assert.Contains(t, rec.Body.String(), `"code":"workforce.target_override_overlap"`)
+	assert.Contains(t, rec.Body.String(), `"details":{"end_date":"23.10.2026","start_date":"19.10.2026"}`)
 
 	rec = ctx.post(path, overrideBody("2026-10-26", "2026-10-30", 300), "time_tracking:manage")
 	require.Equal(t, http.StatusCreated, rec.Code, "the day after the range is free: %s", rec.Body.String())
@@ -171,9 +181,11 @@ func TestTargetOverridesAPI_RejectsClosedMonth(t *testing.T) {
 	rec = ctx.post(path, overrideBody("2026-08-31", "2026-09-04", 300), "time_tracking:manage")
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "August 2026 ist abgeschlossen")
+	assert.Contains(t, rec.Body.String(), `"code":"workforce.month_closed","details":{"month":"August 2026"}`)
 
 	rec = ctx.deleteOverride(t, fmt.Sprintf("%s/%d", path, existing.ID))
 	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"code":"workforce.month_closed"`)
 
 	rec = ctx.post(path, overrideBody("2026-09-07", "2026-09-11", 300), "time_tracking:manage")
 	assert.Equal(t, http.StatusCreated, rec.Code, "an open month stays writable: %s", rec.Body.String())

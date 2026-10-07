@@ -5,12 +5,13 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { FormEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { activityService } from "~/lib/activity-service";
 import type { Activity } from "~/lib/activity-helpers";
 import { createLogger } from "~/lib/logger";
@@ -106,7 +107,17 @@ export function SpontaneousActivityStart({
   const [activityInput, setActivityInput] = useState("");
   const [roomId, setRoomId] = useState("");
   const [additionalStaffIds, setAdditionalStaffIds] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { clear: clearFormErrors } = formErrors;
+  // Auswahllisten (Aktivitäten, Räume, Personal): ein Fehlschlag steht im
+  // Dialog, „Wiederholen“ lädt alle drei neu.
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [activityMenuOpen, setActivityMenuOpen] = useState(false);
   const [activeActivityIndex, setActiveActivityIndex] = useState(0);
   const activityFieldRef = useRef<HTMLDivElement>(null);
@@ -119,32 +130,42 @@ export function SpontaneousActivityStart({
     if (!isOpen) return;
     let cancelled = false;
     setIsLoadingRefs(true);
-    setError(null);
+    clearFormErrors();
+    clearLoadError();
+    // Jede Liste füllt, was sie bekommt; der erste Fehlschlag steht im
+    // Dialog, statt still eine leere Auswahl zu zeigen.
+    let firstFailure: unknown = null;
+    const noteFailure = (event: string, err: unknown) => {
+      logger.error(event, {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      firstFailure ??= err;
+    };
 
     void Promise.all([
       activityService.getActivities().catch((err: unknown) => {
-        logger.error("spontaneous_activities_fetch_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
+        noteFailure("spontaneous_activities_fetch_failed", err);
         return [] as Activity[];
       }),
       fetchPlannerRooms()
         .then(normalizeRooms)
         .catch((err: unknown) => {
-          logger.error("spontaneous_rooms_fetch_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
+          noteFailure("spontaneous_rooms_fetch_failed", err);
           return [] as RoomOption[];
         }),
       staffService.getAllStaff().catch((err: unknown) => {
-        logger.error("spontaneous_staff_fetch_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
+        noteFailure("spontaneous_staff_fetch_failed", err);
         return [] as Staff[];
       }),
     ])
       .then(([activityData, roomData, staffData]) => {
         if (cancelled) return;
+        if (firstFailure) {
+          void showLoadError(firstFailure, {
+            object: "die Auswahl für die spontane Aktivität",
+            retry: () => setLoadAttempt((value) => value + 1),
+          });
+        }
         // The staff room list includes Schulhof as a regular destination
         // (#2161) while keeping WC infrastructure hidden.
         const spontaneousRooms = roomData;
@@ -189,7 +210,16 @@ export function SpontaneousActivityStart({
     return () => {
       cancelled = true;
     };
-  }, [currentStaffId, defaultRoomId, isOpen, occupiedRoomIdSet]);
+  }, [
+    currentStaffId,
+    defaultRoomId,
+    isOpen,
+    occupiedRoomIdSet,
+    loadAttempt,
+    clearFormErrors,
+    clearLoadError,
+    showLoadError,
+  ]);
 
   // Close the activity suggestions when clicking outside the field.
   useEffect(() => {
@@ -266,7 +296,8 @@ export function SpontaneousActivityStart({
     setActivityInput("");
     setRoomId("");
     setAdditionalStaffIds([]);
-    setError(null);
+    clearFormErrors();
+    clearLoadError();
     setActivityMenuOpen(false);
     setActiveActivityIndex(0);
   }
@@ -280,11 +311,18 @@ export function SpontaneousActivityStart({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (isSelectedRoomOccupied) {
-      setError("Der Raum ist bereits belegt.");
+      formErrors.invalid(
+        "Der Raum ist schon belegt. Bitte wählen Sie einen anderen Raum.",
+      );
       return;
     }
     if (!canSubmit) {
-      setError("Aktivität und Raum sind erforderlich.");
+      formErrors.invalid(
+        "Bitte wählen Sie eine Aktivität und einen Raum.",
+        title.length > 0
+          ? {}
+          : { activity: "Bitte wählen oder schreiben Sie eine Aktivität." },
+      );
       return;
     }
     onStart({
@@ -325,6 +363,7 @@ export function SpontaneousActivityStart({
         onClose={resetAndClose}
         title="Spontane Aktivität"
         size="md"
+        error={formErrors.error}
         mobilePosition="center"
         footer={
           <>
@@ -351,11 +390,12 @@ export function SpontaneousActivityStart({
         }
       >
         <form
+          ref={formRef}
           id="spontaneous-activity-form"
           className="space-y-4"
           onSubmit={handleSubmit}
         >
-          {error ? <Alert type="error" message={error} /> : null}
+          <LoadErrorAlert error={loadError} />
 
           <div
             ref={activityFieldRef}
@@ -382,6 +422,7 @@ export function SpontaneousActivityStart({
               />
               <Input
                 name="activity"
+                error={formErrors.fieldError("activity")}
                 controlSize="compact"
                 className="pl-9"
                 value={activityInput}

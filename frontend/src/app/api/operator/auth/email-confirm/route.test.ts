@@ -56,8 +56,12 @@ describe("POST /api/operator/auth/email-confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Ungültige Anfrage");
+    const json = (await response.json()) as { status?: string; error?: string };
+    expect(json).toEqual({
+      status: "error",
+      error: "Invalid JSON request body",
+      code: "general.input",
+    });
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
@@ -122,7 +126,7 @@ describe("POST /api/operator/auth/email-confirm", () => {
   it("proxies backend error JSON with original status code", async () => {
     mockFetch.mockResolvedValue(
       Response.json(
-        { message: "Ungültiger oder abgelaufener Token" },
+        { status: "error", error: "Ungültiger oder abgelaufener Token" },
         { status: 400 },
       ),
     );
@@ -131,19 +135,23 @@ describe("POST /api/operator/auth/email-confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Ungültiger oder abgelaufener Token");
+    const json = (await response.json()) as { error?: string };
+    expect(json.error).toBe("Ungültiger oder abgelaufener Token");
   });
 
-  it("returns 500 on fetch error", async () => {
+  it("returns 503 general.unavailable on fetch error", async () => {
     mockFetch.mockRejectedValue(new Error("Network error"));
 
     const request = createMockRequest({ token: "some-token" });
     const response = await POST(request);
 
-    expect(response.status).toBe(500);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Ein interner Fehler ist aufgetreten");
+    expect(response.status).toBe(503);
+    const json = (await response.json()) as { status?: string; error?: string };
+    expect(json).toEqual({
+      status: "error",
+      error: "Backend request failed",
+      code: "general.unavailable",
+    });
   });
 
   it("returns statusText when text body is empty for non-JSON response", async () => {

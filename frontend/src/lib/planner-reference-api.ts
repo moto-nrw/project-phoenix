@@ -1,4 +1,5 @@
 import type { ActivityCategory } from "./activity-helpers";
+import { apiErrorFromResponse, transportFetch } from "./api-error";
 
 export interface PlannerRoomReference {
   readonly id: number | string;
@@ -22,13 +23,18 @@ function unwrapReferences<T>(body: ReferenceEnvelope<T> | T[]): T[] {
 
 async function readReferenceResponse<T>(response: Response): Promise<T> {
   if (response.ok === false) {
-    throw new Error(`Reference request failed (${response.status})`);
+    throw await apiErrorFromResponse(
+      response,
+      `Reference request failed (${response.status})`,
+    );
   }
   return (await response.json()) as T;
 }
 
 export async function fetchPlannerRooms(): Promise<PlannerRoomReference[]> {
-  const response = await fetch("/api/rooms", { credentials: "include" });
+  const response = await transportFetch("/api/rooms", {
+    credentials: "include",
+  });
   const body = await readReferenceResponse<
     ReferenceEnvelope<PlannerRoomReference> | PlannerRoomReference[]
   >(response);
@@ -38,7 +44,7 @@ export async function fetchPlannerRooms(): Promise<PlannerRoomReference[]> {
 export async function fetchPlannerActivityCategories(): Promise<
   ActivityCategory[]
 > {
-  const response = await fetch("/api/activities/categories", {
+  const response = await transportFetch("/api/activities/categories", {
     credentials: "include",
   });
   const body = await readReferenceResponse<
@@ -48,7 +54,7 @@ export async function fetchPlannerActivityCategories(): Promise<
 }
 
 export async function fetchPlannerGroups(): Promise<PlannerGroupReference[]> {
-  const response = await fetch("/api/groups?page_size=1000", {
+  const response = await transportFetch("/api/groups?page_size=1000", {
     credentials: "include",
   });
   const body = await readReferenceResponse<

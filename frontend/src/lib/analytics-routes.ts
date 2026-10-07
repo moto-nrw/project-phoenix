@@ -68,6 +68,7 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/invitations",
   "/lists",
   "/meal-plan",
+  "/mein-dienstplan",
   "/messages",
   "/messages/:threadId",
   "/ogs-groups",

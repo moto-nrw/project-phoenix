@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import SettingsPage from "./page";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 // Mock next-auth
 const mockUseSession = vi.fn();
@@ -21,7 +23,12 @@ vi.mock("next/navigation", () => ({
 
 // Die Statuszeile zählt die vom Standard abweichenden Einstellungen.
 const mockUseSettingsSchema = vi.fn<
-  () => { data: unknown; isLoading: boolean }
+  () => {
+    data: unknown;
+    isLoading: boolean;
+    error?: unknown;
+    mutate?: () => Promise<unknown>;
+  }
 >(() => ({ data: null, isLoading: false }));
 vi.mock("~/lib/hooks/use-settings-schema", () => ({
   useSettingsSchema: () => mockUseSettingsSchema(),
@@ -71,6 +78,36 @@ describe("SettingsPage", () => {
     expect(
       screen.queryByText(/Keine Einstellungen verfügbar/),
     ).not.toBeInTheDocument();
+  });
+
+  // #2517: Ein gescheitertes Schema ist ein Ladefehler mit Wiederholen,
+  // nie "0 Bereiche" oder der Leerzustand.
+  it("shows a failed schema load with the catalog text and retry", async () => {
+    const mutate = vi.fn(() => Promise.resolve(undefined));
+    mockUseSettingsSchema.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new ApiError("schema exploded", 503, {
+        code: "general.unavailable",
+      }),
+      mutate,
+    });
+
+    render(<SettingsPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Einstellungen"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/0 Bereiche/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/abweichend/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Keine Einstellungen verfügbar/),
+    ).not.toBeInTheDocument();
+
+    screen.getByRole("button", { name: "Wiederholen" }).click();
+    expect(mutate).toHaveBeenCalled();
   });
 
   it("should redirect when unauthenticated", () => {

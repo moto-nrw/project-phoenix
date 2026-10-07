@@ -6,6 +6,7 @@ import {
   waitFor,
   act,
 } from "@testing-library/react";
+import { catalogText } from "~/test/error-catalog-text";
 import { MFAChallengeForm } from "./mfa-challenge-form";
 
 vi.mock("~/components/ui/alert", () => ({
@@ -120,8 +121,13 @@ describe("MFAChallengeForm", () => {
     });
   });
 
-  it("renders German error when verify returns 401 (invalid)", async () => {
-    global.fetch = mockErr(401, "invalid code");
+  // A refused code answers 401 with its code (#2517): the catalog text
+  // shows in place, no jump to the login screen.
+  it("renders the catalog text when verify refuses the code", async () => {
+    const assign = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => undefined);
+    global.fetch = mockErr(401, "invalid code", "identity.mfa_code_invalid");
 
     render(<MFAChallengeForm {...defaultProps} onSuccess={vi.fn()} />);
 
@@ -132,9 +138,11 @@ describe("MFAChallengeForm", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(
-        "Der eingegebene Code ist ungültig. Bitte erneut versuchen.",
+        catalogText("identity.mfa_code_invalid", "die Prüfung des Codes"),
       );
     });
+    expect(assign).not.toHaveBeenCalled();
+    assign.mockRestore();
   });
 
   it("delegates a coded portal handoff error to the embedding login flow", async () => {

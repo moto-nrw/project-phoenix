@@ -391,6 +391,7 @@ type failureRule struct {
 var failureRules = []failureRule{
 	{Target: workforce.ErrStaffShiftOverlap, Kind: FailureConflict},
 	{Target: workforce.ErrStaffShiftConflict, Kind: FailureConflict},
+	{Target: workforce.ErrStaffShiftDuplicate, Kind: FailureConflict},
 	{Target: workforce.ErrStaffShiftNotFound, Kind: FailureNotFound},
 	{Target: workforce.ErrStaffShiftRangeTooLarge, Kind: FailureInvalid},
 	{Target: workforce.ErrInvalidStaffShift, Kind: FailureInvalid},

@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
 import type { BulkInviteResult } from "~/lib/guardian-bulk-invite-api";
 import { SelectionBulkInviteModal } from "./selection-bulk-invite-modal";
 
@@ -11,9 +12,15 @@ const { bulkInvite, toastSuccess } = vi.hoisted(() => ({
 vi.mock("~/lib/guardian-bulk-invite-api", () => ({
   bulkInviteGuardians: bulkInvite,
 }));
-vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => ({ success: toastSuccess, error: vi.fn() }),
-}));
+vi.mock("~/contexts/ToastContext", async () => {
+  const actual = await vi.importActual<
+    typeof import("~/contexts/ToastContext")
+  >("~/contexts/ToastContext");
+  return {
+    ...actual,
+    useToast: () => ({ success: toastSuccess, error: vi.fn() }),
+  };
+});
 
 function result(overrides: Partial<BulkInviteResult>): BulkInviteResult {
   return {
@@ -74,7 +81,7 @@ describe("SelectionBulkInviteModal", () => {
         "Die Einladung an 2 Eltern wird jetzt verschickt. Der Hinweis an 1 Elternteil mit moto-Konto wird jetzt verschickt. Das dauert ein paar Minuten.",
       ),
     ).toBeVisible();
-    expect(toastSuccess).toHaveBeenCalledWith("3 Eltern eingeladen");
+    expect(toastSuccess).toHaveBeenCalledWith("3 Eltern sind eingeladen.");
     expect(screen.getByRole("button", { name: "Schließen" })).toBeVisible();
   });
 
@@ -194,7 +201,13 @@ describe("SelectionBulkInviteModal", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     bulkInvite
       .mockResolvedValueOnce(result({ invited: 1 }))
-      .mockRejectedValueOnce(new Error("boom"));
+      .mockRejectedValueOnce(
+        new ApiError("boom", 500, {
+          code: "general.server",
+          instance: "req-invite",
+        }),
+      )
+      .mockResolvedValueOnce(result({ invited: 1, dryRun: false }));
     const onClose = renderModal();
 
     fireEvent.click(
@@ -203,10 +216,38 @@ describe("SelectionBulkInviteModal", () => {
 
     expect(
       await screen.findByText(
-        "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+        "Die Einladung konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
       ),
     ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-invite");
     expect(onClose).not.toHaveBeenCalled();
     expect(toastSuccess).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledOnce());
+  });
+
+  it("shows a failed count in the dialog and counts again on retry", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    bulkInvite
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce(result({ invited: 2 }));
+    renderModal();
+
+    expect(
+      await screen.findByText(
+        "Die Vorschau ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+      ),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(
+      await screen.findByRole("button", { name: "2 Eltern einladen" }),
+    ).toBeVisible();
+    expect(bulkInvite).toHaveBeenCalledTimes(2);
   });
 });

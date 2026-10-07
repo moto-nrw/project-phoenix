@@ -4,6 +4,8 @@
 // ("Keine Betreuung"); Anwesenheit, Betreuungsplanung und Elternportal
 // kennen sie strukturell nicht.
 
+import { apiErrorFromBody, transportFetch } from "./api-error";
+
 export interface ClassListEntry {
   id: string;
   firstName: string;
@@ -57,7 +59,7 @@ async function request<T>(
   method: "GET" | "POST" | "PUT" | "DELETE",
   body?: unknown,
 ): Promise<T> {
-  const response = await fetch(url, {
+  const response = await transportFetch(url, {
     method,
     credentials: "include",
     cache: "no-store",
@@ -73,7 +75,9 @@ async function request<T>(
       (typeof payload?.error === "string" && payload.error) ||
       (typeof payload?.message === "string" && payload.message) ||
       `API error (${response.status})`;
-    throw new Error(message);
+    // Code, field errors and request ID travel on for the shared error path
+    // (#2513); the message is diagnosis only.
+    throw apiErrorFromBody(message, response.status, payload);
   }
   return payload as T;
 }

@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { ApiError, enrichApiError, transportFetch } from "./api-error";
 /**
  * Staff client for the parent absence-request review queue. Calls the Next.js proxy routes under
  * /api/students/excused-absence-requests which forward (with the tenant session
@@ -91,7 +91,7 @@ export async function decideExcusedAbsenceRequest(
   reason?: string,
   expectedVersion?: string,
 ): Promise<StaffExcusedRequest> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/excused-absence-requests/${encodeURIComponent(requestId)}/decide`,
     {
       method: "POST",

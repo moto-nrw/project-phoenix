@@ -114,7 +114,7 @@ type RenameSchemaRequest struct {
 func (req *RenameSchemaRequest) Bind(_ *http.Request) error {
 	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
-		return errors.New("name is required")
+		return capability.InvalidInput(common.CodeEnrollmentSchemaNameRequired, "name", errors.New("name is required"))
 	}
 	return nil
 }
@@ -169,7 +169,7 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 		// else (phase listing, DB failures) is a genuine 500 — rendering
 		// those as 400 would hide internal failures behind client blame.
 		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, capability.ErrFormSchemaNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(err))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentSchemaNotFound))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -390,7 +390,7 @@ func (rs *Resource) getSchemaByID(w http.ResponseWriter, r *http.Request) {
 	})
 	if txErr != nil {
 		if errors.Is(txErr, sql.ErrNoRows) || errors.Is(txErr, capability.ErrFormSchemaNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(txErr))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(txErr, common.CodeEnrollmentSchemaNotFound))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(txErr))
@@ -436,8 +436,8 @@ func (rs *Resource) publishSchema(w http.ResponseWriter, r *http.Request) {
 		return publishErr
 	})
 	if err != nil {
-		// Validation errors come back as plain errors; surface as 400.
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		// A taken name is a 409 with its code; validation errors stay 400.
+		renderSchemaVersionError(w, r, err)
 		return
 	}
 
@@ -512,9 +512,9 @@ func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
 func renderSchemaVersionError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, capability.ErrFormSchemaNameExists):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentSchemaNameExists))
+		common.RenderError(w, r, common.ErrorConflictOnField(err, common.CodeEnrollmentSchemaNameExists, "name"))
 	case errors.Is(err, capability.ErrFormSchemaNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(err))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentSchemaNotFound))
 	default:
 		var rf capability.RenameStepError
 		if errors.As(err, &rf) {
@@ -555,10 +555,10 @@ func (rs *Resource) renameSchema(w http.ResponseWriter, r *http.Request) {
 	if txErr != nil {
 		switch {
 		case errors.Is(txErr, capability.ErrFormSchemaNameExists):
-			common.RenderError(w, r, common.ErrorConflictWithCode(txErr, common.CodeEnrollmentSchemaNameExists))
+			common.RenderError(w, r, common.ErrorConflictOnField(txErr, common.CodeEnrollmentSchemaNameExists, "name"))
 			return
 		case errors.Is(txErr, capability.ErrFormSchemaNotFound):
-			common.RenderError(w, r, common.ErrorNotFound(txErr))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(txErr, common.CodeEnrollmentSchemaNotFound))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(txErr))
@@ -593,7 +593,7 @@ func (rs *Resource) deleteSchema(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentSchemaHasRequests))
 			return
 		case errors.Is(err, capability.ErrFormSchemaNotFound):
-			common.RenderError(w, r, common.ErrorNotFound(err))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentSchemaNotFound))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))

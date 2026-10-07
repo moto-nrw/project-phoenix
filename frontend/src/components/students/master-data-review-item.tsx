@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import {
   RequestReviewCard,
@@ -9,7 +9,7 @@ import {
 import { formatDate } from "~/lib/date-helpers";
 import { CONTACT_METHODS, LANGUAGE_PREFERENCES } from "~/lib/guardian-helpers";
 import { createLogger } from "~/lib/logger";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import {
   type StaffMasterDataChange,
   decideMasterDataChangeRequest,
@@ -125,9 +125,13 @@ export function MasterDataReviewItem({
   decisionDisabledReason?: string;
   approveReasonRequired?: boolean;
 }>) {
-  const toast = useToast();
+  const { show: showError } = useApiErrorDisplay();
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  // „Wiederholen“ entscheidet mit der aktuellen Begründung.
+  const decideRef = useRef<(approve: boolean) => Promise<void>>(
+    async () => undefined,
+  );
 
   const decide = async (approve: boolean) => {
     setBusy(true);
@@ -139,19 +143,27 @@ export function MasterDataReviewItem({
         // Nur mitschicken, wenn die Liste eine Fassung kennt.
         ...(expectedVersion ? ([expectedVersion] as const) : ([] as const)),
       );
-      onDecided(approve ? "Änderung übernommen" : "Änderung abgelehnt");
+      onDecided(
+        approve
+          ? "Die Änderung ist übernommen."
+          : "Die Änderung ist abgelehnt.",
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.warn("master_data_review_decide_failed", {
         error: message,
         request_id: row.id,
       });
-      toast.error("Die Entscheidung konnte nicht gespeichert werden.", {
-        duration: 8000,
+      await showError(err, {
+        object: "die Anfrage",
+        retry: () => void decideRef.current(approve),
       });
       setBusy(false);
     }
   };
+  useLayoutEffect(() => {
+    decideRef.current = decide;
+  });
 
   return (
     <RequestReviewCard

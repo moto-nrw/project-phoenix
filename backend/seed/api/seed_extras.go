@@ -137,6 +137,62 @@ func seedParentLetter(rt *Runtime) error {
 	return seedReminderAnnouncement(rt)
 }
 
+// seedParentPollStep creates a full 60-option poll so the staff editor and
+// parent portal's long-poll layout have representative demo data (#3861).
+type seedParentPollStep struct{}
+
+func (seedParentPollStep) Name() string { return "Seeding parent poll" }
+
+func (seedParentPollStep) Run(_ context.Context, rt *Runtime) error {
+	rt.Client.BindAuth(rt.TenantAuth)
+	return seedParentPoll(rt)
+}
+
+func seedParentPoll(rt *Runtime) error {
+	raw, err := rt.Client.Post("/api/parent-announcements/", map[string]any{
+		"title":         "Termine für den Elternsprechtag",
+		"body":          "Bitte wählen Sie passende Termine.",
+		"priority":      "info",
+		"response_type": "multi_choice",
+		"options":       seedParentPollOptions(),
+		"targets": []map[string]any{
+			{"target_type": "school_all"},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create parent poll: %w", err)
+	}
+	id, err := parseEnvelopeStringID(raw)
+	if err != nil {
+		return fmt.Errorf("parse parent poll response: %w", err)
+	}
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/parent-announcements/%d/publish", id), nil); err != nil {
+		return fmt.Errorf("publish parent poll: %w", err)
+	}
+	fmt.Println("  1 parent poll with 60 appointment options published")
+	return nil
+}
+
+func seedParentPollOptions() []string {
+	days := []struct {
+		weekday string
+		date    string
+	}{
+		{weekday: "Mittwoch", date: "14. Oktober"},
+		{weekday: "Donnerstag", date: "15. Oktober"},
+		{weekday: "Freitag", date: "16. Oktober"},
+	}
+	options := make([]string, 0, 60)
+	for _, day := range days {
+		for slot := range 20 {
+			hour := 14 + slot/4
+			minute := 15 * (slot % 4)
+			options = append(options, fmt.Sprintf("%s, %s, %02d:%02d Uhr", day.weekday, day.date, hour, minute))
+		}
+	}
+	return options
+}
+
 // seedReminderAnnouncement publishes the announcement the reminder feature
 // (#3162) was asked for: written early so families can plan, reminded the
 // morning before it matters. Without it the reminder fields are empty on

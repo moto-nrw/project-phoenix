@@ -1,12 +1,13 @@
 "use client";
 
-import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import Link from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import { useReminders } from "~/lib/hooks/use-reminders";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
   isReminderOverdue,
   reminderKey,
@@ -33,7 +34,8 @@ const MAX_ROWS = 3;
  */
 export function RemindersBlock() {
   const tenantPath = useTenantAwarePath();
-  const { reminders, error, isLoading, data } = useReminders();
+  const { reminders, error, isLoading, data, retry } = useReminders();
+  const loadError = useSwrLoadError(error, "die Liste der Erinnerungen", retry);
 
   const sorted = [...reminders].sort((a, b) => a.minutes_away - b.minutes_away);
   const { shown, hidden } = useHomeCardRows(sorted, MAX_ROWS);
@@ -55,15 +57,9 @@ export function RemindersBlock() {
       }
     >
       {(() => {
-        if (error) {
-          return (
-            <Alert
-              type="error"
-              message="Die Erinnerungen konnten nicht geladen werden. Bitte die Seite neu laden."
-            />
-          );
-        }
-        if (isLoading && data === undefined) {
+        if (loadError) return <LoadErrorAlert error={loadError} />;
+        // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett.
+        if ((isLoading && data === undefined) || error) {
           return (
             <div className="space-y-2" aria-hidden="true">
               {[1, 2, 3].map((i) => (

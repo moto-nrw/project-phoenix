@@ -141,7 +141,8 @@ describe("useStudentData", () => {
   });
 
   describe("error states", () => {
-    it("should return error message when SWR has error", () => {
+    it("should return the load error when SWR has error", () => {
+      const loadError = new Error("Network error");
       mockUseSession.mockReturnValue({
         data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
         status: "authenticated",
@@ -150,7 +151,7 @@ describe("useStudentData", () => {
 
       mockUseSWRAuth.mockReturnValue({
         data: undefined,
-        error: new Error("Network error"),
+        error: loadError,
         isLoading: false,
         isValidating: false,
         mutate: vi.fn(),
@@ -158,7 +159,8 @@ describe("useStudentData", () => {
 
       const { result } = renderHook(() => useStudentData("1"));
 
-      expect(result.current.error).toBe("Fehler beim Laden der Kinderdaten.");
+      // The raw failure goes to the page's shared error path (#2513).
+      expect(result.current.error).toBe(loadError);
       expect(result.current.student).toBeNull();
     });
 

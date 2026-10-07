@@ -1,13 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Check } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Skeleton } from "~/components/ui/skeleton";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
+import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
@@ -75,7 +83,7 @@ function ParentNotificationPreferencesSection() {
   return (
     <NotificationPreferencesSectionContent
       portal="parent"
-      parentText={(key) => t(key as never)}
+      parentText={(key, values) => t(key as never, values as never)}
     />
   );
 }
@@ -85,39 +93,66 @@ function NotificationPreferencesSectionContent({
   parentText,
 }: Readonly<{
   portal: PreferencePortal;
-  parentText?: (key: string) => string;
+  parentText?: (key: string, values?: Record<string, string>) => string;
 }>) {
   const isParentPortal = portal === "parent";
   const t = useCallback(
-    (key: string) => parentText?.(key) ?? key,
+    (key: string, values?: Record<string, string>) =>
+      parentText?.(key, values) ?? key,
     [parentText],
+  );
+  /** Error object: the parents portal translates it, staff portals are German. */
+  const errorObject = useCallback(
+    (key: string, german: string, values?: Record<string, string>) =>
+      isParentPortal ? t(key, values) : german,
+    [isParentPortal, t],
   );
   const [types, setTypes] = useState<NotificationPreferenceType[]>([]);
   const [tenantEnabled, setTenantEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [bulkEnabling, setBulkEnabling] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  // Every portal uses the shared error path (#2517, #2518): a load error
+  // stays in the card with retry, a failed switch is a toast.
+  const { error: loadError, show: showLoadError, clear } = useApiLoadError();
+  const { show: showActionError } = useApiErrorDisplay();
+  const latestLoadRef = useRef<() => void>(() => undefined);
+  const latestToggleRef = useRef<
+    (type: NotificationPreferenceType, enabled: boolean) => void
+  >(() => undefined);
+  const latestDisableAllRef = useRef<() => void>(() => undefined);
+  const latestEnableAllRef = useRef<() => void>(() => undefined);
+
+  function typeLabel(type: NotificationPreferenceType): string {
+    return isParentPortal && PARENT_TYPES.has(type.key)
+      ? t(`types.${type.key}.label`)
+      : type.label;
+  }
 
   const load = useCallback(async () => {
+    setLoadFailed(false);
+    clear();
     try {
       const data = await fetchNotificationPreferences(portal);
       setTypes(data.types);
       setTenantEnabled(data.tenant_enabled);
-      setError(null);
     } catch (err) {
       logger.error("notification_preferences_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        isParentPortal
-          ? t("loadError")
-          : "Die Einstellungen konnten nicht geladen werden.",
-      );
+      setLoadFailed(true);
+      void showLoadError(err, {
+        object: errorObject(
+          "errorObjectList",
+          "die Liste der Benachrichtigungen",
+        ),
+        retry: () => latestLoadRef.current(),
+      });
     } finally {
       setLoading(false);
     }
-  }, [isParentPortal, portal, t]);
+  }, [clear, errorObject, portal, showLoadError]);
 
   useEffect(() => {
     void load();
@@ -129,7 +164,6 @@ function NotificationPreferencesSectionContent({
     setTypes((current) =>
       current.map((t) => (t.key === type.key ? { ...t, enabled } : t)),
     );
-    setError(null);
     try {
       await setNotificationPreference(type.key, enabled, portal);
     } catch (err) {
@@ -142,11 +176,14 @@ function NotificationPreferencesSectionContent({
           t.key === type.key ? { ...t, enabled: !enabled } : t,
         ),
       );
-      setError(
-        isParentPortal
-          ? t("saveError")
-          : "Die Einstellung konnte nicht gespeichert werden.",
-      );
+      void showActionError(err, {
+        object: errorObject(
+          "errorObjectType",
+          `die Benachrichtigung „${type.label}“`,
+          { name: typeLabel(type) },
+        ),
+        retry: () => latestToggleRef.current(type, enabled),
+      });
     } finally {
       setBusy(false);
     }
@@ -154,7 +191,6 @@ function NotificationPreferencesSectionContent({
 
   const disableAll = async () => {
     setBusy(true);
-    setError(null);
     try {
       await disableAllNotificationPreferences(portal);
       setTypes((current) => current.map((t) => ({ ...t, enabled: false })));
@@ -162,11 +198,13 @@ function NotificationPreferencesSectionContent({
       logger.error("notification_preferences_disable_all_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        isParentPortal
-          ? t("bulkError")
-          : "Die Einstellungen konnten nicht geändert werden.",
-      );
+      void showActionError(err, {
+        object: errorObject(
+          "errorObjectDisableAll",
+          "das Ausschalten aller Benachrichtigungen",
+        ),
+        retry: () => latestDisableAllRef.current(),
+      });
     } finally {
       setBusy(false);
     }
@@ -178,27 +216,30 @@ function NotificationPreferencesSectionContent({
 
     setBusy(true);
     setBulkEnabling(true);
-    setError(null);
     try {
       const results = await Promise.allSettled(
         disabledTypes.map((type) =>
           setNotificationPreference(type.key, true, portal),
         ),
       );
-      const failedCount = results.filter(
-        (result) => result.status === "rejected",
-      ).length;
+      const failure = results.find(
+        (result): result is PromiseRejectedResult =>
+          result.status === "rejected",
+      );
 
-      if (failedCount > 0) {
+      if (failure) {
         logger.error("notification_preferences_enable_all_failed", {
-          failedCount,
+          failedCount: results.filter((result) => result.status === "rejected")
+            .length,
         });
         await load();
-        setError(
-          isParentPortal
-            ? t("bulkError")
-            : "Die Einstellungen konnten nicht geändert werden.",
-        );
+        void showActionError(failure.reason, {
+          object: errorObject(
+            "errorObjectEnableAll",
+            "das Einschalten aller Benachrichtigungen",
+          ),
+          retry: () => latestEnableAllRef.current(),
+        });
         return;
       }
 
@@ -210,6 +251,13 @@ function NotificationPreferencesSectionContent({
       setBusy(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestLoadRef.current = () => void load();
+    latestToggleRef.current = (type, enabled) => void toggle(type, enabled);
+    latestDisableAllRef.current = () => void disableAll();
+    latestEnableAllRef.current = () => void enableAll();
+  });
 
   const anyEnabled = types.some((t) => t.enabled);
   const allEnabled = types.length > 0 && types.every((type) => type.enabled);
@@ -293,11 +341,11 @@ function NotificationPreferencesSectionContent({
         }
       />
 
-      {error && (
+      {loadError ? (
         <div className="mb-3">
-          <Alert type="error" message={error} />
+          <LoadErrorAlert error={loadError} />
         </div>
-      )}
+      ) : null}
 
       {!loading && !tenantEnabled && (
         <div className="mb-3">
@@ -312,7 +360,7 @@ function NotificationPreferencesSectionContent({
         </div>
       )}
 
-      {loading ? (
+      {loading || (loadFailed && !loadError) ? (
         <div
           data-testid="notification-preferences-skeleton"
           className="space-y-5"

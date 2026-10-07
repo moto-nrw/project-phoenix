@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import type { FormErrorDetail } from "~/components/ui/form-error";
 import { MasterDetailSkeleton } from "./master-detail-skeleton";
 import { MobileBackButton } from "~/components/ui/mobile-back-button";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -33,7 +34,7 @@ interface DatabasePageLayoutProps {
    * Ladefehler der Seite. Er ersetzt den Inhalt im Gerüst; ein Fehler ist
    * niemals ein Leerzustand (BAUARTEN-SPEC, Querregel „Zustände").
    */
-  error?: string | null;
+  error?: string | FormErrorDetail | null;
   /**
    * Dialoge der Seite (Anlegen, Löschen, Einladen). Sie stehen NEBEN dem
    * Inhalt, nicht darin: der Leer- und der Fehlerzustand ersetzen den Inhalt,

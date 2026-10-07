@@ -28,7 +28,7 @@ func (rs *Resource) listCombinedGroups(w http.ResponseWriter, r *http.Request) {
 	// Get combined groups
 	groups, err := rs.listPresenceCombinations(r.Context(), queryOptions, "ListCombinedGroups")
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -46,7 +46,7 @@ func (rs *Resource) getActiveCombinedGroups(w http.ResponseWriter, r *http.Reque
 	// Get active combined groups
 	groups, err := rs.listPresenceCombinations(r.Context(), studentpresence.CombinedGroupFilter{OpenOnly: true}, "FindActiveCombinedGroups")
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -64,7 +64,7 @@ func (rs *Resource) getCombinedGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidCombinedGroupID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidCombinedGroupID)))
 		return
 	}
 
@@ -86,7 +86,7 @@ func (rs *Resource) getCombinedGroupGroups(w http.ResponseWriter, r *http.Reques
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidCombinedGroupID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidCombinedGroupID)))
 		return
 	}
 
@@ -111,7 +111,7 @@ func (rs *Resource) createCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	// Parse request
 	req := &CombinedGroupRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -146,14 +146,14 @@ func (rs *Resource) updateCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidCombinedGroupID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidCombinedGroupID)))
 		return
 	}
 
 	// Parse request
 	req := &CombinedGroupRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -194,7 +194,7 @@ func (rs *Resource) deleteCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidCombinedGroupID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidCombinedGroupID)))
 		return
 	}
 
@@ -212,7 +212,7 @@ func (rs *Resource) endCombinedGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidCombinedGroupID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidCombinedGroupID)))
 		return
 	}
 

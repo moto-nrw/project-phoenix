@@ -69,9 +69,11 @@ export interface HomeGroupSnapshot {
   readonly nextPickup: string | null;
   readonly isLoading: boolean;
   readonly error: Error | undefined;
+  /** Lädt den Stand neu (Wiederholen am Ladefehler). */
+  readonly retry: () => unknown;
 }
 
-const EMPTY: Omit<HomeGroupSnapshot, "isLoading" | "error"> = {
+const EMPTY: Omit<HomeGroupSnapshot, "isLoading" | "error" | "retry"> = {
   group: null,
   present: 0,
   total: 0,
@@ -130,7 +132,7 @@ function isAwayToday(student: OgsLiveWireStudent): boolean {
 export function deriveHomeGroup(
   data: OgsLiveViewData,
   now: string,
-): Omit<HomeGroupSnapshot, "isLoading" | "error"> {
+): Omit<HomeGroupSnapshot, "isLoading" | "error" | "retry"> {
   const found = data.groups.find((g) => g.id === data.groupId) ?? null;
   if (!found) return EMPTY;
 
@@ -221,12 +223,13 @@ export function useHomeGroup(
   const token = session?.user?.token;
   const accountId = session?.user?.id;
 
-  const { data, error, isLoading } = useSWRAuth<OgsLiveViewData>(
+  const { data, error, isLoading, mutate } = useSWRAuth<OgsLiveViewData>(
     enabled && accountId ? `home-own-group:${accountId}` : null,
     () => fetchOgsGroupLive(token, null),
     { revalidateOnFocus: false, errorRetryCount: 1 },
   );
 
-  if (!data) return { ...EMPTY, isLoading, error };
-  return { ...deriveHomeGroup(data, now), isLoading, error };
+  const retry = () => mutate();
+  if (!data) return { ...EMPTY, isLoading, error, retry };
+  return { ...deriveHomeGroup(data, now), isLoading, error, retry };
 }

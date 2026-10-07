@@ -3,11 +3,12 @@
 import { useSession } from "next-auth/react";
 
 import { TodayNoticeList } from "~/components/staff-notices/today-notice-list";
-import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { fetchTodaysNotices } from "~/lib/staff-notices-api";
 import type { StaffNotice } from "~/lib/staff-notices-api";
 import { useSWRAuth } from "~/lib/swr";
@@ -46,6 +47,11 @@ export function StaffNoticesBlock() {
     { revalidateOnFocus: false },
   );
   const { shown, hidden } = useHomeCardRows(notices ?? [], MAX_NOTICES);
+  const loadError = useSwrLoadError(
+    error,
+    "die Liste der Tagesinformationen",
+    () => mutate(),
+  );
 
   return (
     <SectionCard
@@ -66,15 +72,8 @@ export function StaffNoticesBlock() {
       }
     >
       {(() => {
-        if (error) {
-          return (
-            <Alert
-              type="error"
-              message="Die Tagesinformationen konnten nicht geladen werden. Bitte die Seite neu laden."
-            />
-          );
-        }
-        if (isLoading && notices === undefined) {
+        if (loadError) return <LoadErrorAlert error={loadError} />;
+        if ((isLoading && notices === undefined) || error) {
           // Dieselbe Skelettform wie die Nachbarkarten. Ein kreisender Spinner
           // mitten in einer Reihe stiller Platzhalter zieht den Blick auf die
           // eine Karte, die gerade nichts zu sagen hat.

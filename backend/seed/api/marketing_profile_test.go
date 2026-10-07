@@ -17,6 +17,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMarketingSessionDateUsesSchoolDaysOnly(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		date string
+		ok   bool
+	}{
+		{name: "Monday", date: "2026-09-07", ok: true},
+		{name: "Friday", date: "2026-09-11", ok: true},
+		{name: "Saturday", date: "2026-09-12", ok: false},
+		{name: "Sunday", date: "2026-09-13", ok: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			date, err := parseSeedDate(tt.date)
+			require.NoError(t, err)
+			got, ok := marketingSessionDate(date)
+			assert.Equal(t, tt.ok, ok)
+			if ok {
+				assert.Equal(t, date, got)
+			}
+		})
+	}
+}
+
 func TestMarketingPlanTimesFollowReferenceClock(t *testing.T) {
 	t.Parallel()
 	require.Equal(t, marketingReferenceClock, marketingClock(0))
@@ -676,31 +703,36 @@ func mustParseID(t *testing.T, raw string) int64 {
 func assertMarketingDailyLife(t *testing.T, mock *marketingProfileAPIMock, profile *SeedProfile) {
 	t.Helper()
 	require.Len(t, mock.rooms, len(marketingRooms()))
-	require.Len(t, mock.instances, len(marketingSessions()))
-	titles := []string{}
-	for id, block := range mock.instances {
-		assert.True(t, mock.started[id], "block %v runs", block["title"])
-		assert.Less(t, block["start_time"], marketingReferenceClock)
-		assert.Greater(t, block["end_time"], marketingReferenceClock)
-		activity := mock.activities[int64(block["activity_group_id"].(float64))]
-		require.NotNil(t, activity, "block %v has its own activity", block["title"])
-		assert.Equal(t, block["title"], activity["name"])
-		titles = append(titles, block["title"].(string))
-	}
-	assert.ElementsMatch(t, []string{"Bauecke", "Fußball"}, titles)
-
-	inRoom := map[string]int{}
-	for _, student := range profile.Entities.Students {
-		block, ok := mock.inRoom[student.ID]
-		if mock.attendance[student.ID] != "checked_in" {
-			assert.False(t, ok, "%s is not at school and sits in no room", student.Key)
-			continue
+	if _, ok := marketingSessionDate(todaySeedDate()); ok {
+		require.Len(t, mock.instances, len(marketingSessions()))
+		titles := []string{}
+		for id, block := range mock.instances {
+			assert.True(t, mock.started[id], "block %v runs", block["title"])
+			assert.Less(t, block["start_time"], marketingReferenceClock)
+			assert.Greater(t, block["end_time"], marketingReferenceClock)
+			activity := mock.activities[int64(block["activity_group_id"].(float64))]
+			require.NotNil(t, activity, "block %v has its own activity", block["title"])
+			assert.Equal(t, block["title"], activity["name"])
+			titles = append(titles, block["title"].(string))
 		}
-		require.True(t, ok, "present child %s sits in a running block", student.Key)
-		assert.Contains(t, mock.instances[block]["student_ids"], float64(student.ID), "%s is planned for its block", student.Key)
-		inRoom[mock.rooms[int64(mock.instances[block]["room_id"].(float64))]]++
+		assert.ElementsMatch(t, []string{"Bauecke", "Fußball"}, titles)
+
+		inRoom := map[string]int{}
+		for _, student := range profile.Entities.Students {
+			block, ok := mock.inRoom[student.ID]
+			if mock.attendance[student.ID] != "checked_in" {
+				assert.False(t, ok, "%s is not at school and sits in no room", student.Key)
+				continue
+			}
+			require.True(t, ok, "present child %s sits in a running block", student.Key)
+			assert.Contains(t, mock.instances[block]["student_ids"], float64(student.ID), "%s is planned for its block", student.Key)
+			inRoom[mock.rooms[int64(mock.instances[block]["room_id"].(float64))]]++
+		}
+		assert.Equal(t, map[string]int{"Bauraum": 3, "Turnhalle": 4}, inRoom)
+	} else {
+		assert.Empty(t, mock.instances)
+		assert.Empty(t, mock.inRoom)
 	}
-	assert.Equal(t, map[string]int{"Bauraum": 3, "Turnhalle": 4}, inRoom)
 
 	require.Len(t, mock.notices, 1)
 	assert.Equal(t, marketingNoticeTitle, mock.notices[0]["title"])

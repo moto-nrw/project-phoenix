@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import type { StaffVacationQuotaSummary } from "~/lib/staff-api";
+import { catalogText } from "~/test/error-catalog-text";
 
 // Both hooks return stable identities on purpose: the tab's reload callback
 // depends on the toast object, so a fresh object per render would re-run the
@@ -12,9 +14,12 @@ const stable = vi.hoisted(() => ({
   swrMutate: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => stable.toast,
+  useApiErrorDisplay: () => ({ show: actionErrors.show }),
 }));
+const actionErrors = vi.hoisted(() => ({ show: vi.fn() }));
 
 vi.mock("swr", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -127,7 +132,7 @@ describe("AbwesenheitenTab Urlaubsanspruch bearbeiten", () => {
       });
     });
     expect(stable.toast.success).toHaveBeenCalledWith(
-      "Urlaubsanspruch gespeichert.",
+      "Der Urlaubsanspruch ist gespeichert.",
     );
     // Zurück in der Anzeige mit neu geladenen Zahlen.
     expect(await screen.findByRole("button", EDIT_BUTTON)).toBeInTheDocument();
@@ -167,7 +172,9 @@ describe("AbwesenheitenTab Urlaubsanspruch bearbeiten", () => {
   });
 
   it("shows a failed save in the alert, not as a toast, and stays in the edit state", async () => {
-    mocks.setVacationQuota.mockRejectedValue(new Error("Keine Berechtigung."));
+    mocks.setVacationQuota.mockRejectedValue(
+      new ApiError("forbidden", 403, { code: "general.permission" }),
+    );
     render(
       <AbwesenheitenTab
         staffId="4"
@@ -185,7 +192,7 @@ describe("AbwesenheitenTab Urlaubsanspruch bearbeiten", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Keine Berechtigung.",
+      catalogText("general.permission", "die Änderung am Urlaubsanspruch"),
     );
     expect(screen.getByLabelText("Jahresanspruch (Tage)")).toHaveValue(28);
     expect(stable.toast.error).not.toHaveBeenCalled();
@@ -229,5 +236,43 @@ describe("AbwesenheitenTab Urlaubsanspruch bearbeiten", () => {
 
     expect(await screen.findByText("Übrig")).toBeInTheDocument();
     expect(screen.queryByRole("button", EDIT_BUTTON)).not.toBeInTheDocument();
+  });
+
+  it("shows a failed load in place instead of empty lists, with retry", async () => {
+    mocks.getVacationQuota.mockReset();
+    mocks.getVacationQuota
+      .mockRejectedValueOnce(
+        new ApiError("boom", 503, {
+          code: "general.unavailable",
+          instance: "req-abs",
+        }),
+      )
+      .mockResolvedValue(quota());
+    render(
+      <AbwesenheitenTab
+        staffId="4"
+        canEdit
+        canEditQuota
+        canManageSickReports
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Übersicht der Abwesenheiten"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Keine geplanten Abwesenheiten."),
+    ).not.toBeInTheDocument();
+    expect(stable.toast.error).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText("Übrig")).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        catalogText("general.unavailable", "die Übersicht der Abwesenheiten"),
+      ),
+    ).not.toBeInTheDocument();
   });
 });

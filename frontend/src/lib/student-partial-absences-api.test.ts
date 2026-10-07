@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "./api-error";
 import {
   deleteStudentPartialAbsence,
   fetchStudentPartialAbsences,
@@ -36,6 +37,7 @@ describe("student-partial-absences-api", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/students/42/partial-absences?from=2026-05-01&to=2026-05-31",
+      undefined,
     );
     expect(result[0]).toMatchObject({
       id: "9",
@@ -86,5 +88,51 @@ describe("student-partial-absences-api", () => {
       "/api/students/42/partial-absences/9",
       { method: "DELETE" },
     );
+  });
+
+  it("throws an ApiError with code and field errors when saving fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json(
+          {
+            status: "error",
+            error: "from_time invalid",
+            code: "general.input",
+            errors: [{ field: "from_time", reason: "invalid" }],
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+
+    const error = await saveStudentPartialAbsence(
+      "42",
+      null,
+      "2026-05-27",
+      "25:00",
+    ).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).code).toBe("general.input");
+    expect((error as ApiError).errors).toEqual([
+      { field: "from_time", reason: "invalid" },
+    ]);
+  });
+
+  it("classifies a non-JSON failure by its status", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("<html>", { status: 502 })),
+    );
+
+    const error = await fetchStudentPartialAbsences(
+      "42",
+      "2026-05-25",
+      "2026-05-29",
+    ).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).code).toBe("general.unavailable");
   });
 });

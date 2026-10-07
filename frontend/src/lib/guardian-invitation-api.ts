@@ -1,5 +1,8 @@
-import type { ApiError } from "~/lib/auth-api";
-import { wireErrorCode } from "~/lib/api-error";
+import {
+  apiErrorFromBody,
+  transportFetch,
+  type ApiError,
+} from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "GuardianInvitationAPI" });
@@ -46,17 +49,14 @@ const createApiError = async (
   fallbackMessage: string,
 ): Promise<ApiError> => {
   let message = fallbackMessage;
-  let code: string | undefined;
+  let payload: unknown;
   try {
     const contentType = response.headers.get("Content-Type") ?? "";
-    if (contentType.includes("application/json")) {
-      const payload = (await response.json()) as {
-        error?: string;
-        message?: string;
-        code?: string;
-      };
-      message = payload.error ?? payload.message ?? fallbackMessage;
-      code = payload.code;
+    if (contentType.includes("json")) {
+      payload = await response.json();
+      const body = payload as { error?: unknown; message?: unknown };
+      const text = body?.error ?? body?.message;
+      if (typeof text === "string" && text) message = text;
     } else {
       const text = (await response.text()).trim();
       if (text) {
@@ -68,10 +68,9 @@ const createApiError = async (
       error: String(error),
     });
   }
-  const apiError = new Error(message) as ApiError;
-  apiError.status = response.status;
-  apiError.code = wireErrorCode(code);
-  return apiError;
+  // A real ApiError, so code, field errors and request ID reach the shared
+  // display path (#2518). The message stays a diagnostic.
+  return apiErrorFromBody(message, response.status, payload);
 };
 
 const hasDataProperty = <T>(value: unknown): value is { data: T } => {
@@ -100,7 +99,7 @@ const mapValidation = (
 export async function validateGuardianInvitation(
   token: string,
 ): Promise<GuardianInvitationValidation> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/guardian-invitations/${encodeURIComponent(token)}`,
   );
   if (!response.ok) {
@@ -117,7 +116,7 @@ export async function acceptGuardianInvitation(
   token: string,
   data: GuardianInvitationAcceptRequest,
 ): Promise<GuardianInvitationAcceptResult> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/guardian-invitations/${encodeURIComponent(token)}/accept`,
     {
       method: "POST",

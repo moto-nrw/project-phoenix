@@ -99,6 +99,8 @@ interface SeriesPayload {
   validFrom: string;
   /** "YYYY-MM-DD", exclusive; null = bis Periodenende */
   validUntil: string | null;
+  /** Also plan in the Ferien and on closing days; holidays stay free (#3820). */
+  includeSchoolBreaks: boolean;
 }
 
 /** Edited fields applied from the effective date on ("Ab jetzt dauerhaft" and
@@ -121,6 +123,8 @@ interface SeriesSplitPayload {
   /** "YYYY-MM-DD", exclusive. Omitted keeps the stored end, null runs the
    *  series to the end of the calendar period. */
   validUntil?: string | null;
+  /** Ferien and closing days opt-in (#3820); omitted keeps the stored one. */
+  includeSchoolBreaks?: boolean;
 }
 
 /** The stored rule behind a series shift — weekdays, rhythm, window, and
@@ -141,6 +145,8 @@ export interface SeriesRule {
   validFrom: string;
   /** "YYYY-MM-DD", exclusive; null = bis Periodenende */
   validUntil: string | null;
+  /** Also planned in the Ferien and on closing days (#3820). */
+  includeSchoolBreaks: boolean;
 }
 
 interface BackendSeriesRule {
@@ -155,6 +161,7 @@ interface BackendSeriesRule {
   week_pattern: number;
   valid_from: string;
   valid_until: string | null;
+  include_school_breaks?: boolean;
 }
 
 export interface SeriesResult {
@@ -162,12 +169,15 @@ export interface SeriesResult {
   created: number;
   /** Days skipped because an existing shift would overlap ("YYYY-MM-DD") */
   skippedDates: string[];
+  /** Occurrences left out on holidays, Ferien days and closing days (#3820) */
+  skippedNonWorkingDays: number;
 }
 
 interface BackendSeriesResult {
   series_id: string;
   created: number;
   skipped_dates: string[] | null;
+  skipped_non_working_days?: number;
 }
 
 function mapSeriesRule(data: BackendSeriesRule): SeriesRule {
@@ -184,6 +194,7 @@ function mapSeriesRule(data: BackendSeriesRule): SeriesRule {
     weekPattern: data.week_pattern,
     validFrom: data.valid_from,
     validUntil: data.valid_until,
+    includeSchoolBreaks: data.include_school_breaks ?? false,
   };
 }
 
@@ -425,6 +436,7 @@ async function readSeriesResult(response: Response): Promise<SeriesResult> {
     seriesId: json.data.series_id.toString(),
     created: json.data.created,
     skippedDates: json.data.skipped_dates ?? [],
+    skippedNonWorkingDays: json.data.skipped_non_working_days ?? 0,
   };
 }
 
@@ -447,6 +459,7 @@ class StaffShiftSeriesService {
         week_pattern: payload.weekPattern,
         valid_from: payload.validFrom,
         valid_until: payload.validUntil,
+        include_school_breaks: payload.includeSchoolBreaks,
       }),
     });
     return readSeriesResult(response);
@@ -487,6 +500,9 @@ class StaffShiftSeriesService {
             : {}),
           ...(payload.validUntil !== undefined
             ? { valid_until: payload.validUntil }
+            : {}),
+          ...(payload.includeSchoolBreaks !== undefined
+            ? { include_school_breaks: payload.includeSchoolBreaks }
             : {}),
         }),
       },

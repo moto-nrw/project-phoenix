@@ -74,7 +74,7 @@ func (rs *Resource) createChangeRequest(w http.ResponseWriter, r *http.Request) 
 	}
 	token := strings.TrimSpace(chi.URLParam(r, "statusToken"))
 	if token == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("status token is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(errors.New("status token is required"), common.CodeEnrollmentStatusLinkInvalid))
 		return
 	}
 	body := &CreateChangeRequestRequest{}
@@ -105,7 +105,7 @@ func (rs *Resource) listPublicChangeRequests(w http.ResponseWriter, r *http.Requ
 	}
 	token := strings.TrimSpace(chi.URLParam(r, "statusToken"))
 	if token == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("status token is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(errors.New("status token is required"), common.CodeEnrollmentStatusLinkInvalid))
 		return
 	}
 	rows, err := rs.ChangeRequestService.ListPublic(r.Context(), token)
@@ -341,16 +341,17 @@ func mapChangeRequestError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, capability.ErrRequestNotFound),
 		errors.Is(err, capability.ErrChangeRequestNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(err))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentChangeRequestNotFound))
 	case errors.Is(err, capability.ErrChangeRequestChildLocked):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentChangeRequestChildLocked))
 	case errors.Is(err, capability.ErrChangeRequestNotAllowed),
 		errors.Is(err, capability.ErrEditNotAllowed):
-		common.RenderError(w, r, common.ErrorForbidden(err))
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentChangeRequestNotAllowed))
 	case errors.Is(err, capability.ErrChangeRequestConflict):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentChangeRequestConflict))
-	case errors.Is(err, capability.ErrChangeRequestInvalidStatus),
-		errors.Is(err, capability.ErrChangeRequestInvalidData):
+	case errors.Is(err, capability.ErrChangeRequestInvalidStatus):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentChangeRequestStatusChanged))
+	case errors.Is(err, capability.ErrChangeRequestInvalidData):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	// Approving a change (or correcting child data) replaces the student's
 	// departure plan through StudentRepository.Update, which reconciles the

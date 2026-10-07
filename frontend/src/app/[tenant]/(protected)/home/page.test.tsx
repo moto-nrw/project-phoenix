@@ -1,8 +1,15 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { createElement, type ReactNode } from "react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { createElement, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import HomePage from "./page";
+import { ToastProvider } from "~/contexts/ToastContext";
+
 import type {
   HomeBlockPlacement,
   HomeBlockPolicies,
@@ -21,6 +28,11 @@ const mockRedirect = vi.fn();
 const { schoolPortalLoginUrl } = vi.hoisted(() => ({
   schoolPortalLoginUrl: vi.fn(() => "https://schule.example.test/login"),
 }));
+
+// Fehler einer Aktion kommen als Toast (#2517).
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
@@ -199,6 +211,8 @@ import {
   leadsSchool,
 } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr/hooks";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 const analytics = {
   studentsPresent: 150,
@@ -379,18 +393,23 @@ describe("Startseite", () => {
   });
 
   it("behält die Zahlen, wenn eine spätere Abfrage fehlschlägt", async () => {
-    vi.mocked(useSWRAuth).mockReturnValue(
-      mockSWR(analytics, new Error("fetch failed")),
+    const swr = mockSWR(
+      analytics,
+      new ApiError("fetch failed", 503, { code: "general.unavailable" }),
     );
+    vi.mocked(useSWRAuth).mockReturnValue(swr);
 
     render(<HomePage />);
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("Fehler beim Laden der Dashboard-Daten"),
-      ).toBeInTheDocument();
-      expect(screen.getByText("150")).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Übersicht der Kennzahlen"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("150")).toBeInTheDocument();
+    // Der Banner der Seite steht vor allen Karten.
+    fireEvent.click(screen.getAllByRole("button", { name: "Wiederholen" })[0]!);
+    expect(swr.mutate).toHaveBeenCalled();
   });
 
   it("leitet zur Anmeldung, wenn die Sitzung abgelaufen ist", async () => {
@@ -501,6 +520,28 @@ describe("Startseite anpassen", () => {
     expect(
       screen.queryByRole("button", { name: "Entfernen" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("meldet ein gescheitertes Speichern als Toast und lässt den Entwurf offen", async () => {
+    save.mockRejectedValueOnce(
+      new ApiError("Home layout save failed", 503, {
+        code: "general.unavailable",
+      }),
+    );
+    startEditing();
+    select("Tagesinformationen");
+    fireEvent.click(screen.getByRole("button", { name: "Volle Breite" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Anordnung der Startseite"),
+      ),
+    ).toBeInTheDocument();
+    // Noch im Anpassen-Modus: die Änderung ist nicht verloren.
+    expect(screen.getByRole("button", { name: "Fertig" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Wiederholen/ }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
   });
 
   it("ändert die Breite der ausgewählten Karte und speichert sie", async () => {

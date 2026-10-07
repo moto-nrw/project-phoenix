@@ -23,6 +23,7 @@ import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
 import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -111,6 +112,8 @@ function ActivitiesPageContent() {
       const [activitiesData, categoriesData, staffData] = await Promise.all([
         fetchActivities(),
         getCategories(),
+        // Bewusst still: wer kein Personalprofil hat, sieht die Liste ohne
+        // den Filter „Meine Aktivitäten“.
         userContextService.getCurrentStaff().catch((err) => {
           logger.debug("get_current_staff_failed", {
             error: err instanceof Error ? err.message : String(err),
@@ -151,7 +154,10 @@ function ActivitiesPageContent() {
     () => pageData?.currentStaff ?? null,
     [pageData?.currentStaff],
   );
-  const error = fetchError ? "Fehler beim Laden der Aktivitäten" : null;
+  // Ladefehler mit Katalogtext, Wiederholen und Vorgangskennung (#2517).
+  const error = useSwrLoadError(fetchError, "die Liste der Aktivitäten", () =>
+    mutatePageData(),
+  );
 
   // Apply filters
   useEffect(() => {
@@ -294,9 +300,13 @@ function ActivitiesPageContent() {
 
   const hasFilters =
     searchTerm !== "" || categoryFilter !== "all" || myActivitiesFilter;
-  const stats = hasFilters
-    ? `${filteredActivities.length} von ${activities.length} Aktivitäten · ${categories.length} ${categories.length === 1 ? "Kategorie" : "Kategorien"}`
-    : `${activities.length} ${activities.length === 1 ? "Aktivität" : "Aktivitäten"} · ${categories.length} ${categories.length === 1 ? "Kategorie" : "Kategorien"}`;
+  // Ohne geladene Liste steht keine "0 Aktivitäten" neben dem Ladefehler
+  // (#2517).
+  const stats = !pageData
+    ? null
+    : hasFilters
+      ? `${filteredActivities.length} von ${activities.length} Aktivitäten · ${categories.length} ${categories.length === 1 ? "Kategorie" : "Kategorien"}`
+      : `${activities.length} ${activities.length === 1 ? "Aktivität" : "Aktivitäten"} · ${categories.length} ${categories.length === 1 ? "Kategorie" : "Kategorien"}`;
 
   return (
     <>
@@ -368,9 +378,9 @@ function ActivitiesPageContent() {
               onClose={() => setIsQuickCreateOpen(false)}
               onSuccess={() => {
                 // Don't close here - let the modal handle its own closing
-                handleManagementSuccess().catch(() => {
-                  // Error already handled in handleManagementSuccess
-                });
+                // Bewusst still: SWR hält einen Fehler beim Neuladen selbst
+                // fest, die Seite zeigt ihn als Ladefehler.
+                handleManagementSuccess().catch(() => undefined);
               }}
             />
           </>

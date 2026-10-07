@@ -3,15 +3,17 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
 import { useTranslations } from "next-intl";
 import { Loader2 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
 import { PushInstallSteps } from "~/components/settings/push-install-steps";
 import {
@@ -19,6 +21,7 @@ import {
   setNotificationPreference,
   type NotificationPreferenceType,
 } from "~/lib/notification-preferences-api";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   isPushConfigurationMissing,
@@ -60,6 +63,7 @@ function readDecision(key: string): StoredDecision {
     const value = localStorage.getItem(key);
     return value ? (JSON.parse(value) as StoredDecision) : {};
   } catch {
+    // Unreadable browser storage counts as "not decided yet".
     return {};
   }
 }
@@ -105,7 +109,12 @@ export function NotificationSetupDialog({
   const [mode, setMode] = useState<SetupMode | null>(null);
   const [types, setTypes] = useState<NotificationPreferenceType[]>([]);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Fehler bleiben im offenen Dialog (#2517). Ein API-Fehler zeigt im OGS-
+  // und Schulportal den Katalogtext; das Elternportal und Ablehnungen des
+  // Browsers behalten ihren übersetzten Satz (#2518).
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const dialogErrors = useApiFormError(dialogRef);
+  const latestEnableRef = useRef<() => void>(() => undefined);
   const [installAccepted, setInstallAccepted] = useState(false);
   const installPromptReady = useSyncExternalStore(
     subscribeInstallPrompt,
@@ -146,6 +155,8 @@ export function NotificationSetupDialog({
           await verifyPushConfiguration(portal);
           if (active) setMode("install-ios");
         } catch (err) {
+          // Prüfung ohne Zutun der Person: scheitert sie, öffnet sich der
+          // Dialog einfach nicht. Die Einstellungskarte bietet ihn weiter an.
           if (!isPushConfigurationMissing(err)) {
             logger.warn("push_configuration_check_failed", {
               portal,
@@ -166,6 +177,8 @@ export function NotificationSetupDialog({
           await verifyPushConfiguration(portal);
           if (active) setMode("install-android");
         } catch (err) {
+          // Prüfung ohne Zutun der Person: scheitert sie, öffnet sich der
+          // Dialog einfach nicht. Die Einstellungskarte bietet ihn weiter an.
           if (!isPushConfigurationMissing(err)) {
             logger.warn("push_configuration_check_failed", {
               portal,
@@ -195,6 +208,7 @@ export function NotificationSetupDialog({
         if (!subscription || !hasEnabledType) setMode("enable");
         else writeDecision(storageKey, { done: true });
       } catch (err) {
+        // Same: a failed background check only means the dialog stays shut.
         if (isPushConfigurationMissing(err)) return;
         logger.warn("notification_setup_check_failed", {
           portal,
@@ -230,7 +244,7 @@ export function NotificationSetupDialog({
 
   const installAndroid = async () => {
     setBusy(true);
-    setError(null);
+    dialogErrors.clear();
     try {
       const outcome = await triggerInstallPrompt();
       if (outcome === "accepted") {
@@ -245,7 +259,8 @@ export function NotificationSetupDialog({
         portal,
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(t("installError"));
+      // Kein API-Fehler: der Browser hat die Installation nicht angeboten.
+      dialogErrors.invalid(t("installError"));
     } finally {
       setBusy(false);
     }
@@ -253,7 +268,7 @@ export function NotificationSetupDialog({
 
   const enable = async () => {
     setBusy(true);
-    setError(null);
+    dialogErrors.clear();
     try {
       const pushRequest = subscribePush(portal);
       const preferenceRequests = types
@@ -268,11 +283,22 @@ export function NotificationSetupDialog({
         error: err instanceof Error ? err.message : String(err),
       });
       if (Notification.permission === "denied") setMode("denied");
-      setError(t("enableError"));
+      if (portal === "parent" || Notification.permission !== "granted") {
+        dialogErrors.invalid(t("enableError"));
+      } else {
+        void dialogErrors.show(err, {
+          object: "das Einschalten der Benachrichtigungen",
+          retry: () => latestEnableRef.current(),
+        });
+      }
     } finally {
       setBusy(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestEnableRef.current = () => void enable();
+  });
 
   if (!mode) return null;
 
@@ -349,7 +375,7 @@ export function NotificationSetupDialog({
       mobileSheet
       focusTitleOnOpen
     >
-      <div className="space-y-5">
+      <div ref={dialogRef} className="space-y-5">
         {/* Anleitungen tragen ihre eigenen Schrittsymbole; ein zweites Symbol
             darüber stünde nur allein in einer Zeile herum. Bei den kurzen
             Texten steht es neben dem Satz, wie im Kopf der Einstellungskarte. */}
@@ -379,7 +405,7 @@ export function NotificationSetupDialog({
           </div>
         )}
 
-        {error && <Alert type="error" message={error} />}
+        <FormErrorAlert message={dialogErrors.error} />
       </div>
     </Modal>
   );

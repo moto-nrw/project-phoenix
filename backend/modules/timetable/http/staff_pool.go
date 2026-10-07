@@ -67,7 +67,7 @@ func (rs *Resource) getStaffPool(w http.ResponseWriter, r *http.Request) {
 	pool, err := rs.ConflictDetection.StaffPoolForInstance(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, timetable.ErrActivityInstanceNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("instance not found"), common.CodeTimetableInstanceNotFound))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load staff pool failed", err))

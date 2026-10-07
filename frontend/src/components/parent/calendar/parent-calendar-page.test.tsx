@@ -12,6 +12,9 @@ import {
   respondParentCalendar,
 } from "~/lib/personal-calendar-api";
 import { toISODate } from "~/lib/date-helpers";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { ParentCalendarPage } from "./parent-calendar-page";
 
 const toastSuccess = vi.fn();
@@ -22,7 +25,10 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => searchParams,
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+// Der echte Fehlerweg (useApiErrorDisplay) zeigt Fehler im ToastProvider;
+// nur die direkten Erfolgs-Toasts der Seite werden abgefangen.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: toastSuccess, error: toastError }),
 }));
 
@@ -69,7 +75,7 @@ function calendarResponse(events: ReturnType<typeof event>[]) {
 }
 
 function renderPage() {
-  return render(<ParentCalendarPage />);
+  return render(<ParentCalendarPage />, { wrapper: ToastProvider });
 }
 
 beforeEach(() => {
@@ -407,16 +413,100 @@ describe("ParentCalendarPage", () => {
     ).toBeTruthy();
   });
 
-  it("meldet einen Ladefehler in Alltagssprache", async () => {
-    mockedCalendar.mockRejectedValue(new Error("offline"));
+  // #2518: Ladefehler mit Katalogtext und Wiederholen an der Stelle der
+  // Termine, ohne Leerzustand und ohne leeres Monatsraster daneben.
+  it("meldet einen Ladefehler in Alltagssprache und lädt erneut", async () => {
+    mockedCalendar
+      .mockRejectedValueOnce(
+        new ApiError("offline", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce(calendarResponse([event()]));
     renderPage();
     expect(
       await screen.findByText(
-        /Die Termine konnten gerade nicht geladen werden/,
+        catalogText("general.unavailable", "die Liste der Termine"),
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/offline/)).not.toBeInTheDocument();
     expect(
       screen.queryByText("In den nächsten 3 Monaten stehen keine Termine an."),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("parent-calendar-month-grid"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(
+      await screen.findByRole("article", { name: "Elternabend" }),
+    ).toBeInTheDocument();
+    expect(mockedCalendar).toHaveBeenCalledTimes(2);
+  });
+
+  it("zeigt einen Fehler der Rückmeldung in der Terminzeile als Toast", async () => {
+    mockedCalendar.mockResolvedValue(
+      calendarResponse([
+        event({
+          can_respond: true,
+          response_status: "pending",
+          recipient_id: "77",
+        }),
+      ]),
+    );
+    mockedRespond.mockRejectedValueOnce(
+      new ApiError("kaputt", 500, { code: "general.server" }),
+    );
+    renderPage();
+
+    const row = await screen.findByRole("article", { name: "Elternabend" });
+    fireEvent.click(within(row).getByRole("button", { name: "Zusagen" }));
+
+    expect(
+      await screen.findByText(catalogText("general.server", "die Antwort")),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/kaputt/)).not.toBeInTheDocument();
+    expect(toastSuccess).not.toHaveBeenCalled();
+    // Nothing was stored, so the buttons stay.
+    expect(
+      within(row).getByRole("button", { name: "Zusagen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("zeigt einen Fehler der Rückmeldung im offenen Popover und wiederholt", async () => {
+    mockedCalendar.mockResolvedValue(
+      calendarResponse([
+        event({
+          can_respond: true,
+          response_status: "pending",
+          recipient_id: "77",
+        }),
+      ]),
+    );
+    mockedRespond.mockRejectedValueOnce(
+      new ApiError("weg", 503, { code: "general.unavailable" }),
+    );
+    renderPage();
+
+    const monthGrid = await screen.findByTestId("parent-calendar-month-grid");
+    fireEvent.click(
+      within(monthGrid).getByRole("button", {
+        name: /Elternabend, 18:00 - 20:00, Antwort erforderlich/,
+      }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Elternabend" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Zusagen" }));
+
+    expect(
+      await within(dialog).findByText(
+        catalogText("general.unavailable", "die Antwort"),
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Wiederholen" }),
+    );
+
+    await waitFor(() => expect(mockedRespond).toHaveBeenCalledTimes(2));
+    expect(await within(dialog).findByText("Zugesagt")).toBeInTheDocument();
   });
 });

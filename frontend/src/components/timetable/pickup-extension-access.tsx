@@ -11,6 +11,7 @@ import {
 import type { ReactNode } from "react";
 
 import { PickupExtensionDialog } from "~/components/timetable/pickup-extension-dialog";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   fetchPickupExtensions,
@@ -41,27 +42,40 @@ export function PickupExtensionAccessProvider({
   children,
 }: Readonly<{ value: boolean; children: ReactNode }>) {
   const [open, setOpen] = useState<readonly PickupExtension[]>([]);
+  const { show: showReloadError } = useApiErrorDisplay();
   const reloadGeneration = useRef(0);
   const replaceOpenTasks = useCallback((tasks: readonly PickupExtension[]) => {
     reloadGeneration.current += 1;
     setOpen(tasks);
   }, []);
-  const reloadOpenTask = useCallback((task: PickupExtension) => {
-    const generation = reloadGeneration.current + 1;
-    reloadGeneration.current = generation;
-    void fetchPickupExtensions(task.studentId)
-      .then((tasks) => {
-        if (generation === reloadGeneration.current) setOpen(tasks);
-      })
-      .catch((err: unknown) => {
-        if (generation !== reloadGeneration.current) return;
-        logger.warn("pickup_extension_reload_failed", {
-          error: err instanceof Error ? err.message : String(err),
-          task_id: task.id,
+  const reloadOpenTask = useCallback(
+    function reload(task: PickupExtension) {
+      const generation = reloadGeneration.current + 1;
+      reloadGeneration.current = generation;
+      void fetchPickupExtensions(task.studentId)
+        .then((tasks) => {
+          if (generation === reloadGeneration.current) setOpen(tasks);
+        })
+        .catch((err: unknown) => {
+          // Bewusst still: ein neuerer Aufruf oder das Schließen hat diesen
+          // Abruf schon abgelöst; sein Ergebnis zählt nicht mehr.
+          if (generation !== reloadGeneration.current) return;
+          logger.warn("pickup_extension_reload_failed", {
+            error: err instanceof Error ? err.message : String(err),
+            task_id: task.id,
+          });
+          // Ohne neue Terminliste schließt die Auswahl; die Frage bleibt als
+          // Aufgabe auf der Startseite. Der Toast nennt den Fehler, und
+          // Wiederholen lädt die Auswahl neu und öffnet sie wieder.
+          setOpen([]);
+          void showReloadError(err, {
+            object: "die Liste der Termine",
+            retry: () => reload(task),
+          });
         });
-        setOpen([]);
-      });
-  }, []);
+    },
+    [showReloadError],
+  );
   const context = useMemo(
     () => ({ enabled: value, prompt: replaceOpenTasks }),
     [value, replaceOpenTasks],

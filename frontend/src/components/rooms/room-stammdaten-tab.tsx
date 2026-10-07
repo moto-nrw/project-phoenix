@@ -1,7 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { DatabaseForm } from "~/components/ui/database/database-form";
+import {
+  DatabaseForm,
+  type DatabaseFormErrorPath,
+} from "~/components/ui/database/database-form";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -12,6 +15,8 @@ interface RoomStammdatenTabProps {
   readonly room: Room;
   readonly showOccupancy: boolean;
   readonly onSave: (data: Partial<Room>) => Promise<void>;
+  /** Shared error path (#2517): catalog text, field errors at the field. */
+  readonly errorPath: DatabaseFormErrorPath;
 }
 
 /**
@@ -24,6 +29,7 @@ export function RoomStammdatenTab({
   room,
   showOccupancy,
   onSave,
+  errorPath,
 }: RoomStammdatenTabProps) {
   const [formResetCounter, setFormResetCounter] = useState(0);
   const sections = useMemo(() => buildRoomFormSections(room), [room]);
@@ -75,6 +81,8 @@ export function RoomStammdatenTab({
           submitLabel="Speichern"
           stickyActions
           sectionLevel={3}
+          errorPath={errorPath}
+          errorObject="das Speichern des Raums"
         />
       </SectionCard>
     </div>

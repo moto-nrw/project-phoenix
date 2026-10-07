@@ -583,4 +583,31 @@ describe("OverflowMenu", () => {
       screen.getByRole("menuitemcheckbox", { name: "E-Mail an mich" }),
     ).toHaveAttribute("aria-checked", "true");
   });
+
+  it("keeps the menu open after a keepOpen checkbox entry (#3834)", () => {
+    const toggle = vi.fn();
+    render(
+      <OverflowMenu
+        items={[
+          {
+            kind: "checkbox",
+            label: "Klasse",
+            checked: true,
+            keepOpen: true,
+            onClick: toggle,
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Weitere Aktionen/i }));
+    const entry = screen.getByRole("menuitemcheckbox", { name: "Klasse" });
+
+    fireEvent.click(entry);
+    expect(toggle).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    fireEvent.keyDown(entry, { key: "Enter" });
+    expect(toggle).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
 });

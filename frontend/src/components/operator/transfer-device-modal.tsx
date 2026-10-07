@@ -13,14 +13,22 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormModal } from "~/components/ui/form-modal";
-import { useToast } from "~/contexts/ToastContext";
-import { isOperatorApiError } from "~/lib/operator/api-helpers";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import type { FormError } from "~/components/ui/form-error";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
+import { createLogger } from "~/lib/logger";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type {
   DeviceTransferStatus,
   OperatorDevice,
   School,
 } from "~/lib/operator/provisioning-helpers";
+
+const logger = createLogger({ component: "TransferDeviceModal" });
 
 interface TransferDeviceModalProps {
   readonly device: OperatorDevice | null;
@@ -35,7 +43,7 @@ interface TransferDeviceContentProps {
   readonly targetSchoolId: string;
   readonly status: DeviceTransferStatus | null;
   readonly statusLoading: boolean;
-  readonly error: string;
+  readonly statusError: FormError | null;
   readonly schoolLabelId: string;
   readonly onTargetSchoolChange: (schoolId: string) => void;
   readonly onRefreshStatus: () => Promise<void>;
@@ -88,14 +96,15 @@ function useDeviceTransferStatus(
 ) {
   const [status, setStatus] = useState<DeviceTransferStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
-  const [error, setError] = useState("");
+  const statusLoad = useApiLoadError();
+  const { show: showStatusError, clear: clearStatusError } = statusLoad;
   const statusRequestId = useRef(0);
 
   const refreshStatus = useCallback(async () => {
     if (!device) return;
     const requestId = ++statusRequestId.current;
     setStatusLoading(true);
-    setError("");
+    clearStatusError();
     try {
       const nextStatus =
         await operatorProvisioningService.getDeviceTransferStatus(device.id);
@@ -103,33 +112,38 @@ function useDeviceTransferStatus(
     } catch (statusError) {
       if (statusRequestId.current === requestId) {
         setStatus(null);
-        setError(
-          statusError instanceof Error
-            ? statusError.message
-            : "Der Gerätestatus konnte nicht geladen werden.",
-        );
+        logger.warn("device_transfer_status_failed", {
+          device_id: device.id,
+          error:
+            statusError instanceof Error
+              ? statusError.message
+              : String(statusError),
+        });
+        void showStatusError(statusError, {
+          object: "die Prüfung des Gerätestatus",
+          retry: () => void refreshStatus(),
+        });
       }
     } finally {
       if (statusRequestId.current === requestId) setStatusLoading(false);
     }
-  }, [device]);
+  }, [device, showStatusError, clearStatusError]);
 
   useEffect(() => {
     resetTargetSchool();
     setStatus(null);
-    setError("");
+    clearStatusError();
     if (!device) {
       statusRequestId.current += 1;
       return;
     }
     void refreshStatus();
-  }, [device, refreshStatus, resetTargetSchool]);
+  }, [device, refreshStatus, resetTargetSchool, clearStatusError]);
 
   return {
     status,
     statusLoading,
-    error,
-    setError,
+    statusError: statusLoad.error,
     refreshStatus,
   };
 }
@@ -140,7 +154,7 @@ function TransferDeviceContent({
   targetSchoolId,
   status,
   statusLoading,
-  error,
+  statusError,
   schoolLabelId,
   onTargetSchoolChange,
   onRefreshStatus,
@@ -172,6 +186,8 @@ function TransferDeviceContent({
         type="info"
         message="Geräte-ID und API-Key bleiben erhalten. Die Raumzuordnung wird entfernt; bisherige Anwesenheiten und Sitzungen bleiben bei der aktuellen Schule."
       />
+
+      <LoadErrorAlert error={statusError} />
 
       {statusLoading && status == null ? (
         <output className="block text-sm text-gray-500">
@@ -235,8 +251,6 @@ function TransferDeviceContent({
           message="Für diesen Träger gibt es keine weitere aktive Schule als Ziel."
         />
       )}
-
-      {error ? <Alert type="error" message={error} /> : null}
     </div>
   );
 }
@@ -252,8 +266,14 @@ export function TransferDeviceModal({
   const schoolLabelId = useId();
   const { success: toastSuccess } = useToast();
   const resetTargetSchool = useCallback(() => setTargetSchoolId(""), []);
-  const { status, statusLoading, error, setError, refreshStatus } =
+  const { status, statusLoading, statusError, refreshStatus } =
     useDeviceTransferStatus(device, resetTargetSchool);
+  const transferErrors = useApiFormError();
+  const { show: showTransferError, clear: clearTransferError } = transferErrors;
+
+  useEffect(() => {
+    clearTransferError();
+  }, [device, clearTransferError]);
 
   const destinations = useMemo(
     () => getTransferDestinations(device, schools),
@@ -263,7 +283,7 @@ export function TransferDeviceModal({
   const handleTransfer = useCallback(async () => {
     if (!device || !targetSchoolId || !status?.canTransfer) return;
     setSaving(true);
-    setError("");
+    clearTransferError();
     try {
       const transferred = await operatorProvisioningService.transferDevice(
         device.id,
@@ -275,18 +295,18 @@ export function TransferDeviceModal({
       );
       onClose();
     } catch (transferError) {
-      if (isOperatorApiError(transferError) && transferError.status === 409) {
-        setError(
-          "Das Gerät kann gerade nicht verschoben werden. Prüfe den aktuellen Status.",
-        );
-        await refreshStatus();
-      } else {
-        setError(
+      logger.error("device_transfer_failed", {
+        device_id: device.id,
+        error:
           transferError instanceof Error
             ? transferError.message
-            : "Das Gerät konnte nicht verschoben werden.",
-        );
-      }
+            : String(transferError),
+      });
+      void showTransferError(transferError, {
+        object: "die Übertragung des Geräts",
+      });
+      // The device may have come online or opened a session meanwhile.
+      await refreshStatus();
     } finally {
       setSaving(false);
     }
@@ -295,7 +315,8 @@ export function TransferDeviceModal({
     onClose,
     onTransferred,
     refreshStatus,
-    setError,
+    showTransferError,
+    clearTransferError,
     status?.canTransfer,
     targetSchoolId,
     toastSuccess,
@@ -307,6 +328,7 @@ export function TransferDeviceModal({
       onClose={onClose}
       title="Gerät verschieben"
       size="md"
+      error={transferErrors.error}
       footer={
         <>
           <Button type="button" variant="outline" size="md" onClick={onClose}>
@@ -337,7 +359,7 @@ export function TransferDeviceModal({
           targetSchoolId={targetSchoolId}
           status={status}
           statusLoading={statusLoading}
-          error={error}
+          statusError={statusError}
           schoolLabelId={schoolLabelId}
           onTargetSchoolChange={setTargetSchoolId}
           onRefreshStatus={refreshStatus}

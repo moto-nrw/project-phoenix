@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useEffect, useState } from "react";
 import { render, waitFor, fireEvent, screen } from "@testing-library/react";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError, unavailableApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 const mockFetchSchema = vi.fn<() => Promise<unknown>>();
 const mockSetSettingValue = vi.fn<() => Promise<string | null>>();
@@ -107,8 +109,8 @@ const mockSearchParams = { value: "" };
 vi.mock("~/lib/settings-api", () => ({
   SETTINGS_SCHEMA_SWR_KEY: "settings-schema",
   fetchSettingsSchema: () => mockFetchSchema(),
-  setSettingValue: (_k: string, _v: unknown) => mockSetSettingValue(),
-  resetSettingValue: (_k: string) => mockResetSettingValue(),
+  saveSettingValue: (_k: string, _v: unknown) => mockSetSettingValue(),
+  clearSettingValue: (_k: string) => mockResetSettingValue(),
 }));
 
 const mockRefreshSupervision = vi.fn(() => Promise.resolve());
@@ -544,10 +546,12 @@ describe("SettingsContent (via renderTab)", () => {
     });
   });
 
-  it("shows error banner on save network error", async () => {
+  // #2517: a failed save is a toast with the catalog text, not a banner in
+  // the tab; "Wiederholen" sends the same value again.
+  it("shows a failed save as a toast and retries it", async () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
-    mockSetSettingValue.mockResolvedValue(
-      "Netzwerkfehler beim Speichern der Einstellung.",
+    mockSetSettingValue.mockRejectedValueOnce(
+      unavailableApiError(new Error("offline")),
     );
 
     renderWithProviders(<RenderedTab tabId="settings-operations" />);
@@ -555,59 +559,34 @@ describe("SettingsContent (via renderTab)", () => {
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
-    await waitFor(() => {
-      // Error banner has specific styling — look for it in the banner container
-      const banner = settingsErrorBanner();
-      expect(banner).not.toBeNull();
-      expect(banner!.textContent).toContain("Netzwerkfehler");
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Einstellung „Aktiviert“"),
+      ),
+    ).toBeInTheDocument();
+    expect(settingsErrorBanner()).toBeNull();
+
+    mockSetSettingValue.mockResolvedValueOnce(null);
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mockSetSettingValue).toHaveBeenCalledTimes(2));
+    expect(
+      await screen.findByText("Die Einstellung „Aktiviert“ ist gespeichert."),
+    ).toBeInTheDocument();
   });
 
-  it("shows error banner on save server error", async () => {
+  it("shows the class text for a rejected value", async () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
-    mockSetSettingValue.mockResolvedValue(
-      "Einstellung konnte nicht gespeichert werden.",
-    );
+    mockSetSettingValue.mockRejectedValueOnce(new ApiError("bad", 400));
 
     renderWithProviders(<RenderedTab tabId="settings-operations" />);
     await openCategory();
-    const toggle = await screen.findByRole("switch");
-    fireEvent.click(toggle);
+    fireEvent.click(await screen.findByRole("switch"));
 
-    await waitFor(() => {
-      const banner = settingsErrorBanner();
-      expect(banner).not.toBeNull();
-      expect(banner!.textContent).toContain("Einstellung konnte nicht");
-    });
-  });
-
-  it("dismisses error banner when clicking close", async () => {
-    mockFetchSchema.mockResolvedValue(mockSchema);
-    mockSetSettingValue.mockResolvedValue(
-      "Netzwerkfehler beim Speichern der Einstellung.",
-    );
-
-    renderWithProviders(<RenderedTab tabId="settings-operations" />);
-    await openCategory();
-    const toggle = await screen.findByRole("switch");
-    fireEvent.click(toggle);
-
-    await waitFor(() => {
-      expect(settingsErrorBanner()).not.toBeNull();
-    });
-
-    // Click the dismiss button
-    const closeButton = screen.getByLabelText("Fehler schließen");
-    fireEvent.click(closeButton);
-
-    await waitFor(() => {
-      expect(settingsErrorBanner()).toBeNull();
-      expect(
-        screen.getByRole("alert", {
-          name: "Fehler: Netzwerkfehler beim Speichern der Einstellung.",
-        }),
-      ).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.input", "die Einstellung „Aktiviert“"),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("resets value and reloads schema", async () => {
@@ -657,9 +636,7 @@ describe("SettingsContent (via renderTab)", () => {
 
   it("shows error banner on reset failure", async () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
-    mockResetSettingValue.mockResolvedValue(
-      "Einstellung konnte nicht zurückgesetzt werden.",
-    );
+    mockResetSettingValue.mockRejectedValue(new ApiError("boom", 500));
 
     // Need non-default values to show reset button
     const schemaWithOverride = {
@@ -697,63 +674,27 @@ describe("SettingsContent (via renderTab)", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText("Einstellung konnte nicht zurückgesetzt werden."),
+          screen.getByText(
+            catalogText("general.server", "die Einstellung „Aktiviert“"),
+          ),
         ).toBeDefined();
       });
     }
   });
 
-  it("clears error after successful save", async () => {
-    mockFetchSchema.mockResolvedValue(mockSchema);
-
-    // First save fails
-    mockSetSettingValue.mockResolvedValueOnce(
-      "Netzwerkfehler beim Speichern der Einstellung.",
-    );
+  it("shows a failed schema load in place with retry", async () => {
+    mockFetchSchema.mockRejectedValue(new ApiError("boom", 500));
 
     renderWithProviders(<RenderedTab tabId="settings-operations" />);
-    await openCategory();
-    const toggle = await screen.findByRole("switch");
-    fireEvent.click(toggle);
 
-    await waitFor(() => {
-      expect(settingsErrorBanner()).not.toBeNull();
-    });
-
-    // Second save succeeds
-    mockSetSettingValue.mockResolvedValueOnce(null);
-    fireEvent.click(toggle);
-
-    await waitFor(() => {
-      expect(settingsErrorBanner()).toBeNull();
-      expect(
-        screen.getByRole("alert", {
-          name: "Fehler: Netzwerkfehler beim Speichern der Einstellung.",
-        }),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("does not show error banner for validation errors", async () => {
-    mockFetchSchema.mockResolvedValue(mockSchema);
-    // A validation error like "Minimum: 5" should NOT be shown as a banner
-    mockSetSettingValue.mockResolvedValue("Minimum: 5");
-
-    renderWithProviders(<RenderedTab tabId="settings-operations" />);
-    await openCategory();
-    const toggle = await screen.findByRole("switch");
-    fireEvent.click(toggle);
-
-    // Wait for save to complete
-    await waitFor(() => {
-      expect(mockSetSettingValue).toHaveBeenCalled();
-    });
-
-    // Validation errors don't match the banner condition — no banner should appear
-    expect(settingsErrorBanner()).toBeNull();
     expect(
-      screen.getByRole("alert", { name: "Fehler: Minimum: 5" }),
+      await screen.findByText(
+        catalogText("general.server", "die Liste der Einstellungen"),
+      ),
     ).toBeInTheDocument();
+    mockFetchSchema.mockResolvedValue(mockSchema);
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText("Sitzungen")).toBeInTheDocument();
   });
 
   it("refreshes supervision context after changing the operational overview scope", async () => {

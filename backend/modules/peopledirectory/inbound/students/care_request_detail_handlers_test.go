@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -167,4 +168,14 @@ func TestCareRequestDetail_RefusesUnauthorizedReaders(t *testing.T) {
 	// A removed or foreign request is not found, never misattributed.
 	code, _ = getCareRequestDetail(t, tc, pending.ID+1_000_000, testutil.AdminTestClaims(int(staffAccount.ID)), []string{"admin:*"})
 	assert.Equal(t, http.StatusNotFound, code)
+
+	// The dialog tells a gone request apart by its code, not the status (#2517).
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("/care-schedule-change-requests/%d", pending.ID+1_000_000), nil)
+	require.NoError(t, err)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(int(staffAccount.ID)), []string{"admin:*"})
+	var problem struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &problem), rr.Body.String())
+	assert.Equal(t, common.CodeCareRequestNotFound, problem.Code)
 }

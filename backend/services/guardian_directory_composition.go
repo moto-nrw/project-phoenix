@@ -341,6 +341,10 @@ func mapGuardianError(err error) error {
 	var validation *usersSvc.ValidationError
 	var stillLinked *usersSvc.GuardianStillLinkedError
 	switch {
+	case errors.As(err, &validation) && errors.Is(err, usersSvc.ErrGuardianEmailInUse):
+		// Still invalid input for every caller; the sentinel adds the code.
+		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianEmailTaken,
+			&peopledirectory.InvalidGuardianError{Reason: validation.Error()})
 	case errors.As(err, &validation):
 		return &peopledirectory.InvalidGuardianError{Reason: validation.Error()}
 	case errors.As(err, &stillLinked):

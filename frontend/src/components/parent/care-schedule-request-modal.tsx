@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
 import { TimeField } from "~/components/ui/time-field";
+import { useApiFormError } from "~/contexts/ToastContext";
 import {
   ParentApiError,
   type CareScheduleRequestInput,
@@ -45,8 +47,13 @@ type Capabilities = ChildCareSchedule["request_capabilities"];
 type Weekdays = ChildCareSchedule["weekdays"];
 type SubmitRequest = (payload: CareScheduleRequestInput) => Promise<void>;
 
-function requestErrorKey(error: unknown): string {
-  if (!(error instanceof ParentApiError)) return "requestError";
+/**
+ * The OGS rules this form knows better than the shared catalog: each one
+ * names what the family can do instead. Every other failure goes through the
+ * shared error path.
+ */
+function knownRequestErrorKey(error: unknown): string | null {
+  if (!(error instanceof ParentApiError)) return null;
   if (error.code === "care.care_request_already_pending") {
     return "requestAlreadyPending";
   }
@@ -55,8 +62,7 @@ function requestErrorKey(error: unknown): string {
   if (error.code === "care.care_request_bookings_authoritative") {
     return "requestBookingLed";
   }
-  if (error.status === 400) return "requestInvalid";
-  return "requestError";
+  return null;
 }
 
 function requestedDay(
@@ -256,27 +262,42 @@ function useRequestForm(
   const t = useTranslations("parentMasterData.careSchedule");
   const [drafts, setDrafts] = useState(() => draftsFromWeekdays(weekdays));
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const form = useApiFormError();
+  const latestSubmitRef = useRef<() => void>(() => undefined);
   const submit = async () => {
     const { payload, missingPlan } = requestPayload(
       weekdays,
       drafts,
       capabilities,
     );
-    if (missingPlan) return setError(t("requestMissingPlan"));
-    if (payload.weekdays.length === 0) return setError(t("requestNoChange"));
+    if (missingPlan) return form.invalid(t("requestMissingPlan"));
+    if (payload.weekdays.length === 0) {
+      return form.invalid(t("requestNoChange"));
+    }
     setSubmitting(true);
-    setError(null);
+    form.clear();
     try {
       await onSubmit(payload);
       onClose();
     } catch (submitError) {
-      setError(t(requestErrorKey(submitError)));
+      const known = knownRequestErrorKey(submitError);
+      if (known) {
+        form.invalid(t(known));
+      } else {
+        // Wiederholen sendet den Entwurf, der jetzt im Dialog steht.
+        void form.show(submitError, {
+          object: t("requestErrorObject"),
+          retry: () => latestSubmitRef.current(),
+        });
+      }
     } finally {
       setSubmitting(false);
     }
   };
-  return { drafts, setDrafts, submitting, error, submit };
+  useLayoutEffect(() => {
+    latestSubmitRef.current = () => void submit();
+  });
+  return { drafts, setDrafts, submitting, error: form.error, submit };
 }
 
 function ScheduleFields({
@@ -349,7 +370,7 @@ export function CareScheduleRequestModal({
           drafts={form.drafts}
           setDrafts={form.setDrafts}
         />
-        {form.error && <Alert type="error" message={form.error} />}
+        <FormErrorAlert message={form.error} />
       </div>
     </Modal>
   );

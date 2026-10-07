@@ -3,14 +3,23 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import { staffService } from "~/lib/staff-api";
+import { catalogText } from "~/test/error-catalog-text";
 import StaffDetailContent from "./page";
 
 const replaceMock = vi.fn();
 const searchParams = vi.hoisted(() => new URLSearchParams());
-const { mockRecordUpdate, mockUpdateTeacher } = vi.hoisted(() => ({
-  mockRecordUpdate: vi.fn(),
-  mockUpdateTeacher: vi.fn(() => Promise.resolve()),
+const { mockRecordUpdate, mockUpdateTeacher, mockDeleteTeacher } = vi.hoisted(
+  () => ({
+    mockRecordUpdate: vi.fn(),
+    mockUpdateTeacher: vi.fn(() => Promise.resolve()),
+    mockDeleteTeacher: vi.fn(),
+  }),
+);
+const detailRequest = vi.hoisted(() => ({
+  error: null as unknown,
+  mutate: vi.fn(),
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -31,12 +40,16 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   useSetBreadcrumb: vi.fn(),
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
 }));
 
 vi.mock("~/lib/teacher-api", () => ({
-  teacherService: { updateTeacher: mockUpdateTeacher },
+  teacherService: {
+    updateTeacher: mockUpdateTeacher,
+    deleteTeacher: mockDeleteTeacher,
+  },
 }));
 
 // Der Personal-Datensatz für den Reiter „Konto" (#3115).
@@ -69,6 +82,14 @@ vi.mock("~/lib/swr", () => ({
     }
     if (key?.startsWith("staff-detail-")) {
       void fetcher?.();
+      if (detailRequest.error) {
+        return {
+          data: undefined,
+          isLoading: false,
+          error: detailRequest.error,
+          mutate: detailRequest.mutate,
+        };
+      }
       return {
         data: {
           id: "42",
@@ -173,6 +194,7 @@ vi.mock("./page-skeleton", () => ({
 describe("StaffDetailContent permissions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    detailRequest.error = null;
     searchParams.delete("tab");
     searchParams.delete("date");
     window.scrollTo = vi.fn();
@@ -602,5 +624,77 @@ describe("StaffDetailContent permissions", () => {
 
     expect(replaceMock).toHaveBeenCalledWith("/staff");
     searchParams.delete("from");
+  });
+
+  describe("Fehlerweg (#2514)", () => {
+    function mockAdmin(permissions: string[]) {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            id: "7",
+            token: "test-token",
+            roles: ["teacher"],
+            permissions,
+          },
+          expires: "2099-01-01T00:00:00.000Z",
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+    }
+
+    it("zeigt einen Ladefehler der Personalakte mit Wiederholen", async () => {
+      detailRequest.error = new ApiError("down", 503, {
+        code: "general.unavailable",
+      });
+      mockAdmin(["time_tracking:manage"]);
+
+      render(<StaffDetailContent />);
+
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "die Personalakte"),
+        ),
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(detailRequest.mutate).toHaveBeenCalled();
+    });
+
+    it("nennt eine gelöschte Person statt eines Ladefehlers", () => {
+      detailRequest.error = new ApiError("not found", 404, {
+        code: "general.input",
+      });
+      mockAdmin(["time_tracking:manage"]);
+
+      render(<StaffDetailContent />);
+
+      expect(
+        screen.getByText(/Diese Person gibt es nicht mehr\./),
+      ).toBeInTheDocument();
+    });
+
+    it("zeigt einen Löschfehler im offenen Dialog", async () => {
+      mockDeleteTeacher.mockRejectedValueOnce(
+        new ApiError("forbidden", 403, { code: "general.permission" }),
+      );
+      mockAdmin(["staff:manage", "users:delete", "users:manage"]);
+
+      render(<StaffDetailContent />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.change(screen.getByPlaceholderText("Vorname Nachname"), {
+        target: { value: "Mila Muster" },
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "Endgültig löschen" }),
+      );
+
+      const message = catalogText("general.permission", "die Person");
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(dialog).toContainElement(screen.getByText(message));
+      expect(mockDeleteTeacher).toHaveBeenCalledWith("42");
+    });
   });
 });

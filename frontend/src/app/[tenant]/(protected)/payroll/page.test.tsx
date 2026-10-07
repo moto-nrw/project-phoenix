@@ -8,6 +8,8 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import PayrollPage from "./page";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 const { mutateMock, setSettingValueMock } = vi.hoisted(() => ({
   mutateMock: vi.fn(),
@@ -48,8 +50,9 @@ vi.mock("~/lib/hooks/use-require-permission", () => ({
   }),
 }));
 
-vi.mock("~/lib/settings-api", () => ({
-  setSettingValue: setSettingValueMock,
+vi.mock("~/lib/payroll-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/payroll-api")>()),
+  savePayrollSetting: setSettingValueMock,
 }));
 
 function deferred<T>() {
@@ -110,5 +113,35 @@ describe("PayrollPage autosave", () => {
     await waitFor(() => {
       expect(mutateMock).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it("zeigt einen Speicherfehler über den Karten und wiederholt genau diesen Wert", async () => {
+    setSettingValueMock
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce(undefined);
+
+    render(<PayrollPage />);
+
+    const input = screen.getByRole("textbox", {
+      name: "Lohnartnummer Regelarbeit",
+    });
+    fireEvent.change(input, { target: { value: "1001" } });
+    fireEvent.blur(input);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Einstellung"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => {
+      expect(setSettingValueMock).toHaveBeenCalledTimes(2);
+    });
+    expect(setSettingValueMock).toHaveBeenLastCalledWith(
+      "payroll.lohnart_regelarbeit",
+      "1001",
+    );
   });
 });

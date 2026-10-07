@@ -9,6 +9,8 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -36,6 +38,8 @@ interface SchulhofSuperviseButtonProps {
 interface ReleaseSupervisionModalProps {
   readonly isOpen: boolean;
   readonly isConfirmLoading: boolean;
+  /** A failed release stays in this dialog (Bauart 2 Regel 5). */
+  readonly error?: FormErrorInput;
   readonly onClose: () => void;
   readonly onConfirm: () => void;
 }
@@ -112,14 +116,18 @@ export function EmptyRoomsView({
         currentStaffId={currentStaffId}
       />
 
-      {/* Der Zustand sitzt auf einer Fläche, nicht frei auf dem Grund. */}
-      <SectionCard>
-        <EmptyState
-          icon={<MotoConceptIcon concept="rooms" size={48} />}
-          title="Keine aktive Raum-Aufsicht"
-          description="Sie beaufsichtigen aktuell keinen Raum."
-        />
-      </SectionCard>
+      {/* Der Zustand sitzt auf einer Fläche, nicht frei auf dem Grund. Die
+          Hülle trägt nur das Ziel der Tour „Eine Aufsicht starten“ (#3748)
+          und ist eine Flex-Spalte, damit die Fläche weiter wachsen darf. */}
+      <div className="flex flex-col" data-setup-tour="supervision-empty">
+        <SectionCard>
+          <EmptyState
+            icon={<MotoConceptIcon concept="rooms" size={48} />}
+            title="Keine aktive Raum-Aufsicht"
+            description="Sie beaufsichtigen aktuell keinen Raum."
+          />
+        </SectionCard>
+      </div>
     </>
   );
 }
@@ -127,6 +135,7 @@ export function EmptyRoomsView({
 export function ReleaseSupervisionModal({
   isOpen,
   isConfirmLoading,
+  error,
   onClose,
   onConfirm,
 }: ReleaseSupervisionModalProps) {
@@ -141,6 +150,7 @@ export function ReleaseSupervisionModal({
       isConfirmLoading={isConfirmLoading}
     >
       <div className="space-y-4">
+        <FormErrorAlert message={error} />
         <div className="border-moto-red/20 bg-moto-red-soft rounded-lg border p-3">
           <div className="flex items-start gap-3">
             <MotoDuotoneIcon

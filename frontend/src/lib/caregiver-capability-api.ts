@@ -172,7 +172,6 @@ interface ApiEnvelope<T> {
 
 interface CapabilityErrorPayload {
   error?: string;
-  message?: string;
   blockers?: string[];
 }
 
@@ -265,7 +264,7 @@ async function handleCapabilityError(response: Response): Promise<never> {
   try {
     const payload = (await response.json()) as CapabilityErrorPayload;
     body = payload;
-    message = payload.message ?? payload.error ?? message;
+    message = payload.error ?? message;
     blockers = (payload.blockers ?? []).map((blocker) =>
       translateCapabilityBlocker(blocker),
     );

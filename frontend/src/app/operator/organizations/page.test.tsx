@@ -4,8 +4,20 @@
  * Ported from provisioning/page.test.tsx — organization-specific behaviour
  * (create, edit, toggle active, soft-delete, slug validation, error paths).
  */
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render as renderPlain,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
 
 const {
   mockUseSession,
@@ -284,9 +296,11 @@ describe("OperatorOrganizationsPage", () => {
 
   it("shows error for duplicate organization slug", async () => {
     withDefaultSWR();
-    const { OperatorApiError } = await import("~/lib/operator/api-helpers");
     mockCreateOrganization.mockRejectedValue(
-      new OperatorApiError("conflict", 409),
+      new ApiError("conflict", 409, {
+        code: "general.business_rejection",
+        errors: [{ field: "slug", reason: "taken" }],
+      }),
     );
 
     render(<OperatorOrganizationsPage />);
@@ -303,16 +317,20 @@ describe("OperatorOrganizationsPage", () => {
 
     fireEvent.click(screen.getByText("Erstellen"));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("Ein Träger mit diesem Slug existiert bereits."),
-      ).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.business_rejection", "das Anlegen des Trägers"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Slug/)).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
   });
 
   it("handles generic create organization error", async () => {
     withDefaultSWR();
-    mockCreateOrganization.mockRejectedValue(new Error("Server down"));
+    mockCreateOrganization.mockRejectedValue(new ApiError("Server down", 500));
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
       // noop
     });
@@ -332,7 +350,12 @@ describe("OperatorOrganizationsPage", () => {
     fireEvent.click(screen.getByText("Erstellen"));
 
     await waitFor(() => {
-      expect(screen.getByText("Server down")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          catalogText("general.server", "das Anlegen des Trägers"),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Server down")).toBeNull();
       expect(consoleError).toHaveBeenCalledWith(
         "organization_create_failed",
         expect.objectContaining({ error: "Server down" }),
@@ -495,5 +518,23 @@ describe("OperatorOrganizationsPage", () => {
       expect(screen.getByText("A Org")).toBeInTheDocument();
       expect(screen.getByText("B Org")).toBeInTheDocument();
     });
+  });
+
+  // #2519: a failed load is not an empty list.
+  it("shows a failed list load without claiming the list is empty", async () => {
+    withDefaultSWR({
+      orgs: [],
+      orgsError: new ApiError("down", 503),
+      staleData: true,
+    });
+
+    render(<OperatorOrganizationsPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Träger"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Keine Träger")).toBeNull();
   });
 });

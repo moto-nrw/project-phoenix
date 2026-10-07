@@ -1,6 +1,12 @@
 import type { ErrorCode } from "~/lib/error-codes.generated";
 import type { AxiosError } from "axios";
-import { ApiError, apiErrorFromBody, enrichApiError } from "./api-error";
+import {
+  ApiError,
+  apiErrorFromBody,
+  apiErrorFromText,
+  enrichApiError,
+  transportFetch,
+} from "./api-error";
 import { clearSessionCache, getCachedSession } from "./session-cache";
 import { createLogger } from "~/lib/logger";
 import api from "./api-transport";
@@ -727,6 +733,15 @@ export interface Room {
   updatedAt?: string;
 }
 
+/** The response body as JSON, or undefined when it is not JSON. */
+function parsedBody(body: string): unknown {
+  try {
+    return JSON.parse(body) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
 // API services
 /**
  * Raised when a student update was refused because a linked child's own
@@ -734,7 +749,7 @@ export interface Room {
  * requested days. Nothing was written; re-send with extend_companion_plans
  * after the user confirms.
  */
-export class CompanionPlanConflictError extends Error {
+export class CompanionPlanConflictError extends ApiError {
   /**
    * The conflicting children and weekdays exactly as the backend reported them.
    * The confirmation has to name them again on the retry, so the backend can
@@ -756,7 +771,8 @@ export class CompanionPlanConflictError extends Error {
   readonly body: string;
 
   constructor(body: string) {
-    super(parseConflictMessage(body));
+    super(parseConflictMessage(body), 409);
+    enrichApiError(this, parsedBody(body), 409);
     this.name = "CompanionPlanConflictError";
     this.body = body;
     this.conflicts = parseConflictExtensions(body);
@@ -815,10 +831,6 @@ export const COMPANION_WOULD_LOSE_DEPARTURE_CODE: ErrorCode =
  */
 export const COMPANIONS_CHANGED_CODE: ErrorCode = "students.companions_changed";
 
-/** Shown only when the stale-list refusal arrived without a readable message. */
-const COMPANIONS_CHANGED_FALLBACK =
-  "Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert. Bitte neu laden und noch einmal speichern.";
-
 /**
  * Raised when the submitted companion list no longer describes the stored one.
  *
@@ -827,12 +839,13 @@ const COMPANIONS_CHANGED_FALLBACK =
  * the refusal prevents — it would delete the change it is protecting. The form
  * has to reload first and let the user redo the edit on the current state.
  */
-export class CompanionsChangedError extends Error {
+export class CompanionsChangedError extends ApiError {
   /** The untouched response body — see CompanionPlanConflictError.body. */
   readonly body: string;
 
   constructor(body: string) {
-    super(parseBackendMessage(body, COMPANIONS_CHANGED_FALLBACK));
+    super(parseBackendMessage(body, "companions changed"), 409);
+    enrichApiError(this, parsedBody(body), 409);
     this.name = "CompanionsChangedError";
     this.body = body;
   }
@@ -859,41 +872,19 @@ export function isCompanionsChanged(err: unknown): boolean {
   return match ? isCompanionsChangedBody(match) : false;
 }
 
-/** The German instruction the stale-list refusal carries. */
-export function companionsChangedMessage(err: unknown): string {
-  if (err instanceof CompanionsChangedError) return err.message;
-  if (err instanceof Error) {
-    const body = (err as Error & { body?: string }).body;
-    if (body) {
-      const fromBody = parseBackendMessage(body, "");
-      if (fromBody) return fromBody;
-    }
-    const match = embeddedJsonObject(err.message);
-    if (match) {
-      const fromMessage = parseBackendMessage(match, "");
-      if (fromMessage) return fromMessage;
-    }
-  }
-  return COMPANIONS_CHANGED_FALLBACK;
-}
-
-/** Shown only when the refusal arrived without a readable message. */
-const COMPANION_DEPARTURE_FALLBACK =
-  "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.";
-
 /**
  * Raised when a student write was refused because it would strand a linked
- * child. Typed like the plan conflict so the forms can keep the backend's
- * German instruction instead of decaying it into "Fehler beim Speichern" — the
- * message names the precondition, and without it the user has no way to tell
- * what has to change before the save can succeed.
+ * child. Typed like the plan conflict so the form can point at the Heimweg
+ * instead of reporting a blanket failure; the text comes from the catalog via
+ * the code (#2513), the message is diagnosis only.
  */
-export class CompanionDepartureRefusedError extends Error {
+export class CompanionDepartureRefusedError extends ApiError {
   /** The untouched response body — see CompanionPlanConflictError.body. */
   readonly body: string;
 
   constructor(body: string) {
-    super(parseBackendMessage(body, COMPANION_DEPARTURE_FALLBACK));
+    super(parseBackendMessage(body, "companion would lose departure"), 400);
+    enrichApiError(this, parsedBody(body), 400);
     this.name = "CompanionDepartureRefusedError";
     this.body = body;
   }
@@ -922,24 +913,6 @@ export function isCompanionDepartureBody(body: string): boolean {
   return bodyHasCode(body, COMPANION_WOULD_LOSE_DEPARTURE_CODE);
 }
 
-/** The German instruction the refusal carries, dug out of the same wrappings. */
-export function companionDepartureMessage(err: unknown): string {
-  if (err instanceof CompanionDepartureRefusedError) return err.message;
-  if (err instanceof Error) {
-    const body = (err as Error & { body?: string }).body;
-    if (body) {
-      const fromBody = parseBackendMessage(body, "");
-      if (fromBody) return fromBody;
-    }
-    const match = embeddedJsonObject(err.message);
-    if (match) {
-      const fromMessage = parseBackendMessage(match, "");
-      if (fromMessage) return fromMessage;
-    }
-  }
-  return COMPANION_DEPARTURE_FALLBACK;
-}
-
 /**
  * The student PUT proxy writes the privacy consent of the same request first,
  * against a different backend endpoint and therefore a different transaction.
@@ -964,28 +937,14 @@ export function isPrivacyConsentSavedBody(body: string): boolean {
 
 /** Reports the same in whichever wrapping the error arrived. */
 export function isPrivacyConsentSaved(err: unknown): boolean {
+  if (err instanceof ApiError && err.details?.privacy_consent_saved === true) {
+    return true;
+  }
   if (!(err instanceof Error)) return false;
   const body = (err as Error & { body?: string }).body;
   if (body && isPrivacyConsentSavedBody(body)) return true;
   const match = embeddedJsonObject(err.message);
   return match ? isPrivacyConsentSavedBody(match) : false;
-}
-
-/** Prefixed to the failure text so the saved half is never reported as lost. */
-export const PRIVACY_CONSENT_SAVED_NOTICE =
-  "Die Datenschutzeinstellungen wurden bereits gespeichert, die übrigen Änderungen nicht.";
-
-/**
- * Returns the message to show for a failed student save, prefixed with the
- * partial-success notice when the consent half of the request committed.
- */
-export function withPrivacyConsentSavedNotice(
-  err: unknown,
-  message: string,
-): string {
-  return isPrivacyConsentSaved(err)
-    ? `${PRIVACY_CONSENT_SAVED_NOTICE} ${message}`
-    : message;
 }
 
 /**
@@ -1076,9 +1035,8 @@ function bodyHasCode(body: string, code: string): boolean {
 
 function parseConflictMessage(body: string): string {
   try {
-    const parsed = JSON.parse(body) as { message?: string; error?: string };
+    const parsed = JSON.parse(body) as { error?: string };
     return (
-      parsed.message ??
       parsed.error ??
       "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht."
     );
@@ -1325,20 +1283,9 @@ export const studentService = {
             throw new CompanionDepartureRefusedError(errorText);
           }
 
-          // Try to parse error text as JSON for more detailed error
-          try {
-            const errorJson = JSON.parse(errorText) as { error?: string };
-            if (errorJson.error) {
-              throw new Error(
-                `API error ${response.status}: ${errorJson.error}`,
-              );
-            }
-          } catch {
-            // If parsing fails, use status code + error text
-            throw new Error(
-              `API error ${response.status}: ${errorText.substring(0, 100)}`,
-            );
-          }
+          // Every other refusal keeps code, field errors and request ID for
+          // the shared error path (#2513).
+          throw browserApiError(response.status, errorText);
         }
 
         // Type assertion to avoid unsafe assignment
@@ -1555,20 +1502,9 @@ export const groupService = {
             error_text: errorText.substring(0, 200), // Truncate long errors
           });
 
-          // Try to parse error text as JSON for more detailed error
-          try {
-            const errorJson = JSON.parse(errorText) as { error?: string };
-            if (errorJson.error) {
-              throw new Error(
-                `API error ${response.status}: ${errorJson.error}`,
-              );
-            }
-          } catch {
-            // If parsing fails, use status code + error text
-            throw new Error(
-              `API error ${response.status}: ${errorText.substring(0, 100)}`,
-            );
-          }
+          // Every other refusal keeps code, field errors and request ID for
+          // the shared error path (#2513).
+          throw browserApiError(response.status, errorText);
         }
 
         const data = (await response.json()) as BackendGroup;
@@ -1979,20 +1915,9 @@ export const roomService = {
             error_text: errorText.substring(0, 200), // Truncate long errors
           });
 
-          // Try to parse error text as JSON for more detailed error
-          try {
-            const errorJson = JSON.parse(errorText) as { error?: string };
-            if (errorJson.error) {
-              throw new Error(
-                `API error ${response.status}: ${errorJson.error}`,
-              );
-            }
-          } catch {
-            // If parsing fails, use status code + error text
-            throw new Error(
-              `API error ${response.status}: ${errorText.substring(0, 100)}`,
-            );
-          }
+          // Every other refusal keeps code, field errors and request ID for
+          // the shared error path (#2513).
+          throw browserApiError(response.status, errorText);
         }
 
         const data = (await response.json()) as BackendRoom;
@@ -2019,7 +1944,7 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const response = await fetch(url, {
+        const response = await transportFetch(url, {
           method: "DELETE",
           credentials: "include",
           headers: await getAuthHeaders(),
@@ -2031,7 +1956,12 @@ export const roomService = {
             status: response.status,
             error_text: errorText.substring(0, 200), // Truncate long errors
           });
-          throw new Error(`API error: ${response.status}`);
+          // Code, Feldfehler und Vorgangskennung bleiben erhalten (#2517).
+          throw apiErrorFromText(
+            `API error: ${response.status}`,
+            response.status,
+            errorText,
+          );
         }
 
         return;

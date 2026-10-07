@@ -50,7 +50,12 @@ func substitutionCaller(ctx context.Context) (workforce.SubstitutionCaller, erro
 // renderSubstitutionsFailure renders the stable status, code and message the
 // adapter classified; the underlying error only reaches the log.
 func renderSubstitutionsFailure(w http.ResponseWriter, r *http.Request, failure substitutionsHTTP.Failure) {
-	common.RenderError(w, r, &common.ErrResponse{
+	resp := &common.ErrResponse{
 		Err: failure.Err, HTTPStatusCode: failure.Status, Status: "error", ErrorText: failure.Message, Code: failure.Code,
-	})
+		Details: failure.Details,
+	}
+	if failure.Field != "" {
+		resp.Errors = []common.FieldError{{Field: failure.Field, Reason: failure.Message}}
+	}
+	common.RenderError(w, r, resp)
 }

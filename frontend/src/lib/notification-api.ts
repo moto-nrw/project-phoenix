@@ -1,40 +1,33 @@
+import { apiErrorFromResponse, transportFetch } from "./api-error";
+
 const TEST_NOTIFICATION_URL = "/api/notifications/test";
 const SCHOOL_TEST_NOTIFICATION_URL = "/api/school/notifications/test";
-
-const TEST_NOTIFICATION_DISABLED_MESSAGE =
-  "Ihre Schule hat Benachrichtigungen derzeit deaktiviert.";
-const TEST_NOTIFICATION_ERROR_MESSAGE =
-  "Testbenachrichtigung konnte nicht gesendet werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.";
 
 /**
  * Sends a fixed test notification to the logged-in account. The school
  * portal (#2208) reaches the same handler through its own session.
+ *
+ * Throws an ApiError (#2517): a school with notifications switched off
+ * answers communication.notifications_disabled, a request that never reached
+ * the API general.unavailable. The card shows the catalog text.
  */
 export async function sendTestNotification(
   portal: "tenant" | "school" = "tenant",
 ): Promise<void> {
-  let response: Response;
-  try {
-    response = await fetch(
-      portal === "school"
-        ? SCHOOL_TEST_NOTIFICATION_URL
-        : TEST_NOTIFICATION_URL,
-      {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      },
-    );
-  } catch {
-    throw new Error(TEST_NOTIFICATION_ERROR_MESSAGE);
-  }
+  const response = await transportFetch(
+    portal === "school" ? SCHOOL_TEST_NOTIFICATION_URL : TEST_NOTIFICATION_URL,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    },
+  );
 
   if (response.ok) return;
 
-  throw new Error(
-    response.status === 409
-      ? TEST_NOTIFICATION_DISABLED_MESSAGE
-      : TEST_NOTIFICATION_ERROR_MESSAGE,
+  throw await apiErrorFromResponse(
+    response,
+    `Test notification failed (${response.status})`,
   );
 }

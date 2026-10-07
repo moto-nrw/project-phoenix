@@ -5,6 +5,8 @@
 // die Historie unverändert stehen. Die endgültige Löschung (student-api.ts)
 // bleibt daneben bestehen und ist strenger geschützt.
 
+import { apiErrorFromBody, transportFetch } from "./api-error";
+
 /** Austrittsgründe. Nur "other" trägt einen Freitext. */
 export type CareExitReason = "moved_away" | "no_care_needed" | "other";
 
@@ -123,15 +125,15 @@ interface Envelope<T> {
   message?: string;
 }
 
-// Eigener Fetch statt authFetch: die Backend-Meldungen sind deutschsprachige
-// Nutzertexte ("Die Betreuung wurde nicht beendet. …") und müssen die
-// aufrufende UI erreichen — authFetch wirft nur den generischen Statustext.
+// Eigener Fetch statt authFetch: Code, Details und Vorgangskennung der
+// Antwort müssen die aufrufende UI erreichen (ADR 0006). authFetch wirft nur
+// den generischen Statustext.
 async function request<T>(
   url: string,
   method: "GET" | "POST",
   body?: unknown,
 ): Promise<T> {
-  const response = await fetch(url, {
+  const response = await transportFetch(url, {
     method,
     credentials: "include",
     cache: "no-store",
@@ -143,20 +145,12 @@ async function request<T>(
   const payload = (await response.json().catch(() => null)) as
     (Envelope<unknown> & Record<string, unknown>) | null;
   if (!response.ok) {
+    // Die Meldung bleibt Diagnose; angezeigt wird der Katalogtext zum Code.
     const message =
       (typeof payload?.error === "string" && payload.error) ||
       (typeof payload?.message === "string" && payload.message) ||
       `API error (${response.status})`;
-    const error = new Error(message) as Error & {
-      status?: number;
-      code?: string;
-      details?: unknown;
-    };
-    error.status = response.status;
-    // Der Code ist die Identität des Fehlers (z. B. Kinderkontingent, #3567).
-    if (typeof payload?.code === "string") error.code = payload.code;
-    if (payload?.details !== undefined) error.details = payload.details;
-    throw error;
+    throw apiErrorFromBody(message, response.status, payload);
   }
   return payload as T;
 }

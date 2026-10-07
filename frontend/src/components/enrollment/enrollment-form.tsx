@@ -57,6 +57,12 @@ import { createLogger } from "~/lib/logger";
 import { formatDate } from "~/lib/date-helpers";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { ApiError } from "~/lib/api-error";
 import {
   copyStableObjectKey,
   getStableObjectKey,
@@ -170,12 +176,13 @@ interface Props {
    * Optional overrides for the autofill fetcher and submitter, used
    * by the parents portal to swap in parent-scope endpoints
    * (/api/parent/...) instead of the default tenant-scope ones. When
-   * unset, the form falls back to the public path.
+   * unset, the form falls back to the public path. A submitter returns
+   * `null` when it stopped before sending and shows the reason itself.
    */
   readonly profileFetcher?: () => Promise<MeProfileResponse | null>;
   readonly submitter?: (
     payload: SubmitEnrollmentPayload,
-  ) => Promise<SubmitEnrollmentResult>;
+  ) => Promise<SubmitEnrollmentResult | null>;
   /**
    * Hide the captcha widget. Set true when the caller has already
    * authenticated the user (e.g. parent JWT), so the backend's
@@ -365,7 +372,6 @@ export function EnrollmentForm({
   >({});
   const [loading, setLoading] = useState(prefetchedData === undefined);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [childOfferingErrors, setChildOfferingErrors] = useState<
     Record<number, boolean>
   >({});
@@ -376,17 +382,25 @@ export function EnrollmentForm({
   const [offeringDayErrors, setOfferingDayErrors] = useState<
     Record<string, boolean>
   >({});
-  // Per-field validation errors, keyed by each input's `name`
-  // (guardian_email, children_0_first_name, ...). Drives the red border +
-  // inline message on the offending input; rebuilt on every submit.
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   // Scroll to the first invalid field on every submit attempt that leaves an
   // error showing. The form is long (guardian + N children + offerings) with
   // the submit button at the bottom, so an error rendered above is easy to
   // miss. `scrollToError()` is keyed on a per-attempt counter, so a repeated
   // submit with the *same* unchanged message still scrolls back to it; on a
   // successful submit nothing is marked invalid so it's a no-op.
-  const { formRef, errorRef, scrollToError } = useScrollToFirstError();
+  const { formRef, scrollToError } = useScrollToFirstError();
+  // One display path for every failure (#2515): a submit error or a local
+  // check lands in the alert above the form, the affected fields are marked
+  // via `fieldError(name)` (keys are each input's `name`: guardian_email,
+  // children_0_first_name, ...), and the first of them gets the focus.
+  const formError = useApiFormError(formRef);
+  const { fieldError } = formError;
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const lateInviteFetchOptions = useMemo(
     () => ({ lateInviteToken }),
     [lateInviteToken],
@@ -542,7 +556,7 @@ export function EnrollmentForm({
           (prev) => prev || prefetchedData.profile?.guardian.phone || "",
         );
       }
-      setError(null);
+      clearLoadError();
       setLoading(false);
       return () => {
         cancelled = true;
@@ -550,7 +564,7 @@ export function EnrollmentForm({
     }
     async function load() {
       setLoading(true);
-      setError(null);
+      clearLoadError();
       try {
         const profileLoader = profileFetcher ?? fetchMyEnrollmentProfile;
         const [
@@ -563,11 +577,15 @@ export function EnrollmentForm({
           previewSchema !== undefined
             ? Promise.resolve(previewSchema)
             : phaseID
-              ? fetchPublicActiveSchema(
+              ? // A phase without a form template answers 404, which the
+                // client already turns into null. Any other failure must
+                // stop the load: the form would silently drop the school's
+                // own questions.
+                fetchPublicActiveSchema(
                   tenantSlug,
                   phaseID,
                   lateInviteFetchOptions,
-                ).catch(() => null)
+                )
               : Promise.resolve(null),
           phaseID
             ? fetchPublicCareOfferings(
@@ -585,13 +603,19 @@ export function EnrollmentForm({
                 // No phase, so no phase-level grade restriction (preview).
                 eligibleGradeLevels: [] as number[],
               }),
+          // Deliberately silent: the profile only prefills the guardian
+          // fields, which the parent can type in. The client logs the
+          // failure, and the form stays usable without it.
           profileLoader().catch(() => null),
           // Skip the captcha config when the caller already authenticated
           // the parent (parent-portal embedded form). Saves a round-trip
           // and avoids rendering the widget on an already-trusted path.
           skipCaptcha
             ? Promise.resolve(null)
-            : fetchPublicCaptchaConfig(tenantSlug).catch(() => null),
+            : // Deliberately silent: the client logs a failed config load.
+              // Without it the widget is missing, and the submit shows the
+              // server's captcha rejection in the form's alert.
+              fetchPublicCaptchaConfig(tenantSlug).catch(() => null),
           // Legal texts are phase/template-aware. NOT best-
           // effort: a real load failure rejects the whole load so the
           // form shows an error instead of collecting legally relevant
@@ -643,10 +667,14 @@ export function EnrollmentForm({
         }
       } catch (err) {
         if (cancelled) return;
-        const message =
-          err instanceof Error ? err.message : tr("submitErrorFallback");
-        logger.error("enrollment_form_load_failed", { error: message });
-        setError(message);
+        logger.error("enrollment_form_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          code: (err as Partial<ApiError> | undefined)?.code,
+        });
+        void showLoadError(err, {
+          object: tr("errorObject"),
+          retry: () => setLoadAttempt((n) => n + 1),
+        });
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -664,6 +692,9 @@ export function EnrollmentForm({
     profileFetcher,
     skipCaptcha,
     tr,
+    loadAttempt,
+    clearLoadError,
+    showLoadError,
   ]);
 
   const updateChild = (index: number, patch: Partial<ChildDraft>) => {
@@ -849,10 +880,9 @@ export function EnrollmentForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    formError.clear();
     setChildOfferingErrors({});
     setOfferingDayErrors({});
-    setFieldErrors({});
     // Bump per attempt so the scroll-to-error effect re-runs even when this
     // submit produces the same error message as the previous one. Covers
     // every synchronous validation failure below (error is set in the same
@@ -860,11 +890,11 @@ export function EnrollmentForm({
     scrollToError();
 
     if (previewMode) {
-      setError(tr("previewError"));
+      formError.invalid(tr("previewError"));
       return;
     }
     if (!phaseID) {
-      setError(tr("missingPhase"));
+      formError.invalid(tr("missingPhase"));
       return;
     }
 
@@ -1140,7 +1170,6 @@ export function EnrollmentForm({
       groupRuleIndexes.length > 0 ||
       dayErrorCount > 0;
     if (fieldErrorKeys.length > 0 || hasOfferingIssue) {
-      setFieldErrors(newFieldErrors);
       const invalidCareIndexes = [
         ...missingCareIndexes,
         ...exactOneCareIndexes,
@@ -1188,7 +1217,7 @@ export function EnrollmentForm({
       ) {
         banner = firstGroupRuleMessage;
       }
-      setError(banner);
+      formError.invalid(banner, newFieldErrors);
       return;
     }
 
@@ -1355,6 +1384,8 @@ export function EnrollmentForm({
       const result = submitter
         ? await submitter(payload)
         : await submitEnrollment(tenantSlug, payload);
+      // The caller stopped before sending and shows its own reason.
+      if (!result) return;
       const statusURL = new URL(result.status_url, globalThis.location.origin);
       if (
         result.warnings?.some(
@@ -1369,10 +1400,24 @@ export function EnrollmentForm({
           : `${statusURL.pathname}${statusURL.search}${statusURL.hash}`,
       );
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : tr("submitErrorFallback");
-      const code = (err as { code?: string } | undefined)?.code;
-      logger.error("enrollment_submit_failed", { error: message, code });
+      const code = err instanceof ApiError ? err.code : undefined;
+      // A rejected input is expected; only server failures and crashes are
+      // errors in the log.
+      const expected = err instanceof ApiError && (err.status ?? 500) < 500;
+      const logContext = {
+        error: err instanceof Error ? err.message : String(err),
+        code,
+      };
+      if (expected) logger.warn("enrollment_submit_failed", logContext);
+      else logger.error("enrollment_submit_failed", logContext);
+      // The backend names fields by their JSON path; the form's inputs by
+      // their `name`. Translate, so the shared path marks the right input.
+      if (err instanceof ApiError && err.errors) {
+        err.errors = err.errors.map((entry) => ({
+          ...entry,
+          field: submitFieldName(entry.field),
+        }));
+      }
       if (
         code === "enrollment.care_offering_missing" ||
         code === "enrollment.care_offering_exactly_one"
@@ -1400,6 +1445,7 @@ export function EnrollmentForm({
         );
         setChildOfferingErrors(empties);
       }
+      let pickupMarks: string[] = [];
       if (code === "enrollment.pickup_time_not_allowed") {
         // The backend rejected a pickup time outside the field's configured
         // fixed list. The server doesn't say which field/child, so derive it
@@ -1414,8 +1460,8 @@ export function EnrollmentForm({
         //     every answered constrained field keeps the rejection from being
         //     silently swallowed (the offending field turns red and the scroll
         //     lands on it). The backend rejected it regardless — this is UX.
-        const offList: Record<string, string> = {};
-        const answered: Record<string, string> = {};
+        const offList: string[] = [];
+        const answered: string[] = [];
         for (const f of schema?.fields ?? []) {
           if (
             f.target !== "schedule.pickup" ||
@@ -1429,9 +1475,9 @@ export function EnrollmentForm({
               Boolean,
             );
             if (times.length === 0) return;
-            answered[key] = message;
+            answered.push(key);
             if (times.some((time) => !f.allowed_times!.includes(time))) {
-              offList[key] = message;
+              offList.push(key);
             }
           };
           if (f.applies_to_child) {
@@ -1442,12 +1488,26 @@ export function EnrollmentForm({
             mark(customData[f.key], `custom_${f.key}`);
           }
         }
-        const offending = Object.keys(offList).length > 0 ? offList : answered;
-        if (Object.keys(offending).length > 0) {
-          setFieldErrors((prev) => ({ ...prev, ...offending }));
-        }
+        pickupMarks = offList.length > 0 ? offList : answered;
       }
-      setError(message);
+      // "Wiederholen" submits the form again, so it sends what the parent
+      // sees now, not the draft of the failed attempt.
+      const presentation = await formError.show(err, {
+        object: tr("errorObject"),
+        retry: () => formRef.current?.requestSubmit(),
+      });
+      if (
+        presentation &&
+        presentation.fields.length === 0 &&
+        pickupMarks.length > 0
+      ) {
+        formError.invalid(
+          presentation.message,
+          Object.fromEntries(
+            pickupMarks.map((key) => [key, presentation.message]),
+          ),
+        );
+      }
       // A server-side rejection resolves after the synchronous attempt bump
       // above, so bump again to scroll the late-arriving error into view.
       scrollToError();
@@ -1464,6 +1524,12 @@ export function EnrollmentForm({
     );
   }
 
+  // Without schema, offerings and legal texts the form cannot be filled in
+  // correctly, so a failed load replaces it instead of showing it empty.
+  if (loadError) {
+    return <LoadErrorAlert error={loadError} />;
+  }
+
   return (
     <form
       ref={formRef}
@@ -1471,16 +1537,7 @@ export function EnrollmentForm({
       noValidate
       className="space-y-5"
     >
-      {error && (
-        <div
-          ref={errorRef}
-          className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm font-medium"
-          role="alert"
-          aria-live="polite"
-        >
-          {error}
-        </div>
-      )}
+      <FormErrorAlert message={formError.error} />
 
       {!restrictToOfferings && (
         <section className="moto-content-surface space-y-5 rounded-xl border p-4 shadow-sm sm:p-5">
@@ -1506,7 +1563,7 @@ export function EnrollmentForm({
               value={guardianFirstName}
               onChange={setGuardianFirstName}
               required
-              error={fieldErrors.guardian_first_name}
+              error={fieldError("guardian_first_name")}
             />
             <Input
               label={tr("fields.lastName")}
@@ -1515,7 +1572,7 @@ export function EnrollmentForm({
               value={guardianLastName}
               onChange={setGuardianLastName}
               required
-              error={fieldErrors.guardian_last_name}
+              error={fieldError("guardian_last_name")}
             />
             <Input
               label={tr("fields.email")}
@@ -1526,7 +1583,7 @@ export function EnrollmentForm({
               onChange={setGuardianEmail}
               required
               readOnly={lockedGuardianEmail}
-              error={fieldErrors.guardian_email}
+              error={fieldError("guardian_email")}
             />
             <Input
               label={tr(
@@ -1541,7 +1598,7 @@ export function EnrollmentForm({
               value={guardianPhone}
               onChange={setGuardianPhone}
               required={schema?.core_requirements?.guardian_phone === true}
-              error={fieldErrors.guardian_phone}
+              error={fieldError("guardian_phone")}
             />
           </div>
 
@@ -1570,7 +1627,7 @@ export function EnrollmentForm({
                   value={g.first_name}
                   onChange={(v) => updateGuardian(i, { first_name: v })}
                   required
-                  error={fieldErrors[`additional_guardian_${i}_first_name`]}
+                  error={fieldError(`additional_guardian_${i}_first_name`)}
                 />
                 <Input
                   label={tr("fields.lastName")}
@@ -1579,7 +1636,7 @@ export function EnrollmentForm({
                   value={g.last_name}
                   onChange={(v) => updateGuardian(i, { last_name: v })}
                   required
-                  error={fieldErrors[`additional_guardian_${i}_last_name`]}
+                  error={fieldError(`additional_guardian_${i}_last_name`)}
                 />
                 <Input
                   label={tr("fields.emailPlain")}
@@ -1588,7 +1645,7 @@ export function EnrollmentForm({
                   autoComplete="email"
                   value={g.email}
                   onChange={(v) => updateGuardian(i, { email: v })}
-                  error={fieldErrors[`additional_guardian_${i}_email`]}
+                  error={fieldError(`additional_guardian_${i}_email`)}
                 />
                 <Input
                   label={tr("fields.phone")}
@@ -1598,7 +1655,7 @@ export function EnrollmentForm({
                   inputMode="tel"
                   value={g.phone}
                   onChange={(v) => updateGuardian(i, { phone: v })}
-                  error={fieldErrors[`additional_guardian_${i}_phone`]}
+                  error={fieldError(`additional_guardian_${i}_phone`)}
                 />
               </div>
             </div>
@@ -1628,7 +1685,8 @@ export function EnrollmentForm({
                     onChange={(v) =>
                       setCustomData((prev) => ({ ...prev, [f.key]: v }))
                     }
-                    error={fieldErrors[`custom_${f.key}`]}
+                    inputName={`custom_${f.key}`}
+                    error={fieldError(`custom_${f.key}`)}
                     tr={tr}
                   />
                 ),
@@ -1845,7 +1903,7 @@ export function EnrollmentForm({
                     value={child.first_name}
                     onChange={(v) => updateChild(i, { first_name: v })}
                     required
-                    error={fieldErrors[`children_${i}_first_name`]}
+                    error={fieldError(`children_${i}_first_name`)}
                   />
                   <Input
                     label={tr("fields.lastName")}
@@ -1854,7 +1912,7 @@ export function EnrollmentForm({
                     value={child.last_name}
                     onChange={(v) => updateChild(i, { last_name: v })}
                     required
-                    error={fieldErrors[`children_${i}_last_name`]}
+                    error={fieldError(`children_${i}_last_name`)}
                   />
                   <div>
                     <span className="block text-sm font-semibold text-gray-700">
@@ -1863,7 +1921,7 @@ export function EnrollmentForm({
                     <DateOfBirthPicker
                       value={child.date_of_birth}
                       onChange={(v) => updateChild(i, { date_of_birth: v })}
-                      error={fieldErrors[`children_${i}_date_of_birth`]}
+                      error={fieldError(`children_${i}_date_of_birth`)}
                       tr={tr}
                     />
                   </div>
@@ -1931,7 +1989,7 @@ export function EnrollmentForm({
                       }}
                       max={gradeLevelMax}
                       allowedGrades={eligibleGradeLevels}
-                      error={fieldErrors[`children_${i}_target_grade_level`]}
+                      error={fieldError(`children_${i}_target_grade_level`)}
                       tr={tr}
                     />
                   )}
@@ -1960,9 +2018,9 @@ export function EnrollmentForm({
                           required={
                             schoolClassConfig.require && gradeClasses.length > 0
                           }
-                          error={
-                            fieldErrors[`children_${i}_target_school_class`]
-                          }
+                          error={fieldError(
+                            `children_${i}_target_school_class`,
+                          )}
                           tr={tr}
                         />
                       );
@@ -2242,12 +2300,14 @@ export function EnrollmentForm({
                                 })
                             : undefined
                         }
-                        error={fieldErrors[`children_${i}_custom_${f.key}`]}
+                        inputName={`children_${i}_custom_${f.key}`}
+                        error={fieldError(`children_${i}_custom_${f.key}`)}
+                        companionNoteName={`children_${i}_departure_companion_note`}
                         companionNoteError={
                           f.target === "student.allowed_departure_modes"
-                            ? fieldErrors[
-                                `children_${i}_departure_companion_note`
-                              ]
+                            ? fieldError(
+                                `children_${i}_departure_companion_note`,
+                              )
                             : undefined
                         }
                         relevantDays={relevantCareDaysForChild(
@@ -2310,7 +2370,7 @@ export function EnrollmentForm({
                   }))
                 }
                 required={block.required}
-                error={fieldErrors[`consent_${block.key}`]}
+                error={fieldError(`consent_${block.key}`)}
                 legalText={block.text}
                 legalTitle={block.title}
                 onViewLegal={
@@ -2639,6 +2699,25 @@ function groupOfferings(offerings: PublicCareOffering[]): OfferingBucket[] {
     }
   }
   return buckets;
+}
+
+/**
+ * The input `name` for a field the backend names by its JSON path (#2515):
+ * `children.0.first_name` → `children_0_first_name`,
+ * `children.0.custom_data.allergies` → `children_0_custom_allergies`,
+ * `custom_data.x` → `custom_x`, `consent_flags.x` → `consent_x`,
+ * `additional_guardians.1.email` → `additional_guardian_1_email`.
+ */
+export function submitFieldName(path: string): string {
+  return path
+    .replace(
+      /^children\.(\d+)\.custom_data\.student\.departure_companion_note$/,
+      "children.$1.departure_companion_note",
+    )
+    .replace(/^additional_guardians\./, "additional_guardian.")
+    .replace(/(^|\.)custom_data\./, "$1custom.")
+    .replace(/^consent_flags\./, "consent.")
+    .replaceAll(".", "_");
 }
 
 // offeringGroupRuleError validates one child's selection against every
@@ -3589,6 +3668,9 @@ function requiredMessageForField(
 
 interface CustomFieldInputProps {
   readonly field: PublicFormSchema["fields"][number];
+  // The control's `name`, unique per child, so a server field error and the
+  // focus jump find the right input (#2515).
+  readonly inputName: string;
   readonly value: unknown;
   readonly onChange: (v: unknown) => void;
   readonly error?: string;
@@ -3608,6 +3690,7 @@ interface CustomFieldInputProps {
   // from `error` so the modes fieldset and the note input show their own
   // messages.
   readonly companionNoteError?: string;
+  readonly companionNoteName?: string;
   // Heimweg-Beschränkung (#2381): true when the field's single_mode_grades
   // restrict this child's target grade — the multi-mode picker then allows
   // at most one way home per care day (selecting a mode replaces the
@@ -3617,6 +3700,8 @@ interface CustomFieldInputProps {
 
 function CustomFieldInput({
   field,
+  inputName,
+  companionNoteName,
   value,
   onChange,
   error,
@@ -3664,7 +3749,7 @@ function CustomFieldInput({
             >
               <input
                 type="radio"
-                name={field.key}
+                name={inputName}
                 value={option.value}
                 checked={selectedValue === option.value}
                 onChange={() => onChange(option.raw)}
@@ -3686,7 +3771,7 @@ function CustomFieldInput({
           value={valueStr}
           onChange={(e) => onChange(e.target.value)}
           rows={3}
-          name={field.key}
+          name={inputName}
           className={`moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-moto-red!" : ""}`}
           aria-required={field.required}
           aria-invalid={error ? "true" : undefined}
@@ -3703,7 +3788,7 @@ function CustomFieldInput({
           ariaLabel={field.label}
           value={valueStr}
           onChange={onChange}
-          name={field.key}
+          name={inputName}
           required={field.required}
           invalid={Boolean(error)}
           className="mt-1"
@@ -3723,6 +3808,7 @@ function CustomFieldInput({
     return (
       <PhoneListInput
         field={field}
+        inputName={inputName}
         value={value}
         onChange={onChange}
         error={error}
@@ -3734,6 +3820,7 @@ function CustomFieldInput({
     return (
       <WeekdayScheduleInput
         field={field}
+        inputName={inputName}
         value={value}
         onChange={onChange}
         error={error}
@@ -3747,6 +3834,7 @@ function CustomFieldInput({
     return (
       <WeekdayBooleanInput
         field={field}
+        inputName={inputName}
         value={value}
         onChange={onChange}
         error={error}
@@ -3758,6 +3846,7 @@ function CustomFieldInput({
     return (
       <WeekdayModeInput
         field={field}
+        inputName={inputName}
         value={value}
         onChange={onChange}
         error={error}
@@ -3769,6 +3858,7 @@ function CustomFieldInput({
     return (
       <WeekdayMultiModeInput
         field={field}
+        inputName={inputName}
         value={value}
         onChange={onChange}
         error={error}
@@ -3777,6 +3867,7 @@ function CustomFieldInput({
         companionNote={companionNote}
         onCompanionNoteChange={onCompanionNoteChange}
         companionNoteError={companionNoteError}
+        companionNoteName={companionNoteName}
         singleMode={singleMode}
       />
     );
@@ -3785,6 +3876,7 @@ function CustomFieldInput({
     return (
       <ContactListInput
         field={field}
+        inputName={inputName}
         value={value}
         onChange={onChange}
         error={error}
@@ -3822,7 +3914,7 @@ function CustomFieldInput({
     <label className="block">
       {labelEl}
       <input
-        name={field.key}
+        name={inputName}
         type={inputType}
         value={valueStr}
         onChange={(e) => onChange(e.target.value)}
@@ -3860,6 +3952,7 @@ function asPhoneArray(v: unknown): PhoneEntry[] {
 
 function PhoneListInput({
   field,
+  inputName,
   value,
   onChange,
   error,
@@ -3950,7 +4043,7 @@ function PhoneListInput({
                 )
               }
               label={tr("structured.primary")}
-              name={`${field.key}-primary`}
+              name={`${inputName}-primary`}
               type="radio"
             />
             <button
@@ -4536,6 +4629,7 @@ function WeekdayMultiModeInput({
   companionNote,
   onCompanionNoteChange,
   companionNoteError,
+  companionNoteName,
   singleMode,
 }: CustomFieldInputProps) {
   const daysToRender = relevantDays ?? WEEKDAYS;
@@ -4848,6 +4942,7 @@ function WeekdayMultiModeInput({
             <input
               type="text"
               value={companionNote ?? ""}
+              name={companionNoteName}
               onChange={(e) => onCompanionNoteChange(e.target.value)}
               placeholder={tr("structured.departureCompanionPlaceholder")}
               maxLength={255}
@@ -4914,6 +5009,7 @@ function blankContact(): ContactEntryValue {
 
 function ContactListInput({
   field,
+  inputName,
   value,
   onChange,
   error,
@@ -5005,6 +5101,7 @@ function ContactListInput({
 
             <div className="mt-3">
               <PhoneListInput
+                inputName={`${inputName}_${idx}_phones`}
                 field={{
                   ...field,
                   key: `${field.key}_${idx}_phones`,

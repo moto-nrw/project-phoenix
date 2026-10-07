@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import deMessages from "~/i18n/messages/de.json";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import {
   getChildCourses,
   requestChildCourse,
@@ -271,17 +273,63 @@ describe("CoursesSection", () => {
 
   it("meldet einen Fehlschlag freundlich und behält die Liste", async () => {
     mockedCourses.mockResolvedValue(catalog());
-    mockedRequest.mockRejectedValue(new Error("boom"));
+    mockedRequest.mockRejectedValue(
+      new ApiError("backend sentence", 500, { code: "general.server" }),
+    );
 
     renderSection();
     (await screen.findByRole("button", { name: "Anfragen" })).click();
 
     expect(
       await screen.findByText(
-        "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+        catalogText(
+          "general.server",
+          deMessages.parentMasterData.courses.errorObjectRequest,
+        ),
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/backend sentence/)).not.toBeInTheDocument();
     expect(screen.getByText("Fußball")).toBeInTheDocument();
     expect(mockedWithdraw).not.toHaveBeenCalled();
+  });
+
+  it("zeigt einen Ladefehler im Abschnitt und lädt auf Wunsch neu", async () => {
+    const user = userEvent.setup();
+    mockedCourses
+      .mockRejectedValueOnce(
+        new ApiError("diag", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce(catalog());
+
+    renderSection();
+
+    expect(
+      await screen.findByText(
+        catalogText(
+          "general.unavailable",
+          deMessages.parentMasterData.courses.errorObjectList,
+        ),
+      ),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(await screen.findByText("Fußball")).toBeInTheDocument();
+  });
+
+  it("schickt Eltern ohne gültige Anmeldung zur Schule", async () => {
+    mockedCourses.mockResolvedValue(catalog());
+    mockedRequest.mockRejectedValue(
+      new ApiError("no enrollment", 403, {
+        code: "students.offering_changes_no_enrollment",
+      }),
+    );
+
+    renderSection();
+    (await screen.findByRole("button", { name: "Anfragen" })).click();
+
+    expect(
+      await screen.findByText(deMessages.parentMasterData.errorNoEnrollment),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/lehnen Sie/)).not.toBeInTheDocument();
   });
 });

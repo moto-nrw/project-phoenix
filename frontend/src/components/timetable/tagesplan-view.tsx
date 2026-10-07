@@ -21,18 +21,21 @@ import {
   Fragment,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import { Alert } from "~/components/ui/alert";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-style";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { berlinTodayISO, formatDate, isValidISODate } from "~/lib/date-helpers";
 import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
@@ -45,16 +48,10 @@ import {
 import { useTenantRouter } from "~/lib/tenant-router";
 import { nextWorkdayISO, previousWorkdayISO } from "~/lib/timetable-helpers";
 import { canStartPlannedInstance } from "~/lib/timetable-lifecycle";
-import {
-  TimetableOperationsApiError,
-  timetableOperationsApi,
-} from "~/lib/timetable-operations-api";
+import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
 
 const logger = createLogger({ component: "TagesplanView" });
-
-const GENERIC_ERROR =
-  "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
 
 // Zwischen Navigationen gemerkte Scrollposition (#2383): wer aus einer
 // Kinderliste zurückkommt, landet wieder beim Block, den er angetippt hat.
@@ -173,31 +170,39 @@ function TagesplanRow({
   onOpenSession: (activeGroupId: string) => void;
   onStart: (instance: PlannedTimetableInstance) => void;
 }>) {
-  const room = instance.roomName ?? `Raum ${instance.roomId}`;
+  // Ein Dienst (#3822) hat keine Kinder und wird nie gestartet; er kann
+  // auch ohne Raum stattfinden.
+  const isDuty = instance.isDuty === true;
+  const room =
+    instance.roomName ??
+    (isDuty && instance.roomId === "0" ? null : `Raum ${instance.roomId}`);
   const running = instance.status === "active";
   const cancelled = instance.status === "cancelled";
   const openable = running && instance.activeGroupId != null;
   const startable =
+    !isDuty &&
     isToday &&
     instance.status === "planned" &&
     canStartPlannedInstance(instance, new Date());
-  const missed =
+  const ended =
     instance.status === "planned" &&
     (dayIsPast || (isToday && instance.endTime <= nowHHMM));
+  const missed = ended && !isDuty;
   // Vorbei ist vorbei: gedimmte Zeilen lassen das Laufende und Kommende von
   // selbst hervortreten — statt eines Etiketts an jeder Zeile.
   const over =
     instance.status === "completed" ||
-    missed ||
+    ended ||
     (cancelled && (dayIsPast || (isToday && instance.endTime <= nowHHMM)));
   const staff = staffLine(instance);
 
   const metaParts = [
     instance.status === "completed" ? "Beendet" : null,
     missed ? "Nicht gestartet" : null,
+    isDuty ? "Dienst" : null,
     room,
     instance.groupName,
-    cancelled ? null : childrenShort(instance),
+    cancelled || isDuty ? null : childrenShort(instance),
   ].filter(Boolean);
 
   const body = (
@@ -310,7 +315,12 @@ export function TagesplanView() {
   const nowHHMM = berlinNowHHMM(now);
 
   const [startBusyId, setStartBusyId] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  // Starten ist ein Knopf in der Liste, kein Formular: ein Fehler kommt als
+  // Toast mit Katalogtext (#2516).
+  const { show: showActionError } = useApiErrorDisplay();
+  const latestStartRef = useRef<(instance: PlannedTimetableInstance) => void>(
+    () => undefined,
+  );
 
   const {
     data: instances,
@@ -321,6 +331,13 @@ export function TagesplanView() {
     timetableEnabled ? `tagesplan-${day}` : null,
     () => timetableOperationsApi.plannedNow({ scope: "day", date: day }),
     { revalidateOnFocus: true, focusThrottleInterval: 60_000 },
+  );
+  // Ladefehler vor Ort mit Wiederholen (#2516). Fehlende Rechte nennt der
+  // Katalogtext der Klasse, keine eigene Leerseite je HTTP-Status.
+  const listLoadError = useSwrLoadError(
+    listError,
+    "die Liste der Termine",
+    () => reloadList(),
   );
 
   const sorted = useMemo(
@@ -370,7 +387,6 @@ export function TagesplanView() {
   const handleStart = useCallback(
     async (instance: PlannedTimetableInstance) => {
       setStartBusyId(instance.id);
-      setActionError(null);
       try {
         const result = await timetableOperationsApi.start(instance.id);
         saveScrollPosition(day);
@@ -380,14 +396,21 @@ export function TagesplanView() {
           instance_id: instance.id,
           error: err instanceof Error ? err.message : String(err),
         });
-        setActionError(GENERIC_ERROR);
+        void showActionError(err, {
+          object: "das Starten des Termins",
+          retry: () => latestStartRef.current(instance),
+        });
         await reloadList();
       } finally {
         setStartBusyId(null);
       }
     },
-    [day, reloadList, router],
+    [day, reloadList, router, showActionError],
   );
+
+  useLayoutEffect(() => {
+    latestStartRef.current = (instance) => void handleStart(instance);
+  });
 
   if (!timetableEnabled) {
     return (
@@ -400,10 +423,6 @@ export function TagesplanView() {
     );
   }
 
-  const forbidden =
-    listError instanceof TimetableOperationsApiError &&
-    listError.httpStatus === 403;
-
   // Ein Satz, mehr nicht: die Liste erklärt sich selbst (Chevron am
   // laufenden Block, Starten-Knopf am eigenen). Nur die eingeschränkte
   // Sicht (#2380) muss gesagt werden, sonst fehlen scheinbar Termine.
@@ -414,8 +433,6 @@ export function TagesplanView() {
 
   return (
     <div className="w-full space-y-4">
-      {actionError ? <Alert type="error" message={actionError} /> : null}
-
       <SectionCard
         title={isToday ? "Heute" : formatDate(day)}
         description={description}
@@ -457,32 +474,16 @@ export function TagesplanView() {
             isLoading false UND instances leer. Ohne diese Bedingung würde
             kurz "keine Betreuung geplant" aufblitzen, obwohl nie geladen
             wurde. */}
-        {isLoading || (instances == null && !listError) ? (
+        {/* Bis der Katalogtext eines Ladefehlers da ist, bleibt das Skelett
+            stehen: kein kurzer Leerzustand ohne Daten. */}
+        {isLoading ||
+        (instances == null && !listError) ||
+        (listError && !listLoadError) ? (
           <Skeleton className="h-64 w-full" />
         ) : null}
 
-        {!isLoading && forbidden ? (
-          <EmptyState
-            title="Kein Zugriff auf den Betreuungsplan"
-            description="Ihr Konto darf den Betreuungsplan nicht öffnen. Wenden Sie sich an die Leitung Ihrer Schule."
-          />
-        ) : null}
-
-        {!isLoading && listError && !forbidden ? (
-          <div className="space-y-3">
-            <Alert
-              type="error"
-              message="Der Tagesplan konnte nicht geladen werden."
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => void reloadList()}
-            >
-              Noch einmal versuchen
-            </Button>
-          </div>
+        {!isLoading && listError ? (
+          <LoadErrorAlert error={listLoadError} />
         ) : null}
 
         {!isLoading &&

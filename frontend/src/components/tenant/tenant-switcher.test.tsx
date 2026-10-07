@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import { ApiError } from "~/lib/api-error";
 
 // ============================================================================
 // Mocks
@@ -14,7 +15,7 @@ const {
   class MockTenantSwitchError extends Error {
     constructor(
       public status: number,
-      public code: "access_denied" | "use_school_portal" | "unknown",
+      public reason: "access_denied" | "use_school_portal" | "unknown",
       message: string,
     ) {
       super(message);
@@ -43,6 +44,14 @@ const { mockUseTenantSlugSafe } = vi.hoisted(() => ({
 
 const { mockTrackTenantEvent } = vi.hoisted(() => ({
   mockTrackTenantEvent: vi.fn(),
+}));
+
+// Ein gescheiterter Wechsel ist eine Aktion ohne Formular: Toast über
+// useApiErrorDisplay (#2517).
+const showSwitchError = vi.hoisted(() => vi.fn());
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useApiErrorDisplay: () => ({ show: showSwitchError }),
 }));
 
 vi.mock("~/lib/tenant-api", () => ({
@@ -484,32 +493,56 @@ describe("BrandTenantSwitcher", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows a visible error message when switching fails", async () => {
+  it("reports a failed switch through the shared error path and retries it", async () => {
     mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
-    mockPerformTenantSwitch.mockRejectedValue(new Error("switch failed"));
+    const error = new ApiError("boom", 503, { code: "general.unavailable" });
+    mockPerformTenantSwitch.mockRejectedValueOnce(error);
 
     render(<BrandTenantSwitcher />);
 
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: TRIGGER_LABEL }),
-      ).toBeInTheDocument();
-    });
-
+    await screen.findByRole("button", { name: TRIGGER_LABEL });
     openDropdown();
     fireEvent.click(screen.getByText("School B"));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Wechsel zu School B fehlgeschlagen/),
-      ).toBeInTheDocument();
-    });
+    await waitFor(() =>
+      expect(showSwitchError).toHaveBeenCalledWith(error, {
+        object: "das Wechseln zu School B",
+        retry: expect.any(Function),
+      }),
+    );
+    expect(window.location.href).toBe("");
+    // No own error box next to the toast.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 
-    // Re-opening the dropdown clears the error.
+    mockPerformTenantSwitch.mockResolvedValueOnce(undefined);
+    const { retry } = showSwitchError.mock.calls[0]![1] as {
+      retry: () => void;
+    };
+    retry();
+    await waitFor(() =>
+      expect(window.location.href).toBe("http://school-b.localhost:3000/home"),
+    );
+    expect(mockPerformTenantSwitch).toHaveBeenCalledTimes(2);
+  });
+
+  it("names missing access to the school instead of jumping to the login", async () => {
+    mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
+    mockPerformTenantSwitch.mockRejectedValueOnce(
+      new ApiError("no access", 401, { code: "identity.tenant_access_denied" }),
+    );
+
+    render(<BrandTenantSwitcher />);
+
+    await screen.findByRole("button", { name: TRIGGER_LABEL });
     openDropdown();
-    expect(
-      screen.queryByText(/Wechsel zu School B fehlgeschlagen/),
-    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("School B"));
+
+    await waitFor(() => expect(showSwitchError).toHaveBeenCalled());
+    const [shown] = showSwitchError.mock.calls[0]! as [ApiError];
+    expect(shown).toBeInstanceOf(ApiError);
+    expect(shown.code).toBe("identity.tenant_access_denied");
+    // Without the status the shared path shows the text, not the login.
+    expect(shown.status).toBeUndefined();
   });
 
   it("falls back to the brand link and logs when listing tenants fails", async () => {

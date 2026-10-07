@@ -5,7 +5,10 @@
  * sidebar badge.
  */
 
-import type { ParentRequestReviewAccess } from "~/lib/change-request-access";
+import {
+  isParentRequestReviewAccess,
+  type ParentRequestReviewAccess,
+} from "~/lib/change-request-access";
 
 interface Envelope<T> {
   readonly data?: T;
@@ -40,7 +43,7 @@ export async function fetchChangeRequestAccess(): Promise<ParentRequestReviewAcc
     review_access?: unknown;
   }>;
   const access = json.data?.review_access;
-  if (access !== "admin" && access !== "group_leader" && access !== "none") {
+  if (!isParentRequestReviewAccess(access)) {
     throw new Error("Change request access response is invalid");
   }
   return access;

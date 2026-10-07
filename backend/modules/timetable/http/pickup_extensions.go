@@ -52,16 +52,24 @@ type resolvePickupExtensionRequest struct {
 }
 
 func (req *resolvePickupExtensionRequest) Bind(_ *http.Request) error {
-	if len(req.BlockIDs) > 20 {
-		return errors.New("block_ids cannot exceed 20 items")
+	if len(req.BlockIDs) > maxPickupExtensionBlocks {
+		return errPickupExtensionTooManyBlocks
 	}
 	for _, id := range req.BlockIDs {
 		if id <= 0 {
-			return errors.New("block_ids must be positive")
+			return invalidField(common.CodeTimetablePickupExtensionInvalid, "block_ids", "block_ids must be positive")
 		}
 	}
 	return nil
 }
+
+// maxPickupExtensionBlocks caps the blocks one decision assigns.
+const maxPickupExtensionBlocks = 20
+
+// errPickupExtensionTooManyBlocks names the cap so the client words it
+// (#2516).
+var errPickupExtensionTooManyBlocks = timetable.WithCode(errors.New("block_ids cannot exceed 20 items"),
+	common.CodeTimetablePickupExtensionTooManyBlocks, timetable.RefusalValues{Max: maxPickupExtensionBlocks})
 
 type resolvePickupExtensionResponse struct {
 	StudentID      int64                          `json:"student_id"`
@@ -121,7 +129,11 @@ func (rs *Resource) resolvePickupExtension(w http.ResponseWriter, r *http.Reques
 	}
 	req := &resolvePickupExtensionRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		if _, coded := timetable.AsCoded(err); coded {
+			common.RenderError(w, r, codedInvalidOnField(err, "block_ids"))
+			return
+		}
+		common.RenderError(w, r, bindErrorRenderer(err))
 		return
 	}
 	ctx := r.Context()
@@ -164,7 +176,7 @@ func (rs *Resource) resolvePickupExtension(w http.ResponseWriter, r *http.Reques
 func renderPickupExtensionError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, timetable.ErrInvalidPickupExtension):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeTimetablePickupExtensionInvalid))
 	case errors.Is(err, timetable.ErrPickupExtensionNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeTimetablePickupExtensionNotFound))
 	case errors.Is(err, timetable.ErrPickupExtensionBlockGone):

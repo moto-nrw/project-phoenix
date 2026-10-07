@@ -1,3 +1,8 @@
+import {
+  apiErrorFromBody,
+  apiErrorFromResponse,
+  transportFetch,
+} from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "GuardianBulkInviteAPI" });
@@ -56,7 +61,7 @@ export async function bulkInviteGuardians(
   studentIds: string[],
   options: { dryRun: boolean; resendOpen: boolean },
 ): Promise<BulkInviteResult> {
-  const response = await fetch("/api/guardians/bulk-invite", {
+  const response = await transportFetch("/api/guardians/bulk-invite", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -68,12 +73,16 @@ export async function bulkInviteGuardians(
 
   if (!response.ok) {
     logger.warn("bulk_invite_guardians_failed", { status: response.status });
-    throw new Error(`Failed to bulk invite guardians: ${response.status}`);
+    throw await apiErrorFromResponse(
+      response,
+      `Failed to bulk invite guardians: ${response.status}`,
+    );
   }
 
   const result = (await response.json()) as BulkInviteResponse;
   if (result.status === "error" || !result.data) {
-    throw new Error(result.error ?? "Failed to bulk invite guardians");
+    // A 200 without data is a broken answer, so it counts as a server error.
+    throw apiErrorFromBody("Failed to bulk invite guardians", 500, result);
   }
   const data = result.data;
   return {

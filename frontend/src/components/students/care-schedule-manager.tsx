@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { mutate } from "swr";
 import {
   ChevronLeft,
@@ -24,6 +31,8 @@ import {
   CareWeeklyPlanEditForm,
 } from "./care-weekly-plan-editor";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import {
   type ArrivalData,
   createArrivalException,
@@ -194,6 +203,8 @@ interface CareNoteItem {
 }
 
 function invalidatePickupCaches() {
+  // Best effort: the write itself succeeded and is on screen. A failed
+  // revalidation of other lists only leaves them stale until their next load.
   try {
     mutate(
       (key) =>
@@ -269,7 +280,9 @@ export function CareScheduleManager({
     [],
   );
   const [timePresets, setTimePresets] = useState<CareTimePresets>();
-  const [error, setError] = useState<string | null>(null);
+  const load = useApiLoadError();
+  const { show: showLoadError, clear: clearLoadError } = load;
+  const deleteErrors = useApiFormError();
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   // The day exception slide-over. null = closed; { date } = opened from a day
@@ -451,17 +464,17 @@ export function CareScheduleManager({
       // still going to leave behind is already obsolete. Clearing here (rather
       // than only in loadCareData) is what lets the failure path below bail out
       // without stranding the UI.
-      setError(null);
+      clearLoadError();
       setIsLoading(false);
     },
-    [studentId, isFresherThanRendered, weekDays],
+    [studentId, isFresherThanRendered, weekDays, clearLoadError],
   );
 
   const loadCareData = useCallback(async () => {
     const requestId = claimCareDataRequest();
     try {
       setIsLoading(true);
-      setError(null);
+      clearLoadError();
       await fetchCareDataInto(requestId);
     } catch (err) {
       const message =
@@ -477,7 +490,10 @@ export function CareScheduleManager({
       // rendered yet the failure is what the user needs to see, even when a
       // later fetch happens to be in flight.
       if (!isFresherThanRendered(requestId)) return;
-      setError(message);
+      await showLoadError(err, {
+        object: "die Übersicht der Betreuungszeiten",
+        retry: () => void loadCareDataRef.current(),
+      });
     } finally {
       // Deliberately NOT gated on the request id: this is the only path that
       // sets isLoading, so skipping it for a superseded attempt could strand the
@@ -491,7 +507,13 @@ export function CareScheduleManager({
     fetchCareDataInto,
     isFresherThanRendered,
     studentId,
+    clearLoadError,
+    showLoadError,
   ]);
+  const loadCareDataRef = useRef(loadCareData);
+  useLayoutEffect(() => {
+    loadCareDataRef.current = loadCareData;
+  });
 
   const refreshCareData = useCallback(async () => {
     await fetchCareDataInto(claimCareDataRequest());
@@ -499,6 +521,7 @@ export function CareScheduleManager({
   }, [claimCareDataRequest, fetchCareDataInto, onUpdate]);
 
   useEffect(() => {
+    // loadCareData reports its own failure in place; nothing is left to catch.
     loadCareData().catch(() => undefined);
   }, [loadCareData]);
 
@@ -832,20 +855,20 @@ export function CareScheduleManager({
 
   const handleConfirmDeleteStatusDay = useCallback(async () => {
     if (!statusDayToDelete) return;
+    deleteErrors.clear();
     try {
       await handleDeleteStatusDay(statusDayToDelete.id);
       setStatusDayToDelete(null);
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Geplanter Status konnte nicht entfernt werden";
       logger.error("care_schedule_status_delete_failed", {
-        error: message,
+        error: err instanceof Error ? err.message : String(err),
         student_status_day_id: statusDayToDelete.id,
       });
+      // Der Dialog bleibt offen und nennt den Grund; ein zweiter Klick auf
+      // „Endgültig entfernen“ ist der neue Versuch.
+      await deleteErrors.show(err, { object: "die geplante Abwesenheit" });
     }
-  }, [handleDeleteStatusDay, statusDayToDelete]);
+  }, [deleteErrors, handleDeleteStatusDay, statusDayToDelete]);
 
   if (isLoading && arrivalData.schedules.length === 0) {
     return (
@@ -855,12 +878,8 @@ export function CareScheduleManager({
     );
   }
 
-  if (error) {
-    return (
-      <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
-        {error}
-      </div>
-    );
+  if (load.error) {
+    return <LoadErrorAlert error={load.error} />;
   }
 
   return (
@@ -1037,12 +1056,15 @@ export function CareScheduleManager({
         confirmLabel="Endgültig entfernen"
         loadingLabel="Wird entfernt…"
         onConfirm={handleConfirmDeleteStatusDay}
-        onClose={() => setStatusDayToDelete(null)}
+        onClose={() => {
+          deleteErrors.clear();
+          setStatusDayToDelete(null);
+        }}
         loading={
           statusDayToDelete !== null &&
           deletingStatusDayId === statusDayToDelete.id
         }
-        error=""
+        error={deleteErrors.error?.message ?? ""}
       />
     </section>
   );

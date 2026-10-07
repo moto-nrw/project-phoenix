@@ -3,7 +3,6 @@ package common_test
 import (
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/render"
@@ -18,9 +17,9 @@ import (
 
 func extractOperatorErrResponse(t *testing.T, renderer render.Renderer) (int, string, string) {
 	t.Helper()
-	errResp, ok := renderer.(*common.OperatorErrResponse)
-	require.True(t, ok, "Expected *common.OperatorErrResponse")
-	return errResp.HTTPStatusCode, errResp.StatusText, errResp.ErrorText
+	errResp, ok := renderer.(*common.ErrResponse)
+	require.True(t, ok, "Expected *common.ErrResponse")
+	return errResp.HTTPStatusCode, errResp.Status, errResp.ErrorText
 }
 
 func TestOperatorInvalidRequest(t *testing.T) {
@@ -86,25 +85,6 @@ func TestOperatorServiceUnavailable(t *testing.T) {
 
 	status, statusText, errorText := extractOperatorErrResponse(t, renderer)
 	assert.Equal(t, http.StatusServiceUnavailable, status)
-	assert.Equal(t, "Service Unavailable", statusText)
+	assert.Equal(t, "error", statusText)
 	assert.Equal(t, "MFA status temporarily unavailable, please retry", errorText)
-}
-
-func TestOperatorErrResponse_Render(t *testing.T) {
-	t.Parallel()
-
-	errResp := &common.OperatorErrResponse{
-		HTTPStatusCode: http.StatusBadRequest,
-		StatusText:     "error",
-		ErrorText:      "test error",
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	rr := httptest.NewRecorder()
-
-	err := errResp.Render(rr, req)
-	require.NoError(t, err)
-
-	// The Render method sets the status code in the request context
-	assert.Equal(t, http.StatusBadRequest, errResp.HTTPStatusCode)
 }

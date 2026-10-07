@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ApiError } from "./api-error";
 
 const mockSessionFetch =
   vi.fn<(url: string, init?: RequestInit) => Promise<Response>>();
@@ -11,6 +12,8 @@ vi.mock("./session-cache", () => ({
 // Import after mocking
 const {
   fetchSettingsSchema,
+  saveSettingValue,
+  clearSettingValue,
   setSettingValue,
   resetSettingValue,
   revealSettingValue,
@@ -85,11 +88,19 @@ describe("fetchSettingsSchema", () => {
     await expect(fetchSettingsSchema()).rejects.toThrow(
       "Einstellungen konnten nicht geladen werden (500)",
     );
+    mockSessionFetch.mockResolvedValue(mockResponse(500));
+    await expect(fetchSettingsSchema()).rejects.toMatchObject({
+      status: 500,
+      code: "general.server",
+    });
   });
 
   it("returns null when no auth token available", async () => {
+    // sessionFetch answers a missing token with an ApiError 401.
     mockSessionFetch.mockRejectedValue(
-      new Error("No authentication token available"),
+      new ApiError("Authentication required", 401, {
+        code: "general.permission",
+      }),
     );
 
     const result = await fetchSettingsSchema();
@@ -97,12 +108,14 @@ describe("fetchSettingsSchema", () => {
     expect(result).toBeNull();
   });
 
-  it("returns null on network error", async () => {
-    mockSessionFetch.mockRejectedValue(new Error("fetch failed"));
+  // #2517: a failed request must not read as "no settings for your role".
+  it("passes a network error on instead of returning null", async () => {
+    const failure = new ApiError("Network request failed", 503, {
+      code: "general.unavailable",
+    });
+    mockSessionFetch.mockRejectedValue(failure);
 
-    const result = await fetchSettingsSchema();
-
-    expect(result).toBeNull();
+    await expect(fetchSettingsSchema()).rejects.toBe(failure);
   });
 });
 
@@ -166,6 +179,61 @@ describe("setSettingValue", () => {
     const result = await setSettingValue("test.key", "value");
 
     expect(result).toContain("Netzwerkfehler");
+  });
+});
+
+describe("saveSettingValue", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("resolves on success", async () => {
+    mockSessionFetch.mockResolvedValue(
+      mockResponse(200, { status: "success" }),
+    );
+
+    await expect(saveSettingValue("test.key", 5)).resolves.toBeUndefined();
+    expect(mockSessionFetch).toHaveBeenCalledWith(
+      "/api/settings/values/test.key",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ value: 5 }),
+      }),
+    );
+  });
+
+  it("throws an ApiError that keeps the status class", async () => {
+    mockSessionFetch.mockResolvedValue(
+      mockResponse(400, {
+        error: "invalid value for setting test.key: below minimum 10",
+      }),
+    );
+
+    await expect(saveSettingValue("test.key", 5)).rejects.toMatchObject({
+      status: 400,
+      code: "general.input",
+    });
+  });
+});
+
+describe("clearSettingValue", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("resolves on 204", async () => {
+    mockSessionFetch.mockResolvedValue(mockResponse(204));
+
+    await expect(clearSettingValue("test.key")).resolves.toBeUndefined();
+  });
+
+  it("throws an ApiError on 500", async () => {
+    mockSessionFetch.mockResolvedValue(mockResponse(500));
+
+    await expect(clearSettingValue("test.key")).rejects.toMatchObject({
+      status: 500,
+      code: "general.server",
+    });
   });
 });
 
@@ -500,19 +568,23 @@ describe("revealSettingValue", () => {
     expect(result).toBeNull();
   });
 
-  it("returns null on non-ok response", async () => {
+  // #2517: a failed reveal is shown, not silently masked.
+  it("throws an ApiError with the status class on a non-ok response", async () => {
     mockSessionFetch.mockResolvedValue(mockResponse(403));
 
-    const result = await revealSettingValue("security.ogs_device_pin");
-
-    expect(result).toBeNull();
+    await expect(
+      revealSettingValue("security.ogs_device_pin"),
+    ).rejects.toMatchObject({ status: 403, code: "general.permission" });
   });
 
-  it("returns null on network error", async () => {
-    mockSessionFetch.mockRejectedValue(new Error("network error"));
+  it("passes a transport failure on to the caller", async () => {
+    const failure = new ApiError("Network request failed", 503, {
+      code: "general.unavailable",
+    });
+    mockSessionFetch.mockRejectedValue(failure);
 
-    const result = await revealSettingValue("security.ogs_device_pin");
-
-    expect(result).toBeNull();
+    await expect(revealSettingValue("security.ogs_device_pin")).rejects.toBe(
+      failure,
+    );
   });
 });

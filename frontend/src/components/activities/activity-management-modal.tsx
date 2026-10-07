@@ -1,26 +1,28 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import type { FormEvent } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import {
   updateActivity,
   deleteActivity,
   type Activity,
 } from "~/lib/activity-api";
-import { getDbOperationMessage } from "~/lib/use-notification";
 import {
   parseParticipantLimit,
   useActivityForm,
 } from "~/hooks/useActivityForm";
 import { createLogger } from "~/lib/logger";
-import { Alert } from "~/components/ui/alert";
+import { useApiFormError } from "~/contexts/ToastContext";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
 import { FormModal } from "~/components/ui/form-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { SpinnerIcon } from "~/components/ui/icons";
-import { getApiErrorMessage } from "~/lib/api-error-message";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { InfoIcon } from "@phosphor-icons/react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -34,33 +36,6 @@ interface ActivityManagementModalProps {
   readonly activity: Activity;
   readonly currentStaffId?: string | null;
   readonly readOnly?: boolean;
-}
-
-/** Maps delete error to user-friendly German message */
-export function getDeleteErrorMessage(err: unknown): string {
-  if (!(err instanceof Error)) {
-    return "Fehler beim Löschen der Aktivität";
-  }
-  const message = err.message;
-  if (message.includes("students enrolled")) {
-    return "Diese Aktivität kann nicht gelöscht werden, da noch Kinder eingeschrieben sind. Bitte entfernen Sie zuerst alle Kinder aus der Aktivität.";
-  }
-  // Check for ownership/permission error (403 with specific message)
-  if (
-    message.includes("403") &&
-    (message.includes("you can only modify") ||
-      message.includes("created or supervise"))
-  ) {
-    return "Sie können diese Aktivität nicht löschen, da Sie sie nicht erstellt haben und kein Betreuer sind.";
-  }
-  if (message.includes("401")) {
-    return "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
-  }
-  // Generic 403 - could be other permission issues
-  if (message.includes("403")) {
-    return "Sie haben keine Berechtigung, diese Aktivität zu löschen.";
-  }
-  return message;
 }
 
 // Helper component for normal footer with save/delete buttons
@@ -149,8 +124,7 @@ export function ActivityManagementModal({
     setForm,
     categories,
     loading,
-    error,
-    setError,
+    loadError,
     handleInputChange,
     validateForm,
   } = useActivityForm(
@@ -162,6 +136,20 @@ export function ActivityManagementModal({
     isOpen,
   );
 
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { clear: clearFormErrors, fieldError } = formErrors;
+  // Löschfehler bleiben im offenen Löschdialog.
+  const deleteErrors = useApiFormError();
+  const { clear: clearDeleteErrors } = deleteErrors;
+  // „Wiederholen“ läuft mit dem aktuellen Formularstand.
+  const retrySaveRef = useRef<() => void>(() => undefined);
+  const retryDeleteRef = useRef<() => void>(() => undefined);
+  const onInput = (event: ChangeEvent<HTMLInputElement>) => {
+    handleInputChange(event);
+    clearFormErrors();
+  };
+
   // Reset form when activity changes
   useEffect(() => {
     if (isOpen) {
@@ -170,22 +158,21 @@ export function ActivityManagementModal({
         category_id: activity.ag_category_id || "",
         max_participants: activity.max_participant?.toString() ?? "",
       });
-      setError(null);
+      clearFormErrors();
+      clearDeleteErrors();
       setShowDeleteConfirm(false);
     }
-  }, [isOpen, activity, setForm, setError]);
+  }, [isOpen, activity, setForm, clearFormErrors, clearDeleteErrors]);
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-
-    const validationError = validateForm();
-    if (validationError) {
-      setError(validationError);
+  const save = async () => {
+    formErrors.clear();
+    const problem = validateForm();
+    if (problem) {
+      formErrors.invalid(problem.message, { [problem.field]: problem.message });
       return;
     }
 
     setIsSubmitting(true);
-    setError(null);
 
     try {
       // Prepare the update data
@@ -203,12 +190,7 @@ export function ActivityManagementModal({
       // Call the update API
       await updateActivity(activity.id, updateData);
 
-      // Get success message
-      const successMessage = getDbOperationMessage(
-        "update",
-        "Aktivität",
-        form.name.trim(),
-      );
+      const successMessage = `Die Aktivität „${form.name.trim()}“ ist gespeichert.`;
 
       // Close modal with animation
       onClose();
@@ -224,34 +206,28 @@ export function ActivityManagementModal({
         error: err instanceof Error ? err.message : String(err),
         activity_id: activity.id,
       });
-      // Don't console.error for expected errors (403 permission denied, etc.)
-      // The error is shown to the user via the UI
-      setError(
-        getApiErrorMessage(
-          err,
-          "bearbeiten",
-          "Aktivitäten",
-          "Failed to update activity",
-        ),
-      );
+      void formErrors.show(err, {
+        object: "die Aktivität",
+        retry: () => retrySaveRef.current(),
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    void save();
+  };
+
   const handleDelete = async () => {
     setIsDeleting(true);
-    setError(null);
+    deleteErrors.clear();
 
     try {
       await deleteActivity(activity.id);
 
-      // Get success message
-      const successMessage = getDbOperationMessage(
-        "delete",
-        "Aktivität",
-        activity.name,
-      );
+      const successMessage = `Die Aktivität „${activity.name}“ ist gelöscht.`;
 
       // Close modal with animation
       onClose();
@@ -267,14 +243,19 @@ export function ActivityManagementModal({
         error: err instanceof Error ? err.message : String(err),
         activity_id: activity.id,
       });
-      // Don't console.error for expected errors (403 permission denied, etc.)
-      // The error is shown to the user via the UI
-      setError(getDeleteErrorMessage(err));
-      setShowDeleteConfirm(false);
+      void deleteErrors.show(err, {
+        object: "die Aktivität",
+        retry: () => retryDeleteRef.current(),
+      });
     } finally {
       setIsDeleting(false);
     }
   };
+
+  useLayoutEffect(() => {
+    retrySaveRef.current = () => void save();
+    retryDeleteRef.current = () => void handleDelete();
+  });
 
   const footer = (
     <NormalFooter
@@ -301,6 +282,7 @@ export function ActivityManagementModal({
           <ModalLoadingMessage message="Kategorien werden geladen…" />
         ) : (
           <form
+            ref={formRef}
             id="activity-management-form"
             onSubmit={handleSubmit}
             className="space-y-4"
@@ -317,7 +299,8 @@ export function ActivityManagementModal({
               </p>
             </div>
 
-            {error && <Alert type="error" message={error} />}
+            <LoadErrorAlert error={loadError} />
+            <FormErrorAlert message={formErrors.error} />
 
             {/* Activity Name Card - Compact */}
             <div className="rounded-xl border border-gray-200/50 bg-gray-50 p-3 md:p-4">
@@ -337,7 +320,8 @@ export function ActivityManagementModal({
                   id="name"
                   name="name"
                   value={form.name}
-                  onChange={handleInputChange}
+                  onChange={onInput}
+                  aria-invalid={fieldError("name") ? true : undefined}
                   placeholder="z. B. Hausaufgaben, Malen, Basteln…"
                   className="focus:ring-moto-blue block w-full rounded-lg border-0 bg-white/80 px-3 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:py-2.5 md:text-sm"
                   required
@@ -369,8 +353,9 @@ export function ActivityManagementModal({
                   value={form.category_id}
                   onChange={(next) => {
                     setForm((prev) => ({ ...prev, category_id: next }));
-                    setError(null);
+                    clearFormErrors();
                   }}
+                  invalid={Boolean(fieldError("category_id"))}
                   options={[
                     { value: "", label: "Kategorie wählen…" },
                     ...categories.map((category) => ({
@@ -434,7 +419,10 @@ export function ActivityManagementModal({
                     name="max_participants"
                     type="number"
                     value={form.max_participants}
-                    onChange={handleInputChange}
+                    onChange={onInput}
+                    aria-invalid={
+                      fieldError("max_participants") ? true : undefined
+                    }
                     min="1"
                     required={Boolean(form.max_participants)}
                     className="focus:ring-moto-blue block w-full [appearance:textfield] rounded-lg border-0 bg-white/80 px-14 py-3 text-center text-lg font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset focus:bg-white focus:ring-2 focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:px-12 md:py-2.5 md:text-base [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
@@ -517,9 +505,12 @@ export function ActivityManagementModal({
         description={`Möchten Sie die Aktivität „${activity.name}“ wirklich löschen? Das lässt sich nicht rückgängig machen.`}
         gate={{ mode: "twoStep" }}
         onConfirm={handleDelete}
-        onClose={() => setShowDeleteConfirm(false)}
+        onClose={() => {
+          clearDeleteErrors();
+          setShowDeleteConfirm(false);
+        }}
         loading={isDeleting}
-        error=""
+        error={deleteErrors.error}
       />
     </>
   );

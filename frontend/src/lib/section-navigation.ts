@@ -298,6 +298,9 @@ export const STAFF_FLAT_PAGES = {
   substitutions: { href: "/substitutions", label: "Vertretungen" },
   infoDisplays: { href: "/info-displays", label: "Info-Displays" },
   timeTracking: { href: "/time-tracking", label: "Zeiterfassung" },
+  // Eigener Wochenplan der Mitarbeitenden (#3821), nur lesend. Eigene Route,
+  // damit die Seitenleiste nicht zugleich „Zeiterfassung“ markiert.
+  ownShiftPlan: { href: "/mein-dienstplan", label: "Mein Dienstplan" },
   dayLog: { href: "/day-log", label: "Tagesauswertung" },
   // Statistik (#2606): Quoten je Kind, Gruppe und Zeitraum plus Raumauslastung.
   statistics: { href: "/statistics", label: "Statistik" },

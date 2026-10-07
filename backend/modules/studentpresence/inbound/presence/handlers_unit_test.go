@@ -580,7 +580,7 @@ func TestErrorRenderer_ActiveGroupNotFound(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "Active Group Not Found", errResp.Status)
+	assert.Equal(t, "error", errResp.Status)
 }
 
 func TestErrorRenderer_VisitNotFound(t *testing.T) {
@@ -592,7 +592,7 @@ func TestErrorRenderer_VisitNotFound(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "Visit Not Found", errResp.Status)
+	assert.Equal(t, "error", errResp.Status)
 }
 
 func TestErrorRenderer_GroupSupervisorNotFound(t *testing.T) {
@@ -604,7 +604,7 @@ func TestErrorRenderer_GroupSupervisorNotFound(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "Group Supervisor Not Found", errResp.Status)
+	assert.Equal(t, "error", errResp.Status)
 }
 
 func TestErrorRenderer_CombinedGroupNotFound(t *testing.T) {
@@ -616,7 +616,7 @@ func TestErrorRenderer_CombinedGroupNotFound(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "Combined Group Not Found", errResp.Status)
+	assert.Equal(t, "error", errResp.Status)
 }
 
 func TestErrorRenderer_GroupMappingNotFound(t *testing.T) {
@@ -628,7 +628,7 @@ func TestErrorRenderer_GroupMappingNotFound(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "Group Mapping Not Found", errResp.Status)
+	assert.Equal(t, "error", errResp.Status)
 }
 
 func TestErrorRenderer_InvalidData(t *testing.T) {
@@ -640,7 +640,7 @@ func TestErrorRenderer_InvalidData(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Invalid Data", errResp.Status)
+	assert.Equal(t, "error", errResp.Status)
 }
 
 func TestErrorRenderer_ActiveGroupAlreadyEnded(t *testing.T) {
@@ -652,7 +652,7 @@ func TestErrorRenderer_ActiveGroupAlreadyEnded(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Active Group Already Ended", errResp.Status)
+	assert.Equal(t, "error", errResp.Status)
 }
 
 func TestErrorRenderer_VisitAlreadyEnded(t *testing.T) {
@@ -664,7 +664,7 @@ func TestErrorRenderer_VisitAlreadyEnded(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Visit Already Ended", errResp.Status)
+	assert.Equal(t, "error", errResp.Status)
 }
 
 func TestErrorRenderer_SupervisionAlreadyEnded(t *testing.T) {
@@ -676,7 +676,7 @@ func TestErrorRenderer_SupervisionAlreadyEnded(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Supervision Already Ended", errResp.Status)
+	assert.Equal(t, "error", errResp.Status)
 }
 
 func TestErrorRenderer_CombinedGroupAlreadyEnded(t *testing.T) {
@@ -688,7 +688,7 @@ func TestErrorRenderer_CombinedGroupAlreadyEnded(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Combined Group Already Ended", errResp.Status)
+	assert.Equal(t, "error", errResp.Status)
 }
 
 func TestErrorRenderer_GroupAlreadyInCombination(t *testing.T) {
@@ -700,7 +700,7 @@ func TestErrorRenderer_GroupAlreadyInCombination(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Group Already In Combination", errResp.Status)
+	assert.Equal(t, "error", errResp.Status)
 }
 
 func TestErrorRenderer_StudentAlreadyInGroup(t *testing.T) {
@@ -712,7 +712,7 @@ func TestErrorRenderer_StudentAlreadyInGroup(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Student Already In Group", errResp.Status)
+	assert.Equal(t, "error", errResp.Status)
 }
 
 func TestErrorRenderer_StudentAlreadyActive(t *testing.T) {
@@ -731,7 +731,7 @@ func TestErrorRenderer_StudentAlreadyActive(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, testutil.StatusConflict, errResp.HTTPStatusCode)
-	assert.Equal(t, "Student Already Has Active Visit", errResp.Status)
+	assert.Equal(t, "error", errResp.Status)
 }
 
 func TestErrorRenderer_StaffAlreadySupervising(t *testing.T) {
@@ -743,7 +743,7 @@ func TestErrorRenderer_StaffAlreadySupervising(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Staff Already Supervising This Group", errResp.Status)
+	assert.Equal(t, "error", errResp.Status)
 }
 
 func TestErrorRenderer_CannotDeleteActiveGroup(t *testing.T) {
@@ -755,7 +755,7 @@ func TestErrorRenderer_CannotDeleteActiveGroup(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Cannot Delete Active Group With Active Visits", errResp.Status)
+	assert.Equal(t, "error", errResp.Status)
 }
 
 func TestErrorRenderer_InvalidTimeRange(t *testing.T) {
@@ -767,7 +767,7 @@ func TestErrorRenderer_InvalidTimeRange(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Invalid Time Range", errResp.Status)
+	assert.Equal(t, "error", errResp.Status)
 }
 
 func TestErrorRenderer_RoomConflict(t *testing.T) {
@@ -779,7 +779,7 @@ func TestErrorRenderer_RoomConflict(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 409, errResp.HTTPStatusCode)
-	assert.Equal(t, "Room Conflict", errResp.Status)
+	assert.Equal(t, "error", errResp.Status)
 }
 
 func TestErrorRenderer_UnknownError(t *testing.T) {
@@ -791,6 +791,6 @@ func TestErrorRenderer_UnknownError(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 500, errResp.HTTPStatusCode)
-	assert.Equal(t, "Internal Server Error", errResp.Status)
+	assert.Equal(t, "error", errResp.Status)
 	assert.Equal(t, "unknown error", errResp.ErrorText)
 }

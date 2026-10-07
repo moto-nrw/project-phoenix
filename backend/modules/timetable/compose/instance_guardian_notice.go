@@ -114,7 +114,8 @@ func (s *InstanceLifecycleService) validateGuardianNotice(ctx context.Context, i
 		return fmt.Errorf("%w: acting account is required", timetable.ErrGuardianNoticeInvalid)
 	}
 	if err := s.deps.GuardianNotices.ValidateNoticeText(in.GuardianNotice.Title, in.GuardianNotice.Message); err != nil {
-		return fmt.Errorf("%w: %w", timetable.ErrGuardianNoticeInvalid, err)
+		return timetable.WithCode(fmt.Errorf("%w: %w", timetable.ErrGuardianNoticeInvalid, err),
+			timetable.CodeGuardianNoticeTextInvalid)
 	}
 	instance, err := s.loadForTransition(ctx, in.InstanceID)
 	if err != nil {
@@ -122,7 +123,8 @@ func (s *InstanceLifecycleService) validateGuardianNotice(ctx context.Context, i
 	}
 	// A block that already lies in the past is bookkeeping, not news.
 	if instance.Date.Before(timezone.TodayDate()) {
-		return fmt.Errorf("%w: block is in the past", timetable.ErrGuardianNoticeInvalid)
+		return timetable.WithCode(fmt.Errorf("%w: block is in the past", timetable.ErrGuardianNoticeInvalid),
+			timetable.CodeGuardianNoticePast)
 	}
 	return nil
 }

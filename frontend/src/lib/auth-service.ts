@@ -37,7 +37,13 @@ import {
   type BackendParentAccount,
 } from "./auth-helpers";
 import type { AxiosError } from "axios";
-import type { ApiError } from "./api-error";
+import {
+  type ApiError,
+  apiErrorFromBody,
+  apiErrorFromText,
+  transportFetch,
+  unavailableApiError,
+} from "./api-error";
 
 // Generic API response interface
 interface ApiResponse<T> {
@@ -164,27 +170,27 @@ async function buildFetchApiError(
   fallbackMessage: string,
 ): Promise<ApiError> {
   let message = fallbackMessage;
+  let text = "";
 
   try {
-    const contentType = response.headers.get("Content-Type") ?? "";
-    if (contentType.includes("application/json")) {
-      const payload = (await response.json()) as ApiErrorResponseBody;
-      message = payload.error ?? payload.message ?? fallbackMessage;
-    } else {
-      const text = (await response.text()).trim();
-      if (text) {
-        message = text;
+    text = await response.text();
+    if (text) {
+      try {
+        const payload = JSON.parse(text) as ApiErrorResponseBody;
+        message = payload.error ?? payload.message ?? fallbackMessage;
+      } catch {
+        message = text.trim();
       }
     }
-  } catch (parseError) {
+  } catch (readError) {
     logger.warn("failed to parse password reset error response", {
-      error:
-        parseError instanceof Error ? parseError.message : String(parseError),
+      error: readError instanceof Error ? readError.message : String(readError),
     });
   }
 
-  const apiError = new Error(message) as ApiError;
-  apiError.status = response.status;
+  // A real ApiError with code, field errors and request ID, so the shared
+  // error path can show the catalog text (#2517).
+  const apiError = apiErrorFromText(message, response.status, text);
 
   const retryAfterSeconds = parseRetryAfter(
     response.headers.get("Retry-After"),
@@ -200,9 +206,13 @@ function buildAxiosApiError(
   error: AxiosError<ApiErrorResponseBody>,
   fallbackMessage: string,
 ): ApiError {
+  if (!error.response) {
+    return unavailableApiError(error);
+  }
+
   let message = fallbackMessage;
 
-  const data = error.response?.data;
+  const data = error.response.data;
   if (data) {
     if (typeof data === "string") {
       message = data;
@@ -213,11 +223,13 @@ function buildAxiosApiError(
     message = error.message;
   }
 
-  const apiError = new Error(message) as ApiError;
-  apiError.status = error.response?.status;
+  const apiError = apiErrorFromBody(
+    message,
+    error.response.status,
+    typeof data === "object" ? data : undefined,
+  );
 
-  const headers = error.response?.headers as
-    Record<string, unknown> | undefined;
+  const headers = error.response.headers as Record<string, unknown> | undefined;
   const retryAfterHeader = headers ? headers["retry-after"] : undefined;
   let retryAfterValue: string | null = null;
   if (Array.isArray(retryAfterHeader)) {
@@ -306,7 +318,11 @@ async function executeBrowserFetch<TBackend>(
       status: response.status,
       error_text: errorText.substring(0, 200),
     });
-    throw new Error(`${errorPrefix} failed: ${response.status}`);
+    throw apiErrorFromText(
+      `${errorPrefix} failed: ${response.status}`,
+      response.status,
+      errorText,
+    );
   }
 
   // Handle 204 No Content and empty responses (void endpoints)
@@ -702,7 +718,7 @@ export const authService = {
 
     try {
       if (useProxyApi) {
-        const response = await fetch(url, {
+        const response = await transportFetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),

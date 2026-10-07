@@ -84,7 +84,7 @@ func (rs *Resource) patchInstanceStudent(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if current == nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("instance student not found")))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("instance student not found"), common.CodeTimetableAttendanceEntryNotFound))
 		return
 	}
 
@@ -153,14 +153,14 @@ func (rs *Resource) rejectFrozenAttendanceWrite(w http.ResponseWriter, r *http.R
 	inst, err := rs.TimetableData.FindScheduledInstance(ctx, instanceID)
 	if err != nil {
 		if errors.Is(err, timetable.ErrActivityInstanceNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("instance not found"), common.CodeTimetableInstanceNotFound))
 			return true
 		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load instance failed", err))
 		return true
 	}
 	if inst.Status == timetable.InstanceStatusCompleted || inst.Status == timetable.InstanceStatusCancelled {
-		common.RenderError(w, r, common.ErrorConflict(errors.New("attendance is frozen after completion")))
+		common.RenderError(w, r, common.ErrorConflictWithCode(errors.New("attendance is frozen after completion"), common.CodeTimetableAttendanceFrozen))
 		return true
 	}
 	return false
@@ -297,7 +297,11 @@ func validateAttendancePatch(patch timetable.AttendancePatch, current *timetable
 // The summary lands in the standard `error` field (readable by the generic
 // frontend handler) and the per-field list in `errors`.
 func renderValidationErrors(w http.ResponseWriter, r *http.Request, errs []fieldError) {
-	common.RenderError(w, r, common.ErrorValidation("validation failed", errs))
+	renderer := common.ErrorValidation("validation failed", errs)
+	if resp, ok := renderer.(*common.ErrResponse); ok {
+		resp.Code = common.CodeTimetableAttendanceInvalid
+	}
+	common.RenderError(w, r, renderer)
 }
 
 func attendancePatchFieldErrors(errs []timetable.AttendanceFieldError) []fieldError {

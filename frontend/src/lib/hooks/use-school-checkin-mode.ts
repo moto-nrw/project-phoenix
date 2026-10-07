@@ -1,8 +1,14 @@
 "use client";
 
-import { useCallback, useReducer, useRef, useState } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { mutate as globalMutate } from "swr";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import {
   isNotCheckedInLocation,
   isSchoolyardLocation,
@@ -83,15 +89,11 @@ export function checkoutConfirmationRoom(
 }
 
 /**
- * Detects the 403 the school-checkin endpoint returns when the caller may not
- * use web check-in at all (missing users:checkin permission or web attendance
- * disabled). authFetch folds the status into the message
- * ("API error (403): Forbidden"), which is the same shape
- * `getApiErrorMessage` matches on.
+ * Names what an action changes in the shared error text: „Die Anwesenheit
+ * konnte nicht geändert werden.“ Not „die Anmeldung“: in moto that word
+ * also means a child's enrolment.
  */
-function isForbiddenError(error: unknown): boolean {
-  return error instanceof Error && error.message.includes("403");
-}
+const CHECKIN_OBJECT = "die Anwesenheit";
 
 interface CheckinModeSession {
   isActive: boolean;
@@ -182,6 +184,12 @@ interface UseSchoolCheckinModeResult {
   selectedIds: ReadonlySet<string>;
   toggleSelected: (studentId: string) => void;
   /**
+   * Mark or unmark several students at once: the table view's checkboxes,
+   * including its "alle auswählen" box (#3834). Works without the check-in
+   * mode — the table marks children directly.
+   */
+  setSelected: (studentIds: readonly string[], selected: boolean) => void;
+  /**
    * Empty the selection. While a bulk request is in flight the clear is
    * DEFERRED until the run settles (review #2372): the page fires this on
    * every search/filter scope change, and clearing mid-flight would race the
@@ -246,6 +254,17 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
   // Scope clear requested mid-flight; applied when the run settles.
   const pendingClearRef = useRef(false);
   const toast = useToast();
+  // A permission refusal fails on every retry, so the catalog text of that
+  // class names the reason instead of offering a retry (#2220, #2513).
+  const errors = useApiErrorDisplay();
+  const showError = errors.show;
+  const latestToggleRef = useRef<
+    (
+      studentId: string,
+      currentState: StudentCheckinState,
+      checkoutNote?: string,
+    ) => Promise<void>
+  >(async () => undefined);
 
   const clearSelection = useCallback(() => {
     if (isBulkRunningRef.current) {
@@ -304,6 +323,20 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
     });
   }, []);
 
+  const setSelected = useCallback(
+    (studentIds: readonly string[], selected: boolean) => {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of studentIds) {
+          if (selected) next.add(id);
+          else next.delete(id);
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
   const toggle = useCallback(
     async (
       studentId: string,
@@ -344,22 +377,11 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
           action,
           error: message,
         });
-        if (isForbiddenError(error)) {
-          // Naming the reason matters here: a permission 403 fails on every
-          // retry, and a bare "bitte erneut versuchen" would invite endless
-          // retries (#2220).
-          toast.error(
-            action === "in"
-              ? "Keine Berechtigung, Kinder anzumelden."
-              : "Keine Berechtigung, Kinder abzumelden.",
-          );
-        } else {
-          toast.error(
-            action === "in"
-              ? "Anmelden fehlgeschlagen. Bitte erneut versuchen."
-              : "Abmelden fehlgeschlagen. Bitte erneut versuchen.",
-          );
-        }
+        void showError(error, {
+          object: CHECKIN_OBJECT,
+          retry: () =>
+            void latestToggleRef.current(studentId, currentState, checkoutNote),
+        });
       } finally {
         setPendingIds((prev) => {
           const next = new Set(prev);
@@ -368,8 +390,11 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
         });
       }
     },
-    [pendingIds, toast],
+    [pendingIds, showError],
   );
+  useLayoutEffect(() => {
+    latestToggleRef.current = toggle;
+  });
 
   const runBulk = useCallback(
     async (
@@ -445,19 +470,9 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
           student_count: ids.length,
           error: message,
         });
-        if (isForbiddenError(error)) {
-          toast.error(
-            action === "in"
-              ? "Keine Berechtigung, Kinder anzumelden."
-              : "Keine Berechtigung, Kinder abzumelden.",
-          );
-        } else {
-          toast.error(
-            action === "in"
-              ? "Anmelden fehlgeschlagen. Bitte erneut versuchen."
-              : "Abmelden fehlgeschlagen. Bitte erneut versuchen.",
-          );
-        }
+        // No retry button: the caller shows the outcome of a run, which a
+        // toast retry would bypass. The selection stays marked for a new tap.
+        void showError(error, { object: CHECKIN_OBJECT });
         return null;
       } finally {
         setPendingIds((prev) => {
@@ -481,7 +496,7 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
         }
       }
     },
-    [selectedIds, toast],
+    [selectedIds, toast, showError],
   );
 
   return {
@@ -495,6 +510,7 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
     setSelectionActive,
     selectedIds,
     toggleSelected,
+    setSelected,
     clearSelection,
     isBulkRunning,
     runBulk,

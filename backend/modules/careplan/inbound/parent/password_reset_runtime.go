@@ -61,6 +61,6 @@ func (rs *Resource) renderPasswordResetRateLimit(w http.ResponseWriter, r *http.
 	if seconds > 0 {
 		w.Header().Set("Retry-After", strconv.Itoa(seconds))
 	}
-	common.RenderError(w, r, common.ErrorTooManyRequests(ErrPasswordResetRateLimited))
+	common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(ErrPasswordResetRateLimited, common.CodeIdentityPasswordResetRateLimited))
 	return true
 }

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Download, FileSpreadsheet, Printer } from "lucide-react";
 
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Button } from "~/components/ui/button";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Radio } from "~/components/ui/radio";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
@@ -15,7 +16,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -55,6 +56,12 @@ interface PlanExportModalProps {
 
 type RangeMode = "week" | "range";
 
+type RunExport = (
+  key: string,
+  format: PlanExportFormat,
+  mode: PlanExportMode,
+) => void;
+
 /**
  * Export dialog for the two weekly plans (#2079).
  *
@@ -83,6 +90,12 @@ export function PlanExportModal({
   const [from, setFrom] = useState(weekDay);
   const [to, setTo] = useState(weekDay);
   const [busy, setBusy] = useState<string | null>(null);
+  // Fehler bleiben im offenen Panel; ein Toast läge darunter.
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const clearErrors = formErrors.clear;
+  // „Wiederholen“ startet den Export mit der dann gewählten Vorlage und Zeit.
+  const latestRunRef = useRef<RunExport>(() => undefined);
 
   // Reopening the dialog on a different week must not export the week the
   // user looked at last time.
@@ -93,7 +106,8 @@ export function PlanExportModal({
     setRangeMode("week");
     setFrom(weekDay);
     setTo(weekDay);
-  }, [isOpen, defaultTemplate, weekDay]);
+    clearErrors();
+  }, [isOpen, defaultTemplate, weekDay, clearErrors]);
 
   const range = useMemo(
     () =>
@@ -104,14 +118,16 @@ export function PlanExportModal({
   const weekCount = useMemo(() => countWeeks(range.from, range.to), [range]);
   const rangeError = useMemo(() => {
     if (rangeMode === "week") return null;
-    if (!from || !to) return "Bitte Von und Bis auswählen.";
+    if (!from || !to) return "Bitte wählen Sie Von und Bis aus.";
     if (weekCount === null) return "Das Bis-Datum liegt vor dem Von-Datum.";
     if (weekCount > MAX_WEEKS)
       return `Es lassen sich höchstens ${MAX_WEEKS} Wochen auf einmal drucken.`;
     return null;
   }, [rangeMode, from, to, weekCount]);
 
-  if (!isOpen) return null;
+  // Die Stundenübersicht (#3819) druckt nur Zahlen, keine Gründe. Eine
+  // Wahl zwischen Aushang und interner Fassung ändert daran nichts.
+  const showsVariant = template !== "hours";
 
   const run = async (
     key: string,
@@ -119,7 +135,7 @@ export function PlanExportModal({
     mode: PlanExportMode,
   ) => {
     if (rangeError) {
-      toast.error(rangeError);
+      formErrors.invalid(rangeError);
       return;
     }
     // The print tab has to open while the click's user activation is still
@@ -128,16 +144,26 @@ export function PlanExportModal({
     if (mode === "print") {
       printTarget = globalThis.open("", "_blank");
       if (!printTarget) {
-        toast.error("Der Druckdialog konnte nicht geöffnet werden.");
+        // Der Browser hat das neue Fenster blockiert. Das ist kein Fehler
+        // des Servers, deshalb ein eigener Hinweis statt des Katalogs.
+        formErrors.invalid(
+          "Das Druckfenster ging nicht auf. Bitte erlauben Sie neue Fenster für moto.",
+        );
         return;
       }
     }
 
     setBusy(key);
+    formErrors.clear();
     try {
       await exportPlan(
         plan,
-        { from: range.from, to: range.to, template, variant },
+        {
+          from: range.from,
+          to: range.to,
+          template,
+          variant: showsVariant ? variant : "aushang",
+        },
         format,
         mode,
         printTarget,
@@ -145,14 +171,29 @@ export function PlanExportModal({
       if (mode === "download") toast.success("Der Plan wurde erstellt.");
       onClose();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Export fehlgeschlagen";
-      logger.error("plan_export_failed", { plan, format, error: message });
-      toast.error(message);
+      logger.error("plan_export_failed", {
+        plan,
+        format,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await formErrors.show(error, {
+        object:
+          mode === "print"
+            ? "die Druckfassung des Plans"
+            : "die Datei des Plans",
+        // Der Klick auf „Wiederholen“ ist wieder eine Nutzeraktion: das
+        // Druckfenster darf dort erneut aufgehen.
+        retry: () => latestRunRef.current(key, format, mode),
+      });
     } finally {
       setBusy(null);
     }
   };
+  useLayoutEffect(() => {
+    latestRunRef.current = (key, format, mode) => void run(key, format, mode);
+  });
+
+  if (!isOpen) return null;
 
   const footer = (
     <>
@@ -212,7 +253,11 @@ export function PlanExportModal({
             disabled={busy !== null}
           />
         </SlideOverHeader>
-        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+        <div
+          ref={formRef}
+          className="flex-1 space-y-5 overflow-y-auto px-5 py-4"
+        >
+          <FormErrorAlert message={formErrors.error} />
           {templates.length > 1 && (
             <section>
               <p className="text-sm font-medium text-gray-900">Vorlage</p>
@@ -232,22 +277,24 @@ export function PlanExportModal({
             </section>
           )}
 
-          <section>
-            <p className="text-sm font-medium text-gray-900">Fassung</p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              {variants.map((item) => (
-                <RadioOption
-                  key={item.id}
-                  id={`plan-export-variant-${item.id}`}
-                  name="plan-export-variant"
-                  selected={variant === item.id}
-                  label={item.label}
-                  description={item.description}
-                  onClick={() => setVariant(item.id)}
-                />
-              ))}
-            </div>
-          </section>
+          {showsVariant && (
+            <section>
+              <p className="text-sm font-medium text-gray-900">Fassung</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {variants.map((item) => (
+                  <RadioOption
+                    key={item.id}
+                    id={`plan-export-variant-${item.id}`}
+                    name="plan-export-variant"
+                    selected={variant === item.id}
+                    label={item.label}
+                    description={item.description}
+                    onClick={() => setVariant(item.id)}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
 
           <section>
             <p className="text-sm font-medium text-gray-900">Zeitraum</p>
@@ -301,7 +348,8 @@ export function PlanExportModal({
             )}
 
             <p className="mt-2 text-xs text-gray-500">
-              {rangeError ?? describeRange(range.from, range.to, weekCount)}
+              {rangeError ??
+                describeRange(range.from, range.to, weekCount, template)}
             </p>
           </section>
         </div>
@@ -341,6 +389,7 @@ function describeRange(
   from: string,
   to: string,
   weekCount: number | null,
+  template: PlanExportTemplate,
 ): string {
   if (!from || !to || weekCount === null) return "";
   const monday = startOfWeek(parseISODate(from));
@@ -349,7 +398,12 @@ function describeRange(
   const span = `${formatDate(toISODate(monday))} bis ${formatDate(toISODate(friday))}`;
   // Samstag und Sonntag stehen nicht im Text, weil sie nicht vom Zeitraum
   // abhängen, sondern davon, ob dort überhaupt etwas geplant ist.
-  const weekend = "Samstag und Sonntag nur, wenn dort etwas geplant ist.";
+  // Die Stundenübersicht hat keine Tagesspalten; ihre Summen zählen die
+  // ganze Woche.
+  const weekend =
+    template === "hours"
+      ? "Die Stunden zählen die ganze Woche, auch Samstag und Sonntag."
+      : "Samstag und Sonntag nur, wenn dort etwas geplant ist.";
   return weekCount === 1
     ? `Gedruckt wird die Woche vom ${span}, Montag bis Freitag. ${weekend}`
     : `Gedruckt werden ${weekCount} Wochen (${span}), je Woche ein Blatt. ${weekend}`;

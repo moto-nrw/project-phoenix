@@ -2,6 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import type { FormErrorInput } from "~/components/ui/form-error";
 
 export type GuardianDeleteScope = "unlink" | "full";
 
@@ -34,6 +35,8 @@ interface GuardianDeleteModalProps {
   readonly onConfirmUnlink: () => void;
   /** Confirm the full delete (force) once the warning has been shown. */
   readonly onConfirmFullDelete: () => void;
+  /** Fehler des Entfernens oder der Vorschau; bleibt im offenen Dialog. */
+  readonly error?: FormErrorInput;
 }
 
 // Löschen einer Erziehungsberechtigten-Verknüpfung (#3110): ein Dialog auf
@@ -52,6 +55,7 @@ export function GuardianDeleteModal({
   isWarningLoading = false,
   onConfirmUnlink,
   onConfirmFullDelete,
+  error = null,
 }: GuardianDeleteModalProps) {
   const fullDelete = canFullDelete && scope === "full";
 
@@ -135,7 +139,7 @@ export function GuardianDeleteModal({
       onConfirm={fullDelete ? onConfirmFullDelete : onConfirmUnlink}
       onClose={onClose}
       loading={isLoading}
-      error=""
+      error={error}
     />
   );
 }

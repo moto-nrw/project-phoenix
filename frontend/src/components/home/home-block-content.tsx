@@ -56,7 +56,9 @@ export interface HomeBlockData {
   readonly analyticsLoading: boolean;
   readonly birthdays: BirthdayOverview | undefined;
   readonly birthdaysLoading: boolean;
-  readonly birthdaysError: Error | undefined;
+  readonly birthdaysError: unknown;
+  /** Lädt die Geburtstage der laufenden Woche neu. */
+  readonly retryBirthdays: () => unknown;
   /** Darf die Person die Kindersuche hinter einer Kennzahl öffnen? */
   readonly canOpenStudentSearch: boolean;
   readonly tenantPath: (path: string) => string;
@@ -446,6 +448,7 @@ export function HomeBlockContent({
           current={data.birthdays}
           currentLoading={data.birthdaysLoading}
           currentError={data.birthdaysError}
+          onRetryCurrent={data.retryBirthdays}
         />
       );
     default:

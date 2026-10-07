@@ -8,6 +8,8 @@ import {
   fetchCareScheduleChangeRequest,
   type StaffCareRequestDetail,
 } from "~/lib/care-request-review-api";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { PickupRequestDetailModal } from "./pickup-request-detail-modal";
 
 vi.mock("~/lib/care-request-review-api", async () => {
@@ -167,7 +169,7 @@ describe("PickupRequestDetailModal", () => {
 
   it("erklärt eine entfernte Anfrage und fehlenden Zugriff verständlich", async () => {
     mockFetch.mockRejectedValue(
-      new CareRequestApiError("not found", undefined, 404),
+      new CareRequestApiError("not found", "care.request_not_found", 404),
     );
     const { unmount } = render(
       <PickupRequestDetailModal requestId="42" onClose={vi.fn()} />,
@@ -193,16 +195,42 @@ describe("PickupRequestDetailModal", () => {
     const consoleError = vi
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
-    mockFetch.mockRejectedValue(new Error("network"));
+    mockFetch.mockRejectedValue(
+      new ApiError("Failed to fetch", 503, { code: "general.unavailable" }),
+    );
     const onClose = vi.fn();
     render(<PickupRequestDetailModal requestId="42" onClose={onClose} />, {
       wrapper: Wrapper,
     });
+    // #2517: Katalogtext statt eigenem Satz.
     expect(
-      await screen.findByText(/konnte nicht geladen werden/),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Anfrage"),
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Schließen" }));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
+    consoleError.mockRestore();
+  });
+
+  it("lädt die Anfrage bei Wiederholen neu", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    mockFetch
+      .mockRejectedValueOnce(
+        new ApiError("boom", 500, { code: "general.server" }),
+      )
+      .mockResolvedValueOnce(detail());
+    render(<PickupRequestDetailModal requestId="42" onClose={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Wiederholen" }));
+
+    expect(await screen.findByText("Paula Planerin")).toBeInTheDocument();
+    expect(mockFetch).toHaveBeenCalledTimes(2);
     consoleError.mockRestore();
   });
 

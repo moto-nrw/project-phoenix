@@ -34,6 +34,7 @@ import {
   type EndedCareEntry,
 } from "~/lib/care-exit-api";
 import { formatDate } from "~/lib/date-helpers";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { useDebounce } from "~/lib/use-debounce";
 
@@ -81,7 +82,8 @@ export default function EndedCarePage() {
   const {
     data,
     isLoading,
-    error: loadError,
+    error: swrError,
+    mutate,
   } = useSWRAuth(
     canManage ? `${SWR_KEY}:${page}:${debouncedSearch}` : null,
     () =>
@@ -91,6 +93,12 @@ export default function EndedCarePage() {
         search: debouncedSearch || undefined,
       }),
     { keepPreviousData: true },
+  );
+  // Ladefehler mit Katalogtext und Wiederholen (#2517).
+  const loadError = useSwrLoadError(
+    canManage ? swrError : undefined,
+    "die Liste der beendeten Betreuungen",
+    () => mutate(),
   );
 
   const entries = useMemo(() => data?.items ?? [], [data]);
@@ -173,15 +181,21 @@ export default function EndedCarePage() {
     },
   ];
 
-  // Statuszeile des Seitenkopfs aus der bereits geladenen Seite.
-  const statusLine = [
-    `${formatCount(total)} ${total === 1 ? "Kind" : "Kinder"}`,
-    total > 0 ? `${firstOnPage} bis ${lastOnPage} auf dieser Seite` : null,
-    debouncedSearch ? `gefiltert nach „${debouncedSearch}“` : null,
-    totalPages > 1 ? `Seite ${page} von ${totalPages}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Seite. Ohne
+  // geladene Seite steht keine "0 Kinder" neben dem Ladefehler (#2517).
+  const statusLine =
+    data === undefined
+      ? null
+      : [
+          `${formatCount(total)} ${total === 1 ? "Kind" : "Kinder"}`,
+          total > 0
+            ? `${firstOnPage} bis ${lastOnPage} auf dieser Seite`
+            : null,
+          debouncedSearch ? `gefiltert nach „${debouncedSearch}“` : null,
+          totalPages > 1 ? `Seite ${page} von ${totalPages}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
 
   const contentEmpty = status !== "loading" && !canManage;
 
@@ -200,11 +214,7 @@ export default function EndedCarePage() {
           : undefined
       }
       loading={status === "loading"}
-      error={
-        canManage && loadError
-          ? "Die beendeten Betreuungen konnten nicht geladen werden."
-          : null
-      }
+      error={loadError}
       back
       overlays={
         <>

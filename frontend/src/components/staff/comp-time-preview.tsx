@@ -4,10 +4,12 @@
 // Informiert vor dem Eintragen; ein negativer Stand wird bestätigt, nicht
 // verhindert. Seit #3256 Teil des gemeinsamen Dialogs „Abwesenheit eintragen".
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   staffAbsenceService,
@@ -28,14 +30,23 @@ export function useCompTimePreview({
   readonly dateStart: string;
   readonly dateEnd: string;
   readonly halfDay: boolean;
-}): { preview: CompTimeBalancePreview | null; loading: boolean } {
+}): {
+  preview: CompTimeBalancePreview | null;
+  loading: boolean;
+  error: unknown;
+  reload: () => void;
+} {
   const [preview, setPreview] = useState<CompTimeBalancePreview | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [attempt, setAttempt] = useState(0);
+  const reload = useCallback(() => setAttempt((value) => value + 1), []);
 
   useEffect(() => {
     // Sofort verwerfen: die alte Projektion darf während des Nachladens weder
     // angezeigt werden noch eine Buchung ohne Bestätigung durchlassen.
     setPreview(null);
+    setError(null);
     if (!enabled || !dateStart || !dateEnd) {
       setLoading(false);
       return;
@@ -49,12 +60,13 @@ export function useCompTimePreview({
       })
       .catch((err: unknown) => {
         if (stale) return;
-        // Rein informativ: ein Ladefehler blendet den Block aus, die Buchung
+        // Rein informativ: der Block zeigt den Ladefehler, die Buchung
         // selbst bleibt möglich und meldet ihre eigenen Fehler.
         logger.error("comp_time_preview_failed", {
           staff_id: staffId,
           error: err instanceof Error ? err.message : String(err),
         });
+        setError(err);
       })
       .finally(() => {
         if (!stale) setLoading(false);
@@ -62,18 +74,37 @@ export function useCompTimePreview({
     return () => {
       stale = true;
     };
-  }, [enabled, staffId, dateStart, dateEnd, halfDay]);
+  }, [enabled, staffId, dateStart, dateEnd, halfDay, attempt]);
 
-  return { preview, loading };
+  return { preview, loading, error, reload };
 }
 
 export function CompTimePreviewPanel({
   preview,
   loading,
+  error = null,
+  onRetry,
 }: {
   readonly preview: CompTimeBalancePreview | null;
   readonly loading: boolean;
+  readonly error?: unknown;
+  readonly onRetry?: () => void;
 }) {
+  const load = useApiLoadError();
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
+  useEffect(() => {
+    if (error) {
+      void showLoadError(error, {
+        object: "die Vorschau für das Stundenkonto",
+        retry: onRetry,
+      });
+    } else {
+      clearLoadError();
+    }
+  }, [error, onRetry, showLoadError, clearLoadError]);
+
+  if (error) return <LoadErrorAlert error={load.error} />;
   if (preview === null && !loading) return null;
   return (
     <div className="rounded-lg bg-gray-50 p-3">

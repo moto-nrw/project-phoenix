@@ -7,12 +7,13 @@
  * Kindes und darf nicht aus Versehen passieren.
  */
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
-import { Alert } from "~/components/ui/alert";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Textarea } from "~/components/ui/textarea";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -20,7 +21,6 @@ import {
   correctRequestDecision,
   type ParentRequestKind,
 } from "~/lib/change-request-list-api";
-import { STALE_REQUEST_NOTICE } from "./request-copy";
 
 const logger = createLogger({ component: "DecisionCorrectionDialog" });
 
@@ -60,19 +60,24 @@ export function DecisionCorrectionDialog({
   // will fast immer das andere Ergebnis.
   const [approve, setApprove] = useState(target.priorStatus !== "approved");
   const [reason, setReason] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const errors = useApiFormError(bodyRef);
+  // „Wiederholen“ sendet den aktuellen Grund, nicht den vom Fehler.
+  const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
 
   const save = async () => {
     const trimmed = reason.trim();
     // Eine Korrektur braucht immer einen Grund: sie widerspricht einer
     // Entscheidung, die jemand anderes getroffen hat.
     if (trimmed === "") {
-      setError("Bitte tragen Sie ein, warum Sie korrigieren.");
+      errors.invalid("Bitte tragen Sie ein, warum Sie korrigieren.", {
+        reason: "Bitte tragen Sie einen Grund ein.",
+      });
       return;
     }
     setSaving(true);
-    setError(null);
+    errors.clear();
     try {
       await correctRequestDecision(target.kind, target.requestID, {
         approve,
@@ -80,23 +85,28 @@ export function DecisionCorrectionDialog({
         expectedVersion: target.expectedVersion,
       });
       onCorrected(
-        "Die Entscheidung wurde korrigiert. Die alte Entscheidung bleibt gespeichert.",
+        "Die Entscheidung ist korrigiert. Die alte Entscheidung bleibt im Verlauf.",
       );
     } catch (err) {
       logger.warn("parent_request_correction_failed", {
         error: err instanceof Error ? err.message : String(err),
         kind: target.kind,
       });
-      setError(
-        err instanceof ChangeRequestStaleError
-          ? STALE_REQUEST_NOTICE
-          : err instanceof Error
-            ? err.message
-            : "Die Korrektur konnte nicht gespeichert werden.",
-      );
+      await errors.show(err, {
+        object: "die Korrektur",
+        // Veraltet: erst neu laden, dann neu entscheiden. Ein Wiederholen mit
+        // der alten Fassung schlüge wieder fehl.
+        retry:
+          err instanceof ChangeRequestStaleError
+            ? undefined
+            : () => void latestSaveRef.current(),
+      });
       setSaving(false);
     }
   };
+  useLayoutEffect(() => {
+    latestSaveRef.current = save;
+  });
 
   return (
     <ConfirmationModal
@@ -110,7 +120,8 @@ export function DecisionCorrectionDialog({
       isDismissDisabled={saving}
       mobileSheet
     >
-      <div className="space-y-3">
+      <div ref={bodyRef} className="space-y-3">
+        <FormErrorAlert message={errors.error} />
         <p className="text-sm text-gray-700">
           {target.childName ? `${target.childName}. ` : ""}
           {priorLine(target)}
@@ -142,16 +153,17 @@ export function DecisionCorrectionDialog({
           </span>
           <Textarea
             id="correction-reason"
+            name="reason"
             value={reason}
             rows={2}
             disabled={saving}
+            error={errors.fieldError("reason")}
             onChange={(event) => {
               setReason(event.target.value);
-              setError(null);
+              errors.clear();
             }}
           />
         </label>
-        {error && <Alert type="warning" message={error} />}
         <p className="text-sm text-gray-600">
           Die alte Entscheidung bleibt im Verlauf stehen.
         </p>

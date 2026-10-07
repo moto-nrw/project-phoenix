@@ -35,7 +35,12 @@ import type {
 import type { Organization, School } from "~/lib/operator/provisioning-helpers";
 import { AnnouncementViewsAccordion } from "~/components/operator/announcement-views-accordion";
 import { getRelativeTime } from "~/lib/format-utils";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { useCurrentTimestamp } from "~/lib/hooks/use-current-timestamp";
 
@@ -67,7 +72,14 @@ const EMPTY_FORM: FormData = {
 
 export default function OperatorAnnouncementsPage() {
   useSetBreadcrumb({ pageTitle: "Ankündigungen" });
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
+  const formRef = useRef<HTMLFormElement>(null);
+  const saveErrors = useApiFormError(formRef);
+  const { show: showSaveError, clear: clearSaveError } = saveErrors;
+  const deleteErrors = useApiFormError();
+  const { show: showDeleteError, clear: clearDeleteError } = deleteErrors;
+  const publishErrors = useApiFormError();
+  const { show: showPublishError, clear: clearPublishError } = publishErrors;
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Announcement | null>(null);
@@ -86,13 +98,23 @@ export default function OperatorAnnouncementsPage() {
   // (status briefly becomes "loading" → SWR key becomes null → data cleared).
   const {
     data: announcements,
+    error: announcementsError,
     isLoading,
     mutate,
   } = useSWR("operator-announcements", () =>
     operatorAnnouncementsService.fetchAll(),
   );
+  const announcementsLoadError = useSwrLoadError(
+    announcementsError,
+    "die Liste der Ankündigungen",
+    () => void mutate(),
+  );
 
-  const { data: organizations } = useSWR(
+  const {
+    data: organizations,
+    error: organizationsError,
+    mutate: reloadOrganizations,
+  } = useSWR(
     "operator-organizations",
     () => operatorProvisioningService.listOrganizations(),
     {
@@ -102,7 +124,11 @@ export default function OperatorAnnouncementsPage() {
     },
   );
 
-  const { data: schools } = useSWR(
+  const {
+    data: schools,
+    error: schoolsError,
+    mutate: reloadSchools,
+  } = useSWR(
     "operator-schools",
     () => operatorProvisioningService.listSchools(),
     {
@@ -110,6 +136,17 @@ export default function OperatorAnnouncementsPage() {
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
+  );
+  // The cards name their targets and the form offers them from these lists.
+  const organizationsLoadError = useSwrLoadError(
+    organizationsError,
+    "die Liste der Träger",
+    () => void reloadOrganizations(),
+  );
+  const schoolsLoadError = useSwrLoadError(
+    schoolsError,
+    "die Liste der Schulen",
+    () => void reloadSchools(),
   );
 
   // Soft-deleted orgs stay in `organizations` so the card can still resolve their
@@ -237,37 +274,43 @@ export default function OperatorAnnouncementsPage() {
   }, []);
 
   const openCreateForm = useCallback(() => {
+    clearSaveError();
     setEditTarget(null);
     setFormData(EMPTY_FORM);
     setFormOpen(true);
-  }, []);
+  }, [clearSaveError]);
 
-  const openEditForm = useCallback((announcement: Announcement) => {
-    setEditTarget(announcement);
-    // Preserve historical targets verbatim — do NOT filter out IDs that now
-    // point at soft-deleted orgs/schools. Stripping them would convert a
-    // scoped announcement into a globally-visible one the moment the operator
-    // saves any unrelated change, since empty target arrays mean "no filter"
-    // in the backend. A warning banner surfaces the situation instead.
-    setFormData({
-      title: announcement.title,
-      content: announcement.content,
-      type: announcement.type,
-      severity: announcement.severity,
-      version: announcement.version ?? "",
-      expiresAt: announcement.expiresAt ?? "",
-      targetRoles: announcement.targetRoles,
-      targetOrgIds: announcement.targetOrgIds ?? [],
-      targetTenantIds: announcement.targetTenantIds ?? [],
-    });
-    setFormOpen(true);
-  }, []);
+  const openEditForm = useCallback(
+    (announcement: Announcement) => {
+      clearSaveError();
+      setEditTarget(announcement);
+      // Preserve historical targets verbatim — do NOT filter out IDs that now
+      // point at soft-deleted orgs/schools. Stripping them would convert a
+      // scoped announcement into a globally-visible one the moment the operator
+      // saves any unrelated change, since empty target arrays mean "no filter"
+      // in the backend. A warning banner surfaces the situation instead.
+      setFormData({
+        title: announcement.title,
+        content: announcement.content,
+        type: announcement.type,
+        severity: announcement.severity,
+        version: announcement.version ?? "",
+        expiresAt: announcement.expiresAt ?? "",
+        targetRoles: announcement.targetRoles,
+        targetOrgIds: announcement.targetOrgIds ?? [],
+        targetTenantIds: announcement.targetTenantIds ?? [],
+      });
+      setFormOpen(true);
+    },
+    [clearSaveError],
+  );
 
   const handleSave = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       if (!formData.title.trim() || !formData.content.trim()) return;
       setIsSaving(true);
+      clearSaveError();
       try {
         // Submit target IDs verbatim. Dropping deleted-org/school IDs here
         // would silently widen a scoped announcement to global (empty arrays
@@ -313,66 +356,79 @@ export default function OperatorAnnouncementsPage() {
         );
         setFormOpen(false);
         setEditTarget(null);
-        // Revalidation is best-effort — don't let it mask the successful save
+        // A failed revalidation shows up through the list's load error.
         mutate().catch((err) => {
           logger.warn("revalidation_failed", {
             error: err instanceof Error ? err.message : String(err),
           });
         });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        logger.error("announcement_save_failed", { error: msg });
-        toastError(`Fehler: ${msg}`);
+        logger.warn("announcement_save_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        void showSaveError(error, { object: "die Ankündigung" });
       } finally {
         setIsSaving(false);
       }
     },
-    [formData, editTarget, mutate, toastSuccess, toastError],
+    [formData, editTarget, mutate, toastSuccess, showSaveError, clearSaveError],
   );
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return;
     setIsDeleting(true);
+    clearDeleteError();
     try {
       await operatorAnnouncementsService.delete(deleteTarget.id);
       toastSuccess("Ankündigung gelöscht");
       setDeleteTarget(null);
-      // Revalidation is best-effort — don't let it mask the successful delete
+      // A failed revalidation shows up through the list's load error.
       mutate().catch((err) => {
         logger.warn("revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
       });
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      logger.error("announcement_delete_failed", { error: msg });
-      toastError(`Fehler beim Löschen: ${msg}`);
+      logger.warn("announcement_delete_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      void showDeleteError(error, { object: "das Löschen der Ankündigung" });
     } finally {
       setIsDeleting(false);
     }
-  }, [deleteTarget, mutate, toastSuccess, toastError]);
+  }, [deleteTarget, mutate, toastSuccess, showDeleteError, clearDeleteError]);
 
   const handlePublish = useCallback(async () => {
     if (!publishTarget) return;
     setIsPublishing(true);
+    clearPublishError();
     try {
       await operatorAnnouncementsService.publish(publishTarget.id);
       toastSuccess("Ankündigung veröffentlicht");
       setPublishTarget(null);
-      // Revalidation is best-effort — don't let it mask the successful publish
+      // A failed revalidation shows up through the list's load error.
       mutate().catch((err) => {
         logger.warn("revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
       });
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      logger.error("announcement_publish_failed", { error: msg });
-      toastError(`Fehler beim Veröffentlichen: ${msg}`);
+      logger.warn("announcement_publish_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      void showPublishError(error, {
+        object: "die Veröffentlichung der Ankündigung",
+      });
     } finally {
       setIsPublishing(false);
     }
-  }, [publishTarget, mutate, toastSuccess, toastError]);
+  }, [
+    publishTarget,
+    mutate,
+    toastSuccess,
+    showPublishError,
+    clearPublishError,
+  ]);
 
   const filterConfigs: FilterConfig[] = [
     {
@@ -439,41 +495,50 @@ export default function OperatorAnnouncementsPage() {
         }
       />
 
+      <div className="mt-4 space-y-3">
+        <LoadErrorAlert error={announcementsLoadError} />
+        <LoadErrorAlert error={organizationsLoadError} />
+        <LoadErrorAlert error={schoolsLoadError} />
+      </div>
+
       {isLoading && (
         <SkeletonRegion label="Ankündigungen werden geladen">
           <AnnouncementSkeletons />
         </SkeletonRegion>
       )}
-      {!isLoading && filteredAnnouncements.length === 0 && (
-        <div className="flex flex-col items-center gap-3 py-12 text-center">
-          <svg
-            className="h-12 w-12 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"
-            />
-          </svg>
-          <p className="text-lg font-medium text-gray-900">
-            Keine Ankündigungen
-          </p>
-          <p className="text-sm text-gray-500">
-            Erstellen Sie eine neue Ankündigung, um Nutzer zu informieren.
-          </p>
-          <button
-            type="button"
-            onClick={openCreateForm}
-            className="mt-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
-          >
-            Neue Ankündigung
-          </button>
-        </div>
-      )}
+      {!isLoading &&
+        !announcementsError &&
+        announcements !== undefined &&
+        filteredAnnouncements.length === 0 && (
+          <div className="flex flex-col items-center gap-3 py-12 text-center">
+            <svg
+              className="h-12 w-12 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"
+              />
+            </svg>
+            <p className="text-lg font-medium text-gray-900">
+              Keine Ankündigungen
+            </p>
+            <p className="text-sm text-gray-500">
+              Erstellen Sie eine neue Ankündigung, um Nutzer zu informieren.
+            </p>
+            <button
+              type="button"
+              onClick={openCreateForm}
+              className="mt-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+            >
+              Neue Ankündigung
+            </button>
+          </div>
+        )}
 
       {!isLoading && filteredAnnouncements.length > 0 && (
         <LayoutGroup>
@@ -538,10 +603,12 @@ export default function OperatorAnnouncementsPage() {
         }
       >
         <form
+          ref={formRef}
           onSubmit={(e) => void handleSave(e)}
           className="space-y-4"
           id="announcement-form"
         >
+          <FormErrorAlert message={saveErrors.error} />
           {/* Title */}
           <div>
             <label
@@ -552,6 +619,13 @@ export default function OperatorAnnouncementsPage() {
             </label>
             <input
               id="announcement-title"
+              name="title"
+              aria-invalid={saveErrors.fieldError("title") ? true : undefined}
+              aria-describedby={
+                saveErrors.fieldError("title")
+                  ? "announcement-title-error"
+                  : undefined
+              }
               type="text"
               value={formData.title}
               onChange={(e) =>
@@ -561,6 +635,14 @@ export default function OperatorAnnouncementsPage() {
               className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
               required
             />
+            {saveErrors.fieldError("title") ? (
+              <p
+                id="announcement-title-error"
+                className="text-moto-red mt-1 text-xs"
+              >
+                {saveErrors.fieldError("title")}
+              </p>
+            ) : null}
           </div>
 
           {/* Content */}
@@ -573,6 +655,13 @@ export default function OperatorAnnouncementsPage() {
             </label>
             <textarea
               id="announcement-content"
+              name="content"
+              aria-invalid={saveErrors.fieldError("content") ? true : undefined}
+              aria-describedby={
+                saveErrors.fieldError("content")
+                  ? "announcement-content-error"
+                  : undefined
+              }
               value={formData.content}
               onChange={(e) =>
                 setFormData((prev) => ({ ...prev, content: e.target.value }))
@@ -582,6 +671,14 @@ export default function OperatorAnnouncementsPage() {
               className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
               required
             />
+            {saveErrors.fieldError("content") ? (
+              <p
+                id="announcement-content-error"
+                className="text-moto-red mt-1 text-xs"
+              >
+                {saveErrors.fieldError("content")}
+              </p>
+            ) : null}
           </div>
 
           {/* Type */}
@@ -1042,15 +1139,21 @@ export default function OperatorAnnouncementsPage() {
         }
         gate={{ mode: "twoStep" }}
         onConfirm={handleDelete}
-        onClose={() => setDeleteTarget(null)}
+        onClose={() => {
+          clearDeleteError();
+          setDeleteTarget(null);
+        }}
         loading={isDeleting}
-        error=""
+        error={deleteErrors.error}
       />
 
       {/* Publish confirmation */}
       <ConfirmationModal
         isOpen={!!publishTarget}
-        onClose={() => setPublishTarget(null)}
+        onClose={() => {
+          clearPublishError();
+          setPublishTarget(null);
+        }}
         onConfirm={() => void handlePublish()}
         title="Ankündigung veröffentlichen?"
         confirmText="Veröffentlichen"
@@ -1064,6 +1167,7 @@ export default function OperatorAnnouncementsPage() {
             ? `Die Ankündigung "${publishTarget.title}" wird für die ausgewählten Organisationen/Schulen sichtbar.`
             : `Die Ankündigung "${publishTarget?.title}" wird für alle Nutzer sichtbar.`}
         </p>
+        <FormErrorAlert message={publishErrors.error} className="mt-3" />
       </ConfirmationModal>
     </div>
   );
@@ -1289,12 +1393,24 @@ function AnnouncementViewsAccordionWrapper({
 }: {
   readonly announcementId: string;
 }) {
-  const { data: stats } = useSWR<AnnouncementStats>(
+  const {
+    data: stats,
+    error,
+    mutate,
+  } = useSWR<AnnouncementStats>(
     `announcement-stats-${announcementId}`,
     () => operatorAnnouncementsService.fetchStats(announcementId),
     { refreshInterval: 30000 },
   );
+  const loadError = useSwrLoadError(
+    error,
+    "die Auswertung der Ankündigung",
+    () => void mutate(),
+  );
 
+  if (loadError) {
+    return <LoadErrorAlert error={loadError} className="mt-3" />;
+  }
   if (!stats || (stats.seen_count === 0 && stats.dismissed_count === 0)) {
     return null;
   }

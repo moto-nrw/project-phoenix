@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -6,7 +7,16 @@ import type {
   TimetableRoster,
   TimetableRosterRow,
 } from "~/lib/timetable-operations-types";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import type { ErrorCode } from "~/lib/error-codes.generated";
+import { catalogText } from "~/test/error-catalog-text";
 import { SchoolSupervisionsView } from "./supervisions-view";
+
+// Aktionen melden Fehler als Toast (#2517); der Provider zeigt ihn echt an.
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 const mocks = vi.hoisted(() => ({
   checkIn: vi.fn(),
@@ -52,12 +62,6 @@ vi.mock("~/lib/logger", () => ({
     info: vi.fn(),
     debug: vi.fn(),
   }),
-}));
-
-vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ message, type }: { message: string; type: string }) => (
-    <div data-testid={`alert-${type}`}>{message}</div>
-  ),
 }));
 
 // Die echte Kinderliste ist schwer; hier zählt nur, dass ihr Einchecken
@@ -123,18 +127,36 @@ const runningInstance = {
   rosterPreview: [],
 } as unknown as PlannedTimetableInstance;
 
-const OGS_HINT = "Mehr Plätze kann die OGS freigeben.";
+const SCHOOL_CAPACITY_HINT = "Mehr Plätze kann die OGS freigeben.";
 
-function codedError(code: string, details: Record<string, unknown>) {
-  return Object.assign(new Error("conflict"), { code, details });
+function codedError(code: ErrorCode, details: Record<string, unknown>) {
+  return new ApiError("conflict", 409, { code, details });
 }
 
-async function checkInAndReadError(err: unknown): Promise<string> {
+/** The catalog text of `code` with its details filled in. */
+function capacityText(code: ErrorCode, details: Record<string, unknown>) {
+  const maximum =
+    code === "presence.activity_participant_limit_reached"
+      ? details.max_participants
+      : details.max_capacity;
+  const current = details.current_occupancy;
+  const freeSlots =
+    typeof maximum === "number" && typeof current === "number"
+      ? Math.max(0, maximum - current)
+      : undefined;
+  return Object.entries({ ...details, free_slots: freeSlots }).reduce(
+    (text, [key, value]) => text.replace(`{${key}}`, String(value)),
+    catalogText(code, ""),
+  );
+}
+
+async function checkInAndFindError(err: unknown, expected: string) {
   mocks.checkIn.mockRejectedValueOnce(err);
   render(<SchoolSupervisionsView />);
   fireEvent.click(screen.getByRole("button", { name: "Einchecken" }));
-  const alert = await screen.findByTestId("alert-error");
-  return alert.textContent ?? "";
+  const shown = await screen.findByRole("alert");
+  expect(shown).toHaveTextContent(expected);
+  return shown;
 }
 
 describe("SchoolSupervisionsView: Fehler beim Einchecken (#3633)", () => {
@@ -148,44 +170,57 @@ describe("SchoolSupervisionsView: Fehler beim Einchecken (#3633)", () => {
     };
   });
 
-  it("nennt die volle Aktivität und verweist auf die OGS", async () => {
-    const text = await checkInAndReadError(
-      codedError("presence.activity_participant_limit_reached", {
-        activity_name: "Betreuung",
-        current_occupancy: 45,
-        max_participants: 45,
-        incoming_students: 1,
-      }),
+  it("nennt die volle Aktivität mit ihrer Belegung", async () => {
+    const details = {
+      activity_name: "Betreuung",
+      current_occupancy: 45,
+      max_participants: 45,
+      incoming_students: 1,
+    };
+    const expected = capacityText(
+      "presence.activity_participant_limit_reached",
+      details,
+    );
+    const shown = await checkInAndFindError(
+      codedError("presence.activity_participant_limit_reached", details),
+      expected,
     );
 
-    expect(text).toBe(
-      `Die Aktivität „Betreuung“ ist voll (45 von 45 Kindern). ${OGS_HINT}`,
-    );
-    expect(text).not.toContain("Datenverwaltung");
+    expect(shown).toBeInTheDocument();
+    expect(expected).toContain("45 von 45");
+    expect(expected).not.toContain("Datenverwaltung");
+    expect(screen.getByRole("alert")).toHaveTextContent(SCHOOL_CAPACITY_HINT);
     expect(mocks.checkIn).toHaveBeenCalledWith("11", "7");
   });
 
-  it("nennt den vollen Raum und verweist auf die OGS", async () => {
-    const text = await checkInAndReadError(
-      codedError("presence.room_capacity_exceeded", {
-        room_name: "Turnhalle",
-        current_occupancy: 30,
-        max_capacity: 30,
-        incoming_students: 1,
-      }),
+  it("nennt den vollen Raum mit seiner Belegung", async () => {
+    const details = {
+      room_name: "Turnhalle",
+      current_occupancy: 30,
+      max_capacity: 30,
+      incoming_students: 1,
+    };
+    const expected = capacityText("presence.room_capacity_exceeded", details);
+    const shown = await checkInAndFindError(
+      codedError("presence.room_capacity_exceeded", details),
+      expected,
     );
 
-    expect(text).toBe(
-      `Der Raum „Turnhalle“ ist voll (30 von 30 Plätzen). ${OGS_HINT}`,
-    );
-    expect(text).not.toContain("Datenverwaltung");
+    expect(shown).toBeInTheDocument();
+    expect(expected).toContain("Turnhalle");
+    expect(expected).not.toContain("Datenverwaltung");
+    expect(screen.getByRole("alert")).toHaveTextContent(SCHOOL_CAPACITY_HINT);
   });
 
-  it("zeigt bei anderen Fehlern den allgemeinen Text", async () => {
-    const text = await checkInAndReadError(new Error("Netzwerkfehler"));
-
-    expect(text).toBe(
-      "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+  it("zeigt bei anderen Fehlern den Katalogtext mit Wiederholen", async () => {
+    const shown = await checkInAndFindError(
+      new ApiError("Netzwerkfehler", 503, { code: "general.unavailable" }),
+      catalogText("general.unavailable", "die Anwesenheit von Emma Meyer"),
     );
+
+    expect(shown).toBeInTheDocument();
+    mocks.checkIn.mockResolvedValueOnce(undefined);
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await vi.waitFor(() => expect(mocks.checkIn).toHaveBeenCalledTimes(2));
   });
 });

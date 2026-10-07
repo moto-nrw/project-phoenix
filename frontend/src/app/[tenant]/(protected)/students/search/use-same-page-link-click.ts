@@ -42,6 +42,8 @@ export function useSamePageLinkClick(onClick: () => void): void {
       try {
         url = new URL(anchor.href, window.location.href);
       } catch {
+        // Bewusst still: ein nicht lesbares href ist keine Navigation dieser
+        // Seite, der Browser behandelt den Klick wie gewohnt.
         return;
       }
       if (

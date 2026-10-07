@@ -44,6 +44,7 @@ const (
 	KeyParentNotesEnabled                    = configModel.KeyParentNotesEnabled
 	KeyParentRequestGroupLeaderReviewEnabled = configModel.KeyParentRequestGroupLeaderReviewEnabled
 	KeyParentRequestReasonPolicy             = configModel.KeyParentRequestReasonPolicy
+	KeyParentRequestReviewScope              = configModel.KeyParentRequestReviewScope
 	KeyPresenceMode                          = configModel.KeyPresenceMode
 	KeyPrivacyConsentRetentionDays           = configModel.KeyPrivacyConsentRetentionDays
 	KeyRequirePickupOfferingReview           = configModel.KeyRequirePickupOfferingReview
@@ -92,6 +93,11 @@ const (
 	ParentAbsenceReviewScopeAdmins       = configModel.ParentAbsenceReviewScopeAdmins
 	ParentAbsenceReviewScopeAllStaff     = configModel.ParentAbsenceReviewScopeAllStaff
 	ParentAbsenceReviewScopeGroupLeaders = configModel.ParentAbsenceReviewScopeGroupLeaders
+
+	ParentRequestReviewScopeAdmins       = configModel.ParentRequestReviewScopeAdmins
+	ParentRequestReviewScopeAllStaff     = configModel.ParentRequestReviewScopeAllStaff
+	ParentRequestReviewScopeGroupLeaders = configModel.ParentRequestReviewScopeGroupLeaders
+	ParentRequestReviewScopeInherit      = configModel.ParentRequestReviewScopeInherit
 )
 
 // SchoolPeriodCount is the number of lessons a school day may name.

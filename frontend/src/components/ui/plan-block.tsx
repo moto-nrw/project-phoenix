@@ -116,9 +116,9 @@ export function PlanBlock({
   };
 
   const containerClassName = [
-    "relative w-full rounded-md border border-gray-200 bg-white text-left transition-shadow hover:shadow-sm",
+    "relative w-full rounded-md border border-gray-200 bg-white text-left",
     interactive &&
-      "focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none",
+      "transition-shadow hover:shadow-sm focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none",
     selected && "ring-2 ring-gray-900 ring-offset-1",
     SIZE_PADDING_CLASS[size],
     statusIcon ? "pr-5" : "",
@@ -166,6 +166,7 @@ export function PlanBlock({
   if (!interactive) {
     return (
       <div
+        role={ariaLabel ? "group" : undefined}
         className={containerClassName}
         style={style}
         title={title}

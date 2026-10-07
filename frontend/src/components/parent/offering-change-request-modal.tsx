@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Loader2 } from "lucide-react";
 
@@ -8,10 +15,15 @@ import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Skeleton } from "~/components/ui/skeleton";
 import { RequestSharingSelector } from "~/components/parent/request-sharing-control";
 import { useRequestVersion } from "~/components/parent/request-edit-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import {
   getChildOfferingCatalog,
   ParentApiError,
@@ -20,6 +32,7 @@ import {
   type OfferingCatalogItem,
   type OfferingChangeSelectionInput,
 } from "~/lib/parent-api";
+import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { formatDate } from "~/lib/date-helpers";
 
@@ -136,7 +149,18 @@ export function OfferingChangeRequestModal({
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Beide Fehler stehen im Dialog: ein Toast läge unsichtbar unter ihm.
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  const form = useApiFormError();
+  const latestSubmitRef = useRef<(confirmed: boolean) => void>(() => undefined);
+  const latestLoadRef = useRef<() => void>(() => undefined);
+  const latestEffectiveDateRef = useRef<(date: string) => void>(
+    () => undefined,
+  );
   const [recipientIds, setRecipientIds] = useState<string[]>([]);
   const [confirmCompleteWithdrawal, setConfirmCompleteWithdrawal] =
     useState(false);
@@ -152,7 +176,7 @@ export function OfferingChangeRequestModal({
   const load = useCallback(async () => {
     const requestID = ++catalogRequestID.current;
     setLoading(true);
-    setError(null);
+    clearLoadError();
     try {
       const loaded = await getChildOfferingCatalog(studentId);
       if (requestID !== catalogRequestID.current) return;
@@ -166,11 +190,14 @@ export function OfferingChangeRequestModal({
         error: err instanceof Error ? err.message : String(err),
         student_id: studentId,
       });
-      setError(t("careOfferingsModal.loadError"));
+      void showLoadError(err, {
+        object: t("careOfferingsModal.errorObjectCatalog"),
+        retry: () => latestLoadRef.current(),
+      });
     } finally {
       if (requestID === catalogRequestID.current) setLoading(false);
     }
-  }, [studentId, t]);
+  }, [clearLoadError, showLoadError, studentId, t]);
 
   useEffect(() => {
     void load();
@@ -180,7 +207,7 @@ export function OfferingChangeRequestModal({
     if (!date || date === effectiveFrom) return;
     const requestID = ++catalogRequestID.current;
     setLoading(true);
-    setError(null);
+    clearLoadError();
     try {
       const loaded = await getChildOfferingCatalog(studentId, date);
       if (requestID !== catalogRequestID.current) return;
@@ -196,7 +223,10 @@ export function OfferingChangeRequestModal({
         student_id: studentId,
         effective_from: date,
       });
-      setError(t("careOfferingsModal.loadError"));
+      void showLoadError(err, {
+        object: t("careOfferingsModal.errorObjectCatalog"),
+        retry: () => latestEffectiveDateRef.current(date),
+      });
     } finally {
       if (requestID === catalogRequestID.current) setLoading(false);
     }
@@ -251,7 +281,7 @@ export function OfferingChangeRequestModal({
       // A parent-choice offering without a day would be booked "all days" by the
       // backend's own convention, which is not what an empty checkbox row means.
       if (item.days_of_week_mode === "parent_choice" && days.length === 0) {
-        setError(t("careOfferingsModal.noDaysSelected"));
+        form.invalid(t("careOfferingsModal.noDaysSelected"));
         return;
       }
       offerings.push({
@@ -260,11 +290,13 @@ export function OfferingChangeRequestModal({
       });
     }
     if (reasonRequired && note.trim() === "") {
-      setError(t("careOfferingsModal.noteRequired"));
+      form.invalid(t("careOfferingsModal.noteRequired"), {
+        note: t("careOfferingsModal.noteRequired"),
+      });
       return;
     }
     setSubmitting(true);
-    setError(null);
+    form.clear();
     try {
       if (editRequestId) {
         // Gleiche Form wie beim Anlegen: dieselbe Auswahl, nur an eine
@@ -302,18 +334,45 @@ export function OfferingChangeRequestModal({
         setConfirmCompleteWithdrawal(true);
         return;
       }
-      setError(
+      if (
         err instanceof ParentApiError &&
-          err.code === "students.change_request_stale"
-          ? t("careOfferingsModal.staleError")
-          : err instanceof Error
-            ? err.message
-            : t("careOfferingsModal.submitError"),
-      );
+        err.code === "students.change_request_stale"
+      ) {
+        form.invalid(t("careOfferingsModal.staleError"));
+        return;
+      }
+      // Der Katalogtext zu diesem Code spricht das Team an ("lehnen Sie ab").
+      // Eltern brauchen hier den Weg zur Schule.
+      if (
+        err instanceof ApiError &&
+        err.code === "students.offering_changes_no_enrollment"
+      ) {
+        form.invalid(t("errorNoEnrollment"));
+        return;
+      }
+      // Die Belegung sehen Eltern nicht; sie brauchen eine andere Wahl.
+      if (
+        err instanceof ApiError &&
+        err.code === "students.offering_change_capacity_full"
+      ) {
+        form.invalid(t("careOfferingsModal.capacityFull"));
+        return;
+      }
+      // Wiederholen sendet die Auswahl, die jetzt im Dialog steht.
+      void form.show(err, {
+        object: t("careOfferingsModal.errorObjectRequest"),
+        retry: () => latestSubmitRef.current(completeWithdrawalConfirmed),
+      });
     } finally {
       setSubmitting(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestSubmitRef.current = (confirmed) => void handleSubmit(confirmed);
+    latestLoadRef.current = () => void load();
+    latestEffectiveDateRef.current = (date) => void loadForEffectiveDate(date);
+  });
 
   return (
     <>
@@ -510,8 +569,13 @@ export function OfferingChangeRequestModal({
                   {reasonRequired && <span aria-hidden="true"> *</span>}
                 </span>
                 <textarea
+                  name="note"
                   value={note}
-                  onChange={(event) => setNote(event.target.value)}
+                  onChange={(event) => {
+                    setNote(event.target.value);
+                    if (form.fieldError("note")) form.clear();
+                  }}
+                  aria-invalid={Boolean(form.fieldError("note"))}
                   rows={3}
                   maxLength={2000}
                   required={reasonRequired}
@@ -529,7 +593,8 @@ export function OfferingChangeRequestModal({
             </>
           )}
 
-          {error && <Alert type="error" message={error} />}
+          <LoadErrorAlert error={loadError} />
+          <FormErrorAlert message={form.error} />
         </div>
       </Modal>
       <ConfirmationModal
