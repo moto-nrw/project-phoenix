@@ -28,7 +28,7 @@ import type { BirthdayOverview } from "~/lib/birthdays-api";
 import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import { formatStatusDate } from "~/lib/date-helpers";
-import { getTimeBasedGreeting } from "~/lib/greeting";
+import { useTimeBasedGreeting } from "~/lib/greeting";
 import {
   appendPlacement,
   defaultSpanFor,
@@ -404,7 +404,7 @@ function HomeContent() {
 
   const editing = draft !== null;
   const firstName = session?.user?.name?.trim().split(/\s+/)[0];
-  const greeting = getTimeBasedGreeting();
+  const greeting = useTimeBasedGreeting();
   // Die Route der Hinweise verlangt config:manage; die Leitung der Schule
   // hält es, ob Admin oder eigene Leitungsrolle (#3469).
   const canReadPhaseExpiryWarnings = leadsSchool(session);
@@ -433,8 +433,6 @@ function HomeContent() {
             ? `${greeting}, ${firstName}`
             : greeting
       }
-      // Der Gruss kommt aus der Uhr; beim Bearbeiten steht ein fester Text.
-      titleFromClock={!editing}
       prominent
       statsLoading={isLoading}
       stats={
