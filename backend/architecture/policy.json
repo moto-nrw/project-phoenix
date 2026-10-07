@@ -5199,7 +5199,7 @@
   ],
   "rules": [
     {
-      "id": "legacy-composition.to.document-cleanup-compose",
+      "id": "legacy-composition.to.document-rendering-compose",
       "description": "The legacy root binds the plan export capability to the owners' public reads through the Document Rendering composition (#2706).",
       "scopes": [
         "production"

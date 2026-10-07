@@ -90,7 +90,7 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Spur A · 0 Keys
 
-- [x] [#2706](https://github.com/moto-nrw/project-phoenix/issues/2706) Dokument-Rendering — Plan-Export über `modules/planexport/compose` an die öffentlichen Lesepfade von Workforce, Timetable und Facilities gebunden, `modules/planexport/legacy` gelöscht; File Storage bedient `documents.file_cleanup` mit eigenem Adapter und übernimmt die Tabelle per ADR 0045 (Policy-Epoche 31 → 32), generisches Dokument-Repository, Modell und Binder gelöscht; Upload-Koordinator mit eigenem Objektspeicher-Port; alle 17 Keys weg (282 → 265), Composition 596 → 596. Offen bleibt die benannte Ausnahme `people-directory.http.file-storage-adapter` (Kinderdokumente brauchen eine öffentliche File-Storage-Capability)
+- [x] [#2706](https://github.com/moto-nrw/project-phoenix/issues/2706) Dokument-Rendering — Plan-Export über `modules/planexport/compose` an Lesepfade im öffentlichen Vokabular von Workforce, Timetable und Facilities gebunden (Block-, Personal-, Angebots- und Kinderzahl-Lesepfade laufen in der Root weiter über die Retained-Repositories, Abbau mit #2743), `modules/planexport/legacy` gelöscht; File Storage bedient `documents.file_cleanup` mit eigenem Adapter und übernimmt die Tabelle per ADR 0045 (Policy-Epoche 31 → 32), generisches Dokument-Repository, Modell und Binder gelöscht; Upload-Koordinator mit eigenem Objektspeicher-Port; alle 17 Keys weg (282 → 265), Composition 596 → 596. Offen bleibt die benannte Ausnahme `people-directory.http.file-storage-adapter` (Kinderdokumente brauchen eine öffentliche File-Storage-Capability)
 
 ## Endkette · 150 Keys
 

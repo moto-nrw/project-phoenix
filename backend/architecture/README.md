@@ -2494,11 +2494,15 @@ The plan export capability (`modules/planexport`, `document-rendering`/`public`,
 through consumer-owned ports declared in the same package; it owns no table
 and never writes. Its calendar days use the shared kernel. Its composition
 (`modules/planexport/compose`, `document-rendering`/`compose`) binds those
-ports to the owners' public reads and maps their records field by field:
-Workforce for the staff week and the Schichtarten, Timetable & Activities for
-the blocks, their staff, head counts, Angebote and Planungsspuren, Facilities
-for the room names. The root binds the staff names, closing days and holidays
-it already serves to other consumers. The former compatibility adapter
+ports to reads in the owners' public vocabulary and maps their records field
+by field: Workforce for the staff week and the Schichtarten, Timetable &
+Activities for the blocks, their staff, head counts, Angebote and
+Planungsspuren, Facilities for the room names. The Schichtarten, Planungsspuren
+and rooms are public capability calls; the root serves the block, staff,
+Angebot and head-count reads from its retained repositories in the Timetable
+vocabulary (#3424), as it does for the Workforce Dienstplan, so they leave
+with the repository Factory (#2743). The root also binds the staff names,
+closing days and holidays it already serves to other consumers. The former compatibility adapter
 `modules/planexport/legacy` and its eleven baseline entries are deleted, and
 the composition's four `document-rendering.compose.*` rules are target shape.
 The composition tests (`adapter-test` seam) pin the translation and prove the

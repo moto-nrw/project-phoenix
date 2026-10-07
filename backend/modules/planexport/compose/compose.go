@@ -1,9 +1,11 @@
 // Package compose binds the plan export capability's consumer-owned ports to
-// the owners' public reads (#2706) and only translates their records: Workforce
-// for the staff week and the Schichtarten, Timetable & Activities for the
-// blocks, their staff, head counts, Angebote and Planungsspuren, Facilities
-// for the room names. The root supplies the staff names, closing days and
-// holidays, which it already binds for other consumers.
+// reads in the owners' public vocabulary (#2706) and only translates their
+// records: Workforce for the staff week and the Schichtarten, Timetable &
+// Activities for the blocks, their staff, head counts, Angebote and
+// Planungsspuren, Facilities for the room names. The root supplies those
+// reads (the Timetable block, staff, Angebot and head-count reads still run on
+// its retained repositories, as for the Workforce Dienstplan), plus the staff
+// names, closing days and holidays it already binds for other consumers.
 package compose
 
 import (

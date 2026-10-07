@@ -8,7 +8,7 @@
     "#2731",
     "#3756"
   ],
-  "owner_and_capability": "Document Rendering — final cutover of the plan export capability onto the owners' public reads through modules/planexport/compose; File Storage adopts documents.file_cleanup under ADR 0045 and serves its cleanup intents through its own Postgres adapter; the File Storage upload coordinator declares its own private object-store port.",
+  "owner_and_capability": "Document Rendering: final cutover of the plan export capability onto reads in the owners' public vocabulary through modules/planexport/compose (Workforce overview and Schichtarten, Facilities rooms and Timetable Planungsspuren as public capability calls; Timetable blocks, staff, Angebote and head counts through the root's retained-repository readers in the Timetable vocabulary); File Storage adopts documents.file_cleanup under ADR 0045 and serves its cleanup intents through its own Postgres adapter; the File Storage upload coordinator declares its own private object-store port.",
   "affected_packages": [
     "modules/planexport",
     "modules/planexport/compose",
