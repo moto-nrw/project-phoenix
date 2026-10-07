@@ -277,10 +277,11 @@ func withoutPackage(document map[string]any, path string) {
 // retired package reached an unowned table only through an unresolved
 // expression.
 type retiredExpressionScenario struct {
-	reviewed     bool
-	recorded     bool
-	keepRetired  bool
-	staticStores map[string]string
+	reviewed         bool
+	recorded         bool
+	keepRetired      bool
+	staticStores     map[string]string
+	projectionReader bool
 }
 
 func runRetiredExpressionScenario(t *testing.T, scenario retiredExpressionScenario) (string, error) {
@@ -317,6 +318,18 @@ func runRetiredExpressionScenario(t *testing.T, scenario retiredExpressionScenar
 		for path, owner := range scenario.staticStores {
 			classifyPostgres(document, path, owner)
 		}
+		if scenario.projectionReader {
+			classifyPostgres(document, "view", "foreign-view")
+			for _, item := range document["owners"].([]any) {
+				owner := item.(map[string]any)
+				if owner["id"] == "foreign-view" {
+					owner["kind"] = "projection"
+				}
+			}
+			document["read_projections"] = []any{map[string]any{
+				"id": "foreign-view", "package": "view", "data_objects": []string{"ghost.records"}, "tenant_safe": true,
+			}}
+		}
 	})
 	candidateBaseline := legacyRecord(2583)
 	if scenario.keepRetired {
@@ -328,6 +341,23 @@ func runRetiredExpressionScenario(t *testing.T, scenario retiredExpressionScenar
 	}
 	for path := range scenario.staticStores {
 		writeFile(t, filepath.Join(repo, path, path+".go"), strings.Replace(ghostRecordsStaticStore, "package store", "package "+path, 1))
+	}
+	if scenario.projectionReader {
+		writeFile(t, filepath.Join(repo, "view", "view.go"), `package view
+
+import (
+	"context"
+	"database/sql"
+)
+
+func Read(ctx context.Context, db *sql.DB, tenantID int64) error {
+	rows, err := db.QueryContext(ctx, "SELECT id FROM ghost.records WHERE tenant_id = $1", tenantID)
+	if err != nil {
+		return err
+	}
+	return rows.Close()
+}
+`)
 	}
 	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), candidate)
 	writeFile(t, filepath.Join(repo, "architecture", "legacy.jsonl"), candidateBaseline)
@@ -369,6 +399,9 @@ func TestCheckReviewedTableAdoptionFromRetiredExpressionPreservesGuards(t *testi
 		},
 		"foreign static access": {
 			reviewed: true, recorded: true, staticStores: map[string]string{"store": "module", "rival": "other"},
+		},
+		"foreign projection read": {
+			reviewed: true, recorded: true, staticStores: map[string]string{"store": "module"}, projectionReader: true,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

@@ -101,6 +101,8 @@ func adoptableFromRetiredExpressions(project string, base, candidate *Policy, ba
 		return adoptable, nil
 	}
 	probe := *candidate
+	// Projection permissions must not hide foreign readers from the probe.
+	probe.ReadProjections = nil
 	probe.DataObjects = make([]DataObject, 0, len(candidate.DataObjects))
 	for _, object := range candidate.DataObjects {
 		if _, examined := pending[object.Name]; examined {
