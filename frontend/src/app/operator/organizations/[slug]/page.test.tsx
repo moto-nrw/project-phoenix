@@ -244,6 +244,9 @@ interface SetupOpts {
   accountsLoading?: boolean;
   devicesLoading?: boolean;
   personsLoading?: boolean;
+  accountsError?: Error;
+  devicesError?: Error;
+  personsError?: Error;
   accounts?: unknown[];
   devices?: unknown[];
   persons?: unknown[];
@@ -264,6 +267,9 @@ function setupSWR(opts: SetupOpts = {}) {
     accountsLoading = false,
     devicesLoading = false,
     personsLoading = false,
+    accountsError,
+    devicesError,
+    personsError,
     accounts = [],
     devices = [],
     persons = [],
@@ -286,19 +292,22 @@ function setupSWR(opts: SetupOpts = {}) {
         };
       case "operator-org-accounts":
         return {
-          data: accountsLoading ? undefined : accounts,
+          data: accountsLoading || accountsError ? undefined : accounts,
+          error: accountsError,
           isLoading: accountsLoading,
           mutate: mockMutateOrgAccounts,
         };
       case "operator-org-devices":
         return {
-          data: devicesLoading ? undefined : devices,
+          data: devicesLoading || devicesError ? undefined : devices,
+          error: devicesError,
           isLoading: devicesLoading,
           mutate: mockMutateOrgDevices,
         };
       case "operator-org-persons":
         return {
-          data: personsLoading ? undefined : persons,
+          data: personsLoading || personsError ? undefined : persons,
+          error: personsError,
           isLoading: personsLoading,
           mutate: vi.fn(),
         };
@@ -683,6 +692,21 @@ describe("OperatorOrganizationDetailPage", () => {
 
       expect(screen.getAllByText("Wird geladen…").length).toBeGreaterThan(0);
     });
+
+    it("withholds the accounts table after a failed load", async () => {
+      currentSearchParams = new URLSearchParams("tab=konten");
+      setupSWR({ accountsError: new ApiError("down", 503) });
+
+      await renderPage();
+
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "die Liste der Konten"),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Keine Konten für diesen Träger.")).toBeNull();
+      expect(screen.queryByRole("table")).toBeNull();
+    });
   });
 
   describe("with the Geräte tab active", () => {
@@ -732,6 +756,21 @@ describe("OperatorOrganizationDetailPage", () => {
 
       expect(await screen.findByText("Neues Gerät")).toBeInTheDocument();
     });
+
+    it("withholds the devices table after a failed load", async () => {
+      currentSearchParams = new URLSearchParams("tab=geraete");
+      setupSWR({ devicesError: new ApiError("down", 503) });
+
+      await renderPage();
+
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "die Liste der Geräte"),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Keine Geräte für diesen Träger.")).toBeNull();
+      expect(screen.queryByRole("table")).toBeNull();
+    });
   });
 
   describe("with the Personen tab active", () => {
@@ -770,6 +809,23 @@ describe("OperatorOrganizationDetailPage", () => {
       expect(
         await screen.findByText("Keine Personen für diesen Träger."),
       ).toBeInTheDocument();
+    });
+
+    it("withholds the persons table after a failed load", async () => {
+      currentSearchParams = new URLSearchParams("tab=personen");
+      setupSWR({ personsError: new ApiError("down", 503) });
+
+      await renderPage();
+
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "die Liste der Personen"),
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Keine Personen für diesen Träger."),
+      ).toBeNull();
+      expect(screen.queryByRole("table")).toBeNull();
     });
   });
 

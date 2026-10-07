@@ -610,7 +610,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
 
           <TabsPrimitive.Content value="konten" className="mt-4">
             <LoadErrorAlert error={accountsLoadError} className="mb-4" />
-            {!accountsLoading && orgAccounts?.length === 0 ? (
+            {!accountsLoading &&
+            orgAccounts === undefined ? null : !accountsLoading &&
+              orgAccounts?.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
                 Keine Konten für diesen Träger.
               </div>
@@ -626,7 +628,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
 
           <TabsPrimitive.Content value="geraete" className="mt-4">
             <LoadErrorAlert error={devicesLoadError} className="mb-4" />
-            {!devicesLoading && orgDevices?.length === 0 ? (
+            {!devicesLoading &&
+            orgDevices === undefined ? null : !devicesLoading &&
+              orgDevices?.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
                 Keine Geräte für diesen Träger.
               </div>
@@ -644,7 +648,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
 
           <TabsPrimitive.Content value="personen" className="mt-4">
             <LoadErrorAlert error={personsLoadError} className="mb-4" />
-            {!personsLoading && orgPersons?.length === 0 ? (
+            {!personsLoading &&
+            orgPersons === undefined ? null : !personsLoading &&
+              orgPersons?.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
                 Keine Personen für diesen Träger.
               </div>
