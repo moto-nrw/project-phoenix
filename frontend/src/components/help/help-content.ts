@@ -4174,7 +4174,7 @@ function enrollmentFormTopic(): HelpTopic {
           "Eltern wählen im Formular oben ihre Sprache. moto übersetzt nur die festen Texte. Ihre eigenen Fragen und Zustimmungen übersetzen Sie selbst.",
         steps: [
           "Öffnen Sie Ihre Vorlage und gehen Sie nach unten zu `Übersetzungen für Eltern`.",
-          "Wählen Sie die Sprache, zum Beispiel `Русский`.",
+          "Wählen Sie die Sprache, zum Beispiel `Russisch`.",
           "Links steht Ihr deutscher Text. Tragen Sie rechts bei `Übersetzung` den Text in der Sprache ein.",
           "Wählen Sie unten `Änderungen speichern`.",
           "Denselben Abschnitt finden Sie beim Bearbeiten einer Anmeldephase und eines Betreuungsangebots.",
