@@ -8,6 +8,7 @@ const CLIENT_LOG_PATHS = new Set(["/api/logs", "/api/parent/logs"]);
 type RateLimitBucket = "read" | "write";
 
 const blockedUntil: Record<RateLimitBucket, number> = { read: 0, write: 0 };
+let clientLogShippingPausedUntil = 0;
 let restoreFetch: (() => void) | null = null;
 
 function rateLimitBucket(method?: string): RateLimitBucket {
@@ -76,6 +77,22 @@ export function remainingRateLimitMs(
 export function clearRateLimitBackoff(): void {
   blockedUntil.read = 0;
   blockedUntil.write = 0;
+  clientLogShippingPausedUntil = 0;
+}
+
+export function isClientLogShippingPaused(now = Date.now()): boolean {
+  return now < clientLogShippingPausedUntil;
+}
+
+export function pauseClientLogShipping(
+  retryAfter: string | null,
+  now = Date.now(),
+): void {
+  const seconds = retryAfterSeconds(retryAfter, now);
+  clientLogShippingPausedUntil = Math.max(
+    clientLogShippingPausedUntil,
+    now + seconds * 1000,
+  );
 }
 
 export function rateLimitBlockedError(method?: string): Error | null {

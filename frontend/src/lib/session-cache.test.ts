@@ -95,17 +95,24 @@ describe("getCachedSession", () => {
     expect(mockGetSession).toHaveBeenCalledTimes(2);
   });
 
-  it("clears rate-limit backoff with the session context", async () => {
+  it("clears API and log-shipping backoff with the session context", async () => {
     const { clearSessionCache } = await freshModule();
-    const { rateLimitBlockedError, recordRateLimit } =
-      await import("./rate-limit-backoff");
+    const {
+      isClientLogShippingPaused,
+      pauseClientLogShipping,
+      rateLimitBlockedError,
+      recordRateLimit,
+    } = await import("./rate-limit-backoff");
 
     recordRateLimit("17", "PATCH");
+    pauseClientLogShipping("17");
     expect(rateLimitBlockedError("PATCH")).not.toBeNull();
+    expect(isClientLogShippingPaused()).toBe(true);
 
     clearSessionCache();
 
     expect(rateLimitBlockedError("PATCH")).toBeNull();
+    expect(isClientLogShippingPaused()).toBe(false);
   });
 
   it("does not let an in-flight lookup repopulate the cache across a clear", async () => {

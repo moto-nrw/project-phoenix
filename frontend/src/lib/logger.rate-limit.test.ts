@@ -10,7 +10,7 @@ describe("client logger on a log-route 429", () => {
   let fetchMock: ReturnType<typeof vi.fn<typeof fetch>>;
 
   beforeEach(() => {
-    vi.useFakeTimers({ now: new Date("2026-10-07T10:00:00Z") });
+    vi.useFakeTimers();
     vi.resetModules();
     originalFetch = globalThis.fetch;
     fetchMock = vi
