@@ -462,7 +462,7 @@ src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@182
 src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1335 text-[11px]@1335 text-[10px]@1339 text-[10px]@1348 text-[11px]@1348
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@231 text-[11px]@271
-src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@213
+src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@230
 src/components/active-supervisions/planned-now-section.tsx|text-[11px]@431
 src/components/activities/activity-management-modal.tsx|text-[10px]@313 text-[10px]@343 text-[10px]@381
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375

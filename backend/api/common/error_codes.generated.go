@@ -3,6 +3,7 @@ package common
 
 const (
 	CodeAttendanceWebDisabled                            = "attendance.web_disabled"
+	CodeBillingInvalidKeyDay                             = "billing.invalid_key_day"
 	CodeCareAnnouncementAckNotRequired                   = "care.announcement_ack_not_required"
 	CodeCareAnnouncementNotAPoll                         = "care.announcement_not_a_poll"
 	CodeCareAnnouncementStale                            = "care.announcement_stale"
@@ -77,6 +78,7 @@ const (
 	CodeClassdayArrivalExceptionPastDate                 = "classday.arrival_exception_past_date"
 	CodeClassdayArrivalExceptionWeekend                  = "classday.arrival_exception_weekend"
 	CodeClassdaySchoolWriteDisabled                      = "classday.school_write_disabled"
+	CodeCommunicationAnnouncementNotFound                = "communication.announcement_not_found"
 	CodeCommunicationAnnouncementNotPublished            = "communication.announcement_not_published"
 	CodeCommunicationAnnouncementPublishedImmutable      = "communication.announcement_published_immutable"
 	CodeCommunicationAnnouncementReminderSent            = "communication.announcement_reminder_sent"
@@ -88,6 +90,8 @@ const (
 	CodeCommunicationStaffMessagingDisabled              = "communication.staff_messaging_disabled"
 	CodeCommunicationStaffNoticeOutdated                 = "communication.staff_notice_outdated"
 	CodeCommunicationSystemAnnouncementImmutable         = "communication.system_announcement_immutable"
+	CodeDevicesTagScanAlreadyResolved                    = "devices.tag_scan_already_resolved"
+	CodeDevicesTagScanNotFound                           = "devices.tag_scan_not_found"
 	CodeEnrollmentApprovalCareOfferingExactlyOne         = "enrollment.approval_care_offering_exactly_one"
 	CodeEnrollmentApprovalCareOfferingMissing            = "enrollment.approval_care_offering_missing"
 	CodeEnrollmentApprovalDataInvalid                    = "enrollment.approval_data_invalid"
@@ -216,8 +220,11 @@ const (
 	CodeGradeTransitionNotDraft                          = "grade_transition.not_draft"
 	CodeGradeTransitionNotLatestTransition               = "grade_transition.not_latest_transition"
 	CodeGradeTransitionPreviewStale                      = "grade_transition.preview_stale"
+	CodeIdentityAccessNameRequired                       = "identity.access_name_required"
 	CodeIdentityAccountAlreadyHasTenantAccess            = "identity.account_already_has_tenant_access"
 	CodeIdentityAccountInactive                          = "identity.account_inactive"
+	CodeIdentityAccountNotFound                          = "identity.account_not_found"
+	CodeIdentityAccountNotInSchool                       = "identity.account_not_in_school"
 	CodeIdentityCurrentPasswordWrong                     = "identity.current_password_wrong"
 	CodeIdentityDemoAccessExpired                        = "identity.demo_access_expired"
 	CodeIdentityDemoAccessInvalid                        = "identity.demo_access_invalid"
@@ -227,14 +234,24 @@ const (
 	CodeIdentityDemoSchoolPreparing                      = "identity.demo_school_preparing"
 	CodeIdentityDemoSession                              = "identity.demo_session"
 	CodeIdentityEmailAlreadyExists                       = "identity.email_already_exists"
+	CodeIdentityEmailChangeLinkInvalid                   = "identity.email_change_link_invalid"
+	CodeIdentityEmailChangeRateLimited                   = "identity.email_change_rate_limited"
+	CodeIdentityEmailChangeSameEmail                     = "identity.email_change_same_email"
 	CodeIdentityInvalidCredentials                       = "identity.invalid_credentials"
 	CodeIdentityInvitationAccountLoginRequired           = "identity.invitation_account_login_required"
 	CodeIdentityInvitationAccountMismatch                = "identity.invitation_account_mismatch"
 	CodeIdentityInvitationExpired                        = "identity.invitation_expired"
 	CodeIdentityInvitationNotFound                       = "identity.invitation_not_found"
+	CodeIdentityInvitationRateLimited                    = "identity.invitation_rate_limited"
+	CodeIdentityLehrkraftRoleImmutable                   = "identity.lehrkraft_role_immutable"
+	CodeIdentityMfaAlreadyEnrolled                       = "identity.mfa_already_enrolled"
 	CodeIdentityMfaBlocked                               = "identity.mfa_blocked"
 	CodeIdentityMfaCodeInvalid                           = "identity.mfa_code_invalid"
+	CodeIdentityMfaNotEnrolled                           = "identity.mfa_not_enrolled"
+	CodeIdentityOperatorInvitationInvalid                = "identity.operator_invitation_invalid"
 	CodeIdentityPasskeyLoginFailed                       = "identity.passkey_login_failed"
+	CodeIdentityPasskeyNotFound                          = "identity.passkey_not_found"
+	CodeIdentityPasswordMismatch                         = "identity.password_mismatch"
 	CodeIdentityPasswordResetLinkInvalid                 = "identity.password_reset_link_invalid"
 	CodeIdentityPasswordResetRateLimited                 = "identity.password_reset_rate_limited"
 	CodeIdentityPasswordTooWeak                          = "identity.password_too_weak"
@@ -245,8 +262,10 @@ const (
 	CodeIdentityRoleNameTaken                            = "identity.role_name_taken"
 	CodeIdentitySessionAccountInactive                   = "identity.session_account_inactive"
 	CodeIdentityTenantAccessDenied                       = "identity.tenant_access_denied"
+	CodeIdentityTenantAccessNotFound                     = "identity.tenant_access_not_found"
 	CodeIdentityUseParentPortal                          = "identity.use_parent_portal"
 	CodeIdentityUseSchoolPortal                          = "identity.use_school_portal"
+	CodeIdentityUsernameTaken                            = "identity.username_taken"
 	CodeImportFileColumnsMissing                         = "import.file_columns_missing"
 	CodeImportFileMissing                                = "import.file_missing"
 	CodeImportFileNoRows                                 = "import.file_no_rows"
@@ -289,6 +308,31 @@ const (
 	CodePresenceActivityParticipantLimitReached          = "presence.activity_participant_limit_reached"
 	CodePresenceRoomCapacityExceeded                     = "presence.room_capacity_exceeded"
 	CodePresenceStatisticsRangeInvalid                   = "presence.statistics_range_invalid"
+	CodeProvisioningCaregiverCapabilityBlocked           = "provisioning.caregiver_capability_blocked"
+	CodeProvisioningDeviceActiveSession                  = "provisioning.device_active_session"
+	CodeProvisioningDeviceApiKeyTaken                    = "provisioning.device_api_key_taken"
+	CodeProvisioningDeviceIdTaken                        = "provisioning.device_id_taken"
+	CodeProvisioningDeviceInUse                          = "provisioning.device_in_use"
+	CodeProvisioningDeviceNotFound                       = "provisioning.device_not_found"
+	CodeProvisioningDeviceOnline                         = "provisioning.device_online"
+	CodeProvisioningDeviceOtherOrganization              = "provisioning.device_other_organization"
+	CodeProvisioningDeviceProtected                      = "provisioning.device_protected"
+	CodeProvisioningDeviceSameSchool                     = "provisioning.device_same_school"
+	CodeProvisioningDeviceTransferProtected              = "provisioning.device_transfer_protected"
+	CodeProvisioningOrganizationAlreadyDeleted           = "provisioning.organization_already_deleted"
+	CodeProvisioningOrganizationDeleted                  = "provisioning.organization_deleted"
+	CodeProvisioningOrganizationHasSchools               = "provisioning.organization_has_schools"
+	CodeProvisioningOrganizationNotDeleted               = "provisioning.organization_not_deleted"
+	CodeProvisioningOrganizationNotFound                 = "provisioning.organization_not_found"
+	CodeProvisioningOrganizationSlugTaken                = "provisioning.organization_slug_taken"
+	CodeProvisioningPersonHasSupervisions                = "provisioning.person_has_supervisions"
+	CodeProvisioningPersonNotFound                       = "provisioning.person_not_found"
+	CodeProvisioningSchoolAlreadyDeleted                 = "provisioning.school_already_deleted"
+	CodeProvisioningSchoolInactive                       = "provisioning.school_inactive"
+	CodeProvisioningSchoolNotDeleted                     = "provisioning.school_not_deleted"
+	CodeProvisioningSchoolNotFound                       = "provisioning.school_not_found"
+	CodeProvisioningSchoolSlugTaken                      = "provisioning.school_slug_taken"
+	CodeProvisioningSchoolSubdomainTaken                 = "provisioning.school_subdomain_taken"
 	CodeRolloverDeadlineRequired                         = "rollover.deadline_required"
 	CodeRolloverDuplicateName                            = "rollover.duplicate_name"
 	CodeRolloverInvalidRequest                           = "rollover.invalid_request"
@@ -302,6 +346,12 @@ const (
 	CodeSchoolNoSchoolPortalRole                         = "school.no_school_portal_role"
 	CodeSchoolSetupCompleted                             = "school.setup_completed"
 	CodeSchoolSetupIncomplete                            = "school.setup_incomplete"
+	CodeSettingsAdminOnly                                = "settings.admin_only"
+	CodeSettingsBookingAuthorityBlocked                  = "settings.booking_authority_blocked"
+	CodeSettingsInvalidValue                             = "settings.invalid_value"
+	CodeSettingsManagedByUpload                          = "settings.managed_by_upload"
+	CodeSettingsNotFound                                 = "settings.not_found"
+	CodeSettingsPresenceModeSwitchBlocked                = "settings.presence_mode_switch_blocked"
 	CodeStudentsAbsenceReadRequired                      = "students.absence_read_required"
 	CodeStudentsBulkApprovalIneligible                   = "students.bulk_approval_ineligible"
 	CodeStudentsCareDayManagedByBooking                  = "students.care_day_managed_by_booking"
@@ -593,6 +643,7 @@ const (
 
 var errorClassByCode = map[string]string{
 	"attendance.web_disabled":                              "permission",
+	"billing.invalid_key_day":                              "input",
 	"care.announcement_ack_not_required":                   "input",
 	"care.announcement_not_a_poll":                         "input",
 	"care.announcement_stale":                              "business_rejection",
@@ -667,6 +718,7 @@ var errorClassByCode = map[string]string{
 	"classday.arrival_exception_past_date":                 "input",
 	"classday.arrival_exception_weekend":                   "input",
 	"classday.school_write_disabled":                       "permission",
+	"communication.announcement_not_found":                 "business_rejection",
 	"communication.announcement_not_published":             "business_rejection",
 	"communication.announcement_published_immutable":       "business_rejection",
 	"communication.announcement_reminder_sent":             "business_rejection",
@@ -678,6 +730,8 @@ var errorClassByCode = map[string]string{
 	"communication.staff_messaging_disabled":               "permission",
 	"communication.staff_notice_outdated":                  "business_rejection",
 	"communication.system_announcement_immutable":          "business_rejection",
+	"devices.tag_scan_already_resolved":                    "business_rejection",
+	"devices.tag_scan_not_found":                           "business_rejection",
 	"enrollment.approval_care_offering_exactly_one":        "business_rejection",
 	"enrollment.approval_care_offering_missing":            "business_rejection",
 	"enrollment.approval_data_invalid":                     "input",
@@ -806,8 +860,11 @@ var errorClassByCode = map[string]string{
 	"grade_transition.not_draft":                           "business_rejection",
 	"grade_transition.not_latest_transition":               "business_rejection",
 	"grade_transition.preview_stale":                       "business_rejection",
+	"identity.access_name_required":                        "input",
 	"identity.account_already_has_tenant_access":           "business_rejection",
 	"identity.account_inactive":                            "permission",
+	"identity.account_not_found":                           "business_rejection",
+	"identity.account_not_in_school":                       "business_rejection",
 	"identity.current_password_wrong":                      "input",
 	"identity.demo_access_expired":                         "business_rejection",
 	"identity.demo_access_invalid":                         "input",
@@ -817,14 +874,24 @@ var errorClassByCode = map[string]string{
 	"identity.demo_school_preparing":                       "unavailable",
 	"identity.demo_session":                                "permission",
 	"identity.email_already_exists":                        "business_rejection",
+	"identity.email_change_link_invalid":                   "business_rejection",
+	"identity.email_change_rate_limited":                   "unavailable",
+	"identity.email_change_same_email":                     "input",
 	"identity.invalid_credentials":                         "input",
 	"identity.invitation_account_login_required":           "permission",
 	"identity.invitation_account_mismatch":                 "permission",
 	"identity.invitation_expired":                          "business_rejection",
 	"identity.invitation_not_found":                        "input",
+	"identity.invitation_rate_limited":                     "unavailable",
+	"identity.lehrkraft_role_immutable":                    "business_rejection",
+	"identity.mfa_already_enrolled":                        "business_rejection",
 	"identity.mfa_blocked":                                 "unavailable",
 	"identity.mfa_code_invalid":                            "input",
+	"identity.mfa_not_enrolled":                            "business_rejection",
+	"identity.operator_invitation_invalid":                 "business_rejection",
 	"identity.passkey_login_failed":                        "business_rejection",
+	"identity.passkey_not_found":                           "business_rejection",
+	"identity.password_mismatch":                           "input",
 	"identity.password_reset_link_invalid":                 "business_rejection",
 	"identity.password_reset_rate_limited":                 "unavailable",
 	"identity.password_too_weak":                           "input",
@@ -835,8 +902,10 @@ var errorClassByCode = map[string]string{
 	"identity.role_name_taken":                             "business_rejection",
 	"identity.session_account_inactive":                    "permission",
 	"identity.tenant_access_denied":                        "permission",
+	"identity.tenant_access_not_found":                     "business_rejection",
 	"identity.use_parent_portal":                           "permission",
 	"identity.use_school_portal":                           "permission",
+	"identity.username_taken":                              "business_rejection",
 	"import.file_columns_missing":                          "input",
 	"import.file_missing":                                  "input",
 	"import.file_no_rows":                                  "input",
@@ -879,6 +948,31 @@ var errorClassByCode = map[string]string{
 	"presence.activity_participant_limit_reached":          "business_rejection",
 	"presence.room_capacity_exceeded":                      "business_rejection",
 	"presence.statistics_range_invalid":                    "input",
+	"provisioning.caregiver_capability_blocked":            "business_rejection",
+	"provisioning.device_active_session":                   "business_rejection",
+	"provisioning.device_api_key_taken":                    "business_rejection",
+	"provisioning.device_id_taken":                         "business_rejection",
+	"provisioning.device_in_use":                           "business_rejection",
+	"provisioning.device_not_found":                        "business_rejection",
+	"provisioning.device_online":                           "business_rejection",
+	"provisioning.device_other_organization":               "permission",
+	"provisioning.device_protected":                        "permission",
+	"provisioning.device_same_school":                      "business_rejection",
+	"provisioning.device_transfer_protected":               "permission",
+	"provisioning.organization_already_deleted":            "business_rejection",
+	"provisioning.organization_deleted":                    "business_rejection",
+	"provisioning.organization_has_schools":                "business_rejection",
+	"provisioning.organization_not_deleted":                "business_rejection",
+	"provisioning.organization_not_found":                  "business_rejection",
+	"provisioning.organization_slug_taken":                 "business_rejection",
+	"provisioning.person_has_supervisions":                 "business_rejection",
+	"provisioning.person_not_found":                        "business_rejection",
+	"provisioning.school_already_deleted":                  "business_rejection",
+	"provisioning.school_inactive":                         "business_rejection",
+	"provisioning.school_not_deleted":                      "business_rejection",
+	"provisioning.school_not_found":                        "business_rejection",
+	"provisioning.school_slug_taken":                       "business_rejection",
+	"provisioning.school_subdomain_taken":                  "business_rejection",
 	"rollover.deadline_required":                           "input",
 	"rollover.duplicate_name":                              "business_rejection",
 	"rollover.invalid_request":                             "input",
@@ -892,6 +986,12 @@ var errorClassByCode = map[string]string{
 	"school.no_school_portal_role":                         "permission",
 	"school.setup_completed":                               "business_rejection",
 	"school.setup_incomplete":                              "business_rejection",
+	"settings.admin_only":                                  "permission",
+	"settings.booking_authority_blocked":                   "business_rejection",
+	"settings.invalid_value":                               "input",
+	"settings.managed_by_upload":                           "business_rejection",
+	"settings.not_found":                                   "business_rejection",
+	"settings.presence_mode_switch_blocked":                "business_rejection",
 	"students.absence_read_required":                       "permission",
 	"students.bulk_approval_ineligible":                    "business_rejection",
 	"students.care_day_managed_by_booking":                 "business_rejection",

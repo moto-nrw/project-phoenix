@@ -2044,7 +2044,8 @@
         "staff_counterpart_unavailable": "{object} зараз недоступний. Спробуйте ще раз.",
         "staff_messaging_disabled": "У вас немає доступу до: {object}. Зверніться до школи.",
         "staff_notice_outdated": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-        "system_announcement_immutable": "Не вдалося змінити: {object}. Перевірте поточний стан."
+        "system_announcement_immutable": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "announcement_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
       "enrollment": {
         "approval_care_offering_exactly_one": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -2213,7 +2214,22 @@
         "session_account_inactive": "Ваш обліковий запис вимкнено. Зверніться до керівництва вашої школи.",
         "tenant_access_denied": "У вас немає доступу до: {object}. Зверніться до школи.",
         "use_parent_portal": "У вас немає доступу до: {object}. Зверніться до школи.",
-        "use_school_portal": "У вас немає доступу до: {object}. Зверніться до школи."
+        "use_school_portal": "У вас немає доступу до: {object}. Зверніться до школи.",
+        "username_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "password_mismatch": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "operator_invitation_invalid": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "invitation_rate_limited": "{object} зараз недоступний. Спробуйте ще раз.",
+        "email_change_rate_limited": "{object} зараз недоступний. Спробуйте ще раз.",
+        "email_change_same_email": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "email_change_link_invalid": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "mfa_not_enrolled": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "mfa_already_enrolled": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "passkey_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "account_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "tenant_access_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "account_not_in_school": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "lehrkraft_role_immutable": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "access_name_required": "Не вдалося зберегти: {object}. Перевірте введені дані."
       },
       "import": {
         "file_columns_missing": "Не вдалося зберегти: {object}. Перевірте введені дані.",
@@ -2580,6 +2596,48 @@
         "vacation_quota_reason_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "vacation_request_in_past": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "work_session_overlap": "Не вдалося змінити: {object}. Перевірте поточний стан."
+      },
+      "provisioning": {
+        "organization_slug_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "school_subdomain_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "school_slug_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "device_api_key_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "device_id_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "organization_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "organization_already_deleted": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "organization_not_deleted": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "organization_has_schools": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "organization_deleted": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "school_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "school_inactive": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "school_already_deleted": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "school_not_deleted": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "device_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "device_in_use": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "device_protected": "У вас немає доступу до: {object}. Зверніться до школи.",
+        "device_transfer_protected": "У вас немає доступу до: {object}. Зверніться до школи.",
+        "device_online": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "device_active_session": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "device_other_organization": "У вас немає доступу до: {object}. Зверніться до школи.",
+        "device_same_school": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "person_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "person_has_supervisions": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "caregiver_capability_blocked": "Не вдалося змінити: {object}. Перевірте поточний стан."
+      },
+      "settings": {
+        "not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "admin_only": "У вас немає доступу до: {object}. Зверніться до школи.",
+        "managed_by_upload": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "invalid_value": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "presence_mode_switch_blocked": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "booking_authority_blocked": "Не вдалося змінити: {object}. Перевірте поточний стан."
+      },
+      "devices": {
+        "tag_scan_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "tag_scan_already_resolved": "Не вдалося змінити: {object}. Перевірте поточний стан."
+      },
+      "billing": {
+        "invalid_key_day": "Не вдалося зберегти: {object}. Перевірте введені дані."
       }
     },
     "actions": {

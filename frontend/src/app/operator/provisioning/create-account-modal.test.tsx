@@ -1,6 +1,25 @@
 import type { ReactNode } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render as renderPlain,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { ERROR_CATALOG } from "~/lib/error-catalog.generated";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
+
+/** What the shared path shows for a failure that is no API error. */
+function crashText(object: string) {
+  const text = ERROR_CATALOG.de.actions.crash.replace("{object}", object);
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 const { mockListSystemRoles, mockCreateSchoolAccount, mockLoggerError } =
   vi.hoisted(() => ({
@@ -44,10 +63,6 @@ vi.mock("~/lib/auth-helpers", async (importOriginal) => {
     getRoleDisplayName: (name: string) => name,
   };
 });
-
-vi.mock("~/lib/hooks/use-scroll-to-error", () => ({
-  useScrollToError: () => vi.fn(),
-}));
 
 vi.mock("~/lib/logger", () => ({
   createLogger: () => ({
@@ -185,16 +200,22 @@ describe("CreateAccountModal", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("handles role loading failure gracefully", async () => {
-    mockListSystemRoles.mockRejectedValue(new Error("network error"));
+  // #2519: a failed role load is shown with retry, not only logged.
+  it("shows a failed role load with retry", async () => {
+    mockListSystemRoles.mockRejectedValueOnce(new ApiError("down", 503));
     renderModal();
 
-    await waitFor(() => {
-      expect(mockLoggerError).toHaveBeenCalledWith(
-        "failed_to_load_roles",
-        expect.objectContaining({ error: "network error" }),
-      );
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Rollen"),
+      ),
+    ).toBeInTheDocument();
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      "failed_to_load_roles",
+      expect.objectContaining({ error: "down" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mockListSystemRoles).toHaveBeenCalledTimes(2));
   });
 
   it("renders all form fields", () => {
@@ -251,6 +272,10 @@ describe("CreateAccountModal", () => {
         screen.getByText("Passwörter stimmen nicht überein."),
       ).toBeInTheDocument();
     });
+    expect(screen.getByLabelText(/Passwort bestätigen/)).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
   });
 
   it("creates account successfully and shows success state", async () => {
@@ -283,7 +308,10 @@ describe("CreateAccountModal", () => {
 
   it("handles API error on create and shows error message", async () => {
     mockCreateSchoolAccount.mockRejectedValue(
-      new Error("E-Mail bereits vergeben"),
+      new ApiError("email already exists", 409, {
+        code: "general.business_rejection",
+        errors: [{ field: "email", reason: "taken" }],
+      }),
     );
 
     renderModal();
@@ -291,13 +319,20 @@ describe("CreateAccountModal", () => {
     await fillForm();
     fireEvent.click(screen.getByText("Konto erstellen"));
 
-    await waitFor(() => {
-      expect(screen.getByText("E-Mail bereits vergeben")).toBeInTheDocument();
-      expect(mockLoggerError).toHaveBeenCalledWith(
-        "account_create_failed",
-        expect.objectContaining({ error: "E-Mail bereits vergeben" }),
-      );
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.business_rejection", "das Anlegen des Kontos"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/E-Mail/)).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(screen.queryByText("email already exists")).toBeNull();
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      "account_create_failed",
+      expect.objectContaining({ error: "email already exists" }),
+    );
   });
 
   it("calls onClose when Abbrechen button clicked", () => {
@@ -394,7 +429,7 @@ describe("CreateAccountModal", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Fehler beim Erstellen des Kontos."),
+        screen.getByText(crashText("das Anlegen des Kontos")),
       ).toBeInTheDocument();
       expect(mockLoggerError).toHaveBeenCalledWith(
         "account_create_failed",

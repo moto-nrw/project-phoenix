@@ -5,6 +5,11 @@ import { ChevronDown, Check } from "lucide-react";
 import { operatorAnnouncementsService } from "~/lib/operator/announcements-api";
 import type { AnnouncementViewDetail } from "~/lib/operator/announcements-helpers";
 import { getRelativeTime, getInitial } from "~/lib/format-utils";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiLoadError } from "~/contexts/ToastContext";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "AnnouncementViewsAccordion" });
 
 interface AnnouncementViewsAccordionProps {
   readonly announcementId: string;
@@ -18,7 +23,8 @@ export function AnnouncementViewsAccordion({
   const [isOpen, setIsOpen] = useState(false);
   const [viewDetails, setViewDetails] = useState<AnnouncementViewDetail[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const viewsLoad = useApiLoadError();
+  const { show: showLoadError, clear: clearLoadError } = viewsLoad;
   const loadedRef = useRef(false);
 
   // Only show users who confirmed (clicked "Verstanden")
@@ -30,18 +36,25 @@ export function AnnouncementViewsAccordion({
   const loadViewDetails = useCallback(async () => {
     if (loadedRef.current) return;
     setIsLoading(true);
-    setError(null);
+    clearLoadError();
     try {
       const details =
         await operatorAnnouncementsService.fetchViewDetails(announcementId);
       setViewDetails(details);
       loadedRef.current = true;
-    } catch {
-      setError("Ansichten konnten nicht geladen werden.");
+    } catch (err) {
+      logger.warn("announcement_view_details_failed", {
+        announcement_id: announcementId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showLoadError(err, {
+        object: "die Liste der Lesebestätigungen",
+        retry: () => void loadViewDetails(),
+      });
     } finally {
       setIsLoading(false);
     }
-  }, [announcementId]);
+  }, [announcementId, showLoadError, clearLoadError]);
 
   const handleToggle = useCallback(() => {
     const opening = !isOpen;
@@ -92,7 +105,7 @@ export function AnnouncementViewsAccordion({
             )}
 
             {/* Error */}
-            {error && <p className="text-moto-red mb-2 text-xs">{error}</p>}
+            <LoadErrorAlert error={viewsLoad.error} className="mb-2" />
 
             {/* Confirmed users list */}
             {!isLoading && confirmedUsers.length > 0 && (

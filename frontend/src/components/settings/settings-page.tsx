@@ -101,8 +101,8 @@ interface SettingsTabContentProps {
   /** Every tab of the page; the search box looks across all of them. */
   readonly allTabs: readonly SchemaTab[];
   readonly highlightKey?: string | null;
-  readonly onSave: (key: string, value: unknown) => Promise<string | null>;
-  readonly onReset: (key: string) => Promise<string | null>;
+  readonly onSave: (key: string, value: unknown) => Promise<void>;
+  readonly onReset: (key: string) => Promise<void>;
   readonly onSchemaRefresh: () => void;
 }
 
@@ -354,7 +354,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
   // Save and reset throw the ApiError of a failed request; the field shows
   // it on the shared error path (#2517).
   const handleSave = useCallback(
-    async (key: string, value: unknown): Promise<string | null> => {
+    async (key: string, value: unknown): Promise<void> => {
       await saveSettingValue(key, value);
       logger.info("setting_value_saved", { key });
       // Tenant-resolve-affecting keys: refresh the RSC tree so the cached
@@ -369,13 +369,12 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
         void refreshSupervision({ force: true });
       }
       revalidateRemindersIfNeeded(key);
-      return null;
     },
     [applyOptimistic, refreshSupervision, revalidateRemindersIfNeeded, router],
   );
 
   const handleReset = useCallback(
-    async (key: string): Promise<string | null> => {
+    async (key: string): Promise<void> => {
       await clearSettingValue(key);
       logger.info("setting_value_reset", { key });
       if (TENANT_RESOLVE_AFFECTING_KEYS.has(key)) {
@@ -389,7 +388,6 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
         void refreshSupervision({ force: true });
       }
       revalidateRemindersIfNeeded(key);
-      return null;
     },
     [refreshSupervision, revalidate, revalidateRemindersIfNeeded, router],
   );

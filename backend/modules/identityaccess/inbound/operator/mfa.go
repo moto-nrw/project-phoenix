@@ -64,9 +64,9 @@ func mapOperatorMFAError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, ErrMFARateLimited):
 		common.RenderError(w, r, operatorMFAError(http.StatusTooManyRequests, "Too many MFA emails — try again later", common.CodeIdentityMfaBlocked))
 	case errors.Is(err, ErrMFANotEnrolled):
-		common.RenderError(w, r, common.OperatorForbidden("MFA is not enrolled for this operator"))
+		common.RenderError(w, r, operatorMFAError(http.StatusForbidden, "MFA is not enrolled for this operator", common.CodeIdentityMfaNotEnrolled))
 	case errors.Is(err, ErrMFAAlreadyEnrolled):
-		common.RenderError(w, r, common.OperatorConflict("MFA is already enrolled"))
+		common.RenderError(w, r, operatorMFAError(http.StatusConflict, "MFA is already enrolled", common.CodeIdentityMfaAlreadyEnrolled))
 	case errors.Is(err, ErrMFAPermissionDenied):
 		common.RenderError(w, r, common.OperatorForbidden("Permission denied"))
 	case errors.Is(err, ErrMFAStatusUnavailable):
@@ -282,7 +282,7 @@ func (rs *MFAResource) completeMFAExchange(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrOperatorInactive):
-			common.RenderError(w, r, common.OperatorForbidden("Operator account is inactive"))
+			common.RenderError(w, r, operatorInactive("Operator account is inactive"))
 		case errors.Is(err, ErrOperatorNotFound):
 			common.RenderError(w, r, common.OperatorUnauthorized())
 		default:

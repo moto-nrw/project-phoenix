@@ -4,8 +4,20 @@
  * Ported from provisioning/page.test.tsx (Devices Tab). Device filtering
  * moved from client state to URL query params (schoolId, orgId).
  */
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render as renderPlain,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { catalogText } from "~/test/error-catalog-text";
+import { ApiError } from "~/lib/api-error";
+import { ToastProvider } from "~/contexts/ToastContext";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
 
 vi.mock("~/components/operator/transfer-device-modal", () => ({
   TransferDeviceModal: () => null,
@@ -598,5 +610,45 @@ describe("OperatorDevicesPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("modal")).toBeInTheDocument();
     });
+  });
+
+  // #2519: a failed filter list is shown, not an empty filter.
+  it("shows failed loads of the filter lists", async () => {
+    withDefaultSWR({
+      allDevices: [],
+      orgsError: new ApiError("down", 503),
+      schoolsError: new ApiError("boom", 500),
+    });
+
+    render(<OperatorDevicesPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Träger"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Liste der Schulen"),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  // #2519: a failed load is not an empty list.
+  it("shows a failed list load without claiming the list is empty", async () => {
+    withDefaultSWR({
+      allDevices: [],
+      devicesError: new ApiError("down", 503),
+      staleData: true,
+    });
+
+    render(<OperatorDevicesPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Geräte"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Keine Geräte")).toBeNull();
   });
 });

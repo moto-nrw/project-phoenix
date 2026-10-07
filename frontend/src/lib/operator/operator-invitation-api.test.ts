@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ApiError } from "~/lib/api-error";
 import type {
   BackendInvitationsListResponse,
   BackendInvitationValidation,
@@ -162,6 +163,23 @@ describe("public invitation session", () => {
   });
 });
 
+describe("public invitation session failures", () => {
+  it("throws an ApiError when the session cannot be created", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ code: "identity.invitation_not_found" }), {
+        status: 404,
+      }),
+    );
+
+    await expect(
+      establishOperatorInvitationSession("bad-token"),
+    ).rejects.toMatchObject({
+      status: 404,
+      code: "identity.invitation_not_found",
+    });
+  });
+});
+
 describe("validateOperatorInvitation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -198,45 +216,47 @@ describe("validateOperatorInvitation", () => {
     );
   });
 
-  it("throws with backend message on error", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 404,
-      json: async () => ({
-        status: "error",
-        error: "Dieser Link ist abgelaufen oder ungültig",
-      }),
-    });
-
-    await expect(validateOperatorInvitation("flow-1")).rejects.toThrow(
-      "Dieser Link ist abgelaufen oder ungültig",
+  // #2519: the error keeps code and request ID, never the backend sentence.
+  it("throws an ApiError with the wire code", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: "invitation expired",
+          code: "identity.invitation_expired",
+          instance: "req-1",
+        }),
+        { status: 410 },
+      ),
     );
+
+    const error: unknown = await validateOperatorInvitation("flow-1").catch(
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 410,
+      code: "identity.invitation_expired",
+      requestId: "req-1",
+    });
   });
 
-  it("throws default message when error JSON has no error", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 500,
-      json: async () => ({}),
-    });
+  it("keeps the status class when the error body is not JSON", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response("oops", { status: 500 }));
 
-    await expect(validateOperatorInvitation("flow-1")).rejects.toThrow(
-      "Einladung nicht gefunden oder abgelaufen",
-    );
+    await expect(validateOperatorInvitation("flow-1")).rejects.toMatchObject({
+      status: 500,
+      code: "general.server",
+    });
   });
 
-  it("throws default message when error response is not JSON", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 500,
-      json: async () => {
-        throw new Error("not JSON");
-      },
-    });
+  it("turns a network failure into general.unavailable", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
 
-    await expect(validateOperatorInvitation("flow-1")).rejects.toThrow(
-      "Einladung nicht gefunden oder abgelaufen",
-    );
+    await expect(validateOperatorInvitation("flow-1")).rejects.toMatchObject({
+      code: "general.unavailable",
+    });
   });
 
   it("handles unwrapped response (no envelope)", async () => {
@@ -287,12 +307,17 @@ describe("acceptOperatorInvitation", () => {
     );
   });
 
-  it("throws with backend message on error", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 400,
-      json: async () => ({ status: "error", error: "Passwort zu schwach" }),
-    });
+  it("throws an ApiError with code and field errors", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: "password too weak",
+          code: "identity.password_too_weak",
+          errors: [{ field: "password", reason: "too_weak" }],
+        }),
+        { status: 400 },
+      ),
+    );
 
     await expect(
       acceptOperatorInvitation("flow-1", {
@@ -300,17 +325,17 @@ describe("acceptOperatorInvitation", () => {
         password: "weak",
         confirmPassword: "weak",
       }),
-    ).rejects.toThrow("Passwort zu schwach");
+    ).rejects.toMatchObject({
+      status: 400,
+      code: "identity.password_too_weak",
+      errors: [{ field: "password", reason: "too_weak" }],
+    });
   });
 
-  it("throws default message on non-JSON error", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 500,
-      json: async () => {
-        throw new Error("not JSON");
-      },
-    });
+  it("keeps the status class on a non-JSON error", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response("oops", { status: 500 }));
 
     await expect(
       acceptOperatorInvitation("flow-1", {
@@ -318,6 +343,6 @@ describe("acceptOperatorInvitation", () => {
         password: "pass",
         confirmPassword: "pass",
       }),
-    ).rejects.toThrow("Einladung konnte nicht angenommen werden");
+    ).rejects.toMatchObject({ status: 500, code: "general.server" });
   });
 });

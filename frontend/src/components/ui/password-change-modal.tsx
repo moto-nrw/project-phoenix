@@ -18,8 +18,9 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PasswordChange" });
 
-// Legacy texts for owners without `errorPath` (operator settings); the
-// shared path shows the catalog text of the code instead (#2517).
+// Legacy texts for owners without `errorPath`. No owner uses this path
+// since #2519; #2520 deletes it. The shared path shows the catalog text of
+// the code instead (#2517).
 const ERROR_MAPPINGS: Array<{
   test: (msg: string) => boolean;
   message: string;

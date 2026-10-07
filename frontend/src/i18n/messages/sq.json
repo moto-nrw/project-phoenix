@@ -2044,7 +2044,8 @@
         "staff_counterpart_unavailable": "{object} nuk është i disponueshëm tani. Provoni përsëri.",
         "staff_messaging_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "staff_notice_outdated": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "system_announcement_immutable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+        "system_announcement_immutable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "announcement_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "enrollment": {
         "approval_care_offering_exactly_one": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -2213,7 +2214,22 @@
         "session_account_inactive": "Llogaria juaj është e çaktivizuar. Kontaktoni drejtimin e shkollës suaj.",
         "tenant_access_denied": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "use_parent_portal": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "use_school_portal": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
+        "use_school_portal": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "username_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "password_mismatch": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "operator_invitation_invalid": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "invitation_rate_limited": "{object} nuk është i disponueshëm tani. Provoni përsëri.",
+        "email_change_rate_limited": "{object} nuk është i disponueshëm tani. Provoni përsëri.",
+        "email_change_same_email": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "email_change_link_invalid": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "mfa_not_enrolled": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "mfa_already_enrolled": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "passkey_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "account_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "tenant_access_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "account_not_in_school": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "lehrkraft_role_immutable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "access_name_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
       },
       "import": {
         "file_columns_missing": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
@@ -2580,6 +2596,48 @@
         "vacation_quota_reason_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "vacation_request_in_past": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "work_session_overlap": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+      },
+      "provisioning": {
+        "organization_slug_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "school_subdomain_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "school_slug_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "device_api_key_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "device_id_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "organization_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "organization_already_deleted": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "organization_not_deleted": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "organization_has_schools": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "organization_deleted": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "school_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "school_inactive": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "school_already_deleted": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "school_not_deleted": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "device_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "device_in_use": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "device_protected": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "device_transfer_protected": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "device_online": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "device_active_session": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "device_other_organization": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "device_same_school": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "person_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "person_has_supervisions": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "caregiver_capability_blocked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+      },
+      "settings": {
+        "not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "admin_only": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "managed_by_upload": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "invalid_value": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "presence_mode_switch_blocked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "booking_authority_blocked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+      },
+      "devices": {
+        "tag_scan_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "tag_scan_already_resolved": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+      },
+      "billing": {
+        "invalid_key_day": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
       }
     },
     "actions": {

@@ -224,10 +224,10 @@ func (p *Provisioning) createDeviceWithKey(ctx context.Context, device domain.Ne
 			return created, nil
 		case errors.Is(err, domain.ErrDeviceAPIKeyTaken):
 			if manual {
-				return domain.Device{}, conflict("api_key already in use")
+				return domain.Device{}, conflict(organizationtenancy.ConflictDeviceAPIKey, "api_key already in use")
 			}
 		case errors.Is(err, domain.ErrDeviceIDTaken):
-			return domain.Device{}, conflict("device_id already exists for this school")
+			return domain.Device{}, conflict(organizationtenancy.ConflictDeviceID, "device_id already exists for this school")
 		default:
 			return domain.Device{}, err
 		}
@@ -280,7 +280,7 @@ func (p *Provisioning) rotateDeviceKey(ctx context.Context, device domain.Device
 			return nil
 		case errors.Is(err, domain.ErrDeviceAPIKeyTaken):
 			if manual {
-				return conflict("api_key already in use")
+				return conflict(organizationtenancy.ConflictDeviceAPIKey, "api_key already in use")
 			}
 		default:
 			return err
@@ -482,9 +482,9 @@ func (p *Provisioning) archiveAndTransfer(ctx context.Context, source domain.Dev
 	})
 	switch {
 	case errors.Is(err, domain.ErrDeviceAPIKeyTaken):
-		return domain.Device{}, conflict("api_key already in use")
+		return domain.Device{}, conflict(organizationtenancy.ConflictDeviceAPIKey, "api_key already in use")
 	case errors.Is(err, domain.ErrDeviceIDTaken):
-		return domain.Device{}, conflict("device_id already exists for target school")
+		return domain.Device{}, conflict(organizationtenancy.ConflictDeviceID, "device_id already exists for target school")
 	case err != nil:
 		return domain.Device{}, fmt.Errorf("TransferDevice: create target: %w", err)
 	}
@@ -533,6 +533,6 @@ func apiKeyMode(manual bool) string {
 	return "auto"
 }
 
-func conflict(message string) error {
-	return &organizationtenancy.ProvisioningConflictError{Err: errors.New(message)}
+func conflict(kind organizationtenancy.ProvisioningConflictKind, message string) error {
+	return &organizationtenancy.ProvisioningConflictError{Kind: kind, Err: errors.New(message)}
 }

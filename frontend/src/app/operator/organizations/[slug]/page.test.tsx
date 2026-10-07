@@ -8,13 +8,20 @@
  */
 import {
   act,
-  render,
+  render as renderPlain,
   screen,
   fireEvent,
   waitFor,
   within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
 
 vi.mock("~/components/operator/transfer-device-modal", () => ({
   TransferDeviceModal: () => null,
@@ -237,6 +244,9 @@ interface SetupOpts {
   accountsLoading?: boolean;
   devicesLoading?: boolean;
   personsLoading?: boolean;
+  accountsError?: Error;
+  devicesError?: Error;
+  personsError?: Error;
   accounts?: unknown[];
   devices?: unknown[];
   persons?: unknown[];
@@ -257,6 +267,9 @@ function setupSWR(opts: SetupOpts = {}) {
     accountsLoading = false,
     devicesLoading = false,
     personsLoading = false,
+    accountsError,
+    devicesError,
+    personsError,
     accounts = [],
     devices = [],
     persons = [],
@@ -280,18 +293,21 @@ function setupSWR(opts: SetupOpts = {}) {
       case "operator-org-accounts":
         return {
           data: accountsLoading ? undefined : accounts,
+          error: accountsError,
           isLoading: accountsLoading,
           mutate: mockMutateOrgAccounts,
         };
       case "operator-org-devices":
         return {
           data: devicesLoading ? undefined : devices,
+          error: devicesError,
           isLoading: devicesLoading,
           mutate: mockMutateOrgDevices,
         };
       case "operator-org-persons":
         return {
           data: personsLoading ? undefined : persons,
+          error: personsError,
           isLoading: personsLoading,
           mutate: vi.fn(),
         };
@@ -354,6 +370,28 @@ describe("OperatorOrganizationDetailPage", () => {
     await renderPage();
 
     expect(await screen.findByText("Keine Schulen")).toBeInTheDocument();
+  });
+
+  // #2519: a failed load is shown with retry, never as "not found".
+  it("shows a failed organization load instead of 'not found'", async () => {
+    const error = new ApiError("down", 503);
+    mockUseSWR.mockImplementation(() => ({
+      data: undefined,
+      error,
+      isLoading: false,
+      mutate: mockMutateOrgs,
+    }));
+
+    await renderPage();
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Übersicht des Trägers"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Träger nicht gefunden.")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mockMutateOrgs).toHaveBeenCalled();
   });
 
   it("shows 'Träger nicht gefunden' when slug does not match", async () => {
@@ -445,9 +483,11 @@ describe("OperatorOrganizationDetailPage", () => {
 
   it("shows subdomain conflict error when creating school", async () => {
     setupSWR();
-    const { OperatorApiError } = await import("~/lib/operator/api-helpers");
     mockCreateSchool.mockRejectedValue(
-      new OperatorApiError("subdomain already exists", 409),
+      new ApiError("subdomain already exists", 409, {
+        code: "general.business_rejection",
+        errors: [{ field: "subdomain", reason: "taken" }],
+      }),
     );
 
     await renderPage();
@@ -463,11 +503,11 @@ describe("OperatorOrganizationDetailPage", () => {
     });
     fireEvent.click(screen.getByText("Erstellen"));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("Eine Schule mit dieser Subdomain existiert bereits."),
-      ).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.business_rejection", "das Anlegen der Schule"),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("creates school successfully and revalidates tenant cache", async () => {
@@ -652,6 +692,21 @@ describe("OperatorOrganizationDetailPage", () => {
 
       expect(screen.getAllByText("Wird geladen…").length).toBeGreaterThan(0);
     });
+
+    it("withholds the accounts table after a failed load", async () => {
+      currentSearchParams = new URLSearchParams("tab=konten");
+      setupSWR({ accountsError: new ApiError("down", 503) });
+
+      await renderPage();
+
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "die Liste der Konten"),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Keine Konten für diesen Träger.")).toBeNull();
+      expect(screen.queryByRole("table")).toBeNull();
+    });
   });
 
   describe("with the Geräte tab active", () => {
@@ -701,6 +756,21 @@ describe("OperatorOrganizationDetailPage", () => {
 
       expect(await screen.findByText("Neues Gerät")).toBeInTheDocument();
     });
+
+    it("withholds the devices table after a failed load", async () => {
+      currentSearchParams = new URLSearchParams("tab=geraete");
+      setupSWR({ devicesError: new ApiError("down", 503) });
+
+      await renderPage();
+
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "die Liste der Geräte"),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Keine Geräte für diesen Träger.")).toBeNull();
+      expect(screen.queryByRole("table")).toBeNull();
+    });
   });
 
   describe("with the Personen tab active", () => {
@@ -740,25 +810,41 @@ describe("OperatorOrganizationDetailPage", () => {
         await screen.findByText("Keine Personen für diesen Träger."),
       ).toBeInTheDocument();
     });
+
+    it("withholds the persons table after a failed load", async () => {
+      currentSearchParams = new URLSearchParams("tab=personen");
+      setupSWR({ personsError: new ApiError("down", 503) });
+
+      await renderPage();
+
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "die Liste der Personen"),
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Keine Personen für diesen Träger."),
+      ).toBeNull();
+      expect(screen.queryByRole("table")).toBeNull();
+    });
   });
 
   // --- Org-level toggle / edit / delete error paths ---
 
   it("surfaces an error message when toggling the org status fails", async () => {
     setupSWR();
-    mockUpdateOrganization.mockRejectedValue(new Error("network down"));
+    mockUpdateOrganization.mockRejectedValue(new ApiError("network down", 503));
 
     await renderPage();
 
     fireEvent.click(await screen.findByLabelText("Deaktivieren"));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          "Fehler beim Ändern des Status. Bitte versuchen Sie es erneut.",
-        ),
-      ).toBeInTheDocument();
-    });
+    // #2519: catalog text by code in a toast, not a local sentence.
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Änderung des Status"),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("redirects to the new slug after editing the organization slug", async () => {

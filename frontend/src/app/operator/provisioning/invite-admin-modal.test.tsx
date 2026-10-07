@@ -1,6 +1,18 @@
 import type { ReactNode } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render as renderPlain,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
 
 const { mockInviteSchoolAdmin, mockLoggerError } = vi.hoisted(() => ({
   mockInviteSchoolAdmin: vi.fn(),
@@ -32,10 +44,6 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
   operatorProvisioningService: {
     inviteSchoolAdmin: mockInviteSchoolAdmin,
   },
-}));
-
-vi.mock("~/lib/hooks/use-scroll-to-error", () => ({
-  useScrollToError: () => vi.fn(),
 }));
 
 vi.mock("~/lib/logger", () => ({
@@ -213,19 +221,29 @@ describe("InviteAdminModal", () => {
 
   it("shows API errors and logs them", async () => {
     mockInviteSchoolAdmin.mockRejectedValue(
-      new Error("E-Mail bereits vergeben"),
+      new ApiError("email already exists", 409, {
+        code: "general.business_rejection",
+        errors: [{ field: "email", reason: "taken" }],
+      }),
     );
     renderModal();
 
     fillInviteForm();
     fireEvent.click(screen.getByText("Einladung senden"));
 
-    await waitFor(() => {
-      expect(screen.getByText("E-Mail bereits vergeben")).toBeInTheDocument();
-      expect(mockLoggerError).toHaveBeenCalledWith(
-        "admin_invite_failed",
-        expect.objectContaining({ error: "E-Mail bereits vergeben" }),
-      );
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.business_rejection", "die Einladung"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/E-Mail/)).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(screen.queryByText("email already exists")).toBeNull();
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      "admin_invite_failed",
+      expect.objectContaining({ error: "email already exists" }),
+    );
   });
 });

@@ -1,20 +1,45 @@
-import { Children, isValidElement } from "react";
+import { Children, cloneElement, isValidElement } from "react";
 import { Inbox, Plus } from "lucide-react";
 import { Skeleton } from "~/components/ui/skeleton";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState as UIEmptyState } from "~/components/ui/empty-state";
 
+/**
+ * Label, control and its field error (#2519). With `error` the first child
+ * element (the control) gets `aria-invalid` and `aria-describedby`, so a screen reader
+ * reads the hint with the field.
+ */
 export function FormField({
   label,
   htmlFor,
   required,
+  error,
   children,
 }: {
   readonly label: string;
   readonly htmlFor: string;
   readonly required?: boolean;
+  readonly error?: string;
   readonly children: React.ReactNode;
 }) {
+  const errorId = `${htmlFor}-error`;
+  // The control is the first element child; a hint after it stays as is.
+  let marked = false;
+  const control = error
+    ? Children.map(children, (child) => {
+        if (marked || !isValidElement<Record<string, unknown>>(child)) {
+          return child;
+        }
+        marked = true;
+        // CustomSelect takes its ARIA state as named props.
+        return child.type === CustomSelect
+          ? cloneElement(child, { invalid: true, ariaDescribedBy: errorId })
+          : cloneElement(child, {
+              "aria-invalid": true,
+              "aria-describedby": errorId,
+            });
+      })
+    : children;
   return (
     <div>
       <label
@@ -25,25 +50,12 @@ export function FormField({
         {label}
         {required && <span className="text-moto-red ml-0.5">*</span>}
       </label>
-      {children}
-    </div>
-  );
-}
-
-export function FormError({
-  message,
-  ref,
-}: {
-  readonly message: string;
-  readonly ref?: React.Ref<HTMLDivElement>;
-}) {
-  return (
-    <div
-      ref={ref}
-      role="alert"
-      className="bg-moto-red-soft text-moto-red rounded-lg px-3 py-2 text-sm"
-    >
-      {message}
+      {control}
+      {error ? (
+        <p id={errorId} className="text-moto-red mt-1 text-xs">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -140,6 +152,8 @@ export function SelectWithChevron({
   disabled,
   required,
   "aria-label": ariaLabel,
+  "aria-invalid": ariaInvalid,
+  "aria-describedby": ariaDescribedBy,
 }: React.SelectHTMLAttributes<HTMLSelectElement> & {
   readonly children: React.ReactNode;
 }) {
@@ -182,6 +196,8 @@ export function SelectWithChevron({
       required={required}
       ariaLabel={ariaLabel}
       ariaLabelledBy={ariaLabelledBy}
+      ariaDescribedBy={ariaDescribedBy}
+      invalid={ariaInvalid === true || ariaInvalid === "true"}
     />
   );
 }

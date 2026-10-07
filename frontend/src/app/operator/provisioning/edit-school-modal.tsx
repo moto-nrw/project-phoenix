@@ -1,18 +1,17 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Modal } from "~/components/ui/modal";
-import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
 import {
   operatorProvisioningService,
   revalidateTenantCache,
 } from "~/lib/operator/provisioning-api";
 import { isValidSlug } from "~/lib/operator/provisioning-helpers";
 import type { Organization, School } from "~/lib/operator/provisioning-helpers";
-import { isOperatorApiError } from "~/lib/operator/api-helpers";
 import { createLogger } from "~/lib/logger";
 import { CustomSelect } from "~/components/ui/custom-select";
 import {
   FormField,
-  FormError,
   FieldWarning,
   VisibilityToggle,
 } from "./provisioning-shared";
@@ -43,8 +42,9 @@ export function EditSchoolModal({
   const [schoolEmail, setSchoolEmail] = useState("");
   const [schoolHidden, setSchoolHidden] = useState(false);
   const [schoolSaving, setSchoolSaving] = useState(false);
-  const [schoolError, setSchoolError] = useState("");
-  const errorRef = useScrollToError(schoolError);
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { show: showError, invalid, clear: clearError } = formErrors;
 
   useEffect(() => {
     if (isOpen && school) {
@@ -58,9 +58,9 @@ export function EditSchoolModal({
       setSchoolPhone(school.phone ?? "");
       setSchoolEmail(school.email ?? "");
       setSchoolHidden(school.hidden);
-      setSchoolError("");
+      clearError();
     }
-  }, [isOpen, school]);
+  }, [isOpen, school, clearError]);
 
   const handleUpdate = useCallback(
     async (e: React.FormEvent) => {
@@ -70,25 +70,28 @@ export function EditSchoolModal({
       // constraint validation, so an Enter-submit with a cleared organization
       // lands here and must produce a visible error instead of a silent return.
       if (!schoolOrgId) {
-        setSchoolError("Bitte wählen Sie einen Träger aus.");
+        const hint = "Bitte wählen Sie einen Träger aus.";
+        invalid("Bitte prüfen Sie die markierten Felder.", {
+          organization_id: hint,
+        });
         return;
       }
       if (!schoolName.trim() || !schoolSlug.trim() || !schoolSubdomain.trim())
         return;
       if (!isValidSlug(schoolSlug)) {
-        setSchoolError(
-          "Slug darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.",
-        );
+        const hint =
+          "Slug darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.";
+        invalid("Bitte prüfen Sie die markierten Felder.", { slug: hint });
         return;
       }
       if (!isValidSlug(schoolSubdomain)) {
-        setSchoolError(
-          "Subdomain darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.",
-        );
+        const hint =
+          "Subdomain darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.";
+        invalid("Bitte prüfen Sie die markierten Felder.", { subdomain: hint });
         return;
       }
       setSchoolSaving(true);
-      setSchoolError("");
+      clearError();
       try {
         const oldSubdomain = school.subdomain;
         const newSubdomain = schoolSubdomain.trim();
@@ -111,25 +114,10 @@ export function EditSchoolModal({
         onClose();
         await onUpdated();
       } catch (error) {
-        if (isOperatorApiError(error) && error.status === 409) {
-          const msg = error instanceof Error ? error.message.toLowerCase() : "";
-          if (msg.includes("subdomain")) {
-            setSchoolError(
-              "Eine Schule mit dieser Subdomain existiert bereits.",
-            );
-          } else {
-            setSchoolError(
-              "Eine Schule mit diesem Slug existiert bereits in dieser Organisation.",
-            );
-          }
-        } else {
-          setSchoolError(
-            error instanceof Error ? error.message : "Fehler beim Speichern.",
-          );
-          logger.error("school_update_failed", {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
+        logger.error("school_update_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        void showError(error, { object: "die Änderung an der Schule" });
       } finally {
         setSchoolSaving(false);
       }
@@ -148,6 +136,9 @@ export function EditSchoolModal({
       schoolHidden,
       onClose,
       onUpdated,
+      invalid,
+      clearError,
+      showError,
     ],
   );
 
@@ -183,11 +174,18 @@ export function EditSchoolModal({
       }
     >
       <form
+        ref={formRef}
         onSubmit={(e) => void handleUpdate(e)}
         className="space-y-4"
         id="edit-school-form"
       >
-        <FormField label="Träger" htmlFor="edit-school-org" required>
+        <FormErrorAlert message={formErrors.error} />
+        <FormField
+          label="Träger"
+          htmlFor="edit-school-org"
+          required
+          error={formErrors.fieldError("organization_id")}
+        >
           <CustomSelect
             id="edit-school-org"
             ariaLabel="Träger"
@@ -207,9 +205,15 @@ export function EditSchoolModal({
             <FieldWarning message="Trägerwechsel kann die Slug-Eindeutigkeit in der neuen Organisation beeinflussen." />
           )}
         </FormField>
-        <FormField label="Name" htmlFor="edit-school-name" required>
+        <FormField
+          label="Name"
+          htmlFor="edit-school-name"
+          required
+          error={formErrors.fieldError("name")}
+        >
           <input
             id="edit-school-name"
+            name="name"
             type="text"
             value={schoolName}
             onChange={(e) => setSchoolName(e.target.value)}
@@ -219,9 +223,15 @@ export function EditSchoolModal({
           />
         </FormField>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Slug" htmlFor="edit-school-slug" required>
+          <FormField
+            label="Slug"
+            htmlFor="edit-school-slug"
+            required
+            error={formErrors.fieldError("slug")}
+          >
             <input
               id="edit-school-slug"
+              name="slug"
               type="text"
               value={schoolSlug}
               onChange={(e) => setSchoolSlug(e.target.value)}
@@ -233,9 +243,15 @@ export function EditSchoolModal({
               <FieldWarning message="Slug-Änderungen können bestehende Verweise ungültig machen." />
             )}
           </FormField>
-          <FormField label="Subdomain" htmlFor="edit-school-subdomain" required>
+          <FormField
+            label="Subdomain"
+            htmlFor="edit-school-subdomain"
+            required
+            error={formErrors.fieldError("subdomain")}
+          >
             <input
               id="edit-school-subdomain"
+              name="subdomain"
               type="text"
               value={schoolSubdomain}
               onChange={(e) => setSchoolSubdomain(e.target.value)}
@@ -254,9 +270,14 @@ export function EditSchoolModal({
             Kontaktdaten
           </p>
           <div className="space-y-3">
-            <FormField label="Adresse" htmlFor="edit-school-address">
+            <FormField
+              label="Adresse"
+              htmlFor="edit-school-address"
+              error={formErrors.fieldError("address")}
+            >
               <input
                 id="edit-school-address"
+                name="address"
                 type="text"
                 value={schoolAddress}
                 onChange={(e) => setSchoolAddress(e.target.value)}
@@ -265,9 +286,14 @@ export function EditSchoolModal({
               />
             </FormField>
             <div className="grid grid-cols-2 gap-4">
-              <FormField label="PLZ" htmlFor="edit-school-zip">
+              <FormField
+                label="PLZ"
+                htmlFor="edit-school-zip"
+                error={formErrors.fieldError("zip")}
+              >
                 <input
                   id="edit-school-zip"
+                  name="zip"
                   type="text"
                   value={schoolZip}
                   onChange={(e) => setSchoolZip(e.target.value)}
@@ -275,9 +301,14 @@ export function EditSchoolModal({
                   className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                 />
               </FormField>
-              <FormField label="Stadt" htmlFor="edit-school-city">
+              <FormField
+                label="Stadt"
+                htmlFor="edit-school-city"
+                error={formErrors.fieldError("city")}
+              >
                 <input
                   id="edit-school-city"
+                  name="city"
                   type="text"
                   value={schoolCity}
                   onChange={(e) => setSchoolCity(e.target.value)}
@@ -287,9 +318,14 @@ export function EditSchoolModal({
               </FormField>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <FormField label="Telefon" htmlFor="edit-school-phone">
+              <FormField
+                label="Telefon"
+                htmlFor="edit-school-phone"
+                error={formErrors.fieldError("phone")}
+              >
                 <input
                   id="edit-school-phone"
+                  name="phone"
                   type="tel"
                   value={schoolPhone}
                   onChange={(e) => setSchoolPhone(e.target.value)}
@@ -297,9 +333,14 @@ export function EditSchoolModal({
                   className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                 />
               </FormField>
-              <FormField label="E-Mail" htmlFor="edit-school-email">
+              <FormField
+                label="E-Mail"
+                htmlFor="edit-school-email"
+                error={formErrors.fieldError("email")}
+              >
                 <input
                   id="edit-school-email"
+                  name="email"
                   type="email"
                   value={schoolEmail}
                   onChange={(e) => setSchoolEmail(e.target.value)}
@@ -314,8 +355,6 @@ export function EditSchoolModal({
           hidden={schoolHidden}
           onToggle={() => setSchoolHidden(!schoolHidden)}
         />
-
-        {schoolError && <FormError ref={errorRef} message={schoolError} />}
       </form>
     </Modal>
   );

@@ -21,14 +21,63 @@ func operatorError(status int, message string) render.Renderer {
 	return &ErrResponse{HTTPStatusCode: status, Status: "error", ErrorText: message}
 }
 
-// OperatorInvalidRequest renders a 400 with the error's text.
+// OperatorRejection renders an operator outcome with its registered code
+// (#2519). The message is developer diagnostics; the operator portal shows
+// the catalog text of the code.
+func OperatorRejection(status int, code, message string) render.Renderer {
+	return &ErrResponse{HTTPStatusCode: status, Status: "error", ErrorText: message, Code: code}
+}
+
+// OperatorRejectionWithDetails is OperatorRejection with the structured
+// values the catalog text of the code interpolates.
+func OperatorRejectionWithDetails(status int, code, message string, details map[string]any) render.Renderer {
+	return &ErrResponse{HTTPStatusCode: status, Status: "error", ErrorText: message, Code: code, Details: details}
+}
+
+// OperatorInvalidRequest renders a 400 with the error's text. The field
+// errors of a validation error and the code of an InputRejection in its
+// chain go along, so the operator portal can mark the field (#2519).
 func OperatorInvalidRequest(err error) render.Renderer {
-	return newErrResponse(http.StatusBadRequest, err)
+	return ErrorInputRejection(err)
+}
+
+// OperatorInvalidRequestWithCode renders a 400 with a registered code.
+func OperatorInvalidRequestWithCode(err error, code string) render.Renderer {
+	resp := newErrResponse(http.StatusBadRequest, err)
+	resp.Errors = validationFieldErrors(err)
+	resp.Code = code
+	return resp
+}
+
+// OperatorRejectionOnField is OperatorRejection that also marks the request
+// field the outcome is about, e.g. the slug that is already taken (#2519).
+func OperatorRejectionOnField(status int, code, field, message string) render.Renderer {
+	return &ErrResponse{
+		HTTPStatusCode: status,
+		Status:         "error",
+		ErrorText:      message,
+		Code:           code,
+		Errors:         []FieldError{{Field: field, Reason: message}},
+	}
+}
+
+// OperatorInvalidField renders a 400 that marks one request field.
+func OperatorInvalidField(code, field, message string) render.Renderer {
+	return OperatorRejectionOnField(http.StatusBadRequest, code, field, message)
+}
+
+// OperatorInvalidInput renders a 400 with a fixed text: the cause may carry
+// adapter text, so only its field errors and InputRejection code go along.
+func OperatorInvalidInput(cause error, message string) render.Renderer {
+	resp := &ErrResponse{HTTPStatusCode: http.StatusBadRequest, Status: "error", ErrorText: message}
+	resp.Errors = validationFieldErrors(cause)
+	applyInputRejection(resp, cause)
+	return resp
 }
 
 // OperatorInvalidCredentials renders the 401 of a failed operator login.
 func OperatorInvalidCredentials() render.Renderer {
-	return operatorError(http.StatusUnauthorized, "Invalid email or password")
+	return OperatorRejection(http.StatusUnauthorized, CodeIdentityInvalidCredentials, "Invalid email or password")
 }
 
 // OperatorUnauthorized renders the 401 of an invalid or expired token.
@@ -49,11 +98,6 @@ func OperatorConflict(message string) render.Renderer {
 // OperatorForbidden renders a 403.
 func OperatorForbidden(message string) render.Renderer {
 	return operatorError(http.StatusForbidden, message)
-}
-
-// OperatorTooManyRequests renders a 429.
-func OperatorTooManyRequests(message string) render.Renderer {
-	return operatorError(http.StatusTooManyRequests, message)
 }
 
 // OperatorInternal renders a 500.

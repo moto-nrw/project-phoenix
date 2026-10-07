@@ -194,16 +194,16 @@ func mapOperatorPasskeyError(w http.ResponseWriter, r *http.Request, err error) 
 	switch {
 	case errors.Is(err, ErrOperatorInvalidCredentials),
 		errors.Is(err, ErrPasskeySessionInvalid):
-		common.RenderError(w, r, common.OperatorInvalidCredentials())
+		common.RenderError(w, r, common.OperatorRejection(http.StatusUnauthorized, common.CodeIdentityPasskeyLoginFailed, "Invalid email or password"))
 	case errors.Is(err, ErrPasskeyOriginInvalid):
-		common.RenderError(w, r, common.OperatorForbidden("Passkey origin is not allowed"))
+		common.RenderError(w, r, common.OperatorRejection(http.StatusForbidden, common.CodeIdentityPasskeyLoginFailed, "Passkey origin is not allowed"))
 	case errors.Is(err, ErrMFACodeInvalid):
-		common.RenderError(w, r, common.OperatorInvalidCredentials())
+		common.RenderError(w, r, common.OperatorRejection(http.StatusUnauthorized, common.CodeIdentityMfaCodeInvalid, "Invalid email or password"))
 	case errors.Is(err, ErrMFARateLimited),
 		errors.Is(err, ErrMFALocked):
-		common.RenderError(w, r, common.OperatorTooManyRequests("Too many code requests, please wait"))
+		common.RenderError(w, r, common.OperatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "Too many code requests, please wait"))
 	case errors.Is(err, ErrPasskeyNotFound):
-		common.RenderError(w, r, common.OperatorNotFound("Passkey not found"))
+		common.RenderError(w, r, common.OperatorRejection(http.StatusNotFound, common.CodeIdentityPasskeyNotFound, "Passkey not found"))
 	default:
 		// AuthErrorRenderer keeps the typed operator errors (invalid
 		// credentials, inactive, unknown) on their own status codes and

@@ -5,8 +5,27 @@
  * each stage, success path triggers onDeleted + onClose, and error path
  * surfaces the API message and keeps the modal open.
  */
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render as renderPlain,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { ERROR_CATALOG } from "~/lib/error-catalog.generated";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
+
+/** What the shared path shows for a failure that is no API error. */
+function crashText(object: string) {
+  const text = ERROR_CATALOG.de.actions.crash.replace("{object}", object);
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 const { mockDeleteDevice } = vi.hoisted(() => ({
   mockDeleteDevice: vi.fn(),
@@ -48,7 +67,7 @@ describe("DeleteDeviceModal", () => {
   });
 
   it("renders nothing when device is null", () => {
-    const { container } = render(
+    const { container } = renderPlain(
       <DeleteDeviceModal device={null} onClose={vi.fn()} onDeleted={vi.fn()} />,
     );
     expect(container).toBeEmptyDOMElement();
@@ -129,7 +148,11 @@ describe("DeleteDeviceModal", () => {
   });
 
   it("surfaces the API error message and keeps the modal open on failure", async () => {
-    mockDeleteDevice.mockRejectedValue(new Error("device in use"));
+    mockDeleteDevice.mockRejectedValue(
+      new ApiError("device in use", 409, {
+        code: "general.business_rejection",
+      }),
+    );
     const onClose = vi.fn();
     const onDeleted = vi.fn();
 
@@ -144,9 +167,12 @@ describe("DeleteDeviceModal", () => {
     fireEvent.click(screen.getByText("Ja, löschen"));
     fireEvent.click(screen.getByText("Endgültig löschen"));
 
-    await waitFor(() => {
-      expect(screen.getByText("device in use")).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.business_rejection", "das Löschen des Geräts"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("device in use")).toBeNull();
     expect(onDeleted).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
@@ -212,7 +238,7 @@ describe("DeleteDeviceModal", () => {
     resolveDelete?.();
   });
 
-  it("falls back to a generic German error when the thrown value has no message", async () => {
+  it("shows the generic text when the failure is no API error", async () => {
     mockDeleteDevice.mockRejectedValue("non-error value");
 
     render(
@@ -228,7 +254,7 @@ describe("DeleteDeviceModal", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Fehler beim Löschen des Geräts"),
+        screen.getByText(crashText("das Löschen des Geräts")),
       ).toBeInTheDocument();
     });
   });

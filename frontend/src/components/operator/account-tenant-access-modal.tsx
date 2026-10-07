@@ -4,19 +4,26 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
 import { FormModal } from "~/components/ui/form-modal";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { isAssignableStaffRole } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
 import {
-  AccountTenantAccessApiError,
   accountTenantAccessService,
   type AccountTenantAccess,
 } from "~/lib/operator/account-tenant-access-api";
@@ -77,7 +84,7 @@ export function AccountTenantAccessModal({
   accountEmail,
   onUpdated,
 }: AccountTenantAccessModalProps) {
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
 
   const [access, setAccess] = useState<AccountTenantAccess[]>([]);
   const [schools, setSchools] = useState<{ id: string; label: string }[]>([]);
@@ -86,7 +93,19 @@ export function AccountTenantAccessModal({
   >({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  // #2519: load errors stay where the data is missing, the grant error in
+  // its section, the revoke error in its confirmation, a role change as toast.
+  const accessLoad = useApiLoadError();
+  const { show: showAccessLoadError, clear: clearAccessLoadError } = accessLoad;
+  const rolesLoad = useApiLoadError();
+  const { show: showRolesLoadError, clear: clearRolesLoadError } = rolesLoad;
+  const [rolesReload, setRolesReload] = useState(0);
+  const grantFormRef = useRef<HTMLElement>(null);
+  const grantErrors = useApiFormError(grantFormRef);
+  const { show: showGrantError, clear: clearGrantError } = grantErrors;
+  const revokeErrors = useApiFormError();
+  const { show: showRevokeError, clear: clearRevokeError } = revokeErrors;
+  const { show: showRoleChangeError } = useApiErrorDisplay();
 
   const [addSchoolId, setAddSchoolId] = useState("");
   const [addRoleId, setAddRoleId] = useState("");
@@ -104,7 +123,9 @@ export function AccountTenantAccessModal({
     const isCurrentRequest = () => requestId === loadRequestRef.current;
     try {
       setLoading(true);
-      setErrorMessage("");
+      clearAccessLoadError();
+      clearRolesLoadError();
+      clearGrantError();
       setAccess([]);
       setSchools([]);
       setRolesBySchool({});
@@ -157,21 +178,37 @@ export function AccountTenantAccessModal({
           }),
         ),
       );
+      // A school without roles keeps its role select locked; say why.
+      const failedRoles = rolesForActiveSchools.find(
+        (result) => result.status === "rejected",
+      );
+      if (failedRoles?.status === "rejected") {
+        void showRolesLoadError(failedRoles.reason, {
+          object: "die Liste der Rollen",
+          retry: () => void load(),
+        });
+      }
     } catch (error) {
       if (!isCurrentRequest()) return;
       logger.error("failed to load school access", {
         error: error instanceof Error ? error.message : String(error),
         accountId,
       });
-      setErrorMessage(
-        error instanceof AccountTenantAccessApiError
-          ? error.message
-          : "Die Schulzugänge konnten nicht geladen werden.",
-      );
+      void showAccessLoadError(error, {
+        object: "die Liste der Schulzugänge",
+        retry: () => void load(),
+      });
     } finally {
       if (isCurrentRequest()) setLoading(false);
     }
-  }, [accountId]);
+  }, [
+    accountId,
+    showAccessLoadError,
+    clearAccessLoadError,
+    showRolesLoadError,
+    clearRolesLoadError,
+    clearGrantError,
+  ]);
 
   useEffect(() => {
     if (isOpen) {
@@ -182,13 +219,22 @@ export function AccountTenantAccessModal({
       setAddRoleId("");
       setFirstName("");
       setLastName("");
-      setErrorMessage("");
+      clearAccessLoadError();
+      clearRolesLoadError();
+      clearGrantError();
       setRolesBySchool({});
     }
-  }, [isOpen, load]);
+  }, [
+    isOpen,
+    load,
+    clearAccessLoadError,
+    clearRolesLoadError,
+    clearGrantError,
+  ]);
 
   useEffect(() => {
     if (!isOpen || !addSchoolId || rolesBySchool[addSchoolId]) return;
+    clearRolesLoadError();
     void accountTenantAccessService
       .listAssignableRoles(accountId, addSchoolId)
       .then((schoolRoles) =>
@@ -203,9 +249,20 @@ export function AccountTenantAccessModal({
           accountId,
           schoolId: addSchoolId,
         });
-        setErrorMessage("Die Rollen der Schule konnten nicht geladen werden.");
+        void showRolesLoadError(error, {
+          object: "die Liste der Rollen",
+          retry: () => setRolesReload((count) => count + 1),
+        });
       });
-  }, [accountId, addSchoolId, isOpen, rolesBySchool]);
+  }, [
+    accountId,
+    addSchoolId,
+    isOpen,
+    rolesBySchool,
+    rolesReload,
+    showRolesLoadError,
+    clearRolesLoadError,
+  ]);
 
   // Schools the account can still be added to.
   const availableSchools = useMemo(() => {
@@ -248,26 +305,21 @@ export function AccountTenantAccessModal({
   async function runMutation(
     action: () => Promise<AccountTenantAccess[]>,
     successMessage: string,
-    failureMessage: string,
+    logEvent: string,
+    report: (error: unknown) => void,
   ) {
     try {
       setSaving(true);
-      setErrorMessage("");
       setAccess(await action());
       toastSuccess(successMessage);
       await onUpdated?.();
       return true;
     } catch (error) {
-      logger.error(failureMessage, {
+      logger.error(logEvent, {
         error: error instanceof Error ? error.message : String(error),
         accountId,
       });
-      const message =
-        error instanceof AccountTenantAccessApiError
-          ? error.message
-          : failureMessage;
-      setErrorMessage(message);
-      toastError(message);
+      report(error);
       return false;
     } finally {
       setSaving(false);
@@ -276,6 +328,7 @@ export function AccountTenantAccessModal({
 
   async function handleGrant() {
     if (!addSchoolId || !addRoleId) return;
+    clearGrantError();
     const ok = await runMutation(
       () =>
         accountTenantAccessService.grant(accountId, {
@@ -285,7 +338,9 @@ export function AccountTenantAccessModal({
           lastName: lastName.trim() || undefined,
         }),
       "Schulzugang wurde erteilt.",
-      "Der Schulzugang konnte nicht erteilt werden.",
+      "school_access_grant_failed",
+      (error) =>
+        void showGrantError(error, { object: "die Vergabe des Schulzugangs" }),
     );
     if (ok) {
       setAddSchoolId("");
@@ -304,17 +359,27 @@ export function AccountTenantAccessModal({
           roleId,
         ),
       `Rolle an ${entry.schoolName} wurde geändert.`,
-      "Die Rolle konnte nicht geändert werden.",
+      "school_access_role_change_failed",
+      (error) =>
+        void showRoleChangeError(error, {
+          object: `die Rolle an ${entry.schoolName}`,
+          retry: () => void handleRoleChange(entry, roleId),
+        }),
     );
   }
 
   async function handleRevoke() {
     const target = revokeTarget;
     if (!target) return;
+    clearRevokeError();
     const ok = await runMutation(
       () => accountTenantAccessService.revoke(accountId, target.tenantId),
       `Zugang zu ${target.schoolName} wurde entzogen.`,
-      "Der Zugang konnte nicht entzogen werden.",
+      "school_access_revoke_failed",
+      (error) =>
+        void showRevokeError(error, {
+          object: "das Entziehen des Schulzugangs",
+        }),
     );
     if (ok) setRevokeTarget(null);
   }
@@ -357,6 +422,8 @@ export function AccountTenantAccessModal({
           <div className="py-8 text-sm text-gray-500">Wird geladen...</div>
         ) : (
           <div className="space-y-6">
+            <LoadErrorAlert error={accessLoad.error} />
+            <LoadErrorAlert error={rolesLoad.error} />
             <p className="text-sm text-gray-600">
               {accountEmail} kann sich an folgenden Schulen anmelden. Die Rolle
               gilt jeweils nur für die dort aufgeführte Schule.
@@ -430,7 +497,10 @@ export function AccountTenantAccessModal({
                           variant="outline_danger"
                           size="md"
                           disabled={saving || accessRevocationBlocked(entry)}
-                          onClick={() => setRevokeTarget(entry)}
+                          onClick={() => {
+                            clearRevokeError();
+                            setRevokeTarget(entry);
+                          }}
                           title={
                             accessRevocationBlocked(entry)
                               ? "Diese Rolle wird über ihren eigenen Verwaltungsablauf entfernt."
@@ -446,13 +516,17 @@ export function AccountTenantAccessModal({
               )}
             </section>
 
-            <section className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+            <section
+              ref={grantFormRef}
+              className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50 p-4"
+            >
               {/* h4 wie die beiden Geschwister-Sektionen: FormModal rendert
                   seinen Titel als h3. */}
               <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
                 <Plus className="h-4 w-4 text-gray-500" />
                 Schulzugang ergänzen
               </h4>
+              <FormErrorAlert message={grantErrors.error} />
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label
@@ -463,6 +537,8 @@ export function AccountTenantAccessModal({
                   </label>
                   <CustomSelect
                     id="account-access-school"
+                    name="school_id"
+                    invalid={Boolean(grantErrors.fieldError("school_id"))}
                     value={addSchoolId}
                     options={availableSchools.map((school) => ({
                       value: school.id,
@@ -489,6 +565,8 @@ export function AccountTenantAccessModal({
                   </label>
                   <CustomSelect
                     id="account-access-role"
+                    name="role_id"
+                    invalid={Boolean(grantErrors.fieldError("role_id"))}
                     value={addRoleId}
                     options={rolesForSchool(addSchoolId).map((role) => ({
                       value: role.id,
@@ -507,14 +585,16 @@ export function AccountTenantAccessModal({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Input
                     label="Vorname"
-                    name="firstName"
+                    name="first_name"
+                    error={grantErrors.fieldError("first_name")}
                     value={firstName}
                     onChange={(event) => setFirstName(event.target.value)}
                     placeholder="Vorname"
                   />
                   <Input
                     label="Nachname"
-                    name="lastName"
+                    name="last_name"
+                    error={grantErrors.fieldError("last_name")}
                     value={lastName}
                     onChange={(event) => setLastName(event.target.value)}
                     placeholder="Nachname"
@@ -576,8 +656,6 @@ export function AccountTenantAccessModal({
                 </ul>
               </section>
             )}
-
-            <Alert type="error" message={errorMessage} />
           </div>
         )}
       </FormModal>
@@ -601,6 +679,7 @@ export function AccountTenantAccessModal({
               deaktiviert und kann sich nirgendwo mehr anmelden.
             </p>
           )}
+        <FormErrorAlert message={revokeErrors.error} className="mt-3" />
       </ConfirmationModal>
     </>
   );

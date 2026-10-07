@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import type { OperatorPerson } from "~/lib/operator/provisioning-helpers";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { createLogger } from "~/lib/logger";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 
 const logger = createLogger({ component: "DeletePersonModal" });
@@ -21,17 +22,18 @@ export function DeletePersonModal({
   onDeleted,
 }: Readonly<DeletePersonModalProps>) {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const deleteErrors = useApiFormError();
+  const { show: showError, clear: clearError } = deleteErrors;
 
   const handleClose = useCallback(() => {
-    setError("");
+    clearError();
     onClose();
-  }, [onClose]);
+  }, [onClose, clearError]);
 
   const handleDelete = useCallback(async () => {
     if (!person) return;
     setLoading(true);
-    setError("");
+    clearError();
     try {
       await operatorProvisioningService.softDeletePerson(person.id);
       await onDeleted(person);
@@ -40,13 +42,11 @@ export function DeletePersonModal({
       logger.error("person_soft_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        err instanceof Error ? err.message : "Fehler beim Löschen der Person",
-      );
+      void showError(err, { object: "das Löschen der Person" });
     } finally {
       setLoading(false);
     }
-  }, [person, onClose, onDeleted]);
+  }, [person, onClose, onDeleted, showError, clearError]);
 
   return (
     <ConfirmDeleteModal
@@ -95,7 +95,7 @@ export function DeletePersonModal({
       onConfirm={handleDelete}
       onClose={handleClose}
       loading={loading}
-      error={error}
+      error={deleteErrors.error}
     />
   );
 }
