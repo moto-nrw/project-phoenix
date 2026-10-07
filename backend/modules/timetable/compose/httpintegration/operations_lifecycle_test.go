@@ -10,6 +10,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -144,23 +145,55 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 		assert.Empty(t, deps.instanceService.completed)
 	})
 
-	t.Run("all_staff scope rejects non-running rosters", func(t *testing.T) {
-		now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+	// The overview reads what PlannedNow lists (#3874): running sessions and
+	// today's finished or expired blocks. Upcoming, cancelled and other
+	// days' blocks stay closed to staff who are neither planned nor admin.
+	t.Run("all_staff scope reads running and today's past rosters only", func(t *testing.T) {
+		now := time.Date(2026, time.May, 10, 14, 0, 0, 0, calendar.Berlin)
+		yesterday := now.AddDate(0, 0, -1)
 		for _, tc := range []struct {
 			name     string
 			instance *scheduleModels.ActivityInstance
+			allowed  bool
 		}{
 			{
-				name:     "planned",
+				name:     "completed today",
+				instance: instanceWithTimes(instanceID, scheduleModels.InstanceStatusCompleted, now.Add(-2*time.Hour), now.Add(-time.Hour)),
+				allowed:  true,
+			},
+			{
+				name:     "completed today before its planned end",
+				instance: instanceWithTimes(instanceID, scheduleModels.InstanceStatusCompleted, now.Add(-time.Hour), now.Add(time.Hour)),
+				allowed:  true,
+			},
+			{
+				name:     "planned today and expired",
+				instance: instanceWithTimes(instanceID, scheduleModels.InstanceStatusPlanned, now.Add(-2*time.Hour), now),
+				allowed:  true,
+			},
+			{
+				name:     "planned today and not yet over",
 				instance: instanceWithTimes(instanceID, scheduleModels.InstanceStatusPlanned, now, now.Add(time.Hour)),
 			},
 			{
-				name:     "completed",
-				instance: instanceWithTimes(instanceID, scheduleModels.InstanceStatusCompleted, now.Add(-time.Hour), now),
+				name: "spontaneous planned today and expired",
+				instance: func() *scheduleModels.ActivityInstance {
+					inst := instanceWithTimes(instanceID, scheduleModels.InstanceStatusPlanned, now.Add(-2*time.Hour), now.Add(-time.Hour))
+					inst.IsSpontaneous = true
+					return inst
+				}(),
 			},
 			{
-				name:     "cancelled",
-				instance: instanceWithTimes(instanceID, scheduleModels.InstanceStatusCancelled, now, now.Add(time.Hour)),
+				name:     "cancelled today",
+				instance: instanceWithTimes(instanceID, scheduleModels.InstanceStatusCancelled, now.Add(-2*time.Hour), now.Add(-time.Hour)),
+			},
+			{
+				name:     "completed yesterday",
+				instance: instanceWithTimes(instanceID, scheduleModels.InstanceStatusCompleted, yesterday.Add(-2*time.Hour), yesterday.Add(-time.Hour)),
+			},
+			{
+				name:     "planned yesterday and expired",
+				instance: instanceWithTimes(instanceID, scheduleModels.InstanceStatusPlanned, yesterday.Add(-2*time.Hour), yesterday.Add(-time.Hour)),
 			},
 			{
 				name:     "active without active group",
@@ -169,14 +202,52 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				deps := newTimetableOpsDeps()
+				deps.now = func() time.Time { return now }
 				deps.settings.scope = overviewScopeAllStaff
 				wireAssignedStaff(deps, 694, 516, 275, instanceID)
 				deps.staffRepo.byInstance[instanceID] = nil
 				deps.instanceRepo.byID[instanceID] = tc.instance
 
-				_, err := deps.service.Roster(context.Background(), 694, false, instanceID)
+				roster, err := deps.service.Roster(context.Background(), 694, false, instanceID)
 
-				require.ErrorIs(t, err, timetable.ErrTimetableOperationForbidden)
+				if !tc.allowed {
+					require.ErrorIs(t, err, timetable.ErrTimetableOperationForbidden)
+					return
+				}
+				require.NoError(t, err)
+				assert.False(t, roster.CanOperate)
+				assert.False(t, roster.CanStart)
+				assert.False(t, roster.CanEnd)
+			})
+		}
+	})
+
+	// Beyond the overview window viewing follows requireCanOperate: the
+	// planned staff member and the admin still read an old block (#3874).
+	t.Run("all_staff scope keeps planned staff and admins on other days", func(t *testing.T) {
+		now := time.Date(2026, time.May, 10, 14, 0, 0, 0, calendar.Berlin)
+		yesterday := now.AddDate(0, 0, -1)
+		for _, tc := range []struct {
+			name    string
+			planned bool
+			admin   bool
+		}{
+			{name: "planned staff", planned: true},
+			{name: "admin", admin: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				deps := newTimetableOpsDeps()
+				deps.now = func() time.Time { return now }
+				deps.settings.scope = overviewScopeAllStaff
+				wireAssignedStaff(deps, 695, 517, 276, instanceID)
+				if !tc.planned {
+					deps.staffRepo.byInstance[instanceID] = nil
+				}
+				deps.instanceRepo.byID[instanceID] = instanceWithTimes(instanceID, scheduleModels.InstanceStatusCompleted, yesterday.Add(-2*time.Hour), yesterday.Add(-time.Hour))
+
+				_, err := deps.service.Roster(context.Background(), 695, tc.admin, instanceID)
+
+				require.NoError(t, err)
 			})
 		}
 	})
