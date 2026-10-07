@@ -337,6 +337,11 @@ describe("GuardiansPanel", () => {
     const accounts = screen.getByRole("heading", {
       name: "Verbundene Konten",
     });
+    expect(
+      contacts
+        .closest("section")
+        ?.querySelector('[data-parent-tour="child-guardians"]'),
+    ).toBeInTheDocument();
     expect(contacts.closest("section")?.parentElement).toBe(
       accounts.closest("section")?.parentElement,
     );

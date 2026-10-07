@@ -79,6 +79,117 @@
     "openCount": "{count} açık",
     "noticeCount": "{count} uyarı"
   },
+  "parentFirstSteps": {
+    "title": "İlk adımlar",
+    "shortTitle": "İlk adımlar",
+    "open": "İlk adımları aç. {count} adım kaldı.",
+    "collapse": "İlk adımları daralt",
+    "progress": "{total} adımdan {finished} tanesi tamamlandı",
+    "progressLabel": "İlerleme: {total} adımdan {finished} tanesi tamamlandı",
+    "actions": {
+      "show": "Turu başlat",
+      "showAgain": "Tekrar göster",
+      "guide": "Kılavuzu aç",
+      "messagesGuide": "Mesajlar kılavuzu",
+      "newsGuide": "Veli mektupları kılavuzu",
+      "next": "İleri",
+      "back": "Geri",
+      "done": "Bitti",
+      "endTour": "Turu bitir"
+    },
+    "steps": {
+      "start": {
+        "title": "Ana sayfayı tanı",
+        "description": "Bugün nelerin önemli olduğunu ve hangi görevlerin açık olduğunu görün."
+      },
+      "childData": {
+        "title": "Çocuğumun bilgilerini değiştir",
+        "description": "Çocuğunuzun bilgilerini, bakım saatlerini, eve dönüş yollarını ve velilerini burada bulabilirsiniz."
+      },
+      "messagesNews": {
+        "title": "Mesajları ve veli mektuplarını bul",
+        "description": "Mesajları okuyun ve okul sonrası bakımdan gelen veli mektuplarını bulun."
+      },
+      "messages": {
+        "title": "Mesajları bul",
+        "description": "Burada okul sonrası bakıma mesaj okuyabilir ve yazabilirsiniz."
+      },
+      "installApp": {
+        "title": "moto'yu telefona ekle",
+        "description": "moto'yu ana ekranınıza ekleyin ve bir uygulama gibi açın."
+      },
+      "notifications": {
+        "title": "Bildirimleri aç",
+        "description": "moto'nun bu cihazda size hangi konularda bildirim gönderebileceğini seçin."
+      }
+    },
+    "tour": {
+      "progress": "Adım {current}/{total}",
+      "chooseMarked": "İşaretli alana dokunun.",
+      "targetMissing": "Bu alan şu anda görünmüyor. Tura devam edebilirsiniz.",
+      "common": {
+        "moreTitle": "Bölümü bul",
+        "more": "İşaretli bölümü açın. Telefonda bu bölümü Daha fazla altında bulabilirsiniz.",
+        "settingsNavigation": "Ayarlar'ı açın."
+      },
+      "start": {
+        "navigation": "Ana sayfa'ya dokunun.",
+        "todoTitle": "Açık görevler",
+        "todo": "Henüz tamamlanması gereken görevleri burada görürsünüz.",
+        "childTitle": "Çocuğunuz",
+        "child": "Buradan çocuğunuzla ilgili en önemli işlemlere doğrudan ulaşabilirsiniz."
+      },
+      "childData": {
+        "navigation": "Çocuğunuzun bölümünü açın.",
+        "chooseTitle": "Çocuk seç",
+        "choose": "Bilgilerini görmek istediğiniz çocuğu seçin.",
+        "tabTitle": "Bilgileri aç",
+        "tab": "Bilgiler'e dokunun.",
+        "detailsTitle": "Bilgileri kontrol et",
+        "details": "Kayıtlı bilgileri burada görürsünüz. Değiştirilebilen bilgileri doğrudan düzenleyebilirsiniz.",
+        "careTabTitle": "Bakımı aç",
+        "careTab": "Bakım'a dokunun.",
+        "careTimesTitle": "Bakım saatleri",
+        "careTimes": "Haftalık planı burada görürsünüz. Değiştirmek için “Değişiklik talep et”e dokunun.",
+        "departureTitle": "Eve dönüş",
+        "departure": "Çocuğunuzun her gün eve nasıl gittiğini burada görürsünüz.",
+        "contactsTabTitle": "Kişileri aç",
+        "contactsTab": "Kişiler'e dokunun.",
+        "guardiansTitle": "Veliler ve kişiler",
+        "guardians": "Velileri, teslim alma yetkisi olan kişileri ve uygulama erişimlerini burada görürsünüz."
+      },
+      "messagesNews": {
+        "messagesNavigation": "Mesajlar'ı açın.",
+        "messagesTitle": "Mesajlar",
+        "messages": "Burada okul sonrası bakımın mesajlarını okuyabilir ve yanıtlayabilirsiniz.",
+        "newsNavigation": "Veli mektupları'nı açın.",
+        "newsTitle": "Veli mektupları",
+        "news": "Burada okul sonrası bakımdan gelen mektupları ve önemli bilgileri bulabilirsiniz."
+      },
+      "installApp": {
+        "guideTitle": "moto'yu telefona ekle",
+        "guide": "Telefonunuza uygun talimatları burada bulabilirsiniz."
+      },
+      "notifications": {
+        "topicsTitle": "Konuları seç",
+        "topics": "Hangi konularda bildirim almak istediğinizi seçin.",
+        "deviceTitle": "Bu cihazı aç",
+        "device": "Bu cihaz için bildirimleri açın.",
+        "deviceUnavailable": "Bu cihazda bildirimleri şu anda açamazsınız."
+      }
+    },
+    "complete": {
+      "title": "Tamamlandı",
+      "body": "Tüm ilk adımları gördünüz.",
+      "action": "İlk adımları tamamla"
+    },
+    "dismiss": {
+      "action": "İlk adımları gizle",
+      "title": "İlk adımlar gizlensin mi?",
+      "body": "Kılavuzları Yardım bölümünde bulmaya devam edebilirsiniz.",
+      "confirm": "Gizle"
+    }
+  },
   "parentMealPlan": {
     "kicker": "OGS'de yemek",
     "title": "Öğle yemeği",
@@ -397,7 +508,9 @@
     "languageTitle": "Dil",
     "languageDescription": "moto'nun gösterileceği dili seçin.",
     "appInstallTitle": "moto'yu uygulama olarak yükleyin",
-    "appInstallDescription": "moto'yu Samsung Internet üzerinden yüklemeyin. Bunun için moto'yu Chrome'da açın."
+    "appInstallDescription": "moto'yu Samsung Internet üzerinden yüklemeyin. Bunun için moto'yu Chrome'da açın.",
+    "appInstallGenericDescription": "moto'yu telefonunuzun ana ekranına ekleyin ve bir uygulama gibi açın.",
+    "appInstallGuide": "Kılavuzu aç"
   },
   "pwaInstallHint": {
     "title": "moto'yu uygulama olarak kullanın",

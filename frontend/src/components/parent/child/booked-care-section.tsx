@@ -244,7 +244,9 @@ export function BookedCareSection({
           concept="calendar"
           prominent
         >
-          <LoadErrorAlert error={scheduleLoad.error} />
+          <div data-parent-tour="child-care-times">
+            <LoadErrorAlert error={scheduleLoad.error} />
+          </div>
         </ParentSection>
       ) : null}
 

@@ -79,6 +79,117 @@
     "openCount": "{count} offen",
     "noticeCount": "{count} Hinweise"
   },
+  "parentFirstSteps": {
+    "title": "Erste Schritte",
+    "shortTitle": "Erste Schritte",
+    "open": "Erste Schritte öffnen. Noch {count} offen.",
+    "collapse": "Erste Schritte einklappen",
+    "progress": "{finished} von {total} erledigt",
+    "progressLabel": "Fortschritt: {finished} von {total} Schritten erledigt",
+    "actions": {
+      "show": "Tour starten",
+      "showAgain": "Noch einmal zeigen",
+      "guide": "Anleitung öffnen",
+      "messagesGuide": "Anleitung für Nachrichten",
+      "newsGuide": "Anleitung für Elternbriefe",
+      "next": "Weiter",
+      "back": "Zurück",
+      "done": "Fertig",
+      "endTour": "Tour beenden"
+    },
+    "steps": {
+      "start": {
+        "title": "Startseite kennenlernen",
+        "description": "Sehen Sie, was heute wichtig ist und welche Aufgaben offen sind."
+      },
+      "childData": {
+        "title": "Angaben zu meinem Kind ändern",
+        "description": "Hier finden Sie Angaben, Betreuungszeiten, Heimwege und Erziehungsberechtigte."
+      },
+      "messagesNews": {
+        "title": "Nachrichten und Elternbriefe finden",
+        "description": "Lesen Sie Nachrichten und finden Sie Elternbriefe der OGS."
+      },
+      "messages": {
+        "title": "Nachrichten finden",
+        "description": "Hier lesen und schreiben Sie Nachrichten an die OGS."
+      },
+      "installApp": {
+        "title": "moto als App auf dem Handy hinzufügen",
+        "description": "Fügen Sie moto zu Ihrem Startbildschirm hinzu. So öffnen Sie moto wie eine App."
+      },
+      "notifications": {
+        "title": "Benachrichtigungen einschalten",
+        "description": "Wählen Sie aus, worüber moto Sie auf diesem Gerät informieren soll."
+      }
+    },
+    "tour": {
+      "progress": "Schritt {current} von {total}",
+      "chooseMarked": "Tippen Sie auf den markierten Bereich.",
+      "targetMissing": "Dieser Bereich ist gerade nicht sichtbar. Sie können mit der Tour fortfahren.",
+      "common": {
+        "moreTitle": "Bereich finden",
+        "more": "Öffnen Sie den markierten Bereich. Auf dem Handy finden Sie ihn unter Mehr.",
+        "settingsNavigation": "Öffnen Sie die Einstellungen."
+      },
+      "start": {
+        "navigation": "Tippen Sie auf Start.",
+        "todoTitle": "Offene Aufgaben",
+        "todo": "Hier sehen Sie Aufgaben, die noch zu erledigen sind.",
+        "childTitle": "Ihr Kind",
+        "child": "Von hier kommen Sie direkt zu den wichtigsten Aktionen für Ihr Kind."
+      },
+      "childData": {
+        "navigation": "Öffnen Sie den Bereich für Ihr Kind.",
+        "chooseTitle": "Kind auswählen",
+        "choose": "Wählen Sie das Kind aus, dessen Angaben Sie sehen möchten.",
+        "tabTitle": "Angaben öffnen",
+        "tab": "Tippen Sie auf Angaben.",
+        "detailsTitle": "Angaben prüfen",
+        "details": "Hier sehen Sie die gespeicherten Angaben. Einige Angaben können Sie direkt bearbeiten.",
+        "careTabTitle": "Betreuung öffnen",
+        "careTab": "Tippen Sie auf Betreuung.",
+        "careTimesTitle": "Betreuungszeiten",
+        "careTimes": "Hier sehen Sie den Wochenplan. Tippen Sie für Änderungen auf „Änderungen anfragen“.",
+        "departureTitle": "Heimweg",
+        "departure": "Hier sehen Sie, wie Ihr Kind an jedem Tag nach Hause geht.",
+        "contactsTabTitle": "Kontakte öffnen",
+        "contactsTab": "Tippen Sie auf Kontakte.",
+        "guardiansTitle": "Erziehungsberechtigte und Kontakte",
+        "guardians": "Hier sehen Sie Erziehungsberechtigte, Abholpersonen und App-Zugänge."
+      },
+      "messagesNews": {
+        "messagesNavigation": "Öffnen Sie die Nachrichten.",
+        "messagesTitle": "Nachrichten",
+        "messages": "Hier lesen Sie Nachrichten der OGS und können antworten.",
+        "newsNavigation": "Öffnen Sie die Elternbriefe.",
+        "newsTitle": "Elternbriefe",
+        "news": "Hier finden Sie Elternbriefe und wichtige Informationen der OGS."
+      },
+      "installApp": {
+        "guideTitle": "moto zum Handy hinzufügen",
+        "guide": "Hier finden Sie die passende Anleitung für Ihr Handy."
+      },
+      "notifications": {
+        "topicsTitle": "Themen auswählen",
+        "topics": "Wählen Sie aus, zu welchen Themen Sie Benachrichtigungen bekommen möchten.",
+        "deviceTitle": "Benachrichtigungen erlauben",
+        "device": "Schalten Sie Benachrichtigungen für dieses Gerät ein.",
+        "deviceUnavailable": "Auf diesem Gerät können Sie Benachrichtigungen gerade nicht einschalten."
+      }
+    },
+    "complete": {
+      "title": "Geschafft",
+      "body": "Sie haben alle ersten Schritte kennengelernt.",
+      "action": "Erste Schritte abschließen"
+    },
+    "dismiss": {
+      "action": "Erste Schritte ausblenden",
+      "title": "Erste Schritte ausblenden?",
+      "body": "Die Anleitungen finden Sie weiterhin in der Hilfe.",
+      "confirm": "Ausblenden"
+    }
+  },
   "parentMealPlan": {
     "kicker": "Essen in der OGS",
     "title": "Mittagessen",
@@ -396,8 +507,10 @@
     "description": "Legen Sie Sprache und Benachrichtigungen für Ihr Konto fest.",
     "languageTitle": "Sprache",
     "languageDescription": "Wählen Sie die Sprache, in der moto angezeigt wird.",
-    "appInstallTitle": "moto als App installieren",
-    "appInstallDescription": "Installieren Sie moto nicht über Samsung Internet. Öffnen Sie moto dafür in Chrome."
+    "appInstallTitle": "moto als App hinzufügen",
+    "appInstallDescription": "Installieren Sie moto nicht über Samsung Internet. Öffnen Sie moto dafür in Chrome.",
+    "appInstallGenericDescription": "Fügen Sie moto zum Startbildschirm Ihres Handys hinzu. Dann öffnen Sie moto wie eine App.",
+    "appInstallGuide": "Anleitung öffnen"
   },
   "pwaInstallHint": {
     "title": "moto als App nutzen",
