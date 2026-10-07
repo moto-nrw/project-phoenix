@@ -1,0 +1,139 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2707",
+    "#2727",
+    "#2731",
+    "#3756"
+  ],
+  "owner_and_capability": "Document Rendering — final cutover of the plan export capability onto the owners' public reads through modules/planexport/compose; File Storage adopts documents.file_cleanup under ADR 0045 and serves its cleanup intents through its own Postgres adapter; the File Storage upload coordinator declares its own private object-store port.",
+  "affected_packages": [
+    "modules/planexport",
+    "modules/planexport/compose",
+    "modules/planexport/legacy",
+    "modules/timetable",
+    "modules/timetable/compose",
+    "modules/filestorage/compose",
+    "modules/filestorage/internal/adapters/postgres",
+    "modules/filestorage/documents",
+    "modules/documentrendering/compose",
+    "database/repositories/documents",
+    "models/documents",
+    "modules/peopledirectory/inbound/students",
+    "modules/workforce/compose",
+    "services",
+    "internal/architecture"
+  ],
+  "affected_tables": [
+    "schedule.staff_shifts",
+    "schedule.shift_types",
+    "schedule.activity_instances",
+    "schedule.instance_staff",
+    "schedule.instance_students",
+    "schedule.planning_tracks",
+    "schedule.closing_days",
+    "activities.groups",
+    "facilities.rooms",
+    "users.staff_school_memberships",
+    "users.persons",
+    "documents.files",
+    "documents.file_cleanup"
+  ],
+  "exact_ratchet_keys": [
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/planexport/legacy|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/planexport/legacy|github.com/moto-nrw/project-phoenix/models/activities",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/planexport/legacy|github.com/moto-nrw/project-phoenix/models/facilities",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/planexport/legacy|github.com/moto-nrw/project-phoenix/models/schedule",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/planexport/legacy|github.com/moto-nrw/project-phoenix/models/users",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/planexport/legacy|github.com/moto-nrw/project-phoenix/modules/facilities/compose",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/planexport|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/documents|github.com/moto-nrw/project-phoenix/database/repositories/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/documents|github.com/moto-nrw/project-phoenix/models/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/models/documents|github.com/moto-nrw/project-phoenix/models/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/filestorage/documents|github.com/moto-nrw/project-phoenix/internal/storage",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/planexport/legacy|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/planexport/legacy|github.com/moto-nrw/project-phoenix/models/activities",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/planexport/legacy|github.com/moto-nrw/project-phoenix/models/schedule",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/modules/planexport/legacy",
+    "production|tables.unresolved|github.com/moto-nrw/project-phoenix/database/repositories/documents|documents.ModelTableExpr",
+    "production|tables.unresolved|github.com/moto-nrw/project-phoenix/database/repositories/documents|documents.Where"
+  ],
+  "atomic_cutover": "One change. The plan export ports are bound in modules/planexport/compose to the public Workforce overview and shift types, the public Timetable block, staff, Angebot and Planungsspur reads and the public Facilities room read; the root keeps binding staff names, closing days and holidays. The retired modules/planexport/legacy adapter and the root's import of it are deleted, the capability reads its calendar days from the shared kernel and the temporary calendar-date rule is removed. File Storage serves documents.file_cleanup through FileCleanupStore with a static table name, so the root no longer supplies the store and the generic documents repository, its model and the binder in modules/documentrendering/compose are deleted; policy epoch 32 adopts the table under file-storage through the ADR 0045 evaluator path. The upload coordinator moves bytes through its own Objects port, bound to the shared uploads backend with the same tenant-key validation. The public scheduled instance carries the duty flag the plan export needs (#3822). No data moves and no wire contract changes.",
+  "tests": [
+    "modules/planexport/compose: field-by-field binding tests over public records, error propagation and malformed-day refusal, a two-tenant RLS test over users.staff_school_memberships, facilities.rooms, activities.groups, schedule.activity_instances, schedule.instance_staff, schedule.instance_students, schedule.staff_shifts, schedule.shift_types, schedule.planning_tracks and schedule.closing_days that renders each school's Betreuungsplan, the requested-window test and the Betreuungsplan runtime harness.",
+    "modules/workforce/compose: TestDienstplanExportStaysInsideTheTenant renders each school's Dienstplan over the real Workforce capability and finds only its own staff member, shift and block; TestDienstplanRuntimeEvidence.",
+    "modules/filestorage/http/files: TestDeleteFolderQueuesCleanupForItsFiles and TestFileMetadataTablesEnforceRLS run the cleanup intents through the owner's adapter; the student document route tests cover the coordinator's object port.",
+    "internal/architecture: TestCheckReviewedTableAdoptionFromRetiredExpression and its guard cases pin ADR 0045; the existing ADR 0015 adoption tests stay green.",
+    "scripts/backend-architecture.sh check and validate-ticket --all against the base SHA; backend/test ratchets; golangci-lint; scripts/test-changed.sh origin/development without --fast."
+  ],
+  "runtime_evidence": {
+    "source": "docs/runtime-checkpoints/plan-export-2706.md, section Owner-bound composition, with the raw samples of both harnesses.",
+    "sources": [
+      "docs/runtime-checkpoints/plan-export-2706.md",
+      "docs/runtime-checkpoints/plan-export-2706.compose.raw.json",
+      "docs/runtime-checkpoints/plan-export-2706.dienstplan-workforce.raw.json"
+    ],
+    "workload": "Local isolated PostgreSQL 17.11, Go 1.27.0; empty week, one week with 20 blocks, four weeks with 80 blocks as document and as PDF for each plan; five warmups and 30 samples each, concurrency 1; fixtures outside the timer.",
+    "thresholds": "No new SLO. Every export succeeds with zero DML rows, zero pool waits, zero deadlocks and no sampled lock waiters; latency within local noise of the first cutover's measurements in the same document.",
+    "affected_rows": {
+      "state": "measured",
+      "result": "Zero DML rows in all 280 measured exports; returned driver rows 1/42/162/162 (Betreuungsplan) and 9/71/254/254 (Dienstplan) per scenario."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "Betreuungsplan 5/8/8/8 statements per export, Dienstplan 12/14/14/14, including transaction scope and commit; each plan adds one statement against the first cutover's harness (head count read now bound, shifts now from the real Workforce capability). The file cleanup intents issue the same statements as before."
+    },
+    "latency_p50": {
+      "state": "measured",
+      "result": "Betreuungsplan 1.061/2.024/2.490/40.547 ms, Dienstplan 2.915/4.062/4.144/38.070 ms."
+    },
+    "latency_p95": {
+      "state": "measured",
+      "result": "Betreuungsplan 1.337/2.602/3.485/43.000 ms, Dienstplan 3.227/4.606/4.603/44.925 ms."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "0 unexpected errors in 280 measured exports; row counts and PDF signatures asserted on every sample."
+    },
+    "pool_wait": {
+      "state": "measured",
+      "result": "Pool wait count and duration deltas were zero in every sample."
+    },
+    "lock_wait": {
+      "state": "measured",
+      "result": "No sampled backend waited on a lock in any scenario."
+    },
+    "deadlocks": {
+      "state": "measured",
+      "result": "Deadlock delta zero in every scenario."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The plan export runs only on request; the cleanup intents' sweep keeps its statements and was not re-measured as a job."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "No worker or retry path changed."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No worker or queue changed."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "Binding tests assert that every owner read error reaches the capability unchanged and that a malformed day is refused; the RLS tests prove no other school's rows reach either sheet."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No schema or data change. Reverting the change restores the adapter, the generic repository and the baseline entries; the tables keep their shape."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "go build ./... passed; the timetable Betreuungsplan and Workforce Dienstplan route suites and the student document route tests ran in scripts/test-changed.sh. No manual application start was made."
+    }
+  },
+  "rollback_and_cleanup": "Revert the change while the deleted packages can be restored from history; the tables are unchanged, so data stays readable. Nothing remains to clean up: no compatibility binding or temporary rule is left behind.",
+  "exit_criterion": "Every listed key is absent from legacy.jsonl with none added; the plan export, the file cleanup intents and the upload coordinator reach other owners only through public capabilities or their own ports; documents.file_cleanup has a policy owner; scripts/backend-architecture.sh check and validate-ticket --all pass against the base SHA."
+}

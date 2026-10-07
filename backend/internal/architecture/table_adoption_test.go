@@ -300,11 +300,11 @@ func runRetiredExpressionScenario(t *testing.T, scenario retiredExpressionScenar
 	if scenario.recorded {
 		baseline += unresolvedTableRecord(2706, "retired")
 	}
-	repo, baseRef := ratchetRepositoryWithPolicy(t, baseline, base)
+	repo, _ := ratchetRepositoryWithPolicy(t, baseline, base)
 	writeFile(t, filepath.Join(repo, "retired", "retired.go"), ghostRecordsRetiredAccessor)
 	runGit(t, repo, "add", ".")
 	runGit(t, repo, "commit", "-qm", "retired accessor")
-	baseRef = strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+	baseRef := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
 
 	candidate := mutatePolicy(t, base, func(document map[string]any) {
 		if scenario.reviewed {
