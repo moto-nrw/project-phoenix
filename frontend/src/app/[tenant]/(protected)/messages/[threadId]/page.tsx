@@ -47,9 +47,17 @@ import {
 } from "~/lib/parent-messages-api";
 import {
   pickupRequestRef,
+  requestPillCoveredByReview,
   staffRequestStatusLabel,
 } from "~/lib/messaging-status";
-import { hasPermission, isAdmin } from "~/lib/auth-utils";
+import type { StudentRequestReviewCoverage } from "~/lib/change-request-access";
+import { fetchStudentRequestReviewCoverage } from "~/lib/change-requests-api";
+import { useSWRAuth } from "~/lib/swr";
+import {
+  hasEffectiveAdminScope,
+  hasPermission,
+  isAdmin,
+} from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
 import { ThreadSkeleton, ThreadMessagesSkeleton } from "./page-skeleton";
@@ -93,11 +101,12 @@ function MessageThreadContent() {
   const router = useTenantRouter();
   const { data: session } = useSession();
   // The Änderungsanfragen queue is gated on users:update (backend + page guard),
-  // scoped per child in the service. So the deep-link on a "request created" pill
-  // shows for any staffer who may edit children; one who lacks users:update sees
-  // the plain info pill.
+  // scoped per child in the service. One who lacks users:update sees the plain
+  // info pill.
   const canReviewRequests =
     isAdmin(session ?? null) || hasPermission(session ?? null, "users:update");
+  // Admin role and admin wildcard review school-wide in the backend policy.
+  const schoolWideReviewer = hasEffectiveAdminScope(session ?? null);
   const { tenant } = useTenant();
   // Tenant-prefix every SWR key on this page so a tenant switch (multi-tab /
   // switch-tenant) can never render the previous school's cached thread under
@@ -170,6 +179,31 @@ function MessageThreadContent() {
     },
   );
 
+  // The thread is readable school-wide, the request detail and queue only
+  // within the review scope (#3886). Ask the backend whether that scope
+  // reaches this child before offering a pill action; administrators are
+  // school-wide and need no round trip. Until the answer is in, and on any
+  // failure, the pills stay plain info.
+  const studentId = thread?.student_id;
+  const { data: fetchedCoverage } = useSWRAuth<StudentRequestReviewCoverage>(
+    canReviewRequests && !schoolWideReviewer && studentId && session?.user.id
+      ? `request-review-coverage:${session.user.id}:${studentId}`
+      : null,
+    () => fetchStudentRequestReviewCoverage(studentId ?? ""),
+    {
+      revalidateOnFocus: false,
+      shouldRetryOnError: false,
+      onError: (err: unknown) =>
+        logger.warn("request_review_coverage_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          thread_id: threadId,
+        }),
+    },
+  );
+  const reviewCoverage: StudentRequestReviewCoverage | null = schoolWideReviewer
+    ? { requests: true, absences: true }
+    : (fetchedCoverage ?? null);
+
   // Katalogtext, Wiederholen und Vorgangskennung für einen Ladefehler
   // (#2517), dort, wo der Verlauf fehlt.
   const shownLoadError = useSwrLoadError(loadError, "die Unterhaltung", mutate);
@@ -220,11 +254,13 @@ function MessageThreadContent() {
   // A pickup-change pill (created or decided) opens exactly the request row it
   // references, in a read-only view, for as long as the row exists (#3135).
   // Other request pills keep the deep-link to the queue while still open.
+  // Either action needs the review scope to reach the child (#3886).
   const [openRequestId, setOpenRequestId] = useState<string | null>(null);
   const eventAction = (
     message: Message,
   ): { label: string; onClick: () => void } | undefined => {
     if (!canReviewRequests) return undefined;
+    if (!requestPillCoveredByReview(message, reviewCoverage)) return undefined;
     const pickupRef = pickupRequestRef(message);
     if (pickupRef) {
       return {

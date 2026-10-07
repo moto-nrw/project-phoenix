@@ -7,7 +7,9 @@
 
 import {
   isParentRequestReviewAccess,
+  isStudentRequestReviewCoverage,
   type ParentRequestReviewAccess,
+  type StudentRequestReviewCoverage,
 } from "~/lib/change-request-access";
 
 interface Envelope<T> {
@@ -47,4 +49,33 @@ export async function fetchChangeRequestAccess(): Promise<ParentRequestReviewAcc
     throw new Error("Change request access response is invalid");
   }
   return access;
+}
+
+/**
+ * Fragt, ob der Prüfbereich der angemeldeten Person ein Kind abdeckt (#3886).
+ * Der Nachrichtenverlauf bietet „Anfrage ansehen“ nur dann an; sonst endete
+ * der Klick in einem 403 der Detailansicht.
+ */
+export async function fetchStudentRequestReviewCoverage(
+  studentId: string,
+): Promise<StudentRequestReviewCoverage> {
+  const response = await fetch(
+    `/api/students/change-requests/access?student_id=${encodeURIComponent(studentId)}`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+    },
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Student request review coverage failed: ${response.status}`,
+    );
+  }
+  const json = (await response.json()) as Envelope<{ student?: unknown }>;
+  const coverage = json.data?.student;
+  if (!isStudentRequestReviewCoverage(coverage)) {
+    throw new Error("Student request review coverage response is invalid");
+  }
+  return coverage;
 }
