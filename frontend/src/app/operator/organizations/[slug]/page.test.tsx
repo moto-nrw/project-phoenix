@@ -365,9 +365,10 @@ describe("OperatorOrganizationDetailPage", () => {
 
   // #2519: a failed load is shown with retry, never as "not found".
   it("shows a failed organization load instead of 'not found'", async () => {
+    const error = new ApiError("down", 503);
     mockUseSWR.mockImplementation(() => ({
       data: undefined,
-      error: new ApiError("down", 503),
+      error,
       isLoading: false,
       mutate: mockMutateOrgs,
     }));
