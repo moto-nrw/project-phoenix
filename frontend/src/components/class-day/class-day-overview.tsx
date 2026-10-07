@@ -24,7 +24,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { Skeleton } from "~/components/ui/skeleton";
 import { getUserDisplayName } from "~/lib/auth-utils";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
-import { getTimeBasedGreeting } from "~/lib/greeting";
+import { useTimeBasedGreeting } from "~/lib/greeting";
 import type { ClassDayReport } from "~/lib/class-day-api";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -154,6 +154,7 @@ export function ClassDayOverview({
   fetchMyClasses,
   fetchClassDay,
 }: ClassDayOverviewProps) {
+  const greeting = useTimeBasedGreeting();
   const { data: session } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -288,13 +289,8 @@ export function ClassDayOverview({
             <p className="text-xs font-semibold tracking-wide text-[var(--class-day-blue)] uppercase">
               Klassenansicht
             </p>
-            {/* Der Gruss kommt aus der Uhr: Server und Geraet koennen
-                verschiedene Stunden sehen, das ist hier kein Fehler. */}
-            <h2
-              className="mt-1 text-base font-semibold text-gray-900"
-              suppressHydrationWarning
-            >
-              {getTimeBasedGreeting()}, {getUserDisplayName(session)}
+            <h2 className="mt-1 text-base font-semibold text-gray-900">
+              {greeting}, {getUserDisplayName(session)}
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
               Ihre Übergabe nach Unterricht am {formatDate(dateISO)}. Öffnen Sie
