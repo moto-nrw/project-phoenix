@@ -18,6 +18,7 @@ import {
 } from "~/lib/log-redaction";
 import { expectedFailure } from "~/lib/expected-failure";
 import { reportLogToSentry } from "~/lib/logger-sentry";
+import { retryAfterSeconds } from "~/lib/rate-limit-backoff";
 
 /**
  * Log severity levels (matches backend slog)
@@ -250,6 +251,10 @@ function clientLogEndpoint(): string {
     : "/api/logs";
 }
 
+// Shared by every client logger instance: once the log route answers 429,
+// all of them drop their batches until Retry-After has passed (#3884).
+let clientLogShippingPausedUntil = 0;
+
 /**
  * Client-side logger: batches logs and ships to API
  */
@@ -369,6 +374,9 @@ class ClientLogger implements Logger {
     // Clear batch immediately (avoid duplicates)
     this.batch = [];
 
+    // Over the log quota: drop silently. Errors still reach Sentry.
+    if (Date.now() < clientLogShippingPausedUntil) return;
+
     try {
       const response = await fetch(clientLogEndpoint(), {
         method: "POST",
@@ -379,7 +387,17 @@ class ClientLogger implements Logger {
           this.MAX_KEEPALIVE_PAYLOAD_BYTES,
       });
 
-      if (!response.ok) {
+      if (response.status === 429) {
+        const now = Date.now();
+        const seconds = retryAfterSeconds(
+          response.headers.get("Retry-After"),
+          now,
+        );
+        clientLogShippingPausedUntil = Math.max(
+          clientLogShippingPausedUntil,
+          now + seconds * 1000,
+        );
+      } else if (!response.ok) {
         // Fallback to console if API fails
         console.warn("[Logger] Failed to ship logs:", response.statusText);
       }
