@@ -145,7 +145,8 @@ describe("caregiverCapabilityService", () => {
       status: 409,
       statusText: "Conflict",
       json: async () => ({
-        message: "Betreuung kann nicht deaktiviert werden",
+        status: "error",
+        error: "Betreuung kann nicht deaktiviert werden",
         blockers: ["active_group_supervisions"],
       }),
     });

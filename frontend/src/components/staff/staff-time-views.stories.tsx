@@ -43,6 +43,7 @@ const baseMetrics: PeriodMetrics = {
   month: { soll: 9200, ist: 9450, delta: 250 },
   accountStart: new Date(2026, 4, 13),
   accountBalanceMinutes: 120,
+  retry: async () => undefined,
 };
 
 export const Cards: Story = {
@@ -71,6 +72,7 @@ export const CardsLoading: Story = {
         month: null,
         accountStart: new Date(2026, 4, 13),
         accountBalanceMinutes: null,
+        retry: async () => undefined,
       }}
     />
   ),

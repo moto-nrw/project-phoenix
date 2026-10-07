@@ -7,7 +7,6 @@ package operator
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -556,119 +555,6 @@ func (rs *ProvisioningResource) ListAllAccounts(w http.ResponseWriter, r *http.R
 		return
 	}
 	common.Respond(w, r, http.StatusOK, accounts, "All accounts retrieved successfully")
-}
-
-// ProvisioningErrorRenderer maps provisioning errors to HTTP responses.
-func ProvisioningErrorRenderer(err error) render.Renderer {
-	var invalidProvisioningData *organizationtenancy.InvalidProvisioningDataError
-	var provisioningConflict *organizationtenancy.ProvisioningConflictError
-	var organizationNotFound *organizationtenancy.OrganizationNotFoundError
-	var organizationAlreadyDeleted *organizationtenancy.OrganizationAlreadyDeletedError
-	var organizationNotDeleted *organizationtenancy.OrganizationNotDeletedError
-	var organizationHasSchools *organizationtenancy.OrganizationHasSchoolsError
-	var organizationDeleted *organizationtenancy.OrganizationDeletedError
-	var schoolNotFound *organizationtenancy.SchoolNotFoundError
-	var schoolInactive *organizationtenancy.SchoolInactiveError
-	var schoolAlreadyDeleted *organizationtenancy.SchoolAlreadyDeletedError
-	var schoolNotDeleted *organizationtenancy.SchoolNotDeletedError
-	var operatorDeviceNotFound *organizationtenancy.OperatorDeviceNotFoundError
-	var deviceInUse *organizationtenancy.DeviceInUseError
-	var deviceProtected *organizationtenancy.DeviceProtectedError
-	var deviceTransferProtected *organizationtenancy.DeviceTransferProtectedError
-	var deviceTransferBlocked *organizationtenancy.DeviceTransferBlockedError
-	var deviceTransferOrganizationMismatch *organizationtenancy.DeviceTransferOrganizationMismatchError
-	var deviceTransferSameSchool *organizationtenancy.DeviceTransferSameSchoolError
-	var personNotFound *organizationtenancy.PersonNotFoundError
-	var personActiveSupervisors *organizationtenancy.PersonHasActiveSupervisionsError
-	var identityErr *organizationtenancy.ProvisioningIdentityError
-
-	if errors.As(err, &identityErr) && identityErr.Err != nil {
-		switch {
-		case errors.Is(identityErr.Err, organizationtenancy.ErrAccountEmailExists):
-			return common.OperatorConflict(organizationtenancy.ErrAccountEmailExists.Error())
-		case errors.Is(identityErr.Err, organizationtenancy.ErrAccountUsernameExists):
-			return common.OperatorConflict(organizationtenancy.ErrAccountUsernameExists.Error())
-		case errors.Is(identityErr.Err, organizationtenancy.ErrInvitationNameRequired),
-			errors.Is(identityErr.Err, organizationtenancy.ErrPasswordMismatch),
-			errors.Is(identityErr.Err, organizationtenancy.ErrPasswordTooWeak),
-			identityErr.Op == organizationtenancy.OpCreateInvitation && !errors.Is(identityErr.Err, organizationtenancy.ErrIdentityStoreFailed):
-			return common.OperatorInvalidRequest(identityErr.Err)
-		default:
-			return common.OperatorInternal(internalErrorMessage)
-		}
-	}
-
-	switch {
-	case errors.As(err, &invalidProvisioningData):
-		return common.OperatorInvalidRequest(errors.New("invalid input data"))
-	case errors.As(err, &provisioningConflict):
-		return common.OperatorConflict(provisioningConflict.Err.Error())
-	case errors.As(err, &organizationNotFound):
-		return common.OperatorNotFound("Organization not found")
-	case errors.As(err, &organizationAlreadyDeleted):
-		return common.OperatorConflict("Organization is already deleted")
-	case errors.As(err, &organizationNotDeleted):
-		return common.OperatorConflict("Organization is not deleted")
-	case errors.As(err, &organizationHasSchools):
-		return common.OperatorConflict(fmt.Sprintf("Organization has %d existing school(s) and cannot be deleted. Delete all schools first.", organizationHasSchools.SchoolCount))
-	case errors.As(err, &organizationDeleted):
-		return common.OperatorConflict("Organization is deleted and cannot host schools")
-	case errors.As(err, &schoolNotFound):
-		return common.OperatorNotFound("School not found")
-	case errors.As(err, &schoolInactive):
-		return common.OperatorForbidden("School is inactive")
-	case errors.As(err, &schoolAlreadyDeleted):
-		return common.OperatorConflict("School is already deleted")
-	case errors.As(err, &schoolNotDeleted):
-		return common.OperatorConflict("School is not deleted")
-	case errors.As(err, &operatorDeviceNotFound):
-		return common.OperatorNotFound("Device not found")
-	case errors.As(err, &deviceInUse):
-		return common.OperatorConflict("Device is still referenced by attendance or session records and cannot be deleted")
-	case errors.As(err, &deviceProtected):
-		return common.OperatorForbidden("This system device cannot be deleted")
-	case errors.As(err, &deviceTransferProtected):
-		return common.OperatorForbidden("This system device cannot be transferred")
-	case errors.As(err, &deviceTransferBlocked):
-		switch deviceTransferBlocked.Reason {
-		case organizationtenancy.DeviceTransferBlockedOnline:
-			return common.OperatorConflict("Device is online and cannot be transferred")
-		case organizationtenancy.DeviceTransferBlockedActiveSession:
-			return common.OperatorConflict("Device has an active session and cannot be transferred")
-		default:
-			return common.OperatorInternal(internalErrorMessage)
-		}
-	case errors.As(err, &deviceTransferOrganizationMismatch):
-		return common.OperatorForbidden("Device can only be transferred within its organization")
-	case errors.As(err, &deviceTransferSameSchool):
-		return common.OperatorConflict("Device already belongs to the target school")
-	case errors.As(err, &personNotFound):
-		return common.OperatorNotFound("Person not found")
-	case errors.As(err, &personActiveSupervisors):
-		return common.OperatorConflict("Person has active supervisions and cannot be deleted")
-	default:
-		return common.OperatorInternal(internalErrorMessage)
-	}
-}
-
-func caregiverCapabilityProvisioningErrorRenderer(err error) render.Renderer {
-	if blocked, ok := errors.AsType[caregiverCapabilityBlocked](err); ok {
-		return common.NewCaregiverCapabilityBlockedResponse(
-			http.StatusConflict,
-			blocked.Error(),
-			blocked.CaregiverCapabilityBlockers(),
-		)
-	}
-	if _, missing := errors.AsType[caregiverAccountMissing](err); missing || errors.Is(err, organizationtenancy.ErrAccountNotFound) {
-		return common.OperatorNotFound("Account not found")
-	}
-	if invalidProvisioningData, ok := errors.AsType[*organizationtenancy.InvalidProvisioningDataError](err); ok {
-		return common.OperatorInvalidRequest(invalidProvisioningData.Err)
-	}
-	if invalid, ok := errors.AsType[caregiverRequestInvalid](err); ok {
-		return common.OperatorInvalidRequest(errors.Unwrap(invalid.CaregiverRequestInvalid()))
-	}
-	return ProvisioningErrorRenderer(err)
 }
 
 func operatorInvitationCreatedByValue(createdBy *int64) int64 {

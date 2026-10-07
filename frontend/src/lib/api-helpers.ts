@@ -2,7 +2,7 @@
 import { isBrowserContext } from "./api-url";
 import { sanitizeEndpoint } from "./log-sanitize";
 import { createLogger } from "~/lib/logger";
-import { ApiError, apiErrorFromBody } from "./api-error";
+import { ApiError, apiErrorFromBody, unavailableApiError } from "./api-error";
 
 // Logger instance for API helpers
 const logger = createLogger({ component: "ApiHelpers" });
@@ -187,13 +187,21 @@ export async function authFetch<T>(
       ? buildAuthHeaders(token)
       : buildAuthHeadersWithBody(token);
 
-  const response = await fetch(url, {
-    method,
-    credentials: "include",
-    headers,
-    cache: "no-store", // Prevent caching of dynamic API responses
-    ...(body !== undefined && { body: JSON.stringify(body) }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method,
+      credentials: "include",
+      headers,
+      cache: "no-store", // Prevent caching of dynamic API responses
+      ...(body !== undefined && { body: JSON.stringify(body) }),
+    });
+  } catch (error) {
+    // A rejected fetch has no HTTP response or backend error envelope. Keep
+    // this transport failure structured so the shared error path can offer a
+    // retry instead of treating it as a frontend crash.
+    throw unavailableApiError(error);
+  }
 
   if (!response.ok) {
     const bodyText =
@@ -254,12 +262,16 @@ export async function fetchWithRetry<T>(
         }
       : undefined;
 
-    return fetch(url, {
-      method,
-      credentials: "include",
-      headers,
-      ...(body !== undefined && { body: JSON.stringify(body) }),
-    });
+    try {
+      return await fetch(url, {
+        method,
+        credentials: "include",
+        headers,
+        ...(body !== undefined && { body: JSON.stringify(body) }),
+      });
+    } catch (error) {
+      throw unavailableApiError(error);
+    }
   };
 
   // Initial request

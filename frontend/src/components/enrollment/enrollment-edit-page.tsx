@@ -18,6 +18,8 @@ import {
   type SubmitEnrollmentPayload,
 } from "~/lib/enrollment-submission-api";
 import { createLogger } from "~/lib/logger";
+import { useApiLoadError, useToast } from "~/contexts/ToastContext";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 
 const logger = createLogger({ component: "EnrollmentEditPage" });
 
@@ -41,13 +43,20 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
   );
   const [changeReason, setChangeReason] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
+  // A failed load stays where the form would be, with retry (#2515).
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       setLoading(true);
-      setError(null);
+      clearLoadError();
       try {
         const result = await fetchEnrollmentEditBootstrap(
           token,
@@ -55,9 +64,15 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
         );
         if (!cancelled) setBootstrap(result);
       } catch (err) {
-        const message = err instanceof Error ? err.message : t("editLoadError");
-        logger.warn("enrollment_edit_bootstrap_failed", { error: message });
-        if (!cancelled) setError(message);
+        logger.warn("enrollment_edit_bootstrap_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!cancelled) {
+          void showLoadError(err, {
+            object: t("errorObject"),
+            retry: () => setLoadAttempt((n) => n + 1),
+          });
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -66,7 +81,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [token, t]);
+  }, [token, t, loadAttempt, clearLoadError, showLoadError]);
 
   const submitter = useCallback(
     async (payload: SubmitEnrollmentPayload) => {
@@ -92,9 +107,14 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
     (statusURL: string) => {
       const submittedURL = new URL(statusURL, globalThis.location.origin);
       const query = submittedURL.searchParams.toString();
+      toast.success(
+        bootstrap?.edit_mode === "change_request"
+          ? t("changeRequestSent")
+          : t("editSaved"),
+      );
       router.push(query ? `${statusHref}?${query}` : statusHref);
     },
-    [router, statusHref],
+    [router, statusHref, toast, t, bootstrap?.edit_mode],
   );
 
   if (loading) {
@@ -108,7 +128,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
     );
   }
 
-  if (error || !bootstrap) {
+  if (loadError || !bootstrap) {
     return (
       <main className="mx-auto w-full max-w-4xl space-y-5 px-4 py-5 sm:px-6 sm:py-6">
         <Link
@@ -118,12 +138,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           {t("backToStatus")}
         </Link>
-        <div
-          role="alert"
-          className="border-moto-red/30 bg-moto-red/5 text-moto-red-strong rounded-2xl border p-5 text-sm shadow-sm"
-        >
-          {error ?? t("editLoadError")}
-        </div>
+        <LoadErrorAlert error={loadError ?? t("editLoadError")} />
       </main>
     );
   }
@@ -139,12 +154,9 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           {t("backToStatus")}
         </Link>
-        <div
-          role="alert"
-          className="border-moto-red/30 bg-moto-red/5 text-moto-red-strong rounded-2xl border p-5 text-sm shadow-sm"
-        >
-          {t("editLoadError")}
-        </div>
+        {/* The school allows grades this form cannot show: no API error,
+            but the same dead end, so it reads like one. */}
+        <LoadErrorAlert error={t("editLoadError")} />
       </main>
     );
   }

@@ -296,38 +296,44 @@ func (rs *InvitationsResource) AcceptInvitation(w http.ResponseWriter, r *http.R
 
 // --- Error translation ---
 
-// invitationValidationErrors maps English service-layer validation messages to German.
-var invitationValidationErrors = map[string]string{
-	"invalid email format":                          "Ungültiges E-Mail-Format",
-	"email address too long":                        "E-Mail-Adresse ist zu lang",
-	"password doesn't meet complexity requirements": "Passwort erfüllt nicht die Anforderungen",
-	"display name is required":                      "Anzeigename ist erforderlich",
-	"display name must not exceed 100 characters":   "Anzeigename darf maximal 100 Zeichen lang sein",
+// operatorInputRejections names the field and code of the validation
+// messages the operator identity service raises, so the operator portal can
+// mark the field (#2519). passwordField is filled in per endpoint.
+var operatorInputRejections = map[string]struct{ field, code string }{
+	"invalid email format":                          {"email", common.CodeGeneralInput},
+	"email address too long":                        {"email", common.CodeGeneralInput},
+	"password doesn't meet complexity requirements": {"", common.CodeIdentityPasswordTooWeak},
+	"display name is required":                      {"display_name", common.CodeGeneralInput},
+	"display name must not exceed 100 characters":   {"display_name", common.CodeGeneralInput},
 }
 
-func translateInvitationValidationError(err error) string {
+func operatorInputField(err error, passwordField string) (field, code string, ok bool) {
 	if err == nil {
-		return "Ungültige Eingabe"
+		return "", "", false
 	}
-	if translated, ok := invitationValidationErrors[err.Error()]; ok {
-		return translated
+	rejection, ok := operatorInputRejections[err.Error()]
+	if !ok {
+		return "", "", false
 	}
-	return "Ungültige Eingabe"
+	if rejection.field == "" {
+		return passwordField, rejection.code, true
+	}
+	return rejection.field, rejection.code, true
 }
 
 // --- Error renderers ---
 
 func invitationErrorRenderer(err error) render.Renderer {
 	if invalid, ok := InvalidInput(err); ok {
-		return common.OperatorInvalidRequest(errors.New(translateInvitationValidationError(invalid)))
+		return invalidOperatorInput(invalid, "password")
 	}
 	switch {
 	case errors.Is(err, ErrOperatorInvitationNotFound):
-		return common.OperatorNotFound("Einladung nicht gefunden oder abgelaufen")
+		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityInvitationNotFound, "Einladung nicht gefunden oder abgelaufen")
 	case errors.Is(err, ErrOperatorEmailExists):
-		return common.OperatorConflict("Ein Operator mit dieser E-Mail existiert bereits")
+		return common.OperatorRejection(http.StatusConflict, common.CodeIdentityEmailAlreadyExists, "Ein Operator mit dieser E-Mail existiert bereits")
 	case errors.Is(err, ErrOperatorInvitationRateLimited):
-		return common.OperatorTooManyRequests("Zu viele Einladungen. Bitte warte eine Stunde.")
+		return common.OperatorRejection(http.StatusTooManyRequests, common.CodeIdentityInvitationRateLimited, "Zu viele Einladungen. Bitte warte eine Stunde.")
 	default:
 		return common.OperatorInternal("Ein Fehler ist aufgetreten")
 	}
@@ -337,13 +343,13 @@ func invitationErrorRenderer(err error) render.Renderer {
 // Uses generic messages to prevent enumeration.
 func publicInvitationErrorRenderer(err error) render.Renderer {
 	if invalid, ok := InvalidInput(err); ok {
-		return common.OperatorInvalidRequest(errors.New(translateInvitationValidationError(invalid)))
+		return invalidOperatorInput(invalid, "password")
 	}
 	switch {
 	case errors.Is(err, ErrOperatorInvitationNotFound),
 		errors.Is(err, ErrOperatorEmailExists):
-		// Generic message for both cases to prevent email enumeration
-		return common.OperatorInvalidRequest(errors.New("dieser Link ist abgelaufen oder ungültig"))
+		// One code for both cases to prevent email enumeration
+		return common.OperatorRejection(http.StatusBadRequest, common.CodeIdentityOperatorInvitationInvalid, "dieser Link ist abgelaufen oder ungültig")
 	default:
 		return common.OperatorInternal("Ein Serverfehler ist aufgetreten")
 	}

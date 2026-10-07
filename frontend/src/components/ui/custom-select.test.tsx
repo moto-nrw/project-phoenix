@@ -677,4 +677,22 @@ describe("CustomSelect", () => {
       }
     });
   });
+
+  it("shows an invalid trigger in red instead of the neutral surface", () => {
+    render(
+      <CustomSelect
+        value="a"
+        options={[{ value: "a", label: "Anna" }]}
+        onChange={() => undefined}
+        ariaLabel="Ersatzperson"
+        invalid
+      />,
+    );
+
+    const trigger = screen.getByRole("combobox", { name: "Ersatzperson" });
+    expect(trigger).toHaveAttribute("aria-invalid", "true");
+    // moto-content-surface is unlayered and would paint over the red border.
+    expect(trigger.className).not.toContain("moto-content-surface");
+    expect(trigger.className).toContain("border-moto-red");
+  });
 });

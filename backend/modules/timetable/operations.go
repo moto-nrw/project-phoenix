@@ -51,18 +51,21 @@ type PlannedNowOptions struct {
 
 // OperationPlannedInstance is one block of the caller's day plan.
 type OperationPlannedInstance struct {
-	ID                    int64   `json:"id"`
-	Title                 string  `json:"title"`
-	Date                  string  `json:"date"`
-	StartTime             string  `json:"start_time"`
-	EndTime               string  `json:"end_time"`
-	RoomID                int64   `json:"room_id"`
-	RoomName              *string `json:"room_name,omitempty"`
-	Status                string  `json:"status"`
-	IsOverdue             bool    `json:"is_overdue"`
-	MinutesUntilStart     int     `json:"minutes_until_start"`
-	ExpectedStudentsCount int     `json:"expected_students_count"`
-	PresentStudentsCount  int     `json:"present_students_count"`
+	ID        int64   `json:"id"`
+	Title     string  `json:"title"`
+	Date      string  `json:"date"`
+	StartTime string  `json:"start_time"`
+	EndTime   string  `json:"end_time"`
+	RoomID    int64   `json:"room_id"`
+	RoomName  *string `json:"room_name,omitempty"`
+	// ActivityType is the template's block type ("care", "activity",
+	// "external", "duty"); empty for a block without template (#3822).
+	ActivityType          string `json:"activity_type,omitempty"`
+	Status                string `json:"status"`
+	IsOverdue             bool   `json:"is_overdue"`
+	MinutesUntilStart     int    `json:"minutes_until_start"`
+	ExpectedStudentsCount int    `json:"expected_students_count"`
+	PresentStudentsCount  int    `json:"present_students_count"`
 	// NotScheduledCount is how many assigned children are not in care here
 	// today (#1747); they are left out of ExpectedStudentsCount.
 	NotScheduledCount   int                       `json:"not_scheduled_students_count"`
@@ -147,18 +150,20 @@ type OperationRoster struct {
 
 // OperationRosterInstance is the block a roster belongs to.
 type OperationRosterInstance struct {
-	ID                  int64   `json:"id"`
-	Title               string  `json:"title"`
-	Status              string  `json:"status"`
-	IsSpontaneous       bool    `json:"is_spontaneous"`
-	ActiveGroupID       *int64  `json:"active_group_id,omitempty"`
-	RoomID              int64   `json:"room_id"`
-	RoomName            *string `json:"room_name,omitempty"`
-	Date                string  `json:"date"`
-	StartTime           string  `json:"start_time"`
-	EndTime             string  `json:"end_time"`
-	CanComplete         bool    `json:"can_complete"`
-	CompleteAvailableAt string  `json:"complete_available_at"`
+	ID            int64   `json:"id"`
+	Title         string  `json:"title"`
+	Status        string  `json:"status"`
+	IsSpontaneous bool    `json:"is_spontaneous"`
+	ActiveGroupID *int64  `json:"active_group_id,omitempty"`
+	RoomID        int64   `json:"room_id"`
+	RoomName      *string `json:"room_name,omitempty"`
+	Date          string  `json:"date"`
+	StartTime     string  `json:"start_time"`
+	EndTime       string  `json:"end_time"`
+	// IsDuty marks a duty (#3822): no children, never started.
+	IsDuty              bool   `json:"is_duty,omitempty"`
+	CanComplete         bool   `json:"can_complete"`
+	CompleteAvailableAt string `json:"complete_available_at"`
 }
 
 // OperationRosterRow is one child on a roster.
@@ -272,6 +277,9 @@ type ScheduledInstance struct {
 	ReopenUntil      *time.Time `json:"reopen_until,omitempty"`
 	// HasCompletionSnapshot reports a completion a reopen can restore.
 	HasCompletionSnapshot bool `json:"-"`
+	// IsDuty marks a block of a duty template (#3822): staff only, no
+	// children. Read along from the linked template; not part of the wire.
+	IsDuty bool `json:"-"`
 }
 
 // OperationQuery reads the operational day: the caller's planned blocks,

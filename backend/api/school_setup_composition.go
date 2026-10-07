@@ -27,7 +27,26 @@ func newSchoolSetupRoute(deps schoolSetupCompose.Dependencies, db *bun.DB) (modu
 	if err != nil {
 		return moduleRoute{}, err
 	}
-	resource := schoolSetupHTTP.NewResource(service, schoolSetupHTTP.Runtime{
+	resource := schoolSetupHTTP.NewResource(service, schoolSetupRuntime(db))
+	return moduleRoute{pattern: "/school-setup", router: resource.Router()}, nil
+}
+
+// newStaffOnboardingRoute mounts the first steps of care workers (#3748) at
+// /api/staff-onboarding. The routes need no permission: each person only
+// reads and writes their own progress.
+func newStaffOnboardingRoute(db *bun.DB) (moduleRoute, error) {
+	service, err := schoolSetupCompose.NewStaffOnboarding()
+	if err != nil {
+		return moduleRoute{}, err
+	}
+	resource := schoolSetupHTTP.NewStaffResource(service, schoolSetupRuntime(db))
+	return moduleRoute{pattern: "/staff-onboarding", router: resource.Router()}, nil
+}
+
+// schoolSetupRuntime supplies the tenant HTTP mechanics both route groups
+// share.
+func schoolSetupRuntime(db *bun.DB) schoolSetupHTTP.Runtime {
+	return schoolSetupHTTP.Runtime{
 		Protected: func(r chi.Router, fn func(chi.Router, schoolSetupHTTP.Middleware)) {
 			apiCommon.ProtectedTenantGroup(r, db, fn)
 		},
@@ -41,8 +60,7 @@ func newSchoolSetupRoute(deps schoolSetupCompose.Dependencies, db *bun.DB) (modu
 		},
 		Respond: apiCommon.Respond,
 		Failure: renderSchoolSetupFailure,
-	})
-	return moduleRoute{pattern: "/school-setup", router: resource.Router()}, nil
+	}
 }
 
 func renderSchoolSetupFailure(w http.ResponseWriter, r *http.Request, status int, err error) {

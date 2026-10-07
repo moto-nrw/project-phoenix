@@ -71,6 +71,44 @@ func TestSeedParentLetterMarksLetterReadByParent(t *testing.T) {
 	}, paths)
 }
 
+func TestSeedParentPollCreatesSixtyAppointmentOptions(t *testing.T) {
+	t.Parallel()
+
+	var poll struct {
+		ResponseType string   `json:"response_type"`
+		Options      []string `json:"options"`
+	}
+	var paths []string
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		paths = append(paths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/parent-announcements/":
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&poll))
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":"73"}}`)
+		case "/api/parent-announcements/73/publish":
+			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
+		default:
+			w.WriteHeader(seedHTTPStatusNotFound)
+		}
+	})
+	defer srv.Close()
+
+	rt := &Runtime{Client: newTestClient(srv.URL, false), TenantAuth: AuthRef{Token: "staff"}}
+	require.NoError(t, (seedParentPollStep{}).Run(t.Context(), rt))
+
+	assert.Equal(t, []string{"/api/parent-announcements/", "/api/parent-announcements/73/publish"}, paths)
+	assert.Equal(t, "multi_choice", poll.ResponseType)
+	require.Len(t, poll.Options, 60)
+	assert.Equal(t, "Mittwoch, 14. Oktober, 14:00 Uhr", poll.Options[0])
+	assert.Equal(t, "Freitag, 16. Oktober, 18:45 Uhr", poll.Options[len(poll.Options)-1])
+	distinct := make(map[string]struct{}, len(poll.Options))
+	for _, option := range poll.Options {
+		distinct[option] = struct{}{}
+	}
+	assert.Len(t, distinct, len(poll.Options), "each appointment option must be distinct")
+}
+
 func TestSeedParentDeclarationDeclaresThroughTheParentAPI(t *testing.T) {
 	t.Parallel()
 

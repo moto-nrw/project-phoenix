@@ -8,7 +8,9 @@ import {
 } from "~/components/timetable/pickup-extension-dialog";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { usePickupExtensions } from "~/lib/hooks/use-pickup-extensions";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import type { PickupExtension } from "~/lib/pickup-extension-api";
 
 function todoMessage(tasks: readonly PickupExtension[]): string {
@@ -37,6 +39,11 @@ export function PickupExtensionTodos({
   // Die Liste im Fenster bleibt fest, solange es offen ist: das Neuladen
   // nach jeder Entscheidung darf die Reihenfolge nicht verschieben.
   const [open, setOpen] = useState<readonly PickupExtension[]>([]);
+  const loadError = useSwrLoadError(
+    error,
+    "die Liste der späteren Abholzeiten",
+    refresh,
+  );
 
   if (!enabled || (tasks.length === 0 && open.length === 0 && !error))
     return null;
@@ -44,10 +51,7 @@ export function PickupExtensionTodos({
   return (
     <>
       {error ? (
-        <Alert
-          type="error"
-          message="Die Aufgaben konnten nicht geladen werden. Bitte laden Sie die Seite neu."
-        />
+        <LoadErrorAlert error={loadError} />
       ) : tasks.length > 0 ? (
         <Alert
           type="warning"

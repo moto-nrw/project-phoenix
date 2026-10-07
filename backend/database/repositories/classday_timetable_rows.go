@@ -4,6 +4,7 @@ import (
 	"context"
 
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
@@ -27,6 +28,10 @@ func (r classDayTimetableRows) ListActivityInstancesOn(ctx context.Context, date
 	}
 	result := make([]classdayCompose.SlotBlock, 0, len(instances))
 	for _, instance := range instances {
+		// The Tageslisten are children lists; a duty (#3822) has none.
+		if instance.TemplateType == timetableModule.GroupTypeDuty {
+			continue
+		}
 		result = append(result, classdayCompose.SlotBlock{
 			ID: instance.ID, Title: instance.Title, Date: instance.Date.String(), StartTime: instance.StartTime.Format("15:04:05"),
 			EndTime: instance.EndTime.Format("15:04:05"), RoomID: instance.RoomID, Status: instance.Status,

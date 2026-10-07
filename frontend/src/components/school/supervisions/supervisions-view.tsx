@@ -15,8 +15,15 @@
 // Kinder: dafür hat eine Lehrkraft keine Kindersuche und keine Berechtigung.
 
 import { ChevronLeft } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert } from "~/components/ui/alert";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
@@ -25,10 +32,13 @@ import {
   type RosterAction,
 } from "~/components/active-supervisions/timetable-roster";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { schoolSupervisionsApi } from "~/lib/school-supervisions-api";
 import { useSWRAuth } from "~/lib/swr";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import type {
   PlannedTimetableInstance,
   TimetableRoster,
@@ -46,12 +56,21 @@ import {
   type SupervisionStartState,
   type SupervisionViewIntent,
 } from "./view-model";
-import { capacityErrorMessage } from "~/lib/capacity-error";
 
 const logger = createLogger({ component: "SchoolSupervisionsView" });
 
-const GENERIC_ERROR =
-  "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
+const SCHOOL_CAPACITY_HINT = "Mehr Plätze kann die OGS freigeben.";
+
+function schoolCapacityHint(error: unknown) {
+  if (
+    error instanceof ApiError &&
+    (error.code === "presence.activity_participant_limit_reached" ||
+      error.code === "presence.room_capacity_exceeded")
+  ) {
+    return SCHOOL_CAPACITY_HINT;
+  }
+  return undefined;
+}
 
 /**
  * Eine Aufsicht, die nicht läuft: ein Satz, was als Nächstes passiert, und
@@ -137,7 +156,19 @@ export function SchoolSupervisionsView() {
 
   const [intent, setIntent] = useState<SupervisionViewIntent>(AUTO_VIEW);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { show: showActionError } = useApiErrorDisplay();
+  // „Wiederholen“ läuft mit dem aktuellen Stand der Seite.
+  const retryRef = useRef<{
+    start: (instance: PlannedTimetableInstance) => void;
+    rosterAction: (action: RosterAction, row: TimetableRosterRow) => void;
+    confirmExpected: (rows: TimetableRosterRow[]) => void;
+    complete: () => void;
+  }>({
+    start: () => undefined,
+    rosterAction: () => undefined,
+    confirmExpected: () => undefined,
+    complete: () => undefined,
+  });
   const [sheetRow, setSheetRow] = useState<TimetableRosterRow | null>(null);
 
   const {
@@ -184,6 +215,7 @@ export function SchoolSupervisionsView() {
   const {
     data: roster,
     isLoading: rosterLoading,
+    error: rosterError,
     mutate: reloadRoster,
   } = useSWRAuth(
     openId && wantsRoster ? `school-supervision-roster-${openId}` : null,
@@ -191,16 +223,36 @@ export function SchoolSupervisionsView() {
     { keepPreviousData: false, revalidateOnFocus: false },
   );
 
-  const report = useCallback((event: string, err: unknown) => {
-    // Ein voller Raum oder eine volle Aktivität sagt, was voll ist (#3633).
-    // Die Grenze ändert die OGS, nicht die Lehrkraft.
-    setError(
-      capacityErrorMessage(err, { canChangeLimit: false }) ?? GENERIC_ERROR,
-    );
-    logger.error(event, {
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }, []);
+  // Ladefehler mit Katalogtext, Wiederholen und Vorgangskennung (#2517).
+  const listLoadError = useSwrLoadError(
+    listError,
+    "die Liste Ihrer Aufsichten",
+    () => reloadList(),
+  );
+  const rosterLoadError = useSwrLoadError(rosterError, "die Kinderliste", () =>
+    reloadRoster(),
+  );
+
+  // Aktionen melden sich als Toast mit Katalogtext; ein voller Raum oder
+  // eine volle Aktivität nennt sich über Code und Details (#3633).
+  const report = useCallback(
+    (
+      event: string,
+      err: unknown,
+      object: string,
+      retry: (() => void) | undefined,
+    ) => {
+      logger.error(event, {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showActionError(err, {
+        object,
+        messageSuffix: schoolCapacityHint(err),
+        retry,
+      });
+    },
+    [showActionError],
+  );
 
   const refreshAll = useCallback(async () => {
     await Promise.all([reloadList(), reloadRoster()]);
@@ -209,7 +261,6 @@ export function SchoolSupervisionsView() {
   const handleStart = useCallback(
     async (instance: PlannedTimetableInstance) => {
       setBusyId(instance.id);
-      setError(null);
       try {
         await schoolSupervisionsApi.start(instance.id);
         // Zurück auf "der Tag entscheidet": die Aufsicht läuft jetzt und ist
@@ -217,7 +268,9 @@ export function SchoolSupervisionsView() {
         setIntent(AUTO_VIEW);
         await Promise.all([reloadList(), reloadRoster()]);
       } catch (err) {
-        report("supervision_start_failed", err);
+        report("supervision_start_failed", err, "die Aufsicht", () =>
+          retryRef.current.start(instance),
+        );
       } finally {
         setBusyId(null);
       }
@@ -228,7 +281,6 @@ export function SchoolSupervisionsView() {
   const handleRosterAction = useCallback(
     async (action: RosterAction, row: TimetableRosterRow) => {
       if (!openId) return;
-      setError(null);
       try {
         if (action === "check-in") {
           await schoolSupervisionsApi.checkIn(openId, row.studentId);
@@ -251,7 +303,12 @@ export function SchoolSupervisionsView() {
         }
         await refreshAll();
       } catch (err) {
-        report("supervision_roster_action_failed", err);
+        report(
+          "supervision_roster_action_failed",
+          err,
+          `die Anwesenheit von ${row.studentName}`,
+          () => retryRef.current.rosterAction(action, row),
+        );
       }
     },
     [openId, refreshAll, report],
@@ -260,14 +317,18 @@ export function SchoolSupervisionsView() {
   const handleConfirmExpected = useCallback(
     async (rows: TimetableRosterRow[]) => {
       if (!openId) return;
-      setError(null);
       try {
         for (const row of rows) {
           await schoolSupervisionsApi.checkIn(openId, row.studentId);
         }
         await refreshAll();
       } catch (err) {
-        report("supervision_confirm_expected_failed", err);
+        report(
+          "supervision_confirm_expected_failed",
+          err,
+          "die Anwesenheit der erwarteten Kinder",
+          () => retryRef.current.confirmExpected(rows),
+        );
       }
     },
     [openId, refreshAll, report],
@@ -275,7 +336,6 @@ export function SchoolSupervisionsView() {
 
   const handleComplete = useCallback(async () => {
     if (!openId || !roster) return;
-    setError(null);
     setBusyId(openId);
     try {
       const present = roster.rows
@@ -286,11 +346,25 @@ export function SchoolSupervisionsView() {
       setIntent(AUTO_VIEW);
       await reloadList();
     } catch (err) {
-      report("supervision_complete_failed", err);
+      report(
+        "supervision_complete_failed",
+        err,
+        "das Beenden der Aufsicht",
+        () => retryRef.current.complete(),
+      );
     } finally {
       setBusyId(null);
     }
   }, [openId, reloadList, report, roster]);
+
+  useLayoutEffect(() => {
+    retryRef.current = {
+      start: (instance) => void handleStart(instance),
+      rosterAction: (action, row) => void handleRosterAction(action, row),
+      confirmExpected: (rows) => void handleConfirmExpected(rows),
+      complete: () => void handleComplete(),
+    };
+  });
 
   const rosterMatchesSelection =
     roster != null && openId != null && roster.instance.id === openId;
@@ -301,12 +375,9 @@ export function SchoolSupervisionsView() {
 
   return (
     <div className="w-full space-y-4">
-      {error ? <Alert type="error" message={error} /> : null}
-      {listError ? (
-        <Alert
-          type="error"
-          message="Ihre Aufsichten konnten nicht geladen werden. Bitte laden Sie die Seite neu."
-        />
+      <LoadErrorAlert error={listLoadError} />
+      {openInstance && wantsRoster ? (
+        <LoadErrorAlert error={rosterLoadError} />
       ) : null}
 
       {isLoading ? <Skeleton className="h-64 w-full" /> : null}

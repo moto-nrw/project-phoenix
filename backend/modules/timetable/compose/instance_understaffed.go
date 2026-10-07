@@ -42,7 +42,7 @@ func (s *InstanceLifecycleService) setUnderstaffedAck(ctx context.Context, insta
 		if err != nil {
 			return nil, &ScheduleError{Op: "set understaffed ack: load staff", Err: err}
 		}
-		if !timetable.IsUnderstaffed(staffingRowsOf(rows)) {
+		if !timetable.IsUnderstaffedWithMinimum(staffingRowsOf(rows), dutyMinimumStaff(instance)) {
 			return nil, timetable.ErrUnderstaffedAckStillStaffed
 		}
 	}
@@ -103,7 +103,7 @@ func (s *InstanceLifecycleService) clearStaleAckIfStaffed(ctx context.Context, i
 	if err != nil {
 		return &ScheduleError{Op: "clear stale ack: load staff", Err: err}
 	}
-	if timetable.IsUnderstaffed(staffingRowsOf(rows)) {
+	if timetable.IsUnderstaffedWithMinimum(staffingRowsOf(rows), dutyMinimumStaff(instance)) {
 		return nil // still short-staffed → keep the acknowledgement
 	}
 	previousNote := instance.UnderstaffedNote
@@ -142,7 +142,7 @@ func (s *InstanceLifecycleService) AcknowledgeUnderstaffed(ctx context.Context, 
 		return nil, err
 	}
 	if instance.Date.Before(timezone.TodayDate()) {
-		return nil, timetable.DeviationBadRequest(msgInstanceInPast)
+		return nil, timetable.DeviationBadRequest(msgInstanceInPast).WithCode(timetable.CodeInstanceInPast)
 	}
 	if err := s.acquireSubstituteDayLock(ctx, timezone.Date(instance.Date)); err != nil {
 		return nil, timetable.DeviationInternal("lock day failed", err)
@@ -164,12 +164,12 @@ func (s *InstanceLifecycleService) loadDeviationInstance(ctx context.Context, in
 	instance, err := s.deps.InstanceRepo.FindByID(ctx, instanceID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
-			return nil, timetable.DeviationNotFound(msgInstanceNotFound)
+			return nil, timetable.DeviationNotFound(msgInstanceNotFound).WithCode(timetable.CodeDeviationInstanceNotFound)
 		}
 		return nil, timetable.DeviationInternal("load instance failed", err)
 	}
 	if instance == nil {
-		return nil, timetable.DeviationNotFound(msgInstanceNotFound)
+		return nil, timetable.DeviationNotFound(msgInstanceNotFound).WithCode(timetable.CodeDeviationInstanceNotFound)
 	}
 	return instance, nil
 }

@@ -1,18 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { acceptInvitation } from "~/lib/invitation-api";
 import type { InvitationValidation } from "~/lib/invitation-helpers";
-import type { ApiError } from "~/lib/auth-api";
+import { createLogger } from "~/lib/logger";
 import { listAllTenants } from "~/lib/tenant-api";
 import type { TenantSummary } from "~/lib/tenant-api";
 import { schoolPortalLoginUrl } from "~/lib/school-url";
 import { parentsPortalLoginUrl } from "~/lib/parent-url";
 import { clientEnv } from "~/env.client";
+import { credentialError } from "./credential-error";
+
+const logger = createLogger({ component: "InvitationOwnerAccept" });
 
 export function InvitationOwnerAcceptForm({
   token,
@@ -28,7 +36,12 @@ export function InvitationOwnerAcceptForm({
   const [pending, setPending] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [destination, setDestination] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Fehler über den gemeinsamen Weg (#2517): Katalogtext je Code. "Erst
+  // anmelden" kommt als 401; das ist hier eine Ablehnung, kein
+  // Sitzungsende, deshalb credentialError.
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const latestSubmitRef = useRef<() => void>(() => undefined);
   const [tenants, setTenants] = useState<TenantSummary[]>([]);
   const [showAddresses, setShowAddresses] = useState(false);
   const [addressStatus, setAddressStatus] = useState<
@@ -53,10 +66,9 @@ export function InvitationOwnerAcceptForm({
     );
   }
 
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
+  async function accept() {
     setPending(true);
-    setError(null);
+    formErrors.clear();
     try {
       const result = await acceptInvitation(token, {
         existingAccount: true,
@@ -75,33 +87,27 @@ export function InvitationOwnerAcceptForm({
       }
       setAccepted(true);
     } catch (err) {
-      const code = (err as ApiError).code;
-      if (code === "identity.invitation_account_login_required") {
-        setError(
-          "Bitte melden Sie sich zuerst mit der eingeladenen E-Mail-Adresse an.",
-        );
-      } else if (code === "identity.invitation_account_mismatch") {
-        setError(
-          "Sie sind mit einem anderen Konto angemeldet. Bitte wechseln Sie das Konto.",
-        );
-      } else if (code === "identity.account_inactive") {
-        setError("Ihr Konto ist gesperrt. Bitte wenden Sie sich an moto.");
-      } else if (
-        (err as ApiError).status === 410 ||
-        (err as ApiError).status === 404
-      ) {
-        setError(
-          "Diese Einladung ist nicht mehr gültig. Bitte fragen Sie die Schule nach einer neuen Einladung.",
-        );
-      } else {
-        setError(
-          "Das hat leider nicht geklappt. Bitte versuchen Sie es erneut.",
-        );
-      }
+      logger.warn("invitation_owner_accept_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void formErrors.show(
+        credentialError(err, ["identity.invitation_account_login_required"]),
+        { object: "die Einladung", retry: () => latestSubmitRef.current() },
+      );
     } finally {
       setPending(false);
     }
   }
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    void accept();
+  }
+
+  // „Wiederholen“ sendet den Stand, der dann im Formular steht.
+  useLayoutEffect(() => {
+    latestSubmitRef.current = () => void accept();
+  });
 
   if (accepted) {
     return (
@@ -121,7 +127,8 @@ export function InvitationOwnerAcceptForm({
   }
 
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form ref={formRef} onSubmit={submit} className="space-y-5">
+      <FormErrorAlert message={formErrors.error} />
       <p className="text-sm text-gray-700">
         Einladung für <strong>{invitation.email}</strong>.
       </p>
@@ -182,20 +189,19 @@ export function InvitationOwnerAcceptForm({
               </p>
             ) : null}
             {addressStatus === "error" ? (
-              <Alert
-                type="error"
-                message="Die Schulliste ist gerade nicht verfügbar. Bitte versuchen Sie es erneut."
-                action={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    onClick={() => void showOtherAddresses()}
-                  >
-                    Erneut laden
-                  </Button>
-                }
-              />
+              // listAllTenants gibt nur "error" zurück, kein Fehlerobjekt:
+              // ein fester Satz, Wiederholen über den Knopf darunter.
+              <div className="space-y-2">
+                <LoadErrorAlert error="Die Liste der Schulen ist gerade nicht erreichbar. Bitte versuchen Sie es erneut." />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => void showOtherAddresses()}
+                >
+                  Erneut laden
+                </Button>
+              </div>
             ) : null}
             {addressStatus === "ready" ? (
               <>
@@ -238,7 +244,9 @@ export function InvitationOwnerAcceptForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <Input
           id="owner-first-name"
+          name="first_name"
           label="Vorname"
+          error={formErrors.fieldError("first_name")}
           value={firstName}
           onChange={(event) => setFirstName(event.target.value)}
           autoComplete="given-name"
@@ -247,7 +255,9 @@ export function InvitationOwnerAcceptForm({
         />
         <Input
           id="owner-last-name"
+          name="last_name"
           label="Nachname"
+          error={formErrors.fieldError("last_name")}
           value={lastName}
           onChange={(event) => setLastName(event.target.value)}
           autoComplete="family-name"
@@ -255,7 +265,6 @@ export function InvitationOwnerAcceptForm({
           disabled={pending}
         />
       </div>
-      {error ? <Alert type="error" message={error} /> : null}
       <Button
         type="submit"
         isLoading={pending}

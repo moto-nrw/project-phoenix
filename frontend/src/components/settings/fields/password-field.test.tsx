@@ -1,6 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, screen, waitFor } from "@testing-library/react";
 import { PasswordField } from "./password-field";
+import { ToastProvider } from "~/contexts/ToastContext";
+
+// The shared error path shows failures through the toast provider (#2517).
+function renderWithToast(
+  ui: Parameters<typeof render>[0],
+  options?: Parameters<typeof render>[1],
+) {
+  return render(ui, { wrapper: ToastProvider, ...options });
+}
 
 // Mock revealSettingValue
 const mockRevealSettingValue = vi.fn();
@@ -19,43 +28,45 @@ describe("PasswordField", () => {
   });
 
   it("shows masked text when value exists", () => {
-    render(<PasswordField {...defaultProps} hasValue={true} />);
+    renderWithToast(<PasswordField {...defaultProps} hasValue={true} />);
     expect(screen.getByText("••••••")).toBeInTheDocument();
   });
 
   it("shows Nicht gesetzt when no value", () => {
-    render(<PasswordField {...defaultProps} hasValue={false} />);
+    renderWithToast(<PasswordField {...defaultProps} hasValue={false} />);
     expect(screen.getByText("Nicht gesetzt")).toBeInTheDocument();
   });
 
   it("shows 4-dot mask for PIN pattern", () => {
-    render(
+    renderWithToast(
       <PasswordField {...defaultProps} hasValue={true} pattern="^\d{4}$" />,
     );
     expect(screen.getByText("••••")).toBeInTheDocument();
   });
 
   it("shows eye and edit buttons when value exists", () => {
-    render(<PasswordField {...defaultProps} hasValue={true} />);
+    renderWithToast(<PasswordField {...defaultProps} hasValue={true} />);
     expect(screen.getByLabelText("Wert anzeigen")).toBeInTheDocument();
     expect(screen.getByLabelText("Wert ändern")).toBeInTheDocument();
   });
 
   it("hides eye and edit buttons when disabled", () => {
-    render(<PasswordField {...defaultProps} hasValue={true} disabled />);
+    renderWithToast(
+      <PasswordField {...defaultProps} hasValue={true} disabled />,
+    );
     expect(screen.queryByLabelText("Wert anzeigen")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Wert ändern")).not.toBeInTheDocument();
   });
 
   it("hides eye button when no value exists", () => {
-    render(<PasswordField {...defaultProps} hasValue={false} />);
+    renderWithToast(<PasswordField {...defaultProps} hasValue={false} />);
     expect(screen.queryByLabelText("Wert anzeigen")).not.toBeInTheDocument();
     // Edit button is still shown
     expect(screen.getByLabelText("Wert ändern")).toBeInTheDocument();
   });
 
   it("switches to edit mode on edit button click", () => {
-    const { container } = render(
+    const { container } = renderWithToast(
       <PasswordField {...defaultProps} hasValue={true} />,
     );
     fireEvent.click(screen.getByLabelText("Wert ändern"));
@@ -66,7 +77,7 @@ describe("PasswordField", () => {
 
   it("calls onChange and exits edit mode on save", async () => {
     const onChange = vi.fn().mockResolvedValue(undefined);
-    const { container } = render(
+    const { container } = renderWithToast(
       <PasswordField
         settingKey="security.ogs_device_pin"
         hasValue={false}
@@ -87,7 +98,7 @@ describe("PasswordField", () => {
 
   it("does not save when value is empty on Speichern click", async () => {
     const onChange = vi.fn().mockResolvedValue(undefined);
-    render(
+    renderWithToast(
       <PasswordField
         settingKey="security.ogs_device_pin"
         hasValue={false}
@@ -104,7 +115,7 @@ describe("PasswordField", () => {
 
   it("cancels edit mode without saving", () => {
     const onChange = vi.fn();
-    render(
+    renderWithToast(
       <PasswordField {...defaultProps} hasValue={true} onChange={onChange} />,
     );
 
@@ -116,7 +127,7 @@ describe("PasswordField", () => {
   });
 
   it("toggles show/hide in edit mode", () => {
-    const { container } = render(
+    const { container } = renderWithToast(
       <PasswordField {...defaultProps} hasValue={true} />,
     );
     fireEvent.click(screen.getByLabelText("Wert ändern"));
@@ -140,7 +151,7 @@ describe("PasswordField", () => {
 
   it("saves on Enter key press with value", async () => {
     const onChange = vi.fn().mockResolvedValue(undefined);
-    const { container } = render(
+    const { container } = renderWithToast(
       <PasswordField
         settingKey="security.ogs_device_pin"
         hasValue={false}
@@ -162,7 +173,7 @@ describe("PasswordField", () => {
 
   it("does not save on Enter key press without value", () => {
     const onChange = vi.fn().mockResolvedValue(undefined);
-    const { container } = render(
+    const { container } = renderWithToast(
       <PasswordField
         settingKey="security.ogs_device_pin"
         hasValue={false}
@@ -181,7 +192,7 @@ describe("PasswordField", () => {
 
   it("cancels on Escape key press", () => {
     const onChange = vi.fn();
-    const { container } = render(
+    const { container } = renderWithToast(
       <PasswordField {...defaultProps} hasValue={true} onChange={onChange} />,
     );
 
@@ -197,7 +208,7 @@ describe("PasswordField", () => {
   });
 
   it("strips non-digit characters for PIN pattern", () => {
-    const { container } = render(
+    const { container } = renderWithToast(
       <PasswordField {...defaultProps} hasValue={false} pattern="^\d{4}$" />,
     );
 
@@ -211,7 +222,7 @@ describe("PasswordField", () => {
   });
 
   it("sets numeric inputMode and maxLength for PIN pattern", () => {
-    const { container } = render(
+    const { container } = renderWithToast(
       <PasswordField {...defaultProps} hasValue={false} pattern="^\d{4}$" />,
     );
 
@@ -225,7 +236,7 @@ describe("PasswordField", () => {
   });
 
   it("uses text inputMode without maxLength for non-PIN pattern", () => {
-    const { container } = render(
+    const { container } = renderWithToast(
       <PasswordField {...defaultProps} hasValue={false} />,
     );
 
@@ -240,7 +251,7 @@ describe("PasswordField", () => {
   it("reveals value via API on eye button click", async () => {
     mockRevealSettingValue.mockResolvedValue("5678");
 
-    render(<PasswordField {...defaultProps} hasValue={true} />);
+    renderWithToast(<PasswordField {...defaultProps} hasValue={true} />);
 
     fireEvent.click(screen.getByLabelText("Wert anzeigen"));
 
@@ -255,7 +266,7 @@ describe("PasswordField", () => {
   it("hides revealed value on second eye click", async () => {
     mockRevealSettingValue.mockResolvedValue("5678");
 
-    render(<PasswordField {...defaultProps} hasValue={true} />);
+    renderWithToast(<PasswordField {...defaultProps} hasValue={true} />);
 
     // Reveal
     fireEvent.click(screen.getByLabelText("Wert anzeigen"));
@@ -272,7 +283,7 @@ describe("PasswordField", () => {
   it("clears revealed value when entering edit mode", async () => {
     mockRevealSettingValue.mockResolvedValue("5678");
 
-    render(<PasswordField {...defaultProps} hasValue={true} />);
+    renderWithToast(<PasswordField {...defaultProps} hasValue={true} />);
 
     // Reveal
     fireEvent.click(screen.getByLabelText("Wert anzeigen"));
@@ -287,7 +298,7 @@ describe("PasswordField", () => {
   });
 
   it("returns text hints when no pattern provided", () => {
-    const { container } = render(
+    const { container } = renderWithToast(
       <PasswordField {...defaultProps} hasValue={false} />,
     );
     fireEvent.click(screen.getByLabelText("Wert ändern"));
@@ -298,7 +309,7 @@ describe("PasswordField", () => {
   });
 
   it("returns text hints for non-matching pattern", () => {
-    const { container } = render(
+    const { container } = renderWithToast(
       <PasswordField {...defaultProps} hasValue={false} pattern="^[a-z]+$" />,
     );
     fireEvent.click(screen.getByLabelText("Wert ändern"));

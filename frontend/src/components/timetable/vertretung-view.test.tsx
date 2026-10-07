@@ -8,13 +8,16 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import type { EnrichedInstance } from "~/lib/timetable-types";
+import { catalogText } from "~/test/error-catalog-text";
 
 const {
   mockSearch,
   mockUseSession,
   mockToastSuccess,
   mockToastError,
+  mockToastWarning,
   mockTenantMutate,
   mockUseSWRAuth,
   mockApplyDeviations,
@@ -22,11 +25,13 @@ const {
   mockDayListProps,
   mockGridProps,
   mockEditorProps,
+  mockApplyRejected,
 } = vi.hoisted(() => ({
   mockSearch: { value: "" },
   mockUseSession: vi.fn(),
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
+  mockToastWarning: vi.fn(),
   mockTenantMutate: vi.fn(),
   mockUseSWRAuth: vi.fn(),
   mockApplyDeviations: vi.fn(),
@@ -34,6 +39,7 @@ const {
   mockDayListProps: vi.fn(),
   mockGridProps: vi.fn(),
   mockEditorProps: vi.fn(),
+  mockApplyRejected: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -44,11 +50,13 @@ vi.mock("next-auth/react", () => ({
   useSession: mockUseSession,
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+// Nur die Toasts ersetzen; der Anzeigeweg für Ladefehler bleibt echt.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: mockToastSuccess,
     error: mockToastError,
-    warning: vi.fn(),
+    warning: mockToastWarning,
   }),
 }));
 
@@ -153,7 +161,7 @@ vi.mock("~/components/timetable/substitution-slide-over", () => ({
     canManage: boolean;
     dayInstances: Array<{ id: string }>;
     onClose: () => void;
-    onApply: (input: unknown) => Promise<boolean>;
+    onApply: (input: unknown) => Promise<void>;
     onTabChange: (tab: "bearbeiten" | "verlauf") => void;
   }) => {
     mockEditorProps(props);
@@ -169,22 +177,27 @@ vi.mock("~/components/timetable/substitution-slide-over", () => ({
         </button>
         <button
           type="button"
-          onClick={() => void props.onApply({ cancel: true })}
+          onClick={() =>
+            void props.onApply({ cancel: true }).catch(mockApplyRejected)
+          }
         >
           editor-cancel-save
         </button>
         <button
           type="button"
           onClick={() =>
-            void props.onApply({
-              substitutions: [
-                {
-                  absentStaffId: "11",
-                  substituteStaffId: "12",
-                  instanceIds: ["42", "43"],
-                },
-              ],
-            })
+            void props
+              .onApply({
+                substitutions: [
+                  {
+                    absentStaffId: "11",
+                    substituteStaffId: "12",
+                    instanceIds: ["42", "43"],
+                  },
+                ],
+              })
+              // Der echte Editor zeigt die Ablehnung im Formular.
+              .catch(mockApplyRejected)
           }
         >
           editor-save
@@ -543,30 +556,102 @@ describe("VertretungView", () => {
     expect(mockDayListProps.mock.calls.at(-1)?.[0].gapsAvailable).toBe(false);
   });
 
-  it("renders an error surface (not an empty plan) when the week fails to load", () => {
-    setupSWR({ weekError: new Error("boom") });
+  it("zeigt einen Ladefehler der Lücken über der Liste, mit Wiederholen nur der Lücken", async () => {
+    setupSWR({
+      gapsError: new ApiError("gaps down", 503, {
+        code: "general.unavailable",
+      }),
+    });
+    render(<VertretungView />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der offenen Lücken"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("day-list")).toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mockTenantMutate.mock.calls.map((c) => c[0] as string)).toEqual([
+      "vertretung-gaps-2026-07-15-2026-07-19",
+    ]);
+  });
+
+  it("zeigt einen Ladefehler der Personalliste vor Ort und meldet ihn an Editor und Sammel-Vertretung", async () => {
+    setupSWR({
+      staffError: new ApiError("staff down", 500, { code: "general.server" }),
+    });
+    render(<VertretungView />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Personalliste"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/staff down/)).not.toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
+    expect(mockEditorProps.mock.calls.at(-1)?.[0].staffLoadError).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mockTenantMutate.mock.calls.map((c) => c[0] as string)).toEqual([
+      "vertretung-staff-list-2026-07-13-2026-07-19",
+    ]);
+  });
+
+  it("renders an error surface (not an empty plan) when the week fails to load", async () => {
+    setupSWR({
+      weekError: new ApiError("boom", 500, {
+        code: "general.server",
+        instance: "req-week",
+      }),
+    });
     render(<VertretungView />);
 
     // Der Ladefehler kommt aus dem TenantPage-Gerüst (`error`), nicht aus
-    // einer eigenen Fehlerfläche der Seite.
+    // einer eigenen Fehlerfläche der Seite: Katalogtext, nie der Servertext.
     expect(
-      screen.getByText(/Vertretung konnte nicht geladen werden/),
+      await screen.findByText(
+        catalogText("general.server", "die Liste der Termine"),
+      ),
     ).toBeVisible();
+    expect(screen.queryByText("boom")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Erneut versuchen" }),
+      screen.getByRole("button", { name: "Wiederholen" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-week");
     expect(screen.queryByTestId("day-list")).not.toBeInTheDocument();
     expect(screen.queryByTestId("calendar-grid")).not.toBeInTheDocument();
+    // #2517: keine Zählung aus einer Woche, die nie geladen wurde.
+    expect(screen.queryByText(/0 Termine/)).not.toBeInTheDocument();
+    // Ladefehler nie als Toast: niemand hat eine Aktion ausgelöst.
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 
-  it("retries week, gaps, AND staff list from the error surface", () => {
-    // Ein Backend-Blip lässt typischerweise alle drei Abrufe gleichzeitig
-    // scheitern; ein Retry nur des Wochen-Keys ließe Gaps-Chips und
-    // Personal-Alert bis zum Reload stale.
-    setupSWR({ weekError: new Error("boom") });
+  it("zeigt bis zum Katalogtext eines Wochen-Ladefehlers das Skelett, nie einen leeren Plan", () => {
+    setupSWR({
+      weekError: new ApiError("down", 503, { code: "general.unavailable" }),
+    });
     render(<VertretungView />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+    // Der Katalog lädt asynchron; im ersten Render steht weder Raster noch
+    // Liste da.
+    expect(screen.queryByTestId("calendar-grid")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("day-list")).not.toBeInTheDocument();
+  });
+
+  it("retries week, gaps, AND staff list from the error surface", async () => {
+    // Ein Backend-Blip lässt typischerweise alle drei Abrufe gleichzeitig
+    // scheitern; ein Retry nur des Wochen-Keys ließe Gaps-Chips und
+    // Personal-Hinweis bis zum Reload stale.
+    setupSWR({
+      weekError: new ApiError("down", 503, { code: "general.unavailable" }),
+    });
+    render(<VertretungView />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Wiederholen" }));
     expect(mockTenantMutate.mock.calls.map((c) => c[0] as string)).toEqual([
       "vertretung-week-2026-07-13-2026-07-19",
       "vertretung-gaps-2026-07-15-2026-07-19",
@@ -606,7 +691,7 @@ describe("VertretungView", () => {
     await waitFor(() =>
       expect(mockApplyDeviations).toHaveBeenCalledWith("42", { cancel: true }),
     );
-    expect(mockToastSuccess).toHaveBeenCalledWith("Block abgesagt");
+    expect(mockToastSuccess).toHaveBeenCalledWith("Der Block ist abgesagt.");
     // Cache-Refresh nach dem committeten Save.
     await waitFor(() => expect(mockTenantMutate).toHaveBeenCalled());
     // block und verlauf sind aus der URL entfernt.
@@ -660,6 +745,67 @@ describe("VertretungView", () => {
       expect(mockToastSuccess).toHaveBeenCalledWith(
         "2 Termine wurden für Anna Alt angepasst.",
       ),
+    );
+  });
+
+  it("gibt einen Speicherfehler an den offenen Editor zurück statt eines Toasts", async () => {
+    mockSearch.value = "d=2026-07-15&block=42";
+    window.history.replaceState(
+      null,
+      "",
+      "/acme/vertretung?d=2026-07-15&block=42",
+    );
+    const failure = new ApiError(
+      "Vertretung konnte nicht gespeichert werden.",
+      409,
+      {
+        code: "timetable.substitute_conflict",
+      },
+    );
+    mockApplyScheduleSubstitution.mockRejectedValueOnce(failure);
+    render(<VertretungView />);
+
+    fireEvent.click(screen.getByText("editor-save"));
+
+    await waitFor(() =>
+      expect(mockApplyRejected).toHaveBeenCalledWith(failure),
+    );
+    // Toasts lägen unter dem offenen Panel; der Editor zeigt den Fehler.
+    expect(mockToastError).not.toHaveBeenCalled();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+    // Auch nach einem Fehler wird der Stand neu geladen.
+    expect(mockTenantMutate).toHaveBeenCalledWith(
+      "vertretung-week-2026-07-13-2026-07-19",
+    );
+    expect(screen.getByTestId("editor")).toBeInTheDocument();
+  });
+
+  it("weist nach dem Speichern in einem ganzen Satz auf Zeitüberschneidungen hin", async () => {
+    mockSearch.value = "d=2026-07-15&block=42";
+    window.history.replaceState(
+      null,
+      "",
+      "/acme/vertretung?d=2026-07-15&block=42",
+    );
+    mockApplyScheduleSubstitution.mockResolvedValueOnce({
+      instanceId: "42",
+      cancelled: false,
+      understaffedAck: false,
+      affectedInstances: [],
+      warnings: [{}, {}],
+    });
+    render(<VertretungView />);
+
+    fireEvent.click(screen.getByText("editor-save"));
+
+    await waitFor(() =>
+      expect(mockToastWarning).toHaveBeenCalledWith(
+        "Bitte prüfen Sie 2 mögliche Zeitüberschneidungen.",
+        { duration: 0 },
+      ),
+    );
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "Die Vertretung wurde gespeichert.",
     );
   });
 

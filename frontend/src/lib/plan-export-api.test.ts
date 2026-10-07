@@ -42,10 +42,11 @@ afterEach(() => {
 });
 
 describe("plan export metadata", () => {
-  it("offers both row axes for the staff plan and one for the care plan", () => {
+  it("offers both row axes and the hours sheet for the staff plan and one for the care plan", () => {
     expect(PLAN_EXPORT_TEMPLATES.dienstplan.map((item) => item.id)).toEqual([
       "persons",
       "areas",
+      "hours",
     ]);
     expect(PLAN_EXPORT_TEMPLATES.betreuungsplan.map((item) => item.id)).toEqual(
       ["offerings"],
@@ -92,11 +93,15 @@ describe("exportPlan", () => {
   // The proxy route wraps the backend body in {"error": "<json>"}; without
   // unwrapping, a useful limit ("range exceeds 8 weeks") reaches the user as
   // a blob of JSON.
-  it("surfaces the backend message from the wrapped error body", async () => {
+  it("keeps code, details and request ID of a refused export", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
-          error: JSON.stringify({ error: "range exceeds 8 weeks" }),
+          status: "error",
+          error: "range exceeds 8 weeks",
+          code: "general.input",
+          details: { max_weeks: 8 },
+          instance: "req-7",
         }),
         { status: 400, headers: { "content-type": "application/json" } },
       ),
@@ -104,7 +109,13 @@ describe("exportPlan", () => {
 
     await expect(
       exportPlan("dienstplan", request, "pdf", "download"),
-    ).rejects.toThrow("range exceeds 8 weeks");
+    ).rejects.toMatchObject({
+      name: "ApiError",
+      status: 400,
+      code: "general.input",
+      details: { max_weeks: 8 },
+      requestId: "req-7",
+    });
   });
 
   // The tab has to be opened by the caller inside the click handler; opening
@@ -187,7 +198,7 @@ describe("exportPlan", () => {
     expect(link.download).toBe("dienstplan-2026-07-27.pdf");
   });
 
-  it("falls back to a readable message for an unhelpful error body", async () => {
+  it("classifies an error body that is not JSON by its status", async () => {
     globalThis.fetch = vi
       .fn()
       .mockResolvedValue(
@@ -196,19 +207,18 @@ describe("exportPlan", () => {
 
     await expect(
       exportPlan("dienstplan", request, "pdf", "download"),
-    ).rejects.toThrow("Der Plan konnte nicht erstellt werden.");
+    ).rejects.toMatchObject({ status: 502, code: "general.unavailable" });
   });
 
-  it("uses the message field and a non-JSON inner body verbatim", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ message: "Keine Berechtigung." }), {
-        status: 403,
-        headers: { "content-type": "application/json" },
-      }),
-    ) as unknown as typeof fetch;
+  it("turns a request that never reached the API into general.unavailable", async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockRejectedValue(
+        new TypeError("Failed to fetch"),
+      ) as unknown as typeof fetch;
 
     await expect(
-      exportPlan("dienstplan", request, "pdf", "download"),
-    ).rejects.toThrow("Keine Berechtigung.");
+      exportPlan("betreuungsplan", request, "pdf", "download"),
+    ).rejects.toMatchObject({ name: "TypeError", code: "general.unavailable" });
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import type { KeyedMutator } from "swr";
 
@@ -42,6 +42,8 @@ export const PLAN_CACHE_KEY_PREFIXES = [
   "time-tracking-own-absences-",
   "staff-shifts-visible-",
   "time-tracking-own-shifts-today-",
+  // Eigener Dienstplan der Mitarbeitenden (#3821).
+  "time-tracking-own-shifts-week-",
 ] as const;
 
 // Groups Betreuungsplan assignments (only present via the full overview
@@ -156,7 +158,8 @@ export function useDienstplanData(
     mutate: mutateLegacyStaff,
   } = useSWRAuth<Staff[]>(
     canUseAssignmentOverview ? null : "dienstplan-staff",
-    () => staffService.getAllStaff(),
+    // strict: a failed load must reject, not arrive as an empty staff list.
+    () => staffService.getAllStaff(undefined, { strict: true }),
   );
 
   const {
@@ -235,13 +238,18 @@ export function useDienstplanData(
   const scheduleLoading = canUseAssignmentOverview
     ? overviewLoading
     : legacyStaffLoading || legacyShiftsLoading;
-  const retryLoad = () => {
+  const retryLoad = useCallback(() => {
     void Promise.all(
       canUseAssignmentOverview
         ? [mutateOverview()]
         : [mutateLegacyStaff(), mutateLegacyShifts()],
     );
-  };
+  }, [
+    canUseAssignmentOverview,
+    mutateOverview,
+    mutateLegacyStaff,
+    mutateLegacyShifts,
+  ]);
   return {
     canManageAbsences,
     reducedPath: !canUseAssignmentOverview,

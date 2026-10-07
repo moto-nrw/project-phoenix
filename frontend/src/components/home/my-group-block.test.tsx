@@ -1,9 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import type { HomeGroupSnapshot, HomePickup } from "~/lib/hooks/use-home-group";
 import { getLocationBadgeTone, LOCATION_COLORS } from "~/lib/location-helper";
 import type { OgsLiveWireStudent } from "~/lib/ogs-group-live-api";
+import { catalogText } from "~/test/error-catalog-text";
 
 const snapshot = vi.hoisted(() => ({
   current: {} as HomeGroupSnapshot,
@@ -69,6 +71,7 @@ function withGroup(
     nextPickup: null,
     isLoading: false,
     error: undefined,
+    retry: vi.fn(),
     ...overrides,
   };
 }
@@ -241,11 +244,22 @@ describe("MyGroupBlock (#2180)", () => {
     ).toBeInTheDocument();
   });
 
-  it("unterscheidet einen Ladefehler von einer leeren Gruppe", () => {
-    snapshot.current = withGroup({ group: null, error: new Error("boom") });
+  it("unterscheidet einen Ladefehler von einer leeren Gruppe", async () => {
+    const retry = vi.fn();
+    snapshot.current = withGroup({
+      group: null,
+      error: new ApiError("boom", 503, { code: "general.unavailable" }),
+      retry,
+    });
 
     render(<MyGroupBlock />);
 
-    expect(screen.getByText(/konnte nicht geladen werden/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Karte „Meine Gruppe heute“"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(retry).toHaveBeenCalled();
   });
 });

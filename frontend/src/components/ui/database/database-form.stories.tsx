@@ -1,7 +1,18 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
 import { DatabaseForm } from "./database-form";
-import type { FormSection } from "./database-form";
+import type { DatabaseFormErrorPath, FormSection } from "./database-form";
+
+/** A fixed error path: the stories show states, not the owner's hook. */
+function staticErrorPath(error: string | null = null): DatabaseFormErrorPath {
+  return {
+    error,
+    show: () => undefined,
+    invalid: () => undefined,
+    fieldError: () => undefined,
+    clear: () => undefined,
+  };
+}
 
 const sections: FormSection[] = [
   {
@@ -65,6 +76,7 @@ const meta: Meta<typeof DatabaseForm> = {
     onSubmit: async () => undefined,
     onCancel: () => undefined,
     submitLabel: "Speichern",
+    errorPath: staticErrorPath(),
   },
 };
 
@@ -82,7 +94,9 @@ export const Loading: Story = {
 
 export const WithError: Story = {
   args: {
-    error: "Es ist ein Fehler aufgetreten.",
+    errorPath: staticErrorPath(
+      "Die Änderung konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
+    ),
   },
 };
 

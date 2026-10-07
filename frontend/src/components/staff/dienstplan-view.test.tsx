@@ -181,6 +181,9 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading" />,
 }));
 
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
 import { DienstplanView } from "./dienstplan-view";
 
 // One loaded staff member via the full overview path, so the grid renders and
@@ -220,14 +223,17 @@ describe("DienstplanView", () => {
     window.history.replaceState(null, "", "/acme/dienstplan");
   });
 
-  it("shows a blocking load error instead of the editable grid", () => {
+  it("shows a blocking load error instead of the editable grid", async () => {
     const mutateOverview = vi.fn();
     const mutateShiftTypes = vi.fn();
     mocks.useSWRAuth.mockImplementation((key: string | null) => {
       if (key?.startsWith("dienstplan-overview-")) {
         return {
           data: undefined,
-          error: new Error("server down"),
+          error: new ApiError("server down", 500, {
+            code: "general.server",
+            instance: "req-plan",
+          }),
           isLoading: false,
           mutate: mutateOverview,
         };
@@ -251,14 +257,20 @@ describe("DienstplanView", () => {
     render(<DienstplanView />);
 
     expect(
-      screen.getByText(
-        /Der Dienstplan konnte nicht vollständig geladen werden/,
+      await screen.findByText(
+        catalogText("general.server", "die Dienstplanung"),
       ),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("dienstplan-grid")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-plan");
+    // #2517: keine Zählung aus einem Plan, der nie geladen wurde.
+    expect(screen.queryByText(/0 Dienste/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/0 Personen/)).not.toBeInTheDocument();
 
-    // Retrying reloads the batched overview and the independent shift types.
-    fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
+    // Retrying reloads the batched overview, not the independent shift types.
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(mutateOverview).toHaveBeenCalledTimes(1);
     expect(mutateShiftTypes).not.toHaveBeenCalled();
   });
@@ -399,7 +411,49 @@ describe("DienstplanView", () => {
     );
   });
 
-  it("keeps the overview visible when only shift types fail", () => {
+  it("shows a failed calendar period load above the grid with a retry", async () => {
+    const mutatePeriods = vi.fn();
+    mocks.useSWRAuth.mockImplementation((key: string | null) => {
+      if (key?.startsWith("dienstplan-overview-")) {
+        return {
+          data: {
+            from: "2026-06-29",
+            to: "2026-07-03",
+            dienstplanInUse: true,
+            dienstplanUsedWeeks: ["2026-06-29"],
+            staff: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
+            shifts: [],
+            assignments: [],
+          },
+          error: undefined,
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      if (key === "database-calendar-periods-list") {
+        return {
+          data: undefined,
+          error: new ApiError("down", 503, { code: "general.unavailable" }),
+          isLoading: false,
+          mutate: mutatePeriods,
+        };
+      }
+      return { data: [], error: undefined, isLoading: false, mutate: vi.fn() };
+    });
+
+    render(<DienstplanView />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Kalenderzeiträume"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mutatePeriods).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the overview visible when only shift types fail", async () => {
     mocks.useSWRAuth.mockImplementation((key: string | null) => {
       if (key?.startsWith("dienstplan-overview-")) {
         return {
@@ -420,7 +474,9 @@ describe("DienstplanView", () => {
       if (key === "dienstplan-shift-types") {
         return {
           data: undefined,
-          error: new Error("types down"),
+          error: new ApiError("types down", 503, {
+            code: "general.unavailable",
+          }),
           isLoading: false,
           mutate: vi.fn(),
         };
@@ -437,7 +493,9 @@ describe("DienstplanView", () => {
 
     expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
     expect(
-      screen.getByText(/Schichtarten konnten nicht geladen werden/),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Schichtarten"),
+      ),
     ).toBeInTheDocument();
     // Seit #3114 führt die Kopf-Aktion auf die Route der Schichtarten, die
     // ihre Liste selbst lädt: ein Ladefehler HIER sperrt sie nicht mehr.
@@ -812,7 +870,7 @@ describe("DienstplanView", () => {
     ).toBe(false);
   });
 
-  it("shows the blocking load error in the Halbjahr view when the schedule fails", () => {
+  it("shows the blocking load error in the Halbjahr view when the schedule fails", async () => {
     // Regression K1: the half-year branch used to only check for empty staff, so
     // a failed staff/overview load rendered "keine Mitarbeitenden" instead of the
     // error card. The error state now precedes the view split for both views.
@@ -821,7 +879,10 @@ describe("DienstplanView", () => {
       if (key?.startsWith("dienstplan-overview-")) {
         return {
           data: undefined,
-          error: new Error("server down"),
+          error: new ApiError("server down", 500, {
+            code: "general.server",
+            instance: "req-plan",
+          }),
           isLoading: false,
           mutate: vi.fn(),
         };
@@ -832,8 +893,8 @@ describe("DienstplanView", () => {
     render(<DienstplanView />);
 
     expect(
-      screen.getByText(
-        /Der Dienstplan konnte nicht vollständig geladen werden/,
+      await screen.findByText(
+        catalogText("general.server", "die Dienstplanung"),
       ),
     ).toBeInTheDocument();
     // Neither the half-year grid nor the empty-staff hint is shown.

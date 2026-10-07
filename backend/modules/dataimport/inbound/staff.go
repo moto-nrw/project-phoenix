@@ -72,7 +72,7 @@ const msgStaffImportModeForbidden = "Bestehende Mitarbeiter ändern geht mit Ihr
 // else to a 500 with the given client message.
 func (rs *Resource) renderStaffImportError(w http.ResponseWriter, r *http.Request, err error, clientMsg string) {
 	if errors.Is(err, importModels.ErrImportModeForbidden) {
-		rs.runtime.Failure(w, r, Failure{Status: http.StatusForbidden, Message: msgStaffImportModeForbidden})
+		rs.runtime.Failure(w, r, Failure{Status: http.StatusForbidden, Cause: err, Message: msgStaffImportModeForbidden, Code: codeImportModeForbidden})
 		return
 	}
 	rs.runtime.Failure(w, r, Failure{Status: http.StatusInternalServerError, Cause: err, Message: clientMsg})

@@ -32,6 +32,8 @@ vi.mock("~/lib/enrollment-phase-api", async (importOriginal) => {
   };
 });
 
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { RolloverForm } from "./rollover-form";
 import type { Phase, RolloverResult } from "~/lib/enrollment-phase-api";
 
@@ -207,8 +209,12 @@ describe("RolloverForm", () => {
     ).toBeInTheDocument();
   });
 
-  it("surfaces API errors and stays open", async () => {
-    mockCreateRollover.mockRejectedValueOnce(new Error("nichts zu übernehmen"));
+  it("surfaces API errors with the catalog text and stays open", async () => {
+    mockCreateRollover.mockRejectedValueOnce(
+      new ApiError("nichts zu übernehmen", 409, {
+        code: "rollover.source_already_rolled",
+      }),
+    );
     const onSuccess = vi.fn();
     render(
       <RolloverForm
@@ -222,10 +228,37 @@ describe("RolloverForm", () => {
       screen.getByRole("button", { name: /Anschlussphase erstellen/ }),
     );
 
-    await waitFor(() => {
-      expect(screen.getByText("nichts zu übernehmen")).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("rollover.source_already_rolled", "die Anschlussphase"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("nichts zu übernehmen")).not.toBeInTheDocument();
     expect(onSuccess).not.toHaveBeenCalled();
+  });
+
+  it("marks the name field when the name is taken", async () => {
+    mockCreateRollover.mockRejectedValueOnce(
+      new ApiError("duplicate name", 409, {
+        code: "rollover.duplicate_name",
+        errors: [{ field: "name", reason: "duplicate" }],
+      }),
+    );
+    render(
+      <RolloverForm
+        source={makeSourcePhase()}
+        onCancel={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    fireEvent.submit(
+      screen.getByRole("button", { name: /Anschlussphase erstellen/ }),
+    );
+
+    const name = screen.getByLabelText("Name der neuen Phase");
+    await waitFor(() => expect(name).toHaveAttribute("aria-invalid", "true"));
+    await waitFor(() => expect(name).toHaveFocus());
   });
 
   it("does not submit without the required service dates", async () => {
@@ -247,7 +280,7 @@ describe("RolloverForm", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          "Bitte Beginn und Ende des Betreuungszeitraums angeben.",
+          "Bitte geben Sie Beginn und Ende des Betreuungszeitraums an.",
         ),
       ).toBeInTheDocument();
     });
@@ -272,7 +305,7 @@ describe("RolloverForm", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Bitte eine Frist für die Eltern-Antwort angeben."),
+        screen.getByText("Bitte geben Sie eine Frist für die Eltern an."),
       ).toBeInTheDocument();
     });
     expect(mockCreateRollover).not.toHaveBeenCalled();
@@ -379,9 +412,11 @@ describe("RolloverForm preview", () => {
     });
   });
 
-  it("shows a notice instead of counts when the preview fails", async () => {
+  it("shows a failed preview in place with a retry instead of counts", async () => {
     mockFetchRolloverPreview.mockRejectedValue(
-      new Error("Quellphase wurde bereits fortgeführt"),
+      new ApiError("Quellphase wurde bereits fortgeführt", 503, {
+        code: "general.unavailable",
+      }),
     );
     render(
       <RolloverForm
@@ -392,8 +427,15 @@ describe("RolloverForm preview", () => {
     );
 
     expect(
-      await screen.findByText("Quellphase wurde bereits fortgeführt"),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Vorschau"),
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Werden übernommen")).not.toBeInTheDocument();
+    const calls = mockFetchRolloverPreview.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() =>
+      expect(mockFetchRolloverPreview.mock.calls.length).toBe(calls + 1),
+    );
   });
 });

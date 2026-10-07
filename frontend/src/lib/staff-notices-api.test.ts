@@ -103,6 +103,35 @@ describe("staff-notices-api", () => {
     );
   });
 
+  // #2517: der gemeinsame Anzeigeweg liest Code und Vorgangskennung.
+  it("wirft einen ApiError mit Code und Vorgangskennung der Hülle", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          error: "notice not found",
+          code: "general.input",
+          instance: "req-9",
+        }),
+        { status: 404 },
+      ),
+    );
+
+    await expect(deleteStaffNotice("42")).rejects.toMatchObject({
+      name: "ApiError",
+      status: 404,
+      code: "general.input",
+      requestId: "req-9",
+    });
+  });
+
+  it("meldet einen Netzfehler als general.unavailable", async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    await expect(acknowledgeStaffNotice("42")).rejects.toMatchObject({
+      code: "general.unavailable",
+    });
+  });
+
   it("beschreibt die Zielgruppe in einem Satzteil", () => {
     expect(describeAudience("all")).toBe("Für alle");
     expect(describeAudience("staff")).toBe("Nur für die Betreuung");

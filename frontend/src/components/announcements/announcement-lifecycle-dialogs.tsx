@@ -1,14 +1,13 @@
 "use client";
 
-import type { ErrorCode } from "~/lib/error-codes.generated";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { BellRing, Pencil, Send, Trash2, Undo2 } from "lucide-react";
-import { Alert } from "~/components/ui/alert";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
-import { ApiError } from "~/lib/api-error";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   deleteAnnouncement,
@@ -32,26 +31,58 @@ interface LifecycleDialogProps {
   readonly onDone: () => Promise<void> | void;
 }
 
-function errorMessage(err: unknown, fallback: string): string {
-  return err instanceof Error ? err.message : fallback;
-}
-
 /**
- * Backend codes with their own German sentence. An Einverständnis with answers
- * (#3430) must stay as evidence, so deleting it is refused; the sentence says
- * what still works.
+ * Ein Lebenszyklus-Schritt mit Rückfrage (#2517): der Fehler bleibt im
+ * offenen Dialog (Katalogtext, Wiederholen). Den Erfolg zeigt die Liste
+ * selbst, die danach neu lädt.
  */
-const LIFECYCLE_CODE_MESSAGES: Partial<Record<ErrorCode, string>> = {
-  "communication.declaration_has_submissions":
-    "Auf dieses Einverständnis haben Eltern schon geantwortet. Deshalb lässt es sich nicht löschen. Sie können es zurückziehen, dann sehen Eltern es nicht mehr.",
-};
+function useLifecycleAction(
+  run: () => Promise<unknown>,
+  {
+    onDone,
+    onClose,
+    object,
+    logEvent,
+  }: {
+    onDone: LifecycleDialogProps["onDone"];
+    onClose: () => void;
+    object: string;
+    logEvent: string;
+  },
+) {
+  const [pending, setPending] = useState(false);
+  const errors = useApiFormError();
+  const latestConfirmRef = useRef<() => void>(() => undefined);
 
-function lifecycleErrorMessage(err: unknown, fallback: string): string {
-  if (err instanceof ApiError && err.code) {
-    const mapped = LIFECYCLE_CODE_MESSAGES[err.code];
-    if (mapped) return mapped;
-  }
-  return errorMessage(err, fallback);
+  const confirm = async () => {
+    setPending(true);
+    errors.clear();
+    try {
+      await run();
+    } catch (err) {
+      logger.error(logEvent, {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await errors.show(err, {
+        object,
+        retry: () => latestConfirmRef.current(),
+      });
+      setPending(false);
+      return;
+    }
+    try {
+      await onDone();
+    } finally {
+      setPending(false);
+      onClose();
+    }
+  };
+  // „Wiederholen“ ruft die Aktion mit dem dann aktuellen Stand auf.
+  useLayoutEffect(() => {
+    latestConfirmRef.current = () => void confirm();
+  });
+
+  return { pending, error: errors.error, confirm };
 }
 
 export function PublishAnnouncementDialog({
@@ -59,27 +90,15 @@ export function PublishAnnouncementDialog({
   onClose,
   onDone,
 }: LifecycleDialogProps) {
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState("");
-
-  const confirm = async () => {
-    setPending(true);
-    setError("");
-    try {
-      await publishAnnouncement(announcement.id);
-      await onDone();
-      onClose();
-    } catch (err) {
-      const message = errorMessage(
-        err,
-        "Elternmitteilung konnte nicht veröffentlicht werden",
-      );
-      setError(message);
-      logger.error("announcement_publish_failed", { error: message });
-    } finally {
-      setPending(false);
-    }
-  };
+  const { pending, error, confirm } = useLifecycleAction(
+    () => publishAnnouncement(announcement.id),
+    {
+      onDone,
+      onClose,
+      object: "das Veröffentlichen der Mitteilung",
+      logEvent: "announcement_publish_failed",
+    },
+  );
 
   return (
     <ConfirmationModal
@@ -92,6 +111,7 @@ export function PublishAnnouncementDialog({
       isConfirmLoading={pending}
     >
       <div className="space-y-2 text-sm text-gray-700">
+        <FormErrorAlert message={error} />
         <p>
           „{announcement.title}“ wird für{" "}
           <span className="font-medium">
@@ -108,7 +128,6 @@ export function PublishAnnouncementDialog({
           Nach dem Veröffentlichen kann die Mitteilung nicht mehr bearbeitet
           werden.
         </p>
-        {error && <Alert type="error" message={error} />}
       </div>
     </ConfirmationModal>
   );
@@ -119,27 +138,15 @@ export function UnpublishAnnouncementDialog({
   onClose,
   onDone,
 }: LifecycleDialogProps) {
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState("");
-
-  const confirm = async () => {
-    setPending(true);
-    setError("");
-    try {
-      await unpublishAnnouncement(announcement.id);
-      await onDone();
-      onClose();
-    } catch (err) {
-      const message = errorMessage(
-        err,
-        "Elternmitteilung konnte nicht zurückgezogen werden",
-      );
-      setError(message);
-      logger.error("announcement_unpublish_failed", { error: message });
-    } finally {
-      setPending(false);
-    }
-  };
+  const { pending, error, confirm } = useLifecycleAction(
+    () => unpublishAnnouncement(announcement.id),
+    {
+      onDone,
+      onClose,
+      object: "das Zurückziehen der Mitteilung",
+      logEvent: "announcement_unpublish_failed",
+    },
+  );
 
   return (
     <ConfirmationModal
@@ -152,6 +159,7 @@ export function UnpublishAnnouncementDialog({
       isConfirmLoading={pending}
     >
       <div className="space-y-2 text-sm text-gray-700">
+        <FormErrorAlert message={error} />
         <p>
           „{announcement.title}“ wird für die Eltern nicht mehr sichtbar und
           kehrt in den Entwurfsstatus zurück.
@@ -165,7 +173,6 @@ export function UnpublishAnnouncementDialog({
             müssen die Eltern noch einmal antworten.
           </p>
         )}
-        {error && <Alert type="error" message={error} />}
       </div>
     </ConfirmationModal>
   );
@@ -176,27 +183,18 @@ export function DeleteAnnouncementDialog({
   onClose,
   onDone,
 }: LifecycleDialogProps) {
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState("");
-
-  const confirm = async () => {
-    setPending(true);
-    setError("");
-    try {
-      await deleteAnnouncement(announcement.id);
-      await onDone();
-      onClose();
-    } catch (err) {
-      const message = lifecycleErrorMessage(
-        err,
-        "Elternmitteilung konnte nicht gelöscht werden",
-      );
-      setError(message);
-      logger.error("announcement_delete_failed", { error: message });
-    } finally {
-      setPending(false);
-    }
-  };
+  // Ein Einverständnis mit Antworten (#3430) bleibt als Nachweis stehen:
+  // communication.declaration_has_submissions bringt dafür einen eigenen
+  // Katalogtext mit.
+  const { pending, error, confirm } = useLifecycleAction(
+    () => deleteAnnouncement(announcement.id),
+    {
+      onDone,
+      onClose,
+      object: "das Löschen der Mitteilung",
+      logEvent: "announcement_delete_failed",
+    },
+  );
 
   return (
     <ConfirmDeleteModal

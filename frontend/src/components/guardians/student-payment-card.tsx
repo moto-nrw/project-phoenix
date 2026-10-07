@@ -1,18 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Eye, Landmark, Loader2 } from "lucide-react";
 
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
-import { useFormError } from "~/components/ui/form-error";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import type { GuardianWithRelationship } from "@/lib/guardian-helpers";
 import { getGuardianFullName } from "@/lib/guardian-helpers";
 import {
@@ -71,7 +77,14 @@ export function StudentPaymentCard({
   const [accountHolder, setAccountHolder] = useState<string | null>(null);
   const [revealedIban, setRevealedIban] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // Ladefehler stehen in der Karte, mit Wiederholen (#2517). Ohne geladene
+  // Daten heißt es „Nicht geladen“, nie „Noch keine IBAN gespeichert“.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const loadError = useApiLoadError();
+  const showLoadError = loadError.show;
+  const clearLoadError = loadError.clear;
+  // „Anzeigen“ ist eine Aktion ohne Formular: Fehler als Toast.
+  const { show: showActionError } = useApiErrorDisplay();
   const [isRevealing, setIsRevealing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [draft, setDraft] = useState<PaymentDraft | null>(null);
@@ -79,8 +92,13 @@ export function StudentPaymentCard({
   // Abweichung davon möglich.
   const [baseline, setBaseline] = useState<PaymentDraft | null>(null);
   // Fehler des Bearbeiten-Zustands (Öffnen oder Speichern) stehen als Alert
-  // oben im Bearbeiten-Bereich, nicht als Toast (Bauart 2, Regel 5).
-  const [editError, setEditError] = useFormError();
+  // oben im Bearbeiten-Bereich, nicht als Toast (Bauart 2, Regel 5); ein
+  // Feldfehler des Servers markiert das Feld.
+  const editRef = useRef<HTMLDivElement>(null);
+  const editErrors = useApiFormError(editRef);
+  const clearEditError = editErrors.clear;
+  const latestStartEditRef = useRef<() => void>(() => undefined);
+  const latestSaveRef = useRef<() => void>(() => undefined);
 
   const payerId = payer?.id ?? null;
 
@@ -88,9 +106,9 @@ export function StudentPaymentCard({
     if (draft !== null && baseline?.payerId !== payerId) {
       setDraft(null);
       setBaseline(null);
-      setEditError(null);
+      clearEditError();
     }
-  }, [baseline?.payerId, draft, payerId, setEditError]);
+  }, [baseline?.payerId, draft, payerId, clearEditError]);
 
   // Reload trigger. The effect below deliberately depends on payerId and this
   // counter only: a card that refetches on every render — and resets the
@@ -102,29 +120,31 @@ export function StudentPaymentCard({
       setIbanMasked(null);
       setAccountHolder(null);
       setRevealedIban(null);
-      setLoadError(null);
+      setLoadFailed(false);
+      clearLoadError();
       return;
     }
     let cancelled = false;
     setIsLoading(true);
-    setLoadError(null);
     fetchGuardianPayment(payerId)
       .then((data) => {
         if (cancelled) return;
         setIbanMasked(data.ibanMasked);
         setAccountHolder(data.accountHolder);
         setRevealedIban(null);
+        setLoadFailed(false);
+        clearLoadError();
       })
       .catch((error: unknown) => {
         if (cancelled) return;
         logger.error("load_guardian_payment_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
-        setLoadError(
-          error instanceof Error
-            ? error.message
-            : "Die Bankverbindung konnte nicht geladen werden. Bitte noch einmal versuchen.",
-        );
+        setLoadFailed(true);
+        void showLoadError(error, {
+          object: "die Bankverbindung",
+          retry: () => setReloadToken((token) => token + 1),
+        });
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -132,28 +152,29 @@ export function StudentPaymentCard({
     return () => {
       cancelled = true;
     };
-  }, [payerId, reloadToken]);
+  }, [payerId, reloadToken, showLoadError, clearLoadError]);
 
   const handleReveal = async () => {
     if (!payerId) return;
     setIsRevealing(true);
-    setEditError(null);
     try {
       const data = await revealGuardianPayment(payerId);
       setRevealedIban(data.iban);
     } catch (error) {
-      setEditError(
-        error instanceof Error
-          ? error.message
-          : "Die IBAN konnte nicht angezeigt werden. Bitte noch einmal versuchen.",
-      );
+      logger.error("reveal_guardian_payment_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      void showActionError(error, {
+        object: "das Anzeigen der IBAN",
+        retry: () => void handleReveal(),
+      });
     } finally {
       setIsRevealing(false);
     }
   };
 
   const handleStartEdit = async () => {
-    setEditError(null);
+    clearEditError();
     if (!payerId) {
       const empty = { payerId: null, iban: "", holder: "" };
       setBaseline(empty);
@@ -173,11 +194,13 @@ export function StudentPaymentCard({
       setBaseline(opened);
       setDraft(opened);
     } catch (error) {
-      setEditError(
-        error instanceof Error
-          ? error.message
-          : "Die Bankverbindung konnte nicht geöffnet werden. Bitte noch einmal versuchen.",
-      );
+      logger.error("open_guardian_payment_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await editErrors.show(error, {
+        object: "das Öffnen der Bankverbindung",
+        retry: () => latestStartEditRef.current(),
+      });
     } finally {
       setIsRevealing(false);
     }
@@ -185,7 +208,7 @@ export function StudentPaymentCard({
 
   const cancelEdit = () => {
     setDraft(null);
-    setEditError(null);
+    clearEditError();
   };
 
   const payerChanged = draft !== null && draft.payerId !== payerId;
@@ -200,12 +223,12 @@ export function StudentPaymentCard({
   const handleSave = async () => {
     if (!draft) return;
     setIsSaving(true);
-    setEditError(null);
+    clearEditError();
     try {
       if (payerChanged) {
         await setStudentPayer(studentId, draft.payerId);
         setDraft(null);
-        toast.success("Zahlungskonto gespeichert.");
+        toast.success("Das Zahlungskonto ist gespeichert.");
         onChanged?.();
         return;
       }
@@ -217,18 +240,27 @@ export function StudentPaymentCard({
         });
         setDraft(null);
         setReloadToken((token) => token + 1);
-        toast.success("Bankverbindung gespeichert.");
+        toast.success("Die Bankverbindung ist gespeichert.");
       }
     } catch (error) {
-      setEditError(
-        error instanceof Error
-          ? error.message
-          : "Das Zahlungskonto konnte nicht gespeichert werden. Bitte noch einmal versuchen.",
-      );
+      logger.error("save_guardian_payment_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await editErrors.show(error, {
+        object: payerChanged
+          ? "das Speichern des Zahlungskontos"
+          : "das Speichern der Bankverbindung",
+        retry: () => latestSaveRef.current(),
+      });
     } finally {
       setIsSaving(false);
     }
   };
+  // „Wiederholen“ läuft mit dem Stand, der dann im Formular steht.
+  useLayoutEffect(() => {
+    latestStartEditRef.current = () => void handleStartEdit();
+    latestSaveRef.current = () => void handleSave();
+  });
 
   const options = [
     { value: NO_PAYER, label: "Niemand ausgewählt" },
@@ -265,11 +297,11 @@ export function StudentPaymentCard({
       }
     >
       <div className="space-y-4">
-        <FormErrorAlert message={editError} />
-        {loadError && !editing && <Alert type="error" message={loadError} />}
+        <FormErrorAlert message={editErrors.error} />
+        {!editing && <LoadErrorAlert error={loadError.error} />}
 
         {editing ? (
-          <div className="max-w-sm space-y-3">
+          <div ref={editRef} className="max-w-sm space-y-3">
             <div>
               <label
                 htmlFor="payment-payer"
@@ -279,6 +311,8 @@ export function StudentPaymentCard({
               </label>
               <CustomSelect
                 id="payment-payer"
+                name="guardian_id"
+                invalid={Boolean(editErrors.fieldError("guardian_id"))}
                 value={draft.payerId ?? NO_PAYER}
                 options={options}
                 onChange={(value) =>
@@ -315,7 +349,9 @@ export function StudentPaymentCard({
               <>
                 <Input
                   id="payment-iban"
+                  name="iban"
                   label="IBAN"
+                  error={editErrors.fieldError("iban")}
                   value={draft.iban}
                   onChange={(e) =>
                     setDraft((current) =>
@@ -329,7 +365,9 @@ export function StudentPaymentCard({
                 />
                 <Input
                   id="payment-account-holder"
+                  name="account_holder"
                   label="Anderer Kontoinhaber"
+                  error={editErrors.fieldError("account_holder")}
                   value={draft.holder}
                   onChange={(e) =>
                     setDraft((current) =>
@@ -370,6 +408,8 @@ export function StudentPaymentCard({
                       <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                       Wird geladen…
                     </span>
+                  ) : loadFailed ? (
+                    <span className="text-gray-600">Nicht geladen</span>
                   ) : (
                     (accountHolder ?? getGuardianFullName(payer))
                   )}
@@ -380,6 +420,10 @@ export function StudentPaymentCard({
                   {isLoading ? (
                     <span className="font-sans text-gray-600">
                       Wird geladen…
+                    </span>
+                  ) : loadFailed ? (
+                    <span className="font-sans font-normal text-gray-600">
+                      Nicht geladen
                     </span>
                   ) : ibanMasked ? (
                     (revealedIban ?? ibanMasked)

@@ -15,10 +15,11 @@ import (
 
 type Middleware = func(http.Handler) http.Handler
 
+// Failure is a refused request: its HTTP status and the error whose text the
+// shared error envelope carries.
 type Failure struct {
-	Status         int
-	Classification string
-	Err            error
+	Status int
+	Err    error
 }
 
 type Runtime struct {
@@ -167,7 +168,7 @@ func (rs *Resource) getStudentFeedback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !enabled {
-		rs.failure(w, r, Failure{Status: http.StatusForbidden, Classification: "Forbidden", Err: errors.New("feature_disabled")}, "feature_disabled")
+		rs.failure(w, r, Failure{Status: http.StatusForbidden, Err: errors.New("feature_disabled")}, "feature_disabled")
 		return
 	}
 	studentID, err := parseID(r)
@@ -325,12 +326,11 @@ func (rs *Resource) successEntries(w http.ResponseWriter, r *http.Request, entri
 }
 
 func (rs *Resource) invalid(w http.ResponseWriter, r *http.Request, err error) {
-	rs.failure(w, r, Failure{Status: http.StatusBadRequest, Classification: "Invalid Request", Err: err}, "invalid_parameters")
+	rs.failure(w, r, Failure{Status: http.StatusBadRequest, Err: err}, "invalid_parameters")
 }
 
 func (rs *Resource) moduleFailure(w http.ResponseWriter, r *http.Request, err error) {
-	status, classification := classifyModuleError(err)
-	rs.failure(w, r, Failure{Status: status, Classification: classification, Err: err}, feedbackModule.ErrorCode(err))
+	rs.failure(w, r, Failure{Status: moduleErrorStatus(err), Err: err}, feedbackModule.ErrorCode(err))
 }
 
 func (rs *Resource) success(w http.ResponseWriter, r *http.Request, status int, data any, message string) {
@@ -347,17 +347,13 @@ func (rs *Resource) failure(w http.ResponseWriter, r *http.Request, failure Fail
 	rs.runtime.ObserveResponse(failure.Status, code)
 }
 
-func classifyModuleError(err error) (int, string) {
+func moduleErrorStatus(err error) int {
 	switch {
-	case errors.Is(err, feedbackModule.ErrEntryNotFound):
-		return http.StatusNotFound, "Resource Not Found"
-	case errors.Is(err, feedbackModule.ErrInvalidEntryData):
-		return http.StatusBadRequest, "Invalid Feedback Data"
-	case errors.Is(err, feedbackModule.ErrInvalidDateRange):
-		return http.StatusBadRequest, "Invalid Date Range"
-	case errors.Is(err, feedbackModule.ErrStudentNotFound):
-		return http.StatusNotFound, "Student Not Found"
+	case errors.Is(err, feedbackModule.ErrEntryNotFound), errors.Is(err, feedbackModule.ErrStudentNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, feedbackModule.ErrInvalidEntryData), errors.Is(err, feedbackModule.ErrInvalidDateRange):
+		return http.StatusBadRequest
 	default:
-		return http.StatusInternalServerError, "Internal Server Error"
+		return http.StatusInternalServerError
 	}
 }

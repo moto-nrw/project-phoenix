@@ -2,7 +2,10 @@
 
 import { useMemo } from "react";
 import { Modal } from "~/components/ui/modal";
-import { DatabaseForm } from "~/components/ui/database/database-form";
+import {
+  DatabaseForm,
+  type DatabaseFormErrorPath,
+} from "~/components/ui/database/database-form";
 import { configToFormSection, type EntityConfig } from "@/lib/database/types";
 
 type DatabaseFormModalConfig<T> = Pick<EntityConfig<T>, "form" | "labels">;
@@ -17,6 +20,9 @@ interface DatabaseFormModalProps<T> {
   readonly isLoading?: boolean;
   /** Nachgeladene Felder dürfen einen offenen Entwurf nicht ersetzen. */
   readonly preserveDraftOnSectionsChange?: boolean;
+  /** Shared API error path and its `{object}`, see `DatabaseForm`. */
+  readonly errorPath: DatabaseFormErrorPath;
+  readonly errorObject?: string;
 }
 
 export function DatabaseFormModal<T>({
@@ -28,6 +34,8 @@ export function DatabaseFormModal<T>({
   initialData,
   isLoading,
   preserveDraftOnSectionsChange,
+  errorPath,
+  errorObject,
 }: DatabaseFormModalProps<T>) {
   // Stable identity: DatabaseForm resets its form state whenever the sections
   // array identity changes, which would wipe in-progress edits on every
@@ -64,6 +72,8 @@ export function DatabaseFormModal<T>({
         submitLabel={mode === "create" ? "Erstellen" : "Speichern"}
         stickyActions
         preserveDraftOnSectionsChange={preserveDraftOnSectionsChange}
+        errorPath={errorPath}
+        errorObject={errorObject}
       />
     </Modal>
   );

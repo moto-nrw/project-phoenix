@@ -12,6 +12,7 @@ interface SplitSeriesBody {
   weekdays?: number[];
   week_pattern?: number;
   valid_until?: string | null;
+  include_school_breaks?: boolean;
   notes?: string;
 }
 

@@ -179,7 +179,7 @@ func (req *splitTemplateRequest) Bind(r *http.Request) error {
 	// so the create/update length guard in the embedded Bind never sees the
 	// split note. Enforce the same 2000-char limit here (#1837 follow-up).
 	if req.Notes.Set && req.Notes.Value != nil && len(*req.Notes.Value) > 2000 {
-		return errors.New("notes cannot exceed 2000 characters")
+		return invalidField(common.CodeTimetableTemplateInvalid, "notes", "notes cannot exceed 2000 characters")
 	}
 	// req.ListKind (nullableStr) shadows the embedded field the same way, so
 	// the create/update normalization never sees the split value. Apply the
@@ -241,7 +241,7 @@ func (rs *Resource) splitTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 	req := &splitTemplateRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, bindErrorRenderer(err))
 		return
 	}
 	in, err := buildTemplateSplitInput(id, req)
@@ -290,12 +290,12 @@ func (rs *Resource) validateSplitTemplateReferences(w http.ResponseWriter, r *ht
 		return false
 	}
 	if err := rs.Templates.ValidateTemplateEducationGroup(r.Context(), req.EducationGroupID); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, templateEducationGroupRenderer(err))
 		return false
 	}
 	for _, target := range req.Targets {
 		if err := rs.Templates.ValidateTemplateEducationGroup(r.Context(), target.EducationGroupID); err != nil {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			common.RenderError(w, r, templateEducationGroupRenderer(err))
 			return false
 		}
 	}
@@ -413,14 +413,10 @@ func renderTemplateSplitError(w http.ResponseWriter, r *http.Request, err error)
 	switch {
 	case errors.Is(err, timetableModule.ErrSplitTemplateNotFound):
 		renderTemplateNotFound(w, r)
-	case errors.Is(err, timetableModule.ErrCategoryNotAssignable):
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
-	case errors.Is(err, timetableModule.ErrPlanningTrackNotFound), errors.Is(err, timetableModule.ErrPlanningTrackArchived):
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable")))
+	case templateRefusalRenderer(err) != nil:
+		common.RenderError(w, r, templateRefusalRenderer(err))
 	case errors.Is(err, timetableModule.ErrSplitInvalidInput):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, timetableModule.ErrOfferingSourceInvalid):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, templateSplitInvalidRenderer(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("split template failed", err))
 	}

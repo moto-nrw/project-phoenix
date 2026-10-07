@@ -15,6 +15,7 @@ import { useGroupedItems } from "~/components/database/use-grouped-items";
 import { DatabaseForm } from "~/components/ui/database/database-form";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { groupsConfig } from "@/components/database/configs/groups.config";
 import { configToFormSection } from "@/lib/database/types";
@@ -123,6 +124,8 @@ function GroupDetailContent({
       label: "Stammdaten",
       content: (
         <GroupStammdatenTab
+          // Eine andere Gruppe beginnt ohne den Fehler der vorigen.
+          key={group.id}
           group={group}
           onSaveGroup={handleSaveGroup}
           onResetForm={() => setFormResetCounter((n) => n + 1)}
@@ -172,6 +175,8 @@ function GroupStammdatenTab({
     () => groupsConfig.form.sections.map(configToFormSection),
     [],
   );
+  // Speicherfehler im Formular, Feldfehler am Feld (#2517).
+  const saveErrors = useApiFormError();
 
   return (
     <div className="space-y-6">
@@ -181,9 +186,14 @@ function GroupStammdatenTab({
         sections={sections}
         initialData={group}
         onSubmit={onSaveGroup}
-        onCancel={onResetForm}
+        onCancel={() => {
+          saveErrors.clear();
+          onResetForm();
+        }}
         submitLabel="Speichern"
         stickyActions
+        errorPath={saveErrors}
+        errorObject="die Gruppe"
       />
     </div>
   );

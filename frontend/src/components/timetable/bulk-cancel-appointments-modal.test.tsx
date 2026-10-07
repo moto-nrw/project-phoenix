@@ -2,7 +2,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { DateRange } from "react-day-picker";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import type { BulkCancelResult } from "~/lib/timetable-types";
+import { catalogText } from "~/test/error-catalog-text";
 
 const { mockBulkCancel, mockToastSuccess, mockRefreshPlan } = vi.hoisted(
   () => ({
@@ -20,7 +22,8 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutateMatching: () => mockRefreshPlan,
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: mockToastSuccess, error: vi.fn() }),
 }));
 
@@ -176,7 +179,62 @@ describe("BulkCancelAppointmentsModal", () => {
       ),
     );
     await waitFor(() =>
-      expect(mockToastSuccess).toHaveBeenCalledWith("6 Termine abgesagt"),
+      expect(mockToastSuccess).toHaveBeenCalledWith("6 Termine sind abgesagt."),
+    );
+  });
+
+  it("zeigt einen Fehler beim Zählen vor Ort und zählt mit Wiederholen neu", async () => {
+    mockBulkCancel
+      .mockRejectedValueOnce(
+        new ApiError("Failed to fetch", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce(preview({ count: 4 }));
+
+    renderModal();
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "das Zählen der Termine"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(
+      await screen.findByText(/werden 4 Termine abgesagt/),
+    ).toBeInTheDocument();
+    expect(mockBulkCancel).toHaveBeenCalledTimes(2);
+  });
+
+  it("zeigt einen Fehler beim Absagen im Dialog und wiederholt ihn", async () => {
+    mockBulkCancel.mockImplementation(
+      (_from: string, _to: string, dryRun: boolean) =>
+        dryRun
+          ? Promise.resolve(preview({ count: 3 }))
+          : Promise.reject(
+              new ApiError("boom", 500, { code: "general.server" }),
+            ),
+    );
+
+    renderModal();
+    await screen.findByText(/werden 3 Termine abgesagt/);
+    fireEvent.click(screen.getByRole("button", { name: "Termine absagen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Endgültig absagen" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Absage der Termine"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("boom")).not.toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+
+    mockBulkCancel.mockImplementation(
+      (_from: string, _to: string, dryRun: boolean) =>
+        Promise.resolve(preview({ dryRun, count: 3 })),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith("3 Termine sind abgesagt."),
     );
   });
 

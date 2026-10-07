@@ -1,15 +1,25 @@
 import {
   act,
   fireEvent,
-  render,
+  render as renderUi,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import type { AuditLogEvent, AuditLogPage } from "~/lib/staff-audit-log-api";
+import { catalogText } from "~/test/error-catalog-text";
 import { StaffAuditLog } from "./staff-audit-log";
+
+// „Weitere Einträge laden“ meldet einen Fehler als Toast (#2514); die App
+// hängt den Provider global ein.
+function render(ui: ReactElement) {
+  return renderUi(ui, { wrapper: ToastProvider });
+}
 
 // The Von/Bis filters are kit date pickers, not native inputs. These tests are
 // about the audit log's own behaviour (stale-response handling, name
@@ -211,5 +221,63 @@ describe("StaffAuditLog", () => {
       ).toHaveLength(2);
     });
     expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  it("zeigt einen Ladefehler an der Stelle der Tabelle, nicht als leere Liste", async () => {
+    getAuditLog.mockRejectedValueOnce(
+      new ApiError("boom", 500, {
+        code: "general.server",
+        instance: "req-audit",
+      }),
+    );
+    getAuditLog.mockResolvedValueOnce(page([event(3)], null));
+    render(<StaffAuditLog staffOptions={[]} />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "das Änderungsprotokoll"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Keine Einträge gefunden"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-audit");
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(getAuditLog).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(
+        screen.queryByText(
+          catalogText("general.server", "das Änderungsprotokoll"),
+        ),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("meldet einen Fehler beim Nachladen und behält die geladenen Einträge", async () => {
+    getAuditLog.mockResolvedValueOnce(page([event(3)], "cursor-1"));
+    getAuditLog.mockRejectedValueOnce(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
+    render(<StaffAuditLog staffOptions={[]} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Weitere Einträge laden" }),
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText(
+          "general.unavailable",
+          "die nächste Seite des Änderungsprotokolls",
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(getAuditLog).toHaveBeenCalledTimes(2);
+    expect(
+      screen.getByRole("button", { name: "Weitere Einträge laden" }),
+    ).toBeEnabled();
   });
 });

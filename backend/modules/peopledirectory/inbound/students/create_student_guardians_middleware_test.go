@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -224,7 +225,9 @@ func TestCreateStudent_DuplicateGuardianEmail(t *testing.T) {
 		},
 	}
 
-	assertNoStudentCommittedUnderTenantTx(t, tc, firstName, lastName, body, "bereits vergeben")
+	// The form explains the duplicate through its own code (#2517).
+	assertNoStudentCommittedUnderTenantTx(t, tc, firstName, lastName, body,
+		`"code":"`+common.CodeStudentsGuardianEmailTaken+`"`)
 }
 
 // TestCreateStudent_DuplicateGuardianEmailWithinRequest covers two new guardians

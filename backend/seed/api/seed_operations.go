@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -78,7 +79,7 @@ func seedMealPlan(rt *Runtime, today seedDate) error {
 }
 
 func seedStaffShift(rt *Runtime, today seedDate, staffID int64) error {
-	shiftTypeID, err := createDefaultShiftTypes(rt)
+	shiftTypes, err := createDefaultShiftTypes(rt)
 	if err != nil {
 		return err
 	}
@@ -89,26 +90,53 @@ func seedStaffShift(rt *Runtime, today seedDate, staffID int64) error {
 		"start_time":    "08:00",
 		"end_time":      "16:30",
 		"break_minutes": 30,
-		"shift_type_id": shiftTypeID,
+		"shift_type_id": shiftTypes[0].ID,
 		"notes":         "Frühdienst und Gruppenbetreuung",
 	}); err != nil {
 		return fmt.Errorf("seed staff shift: %w", err)
 	}
+	// A second Schichtart in the same week, so the Dienstplan's hours per
+	// Schichtart (#3819) show a split instead of a single figure. The defaults
+	// come back sorted by name, so the Verfügungszeit is found by its name.
+	preparationID := int64(0)
+	for _, shiftType := range shiftTypes {
+		if strings.Contains(shiftType.Name, "Verfügung") {
+			preparationID = shiftType.ID
+		}
+	}
+	if preparationID == 0 {
+		return nil
+	}
+	if _, err := rt.Client.Post("/api/staff-shifts", map[string]any{
+		"staff_id":      staffID,
+		"date":          shiftDate.AddDate(0, 0, 1).Format(seedDateLayout),
+		"start_time":    "13:00",
+		"end_time":      "15:00",
+		"break_minutes": 0,
+		"shift_type_id": preparationID,
+		"notes":         "Vorbereitung und Dienstversammlung",
+	}); err != nil {
+		return fmt.Errorf("seed second staff shift: %w", err)
+	}
 	return nil
 }
 
-func createDefaultShiftTypes(rt *Runtime) (int64, error) {
+// seedShiftType is one default Schichtart as the defaults endpoint returns it.
+type seedShiftType struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+func createDefaultShiftTypes(rt *Runtime) ([]seedShiftType, error) {
 	raw, err := rt.Client.Post("/api/shift-types/defaults", nil)
 	if err != nil {
-		return 0, fmt.Errorf("create default shift types: %w", err)
+		return nil, fmt.Errorf("create default shift types: %w", err)
 	}
 	var response struct {
-		Data []struct {
-			ID int64 `json:"id"`
-		} `json:"data"`
+		Data []seedShiftType `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &response); err != nil || len(response.Data) == 0 || response.Data[0].ID == 0 {
-		return 0, fmt.Errorf("parse default shift types response")
+		return nil, fmt.Errorf("parse default shift types response")
 	}
-	return response.Data[0].ID, nil
+	return response.Data, nil
 }

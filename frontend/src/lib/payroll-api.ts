@@ -1,8 +1,9 @@
 // Payroll configuration status (#1417 Tranche 2b): the /payroll page's data
 // source. Requires config:manage — callers gate rendering on the permission
-// so no request fires without it. Values are written through the generic
-// settings API (setSettingValue) using the setting keys this status carries.
+// so no request fires without it. Values are written to the generic settings
+// route (savePayrollSetting) using the setting keys this status carries.
 
+import { apiErrorFromResponse } from "./api-error";
 import { sessionFetch } from "./session-cache";
 
 interface BackendPayrollCategoryStatus {
@@ -71,10 +72,35 @@ export function mapPayrollStatus(data: BackendPayrollStatus): PayrollStatus {
 export async function fetchPayrollStatus(): Promise<PayrollStatus> {
   const response = await sessionFetch("/api/settings/payroll-status");
   if (!response.ok) {
-    throw new Error(`Failed to fetch payroll status: ${response.statusText}`);
+    throw await apiErrorFromResponse(
+      response,
+      `Failed to fetch payroll status: ${response.statusText}`,
+    );
   }
   const json = (await response.json()) as { data: BackendPayrollStatus };
   return mapPayrollStatus(json.data);
+}
+
+/**
+ * Saves one payroll setting. Throws an ApiError with code, field errors and
+ * request ID, so the page shows the catalog text (#2517); the generic
+ * `setSettingValue` returns a ready-made sentence instead.
+ */
+export async function savePayrollSetting(
+  key: string,
+  value: string,
+): Promise<void> {
+  const response = await sessionFetch(
+    `/api/settings/values/${encodeURIComponent(key)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value }),
+    },
+  );
+  if (!response.ok) {
+    throw await apiErrorFromResponse(response, `Saving ${key} failed`);
+  }
 }
 
 /**

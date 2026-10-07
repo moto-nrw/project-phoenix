@@ -328,7 +328,7 @@ func (s *ChangeRequests) parentReply(ctx context.Context, token string, changeRe
 	}
 	body := strings.TrimSpace(input.Body)
 	if body == "" {
-		return nil, fmt.Errorf("%w: message body is required", enrollment.ErrChangeRequestInvalidData)
+		return nil, enrollment.InvalidInput(enrollment.CodeMessageRequired, "body", fmt.Errorf("%w: message body is required", enrollment.ErrChangeRequestInvalidData))
 	}
 	if err := s.deps.Runtime.TenantTx(ctx, tenantID, func(txCtx context.Context) error {
 		row, err := s.readChangeRequest(txCtx, changeRequestID, true)
@@ -373,7 +373,7 @@ func (s *ChangeRequests) listAdmin(ctx context.Context, filters enrollment.Chang
 func (s *ChangeRequests) askQuestion(ctx context.Context, changeRequestID int64, input enrollment.ChangeRequestMessageInput) (*changeRequestCase, error) {
 	body := strings.TrimSpace(input.Body)
 	if body == "" {
-		return nil, fmt.Errorf("%w: message body is required", enrollment.ErrChangeRequestInvalidData)
+		return nil, enrollment.InvalidInput(enrollment.CodeMessageRequired, "body", fmt.Errorf("%w: message body is required", enrollment.ErrChangeRequestInvalidData))
 	}
 	var req *enrollmentModels.Request
 	if err := s.withLockedChangeRequest(ctx, changeRequestID, func(txCtx context.Context, row *ChangeRequest) error {
@@ -414,7 +414,7 @@ type reviewOutcome struct {
 func (s *ChangeRequests) review(ctx context.Context, changeRequestID int64, input enrollment.ReviewChangeRequestInput, outcome reviewOutcome) (*changeRequestCase, error) {
 	note := strings.TrimSpace(input.Note)
 	if note == "" {
-		return nil, fmt.Errorf("%w: %s", enrollment.ErrChangeRequestInvalidData, outcome.noteRequiredMsg)
+		return nil, enrollment.InvalidInput(enrollment.CodeChangeRequestNoteRequired, "note", fmt.Errorf("%w: %s", enrollment.ErrChangeRequestInvalidData, outcome.noteRequiredMsg))
 	}
 	var req *enrollmentModels.Request
 	if err := s.withLockedChangeRequest(ctx, changeRequestID, func(txCtx context.Context, row *ChangeRequest) error {

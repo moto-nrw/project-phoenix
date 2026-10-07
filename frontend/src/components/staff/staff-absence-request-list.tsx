@@ -24,10 +24,14 @@ import {
   RequestReviewCard,
   RequestRowHeader,
 } from "~/components/students/request-review-card";
-import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import {
   absenceRowLabel,
   dispatchAbsencesRefresh,
@@ -83,8 +87,16 @@ export function StaffAbsenceRequestList({
   const { mutate: swrMutate } = useSWRConfig();
   const [rows, setRows] = useState<StaffAbsenceRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const loadError = useApiLoadError();
+  const showLoadError = loadError.show;
+  const clearLoadError = loadError.clear;
+  const { show: showActionError } = useApiErrorDisplay();
   const loadVersion = useRef(0);
+  // Ein neuer Ladeversuch (auch „Wiederholen“) zählt hoch und lädt neu.
+  const [attempt, setAttempt] = useState(0);
+  // Synchron gesetzt: der Katalogtext lädt nach, bis dahin darf kein
+  // Leerzustand („Keine offenen Anträge“) aufblitzen.
+  const [failed, setFailed] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [denyModal, setDenyModal] = useState<StaffAbsenceRequestRow | null>(
     null,
@@ -94,7 +106,7 @@ export function StaffAbsenceRequestList({
 
   // Solange geladen wird, meldet die Liste `null`: der Seitenkopf zeigt dann
   // einen Skelett-Balken statt einer falschen Null.
-  const reportedCount = loading ? null : rows.length;
+  const reportedCount = loading || failed ? null : rows.length;
   useEffect(() => {
     onCountChange?.(reportedCount);
   }, [onCountChange, reportedCount]);
@@ -112,7 +124,8 @@ export function StaffAbsenceRequestList({
     let cancelled = false;
     const version = ++loadVersion.current;
     setLoading(true);
-    setError(null);
+    setFailed(false);
+    clearLoadError();
     load()
       .then((data) => {
         if (!cancelled && version === loadVersion.current) setRows(data);
@@ -122,7 +135,12 @@ export function StaffAbsenceRequestList({
         logger.warn("absence_request_list_load_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        setError("Anträge konnten nicht geladen werden.");
+        setRows([]);
+        setFailed(true);
+        void showLoadError(err, {
+          object: "die Liste der Anträge",
+          retry: () => setAttempt((value) => value + 1),
+        });
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -130,7 +148,7 @@ export function StaffAbsenceRequestList({
     return () => {
       cancelled = true;
     };
-  }, [load]);
+  }, [load, attempt, showLoadError, clearLoadError]);
 
   // Nach einer Entscheidung neu laden statt die Zeile zu entfernen: eine
   // Rückfrage lässt den Antrag offen, genehmigt und abgelehnt verschwinden
@@ -141,11 +159,22 @@ export function StaffAbsenceRequestList({
     const version = ++loadVersion.current;
     load()
       .then((data) => {
-        if (version === loadVersion.current) setRows(data);
+        if (version !== loadVersion.current) return;
+        setRows(data);
+        setFailed(false);
+        clearLoadError();
       })
       .catch((err: unknown) => {
+        if (version !== loadVersion.current) return;
         logger.warn("absence_request_list_reload_failed", {
           error: err instanceof Error ? err.message : String(err),
+        });
+        // Die alte Liste wäre jetzt falsch; der Fehler steht an ihrer Stelle.
+        setRows([]);
+        setFailed(true);
+        void showLoadError(err, {
+          object: "die Liste der Anträge",
+          retry: () => setAttempt((value) => value + 1),
         });
       });
     swrMutate(
@@ -153,22 +182,23 @@ export function StaffAbsenceRequestList({
         typeof key === "string" && key.includes("staff-pending-absences-"),
     );
     dispatchAbsencesRefresh();
-  }, [load, swrMutate]);
+  }, [load, swrMutate, showLoadError, clearLoadError]);
 
   const handleApprove = async (row: StaffAbsenceRequestRow) => {
     setBusyId(row.id);
     try {
       await staffAbsenceService.approve(row.id);
-      toast.success("Antrag genehmigt.");
+      toast.success("Der Antrag ist genehmigt.");
       afterDecision();
     } catch (err) {
       logger.error("absence_approve_failed", {
         absence_id: row.id,
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error(
-        err instanceof Error ? err.message : "Genehmigung fehlgeschlagen.",
-      );
+      void showActionError(err, {
+        object: "die Anfrage",
+        retry: () => void handleApprove(row),
+      });
     } finally {
       setBusyId(null);
     }
@@ -184,8 +214,8 @@ export function StaffAbsenceRequestList({
 
   const hasFilters = filters.search.trim() !== "" || filters.types.length > 0;
 
-  if (error) {
-    return <Alert type="error" message={error} />;
+  if (failed) {
+    return <LoadErrorAlert error={loadError.error} />;
   }
 
   if (rows.length === 0) {

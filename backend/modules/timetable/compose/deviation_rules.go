@@ -20,14 +20,14 @@ type staffReferences struct {
 
 func (refs *staffReferences) ensure(staffID int64, label string) error {
 	if staffID <= 0 {
-		return timetable.DeviationBadRequest(fmt.Sprintf("die Auswahl für %s ist ungültig", label))
+		return timetable.DeviationBadRequest(fmt.Sprintf("die Auswahl für %s ist ungültig", label)).WithCode(timetable.CodeDeviationSelectionInvalid)
 	}
 	if refs.seen[staffID] {
 		return nil
 	}
 	refs.seen[staffID] = true
 	if !refs.readSet.staffExists[staffID] {
-		return timetable.DeviationNotFound(fmt.Sprintf("%s wurde nicht gefunden", label))
+		return timetable.DeviationNotFound(fmt.Sprintf("%s wurde nicht gefunden", label)).WithCode(timetable.CodeStaffNotFound)
 	}
 	return nil
 }
@@ -64,7 +64,7 @@ func validateSubstitutionStaff(in timetable.ApplyDeviationsInput, refs *staffRef
 		// The editor chooses one scope and one replacement per absent person, so an
 		// absent staff id must appear at most once in one save.
 		if seenAbsentSub[sub.AbsentStaffID] {
-			return timetable.DeviationBadRequest("für eine abwesende Person darf nur eine Ersatzperson gewählt werden")
+			return timetable.DeviationBadRequest("für eine abwesende Person darf nur eine Ersatzperson gewählt werden").WithCode(timetable.CodeSubstituteSingleOnly).OnField("substitutions")
 		}
 		seenAbsentSub[sub.AbsentStaffID] = true
 		if err := refs.ensure(sub.AbsentStaffID, "die abwesende Person"); err != nil {
@@ -84,19 +84,19 @@ func validateSubstitutionStaff(in timetable.ApplyDeviationsInput, refs *staffRef
 // substitution's appointments.
 func validateSubstituteAvailable(in timetable.ApplyDeviationsInput, sub timetable.DeviationSubstitutionInput, readSet *deviationReadSet) error {
 	if sub.AbsentStaffID == sub.SubstituteStaffID {
-		return timetable.DeviationBadRequest("die abwesende Person kann sich nicht selbst vertreten")
+		return timetable.DeviationBadRequest("die abwesende Person kann sich nicht selbst vertreten").WithCode(timetable.CodeSubstituteSelf).OnField("substitute_staff_id")
 	}
 	// A person cannot cover an appointment on which this same save marks them
 	// absent. Appointment-scoped absences elsewhere on the day are independent.
 	if inputMarksStaffAbsentInScope(in, sub.SubstituteStaffID, sub.InstanceIDs) {
-		return timetable.DeviationBadRequest("die Ersatzperson ist in einem ausgewählten Termin selbst abwesend")
+		return timetable.DeviationBadRequest("die Ersatzperson ist in einem ausgewählten Termin selbst abwesend").WithCode(timetable.CodeSubstituteAbsent).OnField("substitute_staff_id")
 	}
 	// ...nor if they are already absent on an appointment this substitution
 	// targets. A terminbezogene Abwesenheit elsewhere on the day does not make
 	// the person unavailable for a different appointment.
 	for _, row := range readSet.rowsByStaff[sub.SubstituteStaffID] {
 		if row.IsAbsent && scopeContainsInstance(sub.InstanceIDs, row.InstanceID) {
-			return timetable.DeviationBadRequest("die Ersatzperson ist in einem ausgewählten Termin selbst abwesend")
+			return timetable.DeviationBadRequest("die Ersatzperson ist in einem ausgewählten Termin selbst abwesend").WithCode(timetable.CodeSubstituteAbsent).OnField("substitute_staff_id")
 		}
 	}
 	return nil
@@ -105,7 +105,7 @@ func validateSubstituteAvailable(in timetable.ApplyDeviationsInput, sub timetabl
 func rejectContradictoryDeviationScopes(in timetable.ApplyDeviationsInput) error {
 	for _, presence := range in.Presences {
 		if presenceContradictsAbsence(in, presence) {
-			return timetable.DeviationBadRequest("eine Person kann im selben Termin nicht anwesend und abwesend sein")
+			return timetable.DeviationBadRequest("eine Person kann im selben Termin nicht anwesend und abwesend sein").WithCode(timetable.CodeStaffPresentAndAbsent).OnField("presences")
 		}
 	}
 	return nil
@@ -201,7 +201,7 @@ func requireSelectedSubstitutions(scope *[]int64, selected map[int64]bool) error
 	}
 	for _, instanceID := range *scope {
 		if !selected[instanceID] {
-			return timetable.DeviationBadRequest("die Ersatzperson ist nicht für jeden ausgewählten Termin eingetragen")
+			return timetable.DeviationBadRequest("die Ersatzperson ist nicht für jeden ausgewählten Termin eingetragen").WithCode(timetable.CodeSubstituteNotOnInstances).OnField("instance_ids")
 		}
 	}
 	return nil
@@ -212,12 +212,12 @@ func validateExplicitScopeInstances(date timezone.Date, instanceIDs *[]int64, re
 		return nil
 	}
 	if len(*instanceIDs) == 0 {
-		return timetable.DeviationBadRequest("wählen Sie mindestens einen Termin aus")
+		return timetable.DeviationBadRequest("wählen Sie mindestens einen Termin aus").WithCode(timetable.CodeInstancesRequired).OnField("instance_ids")
 	}
 	seen := make(map[int64]bool, len(*instanceIDs))
 	for _, instanceID := range *instanceIDs {
 		if instanceID <= 0 || seen[instanceID] {
-			return timetable.DeviationBadRequest("die Terminauswahl ist ungültig")
+			return timetable.DeviationBadRequest("die Terminauswahl ist ungültig").WithCode(timetable.CodeInstanceSelectionInvalid).OnField("instance_ids")
 		}
 		seen[instanceID] = true
 		if err := validateScopeInstance(date, readSet.instances[instanceID]); err != nil {
@@ -230,10 +230,10 @@ func validateExplicitScopeInstances(date timezone.Date, instanceIDs *[]int64, re
 // validateScopeInstance checks one explicitly selected appointment.
 func validateScopeInstance(date timezone.Date, instance *scheduleModel.ActivityInstance) error {
 	if instance == nil {
-		return timetable.DeviationNotFound(msgInstanceNotFound)
+		return timetable.DeviationNotFound(msgInstanceNotFound).WithCode(timetable.CodeDeviationInstanceNotFound)
 	}
 	if timezone.Date(instance.Date) != date {
-		return timetable.DeviationBadRequest("alle ausgewählten Termine müssen am bearbeiteten Tag liegen")
+		return timetable.DeviationBadRequest("alle ausgewählten Termine müssen am bearbeiteten Tag liegen").WithCode(timetable.CodeInstancesOtherDay).OnField("instance_ids")
 	}
 	if !isPlannableInstance(instance) {
 		return timetable.DeviationConflict(timetable.CodeInstanceNotEditable, msgInstanceNotEditable)
@@ -471,16 +471,16 @@ func scopedStaffRows(rows []*scheduleModel.InstanceStaff, instanceIDs *[]int64) 
 		return rows, nil
 	}
 	if len(*instanceIDs) == 0 {
-		return nil, timetable.DeviationBadRequest("wählen Sie mindestens einen Termin aus")
+		return nil, timetable.DeviationBadRequest("wählen Sie mindestens einen Termin aus").WithCode(timetable.CodeInstancesRequired).OnField("instance_ids")
 	}
 
 	requested := make(map[int64]bool, len(*instanceIDs))
 	for _, instanceID := range *instanceIDs {
 		if instanceID <= 0 {
-			return nil, timetable.DeviationBadRequest("die Terminauswahl ist ungültig")
+			return nil, timetable.DeviationBadRequest("die Terminauswahl ist ungültig").WithCode(timetable.CodeInstanceSelectionInvalid).OnField("instance_ids")
 		}
 		if requested[instanceID] {
-			return nil, timetable.DeviationBadRequest("die Terminauswahl enthält einen Termin mehrfach")
+			return nil, timetable.DeviationBadRequest("die Terminauswahl enthält einen Termin mehrfach").WithCode(timetable.CodeInstanceSelectionInvalid).OnField("instance_ids")
 		}
 		requested[instanceID] = true
 	}
@@ -493,7 +493,7 @@ func scopedStaffRows(rows []*scheduleModel.InstanceStaff, instanceIDs *[]int64) 
 		}
 	}
 	if len(requested) > 0 {
-		return nil, timetable.DeviationBadRequest("mindestens ein ausgewählter Termin gehört nicht zu dieser Person")
+		return nil, timetable.DeviationBadRequest("mindestens ein ausgewählter Termin gehört nicht zu dieser Person").WithCode(timetable.CodeInstancesNotAssigned).OnField("instance_ids")
 	}
 	return selected, nil
 }

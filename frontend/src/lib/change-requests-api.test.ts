@@ -85,4 +85,18 @@ describe("fetchChangeRequestAccess", () => {
       expect.objectContaining({ method: "GET", cache: "no-store" }),
     );
   });
+
+  it("akzeptiert die Freigabe durch das berechtigte Team", async () => {
+    mockFetch(async () => jsonResponse({ data: { review_access: "team" } }));
+
+    await expect(fetchChangeRequestAccess()).resolves.toBe("team");
+  });
+
+  it("lehnt eine unbekannte Freigabe ab", async () => {
+    mockFetch(async () => jsonResponse({ data: { review_access: "owner" } }));
+
+    await expect(fetchChangeRequestAccess()).rejects.toThrow(
+      "Change request access response is invalid",
+    );
+  });
 });

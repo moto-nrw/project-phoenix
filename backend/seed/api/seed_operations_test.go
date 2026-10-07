@@ -14,16 +14,18 @@ func TestSeedOperationsDemoStepCreatesOperationalPlanningData(t *testing.T) {
 	t.Parallel()
 
 	var paths []string
-	var shift map[string]any
+	var shifts []map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		paths = append(paths, r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
 		if r.URL.Path == "/api/staff-shifts" {
+			var shift map[string]any
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&shift))
+			shifts = append(shifts, shift)
 		}
 		switch r.URL.Path {
 		case "/api/shift-types/defaults":
-			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"id":81,"name":"Betreuung"}]}`)
+			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"id":81,"name":"Betreuung"},{"id":82,"name":"Verfügungszeit"}]}`)
 		default:
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":91}}`)
 		}
@@ -46,9 +48,17 @@ func TestSeedOperationsDemoStepCreatesOperationalPlanningData(t *testing.T) {
 		"/api/meal-plan/" + mealDate.String(),
 		"/api/shift-types/defaults",
 		"/api/staff-shifts",
+		"/api/staff-shifts",
 	}, paths)
-	assert.EqualValues(t, 17, shift["staff_id"])
-	assert.EqualValues(t, 81, shift["shift_type_id"])
+	require.Len(t, shifts, 2)
+	assert.EqualValues(t, 17, shifts[0]["staff_id"])
+	assert.EqualValues(t, 81, shifts[0]["shift_type_id"])
+	// The second Schichtart lands in the same week, the day after.
+	assert.EqualValues(t, 17, shifts[1]["staff_id"])
+	assert.EqualValues(t, 82, shifts[1]["shift_type_id"])
+	first, err := time.Parse(seedDateLayout, shifts[0]["date"].(string))
+	require.NoError(t, err)
+	assert.Equal(t, first.AddDate(0, 0, 1).Format(seedDateLayout), shifts[1]["date"])
 }
 
 func TestSeedMealPlanUsesTodayOrNextSchoolDay(t *testing.T) {

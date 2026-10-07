@@ -314,17 +314,18 @@ func checkEnrollmentChangeRequestDialogueGolden(t *testing.T, api *API, db *test
 	adminBase := "/api/enrollment/admin/change-requests/" + createdEnvelope.Data.ID
 
 	// A reply is only possible after staff asked back: the stable 400 keeps
-	// the family from answering a question nobody asked.
+	// the family from answering a question nobody asked. Its code names the
+	// changed state (#2515), so the class and help anchor follow it.
 	early := checkpointRequest(api, checkpointScenario{Method: http.MethodPost, Path: publicBase + "/" + createdEnvelope.Data.ID + "/messages", Body: `{"body":"Zu früh."}`}, "")
 	require.Equal(t, http.StatusBadRequest, early.Code, early.Body.String())
 	var earlyProblem map[string]any
 	require.NoError(t, json.Unmarshal(early.Body.Bytes(), &earlyProblem))
 	require.Equal(t, "error", earlyProblem["status"])
 	require.Equal(t, "enrollment change request has invalid status", earlyProblem["error"])
-	require.Equal(t, "general.input", earlyProblem["code"])
+	require.Equal(t, "enrollment.change_request_status_changed", earlyProblem["code"])
 	require.Equal(t, earlyProblem["error"], earlyProblem["detail"])
 	require.Equal(t, "Bad Request", earlyProblem["title"])
-	require.Equal(t, "https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen", earlyProblem["type"])
+	require.Equal(t, "https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich", earlyProblem["type"])
 	require.NotEmpty(t, earlyProblem["instance"])
 	require.Equal(t, early.Header().Get("X-Request-Id"), earlyProblem["instance"])
 	require.Equal(t, "application/problem+json", early.Header().Get("Content-Type"))

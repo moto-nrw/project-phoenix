@@ -1,6 +1,13 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useTranslations } from "next-intl";
 import { Pencil, Plus, X } from "lucide-react";
 import {
@@ -17,7 +24,6 @@ import {
   type GuardianContactPayload,
   type GuardianRelationshipPayload,
   type RelatedAccount,
-  ParentApiError,
   createGuardianContact,
   inviteRelatedAccount,
   listChildGuardians,
@@ -33,6 +39,15 @@ import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Alert } from "~/components/ui/alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useApiLoadError,
+} from "~/contexts/ToastContext";
 import { ParentSection } from "~/components/parent/shell/parent-section";
 import { ParentSectionSkeleton } from "~/components/parent/parent-page";
 import {
@@ -81,40 +96,6 @@ function newPhoneDraftId(): string {
   return `new-phone-${nextPhoneDraftId}`;
 }
 
-function resolveGuardianError(
-  t: ReturnType<typeof useTranslations<"parentChildDetail">>,
-  err: unknown,
-  fallbackKey: "guardians.contactSaveError" | "guardians.pickupSaveError",
-): string {
-  if (err instanceof ParentApiError) {
-    switch (err.code) {
-      case "care.guardian_contact_invalid":
-        return t("guardians.errors.contactInvalid");
-      case "care.guardian_relationship_invalid":
-        return t("guardians.errors.relationshipInvalid");
-      case "care.guardian_email_conflict":
-        return t("guardians.errors.emailConflict");
-      case "care.guardian_has_own_account":
-        return t("guardians.errors.hasOwnAccount");
-      case "care.guardian_shared_across_families":
-        return t("guardians.errors.sharedAcrossFamilies");
-      case "care.guardian_social_worker_managed":
-        return t("guardians.errors.socialWorkerManaged");
-      case "care.guardian_role_managed":
-        return t("guardians.errors.roleManaged");
-      case "care.guardian_management_disabled":
-        return t("guardians.errors.managementDisabled");
-      case "care.guardian_not_linked":
-        return t("guardians.errors.notLinked");
-      case "care.guardian_permission_denied":
-        return t("guardians.errors.permissionDenied");
-      case "care.guardian_no_change":
-        return t("guardians.errors.noChange");
-    }
-  }
-  return t(fallbackKey);
-}
-
 interface GuardiansPanelProps {
   readonly studentId: string;
   readonly canInvite: boolean;
@@ -142,7 +123,24 @@ export default function GuardiansPanel({
   );
   const [addMode, setAddMode] = useState<"contact" | "access" | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteError, setInviteError] = useState<string | null>(null);
+  const inviteFormRef = useRef<HTMLFormElement>(null);
+  const {
+    error: inviteError,
+    show: showInviteError,
+    fieldError: inviteFieldError,
+    clear: clearInviteError,
+  } = useApiFormError(inviteFormRef);
+  const {
+    error: guardiansLoadError,
+    show: showGuardiansLoadError,
+    clear: clearGuardiansLoadError,
+  } = useApiLoadError();
+  const {
+    error: accountsLoadError,
+    show: showAccountsLoadError,
+    clear: clearAccountsLoadError,
+  } = useApiLoadError();
+  const { show: showActionError } = useApiErrorDisplay();
   const [busy, setBusy] = useState(false);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   // Bestaetigung fuer den Ausbau eines eingeschraenkten Kontakts (#2172).
@@ -151,32 +149,62 @@ export default function GuardiansPanel({
     name: string;
     existingRole?: string;
   } | null>(null);
-  const [message, setMessage] = useState<{
-    kind: "success" | "error";
-    text: string;
-  } | null>(null);
+  // Only confirmations live here; every failure goes through the shared
+  // error path (#2518).
+  const [message, setMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const [guardianList, accountList] = await Promise.all([
-        listChildGuardians(studentId),
-        listRelatedAccounts(studentId).catch(() => [] as RelatedAccount[]),
-      ]);
-      setGuardians(guardianList);
-      setAccounts(accountList);
-    } catch (err) {
+    setIsLoading(true);
+    clearGuardiansLoadError();
+    clearAccountsLoadError();
+    // Both lists load side by side; each section reports its own failure, so
+    // a failed account list never shows up as "no accounts connected".
+    const [guardianResult, accountResult] = await Promise.allSettled([
+      listChildGuardians(studentId),
+      listRelatedAccounts(studentId),
+    ]);
+    if (guardianResult.status === "fulfilled") {
+      setGuardians(guardianResult.value);
+    } else {
       logger.error("guardians_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
+        error:
+          guardianResult.reason instanceof Error
+            ? guardianResult.reason.message
+            : String(guardianResult.reason),
       });
-      setMessage({
-        kind: "error",
-        text: t("guardians.loadError"),
+      void showGuardiansLoadError(guardianResult.reason, {
+        object: t("guardians.errorObjectContacts"),
+        retry: () => void loadRef.current(),
       });
-    } finally {
-      setIsLoading(false);
     }
-  }, [studentId, t]);
+    if (accountResult.status === "fulfilled") {
+      setAccounts(accountResult.value);
+    } else {
+      logger.error("related_accounts_load_failed", {
+        error:
+          accountResult.reason instanceof Error
+            ? accountResult.reason.message
+            : String(accountResult.reason),
+      });
+      void showAccountsLoadError(accountResult.reason, {
+        object: t("guardians.errorObjectAccounts"),
+        retry: () => void loadRef.current(),
+      });
+    }
+    setIsLoading(false);
+  }, [
+    clearAccountsLoadError,
+    clearGuardiansLoadError,
+    showAccountsLoadError,
+    showGuardiansLoadError,
+    studentId,
+    t,
+  ]);
+  // The retry runs the latest load, not the one of the failed attempt.
+  const loadRef = useRef(load);
+  useLayoutEffect(() => {
+    loadRef.current = load;
+  });
 
   useEffect(() => {
     void load();
@@ -188,7 +216,7 @@ export default function GuardiansPanel({
       setEditingContact(null);
       setEditingPickup(null);
       await load();
-      setMessage({ kind: "success", text });
+      setMessage(text);
     },
     [load],
   );
@@ -205,7 +233,7 @@ export default function GuardiansPanel({
     if (!trimmed) return;
     setBusy(true);
     setMessage(null);
-    setInviteError(null);
+    clearInviteError();
     try {
       const result = await inviteRelatedAccount(
         studentId,
@@ -226,36 +254,45 @@ export default function GuardiansPanel({
       setInviteEmail("");
       setAddMode(null);
       await load();
-      setMessage({
-        kind: "success",
-        text:
-          result.outcome === "pending_approval"
-            ? t("guardians.access.invitePending")
-            : result.outcome === "invited"
-              ? t("guardians.access.inviteSent", { email: trimmed })
-              : t("guardians.access.inviteLinked"),
-      });
+      setMessage(
+        result.outcome === "pending_approval"
+          ? t("guardians.access.invitePending")
+          : result.outcome === "invited"
+            ? t("guardians.access.inviteSent", { email: trimmed })
+            : t("guardians.access.inviteLinked"),
+      );
     } catch (err) {
       logger.error("related_account_invite_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
+      const options = {
+        object: t("guardians.errorObjectInvite"),
+        retry: () => void inviteRef.current(email, confirmRoleUpgrade),
+      };
       setUpgradePrompt(null);
-      setInviteError(
-        err instanceof ParentApiError &&
-          err.code === "care.guardian_social_worker_managed"
-          ? t("guardians.errors.socialWorkerManaged")
-          : t("guardians.access.inviteError"),
-      );
+      if (confirmRoleUpgrade) {
+        // The grant confirmation has no form of its own: it closes, and the
+        // shared toast reports the failure.
+        void showActionError(err, options);
+      } else {
+        void showInviteError(err, options);
+      }
     } finally {
       setBusy(false);
     }
   };
+  // Retry runs the current handler. Typing in the field clears the error,
+  // so its retry always repeats the address that is still in the field.
+  const inviteRef = useRef(handleInvite);
+  useLayoutEffect(() => {
+    inviteRef.current = handleInvite;
+  });
 
   const closeInvite = () => {
     if (busy) return;
     setAddMode(null);
     setInviteEmail("");
-    setInviteError(null);
+    clearInviteError();
   };
 
   const handleRemove = async (guardianProfileId: string) => {
@@ -265,25 +302,28 @@ export default function GuardiansPanel({
       await removeRelatedAccount(studentId, guardianProfileId);
       setConfirmRemoveId(null);
       await load();
-      setMessage({ kind: "success", text: t("guardians.access.removed") });
+      setMessage(t("guardians.access.removed"));
     } catch (err) {
       logger.error("related_account_remove_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setMessage({ kind: "error", text: t("guardians.access.removeError") });
+      // A row action without a form: the shared toast reports it.
+      void showActionError(err, {
+        object: t("guardians.errorObjectRemove"),
+        retry: () => void removeRef.current(guardianProfileId),
+      });
     } finally {
       setBusy(false);
     }
   };
+  const removeRef = useRef(handleRemove);
+  useLayoutEffect(() => {
+    removeRef.current = handleRemove;
+  });
 
   return (
     <div className="space-y-5">
-      {message && (
-        <Alert
-          type={message.kind === "success" ? "success" : "error"}
-          message={message.text}
-        />
-      )}
+      {message && <Alert type="success" message={message} />}
 
       <ParentSection
         title={t("guardians.contactsTitle")}
@@ -315,6 +355,8 @@ export default function GuardiansPanel({
             showHeader={false}
             className="shadow-none"
           />
+        ) : guardiansLoadError ? (
+          <LoadErrorAlert error={guardiansLoadError} />
         ) : guardians.length === 0 ? (
           <EmptyState
             variant="compact"
@@ -355,7 +397,7 @@ export default function GuardiansPanel({
               size="md"
               onClick={() => {
                 setAddMode("access");
-                setInviteError(null);
+                clearInviteError();
                 setMessage(null);
               }}
             >
@@ -375,6 +417,8 @@ export default function GuardiansPanel({
             showHeader={false}
             className="shadow-none"
           />
+        ) : accountsLoadError ? (
+          <LoadErrorAlert error={accountsLoadError} />
         ) : connectedAccounts.length === 0 ? (
           <EmptyState
             variant="compact"
@@ -465,6 +509,7 @@ export default function GuardiansPanel({
           }
         >
           <form
+            ref={inviteFormRef}
             id="guardian-invite-form"
             className="space-y-5"
             onSubmit={(event) => {
@@ -472,6 +517,7 @@ export default function GuardiansPanel({
               void handleInvite(inviteEmail);
             }}
           >
+            <FormErrorAlert message={inviteError} />
             <div className="space-y-2 text-sm leading-6 text-gray-600">
               <p>{t("guardians.access.inviteIntro")}</p>
               <p>{t("guardians.access.inviteDetails")}</p>
@@ -485,13 +531,15 @@ export default function GuardiansPanel({
               </label>
               <Input
                 id="guardian-invite-email"
+                name="email"
+                error={inviteFieldError("email")}
                 type="email"
                 autoComplete="email"
                 required
                 value={inviteEmail}
                 onChange={(event) => {
                   setInviteEmail(event.target.value);
-                  setInviteError(null);
+                  clearInviteError();
                 }}
                 placeholder={t("guardians.access.emailPlaceholder")}
                 aria-describedby="guardian-invite-email-hint"
@@ -503,7 +551,6 @@ export default function GuardiansPanel({
                 {t("guardians.access.emailHint")}
               </p>
             </div>
-            {inviteError ? <Alert type="error" message={inviteError} /> : null}
           </form>
         </Modal>
       ) : null}
@@ -907,7 +954,9 @@ function ContactModal({
         ],
   );
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const tError = useTranslations("errorCatalog");
+  const formRef = useRef<HTMLDivElement>(null);
+  const { error, show, invalid, fieldError, clear } = useApiFormError(formRef);
 
   const setPhone = (index: number, patch: Partial<PhoneDraft>) =>
     setPhones((prev) =>
@@ -916,11 +965,15 @@ function ContactModal({
 
   const handleSave = async () => {
     if (!firstName.trim() || !lastName.trim()) {
-      setError(t("guardians.nameRequired"));
+      const hint = tError("actions.fieldCheck");
+      invalid(t("guardians.nameRequired"), {
+        ...(firstName.trim() ? {} : { first_name: hint }),
+        ...(lastName.trim() ? {} : { last_name: hint }),
+      });
       return;
     }
     setBusy(true);
-    setError(null);
+    clear();
     const cleaned = phones
       .map((p) => ({ ...p, phone_number: p.phone_number.trim() }))
       .filter((p) => p.phone_number !== "");
@@ -964,11 +1017,19 @@ function ContactModal({
       logger.error("guardian_contact_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(resolveGuardianError(t, err, "guardians.contactSaveError"));
+      void show(err, {
+        object: t("guardians.errorObjectContact"),
+        retry: () => void saveRef.current(),
+      });
     } finally {
       setBusy(false);
     }
   };
+  // The retry sends the latest entries, not the ones of the failed attempt.
+  const saveRef = useRef(handleSave);
+  useLayoutEffect(() => {
+    saveRef.current = handleSave;
+  });
 
   return (
     <Modal
@@ -1006,7 +1067,8 @@ function ContactModal({
         </div>
       }
     >
-      <div className="space-y-4">
+      <div ref={formRef} className="space-y-4">
+        <FormErrorAlert message={error} />
         {mode === "create" ? (
           <div className="space-y-4">
             <p className="text-sm leading-6 text-gray-600">
@@ -1070,20 +1132,19 @@ function ContactModal({
             ) : null}
           </div>
         ) : null}
-        {error && (
-          <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm">
-            {error}
-          </div>
-        )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input
             id={`guardian-${mode}-first-name`}
+            name="first_name"
+            error={fieldError("first_name")}
             label={t("guardians.firstName")}
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
           />
           <Input
             id={`guardian-${mode}-last-name`}
+            name="last_name"
+            error={fieldError("last_name")}
             label={t("guardians.lastName")}
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
@@ -1091,6 +1152,8 @@ function ContactModal({
         </div>
         <Input
           id={`guardian-${mode}-email`}
+          name="email"
+          error={fieldError("email")}
           label={t("guardians.email")}
           type="email"
           value={email}
@@ -1227,11 +1290,11 @@ function PickupModal({
   const [isEmergency, setIsEmergency] = useState(g.is_emergency_contact);
   const [notes, setNotes] = useState(g.pickup_notes ?? "");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { error, show, clear } = useApiFormError();
 
   const handleSave = async () => {
     setBusy(true);
-    setError(null);
+    clear();
     // Send each field only when it actually changed. The backend gates each
     // field group by its own permission: the can_pickup / is_emergency_contact
     // flags require parent_portal.pickup.manage, while pickup_notes requires
@@ -1280,11 +1343,19 @@ function PickupModal({
       logger.error("guardian_pickup_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(resolveGuardianError(t, err, "guardians.pickupSaveError"));
+      void show(err, {
+        object: t("guardians.errorObjectPickup"),
+        retry: () => void saveRef.current(),
+      });
     } finally {
       setBusy(false);
     }
   };
+  // The retry sends the latest entries, not the ones of the failed attempt.
+  const saveRef = useRef(handleSave);
+  useLayoutEffect(() => {
+    saveRef.current = handleSave;
+  });
 
   return (
     <Modal
@@ -1321,11 +1392,7 @@ function PickupModal({
       }
     >
       <div className="space-y-4">
-        {error && (
-          <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm">
-            {error}
-          </div>
-        )}
+        <FormErrorAlert message={error} />
         <p className="text-sm text-gray-600">
           {`${g.first_name} ${g.last_name}`.trim()}
         </p>

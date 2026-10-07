@@ -20,10 +20,37 @@ var (
 	ErrStaffTargetOverrideRejected = errors.New("staff target override rejected")
 )
 
+// Wire codes of a refused Sonderarbeitszeit (#2514). The domain may not
+// import api/common, so each registered code is declared once here.
+// workforce.month_closed is also declared as workforce.MonthClosedCode for
+// the retained rebooking service: the domain package and the module root do
+// not import each other, so neither can borrow the other's constant.
+const (
+	TargetOverrideRangeInvalidCode = "workforce.target_override_range_invalid"
+	TargetOverrideTooLongCode      = "workforce.target_override_too_long"
+	TargetOverrideHoursInvalidCode = "workforce.target_override_hours_invalid"
+	TargetOverrideOverlapCode      = "workforce.target_override_overlap"
+	TargetOverrideMonthClosedCode  = "workforce.month_closed"
+)
+
+// TargetOverrideValues are the values a coded refusal names; only the ones
+// its code uses are set.
+type TargetOverrideValues struct {
+	MaxDays   int
+	MaxHours  int
+	StartDate string
+	EndDate   string
+	Month     string
+}
+
 // TargetOverrideError carries a caller-facing reason and unwraps to its kind.
+// Code and Values name the refusal for the client when it has its own
+// registered code; Reason stays the diagnostic text.
 type TargetOverrideError struct {
 	Kind   error
 	Reason string
+	Code   string
+	Values TargetOverrideValues
 }
 
 func (e *TargetOverrideError) Error() string { return e.Reason }
@@ -33,8 +60,16 @@ func invalidTargetOverride(reason string) error {
 	return &TargetOverrideError{Kind: ErrInvalidStaffTargetOverride, Reason: reason}
 }
 
-func rejectedTargetOverride(format string, args ...any) error {
-	return &TargetOverrideError{Kind: ErrStaffTargetOverrideRejected, Reason: fmt.Sprintf(format, args...)}
+// invalidTargetOverrideWithCode refuses input with a registered code and the
+// values the reason names.
+func invalidTargetOverrideWithCode(code string, values TargetOverrideValues, reason string) error {
+	return &TargetOverrideError{Kind: ErrInvalidStaffTargetOverride, Reason: reason, Code: code, Values: values}
+}
+
+func rejectedTargetOverride(code string, values TargetOverrideValues, format string, args ...any) error {
+	return &TargetOverrideError{
+		Kind: ErrStaffTargetOverrideRejected, Reason: fmt.Sprintf(format, args...), Code: code, Values: values,
+	}
 }
 
 // TargetOverrideWeekdays is the number of per-weekday targets a
@@ -106,16 +141,18 @@ func ValidateStaffTargetOverrideFields(fields StaffTargetOverrideFields) error {
 		return invalidTargetOverride("end_date must be a " + DateLayout + " date")
 	}
 	if end.Before(start) {
-		return invalidTargetOverride("Das Ende liegt vor dem Anfang. Bitte prüfen Sie den Zeitraum.")
+		return invalidTargetOverrideWithCode(TargetOverrideRangeInvalidCode, TargetOverrideValues{}, "Das Ende liegt vor dem Anfang. Bitte prüfen Sie den Zeitraum.")
 	}
 	if int(end.Sub(start).Hours()/24)+1 > MaxTargetOverrideDays {
-		return invalidTargetOverride(fmt.Sprintf("Der Zeitraum ist zu lang. Erlaubt sind höchstens %d Tage.", MaxTargetOverrideDays))
+		return invalidTargetOverrideWithCode(TargetOverrideTooLongCode, TargetOverrideValues{MaxDays: MaxTargetOverrideDays},
+			fmt.Sprintf("Der Zeitraum ist zu lang. Erlaubt sind höchstens %d Tage.", MaxTargetOverrideDays))
 	}
 	return validateTargetOverrideMinutes(fields)
 }
 
 func validateTargetOverrideMinutes(fields StaffTargetOverrideFields) error {
-	outOfRange := invalidTargetOverride(fmt.Sprintf("Die Stunden pro Tag müssen zwischen 0 und %d liegen.", MaxDailyMinutes/60))
+	outOfRange := invalidTargetOverrideWithCode(TargetOverrideHoursInvalidCode, TargetOverrideValues{MaxHours: MaxDailyMinutes / 60},
+		fmt.Sprintf("Die Stunden pro Tag müssen zwischen 0 und %d liegen.", MaxDailyMinutes/60))
 	if fields.WeekdayMinutes == nil {
 		if fields.DailyMinutes < 0 || fields.DailyMinutes > MaxDailyMinutes {
 			return outOfRange
@@ -141,9 +178,11 @@ func validateTargetOverrideMinutes(fields StaffTargetOverrideFields) error {
 func RejectTargetOverrideOverlap(existing []StaffTargetOverride, fields StaffTargetOverrideFields) error {
 	for _, other := range existing {
 		if other.StartDate <= fields.EndDate && fields.StartDate <= other.EndDate {
+			start, end := germanDate(other.StartDate), germanDate(other.EndDate)
 			return rejectedTargetOverride(
+				TargetOverrideOverlapCode, TargetOverrideValues{StartDate: start, EndDate: end},
 				"Für diesen Zeitraum gibt es schon eine Sonderarbeitszeit (%s bis %s). Löschen Sie diese zuerst oder wählen Sie andere Tage.",
-				germanDate(other.StartDate), germanDate(other.EndDate),
+				start, end,
 			)
 		}
 	}
@@ -160,9 +199,11 @@ func RejectClosedTargetOverrideMonths(closed []*StaffMonthBalanceSnapshot, field
 		}
 		month := fmt.Sprintf("%04d-%02d", snapshot.Year, snapshot.Month)
 		if fields.StartDate[:7] <= month && month <= fields.EndDate[:7] {
+			name := fmt.Sprintf("%s %d", germanMonthNames[snapshot.Month-1], snapshot.Year)
 			return rejectedTargetOverride(
-				"Der %s %d ist abgeschlossen. Öffnen Sie den Monat zuerst wieder. Das geht im Reiter Zeiterfassung.",
-				germanMonthNames[snapshot.Month-1], snapshot.Year,
+				TargetOverrideMonthClosedCode, TargetOverrideValues{Month: name},
+				"Der %s ist abgeschlossen. Öffnen Sie den Monat zuerst wieder. Das geht im Reiter Zeiterfassung.",
+				name,
 			)
 		}
 	}

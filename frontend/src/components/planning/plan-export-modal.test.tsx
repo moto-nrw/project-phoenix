@@ -1,6 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
+import { ERROR_CATALOG } from "~/lib/error-catalog.generated";
+import { catalogText } from "~/test/error-catalog-text";
+
 import { PlanExportModal } from "./plan-export-modal";
 
 const { mockExportPlan, mockToastError, mockToastSuccess } = vi.hoisted(() => ({
@@ -62,7 +66,8 @@ vi.mock("~/lib/plan-export-api", async () => {
   };
 });
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
 }));
 
@@ -146,6 +151,33 @@ describe("PlanExportModal", () => {
     );
   });
 
+  // The hours sheet (#3819) prints figures only: the Aushang/Intern choice
+  // changes nothing there, so it disappears and the request stays on Aushang.
+  it("offers the hours sheet without the variant choice", async () => {
+    renderModal({ canExportInternal: true });
+
+    fireEvent.click(screen.getByRole("radio", { name: /Interne Fassung/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Stundenübersicht/ }));
+
+    expect(screen.queryByText("Fassung")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Die Stunden zählen die ganze Woche, auch Samstag und Sonntag\./,
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "XLSX" }));
+
+    await waitFor(() => expect(mockExportPlan).toHaveBeenCalled());
+    expect(mockExportPlan).toHaveBeenCalledWith(
+      "dienstplan",
+      expect.objectContaining({ template: "hours", variant: "aushang" }),
+      "xlsx",
+      "download",
+      null,
+    );
+  });
+
   // One row axis means no picker: a single-option choice is noise.
   it("hides the template picker for the care plan", () => {
     renderModal({ plan: "betreuungsplan" });
@@ -197,15 +229,79 @@ describe("PlanExportModal", () => {
     expect(mockExportPlan).not.toHaveBeenCalled();
   });
 
-  it("reports a failed export instead of closing silently", async () => {
+  // #2516: der Fehler bleibt im offenen Panel (ein Toast läge darunter),
+  // mit Katalogtext und Wiederholen, das die dann gewählte Vorlage sendet.
+  it("keeps a failed export in the panel and retries with the current choice", async () => {
+    mockExportPlan
+      .mockRejectedValueOnce(
+        new ApiError("boom", 500, {
+          code: "general.server",
+          instance: "req-42",
+        }),
+      )
+      .mockResolvedValueOnce(undefined);
+    const { onClose } = renderModal({ canExportInternal: true });
+
+    fireEvent.click(screen.getByRole("button", { name: "PDF" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Datei des Plans"),
+      ),
+    ).toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("radio", { name: /Interne Fassung/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => expect(mockExportPlan).toHaveBeenCalledTimes(2));
+    expect(mockExportPlan).toHaveBeenLastCalledWith(
+      "dienstplan",
+      expect.objectContaining({ variant: "intern" }),
+      "pdf",
+      "download",
+      null,
+    );
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(mockToastSuccess).toHaveBeenCalledWith("Der Plan wurde erstellt.");
+  });
+
+  it("never shows the raw error sentence of a failed export", async () => {
     mockExportPlan.mockRejectedValue(new Error("Backend weg"));
     const { onClose } = renderModal();
 
     fireEvent.click(screen.getByRole("button", { name: "PDF" }));
 
-    await waitFor(() =>
-      expect(mockToastError).toHaveBeenCalledWith("Backend weg"),
+    // Kein ApiError: der Anzeigeweg nimmt den Absturztext, nie den Satz.
+    const crash = ERROR_CATALOG.de.actions.crash.replace(
+      "{object}",
+      "die Datei des Plans",
     );
+    expect(
+      await screen.findByText(crash.charAt(0).toUpperCase() + crash.slice(1)),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Backend weg/)).not.toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("explains a blocked print window in the panel", async () => {
+    const open = vi.spyOn(globalThis, "open").mockReturnValue(null);
+    try {
+      renderModal();
+
+      fireEvent.click(screen.getByRole("button", { name: "Drucken" }));
+
+      expect(
+        await screen.findByText(
+          "Das Druckfenster ging nicht auf. Bitte erlauben Sie neue Fenster für moto.",
+        ),
+      ).toBeInTheDocument();
+      expect(mockExportPlan).not.toHaveBeenCalled();
+      expect(mockToastError).not.toHaveBeenCalled();
+    } finally {
+      open.mockRestore();
+    }
   });
 });

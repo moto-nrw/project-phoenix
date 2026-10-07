@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type { ReactNode } from "react";
 import { Download, FileText, FileSpreadsheet, FileType2 } from "lucide-react";
 import {
@@ -10,7 +16,12 @@ import {
   listStudentEnrollmentRequests,
 } from "~/lib/enrollment-admin-api";
 import { useSWRAuth } from "~/lib/swr";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Button } from "~/components/ui/button";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import {
@@ -47,7 +58,15 @@ interface StudentEnrollmentsTabProps {
 export function StudentEnrollmentsTab({
   studentId,
 }: StudentEnrollmentsTabProps) {
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
+  const exportErrors = useApiErrorDisplay();
+  const showExportError = exportErrors.show;
+  const load = useApiLoadError();
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
+  const handleExportRef = useRef<
+    (format: EnrollmentRequestExportFormat) => Promise<void>
+  >(async () => undefined);
   const [exporting, setExporting] =
     useState<EnrollmentRequestExportFormat | null>(null);
 
@@ -60,27 +79,42 @@ export function StudentEnrollmentsTab({
     listStudentEnrollmentRequests(studentId),
   );
 
+  useEffect(() => {
+    if (error) {
+      void showLoadError(error, {
+        object: "die Liste der Anmeldungen",
+        retry: () => void mutate(),
+      });
+    } else {
+      clearLoadError();
+    }
+  }, [error, mutate, showLoadError, clearLoadError]);
+
   const handleExport = useCallback(
     async (format: EnrollmentRequestExportFormat) => {
       setExporting(format);
       try {
         await exportStudentEnrollmentRequests(studentId, format);
-        toastSuccess("Export wurde erstellt.");
+        toastSuccess("Die Datei ist heruntergeladen.");
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Export fehlgeschlagen";
         logger.error("student_enrollments_export_failed", {
-          error: message,
+          error: err instanceof Error ? err.message : String(err),
           student_id: studentId,
           format,
         });
-        toastError(message);
+        await showExportError(err, {
+          object: "die Exportdatei",
+          retry: () => void handleExportRef.current(format),
+        });
       } finally {
         setExporting(null);
       }
     },
-    [studentId, toastError, toastSuccess],
+    [studentId, showExportError, toastSuccess],
   );
+  useLayoutEffect(() => {
+    handleExportRef.current = handleExport;
+  });
 
   return (
     <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-sm sm:p-6">
@@ -122,9 +156,7 @@ export function StudentEnrollmentsTab({
           Anmeldungen werden geladen…
         </p>
       ) : error ? (
-        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm">
-          Anmeldungen konnten nicht geladen werden.
-        </div>
+        <LoadErrorAlert error={load.error} />
       ) : requests.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4 text-sm text-gray-600">
           Für dieses Kind ist keine angenommene oder übernommene

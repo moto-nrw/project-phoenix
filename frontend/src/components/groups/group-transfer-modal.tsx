@@ -1,11 +1,15 @@
 "use client";
 
 import { Clock } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import type { FormErrorInput } from "~/components/ui/form-error";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   DataField,
@@ -21,23 +25,13 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
-import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "GroupTransfer" });
 const EMPTY_TRANSFERS: NonNullable<
   GroupTransferModalProps["existingTransfers"]
 > = [];
-
-function extractErrorMessage(err: unknown, fallback: string): string {
-  if (
-    !(err instanceof Error) ||
-    !["TransferError", "CancelTransferError"].includes(err.name)
-  ) {
-    return fallback;
-  }
-  return err.message || fallback;
-}
 
 interface GroupTransferModalProps {
   readonly isOpen: boolean;
@@ -60,7 +54,7 @@ interface GroupTransferModalProps {
     readonly substitutionId: string;
     readonly targetStaffId: string;
   }>;
-  readonly loadError?: string | null;
+  readonly loadError?: FormErrorInput;
   readonly onCancelTransfer?: (substitutionId: string) => Promise<void>;
 }
 
@@ -76,29 +70,32 @@ export function GroupTransferModal({
 }: GroupTransferModalProps) {
   const [selectedStaffId, setSelectedStaffId] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { clear: clearFormErrors } = formErrors;
   const [deletingId, setDeletingId] = useState<string | null>(null);
   // Zurücknehmen läuft erst nach der Rückfrage (Bauart 2 Regel 6, #3109).
   const [cancelTarget, setCancelTarget] = useState<{
     readonly substitutionId: string;
     readonly targetName: string;
   } | null>(null);
-  const displayedError = error ?? loadError;
-  const errorRef = useScrollToError(displayedError);
+  // „Wiederholen“ übergibt an die aktuell gewählte Fachkraft.
+  const latestTransferRef = useRef<() => void>(() => undefined);
 
   // Reset form when modal opens/closes
   useEffect(() => {
     if (isOpen) {
       setSelectedStaffId("");
-      setError(null);
+      clearFormErrors();
       setDeletingId(null);
       setCancelTarget(null);
     }
-  }, [isOpen]);
+  }, [isOpen, clearFormErrors]);
 
   const handleTransfer = async () => {
+    formErrors.clear();
     if (!selectedStaffId) {
-      setError("Bitte wählen Sie eine pädagogische Fachkraft aus.");
+      formErrors.invalid("Bitte wählen Sie eine pädagogische Fachkraft aus.");
       return;
     }
 
@@ -109,21 +106,17 @@ export function GroupTransferModal({
 
     try {
       setLoading(true);
-      setError(null);
       await onTransfer(selectedStaffId, targetName);
       setSelectedStaffId("");
-      setError(null);
     } catch (err) {
       logger.error("group_transfer_failed", {
         error: err instanceof Error ? err.message : String(err),
         group_id: group?.id,
       });
-      setError(
-        extractErrorMessage(
-          err,
-          "Fehler beim Übergeben der Gruppe. Bitte versuchen Sie es erneut.",
-        ),
-      );
+      void formErrors.show(err, {
+        object: "die Übergabe",
+        retry: () => latestTransferRef.current(),
+      });
     } finally {
       setLoading(false);
     }
@@ -134,24 +127,24 @@ export function GroupTransferModal({
 
     try {
       setDeletingId(substitutionId);
-      setError(null);
+      formErrors.clear();
       await onCancelTransfer(substitutionId);
-      setError(null);
     } catch (err) {
       logger.error("group_transfer_cancel_failed", {
         error: err instanceof Error ? err.message : String(err),
         substitution_id: substitutionId,
       });
-      setError(
-        extractErrorMessage(
-          err,
-          "Fehler beim Zurücknehmen. Bitte versuchen Sie es erneut.",
-        ),
-      );
+      // Kein Wiederholen-Link: der Dialog ist dann schon zu, Zurücknehmen
+      // startet man erneut über die Liste.
+      void formErrors.show(err, { object: "die Übergabe" });
     } finally {
       setDeletingId(null);
     }
   };
+
+  useLayoutEffect(() => {
+    latestTransferRef.current = () => void handleTransfer();
+  });
 
   if (!group) return null;
 
@@ -222,12 +215,12 @@ export function GroupTransferModal({
           </div>
           <SlideOverCloseButton disabled={loading} />
         </SlideOverHeader>
-        <div className="flex-1 space-y-6 overflow-y-auto px-5 py-4">
-          {displayedError ? (
-            <div ref={errorRef}>
-              <Alert type="error" message={displayedError} />
-            </div>
-          ) : null}
+        <div
+          ref={formRef}
+          className="flex-1 space-y-6 overflow-y-auto px-5 py-4"
+        >
+          <FormErrorAlert message={formErrors.error} />
+          <LoadErrorAlert error={loadError} />
 
           <InfoSection
             title="Was die Übergabe bewirkt"

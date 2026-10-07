@@ -4,7 +4,9 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useSWRConfig } from "swr";
@@ -53,8 +55,10 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
-import { useFormError } from "~/components/ui/form-error";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import {
@@ -67,7 +71,12 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { Textarea } from "~/components/ui/textarea";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   formatDate,
@@ -254,7 +263,17 @@ export function AbwesenheitenTab({
     null,
   );
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
+  const deleteErrors = useApiFormError();
+  const { show: showActionError } = useApiErrorDisplay();
+  const load = useApiLoadError();
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
+  // Das Jahr, dessen Daten gerade angezeigt werden. Scheitert ein Laden für
+  // ein anderes Jahr, wären die angezeigten Zahlen falsch.
+  const [loadedYear, setLoadedYear] = useState<number | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  // „Wiederholen“ lädt das aktuell gewählte Jahr.
+  const latestReloadRef = useRef<() => Promise<void>>(async () => undefined);
   const { mutate: swrMutate } = useSWRConfig();
 
   // A sick report / its deletion cascades into the Dienst- and
@@ -292,6 +311,9 @@ export function AbwesenheitenTab({
         );
         setQuota(q);
         setAbsences(abs);
+        setLoadedYear(year);
+        setLoadFailed(false);
+        clearLoadError();
         setAbsenceTypes(types);
         setCustomAllowances(
           allowanceTypes.map((type, index) => ({
@@ -315,13 +337,20 @@ export function AbwesenheitenTab({
           staff_id: staffId,
           error: err instanceof Error ? err.message : String(err),
         });
-        toast.error("Daten konnten nicht geladen werden.");
+        setLoadFailed(true);
+        void showLoadError(err, {
+          object: "die Übersicht der Abwesenheiten",
+          retry: () => void latestReloadRef.current(),
+        });
       } finally {
         setLoading(false);
       }
     },
-    [staff, staffId, year, swrMutate, toast],
+    [staff, staffId, year, swrMutate, showLoadError, clearLoadError],
   );
+  useLayoutEffect(() => {
+    latestReloadRef.current = () => reload();
+  });
 
   useEffect(() => {
     // Ein Jahreswechsel lädt still nach: der Reiter bleibt stehen.
@@ -354,12 +383,17 @@ export function AbwesenheitenTab({
     setPendingActionId(row.id);
     try {
       await staffAbsenceService.approve(row.id);
-      toast.success("Antrag genehmigt.");
+      toast.success("Der Antrag ist genehmigt.");
       await reload();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Genehmigung fehlgeschlagen.",
-      );
+      logger.error("absence_approve_failed", {
+        absence_id: row.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showActionError(err, {
+        object: "die Anfrage",
+        retry: () => void handleApprove(row),
+      });
     } finally {
       setPendingActionId(null);
     }
@@ -368,16 +402,21 @@ export function AbwesenheitenTab({
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleteLoading(true);
-    setDeleteError("");
+    deleteErrors.clear();
     try {
       await staffAbsenceService.deleteAbsence(staffId, deleteTarget.id);
-      toast.success(`${absenceRowActionNoun(deleteTarget)} gelöscht.`);
+      toast.success(`${absenceRowActionNoun(deleteTarget)} ist gelöscht.`);
       setDeleteTarget(null);
       await Promise.all([refreshPlanCaches(), reload()]);
     } catch (err) {
-      setDeleteError(
-        err instanceof Error ? err.message : "Löschen fehlgeschlagen.",
-      );
+      logger.error("absence_delete_failed", {
+        absence_id: deleteTarget.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await deleteErrors.show(err, {
+        object: "die Abwesenheit",
+        retry: () => void handleDelete(),
+      });
     } finally {
       setDeleteLoading(false);
     }
@@ -657,6 +696,8 @@ export function AbwesenheitenTab({
           staff={sickStaff}
           onClose={() => setSickStaff(null)}
           onCreated={() => {
+            // reload zeigt seinen Ladefehler selbst; hier bleibt nur das
+            // Auffrischen der Plan-Caches, das der Dialog nicht anzeigen kann.
             Promise.all([refreshPlanCaches(), reload({ silent: true })]).catch(
               (err: unknown) => {
                 logger.error("post_create_refresh_failed", {
@@ -692,11 +733,14 @@ export function AbwesenheitenTab({
         }
         gate={{ mode: "twoStep" }}
         loading={deleteLoading}
-        error={deleteError}
+        error={deleteErrors.error}
         confirmLabel="Löschen"
         loadingLabel="Wird gelöscht…"
         onConfirm={handleDelete}
-        onClose={() => setDeleteTarget(null)}
+        onClose={() => {
+          deleteErrors.clear();
+          setDeleteTarget(null);
+        }}
       />
       {denyModal && (
         <DenyAbsenceModal
@@ -772,7 +816,32 @@ export function AbwesenheitenTab({
     </div>
   );
 
-  return <TabLoadingBoundary loading={loading}>{content}</TabLoadingBoundary>;
+  const loadAlert = <LoadErrorAlert error={load.error} />;
+  // Gehören die angezeigten Zahlen zu einem anderen Jahr (oder gab es noch
+  // keine), steht nur der Fehler da, nie ein falscher oder leerer Stand.
+  const body =
+    loadFailed && loadedYear !== year ? (
+      <div className="space-y-5">
+        {loadedYear !== null ? (
+          <SegmentedControl
+            ariaLabel="Kalenderjahr"
+            items={[currentYear - 1, currentYear, currentYear + 1].map(
+              (value) => ({ value: String(value), label: String(value) }),
+            )}
+            value={String(year)}
+            onChange={(value) => setYear(Number(value))}
+          />
+        ) : null}
+        {loadAlert}
+      </div>
+    ) : (
+      <div className="space-y-5">
+        {loadAlert}
+        {content}
+      </div>
+    );
+
+  return <TabLoadingBoundary loading={loading}>{body}</TabLoadingBoundary>;
 }
 
 function formatNumber(days: number): string {
@@ -949,17 +1018,24 @@ function VacationOpeningDeleteModal({
 }) {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const formErrors = useApiFormError();
 
   const handleConfirm = async () => {
     setLoading(true);
-    setError("");
+    formErrors.clear();
     try {
       await staffAbsenceService.deleteVacationOpening(staffId, opening.year);
-      toast.success("Urlaubs-Übernahme gelöscht.");
+      toast.success("Die Urlaubs-Übernahme ist gelöscht.");
       await onDeleted();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Löschen fehlgeschlagen.");
+      logger.error("vacation_opening_delete_failed", {
+        staff_id: staffId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await formErrors.show(err, {
+        object: "die Urlaubs-Übernahme",
+        retry: () => void handleConfirm(),
+      });
     } finally {
       setLoading(false);
     }
@@ -979,7 +1055,7 @@ function VacationOpeningDeleteModal({
       }
       gate={{ mode: "twoStep" }}
       loading={loading}
-      error={error}
+      error={formErrors.error}
       confirmLabel="Löschen"
       loadingLabel="Wird gelöscht…"
       onConfirm={handleConfirm}
@@ -1189,8 +1265,10 @@ function VacationOpeningModal({
   const [remainingDays, setRemainingDays] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useFormError();
+  const formErrors = useApiFormError();
   const toast = useToast();
+  // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
+  const latestSubmitRef = useRef<() => Promise<void>>(async () => undefined);
 
   const yearEndKey = `${year}-12-31`;
   const yesterdayKey = previousDayISO(berlinTodayISO());
@@ -1205,17 +1283,19 @@ function VacationOpeningModal({
     remaining === null ? null : entitledTotal - remaining;
 
   const handleSubmit = async () => {
-    setError(null);
+    formErrors.clear();
+    const fields: Record<string, string> = {};
     if (!effectiveDate) {
-      setError("Stichtag fehlt.");
-      return;
+      fields.effective_date = "Bitte wählen Sie einen Stichtag.";
     }
     if (remaining === null || remaining < -999 || remaining > 999) {
-      setError("Resturlaub ungültig (-999 bis 999).");
-      return;
+      fields.remaining_days = REMAINING_RANGE_HINT;
     }
     if (note.trim() === "") {
-      setError("Begründung fehlt.");
+      fields.note = "Bitte geben Sie eine Begründung ein.";
+    }
+    if (Object.keys(fields).length > 0 || remaining === null) {
+      formErrors.invalid("Bitte prüfen Sie die markierten Felder.", fields);
       return;
     }
     setSubmitting(true);
@@ -1225,16 +1305,25 @@ function VacationOpeningModal({
         remainingDays: remaining,
         note: note.trim(),
       });
-      toast.success("Urlaubs-Übernahme gespeichert.");
+      toast.success("Die Urlaubs-Übernahme ist gespeichert.");
       await onSaved();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Übernahme fehlgeschlagen.",
-      );
+      logger.error("vacation_opening_save_failed", {
+        staff_id: staffId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await formErrors.show(err, {
+        object: "die Urlaubs-Übernahme",
+        retry: () => void latestSubmitRef.current(),
+      });
     } finally {
       setSubmitting(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestSubmitRef.current = handleSubmit;
+  });
 
   if (existing) {
     return (
@@ -1322,7 +1411,7 @@ function VacationOpeningModal({
       }
     >
       <div className="space-y-4">
-        <FormErrorAlert message={error} />
+        <FormErrorAlert message={formErrors.error} />
         <p className="text-sm text-gray-500">
           moto errechnet daraus die vor der Einführung bereits genommenen Tage.
           Der Jahresanspruch bleibt unverändert.
@@ -1342,6 +1431,7 @@ function VacationOpeningModal({
             onChange={setEffectiveDate}
             calendarLayout="popover"
             hideClearButton
+            error={formErrors.fieldError("effective_date")}
           />
           <p className="mt-1 text-xs text-gray-400">
             Der Stichtag muss im Jahr {year} und vor dem heutigen Tag liegen.
@@ -1356,6 +1446,7 @@ function VacationOpeningModal({
           </label>
           <Input
             id="vacation-opening-remaining"
+            name="remaining_days"
             type="text"
             inputMode="decimal"
             controlSize="compact"
@@ -1364,8 +1455,8 @@ function VacationOpeningModal({
             placeholder="z. B. 12,5"
             error={
               remainingDays.trim() !== "" && !remainingValid
-                ? "Bitte eine Zahl zwischen -999 und 999 mit höchstens einer Nachkommastelle eingeben."
-                : undefined
+                ? REMAINING_RANGE_HINT
+                : formErrors.fieldError("remaining_days")
             }
           />
         </div>
@@ -1402,16 +1493,21 @@ function VacationOpeningModal({
           </label>
           <Textarea
             id="vacation-opening-note"
+            name="note"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
             placeholder="z. B. Übernahme aus Urlaubsliste, Stand 31.07."
+            error={formErrors.fieldError("note")}
           />
         </div>
       </div>
     </Modal>
   );
 }
+
+const REMAINING_RANGE_HINT =
+  "Bitte eine Zahl zwischen -999 und 999 mit höchstens einer Nachkommastelle eingeben.";
 
 const QUOTA_RANGE_ERROR = "Bitte eine Zahl zwischen 0 und 366 eingeben.";
 
@@ -1445,32 +1541,24 @@ function QuotaEditForm({
   const [entitled, setEntitled] = useState(String(quota.entitled_days));
   const [carryover, setCarryover] = useState(String(quota.carryover_days));
   const [reason, setReason] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<{
-    entitled?: string;
-    carryover?: string;
-    reason?: string;
-  }>({});
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useFormError();
+  const formErrors = useApiFormError();
   const toast = useToast();
+  // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
+  const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
 
   const handleSave = async () => {
-    setError(null);
-    const nextFieldErrors = {
-      entitled: quotaFieldError(entitled),
-      carryover: quotaFieldError(carryover),
-      reason:
-        reason.trim() === ""
-          ? "Bitte kurz sagen, warum sich der Anspruch ändert."
-          : undefined,
-    };
-    setFieldErrors(nextFieldErrors);
-    if (
-      nextFieldErrors.entitled ||
-      nextFieldErrors.carryover ||
-      nextFieldErrors.reason
-    ) {
-      setError("Bitte prüfen Sie die markierten Felder.");
+    formErrors.clear();
+    const fields: Record<string, string> = {};
+    const entitledError = quotaFieldError(entitled);
+    const carryoverError = quotaFieldError(carryover);
+    if (entitledError) fields.entitled_days = entitledError;
+    if (carryoverError) fields.carryover_days = carryoverError;
+    if (reason.trim() === "") {
+      fields.reason = "Bitte kurz sagen, warum sich der Anspruch ändert.";
+    }
+    if (Object.keys(fields).length > 0) {
+      formErrors.invalid("Bitte prüfen Sie die markierten Felder.", fields);
       return;
     }
     setSaving(true);
@@ -1481,22 +1569,25 @@ function QuotaEditForm({
         carryover_days: Number.parseFloat(carryover),
         reason: reason.trim(),
       });
-      toast.success("Urlaubsanspruch gespeichert.");
+      toast.success("Der Urlaubsanspruch ist gespeichert.");
       await onSaved();
     } catch (err) {
       logger.error("quota_save_failed", {
         staff_id: staffId,
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        err instanceof Error && err.message
-          ? err.message
-          : "Der Urlaubsanspruch konnte nicht gespeichert werden.",
-      );
+      await formErrors.show(err, {
+        object: "die Änderung am Urlaubsanspruch",
+        retry: () => void latestSaveRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestSaveRef.current = handleSave;
+  });
 
   return (
     <form
@@ -1508,13 +1599,14 @@ function QuotaEditForm({
         void handleSave();
       }}
     >
-      <FormErrorAlert message={error} />
+      <FormErrorAlert message={formErrors.error} />
       <h4 className="text-sm font-semibold text-gray-900">
         Urlaubsanspruch {year}
       </h4>
       <div className="grid gap-3 md:grid-cols-2">
         <Input
           id="quota-entitled"
+          name="entitled_days"
           label="Jahresanspruch (Tage)"
           type="number"
           min="0"
@@ -1523,11 +1615,12 @@ function QuotaEditForm({
           controlSize="compact"
           value={entitled}
           onChange={(e) => setEntitled(e.target.value)}
-          error={fieldErrors.entitled}
+          error={formErrors.fieldError("entitled_days")}
           disabled={saving}
         />
         <Input
           id="quota-carryover"
+          name="carryover_days"
           label="Übertrag aus Vorjahr (Tage)"
           type="number"
           min="0"
@@ -1536,18 +1629,19 @@ function QuotaEditForm({
           controlSize="compact"
           value={carryover}
           onChange={(e) => setCarryover(e.target.value)}
-          error={fieldErrors.carryover}
+          error={formErrors.fieldError("carryover_days")}
           disabled={saving}
         />
       </div>
       <Input
         id="quota-reason"
+        name="reason"
         label="Begründung"
         controlSize="compact"
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder="z. B. Stellenumfang geändert"
-        error={fieldErrors.reason}
+        error={formErrors.fieldError("reason")}
         disabled={saving}
       />
       <EditActions onCancel={onCancel} saving={saving} />

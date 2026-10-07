@@ -430,7 +430,7 @@ func (rs *Resource) writeStudentUpdate(ctx context.Context, update *studentUpdat
 	effectiveConsent := reconcilePhotoConsentRequest(req.PhotoConsentGiven, update.snapshot, fresh)
 	rs.applyPhotoConsent(ctx, effectiveConsent, fresh)
 
-	if err := rs.persistStudentStatusHistory(ctx, fresh, update.wasSick, update.wasExcused, update.now, strutil.TrimPtrToNil(req.SickReason)); err != nil {
+	if err := rs.persistStudentStatusHistory(ctx, fresh, req, update.wasSick, update.wasExcused, update.now, strutil.TrimPtrToNil(req.SickReason)); err != nil {
 		rs.logStatusHistoryError(update.snapshot.ID, err)
 		return false, err
 	}
@@ -491,8 +491,9 @@ func companionConflictRenderer(err error) render.Renderer {
 		return nil
 	}
 	return &CompanionConflictResponse{
+		Status:    "error",
+		Error:     "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
 		Conflicts: conflictErr.Conflicts,
-		Message:   "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
 	}
 }
 
@@ -555,7 +556,7 @@ func updateStudentTxErrorRenderer(err error) render.Renderer {
 // respondUpdatedStudent re-reads the student and writes the 200 response,
 // stamping the write's companion verdict onto it (see
 // StudentResponse.CompanionsChanged).
-func (rs *Resource) respondUpdatedStudent(w http.ResponseWriter, r *http.Request, studentID int64, person *peopleModule.Person, hasFullAccess, companionsChanged bool) {
+func (rs *Resource) respondUpdatedStudent(w http.ResponseWriter, r *http.Request, studentID int64, person *peopleModule.Person, hasFullAccess, companionsChanged bool, now time.Time) {
 	updatedStudent, err := rs.findStudent(r.Context(), studentID)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
@@ -575,6 +576,14 @@ func (rs *Resource) respondUpdatedStudent(w http.ResponseWriter, r *http.Request
 		ActiveService: rs.ActiveService,
 	})
 	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	// Same overlay as the detail read: the caller judges the write by this
+	// response, and a status day without the live flag (a parent's Abmeldung,
+	// #1735) still counts. A lift that left such a row active must not read as
+	// done (#3854).
+	if err := rs.applyStatusDaysForDateToResponse(r.Context(), &response, now); err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -613,7 +622,10 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// The client needs the write's own verdict on the links (see
 	// StudentResponse.CompanionsChanged); it is produced inside the transaction
 	// and read after it, when the update is known to have succeeded.
-	companionsChanged, err := rs.runStudentUpdate(r.Context(), student, person, req, userPermissions, personUpdated)
+	// Capture one instant for the write and its response. A request crossing
+	// Berlin midnight must not lift yesterday's status and verify tomorrow's.
+	now := rs.Now()
+	companionsChanged, err := rs.runStudentUpdate(r.Context(), student, person, req, userPermissions, personUpdated, now)
 	if err != nil {
 		// This handler runs inside TenantTxMiddleware's transaction, and the
 		// WithTenantTx above only REUSES it (tenant/tx.go) — returning an error
@@ -630,7 +642,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Admin users and group supervisors can see full data including detailed
 	// location; an absence-only writer under open care cannot.
-	rs.respondUpdatedStudent(w, r, student.ID, person, hasFullWriteAccess, companionsChanged)
+	rs.respondUpdatedStudent(w, r, student.ID, person, hasFullWriteAccess, companionsChanged, now)
 }
 
 // stageStudentUpdate runs the checks an update passes before its transaction
@@ -663,12 +675,11 @@ func (rs *Resource) stageStudentUpdate(ctx context.Context, userPermissions []st
 
 // runStudentUpdate runs the locked-row patch in the request's tenant
 // transaction and reports whether it changed the Laufgemeinschaft.
-func (rs *Resource) runStudentUpdate(ctx context.Context, student *Student, person *peopleModule.Person, req *UpdateStudentRequest, userPermissions []string, personUpdated bool) (bool, error) {
-	statusHistoryNow := time.Now()
+func (rs *Resource) runStudentUpdate(ctx context.Context, student *Student, person *peopleModule.Person, req *UpdateStudentRequest, userPermissions []string, personUpdated bool, now time.Time) (bool, error) {
 	tenantID := tenant.FromContext(ctx)
 	companionsChanged := false
 	err := withinTenant(ctx, tenantID, func(ctx context.Context) error {
-		changed, err := rs.applyStudentUpdate(ctx, tenantID, student, person, req, userPermissions, personUpdated, statusHistoryNow)
+		changed, err := rs.applyStudentUpdate(ctx, tenantID, student, person, req, userPermissions, personUpdated, now)
 		companionsChanged = changed
 		return err
 	})

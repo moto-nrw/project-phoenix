@@ -1,6 +1,60 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { DatabaseSelect, GroupSelect } from "./database-select";
+import { useApiLoadError } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+type SelectOptions = ReadonlyArray<{ value: string; label: string }>;
+
+/** An owner with the shared load path, as a real caller wires it (#2517). */
+function SelectOwner({
+  loadOptions,
+}: {
+  readonly loadOptions: () => Promise<SelectOptions>;
+}) {
+  const { error, show, clear } = useApiLoadError();
+  return (
+    <DatabaseSelect
+      name="room"
+      label="Raum"
+      value=""
+      onChange={() => undefined}
+      loadOptions={loadOptions}
+      loadError={error}
+      onLoadError={(loadError, retry) =>
+        void show(loadError, {
+          object: "die Liste der Räume",
+          retry: () => {
+            clear();
+            retry();
+          },
+        })
+      }
+    />
+  );
+}
+
+function GroupSelectOwner() {
+  const { error, show, clear } = useApiLoadError();
+  return (
+    <GroupSelect
+      name="group_id"
+      value=""
+      onChange={() => undefined}
+      loadError={error}
+      onLoadError={(loadError, retry) =>
+        void show(loadError, {
+          object: "die Liste der Gruppen",
+          retry: () => {
+            clear();
+            retry();
+          },
+        })
+      }
+    />
+  );
+}
 
 // The select renders as the kit listbox (CustomSelect): a combobox trigger
 // button plus an option list that only exists while the menu is open.
@@ -228,7 +282,14 @@ describe("DatabaseSelect", () => {
         { value: "2", label: "Loaded Option 2" },
       ]);
 
-      render(<DatabaseSelect {...defaultProps} loadOptions={loadOptions} />);
+      render(
+        <DatabaseSelect
+          {...defaultProps}
+          loadOptions={loadOptions}
+          loadError={null}
+          onLoadError={vi.fn()}
+        />,
+      );
 
       // Should show loading state initially
       expect(screen.getByText("Lädt...")).toBeInTheDocument();
@@ -251,22 +312,59 @@ describe("DatabaseSelect", () => {
       expect(loadOptions).toHaveBeenCalledTimes(1);
     });
 
-    it("handles loadOptions error gracefully", async () => {
-      const loadOptions = vi.fn().mockRejectedValue(new Error("Network error"));
+    it("shows a failed load with the owner's catalog text instead of an empty select and retries it", async () => {
+      const loadOptions = vi
+        .fn<() => Promise<SelectOptions>>()
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValueOnce([{ value: "1", label: "Raum Blau" }]);
 
-      const consoleSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => undefined);
+      render(<SelectOwner loadOptions={loadOptions} />);
 
-      render(<DatabaseSelect {...defaultProps} loadOptions={loadOptions} />);
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "die Liste der Räume"),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 
       await waitFor(() => {
-        expect(
-          screen.getByText("Fehler beim Laden der Optionen"),
-        ).toBeInTheDocument();
+        expect(screen.getByRole("combobox")).not.toBeDisabled();
       });
+      expect(loadOptions).toHaveBeenCalledTimes(2);
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "die Liste der Räume"),
+        ),
+      ).not.toBeInTheDocument();
+      openMenu();
+      expect(
+        screen.getByRole("option", { name: "Raum Blau" }),
+      ).toBeInTheDocument();
+    });
 
-      consoleSpy.mockRestore();
+    it("hands a failed load to the owner with the error and a retry", async () => {
+      const failure = new ApiError("down", 503, {
+        code: "general.unavailable",
+      });
+      const loadOptions = vi.fn().mockRejectedValue(failure);
+      const onLoadError = vi.fn();
+
+      render(
+        <DatabaseSelect
+          {...defaultProps}
+          loadOptions={loadOptions}
+          loadError={null}
+          onLoadError={onLoadError}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(onLoadError).toHaveBeenCalledWith(failure, expect.any(Function));
+      });
     });
 
     it("does not call loadOptions if staticOptions are provided", () => {
@@ -274,6 +372,8 @@ describe("DatabaseSelect", () => {
       const staticOptions = [{ value: "static", label: "Static Option" }];
 
       render(
+        // @ts-expect-error The type takes one source; the runtime still
+        // prefers static options when a caller passes both.
         <DatabaseSelect
           {...defaultProps}
           options={staticOptions}
@@ -334,6 +434,8 @@ describe("GroupSelect", () => {
     name: "group-select",
     value: "",
     onChange: vi.fn(),
+    loadError: null,
+    onLoadError: vi.fn(),
   };
 
   it("renders with default 'Gruppe' label", async () => {
@@ -397,25 +499,27 @@ describe("GroupSelect", () => {
     expect(global.fetch).toHaveBeenCalledWith("/api/groups");
   });
 
-  it("handles API error gracefully", async () => {
+  it("shows a failed group load with the catalog text and retry", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: false,
       status: 500,
+      text: () =>
+        Promise.resolve(
+          JSON.stringify({ status: "error", error: "db down", code: "" }),
+        ),
     });
 
-    const consoleSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
+    render(<GroupSelectOwner />);
 
-    render(<GroupSelect {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByText("Fehler beim Laden der Optionen"),
-      ).toBeInTheDocument();
-    });
-
-    consoleSpy.mockRestore();
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Liste der Gruppen"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Wiederholen" }),
+    ).toBeInTheDocument();
   });
 
   it("includes filters in API request", async () => {

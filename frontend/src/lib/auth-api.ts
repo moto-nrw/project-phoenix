@@ -1,5 +1,5 @@
 // lib/auth-api.ts
-import { ApiError, apiErrorFromBody } from "./api-error";
+import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 export { handleAuthFailure, refreshToken } from "./auth-failure";
 import { createLogger } from "~/lib/logger";
 
@@ -79,7 +79,7 @@ async function requestPasswordResetAt(
   email: string,
 ): Promise<{ message: string }> {
   try {
-    const response = await fetch(endpoint, {
+    const response = await transportFetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -154,17 +154,20 @@ export async function confirmParentPasswordReset(
   confirmPassword: string,
 ): Promise<{ message: string }> {
   try {
-    const response = await fetch("/api/parent/auth/password-reset/confirm", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    const response = await transportFetch(
+      "/api/parent/auth/password-reset/confirm",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          token,
+          new_password: password,
+          confirm_password: confirmPassword,
+        }),
       },
-      body: JSON.stringify({
-        token,
-        new_password: password,
-        confirm_password: confirmPassword,
-      }),
-    });
+    );
 
     if (!response.ok) {
       throw await buildApiError(
@@ -187,15 +190,18 @@ export async function confirmSchoolPasswordReset(
   password: string,
   confirmPassword: string,
 ): Promise<{ message: string }> {
-  const response = await fetch("/api/school/auth/password-reset/confirm", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      token,
-      new_password: password,
-      confirm_password: confirmPassword,
-    }),
-  });
+  const response = await transportFetch(
+    "/api/school/auth/password-reset/confirm",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token,
+        new_password: password,
+        confirm_password: confirmPassword,
+      }),
+    },
+  );
 
   if (!response.ok) {
     throw await buildApiError(

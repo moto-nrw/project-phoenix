@@ -2094,11 +2094,11 @@ route path, status code, error string or authorization check changed.
 resources from its configuration and mounts them
 (`inbound-operator.http.organization-tenancy-http`,
 `inbound-operator.http.settings-platform-http`,
-`inbound-operator.http.communication-http`). The operator error body and
-the operator-audited id action live in `api/common` (`OperatorErrResponse`,
-`OperatorAuditedIDAction`), so every half of the operator surface renders
-one wire format; #3231 removed the thin `Err*` delegations `api/operator`
-kept until then.
+`inbound-operator.http.communication-http`). The operator error
+constructors and the operator-audited id action live in `api/common`
+(`Operator*`, `OperatorAuditedIDAction`), so every half of the operator
+surface renders one wire format, the shared error envelope since #2507;
+#3231 removed the thin `Err*` delegations `api/operator` kept until then.
 The three packages are the only packages of their points, which exist only
 in the candidate. The owner rules `organization-tenancy.http.public`,
 `settings-platform.http.organization-public` and `communication.http.public`

@@ -158,7 +158,7 @@ func TestAdminRebookAbsences_CompTimeToAllowanceType(t *testing.T) {
 	// The write needs a reason.
 	unreasoned := f.rebook(t, f.body("  ", false))
 	require.Equal(t, http.StatusConflict, unreasoned.Code, unreasoned.Body.String())
-	assert.Contains(t, unreasoned.Body.String(), `"workforce.absence_rebooking_blocked"`)
+	assert.Contains(t, unreasoned.Body.String(), `"code":"workforce.rebooking_reason_required"`)
 
 	applied := f.rebook(t, f.body("Kontingent angelegt, Freitage waren Krank-Urlaubstage", false))
 	require.Equal(t, http.StatusOK, applied.Code, applied.Body.String())
@@ -181,6 +181,8 @@ func TestAdminRebookAbsences_CompTimeToAllowanceType(t *testing.T) {
 	again := f.rebook(t, f.body("", true))
 	require.Equal(t, http.StatusConflict, again.Code, again.Body.String())
 	assert.Contains(t, again.Body.String(), "hat diese Art schon")
+	assert.Contains(t, again.Body.String(), `"code":"workforce.rebooking_same_type"`)
+	assert.Regexp(t, `"details":\{"day":"\d{2}\.08\.2026"\}`, again.Body.String())
 
 	// Every entry appears with its reason and both types in the audit log.
 	var rows []struct {
@@ -225,7 +227,7 @@ func TestAdminRebookAbsences_RejectsBlockingOverlap(t *testing.T) {
 
 	rec := f.rebook(t, f.body("", true))
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), `"workforce.absence_rebooking_blocked"`)
+	assert.Contains(t, rec.Body.String(), `"code":"workforce.rebooking_overlap"`)
 	assert.Contains(t, rec.Body.String(), "überschneidet sich")
 	assert.Equal(t, []string{"comp_time:", "comp_time:", "comp_time:"}, f.storedTypes(t))
 }
@@ -260,7 +262,8 @@ func TestAdminRebookAbsences_ClosedMonthBlocks(t *testing.T) {
 	for _, dryRun := range []bool{true, false} {
 		rec := f.rebook(t, f.body("Kontingent angelegt", dryRun))
 		require.Equal(t, http.StatusConflict, rec.Code, "dry_run=%v: %s", dryRun, rec.Body.String())
-		assert.Contains(t, rec.Body.String(), `"workforce.absence_rebooking_blocked"`)
+		assert.Contains(t, rec.Body.String(), `"code":"workforce.month_closed"`)
+		assert.Contains(t, rec.Body.String(), `"details":{"month":"August 2026"}`)
 		assert.Contains(t, rec.Body.String(), "August 2026 ist abgeschlossen")
 	}
 	assert.Equal(t, []string{"comp_time:", "comp_time:", "comp_time:"}, f.storedTypes(t))
@@ -285,13 +288,15 @@ func TestAdminRebookAbsences_RejectsSickReportsAndForeignEntries(t *testing.T) {
 	rec := f.rebook(t, body)
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "Krankmeldung vom 03.08.2026")
+	assert.Contains(t, rec.Body.String(), `"code":"workforce.rebooking_sick_report"`)
+	assert.Contains(t, rec.Body.String(), `"details":{"day":"03.08.2026"}`)
 
 	// Rebooking into sick would skip the plan cascade.
 	intoSick := f.body("Korrektur", false)
 	intoSick["absence_type"], intoSick["absence_type_id"] = "sick", nil
 	rec = f.rebook(t, intoSick)
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), `"workforce.absence_rebooking_blocked"`)
+	assert.Contains(t, rec.Body.String(), `"code":"workforce.rebooking_into_sick_report"`)
 
 	// Another person's entry is not reachable through this staff member.
 	other := testpkg.CreateTestStaff(t, f.tc.db, "Rebook", fmt.Sprintf("Other-%d", time.Now().UnixNano()))

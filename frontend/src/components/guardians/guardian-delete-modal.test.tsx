@@ -163,4 +163,12 @@ describe("GuardianDeleteModal", () => {
       ).toBeDisabled();
     });
   });
+
+  // #2517: the failure of the delete stays in the open dialog.
+  it("shows the error it is given inside the dialog", () => {
+    renderModal({ error: "Das Entfernen hat nicht geklappt." });
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "Das Entfernen hat nicht geklappt.",
+    );
+  });
 });

@@ -11,6 +11,8 @@ import { useEffect, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { formErrorMessage } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   DataField,
   DataFieldSkeleton,
@@ -30,6 +32,8 @@ import {
   fetchCareScheduleChangeRequest,
   type StaffCareRequestDetail,
 } from "~/lib/care-request-review-api";
+import { useApiLoadError } from "~/contexts/ToastContext";
+import { wireErrorCode } from "~/lib/api-error";
 import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 
@@ -91,24 +95,37 @@ export function PickupRequestDetailModal({
   onOpenQueue?: () => void;
 }>) {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
+  // Erhöht sich bei „Wiederholen“ und lädt die Anfrage neu.
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  // Ein echter Ladefehler steht im Fenster, mit Wiederholen (#2517).
+  const loadError = useApiLoadError();
+  const showLoadError = loadError.show;
+  const clearLoadError = loadError.clear;
 
   useEffect(() => {
     if (!requestId) return;
     let cancelled = false;
     setState({ kind: "loading" });
+    clearLoadError();
     fetchCareScheduleChangeRequest(requestId)
       .then((detail) => {
         if (!cancelled) setState({ kind: "loaded", detail });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        const status =
-          err instanceof CareRequestApiError ? err.status : undefined;
-        if (status === 404) {
+        // Eine entfernte Anfrage ist kein Fehler, sondern ein erklärter
+        // Zustand: der Hinweis im Verlauf bleibt (#2517: am Code erkannt).
+        if (
+          err instanceof CareRequestApiError &&
+          wireErrorCode(err.code) === "care.request_not_found"
+        ) {
           setState({ kind: "gone" });
           return;
         }
-        if (status === 403) {
+        if (
+          err instanceof CareRequestApiError &&
+          wireErrorCode(err.code) === "general.permission"
+        ) {
           setState({ kind: "forbidden" });
           return;
         }
@@ -117,11 +134,15 @@ export function PickupRequestDetailModal({
           request_id: requestId,
         });
         setState({ kind: "failed" });
+        void showLoadError(err, {
+          object: "die Anfrage",
+          retry: () => setLoadAttempt((attempt) => attempt + 1),
+        });
       });
     return () => {
       cancelled = true;
     };
-  }, [requestId]);
+  }, [requestId, loadAttempt, showLoadError, clearLoadError]);
 
   const pending = state.kind === "loaded" && state.detail.status === "pending";
 
@@ -149,7 +170,9 @@ export function PickupRequestDetailModal({
         </div>
       }
     >
-      {state.kind === "loading" && (
+      {(state.kind === "loading" ||
+        (state.kind === "failed" &&
+          formErrorMessage(loadError.error) === null)) && (
         <InfoSection title="Beantragt" icon={DetailIcons.document}>
           <DataGrid>
             <DataFieldSkeleton />
@@ -171,12 +194,7 @@ export function PickupRequestDetailModal({
           message="Für dieses Kind dürfen Sie keine Anfragen ansehen."
         />
       )}
-      {state.kind === "failed" && (
-        <Alert
-          type="error"
-          message="Die Anfrage konnte nicht geladen werden. Bitte versuchen Sie es noch einmal."
-        />
-      )}
+      {state.kind === "failed" && <LoadErrorAlert error={loadError.error} />}
       {state.kind === "loaded" && <DetailBody detail={state.detail} />}
     </Modal>
   );

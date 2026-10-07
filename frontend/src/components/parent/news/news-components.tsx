@@ -8,7 +8,13 @@
  * an explicit button.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Check, ChevronRight, ExternalLink } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -17,11 +23,18 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { LinkifiedText } from "~/components/ui/linkified-text";
 import { Alert } from "~/components/ui/alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { Radio } from "~/components/ui/radio";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { SectionCard } from "~/components/ui/section-card";
+import { LONG_POLL_OPTIONS } from "~/lib/announcement-poll-options";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { AttachmentList } from "~/components/ui/attachment-list";
@@ -330,10 +343,12 @@ function usePollAnswers(
   item: ParentAnnouncement,
   onUpdated: (id: string, patch: Partial<ParentAnnouncement>) => void,
   onStale?: (id: string) => void,
+  onSaved?: () => void,
 ) {
   const t = useTranslations("parentDashboard");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Shown inside the open detail dialog, which lies above every toast.
+  const { error, show: showError, clear: clearError } = useApiFormError();
 
   const children = item.children ?? [];
   const closed = isPollClosed(item);
@@ -360,7 +375,7 @@ function usePollAnswers(
         children.map((c) => [c.student_id, [...c.selected_options]]),
       ),
     );
-    setError(null);
+    clearError();
     // The version includes every option id and label, rather than the children:
     // response updates must preserve drafts for unresolved children.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -396,7 +411,7 @@ function usePollAnswers(
   const save = async (): Promise<boolean> => {
     if (!item.published_at || dirtyChildren.length === 0) return false;
     setSaving(true);
-    setError(null);
+    clearError();
     const savedSelections = new Map<string, string[]>();
     try {
       for (const child of dirtyChildren) {
@@ -428,16 +443,28 @@ function usePollAnswers(
       if (isStaleAnnouncementError(err)) {
         onStale?.(item.id);
       }
-      setError(t("newsActionError"));
+      void showError(err, {
+        object: t("newsErrorObjectAnswer"),
+        retry: () => void retrySaveRef.current(),
+      });
       return false;
     } finally {
       setSaving(false);
     }
   };
 
+  // The retry saves the current selection and then closes like the footer.
+  const retrySaveRef = useRef<() => Promise<void>>(async () => undefined);
+  useLayoutEffect(() => {
+    retrySaveRef.current = async () => {
+      if (await save()) onSaved?.();
+    };
+  });
+
   return {
     children,
     options: item.options ?? [],
+    versionSignature: pollVersionSignature,
     closed,
     multi,
     saving,
@@ -450,79 +477,226 @@ function usePollAnswers(
   };
 }
 
-/** One card per child: name, saved state, and the answer options. */
-function PollAnswerRows({
-  poll,
-}: Readonly<{ poll: ReturnType<typeof usePollAnswers> }>) {
-  const t = useTranslations("parentDashboard");
-  const { children, options, closed, multi, saving } = poll;
+type PollAnswers = ReturnType<typeof usePollAnswers>;
+type PollOption = PollAnswers["options"][number];
+
+function initiallyOpenPollChild(
+  children: readonly ParentAnnouncementPollChild[],
+): ReadonlySet<string> {
+  const first =
+    children.find((child) => child.selected_options.length === 0) ??
+    children[0];
+  return new Set(first ? [first.student_id] : []);
+}
+
+/**
+ * One card per child: name, saved state, and the answer options.
+ *
+ * A long poll (a Terminabstimmung with 40 slots, #3861) gets compact rows, and
+ * with several children one card per child that folds away: otherwise the
+ * second child's answers start some 2,000 px further down the phone screen.
+ * The first child still waiting for an answer starts open.
+ */
+function PollAnswerRows({ poll }: Readonly<{ poll: PollAnswers }>) {
+  const { children, options } = poll;
+  const long = options.length > LONG_POLL_OPTIONS;
+  const collapsible = long && children.length > 1;
+  const childListSignature = children
+    .map((child) => child.student_id)
+    .join("|");
+  const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(() =>
+    initiallyOpenPollChild(children),
+  );
+  useEffect(() => {
+    setOpenChildren(initiallyOpenPollChild(children));
+    // A corrected poll can replace the item in this still-mounted modal. Do
+    // not reset on ordinary response updates: they must preserve manual folds.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [poll.versionSignature, childListSignature]);
   if (children.length === 0 || options.length === 0) return null;
 
   return (
     <div className="space-y-4">
-      {children.map((child) => {
-        const selected = poll.selectionFor(child);
-        const answered = child.selected_options.length > 0;
-        const dirty = poll.isDirty(child);
-        const status = dirty
-          ? { label: t("newsPollUnsaved"), tone: "orange" as const }
-          : answered
-            ? { label: t("newsPollAnswered"), tone: "green" as const }
-            : { label: t("newsPollOpen"), tone: "gray" as const };
-        return (
-          <fieldset
+      {children.map((child) =>
+        collapsible ? (
+          <PollChildCollapsible
             key={child.student_id}
-            disabled={closed || saving}
-            className="moto-content-surface rounded-2xl border p-4 shadow-sm disabled:opacity-60"
-          >
-            <legend className="mb-3 w-full">
-              <span className="flex items-center justify-between gap-3">
-                <span className="min-w-0 truncate text-base font-semibold text-gray-900">
-                  {child.first_name} {child.last_name}
-                </span>
-                <StatusBadge label={status.label} tone={status.tone} />
-              </span>
-            </legend>
-            <div className="space-y-2">
-              {options.map((option) => {
-                const active = selected.includes(option.id);
-                return (
-                  <ChoiceTile
-                    key={option.id}
-                    selected={active}
-                    className="min-h-12 px-4 py-3 text-base has-[:disabled]:cursor-not-allowed"
-                  >
-                    {multi ? (
-                      <Checkbox
-                        checked={active}
-                        onChange={() => poll.toggle(child, option.id)}
-                      />
-                    ) : (
-                      <Radio
-                        name={`poll-${itemSafeId(child.student_id)}`}
-                        checked={active}
-                        onChange={() => poll.toggle(child, option.id)}
-                      />
-                    )}
-                    <span>{option.label}</span>
-                  </ChoiceTile>
-                );
-              })}
-            </div>
-            {!multi && selected.length > 0 && !closed && (
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => poll.toggle(child, selected[0]!)}
-                className="mt-2 min-h-11 rounded-lg px-2 text-sm font-semibold text-gray-600 underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-              >
-                {t("newsPollClear")}
-              </button>
-            )}
-          </fieldset>
-        );
-      })}
+            poll={poll}
+            child={child}
+            open={openChildren.has(child.student_id)}
+            onOpenChange={(open) =>
+              setOpenChildren((prev) => {
+                const next = new Set(prev);
+                if (open) next.add(child.student_id);
+                else next.delete(child.student_id);
+                return next;
+              })
+            }
+          />
+        ) : (
+          <PollChildCard
+            key={child.student_id}
+            poll={poll}
+            child={child}
+            long={long}
+          />
+        ),
+      )}
     </div>
+  );
+}
+
+function usePollChildStatus(
+  poll: PollAnswers,
+  child: ParentAnnouncementPollChild,
+) {
+  const t = useTranslations("parentDashboard");
+  const dirty = poll.isDirty(child);
+  const answered = child.selected_options.length > 0;
+  if (dirty) return { label: t("newsPollUnsaved"), tone: "orange" as const };
+  if (answered) return { label: t("newsPollAnswered"), tone: "green" as const };
+  return { label: t("newsPollOpen"), tone: "gray" as const };
+}
+
+/** The short poll card, unchanged since #1371, plus compact rows when long. */
+function PollChildCard({
+  poll,
+  child,
+  long,
+}: Readonly<{
+  poll: PollAnswers;
+  child: ParentAnnouncementPollChild;
+  long: boolean;
+}>) {
+  const status = usePollChildStatus(poll, child);
+  return (
+    <fieldset
+      disabled={poll.closed || poll.saving}
+      className="moto-content-surface rounded-2xl border p-4 shadow-sm disabled:opacity-60"
+    >
+      <legend className="mb-3 w-full">
+        <span className="flex items-center justify-between gap-3">
+          <span className="min-w-0 truncate text-base font-semibold text-gray-900">
+            {child.first_name} {child.last_name}
+          </span>
+          <StatusBadge label={status.label} tone={status.tone} />
+        </span>
+      </legend>
+      {long && (
+        <p className="-mt-1 mb-3 text-sm text-gray-600">
+          <PollSelectionSummary poll={poll} child={child} />
+        </p>
+      )}
+      <PollOptionList poll={poll} child={child} compact={long} />
+    </fieldset>
+  );
+}
+
+/** A child's card in a long poll for several children: folds to its head. */
+function PollChildCollapsible({
+  poll,
+  child,
+  open,
+  onOpenChange,
+}: Readonly<{
+  poll: PollAnswers;
+  child: ParentAnnouncementPollChild;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}>) {
+  const status = usePollChildStatus(poll, child);
+  const name = `${child.first_name} ${child.last_name}`;
+  return (
+    <SectionCard
+      title={name}
+      titleBadge={<StatusBadge label={status.label} tone={status.tone} />}
+      description={<PollSelectionSummary poll={poll} child={child} />}
+      headingLevel={3}
+      collapsible
+      collapsed={!open}
+      onCollapsedChange={(collapsed) => onOpenChange(!collapsed)}
+      bodyClassName="mt-3"
+    >
+      {/* The fieldset sits inside the card, so a closed poll still lets the
+          family fold the card open and read what was chosen. */}
+      <fieldset
+        disabled={poll.closed || poll.saving}
+        className="disabled:opacity-60"
+      >
+        <legend className="sr-only">{name}</legend>
+        <PollOptionList poll={poll} child={child} compact />
+      </fieldset>
+    </SectionCard>
+  );
+}
+
+/** "3 von 40 gewählt": what is ticked, readable without scrolling the list. */
+function PollSelectionSummary({
+  poll,
+  child,
+}: Readonly<{ poll: PollAnswers; child: ParentAnnouncementPollChild }>) {
+  const t = useTranslations("parentDashboard");
+  return t("newsPollSelectedCount", {
+    count: poll.selectionFor(child).length,
+    total: poll.options.length,
+  });
+}
+
+function PollOptionList({
+  poll,
+  child,
+  compact,
+}: Readonly<{
+  poll: PollAnswers;
+  child: ParentAnnouncementPollChild;
+  compact: boolean;
+}>) {
+  const t = useTranslations("parentDashboard");
+  const { options, closed, multi, saving } = poll;
+  const selected = poll.selectionFor(child);
+  return (
+    <>
+      <div className={compact ? "space-y-1.5" : "space-y-2"}>
+        {options.map((option: PollOption) => {
+          const active = selected.includes(option.id);
+          return (
+            <ChoiceTile
+              key={option.id}
+              selected={active}
+              className={
+                compact
+                  ? "min-h-11 px-3 py-2 text-sm has-[:disabled]:cursor-not-allowed"
+                  : "min-h-12 px-4 py-3 text-base has-[:disabled]:cursor-not-allowed"
+              }
+            >
+              {multi ? (
+                <Checkbox
+                  checked={active}
+                  onChange={() => poll.toggle(child, option.id)}
+                />
+              ) : (
+                <Radio
+                  name={`poll-${itemSafeId(child.student_id)}`}
+                  checked={active}
+                  onChange={() => poll.toggle(child, option.id)}
+                />
+              )}
+              <span>{option.label}</span>
+            </ChoiceTile>
+          );
+        })}
+      </div>
+      {!multi && selected.length > 0 && !closed && (
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => poll.toggle(child, selected[0]!)}
+          className="mt-2 min-h-11 rounded-lg px-2 text-sm font-semibold text-gray-600 underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        >
+          {t("newsPollClear")}
+        </button>
+      )}
+    </>
   );
 }
 
@@ -635,13 +809,17 @@ function NewsAttachments({
   const [attachments, setAttachments] = useState<
     ParentAnnouncementAttachment[]
   >([]);
-  const [failed, setFailed] = useState(false);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     setAttachments([]);
-    setFailed(false);
+    clearLoadError();
     void listAnnouncementAttachments(item.id)
       .then((list) => {
         if (!cancelled) setAttachments(list);
@@ -651,30 +829,20 @@ function NewsAttachments({
         logger.error("parent_announcement_attachments_load_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        setFailed(true);
+        void showLoadError(err, {
+          object: t("newsErrorObjectAttachments"),
+          retry: () => setReloadToken((n) => n + 1),
+        });
       });
     return () => {
       cancelled = true;
     };
-  }, [item.id, reloadToken]);
+  }, [item.id, reloadToken, clearLoadError, showLoadError, t]);
 
-  if (failed) {
+  if (loadError) {
     return (
       <div className="mt-4 border-t border-gray-100 pt-4">
-        <Alert
-          type="error"
-          message={t("newsAttachmentsError")}
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => setReloadToken((n) => n + 1)}
-            >
-              {t("newsAttachmentsRetry")}
-            </Button>
-          }
-        />
+        <LoadErrorAlert error={loadError} />
       </div>
     );
   }
@@ -863,10 +1031,15 @@ export function NewsDetailModal({
 }>) {
   const t = useTranslations("parentDashboard");
   const [busy, setBusy] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
+  // Shown inside the dialog, which lies above every toast.
+  const {
+    error: actionError,
+    show: showActionError,
+    clear: clearActionError,
+  } = useApiFormError();
   const [stale, setStale] = useState(false);
   const markedRef = useRef(false);
-  const poll = usePollAnswers(item, onUpdated, onStale);
+  const poll = usePollAnswers(item, onUpdated, onStale, onClose);
   // An open Einverständnis confirmation sits on top of this dialog; Escape and the
   // backdrop must close only that one, never both.
   const [declarationBusy, setDeclarationBusy] = useState(false);
@@ -880,9 +1053,9 @@ export function NewsDetailModal({
   // so markedRef is cleared before that effect re-runs. A no-op on first mount.
   useEffect(() => {
     setStale(false);
-    setActionError(null);
+    clearActionError();
     markedRef.current = false;
-  }, [item.id, item.published_at]);
+  }, [item.id, item.published_at, clearActionError]);
 
   useEffect(() => {
     // published_at is the version the backend verifies; feed items always carry
@@ -905,7 +1078,8 @@ export function NewsDetailModal({
           refreshUnreadBadge();
           onStale?.(item.id);
         } else {
-          // Transient failure: let a later rerender retry the mark.
+          // Deliberately silent: the person did not ask for the read mark, it
+          // follows from opening the message. Let a later rerender retry it.
           markedRef.current = false;
         }
       });
@@ -914,7 +1088,7 @@ export function NewsDetailModal({
   const handleAcknowledge = useCallback(async () => {
     if (!item.published_at) return;
     setBusy(true);
-    setActionError(null);
+    clearActionError();
     try {
       await acknowledgeAnnouncement(item.id, item.published_at);
       onUpdated(item.id, { read: true, acknowledged: true });
@@ -931,12 +1105,29 @@ export function NewsDetailModal({
         refreshUnreadBadge();
         onStale?.(item.id);
       } else {
-        setActionError(t("newsActionError"));
+        void showActionError(err, {
+          object: t("newsErrorObjectConfirmation"),
+          retry: () => void acknowledgeRef.current(),
+        });
       }
     } finally {
       setBusy(false);
     }
-  }, [item.id, item.published_at, onUpdated, onStale, onClose, t]);
+  }, [
+    item.id,
+    item.published_at,
+    onUpdated,
+    onStale,
+    onClose,
+    clearActionError,
+    showActionError,
+    t,
+  ]);
+  // The retry confirms the current version, not the one of the failed attempt.
+  const acknowledgeRef = useRef(handleAcknowledge);
+  useLayoutEffect(() => {
+    acknowledgeRef.current = handleAcknowledge;
+  });
 
   // A stale announcement can't be acknowledged (the backend rejects the write),
   // so hide the button and surface the stale banner instead.
@@ -1004,8 +1195,8 @@ export function NewsDetailModal({
         <NewsActionContext item={item} />
 
         {stale && <Alert type="warning" message={t("newsStaleError")} />}
-        {actionError && <Alert type="error" message={actionError} />}
-        {poll.error && <Alert type="error" message={poll.error} />}
+        <FormErrorAlert message={actionError} />
+        <FormErrorAlert message={poll.error} />
 
         {isPoll(item) && <PollAnswerRows poll={poll} />}
 

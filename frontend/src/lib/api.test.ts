@@ -1652,6 +1652,7 @@ describe("api.ts helper functions", () => {
         }),
       );
       expect(companionConflict).toBeInstanceOf(CompanionPlanConflictError);
+      expect(companionConflict).toMatchObject({ status: 409 });
 
       // A different 409 (sick + excused) keeps its own contract.
       const sickExcused = await respondWith(
@@ -1661,9 +1662,11 @@ describe("api.ts helper functions", () => {
         }),
       );
       expect(sickExcused).not.toBeInstanceOf(CompanionPlanConflictError);
-      expect((sickExcused as Error).message).toContain(
-        "cannot be both sick and excused",
-      );
+      // It keeps its own code for the shared error path (#2513).
+      expect(sickExcused).toMatchObject({
+        status: 409,
+        code: "students.sick_excused_conflict",
+      });
     });
 
     // The stranded-companion refusal is an instruction, not a failure: it names
@@ -1712,11 +1715,11 @@ describe("api.ts helper functions", () => {
       );
       expect(stranded).toBeInstanceOf(CompanionDepartureRefusedError);
       expect(isCompanionDepartureRefusal(stranded)).toBe(true);
-      // The German instruction reaches the form verbatim, without the
-      // "API error 400:" prefix the generic branch would add.
-      expect((stranded as Error).message).toBe(
-        "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
-      );
+      // The form reads the code; the backend sentence stays diagnosis.
+      expect(stranded).toMatchObject({
+        status: 400,
+        code: "students.companion_would_lose_departure",
+      });
 
       const otherBadRequest = await respondWith(
         JSON.stringify({ status: "error", error: "invalid weekday" }),
@@ -1764,8 +1767,8 @@ describe("api.ts helper functions", () => {
         CompanionsChangedError,
         CompanionPlanConflictError,
         isCompanionsChanged,
-        companionsChangedMessage,
       } = await import("./api");
+      const { ApiError } = await import("./api-error");
 
       const stale = await respondWith(
         JSON.stringify({
@@ -1778,9 +1781,12 @@ describe("api.ts helper functions", () => {
       expect(stale).toBeInstanceOf(CompanionsChangedError);
       expect(stale).not.toBeInstanceOf(CompanionPlanConflictError);
       expect(isCompanionsChanged(stale)).toBe(true);
-      expect(companionsChangedMessage(stale)).toBe(
-        "Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert. Bitte neu laden und noch einmal speichern.",
-      );
+      // The shared error path reads the code, never the sentence (#2513).
+      expect(stale).toBeInstanceOf(ApiError);
+      expect(stale).toMatchObject({
+        status: 409,
+        code: "students.companions_changed",
+      });
     });
 
     // The body-fragment predicate the CRUD-service path uses must make the same
@@ -1805,11 +1811,7 @@ describe("api.ts helper functions", () => {
     // success, and the form has to say so rather than report a blanket failure
     // the user answers by abandoning the retry.
     it("reads the partial-success marker off the failed save", async () => {
-      const {
-        isPrivacyConsentSaved,
-        withPrivacyConsentSavedNotice,
-        PRIVACY_CONSENT_SAVED_NOTICE,
-      } = await import("./api");
+      const { isPrivacyConsentSaved } = await import("./api");
 
       const marked = Object.assign(new Error("Fehler"), {
         body: JSON.stringify({
@@ -1823,12 +1825,6 @@ describe("api.ts helper functions", () => {
 
       expect(isPrivacyConsentSaved(marked)).toBe(true);
       expect(isPrivacyConsentSaved(plain)).toBe(false);
-      expect(
-        withPrivacyConsentSavedNotice(marked, "Fehler beim Speichern."),
-      ).toBe(`${PRIVACY_CONSENT_SAVED_NOTICE} Fehler beim Speichern.`);
-      expect(
-        withPrivacyConsentSavedNotice(plain, "Fehler beim Speichern."),
-      ).toBe("Fehler beim Speichern.");
     });
 
     // The marker also has to survive the wrapping where the body is lost and

@@ -1,7 +1,11 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { KlassenTab } from "./klassen-tab";
+
+const OBJECT = "die Zuweisung der Schulklassen";
 
 const { mockAuthFetch } = vi.hoisted(() => ({ mockAuthFetch: vi.fn() }));
 
@@ -113,7 +117,7 @@ describe("KlassenTab", () => {
     expect(putCalls()).toHaveLength(0);
   });
 
-  it("keeps the draft and shows an Alert when saving fails", async () => {
+  it("keeps the draft and shows the catalog text when saving fails", async () => {
     mockLoad(["1a"]);
     render(<KlassenTab staffId="7" canEdit />);
     fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
@@ -122,17 +126,107 @@ describe("KlassenTab", () => {
     );
 
     mockAuthFetch.mockImplementationOnce(() =>
-      Promise.reject(new Error("boom")),
+      Promise.reject(
+        new ApiError("boom", 500, {
+          code: "general.server",
+          instance: "req-classes",
+        }),
+      ),
     );
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(
-      await screen.findByText(
-        "Die Klassen-Zuweisung konnte nicht gespeichert werden.",
-      ),
+      await screen.findByText(catalogText("general.server", OBJECT)),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-classes");
     // Der Entwurf bleibt: das Kind ist weiterhin entfernt, Speichern erneut möglich.
     expect(screen.queryByText("Klasse 1a")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+  });
+
+  it("retries the current draft from the error alert", async () => {
+    mockLoad(["1a", "2b"]);
+    render(<KlassenTab staffId="7" canEdit />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Klasse 1a entfernen" }),
+    );
+    mockAuthFetch.mockImplementationOnce(() =>
+      Promise.reject(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText(catalogText("general.unavailable", OBJECT));
+
+    // Nach dem Fehler noch eine Klasse entfernen: Wiederholen sendet den
+    // aktuellen Entwurf.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Klasse 2b entfernen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => expect(putCalls()).toHaveLength(2));
+    expect(
+      (putCalls()[1]![1] as { body: { school_classes: string[] } }).body
+        .school_classes,
+    ).toEqual([]);
+  });
+
+  it("marks the class field when the server rejects it", async () => {
+    mockLoad(["1a"]);
+    render(<KlassenTab staffId="7" canEdit />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Klasse 1a entfernen" }),
+    );
+    mockAuthFetch.mockImplementationOnce(() =>
+      Promise.reject(
+        new ApiError("invalid", 400, {
+          code: "general.input",
+          errors: [{ field: "school_classes", reason: "too long" }],
+        }),
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await screen.findByText(catalogText("general.input", OBJECT));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Klassenname")).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      ),
+    );
+  });
+
+  it("shows a failed load in place with a retry", async () => {
+    let fail = true;
+    mockAuthFetch.mockImplementation((url: string) => {
+      if (url === "/api/students/school-classes") {
+        return Promise.resolve({ success: true, data: [] });
+      }
+      if (fail) {
+        return Promise.reject(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        );
+      }
+      return Promise.resolve({
+        success: true,
+        data: { staff_id: 7, school_classes: ["4d"] },
+      });
+    });
+    render(<KlassenTab staffId="7" canEdit />);
+
+    expect(
+      await screen.findByText(catalogText("general.unavailable", OBJECT)),
+    ).toBeInTheDocument();
+    fail = false;
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText("Klasse 4d")).toBeInTheDocument();
+    expect(
+      screen.queryByText(catalogText("general.unavailable", OBJECT)),
+    ).not.toBeInTheDocument();
   });
 });

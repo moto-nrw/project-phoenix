@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import type { GuardianWithRelationship } from "@/lib/guardian-helpers";
 import { StudentPaymentCard } from "./student-payment-card";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 const mockFetchPayment = vi.fn();
 const mockRevealPayment = vi.fn();
@@ -18,9 +20,16 @@ vi.mock("~/lib/guardian-payment-api", () => ({
     mockSetPayer(studentId, guardianId),
 }));
 
-const mockToastError = vi.fn();
-const mockToastSuccess = vi.fn();
-vi.mock("~/contexts/ToastContext", () => ({
+const { mockToastError, mockToastSuccess, mockShowActionError } = vi.hoisted(
+  () => ({
+    mockToastError: vi.fn(),
+    mockToastSuccess: vi.fn(),
+    mockShowActionError: vi.fn(),
+  }),
+);
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useApiErrorDisplay: () => ({ show: mockShowActionError }),
   useToast: () => ({
     success: mockToastSuccess,
     error: mockToastError,
@@ -63,6 +72,7 @@ describe("StudentPaymentCard", () => {
     mockSetPayer.mockReset();
     mockToastError.mockReset();
     mockToastSuccess.mockReset();
+    mockShowActionError.mockReset();
     mockFetchPayment.mockResolvedValue({
       guardianId: "10",
       ibanMasked: "•••• 3000",
@@ -144,7 +154,12 @@ describe("StudentPaymentCard", () => {
       iban: FULL_IBAN,
       accountHolder: null,
     });
-    mockUpdatePayment.mockRejectedValue(new Error("Die IBAN ist ungültig."));
+    mockUpdatePayment.mockRejectedValue(
+      new ApiError("malformed IBAN", 400, {
+        code: "students.guardian_iban_invalid",
+        errors: [{ field: "iban", reason: "malformed" }],
+      }),
+    );
 
     render(
       <StudentPaymentCard
@@ -161,8 +176,21 @@ describe("StudentPaymentCard", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Die IBAN ist ungültig.",
+    // #2517: catalog text in the edit area, the named field marked.
+    expect(
+      await screen.findByText(
+        catalogText(
+          "students.guardian_iban_invalid",
+          "das Speichern der Bankverbindung",
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/malformed/)).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByLabelText("IBAN")).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      ),
     );
     expect(screen.getByLabelText("IBAN")).toHaveValue(FULL_IBAN);
     expect(screen.getByLabelText("Anderer Kontoinhaber")).toHaveValue(
@@ -279,7 +307,9 @@ describe("StudentPaymentCard", () => {
   });
 
   it("shows a save failure as an Alert inside the edit area", async () => {
-    mockSetPayer.mockRejectedValue(new Error("Speichern hat nicht geklappt."));
+    mockSetPayer.mockRejectedValue(
+      new ApiError("payer exploded", 500, { code: "general.server" }),
+    );
 
     render(
       <StudentPaymentCard
@@ -296,8 +326,11 @@ describe("StudentPaymentCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(
-      await screen.findByText("Speichern hat nicht geklappt."),
+      await screen.findByText(
+        catalogText("general.server", "das Speichern des Zahlungskontos"),
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/payer exploded/)).not.toBeInTheDocument();
     expect(mockToastError).not.toHaveBeenCalled();
     // Der Entwurf bleibt offen.
     expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
@@ -341,5 +374,65 @@ describe("StudentPaymentCard", () => {
     expect(
       screen.queryByRole("button", { name: "Bearbeiten" }),
     ).not.toBeInTheDocument();
+  });
+
+  // #2517: a failed load says so in the card, never "Noch keine IBAN".
+  it("shows a failed load in the card and reloads on retry", async () => {
+    mockFetchPayment.mockReset();
+    mockFetchPayment
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce({
+        guardianId: "10",
+        ibanMasked: "•••• 3000",
+        accountHolder: null,
+      });
+
+    render(
+      <StudentPaymentCard
+        studentId="7"
+        guardians={[guardian("10", "Sabine", true)]}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Bankverbindung"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Noch keine IBAN gespeichert."),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(await screen.findByText("•••• 3000")).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        catalogText("general.unavailable", "die Bankverbindung"),
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("reports a failed Anzeigen on the action path", async () => {
+    const failure = new ApiError("nope", 403, { code: "general.permission" });
+    mockRevealPayment.mockRejectedValue(failure);
+
+    render(
+      <StudentPaymentCard
+        studentId="7"
+        guardians={[guardian("10", "Sabine", true)]}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Anzeigen" }));
+
+    await waitFor(() =>
+      expect(mockShowActionError).toHaveBeenCalledWith(failure, {
+        object: "das Anzeigen der IBAN",
+        retry: expect.any(Function),
+      }),
+    );
   });
 });

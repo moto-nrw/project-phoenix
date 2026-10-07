@@ -1,15 +1,16 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { ClosingDayChip } from "~/components/planning/closing-day-marker";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DatePicker } from "~/components/ui/date-picker";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
-import { getApiErrorMessage } from "~/lib/api-error-message";
+import { useApiFormError } from "~/contexts/ToastContext";
 import {
   findClosingDayReason,
   type ClosingDayRange,
@@ -17,7 +18,7 @@ import {
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { createLogger } from "~/lib/logger";
-import { ShiftApiError, staffShiftService } from "~/lib/shift-api";
+import { staffShiftService } from "~/lib/shift-api";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
 import type { ShiftType } from "~/lib/shift-type-helpers";
 
@@ -52,40 +53,6 @@ interface ShiftMoveDialogProps {
   readonly onDataChanged: () => void;
 }
 
-function moveErrorMessage(err: unknown): string {
-  if (err instanceof ShiftApiError) {
-    const detail = err.detail.toLowerCase();
-    if (detail.includes("overlap")) {
-      return "Diese Schicht überschneidet sich mit einer bestehenden Schicht.";
-    }
-    if (err.status === 409) {
-      return "Die Schicht wurde zwischenzeitlich geändert. Bitte laden Sie den Dienstplan neu.";
-    }
-    // Origin-link rejections from validateOriginLink (all contain "replacement"):
-    // a Vertretungs-Schicht must stay on the day of the cancelled shift it
-    // covers, inside its window, and the origin must still be cancelled.
-    if (err.status === 400 && detail.includes("replacement")) {
-      return "Diese Vertretungs-Schicht kann nur innerhalb des Tages und Zeitfensters der ausgefallenen Schicht verschoben werden, die sie abdeckt.";
-    }
-    if (err.status === 400) {
-      return "Ungültige Schichtdaten. Bitte prüfen Sie Beginn, Ende und Pause.";
-    }
-    if (err.status === 401) {
-      return "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
-    }
-    if (err.status === 403) {
-      return "Sie haben keine Berechtigung, diese Schicht zu verschieben.";
-    }
-    return err.detail || "Die Schicht konnte nicht verschoben werden.";
-  }
-  return getApiErrorMessage(
-    err,
-    "verschieben",
-    "Schicht",
-    "Verschieben fehlgeschlagen.",
-  );
-}
-
 export function ShiftMoveDialog({
   isOpen,
   shift,
@@ -112,7 +79,10 @@ export function ShiftMoveDialog({
   // React state does not update synchronously. The ref closes the same-render
   // double-click / double-Enter window before the loading render commits.
   const moveInFlightRef = useRef(false);
-  const [error, setError] = useState<string | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  // „Wiederholen“ verschiebt mit dem aktuellen Formularstand.
+  const latestMoveRef = useRef<() => void>(() => undefined);
 
   const personOptions = useMemo(
     () =>
@@ -174,26 +144,35 @@ export function ShiftMoveDialog({
     ? `${targetMember.firstName} ${targetMember.lastName}`
     : sourceName;
   const handleSubmit = () => {
-    setError(null);
+    formErrors.clear();
     if (closingDayLookupLoading) return;
     if (targetStaffId === "") {
-      setError("Bitte eine Zielperson auswählen.");
+      formErrors.invalid("Bitte wählen Sie eine Person aus.", {
+        target_staff_id: "Bitte wählen Sie eine Person aus.",
+      });
       return;
     }
     if (targetDate === "") {
-      setError("Bitte einen Zieltag auswählen.");
+      formErrors.invalid("Bitte wählen Sie einen Tag aus.");
       return;
     }
     if (!timesValid) {
-      setError("Ende muss nach Beginn liegen.");
+      formErrors.invalid("Das Ende muss nach dem Beginn liegen.", {
+        end_time: "Bitte eine spätere Zeit wählen.",
+      });
       return;
     }
     if (!breakValid) {
-      setError(`Pause muss eine ganze Zahl zwischen 0 und ${breakMax} sein.`);
+      formErrors.invalid(
+        `Die Pause muss zwischen 0 und ${breakMax} Minuten liegen.`,
+        { break_minutes: `Bitte 0 bis ${breakMax} Minuten eintragen.` },
+      );
       return;
     }
     if (inactiveTypeBlocksMove) {
-      setError(INACTIVE_TYPE_MOVE_MESSAGE);
+      formErrors.invalid(INACTIVE_TYPE_MOVE_MESSAGE, {
+        shift_type_id: "Bitte eine aktive Schichtart wählen.",
+      });
       return;
     }
     setConfirmOpen(true);
@@ -222,10 +201,14 @@ export function ShiftMoveDialog({
         target_staff_id: targetStaffId,
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(moveErrorMessage(err));
+      // Back to the form: the confirmation closes and the dialog shows why.
       setConfirmOpen(false);
       moveInFlightRef.current = false;
       setIsMoving(false);
+      await formErrors.show(err, {
+        object: "die Schicht",
+        retry: () => latestMoveRef.current(),
+      });
     }
   };
 
@@ -233,10 +216,14 @@ export function ShiftMoveDialog({
     if (moveInFlightRef.current) return;
     moveInFlightRef.current = true;
     setIsMoving(true);
-    setError(null);
+    formErrors.clear();
     const resolvedShiftTypeId = shiftTypeId === "" ? null : shiftTypeId;
     await moveShift(resolvedShiftTypeId);
   };
+
+  useLayoutEffect(() => {
+    latestMoveRef.current = handleSubmit;
+  });
 
   const breakSuffix =
     breakMinutes && breakMinutes > 0 ? `, Pause ${breakMinutes} min` : "";
@@ -274,7 +261,8 @@ export function ShiftMoveDialog({
         title="Schicht verschieben"
         footer={footer}
       >
-        <div className="space-y-4 text-sm">
+        <div ref={formRef} className="space-y-4 text-sm">
+          <FormErrorAlert message={formErrors.error} />
           <p className="text-gray-600">
             Verschiebt die Schicht von{" "}
             <span className="font-medium text-gray-900">{sourceName}</span> am{" "}
@@ -285,6 +273,8 @@ export function ShiftMoveDialog({
               value={targetStaffId}
               options={personOptions}
               onChange={setTargetStaffId}
+              name="target_staff_id"
+              invalid={!!formErrors.fieldError("target_staff_id")}
               ariaLabel="Zielperson"
               placeholder="Person auswählen"
             />
@@ -309,6 +299,8 @@ export function ShiftMoveDialog({
             <Field label="Beginn">
               <Input
                 type="time"
+                name="start_time"
+                error={formErrors.fieldError("start_time")}
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
                 className="tabular-nums"
@@ -317,6 +309,8 @@ export function ShiftMoveDialog({
             <Field label="Ende">
               <Input
                 type="time"
+                name="end_time"
+                error={formErrors.fieldError("end_time")}
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
                 className="tabular-nums"
@@ -327,6 +321,8 @@ export function ShiftMoveDialog({
             <Field label="Pause (Minuten)">
               <Input
                 type="number"
+                name="break_minutes"
+                error={formErrors.fieldError("break_minutes")}
                 min={0}
                 max={breakMax}
                 inputMode="numeric"
@@ -342,6 +338,8 @@ export function ShiftMoveDialog({
                 value={shiftTypeId}
                 options={typeOptions}
                 onChange={setShiftTypeId}
+                name="shift_type_id"
+                invalid={!!formErrors.fieldError("shift_type_id")}
                 ariaLabel="Schichtart"
                 placeholder="Keine Schichtart"
               />
@@ -350,7 +348,6 @@ export function ShiftMoveDialog({
           {inactiveTypeBlocksMove && (
             <Alert type="warning" message={INACTIVE_TYPE_MOVE_MESSAGE} />
           )}
-          {error && <Alert type="error" message={error} />}
         </div>
       </Modal>
       <ConfirmationModal

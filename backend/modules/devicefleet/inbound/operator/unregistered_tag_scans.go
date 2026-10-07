@@ -375,9 +375,37 @@ func (rs *Resource) resolveError(err error) render.Renderer {
 		return rs.surface.Internal(resolveFailedMessage)
 	}
 	if resolveIsClientError(err) {
-		return rs.surface.InvalidRequest(err)
+		return rs.surface.InvalidRequest(tagScanRefusal{err: err})
 	}
 	return rs.surface.Internal(resolveFailedMessage)
+}
+
+// Registered codes of the resolution refusals (#2519). This package may not
+// import api/common, so it names the registered values once here.
+const (
+	codeTagScanNotFound        = "devices.tag_scan_not_found"
+	codeTagScanAlreadyResolved = "devices.tag_scan_already_resolved"
+	codeInvalidInput           = "general.input"
+)
+
+// tagScanRefusal carries the code of a refused resolution to the operator
+// surface's input rejection; other refusals keep the class code.
+type tagScanRefusal struct{ err error }
+
+func (e tagScanRefusal) Error() string      { return e.err.Error() }
+func (e tagScanRefusal) Unwrap() error      { return e.err }
+func (e tagScanRefusal) ErrorField() string { return "" }
+
+func (e tagScanRefusal) ErrorCode() string {
+	for err := e.err; err != nil; err = errors.Unwrap(err) {
+		switch err.Error() {
+		case "unregistered tag scan not found":
+			return codeTagScanNotFound
+		case "unregistered tag scan already resolved":
+			return codeTagScanAlreadyResolved
+		}
+	}
+	return codeInvalidInput
 }
 
 // resolveIsClientError reports whether err, or an error it wraps, is one of

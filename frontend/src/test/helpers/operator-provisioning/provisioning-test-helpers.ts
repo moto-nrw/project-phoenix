@@ -57,6 +57,15 @@ export interface SetupSWROptions {
   schools?: unknown[] | undefined;
   orgsLoading?: boolean;
   schoolsLoading?: boolean;
+  /** Failed load of the filter lists (#2519). */
+  orgsError?: unknown;
+  schoolsError?: unknown;
+  /** Failed load of the account and device lists (#2519). */
+  accountsError?: unknown;
+  devicesError?: unknown;
+  personsError?: unknown;
+  /** Keeps cached data with an SWR revalidation error. */
+  staleData?: boolean;
   schoolAccounts?: unknown[];
   orgAccounts?: unknown[];
   allAccounts?: unknown[];
@@ -84,6 +93,12 @@ export function setupSWR(opts: SetupSWROptions): void {
     schools = [mockSchool],
     orgsLoading = false,
     schoolsLoading = false,
+    orgsError,
+    schoolsError,
+    accountsError,
+    devicesError,
+    personsError,
+    staleData = false,
     schoolAccounts,
     orgAccounts,
     allAccounts,
@@ -105,7 +120,8 @@ export function setupSWR(opts: SetupSWROptions): void {
       key === "operator-organization-summaries"
     ) {
       return {
-        data: orgsLoading ? undefined : orgs,
+        data: orgsLoading || (orgsError && !staleData) ? undefined : orgs,
+        error: orgsError,
         isLoading: orgsLoading,
         mutate: mutateOrgs,
       };
@@ -125,56 +141,86 @@ export function setupSWR(opts: SetupSWROptions): void {
     }
     if (key === "operator-schools" || key === "operator-school-summaries") {
       return {
-        data: schoolsLoading ? undefined : schools,
+        data:
+          schoolsLoading || (schoolsError && !staleData) ? undefined : schools,
+        error: schoolsError,
         isLoading: schoolsLoading,
         mutate: mutateSchools,
       };
     }
     if (key === "operator-all-accounts") {
       return {
-        data: accountsLoading ? undefined : (allAccounts ?? []),
+        data:
+          accountsLoading || (accountsError && !staleData)
+            ? undefined
+            : (allAccounts ?? []),
+        error: accountsError,
         isLoading: accountsLoading,
         mutate: () => undefined,
       };
     }
     if (key.startsWith("operator-school-accounts-")) {
       return {
-        data: accountsLoading ? undefined : (schoolAccounts ?? []),
+        data:
+          accountsLoading || (accountsError && !staleData)
+            ? undefined
+            : (schoolAccounts ?? []),
+        error: accountsError,
         isLoading: accountsLoading,
         mutate: () => undefined,
       };
     }
     if (key.startsWith("operator-org-accounts-")) {
       return {
-        data: accountsLoading ? undefined : (orgAccounts ?? []),
+        data:
+          accountsLoading || (accountsError && !staleData)
+            ? undefined
+            : (orgAccounts ?? []),
+        error: accountsError,
         isLoading: accountsLoading,
         mutate: () => undefined,
       };
     }
     if (key === "operator-all-devices") {
       return {
-        data: devicesLoading ? undefined : (allDevices ?? []),
+        data:
+          devicesLoading || (devicesError && !staleData)
+            ? undefined
+            : (allDevices ?? []),
+        error: devicesError,
         isLoading: devicesLoading,
         mutate: () => undefined,
       };
     }
     if (key.startsWith("operator-school-devices-")) {
       return {
-        data: devicesLoading ? undefined : (schoolDevices ?? []),
+        data:
+          devicesLoading || (devicesError && !staleData)
+            ? undefined
+            : (schoolDevices ?? []),
+        error: devicesError,
         isLoading: devicesLoading,
         mutate: () => undefined,
       };
     }
     if (key.startsWith("operator-org-devices-")) {
       return {
-        data: devicesLoading ? undefined : (orgDevices ?? []),
+        data:
+          devicesLoading || (devicesError && !staleData)
+            ? undefined
+            : (orgDevices ?? []),
+        error: devicesError,
         isLoading: devicesLoading,
         mutate: () => undefined,
       };
     }
     if (key.startsWith("operator-school-persons-")) {
       return {
-        data: personsLoading ? undefined : (schoolPersons ?? []),
+        data:
+          personsLoading || (personsError && !staleData)
+            ? undefined
+            : (schoolPersons ?? []),
+        error: personsError,
         isLoading: personsLoading,
         mutate: mutateSchoolPersons ?? (() => undefined),
       };

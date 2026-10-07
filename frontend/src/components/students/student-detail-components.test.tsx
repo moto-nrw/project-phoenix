@@ -37,6 +37,8 @@ import {
   StudentHistorySection,
 } from "./student-detail-components";
 import { SectionCard } from "~/components/ui/section-card";
+import { ApiError } from "~/lib/api-error";
+import { fetchStudentCompanions } from "~/lib/student-companion-api";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import { getLocationBadgeTone } from "~/lib/location-helper";
 import type { SupervisorContact } from "~/lib/student-helpers";
@@ -719,6 +721,36 @@ describe("PersonalInfoReadOnly", () => {
   it("renders section title", () => {
     render(<PersonalInfoReadOnly student={mockStudent} />);
     expect(screen.getByText("Persönliche Informationen")).toBeInTheDocument();
+  });
+
+  // Ein Ladefehler der Laufgemeinschaft steht im Feld „Geht mit“, mit
+  // Wiederholen, und liest sich nie wie „geht allein“ (#2513).
+  it("shows a failed companion load in place and retries it", async () => {
+    vi.mocked(fetchStudentCompanions)
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce([
+        {
+          companion_student_id: "9",
+          first_name: "Lina",
+          last_name: "Lustig",
+          weekdays: ["mon"],
+        },
+      ]);
+
+    render(<PersonalInfoReadOnly student={mockStudent} />);
+
+    expect(
+      await screen.findByText(
+        "Die Laufgemeinschaft ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText(/Lina Lustig/)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/ist gerade nicht erreichbar/),
+    ).not.toBeInTheDocument();
   });
 
   it("renders student name", () => {

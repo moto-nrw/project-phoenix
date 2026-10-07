@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 )
@@ -49,18 +50,19 @@ func (rs *Resource) exportBetreuungsplan(w http.ResponseWriter, r *http.Request)
 
 	params, err := planexport.ParseParams(req.From, req.To, req.Template, req.Variant, req.Format)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, planExportInvalidRenderer(err))
 		return
 	}
 	if params.Variant == planexport.VariantInternal && !common.CanExportInternalPlan(r.Context()) {
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("internal plan exports require schedules:manage")))
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(errors.New("internal plan exports require schedules:manage"),
+			common.CodeTimetableExportInternalForbidden))
 		return
 	}
 
 	file, err := rs.PlanExportService.ExportBetreuungsplan(r.Context(), params)
 	if err != nil {
 		if errors.Is(err, planexport.ErrInvalidParams) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			common.RenderError(w, r, planExportInvalidRenderer(err))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("render betreuungsplan export failed", err))
@@ -72,4 +74,18 @@ func (rs *Resource) exportBetreuungsplan(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(file.Data)
+}
+
+// planExportInvalidRenderer names the range refusals with their own code
+// (#2516); any other invalid parameter is a request the editor built wrong.
+func planExportInvalidRenderer(err error) render.Renderer {
+	switch {
+	case errors.Is(err, planexport.ErrRangeTooLarge):
+		return common.ErrorInvalidRequestWithDetails(err, common.CodeTimetableExportRangeTooLarge,
+			map[string]any{"max_weeks": planexport.MaxExportWeeks})
+	case errors.Is(err, planexport.ErrRangeReversed):
+		return common.ErrorInvalidOnField(err, common.CodeTimetableExportEndBeforeStart, "to")
+	default:
+		return common.ErrorInvalidRequest(err)
+	}
 }

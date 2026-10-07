@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 
-import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { timetableService } from "~/lib/timetable-api";
@@ -119,6 +120,14 @@ export function GuardianNoticeFields({
 }: GuardianNoticeFieldsProps) {
   const [reach, setReach] = useState<GuardianNoticeReach | null>(null);
   const [failed, setFailed] = useState(false);
+  // Ladefehler vor Ort (#2516): Katalogtext mit Wiederholen, das den Abruf
+  // über `attempt` neu startet.
+  const [attempt, setAttempt] = useState(0);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
   const past = block.date < today;
   const checkboxId = `guardian-notice-send-${block.id}`;
 
@@ -130,6 +139,7 @@ export function GuardianNoticeFields({
     }
     let cancelled = false;
     setFailed(false);
+    clearLoadError();
     // Wrapped in a resolved promise so a synchronous throw (a test double
     // without the method, a broken client) lands in the same catch as a
     // rejected request.
@@ -155,22 +165,28 @@ export function GuardianNoticeFields({
           instance_id: block.id,
           error: err instanceof Error ? err.message : String(err),
         });
+        void showLoadError(err, {
+          object: "die Information der Eltern",
+          retry: () => setAttempt((current) => current + 1),
+        });
       });
     return () => {
       cancelled = true;
     };
     // The block identity is what matters; the title/date inside it only change
-    // together with the id.
+    // together with the id. The load-error helpers are stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [block.id, past]);
+  }, [block.id, past, attempt]);
 
   if (past) return null;
   if (failed) {
     return (
-      <Alert
-        type="warning"
-        message="Ob die Eltern informiert werden können, ließ sich gerade nicht laden. Die Absage selbst ist davon nicht betroffen."
-      />
+      <div className="space-y-1">
+        <LoadErrorAlert error={loadError} />
+        <p className="text-xs text-gray-500">
+          Sie können trotzdem absagen. Die Eltern bekommen dann keine Nachricht.
+        </p>
+      </div>
     );
   }
   if (!noticeApplies(reach) || !draft) return null;

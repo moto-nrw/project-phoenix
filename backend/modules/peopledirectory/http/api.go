@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
@@ -104,15 +105,37 @@ type PersonRequest struct {
 	AccountID int64  `json:"account_id,omitempty"`
 }
 
+// Bind reports every blank name as its own field (#2511). The text stays the
+// first missing name's sentence, which clients not yet on the error code
+// path still compare against until #2520.
 func (request *PersonRequest) Bind(*http.Request) error {
+	missing := validation.Errors{}
+	text := ""
 	if request.FirstName == "" {
-		return errors.New("first name is required")
+		missing["first_name"] = errors.New("is required")
+		text = "first name is required"
 	}
 	if request.LastName == "" {
-		return errors.New("last name is required")
+		missing["last_name"] = errors.New("is required")
+		if text == "" {
+			text = "last name is required"
+		}
 	}
-	return nil
+	if len(missing) == 0 {
+		return nil
+	}
+	return &missingNamesError{text: text, fields: missing}
 }
+
+// missingNamesError keeps the legacy diagnostic text and carries the fields
+// for the shared error envelope, which reads them through errors.As.
+type missingNamesError struct {
+	text   string
+	fields validation.Errors
+}
+
+func (e *missingNamesError) Error() string { return e.text }
+func (e *missingNamesError) Unwrap() error { return e.fields }
 
 func (rs *Resource) listPersons(w http.ResponseWriter, r *http.Request) {
 	page, pageSize := rs.runtime.ParsePagination(r)

@@ -10,7 +10,7 @@ import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import { markAllAdminRequestsRead } from "~/lib/enrollment-admin-api";
 import {
   fetchEmailSubscription,
@@ -22,24 +22,25 @@ const logger = createLogger({ component: "AdminEnrollmentsPage" });
 
 /** E-Mail „Neue Anmeldung" an die Person selbst, zum Einschalten (#3780). */
 const ENROLLMENT_EMAIL = "enrollment_submitted";
-const SAVE_FAILED =
-  "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
 
 export default function AdminEnrollmentsPage() {
   // Jede Anmeldungsroute verlangt config:manage (#3469).
   const { isReady } = useRequirePermission("config:manage");
   // Statuszeile des Seitenkopfs: die Zahlen, die die Liste ohnehin lädt.
-  const [summary, setSummary] = useState<AdminEnrollmentsSummary | null>(null);
-  const { success: toastSuccess, error: toastError } = useToast();
+  const [summary, setSummary] = useState<
+    AdminEnrollmentsSummary | "unavailable" | null
+  >(null);
+  const { success: toastSuccess } = useToast();
+  const { show: showError } = useApiErrorDisplay();
   // Lesestatus pro Person (#3778): markiert die ungelesenen Anmeldungen der
   // aktiven Phasen für die angemeldete Person.
   const handleMarkAllRead = useCallback(() => {
     markAllAdminRequestsRead()
       .then(() => toastSuccess("Alle Anmeldungen sind als gelesen markiert."))
-      .catch((err: unknown) =>
-        toastError(err instanceof Error ? err.message : SAVE_FAILED),
-      );
-  }, [toastSuccess, toastError]);
+      .catch((err: unknown) => {
+        void showError(err, { object: "die Markierung als gelesen" });
+      });
+  }, [toastSuccess, showError]);
   // Eigener Stand der E-Mail bei neuer Anmeldung. Lässt er sich nicht laden,
   // fehlt der Eintrag, statt einen falschen Haken zu zeigen.
   const [emailState, setEmailState] = useState<
@@ -76,33 +77,34 @@ export default function AdminEnrollmentsPage() {
             : "Sie bekommen keine E-Mail mehr bei neuen Anmeldungen.",
         ),
       )
-      .catch(() => {
+      .catch((err: unknown) => {
         setEmailState(next ? "off" : "on");
-        toastError(SAVE_FAILED);
+        void showError(err, { object: "die E-Mail-Einstellung" });
       })
       .finally(() => setEmailSaving(false));
-  }, [emailState, emailSaving, toastSuccess, toastError]);
+  }, [emailState, emailSaving, toastSuccess, showError]);
   const handleSummaryChange = useCallback(
-    (next: AdminEnrollmentsSummary | null) => setSummary(next),
+    (next: AdminEnrollmentsSummary | "unavailable" | null) => setSummary(next),
     [],
   );
-  const statusLine = summary
-    ? [
-        `${summary.activePhases} ${summary.activePhases === 1 ? "Phase" : "Phasen"} aktiv`,
-        `${summary.requests} ${summary.requests === 1 ? "Anmeldung" : "Anmeldungen"}`,
-        summary.openChangeRequests > 0
-          ? `${summary.openChangeRequests} offene ${summary.openChangeRequests === 1 ? "Änderungsanfrage" : "Änderungsanfragen"}`
-          : null,
-      ]
-        .filter(Boolean)
-        .join(" · ")
-    : null;
+  const statusLine =
+    summary && summary !== "unavailable"
+      ? [
+          `${summary.activePhases} ${summary.activePhases === 1 ? "Phase" : "Phasen"} aktiv`,
+          `${summary.requests} ${summary.requests === 1 ? "Anmeldung" : "Anmeldungen"}`,
+          summary.openChangeRequests !== null && summary.openChangeRequests > 0
+            ? `${summary.openChangeRequests} offene ${summary.openChangeRequests === 1 ? "Änderungsanfrage" : "Änderungsanfragen"}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : null;
 
   return (
     <TenantPage
       title="Überblick"
       stats={statusLine}
-      statsLoading={statusLine === null}
+      statsLoading={summary === null}
       loading={!isReady}
       actions={
         <OverflowMenu

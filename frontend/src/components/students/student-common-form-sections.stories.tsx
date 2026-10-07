@@ -18,7 +18,7 @@ type Story = StoryObj<typeof meta>;
 export const Empty: Story = {
   args: {
     formData: {},
-    errors: {},
+    fieldError: () => undefined,
     onChange: noopFieldChange,
   },
 };
@@ -30,9 +30,10 @@ export const WithErrors: Story = {
       supervisor_notes: "Braucht Erinnerung an Medikamente",
       extra_info: "Holt sich gerne Hilfe beim Anziehen",
     },
-    errors: {
-      data_retention_days: "Bitte gültige Anzahl an Tagen angeben",
-    },
+    fieldError: (name: string) =>
+      name === "data_retention_days"
+        ? "Bitte geben Sie eine Zahl von 1 bis 31 ein."
+        : undefined,
     onChange: noopFieldChange,
   },
 };

@@ -1,22 +1,44 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+/** Text of a FormErrorInput, as the shared kit components render it. */
+function errorText(error: unknown): string | null {
+  if (!error) return null;
+  return typeof error === "string"
+    ? error
+    : (error as { message: string }).message;
+}
+
+interface MockErrorPath {
+  error: unknown;
+  show: (error: unknown, options: { object: string }) => unknown;
+  clear: () => void;
+}
 
 vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
 vi.mock("~/components/ui/database/database-form", () => ({
+  // Mirrors DatabaseForm in production: a rejected save goes to the
+  // owner's error path, whose text the form renders.
   DatabaseForm: ({
     sections,
     onSubmit,
     onCancel,
+    errorPath,
+    errorObject,
   }: {
     sections: Array<{
       fields: Array<{ name: string; disabled?: boolean; helperText?: string }>;
     }>;
     onSubmit: (data: { name: string }) => Promise<void>;
     onCancel: () => void;
+    errorPath: MockErrorPath;
+    errorObject?: string;
   }) => {
     const nameField = sections
       .flatMap((section) => section.fields)
@@ -27,9 +49,18 @@ vi.mock("~/components/ui/database/database-form", () => ({
         {nameField?.disabled ? (
           <span data-testid="name-disabled">{nameField.helperText}</span>
         ) : null}
+        {errorText(errorPath.error) ? (
+          <span data-testid="form-error">{errorText(errorPath.error)}</span>
+        ) : null}
         <button
           type="button"
-          onClick={() => void onSubmit({ name: "Updated Activity" })}
+          onClick={() =>
+            void onSubmit({ name: "Updated Activity" }).catch(
+              (err: unknown) => {
+                void errorPath.show(err, { object: errorObject ?? "" });
+              },
+            )
+          }
         >
           Save
         </button>
@@ -218,6 +249,55 @@ describe("ActivitiesMasterDetail", () => {
 
     expect(
       screen.getByText("Aktivitätsdaten werden geladen..."),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("database-form")).not.toBeInTheDocument();
+  });
+
+  it("shows a failed save with the catalog text of the activity in the form", async () => {
+    onSaveActivity.mockRejectedValueOnce(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
+    render(
+      <ActivitiesMasterDetail
+        activities={[regularActivity]}
+        selectedId="1"
+        selectedActivity={regularActivity}
+        detailLoading={false}
+        onSelect={onSelect}
+        onSaveActivity={onSaveActivity}
+        onResetForm={onResetForm}
+        onDeleteClick={onDeleteClick}
+        formResetKey="1:0"
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Save"));
+
+    expect(await screen.findByTestId("form-error")).toHaveTextContent(
+      catalogText("general.unavailable", "die Aktivität"),
+    );
+  });
+
+  it("shows a failed detail load instead of a form with an outdated state", () => {
+    render(
+      <ActivitiesMasterDetail
+        activities={[regularActivity]}
+        selectedId="1"
+        selectedActivity={regularActivity}
+        detailLoading={false}
+        detailError="Die Aktivität ist gerade nicht erreichbar. Bitte versuchen Sie es erneut."
+        onSelect={onSelect}
+        onSaveActivity={onSaveActivity}
+        onResetForm={onResetForm}
+        onDeleteClick={onDeleteClick}
+        formResetKey="1:0"
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Die Aktivität ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("database-form")).not.toBeInTheDocument();
   });

@@ -1,4 +1,9 @@
-import { ApiError, enrichApiError } from "./api-error";
+import {
+  ApiError,
+  apiErrorFromResponse,
+  enrichApiError,
+  transportFetch,
+} from "./api-error";
 // Client API for the info-point display domain (issue #1325).
 // Admin CRUD goes through the session-authenticated Next.js proxy routes
 // under /api/displays; the public dashboard fetch is token-only.
@@ -79,7 +84,7 @@ export async function fetchDisplayDashboard(
   token: string,
   signal?: AbortSignal,
 ): Promise<DashboardPayload> {
-  const response = await fetch("/api/display/dashboard", {
+  const response = await transportFetch("/api/display/dashboard", {
     cache: "no-store",
     signal,
     headers: { "X-Display-Token": token },
@@ -102,17 +107,18 @@ interface ApiEnvelope<T> {
 
 async function parseEnvelope<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as {
-      error?: string;
-    };
-    throw new Error(body.error ?? `request failed (${response.status})`);
+    // Code, Feldfehler und Vorgangskennung kommen aus dem Fehlerumschlag.
+    throw await apiErrorFromResponse(
+      response,
+      `display request failed (${response.status})`,
+    );
   }
   const envelope = (await response.json()) as ApiEnvelope<T>;
   return (envelope.data ?? envelope) as T;
 }
 
 export async function listDisplays(): Promise<InfoDisplay[]> {
-  const response = await fetch("/api/displays", { cache: "no-store" });
+  const response = await transportFetch("/api/displays", { cache: "no-store" });
   const displays = await parseEnvelope<BackendDisplay[]>(response);
   // parseEnvelope falls back to the envelope object when `data` is absent
   // (empty list responses) — only a real array may be mapped.
@@ -125,7 +131,7 @@ export interface DisplayWithToken {
 }
 
 export async function createDisplay(name: string): Promise<DisplayWithToken> {
-  const response = await fetch("/api/displays", {
+  const response = await transportFetch("/api/displays", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
@@ -138,22 +144,25 @@ export async function updateDisplay(
   id: string,
   changes: { name?: string; isActive?: boolean },
 ): Promise<InfoDisplay> {
-  const response = await fetch(`/api/displays/${encodeURIComponent(id)}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      ...(changes.name !== undefined ? { name: changes.name } : {}),
-      ...(changes.isActive !== undefined
-        ? { is_active: changes.isActive }
-        : {}),
-    }),
-  });
+  const response = await transportFetch(
+    `/api/displays/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...(changes.name !== undefined ? { name: changes.name } : {}),
+        ...(changes.isActive !== undefined
+          ? { is_active: changes.isActive }
+          : {}),
+      }),
+    },
+  );
   const data = await parseEnvelope<{ display: BackendDisplay }>(response);
   return mapDisplayResponse(data.display);
 }
 
 export async function regenerateDisplayToken(id: string): Promise<string> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/displays/${encodeURIComponent(id)}/regenerate`,
     { method: "POST" },
   );
@@ -162,13 +171,16 @@ export async function regenerateDisplayToken(id: string): Promise<string> {
 }
 
 export async function deleteDisplay(id: string): Promise<void> {
-  const response = await fetch(`/api/displays/${encodeURIComponent(id)}`, {
-    method: "DELETE",
-  });
+  const response = await transportFetch(
+    `/api/displays/${encodeURIComponent(id)}`,
+    {
+      method: "DELETE",
+    },
+  );
   if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as {
-      error?: string;
-    };
-    throw new Error(body.error ?? `delete failed (${response.status})`);
+    throw await apiErrorFromResponse(
+      response,
+      `display delete failed (${response.status})`,
+    );
   }
 }

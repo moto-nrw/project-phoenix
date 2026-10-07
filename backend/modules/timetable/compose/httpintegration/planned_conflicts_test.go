@@ -249,6 +249,28 @@ func TestDetectPlannedConflicts_ExcludeSelf(t *testing.T) {
 	assert.Empty(t, warnings, "the instance being edited must not conflict with itself")
 }
 
+// A Regeltermin being edited never conflicts with its own occurrences, even
+// without a room to match (a Dienst, #3822); another series still does.
+func TestDetectPlannedConflicts_ExcludeEditedSeries(t *testing.T) {
+	t.Parallel()
+
+	s := buildPlannedConflictSetup(t)
+	series := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("PC-Serie-%d", time.Now().UnixNano()))
+	other := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("PC-Andere-%d", time.Now().UnixNano()))
+	own := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{Title: "PC-Eigene", ActivityGroupID: &series.ID})
+	foreign := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{Title: "PC-Fremde", ActivityGroupID: &other.ID})
+	testpkg.CreateTestInstanceStaff(t, s.db, own.ID, s.staffID, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, foreign.ID, s.staffID, testpkg.InstanceStaffOpts{})
+
+	warnings := s.detection.DetectPlannedConflicts(s.ctx, probeQuery(s, func(q *timetable.PlannedConflictProbe) {
+		q.StaffIDs = []int64{s.staffID}
+		q.ExcludeActivityGroupID = &series.ID
+	}))
+
+	require.Len(t, warnings, 1)
+	assert.Equal(t, foreign.ID, warnings[0].ConflictingInstanceID)
+}
+
 func TestDetectPlannedConflicts_CancelledIgnored(t *testing.T) {
 	t.Parallel()
 

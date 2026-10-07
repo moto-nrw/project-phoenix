@@ -100,11 +100,24 @@ func batchFailure(failure importapi.Failure) render.Renderer {
 		Status: "error", ErrorText: failure.Message, Code: failure.Code, Details: details}
 }
 
+// codedFailure answers a refusal the client words itself from its code, such
+// as an upload it must fix (#2517). The message stays a diagnostic.
+func codedFailure(failure importapi.Failure) render.Renderer {
+	text := failure.Message
+	if text == "" && failure.Cause != nil {
+		text = failure.Cause.Error()
+	}
+	return &common.ErrResponse{Err: failure.Cause, HTTPStatusCode: failure.Status,
+		Status: "error", ErrorText: text, Code: failure.Code, Details: failure.Details}
+}
+
 func renderFailure(w http.ResponseWriter, r *http.Request, failure importapi.Failure) {
 	var response render.Renderer
 	switch {
-	case failure.Code != "":
+	case failure.Code != "" && failure.Result != nil:
 		response = batchFailure(failure)
+	case failure.Code != "":
+		response = codedFailure(failure)
 	case failure.Status == http.StatusBadRequest:
 		response = common.ErrorInvalidRequest(failure.Cause)
 	case failure.Status == http.StatusUnauthorized:

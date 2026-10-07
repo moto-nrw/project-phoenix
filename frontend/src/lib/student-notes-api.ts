@@ -6,6 +6,7 @@
 // reader's audience never arrive at all. The client renders that answer and
 // never computes its own.
 
+import { apiErrorFromResponse } from "./api-error";
 import { sessionFetch } from "./session-cache";
 
 /** Note lifetimes. A permanent note is the durable hint shown with the master data. */
@@ -103,12 +104,11 @@ function toPayload(draft: StudentNoteDraft): Record<string, unknown> {
   };
 }
 
-function throwNoteError(response: Response, fallback: string): never {
-  let message = fallback;
-  if (response.status === 403) {
-    message = "Dafür fehlt Ihnen die Berechtigung.";
-  }
-  throw new Error(message);
+async function throwNoteError(
+  response: Response,
+  fallback: string,
+): Promise<never> {
+  throw await apiErrorFromResponse(response, fallback);
 }
 
 class StudentNotesService {
@@ -119,7 +119,7 @@ class StudentNotesService {
       `/api/students/${studentId}/notes${query}`,
     );
     if (!response.ok) {
-      throwNoteError(response, "Notizen konnten nicht geladen werden.");
+      await throwNoteError(response, "Notizen konnten nicht geladen werden.");
     }
     const json = (await response.json()) as { data: BackendStudentNote[] };
     return (json.data ?? []).map(mapNote);
@@ -131,7 +131,7 @@ class StudentNotesService {
       body: JSON.stringify(toPayload(draft)),
     });
     if (!response.ok) {
-      throwNoteError(response, "Notiz konnte nicht gespeichert werden.");
+      await throwNoteError(response, "Notiz konnte nicht gespeichert werden.");
     }
   }
 
@@ -145,7 +145,7 @@ class StudentNotesService {
       { method: "PUT", body: JSON.stringify(toPayload(draft)) },
     );
     if (!response.ok) {
-      throwNoteError(response, "Notiz konnte nicht geändert werden.");
+      await throwNoteError(response, "Notiz konnte nicht geändert werden.");
     }
   }
 
@@ -155,7 +155,7 @@ class StudentNotesService {
       { method: "DELETE" },
     );
     if (!response.ok) {
-      throwNoteError(response, "Notiz konnte nicht entfernt werden.");
+      await throwNoteError(response, "Notiz konnte nicht entfernt werden.");
     }
   }
 }

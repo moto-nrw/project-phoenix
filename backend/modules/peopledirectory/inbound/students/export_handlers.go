@@ -59,6 +59,11 @@ type studentExportFilters struct {
 	// on the Gesundheitsliste (#3323); they print "Nicht hinterlegt". Other
 	// presets ignore it.
 	IncludeWithoutHealthInfo bool `json:"include_without_health_info"`
+	// StudentIDs limits the export to the children marked in a list (#3834).
+	// It narrows the result of every other filter and never widens it: an ID
+	// the caller cannot see, or that another filter drops, stays out. Empty
+	// means no selection.
+	StudentIDs []string `json:"student_ids"`
 }
 
 type weeklySchedule struct {
@@ -195,7 +200,52 @@ func decodeStudentExportRequest(r *http.Request) (studentExportRequest, error) {
 	if _, err := parseExportMonths(req.Filters.Months); err != nil {
 		return req, err
 	}
+	if _, err := parseExportStudentIDs(req.Filters.StudentIDs); err != nil {
+		return req, err
+	}
 	return req, nil
+}
+
+// parseExportStudentIDs turns the wire selection into a lookup set. An empty
+// list means "no selection" and yields a nil set. A malformed ID is rejected
+// rather than skipped: a silently shortened selection would print a list that
+// looks complete but misses a child the user marked.
+func parseExportStudentIDs(values []string) (map[int64]bool, error) {
+	studentIDs, err := parseExportStudentIDList(values)
+	if err != nil || studentIDs == nil {
+		return nil, err
+	}
+	ids := make(map[int64]bool, len(studentIDs))
+	for _, id := range studentIDs {
+		ids[id] = true
+	}
+	return ids, nil
+}
+
+// parseExportStudentIDList turns the wire selection into IDs suitable for the
+// directory pre-filter. It retains the request order and deduplicates IDs so
+// a repeated selection cannot make downstream queries do duplicate work.
+func parseExportStudentIDList(values []string) ([]int64, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	if len(values) > studentExportPageSize {
+		return nil, errExportSelectionTooLarge(len(values))
+	}
+	ids := make([]int64, 0, len(values))
+	seen := make(map[int64]struct{}, len(values))
+	for _, value := range values {
+		id, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+		if err != nil || id <= 0 {
+			return nil, fmt.Errorf("invalid student id %q", value)
+		}
+		if _, duplicate := seen[id]; duplicate {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
 
 // parseExportMonths turns the wire month filter ("01".."12") into a lookup set.
@@ -238,10 +288,17 @@ func (rs *Resource) fetchStudentsForExport(r *http.Request, params *studentListP
 // only a genuinely oversized result is refused. Because the fetch is complete
 // (params.fetchAll), refusing here is never silent truncation.
 func exportSelectionCapError(count int) render.Renderer {
-	if exportSelectionTooLarge(count) {
-		return common.ErrorInvalidRequest(errExportSelectionTooLarge(count))
+	if !exportSelectionTooLarge(count) {
+		return nil
 	}
-	return nil
+	rendered := common.ErrorInvalidRequestWithCode(
+		errExportSelectionTooLarge(count),
+		common.CodeStudentsExportSelectionTooLarge,
+	)
+	if resp, ok := rendered.(*common.ErrResponse); ok {
+		resp.Details = map[string]any{"total": count, "limit": studentExportPageSize}
+	}
+	return rendered
 }
 
 // exportSelectionTooLarge reports whether a filtered export exceeds what a single
@@ -250,14 +307,18 @@ func exportSelectionTooLarge(total int) bool {
 	return total > studentExportPageSize
 }
 
-// errExportSelectionTooLarge is the user-facing message shown when the selection
-// is over the cap. Lowercase and unpunctuated to satisfy Go error-string linting
-// while still reading as a full sentence in the frontend toast.
+// errExportSelectionTooLarge is the diagnostic for a selection over the cap. The
+// frontend words the refusal from students.export_selection_too_large and its
+// details (ADR 0006).
 func errExportSelectionTooLarge(total int) error {
 	return fmt.Errorf("die Auswahl umfasst %d Kinder, ein Export ist auf höchstens %d Kinder begrenzt, bitte die Auswahl eingrenzen (etwa nach Gruppe oder Klasse)", total, studentExportPageSize)
 }
 
 func exportRequestToListParams(req studentExportRequest, today timezone.Date) *studentListParams {
+	// decodeStudentExportRequest already rejects malformed IDs. Preserve the
+	// validated selection on the query params so authorization, directory
+	// loading and enrichment only process the marked children.
+	studentIDs, _ := parseExportStudentIDList(req.Filters.StudentIDs)
 	params := &studentListParams{
 		search:              strings.TrimSpace(req.Filters.Search),
 		page:                1,
@@ -274,7 +335,8 @@ func exportRequestToListParams(req studentExportRequest, today timezone.Date) *s
 		// The birthday-month and search filters run in memory after the fetch,
 		// so pull every SQL-matching row: a paginated page would drop matching
 		// children past the boundary and silently shorten the list.
-		fetchAll: true,
+		fetchAll:   true,
+		studentIDs: studentIDs,
 	}
 	params.groupIDs = parseGroupIDList([]string{req.Filters.GroupID})
 	if req.Filters.RoomID != "" {
@@ -382,8 +444,9 @@ func matchesExportYearFilter(schoolClass, raw string) bool {
 }
 
 func applyExportFilters(students []StudentResponse, filters studentExportFilters, preset lists.Preset, planningDate timezone.Date) []StudentResponse {
-	// Months were validated when the request was decoded.
+	// Months and student IDs were validated when the request was decoded.
 	months, _ := parseExportMonths(filters.Months)
+	selectedIDs, _ := parseExportStudentIDs(filters.StudentIDs)
 	// The birthday preset demands a birthday even without a month filter, so a
 	// child with no stored date is dropped rather than printed as a blank row.
 	byBirthday := preset == lists.PresetBirthdayList || len(months) > 0
@@ -391,6 +454,9 @@ func applyExportFilters(students []StudentResponse, filters studentExportFilters
 	filtered := make([]StudentResponse, 0, len(students))
 	for _, student := range students {
 		if withHealthInfoOnly && !hasHealthInfo(student) {
+			continue
+		}
+		if selectedIDs != nil && !selectedIDs[student.ID] {
 			continue
 		}
 		if exportStudentMatchesFilters(student, filters, byBirthday, months, planningDate) {

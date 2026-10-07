@@ -27,10 +27,16 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
+const noFieldError = () => undefined;
+
 export const PersonalInfo: Story = {
   name: "PersonalInfoSection",
   render: () => (
-    <PersonalInfoSection formData={{}} onChange={noopFieldChange} errors={{}} />
+    <PersonalInfoSection
+      formData={{}}
+      onChange={noopFieldChange}
+      fieldError={noFieldError}
+    />
   ),
 };
 
@@ -40,7 +46,9 @@ export const PersonalInfoWithErrors: Story = {
     <PersonalInfoSection
       formData={{ first_name: "Max" }}
       onChange={noopFieldChange}
-      errors={{ last_name: "Pflichtfeld" }}
+      fieldError={(name) =>
+        name === "last_name" ? "Bitte geben Sie den Nachnamen ein." : undefined
+      }
       groups={[{ value: "1", label: "Gruppe A" }]}
     />
   ),
@@ -64,7 +72,7 @@ export const PrivacyConsent: Story = {
     <PrivacyConsentSection
       formData={{}}
       onChange={noopFieldChange}
-      errors={{}}
+      fieldError={noFieldError}
     />
   ),
 };

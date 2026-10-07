@@ -2,8 +2,8 @@
 
 import { defineEntityConfig } from "@/lib/database/types";
 import type { Activity, ActivitySupervisor } from "@/lib/activity-helpers";
-import { getSupervisors } from "@/lib/activity-api";
-import { getCachedSession } from "~/lib/session-cache";
+import { apiErrorFromResponse } from "~/lib/api-error";
+import { getCachedSession, sessionFetch } from "~/lib/session-cache";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ActivitiesConfig" });
@@ -127,12 +127,15 @@ export const activitiesConfig = defineEntityConfig<Activity>({
             type: "select",
             required: true,
             options: async () => {
-              // Fetch categories from API
-              const response = await fetch("/api/activities/categories", {
-                headers: {
-                  Authorization: `Bearer ${(await getCachedSession())?.user?.token}`,
-                },
-              });
+              // A failure throws the ApiError: the form shows the catalog
+              // text with retry instead of an empty choice (#2517).
+              const response = await sessionFetch("/api/activities/categories");
+              if (!response.ok) {
+                throw await apiErrorFromResponse(
+                  response,
+                  "failed to load activity categories",
+                );
+              }
               const result = (await response.json()) as
                 | { data?: Array<{ id: number; name: string }> }
                 | Array<{ id: number; name: string }>;
@@ -177,7 +180,23 @@ export const activitiesConfig = defineEntityConfig<Activity>({
             required: false,
             placeholder: "Kein Hauptbetreuer",
             options: async () => {
-              const supervisors = await getSupervisors();
+              // Not getSupervisors(): it answers a failure with an empty
+              // list, which would look like a school without supervisors.
+              const response = await sessionFetch(
+                "/api/activities/supervisors",
+              );
+              if (!response.ok) {
+                throw await apiErrorFromResponse(
+                  response,
+                  "failed to load supervisors",
+                );
+              }
+              const result = (await response.json()) as
+                | { data?: Array<{ id: string; name: string }> }
+                | Array<{ id: string; name: string }>;
+              const supervisors = Array.isArray(result)
+                ? result
+                : (result.data ?? []);
               return supervisors.map((sup) => ({
                 value: sup.id,
                 label: sup.name,

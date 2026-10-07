@@ -207,27 +207,34 @@ export function PersonFields({
   onChange,
   berlinToday,
   onBirthdayValidityChange,
+  fieldError,
 }: {
   readonly draft: StammdatenDraft;
   readonly onChange: Patch;
   readonly berlinToday: string;
   readonly onBirthdayValidityChange: (valid: boolean) => void;
+  /** The server's verdict per wire field (#2511). */
+  readonly fieldError?: (name: string) => string | undefined;
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Input
         controlSize="compact"
         label="Vorname"
-        name="stammdaten-first-name"
+        id="stammdaten-first-name"
+        name="first_name"
         value={draft.firstName}
         onChange={(e) => onChange({ firstName: e.target.value })}
+        error={fieldError?.("first_name")}
       />
       <Input
         controlSize="compact"
         label="Nachname"
-        name="stammdaten-last-name"
+        id="stammdaten-last-name"
+        name="last_name"
         value={draft.lastName}
         onChange={(e) => onChange({ lastName: e.target.value })}
+        error={fieldError?.("last_name")}
       />
       <ISODateInput
         label="Geburtsdatum"

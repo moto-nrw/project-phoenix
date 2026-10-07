@@ -249,6 +249,9 @@ func TestStatisticsReport_RejectsInvalidRanges(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/report?"+query, nil)
 		rec := authExec(t, tc, req, claims, reportPermissions)
 		assert.Equal(t, http.StatusBadRequest, rec.Code, name)
+		if name == "reversed" || name == "future" || name == "too_long" {
+			assert.Contains(t, rec.Body.String(), `"code":"presence.statistics_range_invalid"`, name)
+		}
 	}
 }
 

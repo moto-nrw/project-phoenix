@@ -30,7 +30,7 @@ func (rs *Resource) exportStudentsDayLog(w http.ResponseWriter, r *http.Request)
 	logger := rs.dayLogLogger()
 
 	if !resolveBoolSetting(ctx, rs.SettingsService, settingAttendanceLogEnabled, false, logger) {
-		renderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
+		renderError(w, r, common.ErrorForbiddenWithCode(errors.New("feature_disabled"), common.CodeStudentsDayLogDisabled))
 		return
 	}
 	if rs.ListExportService == nil {

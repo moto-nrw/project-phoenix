@@ -97,13 +97,25 @@ describe("exportEmergencySnapshot", () => {
     expect(link.download).toBe("notfallliste.pdf");
   });
 
-  it("throws the backend error body when export fails", async () => {
+  it("throws an ApiError classified by its status when export fails", async () => {
     globalThis.fetch = vi.fn(async () => {
       return new Response("nicht erlaubt", { status: 403 });
     });
 
-    await expect(exportEmergencySnapshot("download")).rejects.toThrow(
-      "nicht erlaubt",
-    );
+    await expect(exportEmergencySnapshot("download")).rejects.toMatchObject({
+      name: "ApiError",
+      status: 403,
+      code: "general.permission",
+    });
+  });
+
+  it("turns a request that never reached the API into general.unavailable", async () => {
+    globalThis.fetch = vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+
+    await expect(exportEmergencySnapshot("download")).rejects.toMatchObject({
+      code: "general.unavailable",
+    });
   });
 });

@@ -12,7 +12,12 @@ export function announceEnrollmentReadChange() {
   globalThis.window?.dispatchEvent(new Event(ENROLLMENTS_UNREAD_REFRESH_EVENT));
 }
 
-/** Ungelesene Anmeldungen der Person; 0 bei Fehlern oder ohne Recht. */
+/**
+ * Ungelesene Anmeldungen der Person; 0 bei Fehlern oder ohne Recht.
+ * Bewusst still: das Badge lädt ohne Handlung der Person (kein Toast ohne
+ * Handlung, #2501), 0 blendet es nur aus. Der Bereich selbst zeigt seine
+ * Ladefehler vor Ort.
+ */
 export async function fetchUnreadEnrollmentCount(): Promise<number> {
   try {
     const response = await fetch(

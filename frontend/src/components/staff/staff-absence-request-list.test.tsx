@@ -2,7 +2,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import type { StaffAbsenceRequestRow } from "~/lib/staff-api";
+import { catalogText } from "~/test/error-catalog-text";
 
 import { StaffAbsenceRequestList } from "./staff-absence-request-list";
 
@@ -15,9 +17,12 @@ vi.mock("~/lib/staff-api", () => ({
   staffAbsenceService: { listRequests, approve },
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
+  useApiErrorDisplay: () => ({ show: actionErrors.show }),
 }));
+const actionErrors = vi.hoisted(() => ({ show: vi.fn() }));
 
 function openRow(): StaffAbsenceRequestRow {
   return {
@@ -202,5 +207,55 @@ describe("StaffAbsenceRequestList", () => {
     );
 
     expect(await screen.findByText("Unbekannt")).toBeInTheDocument();
+  });
+
+  it("zeigt einen Ladefehler an Stelle der Liste, nicht als leere Liste", async () => {
+    listRequests.mockRejectedValueOnce(
+      new ApiError("boom", 500, { code: "general.server", instance: "req-l" }),
+    );
+    listRequests.mockResolvedValueOnce([openRow()]);
+
+    render(
+      <StaffAbsenceRequestList
+        view="open"
+        filters={{ search: "", types: [] }}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Liste der Anträge"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Keine offenen Anträge.")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-l");
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText("Mira Muster")).toBeInTheDocument();
+  });
+
+  it("meldet eine abgelehnte Genehmigung über den gemeinsamen Fehlerweg", async () => {
+    listRequests.mockResolvedValue([openRow()]);
+    const refused = new ApiError("quota", 409, {
+      code: "workforce.vacation_quota_exceeded",
+    });
+    approve.mockRejectedValue(refused);
+
+    render(
+      <StaffAbsenceRequestList
+        view="open"
+        filters={{ search: "", types: [] }}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Genehmigen" }));
+    await waitFor(() =>
+      expect(actionErrors.show).toHaveBeenCalledWith(
+        refused,
+        expect.objectContaining({ object: "die Anfrage" }),
+      ),
+    );
   });
 });

@@ -2,12 +2,12 @@
 
 import { useMemo, useRef, useState } from "react";
 import { FileText, FileImage, File as FileIcon, Upload } from "lucide-react";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -18,6 +18,11 @@ import {
   type SegmentedControlItem,
 } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -29,6 +34,7 @@ import {
   type StaffDocumentList,
 } from "~/lib/staff-documents-api";
 import { useSWRAuth } from "~/lib/swr";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 
 // Dokumente tab (#1424, phase 1): flat file list per staff member with
 // upload, download, audited delete and category filter. The backend already
@@ -94,11 +100,15 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
   const [uploadCategory, setUploadCategory] =
     useState<StaffDocumentCategory | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [actionError, setActionError] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<StaffDocument | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
+  const toast = useToast();
+  const uploadErrors = useApiErrorDisplay();
+  const deleteErrors = useApiFormError();
+  // Ein Ladefehler steht an der Stelle der Liste, nie als „Noch keine
+  // Dokumente“ (#2514).
+  const loadError = useSwrLoadError(error, "die Liste der Dokumente", mutate);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const visibleCategories = useMemo(
@@ -131,10 +141,11 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
       return;
     }
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      setActionError("Die Datei ist größer als 10 MB.");
+      toast.error(
+        "Die Datei ist größer als 10 MB. Bitte wählen Sie eine kleinere Datei.",
+      );
       return;
     }
-    setActionError("");
     setUploading(true);
     try {
       await staffDocumentsService.upload(
@@ -148,11 +159,8 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
         staff_id: staffId,
         error: err instanceof Error ? err.message : String(err),
       });
-      setActionError(
-        err instanceof Error
-          ? err.message
-          : "Dokument konnte nicht hochgeladen werden.",
-      );
+      // Kein Wiederholen: die Datei muss neu gewählt werden.
+      await uploadErrors.show(err, { object: "das Dokument" });
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
@@ -166,7 +174,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
       return;
     }
     setDeleting(true);
-    setDeleteError("");
+    deleteErrors.clear();
     try {
       await staffDocumentsService.delete(staffId, deleteTarget.id);
       setDeleteTarget(null);
@@ -177,11 +185,10 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
         document_id: deleteTarget.id,
         error: err instanceof Error ? err.message : String(err),
       });
-      setDeleteError(
-        err instanceof Error
-          ? err.message
-          : "Dokument konnte nicht gelöscht werden.",
-      );
+      await deleteErrors.show(err, {
+        object: "das Dokument",
+        retry: () => void handleDelete(),
+      });
     } finally {
       setDeleting(false);
     }
@@ -254,7 +261,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
             label: "Löschen",
             destructive: true,
             onClick: () => {
-              setDeleteError("");
+              deleteErrors.clear();
               setDeleteTarget(doc);
             },
           },
@@ -270,9 +277,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
   ];
 
   if (error) {
-    return (
-      <Alert type="error" message="Dokumente konnten nicht geladen werden." />
-    );
+    return <LoadErrorAlert error={loadError} />;
   }
 
   return (
@@ -281,12 +286,6 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
         title="Dokumente"
         description="Dateien zur Personalakte. Uploads und Löschungen werden im Änderungsprotokoll festgehalten; Aufbewahrungsfristen sind Hinweise, gelöscht wird nur manuell."
       >
-        {actionError !== "" && (
-          <div className="mb-4">
-            <Alert type="error" message={actionError} />
-          </div>
-        )}
-
         {/* Upload row: category choice + drop zone */}
         <div className="mb-5 space-y-3">
           <div className="flex flex-wrap items-center gap-3">
@@ -413,7 +412,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
           }
         }}
         loading={deleting}
-        error={deleteError}
+        error={deleteErrors.error}
       />
     </div>
   );

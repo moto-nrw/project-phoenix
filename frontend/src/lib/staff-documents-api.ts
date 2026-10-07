@@ -4,6 +4,11 @@
 // staff:financial, rest → staff:documents, #2906) and returns only what the caller
 // may see plus the caller's visible categories.
 
+import {
+  ApiError,
+  apiErrorFromResponse,
+  unavailableApiError,
+} from "./api-error";
 import { getCachedSession, sessionFetch } from "./session-cache";
 
 export type StaffDocumentCategory =
@@ -77,30 +82,12 @@ function mapDocument(data: BackendStaffDocument): StaffDocument {
   };
 }
 
-async function throwDocumentError(
-  response: Response,
-  fallback: string,
-): Promise<never> {
-  let message = fallback;
-  try {
-    const body = (await response.json()) as { error?: string };
-    if (body.error) {
-      message = body.error;
-    }
-  } catch {
-    // Non-JSON body — keep the fallback.
-  }
-  if (response.status === 403) {
-    message = "Keine Berechtigung für diese Dokument-Kategorie.";
-  }
-  throw new Error(message);
-}
-
 class StaffDocumentsService {
   async list(staffId: string): Promise<StaffDocumentList> {
     const response = await sessionFetch(`/api/staff/${staffId}/documents`);
     if (!response.ok) {
-      throw new Error(
+      throw await apiErrorFromResponse(
+        response,
         `Failed to fetch staff documents: ${response.statusText}`,
       );
     }
@@ -120,25 +107,35 @@ class StaffDocumentsService {
     formData.append("file", file);
     formData.append("category", category);
 
-    const session = await getCachedSession();
+    const session = await getCachedSession().catch((error: unknown) => {
+      if (error instanceof ApiError) throw error;
+      throw unavailableApiError(error);
+    });
     const token = session?.user?.token;
     if (!token) {
-      throw new Error("Authentifizierung erforderlich");
+      throw new ApiError("Authentication required", 401, {
+        code: "general.permission",
+      });
     }
 
     // Raw fetch on purpose — sessionFetch forces Content-Type
     // application/json, which would clobber the multipart boundary the
     // browser sets for FormData bodies (same pattern as the student photo
     // upload).
-    const response = await fetch(`/api/staff/${staffId}/documents`, {
-      method: "POST",
-      body: formData,
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    let response: Response;
+    try {
+      response = await fetch(`/api/staff/${staffId}/documents`, {
+        method: "POST",
+        body: formData,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (error) {
+      throw unavailableApiError(error);
+    }
     if (!response.ok) {
-      await throwDocumentError(
+      throw await apiErrorFromResponse(
         response,
-        "Dokument konnte nicht hochgeladen werden.",
+        "Failed to upload staff document",
       );
     }
   }
@@ -149,9 +146,9 @@ class StaffDocumentsService {
       { method: "DELETE" },
     );
     if (!response.ok) {
-      await throwDocumentError(
+      throw await apiErrorFromResponse(
         response,
-        "Dokument konnte nicht gelöscht werden.",
+        "Failed to delete staff document",
       );
     }
   }

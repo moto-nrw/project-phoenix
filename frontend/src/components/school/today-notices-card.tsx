@@ -8,8 +8,7 @@
 
 import { useSession } from "next-auth/react";
 
-import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -19,16 +18,24 @@ import {
 } from "~/lib/school-staff-notices-api";
 import { schoolPath } from "~/lib/school-url";
 import type { StaffNotice } from "~/lib/staff-notices-api";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
 
 const SCHOOL_NOTICES_ROUTE = "/school/tagesinformationen";
 
 export function TodayNoticesCard() {
   const { data: session } = useSession();
-  const { data, error, isValidating, mutate } = useSWRAuth<StaffNotice[]>(
+  const { data, error, mutate } = useSWRAuth<StaffNotice[]>(
     session ? SCHOOL_NOTICES_TODAY_KEY : null,
     schoolStaffNoticesApi.fetchTodaysNotices,
     { revalidateOnFocus: false },
+  );
+  // Ladefehler mit Katalogtext und Wiederholen (#2517); zuletzt geladene
+  // Hinweise bleiben darunter stehen.
+  const loadError = useSwrLoadError(
+    error,
+    "die Liste der Tagesinformationen",
+    () => mutate(),
   );
   const notices = data ?? [];
   if (!error && notices.length === 0) return null;
@@ -50,28 +57,7 @@ export function TodayNoticesCard() {
         </NavigationLink>
       }
     >
-      {error ? (
-        <div className="mb-3 space-y-2">
-          <Alert
-            type="error"
-            message={
-              notices.length > 0
-                ? "Die Tagesinformationen konnten nicht aktualisiert werden. Die zuletzt geladenen Hinweise bleiben sichtbar."
-                : "Die Tagesinformationen konnten nicht geladen werden."
-            }
-          />
-          <Button
-            type="button"
-            size="compact"
-            variant="outline"
-            isLoading={isValidating}
-            loadingText="Wird geladen..."
-            onClick={() => void mutate()}
-          >
-            Erneut laden
-          </Button>
-        </div>
-      ) : null}
+      <LoadErrorAlert error={loadError} className="mb-3" />
       {notices.length > 0 ? (
         <>
           <ul className="space-y-2">

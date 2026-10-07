@@ -9,13 +9,14 @@
 import { FileText, FolderOpen, Lock, Upload, Users } from "lucide-react";
 import Link from "~/components/ui/navigation-link";
 import { useSession } from "next-auth/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
@@ -37,6 +38,12 @@ import {
   type FolderOverview,
   type StoredFile,
 } from "~/lib/files-api";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
 import { cn } from "~/lib/utils";
@@ -77,6 +84,11 @@ export function FilesPage() {
     filesService.listFolders(),
   );
 
+  const loadError = useSwrLoadError(
+    error,
+    "die Dateiablage",
+    () => void mutateFolders(),
+  );
   const folders = overview?.folders ?? [];
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected =
@@ -96,12 +108,14 @@ export function FilesPage() {
   const [deleteFolderTarget, setDeleteFolderTarget] =
     useState<FileFolder | null>(null);
   const [deletingFolder, setDeletingFolder] = useState(false);
-  const [deleteFolderError, setDeleteFolderError] = useState("");
+  // Fehler beim Löschen bleiben im offenen Bestätigungsdialog.
+  const deleteFolderErrors = useApiFormError();
+  const latestDeleteFolderRef = useRef<() => void>(() => undefined);
 
   const handleDeleteFolder = async () => {
     if (!deleteFolderTarget) return;
     setDeletingFolder(true);
-    setDeleteFolderError("");
+    deleteFolderErrors.clear();
     try {
       await filesService.deleteFolder(deleteFolderTarget.id);
       setDeleteFolderTarget(null);
@@ -111,15 +125,18 @@ export function FilesPage() {
         folder_id: deleteFolderTarget.id,
         error: err instanceof Error ? err.message : String(err),
       });
-      setDeleteFolderError(
-        err instanceof Error
-          ? err.message
-          : "Ordner konnte nicht gelöscht werden.",
-      );
+      await deleteFolderErrors.show(err, {
+        object: "das Löschen des Ordners",
+        retry: () => latestDeleteFolderRef.current(),
+      });
     } finally {
       setDeletingFolder(false);
     }
   };
+  // „Wiederholen“ löscht den Ordner, der dann im Dialog steht.
+  useLayoutEffect(() => {
+    latestDeleteFolderRef.current = () => void handleDeleteFolder();
+  });
 
   const canManage = overview?.canManage ?? false;
   const canUpload = overview?.canUpload ?? false;
@@ -180,10 +197,13 @@ export function FilesPage() {
   return (
     <TenantPage
       title="Dateien"
-      stats={filesStatusLine(folders)}
+      // Ohne geladene Ablage keine "0 Ordner" neben dem Ladefehler (#2517).
+      stats={overview === undefined ? null : filesStatusLine(folders)}
       statsLoading={isLoading}
-      loading={isLoading}
-      error={error ? "Die Dateiablage konnte nicht geladen werden." : null}
+      // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett
+      // stehen, nie der Leerzustand.
+      loading={isLoading || (!!error && !loadError)}
+      error={loadError}
       empty={
         !isLoading && !error && folders.length === 0
           ? {
@@ -242,10 +262,12 @@ export function FilesPage() {
             gate={{ mode: "twoStep" }}
             onConfirm={handleDeleteFolder}
             onClose={() => {
-              if (!deletingFolder) setDeleteFolderTarget(null);
+              if (deletingFolder) return;
+              deleteFolderErrors.clear();
+              setDeleteFolderTarget(null);
             }}
             loading={deletingFolder}
-            error={deleteFolderError}
+            error={deleteFolderErrors.error}
           />
         </>
       }
@@ -318,7 +340,7 @@ export function FilesPage() {
                 canUpload={canUpload}
                 onEdit={() => setFolderModal({ open: true, folder: selected })}
                 onDelete={() => {
-                  setDeleteFolderError("");
+                  deleteFolderErrors.clear();
                   setDeleteFolderTarget(selected);
                 }}
                 onFilesChanged={() => void mutateFolders()}
@@ -351,14 +373,22 @@ function FolderFilesPanel({
     () => filesService.listFiles(folder.id),
   );
   const files = data?.files ?? [];
+  const loadError = useSwrLoadError(
+    error,
+    "die Liste der Dateien",
+    () => void mutate(),
+  );
 
   const [uploading, setUploading] = useState(false);
-  const [actionError, setActionError] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<StoredFile | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
+  // Fehler beim Löschen bleiben im offenen Bestätigungsdialog.
+  const deleteErrors = useApiFormError();
+  const { show: showError } = useApiErrorDisplay();
+  const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const latestDeleteRef = useRef<() => void>(() => undefined);
 
   const handleFiles = async (list: FileList | File[] | null) => {
     if (!list || uploading || !canUpload) return;
@@ -366,39 +396,37 @@ function FolderFilesPanel({
     if (picked.length === 0) return;
     const tooLarge = picked.find((file) => file.size > MAX_FILE_SIZE_BYTES);
     if (tooLarge) {
-      setActionError(`„${tooLarge.name}“ ist größer als 25 MB.`);
+      toast.error(
+        `Die Datei „${tooLarge.name}“ ist größer als 25 MB. Bitte wählen Sie eine kleinere Datei.`,
+      );
       return;
     }
-    setActionError("");
     setUploading(true);
     try {
       for (const file of picked) {
         await filesService.upload(folder.id, file);
       }
-      await mutate();
-      onFilesChanged();
     } catch (err) {
       logger.error("file_upload_failed", {
         folder_id: folder.id,
         error: err instanceof Error ? err.message : String(err),
       });
-      setActionError(
-        err instanceof Error
-          ? err.message
-          : "Datei konnte nicht hochgeladen werden.",
-      );
-      await mutate();
-      onFilesChanged();
+      // Kein Wiederholen: die Auswahl ist danach weg, und schon hochgeladene
+      // Dateien kämen doppelt.
+      void showError(err, { object: "das Hochladen der Datei" });
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+    // Auch nach einem Fehler: Dateien vor dem Fehlschlag sind gespeichert.
+    await mutate();
+    onFilesChanged();
   };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    setDeleteError("");
+    deleteErrors.clear();
     try {
       await filesService.deleteFile(folder.id, deleteTarget.id);
       setDeleteTarget(null);
@@ -410,15 +438,18 @@ function FolderFilesPanel({
         file_id: deleteTarget.id,
         error: err instanceof Error ? err.message : String(err),
       });
-      setDeleteError(
-        err instanceof Error
-          ? err.message
-          : "Datei konnte nicht gelöscht werden.",
-      );
+      await deleteErrors.show(err, {
+        object: "das Löschen der Datei",
+        retry: () => latestDeleteRef.current(),
+      });
     } finally {
       setDeleting(false);
     }
   };
+  // „Wiederholen“ löscht die Datei, die dann im Dialog steht.
+  useLayoutEffect(() => {
+    latestDeleteRef.current = () => void handleDelete();
+  });
 
   const columns: DataTableColumn<StoredFile>[] = [
     {
@@ -497,7 +528,7 @@ function FolderFilesPanel({
               label: "Löschen",
               destructive: true,
               onClick: () => {
-                setDeleteError("");
+                deleteErrors.clear();
                 setDeleteTarget(file);
               },
             },
@@ -539,10 +570,7 @@ function FolderFilesPanel({
         )}
       </div>
 
-      {error && (
-        <Alert type="error" message="Dateien konnten nicht geladen werden." />
-      )}
-      {actionError !== "" && <Alert type="error" message={actionError} />}
+      <LoadErrorAlert error={loadError} />
 
       {canUpload ? (
         <div
@@ -603,25 +631,29 @@ function FolderFilesPanel({
         />
       )}
 
-      <DataTable
-        columns={columns}
-        rows={files}
-        getRowKey={(file) => file.id}
-        isLoading={isLoading}
-        defaultSortKey="uploaded"
-        defaultSortDirection="desc"
-        emptyState={
-          <EmptyState
-            icon={<FileText className="h-12 w-12" aria-hidden="true" />}
-            title="Noch keine Dateien in diesem Ordner"
-            description={
-              canUpload
-                ? "Laden Sie oben die erste Datei hoch."
-                : "Sobald die Leitung Dateien ablegt, erscheinen sie hier."
-            }
-          />
-        }
-      />
+      {/* Ohne geladene Liste kein „Noch keine Dateien“: dort steht der
+          Ladefehler. */}
+      {error && !data ? null : (
+        <DataTable
+          columns={columns}
+          rows={files}
+          getRowKey={(file) => file.id}
+          isLoading={isLoading}
+          defaultSortKey="uploaded"
+          defaultSortDirection="desc"
+          emptyState={
+            <EmptyState
+              icon={<FileText className="h-12 w-12" aria-hidden="true" />}
+              title="Noch keine Dateien in diesem Ordner"
+              description={
+                canUpload
+                  ? "Laden Sie oben die erste Datei hoch."
+                  : "Sobald die Leitung Dateien ablegt, erscheinen sie hier."
+              }
+            />
+          }
+        />
+      )}
 
       <ConfirmDeleteModal
         isOpen={deleteTarget !== null}
@@ -635,10 +667,12 @@ function FolderFilesPanel({
         gate={{ mode: "twoStep" }}
         onConfirm={handleDelete}
         onClose={() => {
-          if (!deleting) setDeleteTarget(null);
+          if (deleting) return;
+          deleteErrors.clear();
+          setDeleteTarget(null);
         }}
         loading={deleting}
-        error={deleteError}
+        error={deleteErrors.error}
       />
     </div>
   );

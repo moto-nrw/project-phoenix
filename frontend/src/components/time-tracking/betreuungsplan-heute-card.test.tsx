@@ -1,11 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import type { OwnAssignment } from "~/lib/shift-helpers";
+import { catalogText } from "~/test/error-catalog-text";
 
 const swr = vi.hoisted(() => ({
   data: undefined as OwnAssignment[] | undefined,
   error: undefined as Error | undefined,
+  mutate: vi.fn(),
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -219,14 +222,24 @@ describe("BetreuungsplanHeuteCard", () => {
     ).toBeInTheDocument();
   });
 
-  it("unterscheidet einen Ladefehler von einem leeren Tag", () => {
-    swr.error = new Error("boom");
+  it("unterscheidet einen Ladefehler von einem leeren Tag", async () => {
+    swr.error = new ApiError("boom", 500, {
+      code: "general.server",
+      instance: "req-plan",
+    });
 
     render(<BetreuungsplanHeuteCard showEmpty />);
 
     expect(
-      screen.getByText(/konnten nicht geladen werden/),
+      await screen.findByText(
+        catalogText("general.server", "die Liste Ihrer Einsätze"),
+      ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Vorgangskennung kopieren/ }),
+    ).toHaveTextContent("req-plan");
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(swr.mutate).toHaveBeenCalled();
     expect(
       screen.queryByText("Heute ist für Sie nichts geplant"),
     ).not.toBeInTheDocument();

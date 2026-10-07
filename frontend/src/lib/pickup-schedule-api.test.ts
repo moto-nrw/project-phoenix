@@ -175,12 +175,11 @@ describe("pickup-schedule-api", () => {
       expect(error).toBeInstanceOf(PickupScheduleApiError);
       expect(error).toMatchObject({
         code: "pickup.preview_stale",
-        message:
-          "Die Daten haben sich geändert. Bitte prüfen Sie die Auswahl noch einmal.",
+        status: 409,
       });
     });
 
-    it("translates unavailable care offerings", async () => {
+    it("classifies unavailable care offerings", async () => {
       global.fetch = vi.fn().mockResolvedValue(
         createMockResponse(false, 409, {
           error: "care offerings are disabled",
@@ -196,8 +195,7 @@ describe("pickup-schedule-api", () => {
 
       expect(error).toMatchObject({
         code: "pickup.offerings_disabled",
-        message:
-          "Die Angebote sind gerade nicht verfügbar. Bitte versuchen Sie es später noch einmal.",
+        status: 409,
       });
     });
   });
@@ -269,6 +267,7 @@ describe("pickup-schedule-api", () => {
 
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/students/123/pickup-schedules",
+        undefined,
       );
       expect(result.schedules).toHaveLength(1);
       expect(result.schedules[0]).toEqual({
@@ -310,6 +309,7 @@ describe("pickup-schedule-api", () => {
 
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/students/123/pickup-schedules?from=2026-08-17&to=2026-08-21",
+        undefined,
       );
     });
 
@@ -327,26 +327,28 @@ describe("pickup-schedule-api", () => {
       expect(result.exceptions).toEqual([]);
     });
 
-    it("throws translated error on non-ok response with JSON error", async () => {
+    it("throws the classified error on non-ok response with JSON error", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(
           createMockResponse(false, 404, { error: "student not found" }),
         );
 
-      await expect(fetchStudentPickupData("999")).rejects.toThrow(
-        "Kind nicht gefunden",
-      );
+      await expect(fetchStudentPickupData("999")).rejects.toMatchObject({
+        status: 404,
+        code: "general.input",
+      });
     });
 
-    it("throws translated error when JSON parse fails", async () => {
+    it("throws the classified error when JSON parse fails", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(createMockResponse(false, 500, undefined, true));
 
-      await expect(fetchStudentPickupData("123")).rejects.toThrow(
-        "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-      );
+      await expect(fetchStudentPickupData("123")).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+      });
     });
 
     it("throws error when response status is error", async () => {
@@ -357,33 +359,36 @@ describe("pickup-schedule-api", () => {
         }),
       );
 
-      await expect(fetchStudentPickupData("123")).rejects.toThrow(
-        "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-      );
+      await expect(fetchStudentPickupData("123")).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+      });
     });
 
-    it("translates unauthorized error", async () => {
+    it("classifies unauthorized error", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(
           createMockResponse(false, 401, { error: "unauthorized" }),
         );
 
-      await expect(fetchStudentPickupData("123")).rejects.toThrow(
-        "Keine Berechtigung",
-      );
+      await expect(fetchStudentPickupData("123")).rejects.toMatchObject({
+        status: 401,
+        code: "general.permission",
+      });
     });
 
-    it("translates forbidden error", async () => {
+    it("classifies forbidden error", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(
           createMockResponse(false, 403, { error: "forbidden" }),
         );
 
-      await expect(fetchStudentPickupData("123")).rejects.toThrow(
-        "Zugriff verweigert",
-      );
+      await expect(fetchStudentPickupData("123")).rejects.toMatchObject({
+        status: 403,
+        code: "general.permission",
+      });
     });
   });
 
@@ -456,7 +461,7 @@ describe("pickup-schedule-api", () => {
       expect(result.exceptions).toHaveLength(1);
     });
 
-    it("throws translated error on non-ok response", async () => {
+    it("throws the classified error on non-ok response", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(
@@ -465,19 +470,23 @@ describe("pickup-schedule-api", () => {
 
       await expect(
         updateStudentPickupSchedules("123", formData),
-      ).rejects.toThrow("Ungültiger Wochentag");
+      ).rejects.toMatchObject({
+        status: 400,
+        code: "general.input",
+      });
     });
 
-    it("throws translated error when JSON parse fails", async () => {
+    it("throws the classified error when JSON parse fails", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(createMockResponse(false, 500, undefined, true));
 
       await expect(
         updateStudentPickupSchedules("123", formData),
-      ).rejects.toThrow(
-        "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-      );
+      ).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+      });
     });
 
     it("throws error when response status is error", async () => {
@@ -490,7 +499,10 @@ describe("pickup-schedule-api", () => {
 
       await expect(
         updateStudentPickupSchedules("123", formData),
-      ).rejects.toThrow("Gehzeit ist erforderlich");
+      ).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+      });
     });
 
     it("throws error when data is missing", async () => {
@@ -503,12 +515,13 @@ describe("pickup-schedule-api", () => {
 
       await expect(
         updateStudentPickupSchedules("123", formData),
-      ).rejects.toThrow(
-        "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-      );
+      ).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+      });
     });
 
-    it("translates invalid pickup_time format error", async () => {
+    it("classifies invalid pickup_time format error", async () => {
       global.fetch = vi.fn().mockResolvedValue(
         createMockResponse(false, 400, {
           error: "invalid pickup_time format",
@@ -517,7 +530,10 @@ describe("pickup-schedule-api", () => {
 
       await expect(
         updateStudentPickupSchedules("123", formData),
-      ).rejects.toThrow("Ungültiges Zeitformat (erwartet HH:MM)");
+      ).rejects.toMatchObject({
+        status: 400,
+        code: "general.input",
+      });
     });
   });
 
@@ -557,7 +573,7 @@ describe("pickup-schedule-api", () => {
       expect(result.reason).toBe("Arzttermin");
     });
 
-    it("throws translated error on non-ok response", async () => {
+    it("throws the classified error on non-ok response", async () => {
       global.fetch = vi.fn().mockResolvedValue(
         createMockResponse(false, 400, {
           error: "exception_date is required",
@@ -566,19 +582,23 @@ describe("pickup-schedule-api", () => {
 
       await expect(
         createStudentPickupException("123", exceptionData),
-      ).rejects.toThrow("Datum ist erforderlich");
+      ).rejects.toMatchObject({
+        status: 400,
+        code: "general.input",
+      });
     });
 
-    it("throws translated error when JSON parse fails", async () => {
+    it("throws the classified error when JSON parse fails", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(createMockResponse(false, 500, undefined, true));
 
       await expect(
         createStudentPickupException("123", exceptionData),
-      ).rejects.toThrow(
-        "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-      );
+      ).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+      });
     });
 
     it("throws error when response status is error", async () => {
@@ -591,7 +611,10 @@ describe("pickup-schedule-api", () => {
 
       await expect(
         createStudentPickupException("123", exceptionData),
-      ).rejects.toThrow("Für dieses Datum existiert bereits eine Ausnahme");
+      ).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+      });
     });
 
     it("throws error when data is missing", async () => {
@@ -604,12 +627,13 @@ describe("pickup-schedule-api", () => {
 
       await expect(
         createStudentPickupException("123", exceptionData),
-      ).rejects.toThrow(
-        "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-      );
+      ).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+      });
     });
 
-    it("translates invalid exception_date format error", async () => {
+    it("classifies invalid exception_date format error", async () => {
       global.fetch = vi.fn().mockResolvedValue(
         createMockResponse(false, 400, {
           error: "invalid exception_date format",
@@ -618,10 +642,13 @@ describe("pickup-schedule-api", () => {
 
       await expect(
         createStudentPickupException("123", exceptionData),
-      ).rejects.toThrow("Ungültiges Datumsformat (erwartet JJJJ-MM-TT)");
+      ).rejects.toMatchObject({
+        status: 400,
+        code: "general.input",
+      });
     });
 
-    it("translates reason is required error", async () => {
+    it("classifies reason is required error", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(
@@ -630,7 +657,10 @@ describe("pickup-schedule-api", () => {
 
       await expect(
         createStudentPickupException("123", exceptionData),
-      ).rejects.toThrow("Grund ist erforderlich");
+      ).rejects.toMatchObject({
+        status: 400,
+        code: "general.input",
+      });
     });
   });
 
@@ -673,7 +703,7 @@ describe("pickup-schedule-api", () => {
       expect(result.reason).toBe("Arzttermin");
     });
 
-    it("throws translated error on non-ok response", async () => {
+    it("throws the classified error on non-ok response", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(
@@ -682,7 +712,10 @@ describe("pickup-schedule-api", () => {
 
       await expect(
         updateStudentPickupException("999", "456", exceptionData),
-      ).rejects.toThrow("Kind nicht gefunden");
+      ).rejects.toMatchObject({
+        status: 404,
+        code: "general.input",
+      });
     });
 
     it("keeps the staff-profile response code for the care-plan editor", async () => {
@@ -695,19 +728,23 @@ describe("pickup-schedule-api", () => {
 
       await expect(
         updateStudentPickupException("123", "456", exceptionData),
-      ).rejects.toThrow("students.staff_profile_required");
+      ).rejects.toMatchObject({
+        status: 403,
+        code: "students.staff_profile_required",
+      });
     });
 
-    it("throws translated error when JSON parse fails", async () => {
+    it("throws the classified error when JSON parse fails", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(createMockResponse(false, 500, undefined, true));
 
       await expect(
         updateStudentPickupException("123", "456", exceptionData),
-      ).rejects.toThrow(
-        "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-      );
+      ).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+      });
     });
 
     it("throws error when response status is error", async () => {
@@ -720,7 +757,10 @@ describe("pickup-schedule-api", () => {
 
       await expect(
         updateStudentPickupException("123", "456", exceptionData),
-      ).rejects.toThrow("Vollzugriff erforderlich");
+      ).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+      });
     });
 
     it("throws error when data is missing", async () => {
@@ -733,9 +773,10 @@ describe("pickup-schedule-api", () => {
 
       await expect(
         updateStudentPickupException("123", "456", exceptionData),
-      ).rejects.toThrow(
-        "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-      );
+      ).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+      });
     });
   });
 
@@ -767,26 +808,32 @@ describe("pickup-schedule-api", () => {
       ).resolves.toBeUndefined();
     });
 
-    it("throws translated error on non-ok response", async () => {
+    it("throws the classified error on non-ok response", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(
           createMockResponse(false, 404, { error: "student not found" }),
         );
 
-      await expect(deleteStudentPickupException("999", "456")).rejects.toThrow(
-        "Kind nicht gefunden",
-      );
+      await expect(
+        deleteStudentPickupException("999", "456"),
+      ).rejects.toMatchObject({
+        status: 404,
+        code: "general.input",
+      });
     });
 
-    it("throws translated error when JSON parse fails", async () => {
+    it("throws the classified error when JSON parse fails", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(createMockResponse(false, 500, undefined, true));
 
-      await expect(deleteStudentPickupException("123", "456")).rejects.toThrow(
-        "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-      );
+      await expect(
+        deleteStudentPickupException("123", "456"),
+      ).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+      });
     });
 
     it("throws error when response status is error", async () => {
@@ -797,9 +844,12 @@ describe("pickup-schedule-api", () => {
         }),
       );
 
-      await expect(deleteStudentPickupException("123", "456")).rejects.toThrow(
-        "Keine Berechtigung",
-      );
+      await expect(
+        deleteStudentPickupException("123", "456"),
+      ).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+      });
     });
   });
 
@@ -905,26 +955,28 @@ describe("pickup-schedule-api", () => {
       );
     });
 
-    it("throws translated error on non-ok response", async () => {
+    it("throws the classified error on non-ok response", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(
           createMockResponse(false, 401, { error: "unauthorized" }),
         );
 
-      await expect(fetchBulkPickupTimes(["123"])).rejects.toThrow(
-        "Keine Berechtigung",
-      );
+      await expect(fetchBulkPickupTimes(["123"])).rejects.toMatchObject({
+        status: 401,
+        code: "general.permission",
+      });
     });
 
-    it("throws translated error when JSON parse fails", async () => {
+    it("throws the classified error when JSON parse fails", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(createMockResponse(false, 500, undefined, true));
 
-      await expect(fetchBulkPickupTimes(["123"])).rejects.toThrow(
-        "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-      );
+      await expect(fetchBulkPickupTimes(["123"])).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+      });
     });
 
     it("throws error when response status is error", async () => {
@@ -935,9 +987,10 @@ describe("pickup-schedule-api", () => {
         }),
       );
 
-      await expect(fetchBulkPickupTimes(["123"])).rejects.toThrow(
-        "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-      );
+      await expect(fetchBulkPickupTimes(["123"])).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+      });
     });
 
     it("throws error when data is missing", async () => {
@@ -948,9 +1001,10 @@ describe("pickup-schedule-api", () => {
         }),
       );
 
-      await expect(fetchBulkPickupTimes(["123"])).rejects.toThrow(
-        "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-      );
+      await expect(fetchBulkPickupTimes(["123"])).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+      });
     });
 
     it("handles response with optional fields undefined", async () => {
@@ -1032,19 +1086,22 @@ describe("pickup-schedule-api", () => {
       expect(result.content).toBe("Doctor appointment pickup");
     });
 
-    it("throws translated error on non-ok response", async () => {
+    it("throws the classified error on non-ok response", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(
           createMockResponse(false, 400, { error: "content is required" }),
         );
 
-      await expect(createStudentPickupNote("123", noteData)).rejects.toThrow(
-        "Inhalt ist erforderlich",
-      );
+      await expect(
+        createStudentPickupNote("123", noteData),
+      ).rejects.toMatchObject({
+        status: 400,
+        code: "general.input",
+      });
     });
 
-    it("throws translated error when JSON parse fails", async () => {
+    it("throws the classified error when JSON parse fails", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(createMockResponse(false, 500, undefined, true));
@@ -1060,9 +1117,12 @@ describe("pickup-schedule-api", () => {
         }),
       );
 
-      await expect(createStudentPickupNote("123", noteData)).rejects.toThrow(
-        "Keine Berechtigung",
-      );
+      await expect(
+        createStudentPickupNote("123", noteData),
+      ).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+      });
     });
 
     it("throws error when data is missing", async () => {
@@ -1107,7 +1167,7 @@ describe("pickup-schedule-api", () => {
       expect(result.content).toBe("Updated note content");
     });
 
-    it("throws translated error on non-ok response", async () => {
+    it("throws the classified error on non-ok response", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(
@@ -1116,10 +1176,13 @@ describe("pickup-schedule-api", () => {
 
       await expect(
         updateStudentPickupNote("999", "10", noteData),
-      ).rejects.toThrow("Kind nicht gefunden");
+      ).rejects.toMatchObject({
+        status: 404,
+        code: "general.input",
+      });
     });
 
-    it("throws translated error when JSON parse fails", async () => {
+    it("throws the classified error when JSON parse fails", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(createMockResponse(false, 500, undefined, true));
@@ -1139,7 +1202,10 @@ describe("pickup-schedule-api", () => {
 
       await expect(
         updateStudentPickupNote("123", "10", noteData),
-      ).rejects.toThrow("Vollzugriff erforderlich");
+      ).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+      });
     });
 
     it("throws error when data is missing", async () => {
@@ -1182,19 +1248,20 @@ describe("pickup-schedule-api", () => {
       ).resolves.toBeUndefined();
     });
 
-    it("throws translated error on non-ok response", async () => {
+    it("throws the classified error on non-ok response", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(
           createMockResponse(false, 404, { error: "student not found" }),
         );
 
-      await expect(deleteStudentPickupNote("999", "10")).rejects.toThrow(
-        "Kind nicht gefunden",
-      );
+      await expect(deleteStudentPickupNote("999", "10")).rejects.toMatchObject({
+        status: 404,
+        code: "general.input",
+      });
     });
 
-    it("throws translated error when JSON parse fails", async () => {
+    it("throws the classified error when JSON parse fails", async () => {
       global.fetch = vi
         .fn()
         .mockResolvedValue(createMockResponse(false, 500, undefined, true));
@@ -1210,9 +1277,10 @@ describe("pickup-schedule-api", () => {
         }),
       );
 
-      await expect(deleteStudentPickupNote("123", "10")).rejects.toThrow(
-        "Zugriff verweigert",
-      );
+      await expect(deleteStudentPickupNote("123", "10")).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+      });
     });
   });
 

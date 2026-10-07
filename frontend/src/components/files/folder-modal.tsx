@@ -4,9 +4,9 @@
 // list only appears for "Ausgewählte Rollen und Personen" — the other two
 // modes need nothing else, so nothing else is shown.
 
-import { useEffect, useState } from "react";
-import { Alert } from "~/components/ui/alert";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
@@ -18,6 +18,8 @@ import {
   type FileFolder,
   type FolderVisibility,
 } from "~/lib/files-api";
+import { useApiFormError } from "~/contexts/ToastContext";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
 
@@ -53,11 +55,22 @@ export function FolderModal({
   const [roleIds, setRoleIds] = useState<string[]>([]);
   const [accountIds, setAccountIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const clearErrors = formErrors.clear;
+  const latestSaveRef = useRef<() => void>(() => undefined);
 
-  const { data: audience } = useSWRAuth<AudienceOptions>(
-    isOpen ? "files-audience" : null,
-    () => filesService.listAudience(),
+  const {
+    data: audience,
+    error: audienceError,
+    mutate: reloadAudience,
+  } = useSWRAuth<AudienceOptions>(isOpen ? "files-audience" : null, () =>
+    filesService.listAudience(),
+  );
+  const audienceLoadError = useSwrLoadError(
+    audienceError,
+    "die Liste der Rollen und Personen",
+    () => void reloadAudience(),
   );
 
   useEffect(() => {
@@ -66,29 +79,25 @@ export function FolderModal({
     setVisibility(initial?.visibility ?? "all_staff");
     setRoleIds(initial?.roleIds ?? []);
     setAccountIds(initial?.accountIds ?? []);
-    setError(null);
-  }, [isOpen, initial]);
+    clearErrors();
+  }, [isOpen, initial, clearErrors]);
 
-  const validate = (): string | null => {
-    if (!name.trim()) return "Bitte einen Namen für den Ordner eingeben.";
+  const handleSave = async () => {
+    const fields: Record<string, string> = {};
+    if (!name.trim()) fields.name = "Bitte geben Sie einen Namen ein.";
     if (
       visibility === "selected" &&
       roleIds.length === 0 &&
       accountIds.length === 0
     ) {
-      return "Bitte mindestens eine Rolle oder Person auswählen.";
+      fields.role_ids = "Bitte wählen Sie eine Rolle oder eine Person.";
     }
-    return null;
-  };
-
-  const handleSave = async () => {
-    const validationError = validate();
-    if (validationError) {
-      setError(validationError);
+    if (Object.keys(fields).length > 0) {
+      formErrors.invalid("Bitte prüfen Sie die markierten Felder.", fields);
       return;
     }
     setSaving(true);
-    setError(null);
+    formErrors.clear();
     const input = {
       name: name.trim(),
       visibility,
@@ -108,16 +117,21 @@ export function FolderModal({
         folder_id: initial?.id,
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Ordner konnte nicht gespeichert werden.",
-      );
+      await formErrors.show(err, {
+        object: "das Speichern des Ordners",
+        retry: () => latestSaveRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+  // „Wiederholen“ sendet den Stand, der dann im Formular steht.
+  useLayoutEffect(() => {
+    latestSaveRef.current = () => void handleSave();
+  });
 
+  const audienceHint =
+    formErrors.fieldError("role_ids") ?? formErrors.fieldError("account_ids");
   const roleOptions = (audience?.roles ?? []).map((role) => ({
     value: role.id,
     label: role.name,
@@ -134,6 +148,7 @@ export function FolderModal({
       title={initial ? "Ordner bearbeiten" : "Neuer Ordner"}
       size="md"
       closeDisabled={saving}
+      error={formErrors.error}
       footer={
         <div className="flex justify-end gap-2">
           <Button
@@ -157,9 +172,7 @@ export function FolderModal({
         </div>
       }
     >
-      <div className="space-y-5">
-        {error && <Alert type="error" message={error} />}
-
+      <div ref={formRef} className="space-y-5">
         <div className="space-y-1.5">
           <label
             htmlFor="ordner-name"
@@ -169,7 +182,9 @@ export function FolderModal({
           </label>
           <Input
             id="ordner-name"
+            name="name"
             value={name}
+            error={formErrors.fieldError("name")}
             onChange={(e) => setName(e.target.value)}
             placeholder="z. B. Konzeption, Formulare, Notfallpläne"
             maxLength={120}
@@ -195,6 +210,7 @@ export function FolderModal({
 
         {visibility === "selected" && (
           <div className="space-y-4 rounded-xl bg-gray-50 p-4">
+            <LoadErrorAlert error={audienceLoadError} />
             <div className="space-y-1.5">
               <label
                 htmlFor="ordner-rollen"
@@ -213,7 +229,19 @@ export function FolderModal({
                 searchable
                 searchPlaceholder="Rolle suchen"
                 className="w-full"
+                ariaInvalid={audienceHint ? true : undefined}
+                ariaDescribedBy={
+                  audienceHint ? "ordner-rollen-hinweis" : undefined
+                }
               />
+              {audienceHint ? (
+                <p
+                  id="ordner-rollen-hinweis"
+                  className="text-moto-red-strong text-xs"
+                >
+                  {audienceHint}
+                </p>
+              ) : null}
             </div>
             <div className="space-y-1.5">
               <label

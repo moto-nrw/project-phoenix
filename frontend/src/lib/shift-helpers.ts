@@ -130,12 +130,25 @@ export interface StaffScheduleAssignment {
   uncoveredIntervals: UncoveredInterval[];
 }
 
+interface BackendShiftTypeMinutes {
+  shift_type_id: string | null;
+  planned_minutes: number;
+}
+
 interface BackendStaffWeeklySummary {
   staff_id: number;
   week_start: string;
   planned_minutes: number;
   target_minutes: number | null;
   delta_minutes: number | null;
+  planned_by_shift_type?: BackendShiftTypeMinutes[];
+}
+
+/** Planned net minutes of one Schichtart in a week (#3819). */
+interface ShiftTypeMinutes {
+  /** Schichtart id, or null for shifts without a Schichtart. */
+  shiftTypeId: string | null;
+  plannedMinutes: number;
 }
 
 export interface StaffWeeklySummary {
@@ -148,6 +161,8 @@ export interface StaffWeeklySummary {
   targetMinutes: number | null;
   /** plannedMinutes - targetMinutes; null when targetMinutes is null. */
   deltaMinutes: number | null;
+  /** plannedMinutes split by Schichtart; the entries add up to it. */
+  plannedByShiftType: ShiftTypeMinutes[];
 }
 
 export interface BackendStaffScheduleOverview {
@@ -241,6 +256,12 @@ export function mapStaffScheduleOverview(
       plannedMinutes: summary.planned_minutes,
       targetMinutes: summary.target_minutes,
       deltaMinutes: summary.delta_minutes,
+      plannedByShiftType: (summary.planned_by_shift_type ?? []).map(
+        (entry) => ({
+          shiftTypeId: entry.shift_type_id,
+          plannedMinutes: entry.planned_minutes,
+        }),
+      ),
     })),
   };
 }

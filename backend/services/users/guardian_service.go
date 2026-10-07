@@ -30,12 +30,31 @@ const (
 	emailInUseMsgFmt = "E-Mail-Adresse %q ist bereits vergeben – bitte die vorhandene Person über die Suche auswählen"
 )
 
+// ErrGuardianEmailInUse marks a guardian e-mail that another profile of the
+// school already uses, so the HTTP layer can answer with its own code (#2517).
+var ErrGuardianEmailInUse = errors.New("guardian e-mail is already in use")
+
+// emailInUseError keeps the historical message and matches
+// ErrGuardianEmailInUse.
+// position names the guardian in a batch (1-based); zero means a single one.
+type emailInUseError struct {
+	email    string
+	position int
+}
+
+func (e emailInUseError) Error() string {
+	if e.position > 0 {
+		return fmt.Sprintf("Erziehungsberechtigte/r %d: "+emailInUseMsgFmt, e.position, e.email)
+	}
+	return fmt.Sprintf(emailInUseMsgFmt, e.email)
+}
+func (e emailInUseError) Is(err error) bool { return err == ErrGuardianEmailInUse }
+
 // newEmailInUseError builds the 400 ValidationError for a duplicate guardian
 // email. email is trimmed for display so the message matches what the unique
 // pre-check compared.
 func newEmailInUseError(email string) *ValidationError {
-	//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
-	return &ValidationError{Err: fmt.Errorf(emailInUseMsgFmt, strings.TrimSpace(email))}
+	return &ValidationError{Err: emailInUseError{email: strings.TrimSpace(email)}}
 }
 
 // GuardianInvitationRecord is one invitation as the guardian list reads it
@@ -791,8 +810,7 @@ func (s *GuardianService) ValidateNewGuardians(ctx context.Context, guardians []
 				return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: E-Mail-Adresse %q ist mehrfach angegeben", i+1, email)}
 			}
 			if existing, err := s.GuardianProfileRepo.FindByEmail(ctx, email); err == nil && existing != nil {
-				//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
-				return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: "+emailInUseMsgFmt, i+1, email)}
+				return &ValidationError{Err: emailInUseError{email: email, position: i + 1}}
 			}
 			seenEmails[email] = struct{}{}
 		}

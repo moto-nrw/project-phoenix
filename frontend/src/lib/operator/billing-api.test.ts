@@ -130,7 +130,31 @@ describe("operator billing api", () => {
 
     await expect(
       operatorBillingService.downloadKeyDateCounts(),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ status: 500, code: "general.server" });
     expect(mockDownloadBlob).not.toHaveBeenCalled();
+  });
+
+  it("keeps the wire code of a failed export", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({ code: "general.unavailable", instance: "req-9" }),
+        { status: 503 },
+      ),
+    );
+
+    await expect(
+      operatorBillingService.downloadKeyDateCounts(),
+    ).rejects.toMatchObject({
+      code: "general.unavailable",
+      requestId: "req-9",
+    });
+  });
+
+  it("turns a network failure into general.unavailable", async () => {
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    await expect(
+      operatorBillingService.downloadKeyDateCounts(),
+    ).rejects.toMatchObject({ code: "general.unavailable" });
   });
 });

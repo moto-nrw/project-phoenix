@@ -150,6 +150,56 @@ func TestInvitationHandlers_CreateInvitation_AccountAlreadyHasTenantAccess(t *te
 	assert.Equal(t, "identity.account_already_has_tenant_access", body["code"])
 }
 
+func TestInvitationHandlers_CreateInvitation_EmailAlreadyExistsNamesTheField(t *testing.T) {
+	t.Parallel()
+
+	service := &invitationsStub{
+		createSchool: func(context.Context, identityaccess.SchoolInvitationRequest) (identityaccess.SchoolInvitation, error) {
+			return identityaccess.SchoolInvitation{}, &identityaccess.AuthenticationError{
+				Op: "create invitation", Err: identityaccess.ErrEmailAlreadyExists,
+			}
+		},
+	}
+	resource := NewResource(nil, service, nil, nil, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/invitations", bytes.NewBufferString(`{"email":"existing@example.com","role_id":1}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(testutil.WithAuthenticatedContext(req.Context(), testutil.Claims{ID: 1}, nil))
+	rr := httptest.NewRecorder()
+	resource.createInvitation(rr, req)
+
+	require.Equal(t, http.StatusConflict, rr.Code)
+	body := decodeJSONBody(t, rr)
+	assert.Equal(t, "identity.email_already_exists", body["code"])
+	errs := body["errors"].([]any)
+	require.Len(t, errs, 1)
+	assert.Equal(t, "email", errs[0].(map[string]any)["field"])
+}
+
+// Every blank required field comes back as its own entry, so the form marks
+// all of them in one attempt (#2511).
+func TestInvitationHandlers_CreateInvitation_BlankFieldsComeBackAsFieldErrors(t *testing.T) {
+	t.Parallel()
+
+	resource := NewResource(nil, &invitationsStub{}, nil, nil, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/invitations", bytes.NewBufferString(`{"email":"","role_id":null}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(testutil.WithAuthenticatedContext(req.Context(), testutil.Claims{ID: 1}, nil))
+	rr := httptest.NewRecorder()
+	resource.createInvitation(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+	body := decodeJSONBody(t, rr)
+	assert.Equal(t, "general.input", body["code"])
+	errs := body["errors"].([]any)
+	fields := make([]string, 0, len(errs))
+	for _, entry := range errs {
+		fields = append(fields, entry.(map[string]any)["field"].(string))
+	}
+	assert.Equal(t, []string{"email", "role_id"}, fields)
+}
+
 func TestInvitationHandlers_ValidateAndAccept(t *testing.T) {
 	t.Parallel()
 

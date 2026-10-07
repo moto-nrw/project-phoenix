@@ -61,10 +61,10 @@ const (
 	maxLinkURLLen = 2000
 
 	// Poll (Umfrage) option bounds. Two options is the minimum that asks
-	// anything ("Ja"/"Nein"); the upper bound keeps the parent card readable on a
-	// phone and the result bars meaningful.
+	// anything ("Ja"/"Nein"); 60 fits an Elternsprechtag-Terminabstimmung
+	// (#3861). Mirrored in frontend MAX_POLL_OPTIONS.
 	minPollOptions  = 2
-	maxPollOptions  = 10
+	maxPollOptions  = 60
 	maxPollLabelLen = 120
 
 	// relatedEntityTypeAnnouncement links an outbox row back to its announcement.

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { PlannedStatusDaysModal } from "./planned-status-days-modal";
+import { ApiError } from "~/lib/api-error";
 import type { StudentPartialAbsence } from "~/lib/student-partial-absences-api";
 import {
   StudentStatusDayConflictError,
@@ -10,59 +11,61 @@ import {
 
 // Das Panel laeuft als SlideOver (Vaul). Vaul rendert in jsdom nicht, deshalb
 // steht hier dieselbe Struktur ohne Animationsschicht.
-vi.mock("~/components/ui/slide-over", () => ({
-  SlideOver: ({
-    open,
-    onOpenChange,
-    children,
-  }: {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    children: React.ReactNode;
-  }) =>
-    open ? (
-      <div role="dialog">
-        <button type="button" onClick={() => onOpenChange(false)}>
-          Modal schließen
-        </button>
+vi.mock("~/components/ui/slide-over", async () => {
+  // The real alert, so retry and request ID of the shared error path render.
+  const { FormErrorAlert } = await vi.importActual<
+    typeof import("~/components/ui/form-error-alert")
+  >("~/components/ui/form-error-alert");
+  return {
+    SlideOver: ({
+      open,
+      onOpenChange,
+      children,
+    }: {
+      open: boolean;
+      onOpenChange: (open: boolean) => void;
+      children: React.ReactNode;
+    }) =>
+      open ? (
+        <div role="dialog">
+          <button type="button" onClick={() => onOpenChange(false)}>
+            Modal schließen
+          </button>
+          {children}
+        </div>
+      ) : null,
+    SlideOverContent: ({ children }: { children: React.ReactNode }) => (
+      <div>{children}</div>
+    ),
+    SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
+      <div>{children}</div>
+    ),
+    SlideOverBody: ({
+      error,
+      children,
+    }: {
+      error?: import("~/components/ui/form-error").FormErrorInput;
+      children: React.ReactNode;
+    }) => (
+      <div>
+        <FormErrorAlert message={error} />
         {children}
       </div>
-    ) : null,
-  SlideOverContent: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  SlideOverBody: ({
-    error,
-    children,
-  }: {
-    error?: string | { message: string } | null;
-    children: React.ReactNode;
-  }) => (
-    <div>
-      {error ? (
-        <div role="alert">
-          {typeof error === "string" ? error : error.message}
-        </div>
-      ) : null}
-      {children}
-    </div>
-  ),
-  SlideOverFooter: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  SlideOverTitle: ({ children }: { children: React.ReactNode }) => (
-    <h2>{children}</h2>
-  ),
-  SlideOverDescription: ({ children }: { children: React.ReactNode }) => (
-    <p>{children}</p>
-  ),
-  SlideOverCloseButton: (
-    props: React.ButtonHTMLAttributes<HTMLButtonElement>,
-  ) => <button type="button" {...props} />,
-}));
+    ),
+    SlideOverFooter: ({ children }: { children: React.ReactNode }) => (
+      <div>{children}</div>
+    ),
+    SlideOverTitle: ({ children }: { children: React.ReactNode }) => (
+      <h2>{children}</h2>
+    ),
+    SlideOverDescription: ({ children }: { children: React.ReactNode }) => (
+      <p>{children}</p>
+    ),
+    SlideOverCloseButton: (
+      props: React.ButtonHTMLAttributes<HTMLButtonElement>,
+    ) => <button type="button" {...props} />,
+  };
+});
 
 vi.mock("~/components/ui/date-picker", async () => ({
   DatePicker: (
@@ -403,7 +406,9 @@ describe("PlannedStatusDaysModal", () => {
   it("keeps the delete confirmation open when partial excusal deletion fails", async () => {
     const onDeletePartialAbsence = vi
       .fn()
-      .mockRejectedValue(new Error("delete failed"));
+      .mockRejectedValue(
+        new ApiError("delete failed", 500, { code: "general.server" }),
+      );
 
     render(
       <PlannedStatusDaysModal
@@ -436,7 +441,7 @@ describe("PlannedStatusDaysModal", () => {
 
     expect(
       await screen.findByText(
-        "Die Teilentschuldigung konnte nicht entfernt werden. Bitte erneut versuchen.",
+        "Die Teilentschuldigung konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
       ),
     ).toBeInTheDocument();
     expect(onDeletePartialAbsence).toHaveBeenCalledWith("9");
@@ -618,6 +623,48 @@ describe("PlannedStatusDaysModal", () => {
         screen.queryByRole("heading", { name: "Geplanten Tag entfernen?" }),
       ).not.toBeInTheDocument();
     });
+  });
+
+  it("keeps the remove dialog open and names the failure when deleting a day fails", async () => {
+    const onDeleteStatusDay = vi.fn().mockRejectedValue(
+      new ApiError("boom", 500, {
+        code: "general.server",
+        instance: "req-day",
+      }),
+    );
+
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="excused"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={existingDays}
+        onClose={vi.fn()}
+        loadExistingDays={loadKnownExistingDays}
+        onSubmit={vi.fn()}
+        onDeleteStatusDay={onDeleteStatusDay}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Entfernen bestätigen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Eintrag entfernen" }));
+
+    expect(
+      await screen.findByText(
+        "Die geplante Abwesenheit konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Geplanten Tag entfernen?" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-day");
   });
 
   it("warns and skips already planned days in an individual selection", async () => {
@@ -831,7 +878,11 @@ describe("PlannedStatusDaysModal", () => {
   });
 
   it("keeps all input after a failed submission", async () => {
-    const onSubmit = vi.fn().mockRejectedValue(new Error("network failed"));
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError("network failed", 503, { code: "general.unavailable" }),
+      );
     const loadExistingDays = vi.fn().mockResolvedValue([]);
 
     render(
@@ -870,7 +921,15 @@ describe("PlannedStatusDaysModal", () => {
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Grund (optional)")).toHaveValue("Arzttermin");
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Die Krankmeldung konnte nicht gespeichert werden. Bitte erneut versuchen.",
+      "Die Krankmeldung ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+    );
+    // „Wiederholen“ sends the current draft again.
+    onSubmit.mockResolvedValueOnce(undefined);
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
+    expect(onSubmit).toHaveBeenLastCalledWith(
+      ["2026-08-17", "2026-08-18", "2026-08-19"],
+      "Arzttermin",
     );
   });
 
@@ -902,9 +961,10 @@ describe("PlannedStatusDaysModal", () => {
 
     await clickEnabledButton("Krankmelden");
 
+    // Catalog text for students.partial_absence_conflict (ADR 0006).
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(
-        "Für diesen Tag liegt bereits eine Abmeldung ab einer Uhrzeit vor. Bitte zuerst die Teilabwesenheit entfernen.",
+        /wurde inzwischen geändert/,
       );
     });
   });
@@ -1002,7 +1062,13 @@ describe("PlannedStatusDaysModal", () => {
         isSubmitting={false}
         existingDays={[]}
         onClose={vi.fn()}
-        loadExistingDays={() => Promise.reject(new Error("network failed"))}
+        loadExistingDays={() =>
+          Promise.reject(
+            new ApiError("network failed", 503, {
+              code: "general.unavailable",
+            }),
+          )
+        }
         onSubmit={vi.fn()}
       />,
     );
@@ -1011,7 +1077,7 @@ describe("PlannedStatusDaysModal", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(
-        "Vorhandene Status-Tage konnten nicht geprüft werden",
+        "Die Prüfung der vorhandenen Einträge ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
       );
     });
     expect(screen.getByRole("button", { name: "Krankmelden" })).toBeDisabled();
@@ -1082,7 +1148,9 @@ describe("PlannedStatusDaysModal", () => {
     await clickEnabledButton("Krankmelden");
 
     expect(
-      screen.getByText("Wähle einen Zeitraum ohne bestehenden Status aus."),
+      screen.getByText(
+        "Bitte wählen Sie einen Zeitraum ohne bestehenden Status.",
+      ),
     ).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
   });
@@ -1257,7 +1325,9 @@ describe("PlannedStatusDaysModal", () => {
     const loadExistingDays = vi.fn().mockResolvedValue([unseenConflict]);
     const onDeleteStatusDay = vi
       .fn()
-      .mockRejectedValue(new Error("delete failed"));
+      .mockRejectedValue(
+        new ApiError("delete failed", 500, { code: "general.server" }),
+      );
     const onSubmit = vi.fn().mockResolvedValue(undefined);
 
     render(
@@ -1297,15 +1367,25 @@ describe("PlannedStatusDaysModal", () => {
     await waitFor(() => {
       expect(onDeleteStatusDay).toHaveBeenCalledWith("3");
     });
+    // The dialog stays open and names the failure; closing it keeps the
+    // conflict, because the delete never landed.
+    expect(
+      await screen.findByText(
+        "Die geplante Abwesenheit konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
     await waitFor(() => {
       expect(
         screen.queryByRole("heading", { name: "Geplanten Tag entfernen?" }),
       ).not.toBeInTheDocument();
     });
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "02.01.2027 (krank): 1 von 3 Tagen hat bereits einen Status",
-    );
+    expect(
+      screen.getByText(
+        /02\.01\.2027 \(krank\): 1 von 3 Tagen hat bereits einen Status/,
+      ),
+    ).toBeInTheDocument();
 
     await clickEnabledButton("Entschuldigen");
     expect(onSubmit).toHaveBeenCalledWith(["2027-01-01", "2027-01-03"]);

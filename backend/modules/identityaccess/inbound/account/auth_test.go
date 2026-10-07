@@ -940,6 +940,32 @@ func TestRoleManagement(t *testing.T) {
 		assert.Equal(t, roleName, data["name"])
 	})
 
+	// A second role with the same name is a conflict the form marks at the
+	// name field, not a 500 (#2517).
+	t.Run("create role with a taken name", func(t *testing.T) {
+		body := map[string]string{
+			"name":        fmt.Sprintf("test-role-dup-%d", time.Now().UnixNano()),
+			"description": "A test role",
+			"base_role":   "user",
+		}
+		first := testutil.ExecuteWithAuthPermissions(t, router, testutil.NewJSONRequest(t, "POST", "/auth/roles", body), adminClaims, []string{"roles:create"})
+		require.Equal(t, http.StatusCreated, first.Code, first.Body.String())
+
+		rr := testutil.ExecuteWithAuthPermissions(t, router, testutil.NewJSONRequest(t, "POST", "/auth/roles", body), adminClaims, []string{"roles:create"})
+
+		require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+		var response struct {
+			Code   string `json:"code"`
+			Errors []struct {
+				Field string `json:"field"`
+			} `json:"errors"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+		assert.Equal(t, "identity.role_name_taken", response.Code)
+		require.Len(t, response.Errors, 1)
+		assert.Equal(t, "name", response.Errors[0].Field)
+	})
+
 	t.Run("create role bad request with empty name", func(t *testing.T) {
 		body := map[string]string{
 			"name":        "",

@@ -159,10 +159,13 @@ type StaffShiftSeries struct {
 	ValidUntil                string
 	SeriesRootID              *int64
 	RetainedOccurrenceShiftID *int64
-	CreatedBy                 int64
-	UpdatedBy                 *int64
-	CreatedAt                 time.Time
-	UpdatedAt                 time.Time
+	// IncludeSchoolBreaks also plans the series in the Ferien and on closing
+	// days; statutory holidays stay skipped either way (#3820).
+	IncludeSchoolBreaks bool
+	CreatedBy           int64
+	UpdatedBy           *int64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 // StaffShiftSeriesException is one deliberately removed occurrence of a

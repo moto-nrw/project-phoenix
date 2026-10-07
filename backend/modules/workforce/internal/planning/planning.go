@@ -22,6 +22,18 @@ func (e *capabilityError) Error() string        { return e.cause.Error() }
 func (e *capabilityError) Is(target error) bool { return target == e.kind }
 func (e *capabilityError) Unwrap() error        { return e.cause }
 
+// reasonError adds a public refusal reason to a failure without touching its
+// wording: the message stays the cause's, and both stay in the chain.
+type reasonError struct {
+	cause  error
+	reason error
+}
+
+func (e *reasonError) Error() string   { return e.cause.Error() }
+func (e *reasonError) Unwrap() []error { return []error{e.cause, e.reason} }
+
+func withReason(cause, reason error) error { return &reasonError{cause: cause, reason: reason} }
+
 // PlanningDependencies are the retained schedule services the planning
 // contract is served from.
 type PlanningDependencies struct {
@@ -207,7 +219,7 @@ func (p staffShiftPlanning) SplitSeries(ctx context.Context, input workforce.Spl
 		Weekdays: weekdays, StartTime: start, EndTime: end, BreakMinutes: input.BreakMinutes,
 		ShiftTypeID: input.ShiftTypeID, ShiftTypeIDSet: input.ShiftTypeIDSet, Notes: input.Notes,
 		ValidUntil: validUntil, ValidUntilSet: input.ValidUntilSet, WeekPattern: input.WeekPattern,
-		ActorStaffID: input.ActorStaffID,
+		IncludeSchoolBreaks: input.IncludeSchoolBreaks, ActorStaffID: input.ActorStaffID,
 	})
 	if err != nil {
 		return workforce.StaffShiftSeriesResult{}, mapPlanningError(err)
@@ -264,7 +276,12 @@ func (p staffShiftPlanning) ExportPlan(ctx context.Context, request workforce.Pl
 	if params.Variant == planexport.VariantInternal && !request.AllowInternal {
 		return workforce.PlanExportFile{}, workforce.ErrPlanExportForbidden
 	}
-	file, err := p.deps.PlanExport.ExportDienstplan(ctx, params)
+	var file planexport.File
+	if params.Template == planexport.TemplateByHours {
+		file, err = p.deps.PlanExport.ExportDienstplanHours(ctx, params, planExportHours{overview: p.deps.Overview})
+	} else {
+		file, err = p.deps.PlanExport.ExportDienstplan(ctx, params)
+	}
 	if err != nil {
 		if errors.Is(err, planexport.ErrInvalidParams) {
 			return workforce.PlanExportFile{}, &capabilityError{kind: workforce.ErrPlanExportInvalid, cause: err}
@@ -321,6 +338,7 @@ func seriesInputToModel(input workforce.StaffShiftSeriesInput) (*StaffShiftSerie
 		StaffID: input.StaffID, Weekdays: weekdays, StartTime: start, EndTime: end, BreakMinutes: input.BreakMinutes,
 		ShiftTypeID: input.ShiftTypeID, Notes: input.Notes, CalendarPeriodID: input.CalendarPeriodID,
 		WeekPattern: input.WeekPattern, ValidFrom: validFrom, ValidUntil: validUntil,
+		IncludeSchoolBreaks: input.IncludeSchoolBreaks,
 	}, nil
 }
 
@@ -369,8 +387,8 @@ func seriesToCapability(series *StaffShiftSeries) workforce.StaffShiftSeries {
 		StartTime: clockString(series.StartTime), EndTime: clockString(series.EndTime), BreakMinutes: series.BreakMinutes,
 		ShiftTypeID: series.ShiftTypeID, Notes: series.Notes, CalendarPeriodID: series.CalendarPeriodID,
 		WeekPattern: series.WeekPattern, ValidFrom: series.ValidFrom.String(), SeriesRootID: series.SeriesRootID,
-		RetainedOccurrenceShiftID: series.RetainedOccurrenceShiftID, CreatedBy: series.CreatedBy, UpdatedBy: series.UpdatedBy,
-		CreatedAt: series.CreatedAt, UpdatedAt: series.UpdatedAt,
+		RetainedOccurrenceShiftID: series.RetainedOccurrenceShiftID, IncludeSchoolBreaks: series.IncludeSchoolBreaks,
+		CreatedBy: series.CreatedBy, UpdatedBy: series.UpdatedBy, CreatedAt: series.CreatedAt, UpdatedAt: series.UpdatedAt,
 	}
 	if series.ValidUntil != nil {
 		value.ValidUntil = series.ValidUntil.String()
@@ -388,6 +406,7 @@ func seriesResultToCapability(result *SeriesResult) workforce.StaffShiftSeriesRe
 	}
 	value := workforce.StaffShiftSeriesResult{
 		OldSeriesID: result.OldSeriesID, Created: result.Created, Deleted: result.Deleted, SkippedDates: skipped,
+		SkippedNonWorkingDays: result.SkippedNonWorkingDays,
 	}
 	if result.Series != nil {
 		value.SeriesID = result.Series.ID
@@ -428,9 +447,13 @@ func overviewToCapability(overview *StaffScheduleOverview) workforce.StaffSchedu
 	}
 	summaries := make([]workforce.WeeklySummary, 0, len(overview.WeeklySummaries))
 	for _, summary := range overview.WeeklySummaries {
+		byType := make([]workforce.ShiftTypeMinutes, 0, len(summary.ByShiftType))
+		for _, entry := range summary.ByShiftType {
+			byType = append(byType, workforce.ShiftTypeMinutes{ShiftTypeID: entry.ShiftTypeID, Minutes: entry.Minutes})
+		}
 		summaries = append(summaries, workforce.WeeklySummary{
 			StaffID: summary.StaffID, WeekStart: summary.WeekStart.String(), PlannedMinutes: summary.PlannedMinutes,
-			TargetMinutes: summary.TargetMinutes, DeltaMinutes: summary.DeltaMinutes,
+			TargetMinutes: summary.TargetMinutes, DeltaMinutes: summary.DeltaMinutes, ByShiftType: byType,
 		})
 	}
 	return workforce.StaffScheduleOverview{

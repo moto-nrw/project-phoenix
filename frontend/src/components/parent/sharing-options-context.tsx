@@ -10,7 +10,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useTranslations } from "next-intl";
 
+import type { FormError } from "~/components/ui/form-error";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import {
   getRequestSharingOptions,
   type RequestSharingState,
@@ -49,30 +52,47 @@ export function SharingOptionsProvider({
  * Loads the guardians a request may be shared with. Uses the page-wide cache
  * when a provider is mounted, otherwise fetches directly, so the selector
  * works in isolation (tests, standalone dialogs) too.
+ *
+ * A failed load goes through the shared error path (#2518): `error` carries
+ * the localized message with retry, `failed` tells the selector that no
+ * choice is possible right now.
  */
 export function useSharingOptions(studentId: string): {
   state: RequestSharingState | null;
-  error: boolean;
+  failed: boolean;
+  error: FormError | null;
 } {
+  const t = useTranslations("parentRequestSharing");
   const contextLoad = useContext(SharingOptionsContext);
   const load = contextLoad ?? getRequestSharingOptions;
   const [state, setState] = useState<RequestSharingState | null>(null);
-  const [error, setError] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const { error, show, clear } = useApiLoadError();
   useEffect(() => {
     let active = true;
     setState(null);
-    setError(false);
+    setFailed(false);
+    clear();
     void (async () => {
       try {
         const next = await load(studentId);
         if (active) setState(next);
-      } catch {
-        if (active) setError(true);
+      } catch (err) {
+        if (!active) return;
+        setFailed(true);
+        void show(err, {
+          object: t("errorObjectRecipients"),
+          messageSuffix: t("optionsHint"),
+          retry: () => setAttempt((current) => current + 1),
+        });
       }
     })();
     return () => {
       active = false;
     };
-  }, [load, studentId]);
-  return useMemo(() => ({ state, error }), [error, state]);
+    // `attempt` re-runs the load after a retry; the provider has dropped the
+    // failed request from its cache by then.
+  }, [attempt, clear, load, show, studentId, t]);
+  return useMemo(() => ({ state, failed, error }), [error, failed, state]);
 }

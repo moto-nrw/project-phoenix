@@ -27,6 +27,7 @@ function readStoredGroups(): readonly StaffNavGroupKey[] | null {
     if (!Array.isArray(parsed)) return null;
     return parsed.filter(isGroupKey);
   } catch {
+    // Unreadable or corrupt entry: fall back to the default groups.
     return null;
   }
 }

@@ -1,3 +1,8 @@
+import {
+  type ApiError,
+  apiErrorFromText,
+  unavailableApiError,
+} from "~/lib/api-error";
 import { toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 
@@ -20,6 +25,8 @@ export interface CalendarEvent {
   readonly appointment_id?: string;
   readonly occurrence_date?: string;
   readonly timetable_id?: string;
+  /** "duty" für einen Dienst ohne Kinder aus dem Betreuungsplan (#3822). */
+  readonly activity_type?: string;
   readonly student_id?: string;
   readonly student_name?: string;
   readonly tenant_id?: string;
@@ -140,29 +147,31 @@ function unwrap<T>(json: ApiEnvelope<T>): T {
   return json as T;
 }
 
-// Shown when the request never arrived or the answer came back unreadable —
-// cases where the school user has nothing to correct, only to retry.
-const REQUEST_FAILED_MESSAGE =
-  "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
-
 /**
- * One German sentence for a failure that carries no message from the backend.
- *
- * The calendar page renders `error.message` verbatim in its red box, so a
- * native browser error used to land in front of school staff: Safari reports a
- * truncated or non-JSON 2xx body as "The string did not match the expected
- * pattern." (its default SyntaxError text), and a cut connection as "Load
- * failed". Both are English, technical, and name nothing the reader can do.
- * The technical detail goes to the log instead — client logs ship to
- * /api/logs, which is where a stale or truncated response is diagnosable.
+ * A request that never got a readable answer: the connection broke, or a 2xx
+ * body came back cut off or empty. The person has nothing to correct, only to
+ * retry, so it becomes `general.unavailable` and the shared error path shows
+ * the catalog text (#2517). Native browser texts (Safari's "The string did
+ * not match the expected pattern.", "Load failed") go to the log instead —
+ * client logs ship to /api/logs, where a stale or truncated response is
+ * diagnosable.
  */
-function requestFailed(path: string, stage: string, cause: unknown): Error {
+function requestFailed(path: string, stage: string, cause: unknown): ApiError {
   logger.error("calendar_request_failed", {
     path,
     stage,
     error: cause instanceof Error ? cause.message : String(cause),
   });
-  return new Error(REQUEST_FAILED_MESSAGE, { cause });
+  return unavailableApiError(cause);
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    error !== null &&
+    typeof error === "object" &&
+    "name" in error &&
+    error.name === "AbortError"
+  );
 }
 
 async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
@@ -178,24 +187,33 @@ async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
       credentials: "include",
     });
   } catch (cause) {
+    // A superseded request keeps its AbortError semantics.
+    if (isAbortError(cause)) throw cause;
     throw requestFailed(path, "network", cause);
   }
   if (!response.ok) {
+    // The backend text stays a diagnostic. Code, field errors and request ID
+    // travel on the ApiError to the shared display path.
+    let text = "";
+    try {
+      text = await response.text();
+    } catch {
+      // Stream broke: the status still classifies the error.
+    }
     let message = `Anfrage fehlgeschlagen (HTTP ${response.status})`;
     try {
-      const body = (await response.json()) as { error?: string };
-      if (body.error) message = body.error;
+      const body = JSON.parse(text) as { error?: unknown } | null;
+      if (typeof body?.error === "string" && body.error) message = body.error;
     } catch {
-      // Keep generic message.
+      // Not JSON: keep the generic diagnostic.
     }
-    throw new Error(message);
+    throw apiErrorFromText(message, response.status, text);
   }
   if (response.status === 204) return undefined as T;
 
   // Read the body as text and parse it here rather than calling
   // response.json(): a browser's parse failure carries an English native
-  // message, and this is the one place that can turn it into readable German
-  // before it reaches the calendar's error box.
+  // message that must not reach the calendar.
   let body: string;
   try {
     body = await response.text();

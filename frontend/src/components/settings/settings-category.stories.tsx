@@ -40,7 +40,7 @@ const booleanCategory: SchemaCategory = {
   ],
 };
 
-const noop = async () => null;
+const noop = async (): Promise<void> => {};
 
 const meta = {
   title: "settings/SettingsCategory",

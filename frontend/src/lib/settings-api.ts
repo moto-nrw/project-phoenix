@@ -1,3 +1,4 @@
+import { ApiError, apiErrorFromResponse } from "./api-error";
 import { sessionFetch } from "./session-cache";
 import { createLogger } from "./logger";
 
@@ -184,27 +185,24 @@ export function applyOptimisticSchemaUpdate(
 // --- API Functions ---
 
 /**
- * Fetch the settings schema. Returns null if user has no access or session
- * is not ready (expected cases — no error logged).
- * Throws only on unexpected server errors.
+ * Fetch the settings schema. Returns null when no session is ready yet or the
+ * account may not read settings (401/403, expected, no error logged).
+ * Any other failure throws an ApiError (#2517): a network failure must not
+ * look like "no settings for your role".
  */
 export async function fetchSettingsSchema(): Promise<SettingsSchema | null> {
   let response: Response;
   try {
     response = await sessionFetch("/api/settings/schema", { method: "GET" });
   } catch (error) {
-    // No token / session not ready — expected during initial page load
-    if (
-      error instanceof Error &&
-      error.message === "No authentication token available"
-    ) {
+    // No token yet: the session is still starting, not an error.
+    if (error instanceof ApiError && error.status === 401) {
       return null;
     }
-    // Network error — unexpected
     logger.error("fetch_settings_schema_network_error", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return null;
+    throw error;
   }
 
   // 401/403 = not authenticated or no permission — expected, not an error
@@ -216,13 +214,56 @@ export async function fetchSettingsSchema(): Promise<SettingsSchema | null> {
     logger.error("fetch_settings_schema_failed", {
       status: response.status,
     });
-    throw new Error(
+    throw await apiErrorFromResponse(
+      response,
       `Einstellungen konnten nicht geladen werden (${response.status})`,
     );
   }
 
   const result = (await response.json()) as ApiResponse<SettingsSchema>;
   return result.data;
+}
+
+/**
+ * Save a setting value (#2517). Throws an ApiError with the backend code, so
+ * the caller shows the catalog text on the shared error path.
+ */
+export async function saveSettingValue(
+  key: string,
+  value: unknown,
+): Promise<void> {
+  const response = await sessionFetch(`/api/settings/values/${key}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ value }),
+  });
+  if (!response.ok) {
+    logger.warn("save_setting_value_rejected", {
+      key,
+      status: response.status,
+    });
+    throw await apiErrorFromResponse(
+      response,
+      `Setting ${key} could not be saved (${response.status})`,
+    );
+  }
+}
+
+/** Reset a setting to its default (#2517). Throws an ApiError on failure. */
+export async function clearSettingValue(key: string): Promise<void> {
+  const response = await sessionFetch(`/api/settings/values/${key}`, {
+    method: "DELETE",
+  });
+  if (!response.ok && response.status !== 204) {
+    logger.warn("clear_setting_value_rejected", {
+      key,
+      status: response.status,
+    });
+    throw await apiErrorFromResponse(
+      response,
+      `Setting ${key} could not be reset (${response.status})`,
+    );
+  }
 }
 
 /**
@@ -249,6 +290,9 @@ function translateValidationError(apiError: string): string {
 /**
  * Set a setting value. Returns a user-facing error message on failure,
  * or null on success.
+ *
+ * @deprecated Old error path, still used by the payroll page until #2520.
+ * New callers use saveSettingValue, which throws an ApiError.
  */
 export async function setSettingValue(
   key: string,
@@ -298,6 +342,8 @@ export async function setSettingValue(
 /**
  * Reset a setting value. Returns a user-facing error message on failure,
  * or null on success.
+ *
+ * @deprecated Old error path until #2520; new callers use clearSettingValue.
  */
 export async function resetSettingValue(key: string): Promise<string | null> {
   try {
@@ -325,32 +371,28 @@ export async function resetSettingValue(key: string): Promise<string | null> {
 
 /**
  * Reveal the unmasked value of a password/PIN setting.
- * Returns the raw value on success, or null on failure.
+ * Returns the raw value, or null when the setting holds no text value.
+ * A failed request throws an ApiError (#2517); the field shows it.
  */
 export async function revealSettingValue(key: string): Promise<string | null> {
-  try {
-    const response = await sessionFetch(`/api/settings/values/${key}/reveal`, {
-      method: "GET",
-    });
+  const response = await sessionFetch(`/api/settings/values/${key}/reveal`, {
+    method: "GET",
+  });
 
-    if (!response.ok) {
-      logger.warn("reveal_setting_value_failed", {
-        key,
-        status: response.status,
-      });
-      return null;
-    }
-
-    // The Next.js proxy wraps the backend response, so the structure is:
-    // { status, data: { status, data: { value }, message } }
-    const json = await response.json();
-    const value = json?.data?.data?.value ?? json?.data?.value;
-    return typeof value === "string" ? value : null;
-  } catch (error) {
-    logger.warn("reveal_setting_value_error", {
+  if (!response.ok) {
+    logger.warn("reveal_setting_value_failed", {
       key,
-      error: error instanceof Error ? error.message : String(error),
+      status: response.status,
     });
-    return null;
+    throw await apiErrorFromResponse(
+      response,
+      `Setting ${key} could not be revealed (${response.status})`,
+    );
   }
+
+  // The Next.js proxy wraps the backend response, so the structure is:
+  // { status, data: { status, data: { value }, message } }
+  const json = await response.json();
+  const value = json?.data?.data?.value ?? json?.data?.value;
+  return typeof value === "string" ? value : null;
 }

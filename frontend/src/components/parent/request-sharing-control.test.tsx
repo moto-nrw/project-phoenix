@@ -1,8 +1,16 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ModalProvider } from "~/components/dashboard/modal-context";
+import { catalogText } from "~/test/error-catalog-text";
 import {
+  ParentApiError,
   getRequestSharing,
   getRequestSharingOptions,
   setRequestSharing,
@@ -12,7 +20,9 @@ import {
   RequestSharingSelector,
 } from "./request-sharing-control";
 
-vi.mock("~/lib/parent-api", () => ({
+vi.mock("~/lib/parent-api", async (importOriginal) => ({
+  ParentApiError: (await importOriginal<typeof import("~/lib/parent-api")>())
+    .ParentApiError,
   getRequestSharing: vi.fn(),
   getRequestSharingOptions: vi.fn(),
   setRequestSharing: vi.fn(),
@@ -132,8 +142,10 @@ describe("RequestSharingControl", () => {
 
   // Faellt der Abruf der Empfaenger aus, blockiert das die Anfrage nicht: der
   // Hinweis erklaert es, und die Auswahl wird als leer gemeldet (#2267).
-  it("warns and reports no recipients when the options fail to load", async () => {
-    getOptions.mockRejectedValue(new Error("offline"));
+  it("explains a failed recipient load and reports no recipients", async () => {
+    getOptions.mockRejectedValue(
+      new ParentApiError("diag", 503, "general.unavailable"),
+    );
     const onChange = vi.fn();
     render(
       <RequestSharingSelector
@@ -145,11 +157,66 @@ describe("RequestSharingControl", () => {
 
     expect(
       await screen.findByText(
-        "Die Empfänger konnten nicht geladen werden. Sie können die Anfrage trotzdem senden und später teilen.",
+        `${catalogText("general.unavailable", "die Liste der Empfänger")} Sie können die Anfrage trotzdem senden und später teilen.`,
       ),
     ).toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     await waitFor(() => expect(onChange).toHaveBeenCalledWith([]));
+  });
+
+  it("retries a failed recipient load in place", async () => {
+    getOptions.mockRejectedValueOnce(
+      new ParentApiError("diag", 503, "general.unavailable"),
+    );
+    render(
+      <RequestSharingSelector
+        studentId="42"
+        selected={[]}
+        onChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Wiederholen" }));
+
+    expect(
+      await screen.findByRole("checkbox", { name: "Mara Muster" }),
+    ).toBeInTheDocument();
+    expect(getOptions).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows a failed sharing load next to the request with a retry", async () => {
+    getSharing.mockRejectedValueOnce(
+      new ParentApiError("diag", 503, "general.unavailable"),
+    );
+    renderControl();
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Empfänger"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText("Anfrage teilen")).toBeInTheDocument();
+  });
+
+  it("keeps a failed save inside the sharing dialog", async () => {
+    setSharing.mockRejectedValueOnce(
+      new ParentApiError("diag", 400, "care.request_sharing_invalid"),
+    );
+    renderControl();
+    fireEvent.click(await screen.findByText("Anfrage teilen"));
+    fireEvent.click(
+      await screen.findByRole("checkbox", { name: "Mara Muster" }),
+    );
+    fireEvent.click(screen.getByText("Auswahl speichern"));
+
+    const dialog = screen.getByRole("dialog");
+    expect(
+      await within(dialog).findByText(
+        catalogText("care.request_sharing_invalid", "die Auswahl"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/diag/)).not.toBeInTheDocument();
   });
 
   it("shows named recipients before a request is submitted", async () => {

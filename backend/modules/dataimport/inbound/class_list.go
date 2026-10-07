@@ -36,7 +36,7 @@ func (rs *Resource) validateAndParseClassListFile(w http.ResponseWriter, r *http
 	rows, err := rs.files.ClassList(file, uploadFormat(isExcel))
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
-		rs.runtime.Failure(w, r, Failure{Status: http.StatusBadRequest, Cause: fmt.Errorf("Datei-Fehler: %s", err.Error())})
+		rs.runtime.Failure(w, r, decodeFailure(err))
 		return nil, false
 	}
 

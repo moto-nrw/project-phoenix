@@ -1,6 +1,14 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type { ClipboardEvent, ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Check,
@@ -32,8 +40,12 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
-import { Alert } from "~/components/ui/alert";
-import { useFormError } from "~/components/ui/form-error";
+import type { FormError, FormErrorDetail } from "~/components/ui/form-error";
+import {
+  errorAlertActions,
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -86,7 +98,15 @@ import {
   formatBerlinDate,
   formatDate,
 } from "~/lib/date-helpers";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
+import {
+  MAX_POLL_OPTION_LENGTH,
+  MAX_POLL_OPTIONS,
+  MIN_POLL_OPTIONS,
+  insertPastedOptions,
+} from "~/lib/announcement-poll-options";
 import { useSWRAuth } from "~/lib/swr";
 import { groupService, studentService } from "~/lib/api";
 import type { Group, Student } from "~/lib/api";
@@ -212,6 +232,26 @@ function linkError(raw: string): string | null {
   }
 }
 
+/**
+ * Der Ladefehler der Liste (#2517): ohne geladene Liste ersetzt er den Inhalt,
+ * nach einem gescheiterten Neuladen bleibt die alte Liste darunter stehen.
+ */
+function listErrorDisplay(
+  shown: FormErrorDetail | null,
+  hasData: boolean,
+):
+  | FormErrorDetail
+  | { message: string; action?: ReactNode; keepContent: boolean }
+  | null {
+  if (!shown) return null;
+  if (!hasData) return shown;
+  return {
+    message: shown.message,
+    action: errorAlertActions(shown),
+    keepContent: true,
+  };
+}
+
 export default function ParentAnnouncementsPage() {
   // useSearchParams (Reiter und `?bearbeiten=`) braucht die Suspense-Grenze.
   return (
@@ -261,21 +301,58 @@ function ParentAnnouncementsContent() {
   );
 
   // Targeting data sources — fetched while the form is open (pickers).
-  const { data: groups } = useSWRAuth<Group[]>(
+  const shownLoadError = useSwrLoadError(
+    loadError,
+    "die Liste der Mitteilungen",
+    () => void mutate(),
+  );
+
+  const {
+    data: groups,
+    error: groupsError,
+    mutate: reloadGroups,
+  } = useSWRAuth<Group[]>(
     isFormOpen ? "parent-announcements-groups" : null,
     () => groupService.getGroups(),
     { revalidateOnFocus: false },
   );
-  const { data: activities } = useSWRAuth<Activity[]>(
+  const {
+    data: activities,
+    error: activitiesError,
+    mutate: reloadActivities,
+  } = useSWRAuth<Activity[]>(
     isFormOpen ? "parent-announcements-activities" : null,
     () => fetchActivities(),
     { revalidateOnFocus: false },
   );
-  const { data: schoolClasses } = useSWRAuth<string[]>(
+  const {
+    data: schoolClasses,
+    error: classesError,
+    mutate: reloadClasses,
+  } = useSWRAuth<string[]>(
     isFormOpen ? "parent-announcements-classes" : null,
     () => studentService.getSchoolClasses(),
     { revalidateOnFocus: false },
   );
+  // Ohne geladene Auswahllisten stünde in den Feldern „Keine Gruppen“, obwohl
+  // es welche gibt: der Fehler steht deshalb im Empfänger-Schritt.
+  const groupsLoadError = useSwrLoadError(
+    groupsError,
+    "die Liste der Gruppen",
+    () => void reloadGroups(),
+  );
+  const activitiesLoadError = useSwrLoadError(
+    activitiesError,
+    "die Liste der AGs",
+    () => void reloadActivities(),
+  );
+  const classesLoadError = useSwrLoadError(
+    classesError,
+    "die Liste der Klassen",
+    () => void reloadClasses(),
+  );
+  const lookupLoadError =
+    groupsLoadError ?? activitiesLoadError ?? classesLoadError;
 
   const list = useMemo(() => announcements ?? [], [announcements]);
 
@@ -365,8 +442,10 @@ function ParentAnnouncementsContent() {
 
   // Statuszeile unter dem Seitentitel, allein aus der geladenen Liste:
   // wie viele Einträge der aktiven Art es gibt und wie viele davon
-  // veröffentlicht sind.
+  // veröffentlicht sind. Ohne geladene Liste steht keine "0 Mitteilungen"
+  // neben dem Ladefehler (#2517).
   const kindSummary = (() => {
+    if (announcements === undefined) return null;
     const ofKind = list.filter((entry) => kindOf(entry) === kind);
     const published = ofKind.filter(
       (entry) => entry.status === "published",
@@ -595,15 +674,13 @@ function ParentAnnouncementsContent() {
         })),
         label: "Art der Mitteilung",
       }}
-      loading={isLoading}
-      error={
-        loadError
-          ? {
-              message: "Elternmitteilungen konnten nicht geladen werden.",
-              keepContent: announcements !== undefined,
-            }
-          : null
+      // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett
+      // stehen, nie der Leerzustand.
+      loading={
+        isLoading ||
+        (!!loadError && !shownLoadError && announcements === undefined)
       }
+      error={listErrorDisplay(shownLoadError, announcements !== undefined)}
       empty={
         !isLoading && filtered.length === 0
           ? {
@@ -648,6 +725,7 @@ function ParentAnnouncementsContent() {
               groups={groups ?? []}
               activities={activities ?? []}
               schoolClasses={schoolClasses ?? []}
+              lookupLoadError={lookupLoadError}
               onClose={closeForm}
               onRefresh={async () => {
                 await mutate();
@@ -724,6 +802,8 @@ interface AnnouncementFormModalProps {
   readonly groups: Group[];
   readonly activities: Activity[];
   readonly schoolClasses: string[];
+  /** Gruppen, AGs oder Klassen konnten nicht geladen werden. */
+  readonly lookupLoadError: FormError | null;
   readonly onClose: () => void;
   readonly onSaved: () => Promise<void> | void;
   /**
@@ -792,6 +872,7 @@ function AnnouncementFormModal({
   groups,
   activities,
   schoolClasses,
+  lookupLoadError,
   onClose,
   onSaved,
   onRefresh,
@@ -826,7 +907,20 @@ function AnnouncementFormModal({
     AnnouncementAttachment[]
   >([]);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  const [attachmentError, setAttachmentError] = useState("");
+  // Fehler im Anhangsbereich stehen dort, wo die Dateien stehen (#2517):
+  // Prüfungen vor dem Hochladen und das Entfernen über den Formularweg, das
+  // Nachladen der vorhandenen Dateien als Ladefehler.
+  const attachmentErrors = useApiFormError();
+  const setAttachmentHint = attachmentErrors.invalid;
+  const clearAttachmentErrors = attachmentErrors.clear;
+  const attachmentsLoad = useApiLoadError();
+  const showAttachmentsLoadError = attachmentsLoad.show;
+  const clearAttachmentsLoadError = attachmentsLoad.clear;
+  // „Wiederholen“ lädt die vorhandenen Dateien neu.
+  const [attachmentsReloadKey, setAttachmentsReloadKey] = useState(0);
+  const latestRemoveAttachmentRef = useRef<(attachmentId: string) => void>(
+    () => undefined,
+  );
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   // Ob die Anhänge dieser Mitteilung noch änderbar sind. Die Antwort der
   // Liste sagt es: ein Entwurf, der zwischenzeitlich anderswo veröffentlicht
@@ -851,14 +945,15 @@ function AnnouncementFormModal({
         if (!cancelled) {
           setExistingAttachments(list.attachments);
           setAttachmentsEditable(list.editable && !attachmentsFrozen);
-          setAttachmentError("");
+          clearAttachmentsLoadError();
         }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setAttachmentError(
-            "Die vorhandenen Dateien konnten nicht geladen werden. Bitte öffnen Sie die Mitteilung noch einmal.",
-          );
+          void showAttachmentsLoadError(err, {
+            object: "die Liste der Anhänge",
+            retry: () => setAttachmentsReloadKey((key) => key + 1),
+          });
         }
         logger.error("announcement_attachments_load_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -867,7 +962,13 @@ function AnnouncementFormModal({
     return () => {
       cancelled = true;
     };
-  }, [persistedId, attachmentsFrozen]);
+  }, [
+    persistedId,
+    attachmentsFrozen,
+    attachmentsReloadKey,
+    showAttachmentsLoadError,
+    clearAttachmentsLoadError,
+  ]);
 
   const [title, setTitle] = useState(announcement?.title ?? "");
   const [body, setBody] = useState(announcement?.body ?? "");
@@ -937,6 +1038,9 @@ function AnnouncementFormModal({
     if (existing.length > 0) return existing;
     return isPollForm ? ["Ja", "Nein"] : [];
   });
+  const [defaultOptionsUntouched, setDefaultOptionsUntouched] = useState(
+    () => isPollForm && announcement === null,
+  );
   // Einverständnis settings (#3430). There is only one kind, consent; it can
   // be withdrawn unless the school decides otherwise.
   const [declarationSigners, setDeclarationSigners] =
@@ -958,38 +1062,82 @@ function AnnouncementFormModal({
     [optionRows],
   );
 
-  const setOptionAt = (index: number, value: string) =>
+  const setOptionAt = (index: number, value: string) => {
+    setDefaultOptionsUntouched(false);
     setOptionRows((prev) => prev.map((row, i) => (i === index ? value : row)));
-  const addOption = () => setOptionRows((prev) => [...prev, ""]);
-  const removeOptionAt = (index: number) =>
+  };
+  const addOption = () => {
+    setDefaultOptionsUntouched(false);
+    setOptionRows((prev) => [...prev, ""]);
+  };
+  const removeOptionAt = (index: number) => {
+    setDefaultOptionsUntouched(false);
     setOptionRows((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const [submitting, setSubmitting] = useState<"draft" | "publish" | null>(
     null,
   );
-  const [formError, setFormError] = useFormError();
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const setFormError = formErrors.invalid;
+  const clearFormError = formErrors.clear;
+  // „Wiederholen“ speichert bzw. veröffentlicht den dann aktuellen Stand.
+  const latestSubmitRef = useRef<(publish: boolean) => void>(() => undefined);
+  const bodyError = formErrors.fieldError("body");
+  // A Terminabstimmung arrives as a list copied from a spreadsheet or an old
+  // Doodle (#3861): every pasted line becomes its own answer instead of one
+  // long label.
+  const pasteOptionsAt = (
+    index: number,
+    event: ClipboardEvent<HTMLInputElement>,
+  ) => {
+    const replaceDefaultOptions = defaultOptionsUntouched;
+    const result = insertPastedOptions(
+      replaceDefaultOptions ? [] : optionRows,
+      replaceDefaultOptions ? 0 : index,
+      event.clipboardData.getData("text"),
+    );
+    if (!result) return;
+    event.preventDefault();
+    if (!replaceDefaultOptions || result.rows.length > 0) {
+      setDefaultOptionsUntouched(false);
+      setOptionRows(result.rows);
+    }
+    const errors = [
+      result.tooLong > 0 &&
+        `${result.tooLong === 1 ? "Eine Zeile ist" : `${result.tooLong} Zeilen sind`} länger als ${MAX_POLL_OPTION_LENGTH} Zeichen. ${result.tooLong === 1 ? "Sie wurde" : "Sie wurden"} nicht übernommen.`,
+      result.dropped > 0 &&
+        `Es passen höchstens ${MAX_POLL_OPTIONS} Antworten. ${result.dropped === 1 ? "Eine Zeile wurde" : `${result.dropped} Zeilen wurden`} nicht übernommen.`,
+    ].filter(Boolean);
+    if (errors.length > 0) {
+      setFormError(errors.join(" "));
+    }
+  };
 
   const validateContent = (forPublication: boolean): boolean => {
+    const fields: Record<string, string> = {};
     if (!title.trim()) {
-      setFormError("Bitte einen Titel eingeben.");
-      return false;
+      fields.title = isPollForm
+        ? "Bitte geben Sie eine Frage ein."
+        : "Bitte geben Sie einen Titel ein.";
     }
-    if (!body.trim()) {
-      setFormError("Bitte einen Text eingeben.");
-      return false;
-    }
+    if (!body.trim()) fields.body = "Bitte geben Sie einen Text ein.";
     const linkProblem = linkError(linkUrl);
-    if (linkProblem) {
-      setFormError(linkProblem);
+    if (linkProblem) fields.link_url = linkProblem;
+    if (Object.keys(fields).length > 0) {
+      setFormError("Bitte prüfen Sie die markierten Felder.", fields);
       return false;
     }
     if (isPollForm) {
-      if (options.length < 2) {
+      if (options.length < MIN_POLL_OPTIONS) {
         setFormError("Bitte mindestens zwei Antwortmöglichkeiten angeben.");
         return false;
       }
-      if (options.length > 10) {
-        setFormError("Bitte höchstens zehn Antwortmöglichkeiten angeben.");
+      if (options.length > MAX_POLL_OPTIONS) {
+        setFormError(
+          `Bitte höchstens ${MAX_POLL_OPTIONS} Antwortmöglichkeiten angeben.`,
+        );
         return false;
       }
       const seen = new Set(options.map((o) => o.toLowerCase()));
@@ -1029,7 +1177,7 @@ function AnnouncementFormModal({
         return false;
       }
     }
-    setFormError("");
+    clearFormError();
     return true;
   };
 
@@ -1042,59 +1190,66 @@ function AnnouncementFormModal({
   const addFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
     if (!attachmentsEditable) {
-      setAttachmentError(lockedHint);
+      setAttachmentHint(lockedHint);
       return;
     }
-    setAttachmentError("");
+    clearAttachmentErrors();
     const room = MAX_ATTACHMENTS - attachmentCount;
     const picked = Array.from(files);
+    const problems: string[] = [];
     if (picked.length > room) {
-      setAttachmentError(
+      problems.push(
         `Es sind höchstens ${MAX_ATTACHMENTS} Dateien je Mitteilung möglich.`,
       );
     }
     const accepted: File[] = [];
     for (const file of picked.slice(0, Math.max(room, 0))) {
       if (file.size > MAX_ATTACHMENT_BYTES) {
-        setAttachmentError(
-          `„${file.name}“ ist zu groß. Erlaubt sind bis zu ${MAX_ATTACHMENT_MB} MB je Datei.`,
+        problems.push(
+          `Die Datei „${file.name}“ ist zu groß. Erlaubt sind bis zu ${MAX_ATTACHMENT_MB} MB je Datei.`,
         );
         continue;
       }
       accepted.push(file);
     }
+    if (problems.length > 0) setAttachmentHint(problems.join(" "));
     if (accepted.length > 0) setPendingFiles((prev) => [...prev, ...accepted]);
   };
 
   const removePendingFile = (index: number) => {
-    setAttachmentError("");
+    clearAttachmentErrors();
     setPendingFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const removeExistingAttachment = async (attachmentId: string) => {
     if (!persistedId) return;
     if (!attachmentsEditable) {
-      setAttachmentError(lockedHint);
+      setAttachmentHint(lockedHint);
       return;
     }
     setAttachmentBusy(true);
-    setAttachmentError("");
+    clearAttachmentErrors();
     try {
       await deleteAnnouncementAttachment(persistedId, attachmentId);
       setExistingAttachments((prev) =>
         prev.filter((a) => a.id !== attachmentId),
       );
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Der Anhang konnte nicht entfernt werden";
-      setAttachmentError(message);
-      logger.error("announcement_attachment_delete_failed", { error: message });
+      logger.error("announcement_attachment_delete_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await attachmentErrors.show(err, {
+        object: "das Entfernen des Anhangs",
+        retry: () => latestRemoveAttachmentRef.current(attachmentId),
+      });
     } finally {
       setAttachmentBusy(false);
     }
   };
+  useLayoutEffect(() => {
+    latestRemoveAttachmentRef.current = (attachmentId) =>
+      void removeExistingAttachment(attachmentId);
+  });
 
   const handleSubmit = async (publish: boolean) => {
     if (!validateContent(publish)) {
@@ -1102,7 +1257,7 @@ function AnnouncementFormModal({
       return;
     }
     if (targets.length === 0) {
-      setFormError("Bitte mindestens eine Zielgruppe hinzufügen.");
+      setFormError("Bitte fügen Sie mindestens eine Zielgruppe hinzu.");
       return;
     }
 
@@ -1163,7 +1318,8 @@ function AnnouncementFormModal({
     };
 
     setSubmitting(publish ? "publish" : "draft");
-    setFormError("");
+    clearFormError();
+    const retry = () => latestSubmitRef.current(publish);
     try {
       const saved = persistedId
         ? await updateAnnouncement(persistedId, input)
@@ -1191,15 +1347,15 @@ function AnnouncementFormModal({
             }
           }
         } catch (err) {
-          const message =
-            err instanceof Error
-              ? err.message
-              : "Die Datei konnte nicht hochgeladen werden";
-          setFormError(
-            `Als Entwurf gespeichert, aber ein Anhang konnte nicht hochgeladen werden: ${message}`,
-          );
           logger.error("announcement_attachment_upload_failed", {
-            error: message,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          // Der Entwurf ist gespeichert; das Objekt sagt es mit. Die noch
+          // offenen Dateien stehen weiter in der Warteliste, „Wiederholen“
+          // lädt nur sie hoch.
+          await formErrors.show(err, {
+            object: "das Hochladen eines Anhangs zum gespeicherten Entwurf",
+            retry,
           });
           await onRefresh();
           return;
@@ -1213,33 +1369,34 @@ function AnnouncementFormModal({
           // The draft is saved — surface only the publish failure so nothing is
           // lost. Refresh the list so the draft appears, but keep THIS modal
           // open so the error stays visible and the user can retry publishing.
-          const message =
-            err instanceof Error
-              ? err.message
-              : "Elternmitteilung konnte nicht veröffentlicht werden";
-          setFormError(
-            `Als Entwurf gespeichert, aber das Veröffentlichen ist fehlgeschlagen: ${message}`,
-          );
-          logger.error("announcement_publish_failed", { error: message });
+          logger.error("announcement_publish_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          await formErrors.show(err, {
+            object: "das Veröffentlichen des gespeicherten Entwurfs",
+            retry,
+          });
           await onRefresh();
           return;
         }
       }
       await onSaved();
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Elternmitteilung konnte nicht gespeichert werden";
-      setFormError(message);
       logger.error("announcement_save_failed", {
         mode: isEdit ? "update" : "create",
-        error: message,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await formErrors.show(err, {
+        object: "das Speichern der Mitteilung",
+        retry,
       });
     } finally {
       setSubmitting(null);
     }
   };
+  useLayoutEffect(() => {
+    latestSubmitRef.current = (publish) => void handleSubmit(publish);
+  });
 
   const footer =
     step === 0 ? (
@@ -1320,604 +1477,628 @@ function AnnouncementFormModal({
         </SlideOverHeader>
         {/* Der Fehler des Formulars steht oben im Rumpf, nicht unten über
             dem Footer (Bauart 2 Regel 5, #3113). */}
-        <SlideOverBody error={formError} className="space-y-4">
-          <WizardStepper steps={WIZARD_STEPS} current={step} />
+        <SlideOverBody error={formErrors.error} className="space-y-4">
+          <div ref={formRef} className="space-y-4">
+            <WizardStepper steps={WIZARD_STEPS} current={step} />
 
-          {step === 0 ? (
-            // Sections with quiet uppercase headers, every control on the full
-            // width — the same form language as the Vertretungsplan slide-over.
-            // No nested cards and no per-option input rows: at this size they
-            // read as clutter, not as structure.
-            <div className="space-y-6">
-              <section className="space-y-4">
-                <Input
-                  label={isPollForm ? "Frage" : "Titel"}
-                  name="announcement-title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder={
-                    isPollForm
-                      ? "z. B. Kommt Ihr Kind zur Murmelparty?"
-                      : "z. B. Sommerfest am Freitag"
-                  }
-                />
-
-                <div>
-                  <label
-                    htmlFor="announcement-body"
-                    className="mb-2 block text-sm font-medium text-gray-700"
-                  >
-                    Text
-                  </label>
-                  <textarea
-                    id="announcement-body"
-                    value={body}
-                    onChange={(e) => setBody(e.target.value)}
-                    rows={5}
-                    maxLength={4000}
-                    placeholder="Inhalt der Mitteilung… Links im Text werden für Eltern klickbar."
-                    className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
+            {step === 0 ? (
+              // Sections with quiet uppercase headers, every control on the full
+              // width — the same form language as the Vertretungsplan slide-over.
+              // No nested cards and no per-option input rows: at this size they
+              // read as clutter, not as structure.
+              <div className="space-y-6">
+                <section className="space-y-4">
+                  <Input
+                    label={isPollForm ? "Frage" : "Titel"}
+                    name="title"
+                    value={title}
+                    error={formErrors.fieldError("title")}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder={
+                      isPollForm
+                        ? "z. B. Kommt Ihr Kind zur Murmelparty?"
+                        : "z. B. Sommerfest am Freitag"
+                    }
                   />
-                </div>
 
-                <Input
-                  label="Link (optional)"
-                  name="announcement-link"
-                  type="url"
-                  value={linkUrl}
-                  onChange={(e) => setLinkUrl(e.target.value)}
-                  placeholder="https://…"
-                />
-              </section>
+                  <div>
+                    <label
+                      htmlFor="announcement-body"
+                      className="mb-2 block text-sm font-medium text-gray-700"
+                    >
+                      Text
+                    </label>
+                    <textarea
+                      id="announcement-body"
+                      name="body"
+                      aria-invalid={bodyError ? true : undefined}
+                      aria-describedby={
+                        bodyError ? "announcement-body-error" : undefined
+                      }
+                      value={body}
+                      onChange={(e) => setBody(e.target.value)}
+                      rows={5}
+                      maxLength={4000}
+                      placeholder="Inhalt der Mitteilung… Links im Text werden für Eltern klickbar."
+                      className={`block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 ${bodyError ? "ring-moto-red" : "ring-gray-200"}`}
+                    />
+                    {bodyError ? (
+                      <p
+                        id="announcement-body-error"
+                        className="text-moto-red-strong mt-1 text-xs"
+                      >
+                        {bodyError}
+                      </p>
+                    ) : null}
+                  </div>
 
-              {isPollForm && (
+                  <Input
+                    label="Link (optional)"
+                    name="link_url"
+                    type="url"
+                    value={linkUrl}
+                    error={formErrors.fieldError("link_url")}
+                    onChange={(e) => setLinkUrl(e.target.value)}
+                    placeholder="https://…"
+                  />
+                </section>
+
+                {isPollForm && (
+                  <section className="space-y-3">
+                    <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                      Antwortmöglichkeiten
+                    </h3>
+                    <div>
+                      <ul className="space-y-2">
+                        {optionRows.map((option, index) => (
+                          // Rows have no id before saving; the list is short and
+                          // edited in place, so the index is the stable key.
+                          // eslint-disable-next-line react/no-array-index-key
+                          <li key={index} className="flex items-center gap-2">
+                            {/* Input's className lands on the control, not on its
+                            wrapper, so the wrapper carries the flex sizing. */}
+                            <div className="min-w-0 flex-1">
+                              <Input
+                                controlSize="compact"
+                                name={`announcement-option-${index}`}
+                                value={option}
+                                onChange={(e) =>
+                                  setOptionAt(index, e.target.value)
+                                }
+                                onPaste={(e) => pasteOptionsAt(index, e)}
+                                placeholder={`Antwort ${index + 1}`}
+                                aria-label={`Antwort ${index + 1}`}
+                                maxLength={MAX_POLL_OPTION_LENGTH}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeOptionAt(index)}
+                              aria-label={`Antwort ${index + 1} entfernen`}
+                              className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                            >
+                              <Trash2 className="h-4 w-4" aria-hidden />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+
+                      <button
+                        type="button"
+                        onClick={addOption}
+                        disabled={optionRows.length >= MAX_POLL_OPTIONS}
+                        className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Plus className="h-4 w-4" aria-hidden />
+                        Antwort hinzufügen
+                      </button>
+
+                      <p className="mt-2 text-xs text-gray-500">
+                        Zwei bis {MAX_POLL_OPTIONS} Antworten. Eltern antworten
+                        für jedes Kind einzeln. Eine eingefügte Liste wird Zeile
+                        für Zeile übernommen.
+                      </p>
+                    </div>
+
+                    <label
+                      htmlFor="announcement-multi"
+                      className="flex cursor-pointer items-start gap-3"
+                    >
+                      <Checkbox
+                        id="announcement-multi"
+                        checked={multiChoice}
+                        onChange={(e) => setMultiChoice(e.target.checked)}
+                      />
+                      <span className="text-sm text-gray-800">
+                        <span className="block">Mehrfachauswahl erlauben</span>
+                        <span className="block text-xs text-gray-500">
+                          Eltern können pro Kind mehrere Antworten auswählen.
+                        </span>
+                      </span>
+                    </label>
+                  </section>
+                )}
+
+                {isDeclarationForm && (
+                  <section className="space-y-4">
+                    <div>
+                      <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                        Einverständnis
+                      </h3>
+                      <p className="mt-1 text-sm text-gray-600">
+                        Eltern stimmen im Eltern-Portal für jedes Kind einzeln
+                        zu oder lehnen ab. Das ist eine einfache Erklärung per
+                        Knopfdruck. Verlangt ein Gesetz eine Erklärung auf
+                        Papier, reicht sie nicht aus.
+                      </p>
+                      <p className="mt-1 text-sm text-gray-600">
+                        Soll nur bestätigt werden, dass Eltern etwas gelesen
+                        haben? Dann schreiben Sie einen Elternbrief mit
+                        Lesebestätigung.
+                      </p>
+                    </div>
+
+                    <fieldset className="space-y-2">
+                      <legend className="mb-2 text-sm font-medium text-gray-700">
+                        Wer muss antworten?
+                      </legend>
+                      {DECLARATION_SIGNER_OPTIONS.map((option) => (
+                        <ChoiceTile
+                          key={option.value}
+                          selected={declarationSigners === option.value}
+                          className="items-start px-4 py-3"
+                        >
+                          <Radio
+                            name="declaration-signers"
+                            value={option.value}
+                            checked={declarationSigners === option.value}
+                            onChange={() => setDeclarationSigners(option.value)}
+                          />
+                          <span>
+                            <span className="block">{option.label}</span>
+                            <span className="block text-xs font-normal text-gray-500">
+                              {option.hint}
+                            </span>
+                          </span>
+                        </ChoiceTile>
+                      ))}
+                    </fieldset>
+
+                    <label
+                      htmlFor="declaration-revocable"
+                      className="flex cursor-pointer items-start gap-3"
+                    >
+                      <Checkbox
+                        id="declaration-revocable"
+                        checked={declarationRevocable}
+                        onChange={(e) =>
+                          setDeclarationRevocable(e.target.checked)
+                        }
+                      />
+                      <span className="text-sm text-gray-800">
+                        <span className="block">Widerruf erlauben</span>
+                        <span className="block text-xs text-gray-500">
+                          Eltern können eine Zustimmung später zurücknehmen,
+                          auch nach der Frist.
+                        </span>
+                      </span>
+                    </label>
+
+                    <label
+                      htmlFor="declaration-password"
+                      className="flex cursor-pointer items-start gap-3"
+                    >
+                      <Checkbox
+                        id="declaration-password"
+                        checked={declarationRequiresPassword}
+                        onChange={(e) =>
+                          setDeclarationRequiresPassword(e.target.checked)
+                        }
+                      />
+                      <span className="text-sm text-gray-800">
+                        <span className="block">
+                          Passwort vor dem Antworten abfragen
+                        </span>
+                        <span className="block text-xs text-gray-500">
+                          Eltern geben vor jeder Antwort das Passwort ihres
+                          Eltern-Kontos ein.
+                        </span>
+                      </span>
+                    </label>
+                  </section>
+                )}
+
                 <section className="space-y-3">
                   <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                    Antwortmöglichkeiten
+                    Zeitraum
                   </h3>
-                  <div>
-                    <ul className="space-y-2">
-                      {optionRows.map((option, index) => (
-                        // Rows have no id before saving; the list is short and
-                        // edited in place, so the index is the stable key.
-                        // eslint-disable-next-line react/no-array-index-key
-                        <li key={index} className="flex items-center gap-2">
-                          {/* Input's className lands on the control, not on its
-                            wrapper, so the wrapper carries the flex sizing. */}
-                          <div className="min-w-0 flex-1">
-                            <Input
-                              controlSize="compact"
-                              name={`announcement-option-${index}`}
-                              value={option}
-                              onChange={(e) =>
-                                setOptionAt(index, e.target.value)
-                              }
-                              placeholder={`Antwort ${index + 1}`}
-                              aria-label={`Antwort ${index + 1}`}
-                              maxLength={120}
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeOptionAt(index)}
-                            aria-label={`Antwort ${index + 1} entfernen`}
-                            className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
-                          >
-                            <Trash2 className="h-4 w-4" aria-hidden />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-
-                    <button
-                      type="button"
-                      onClick={addOption}
-                      disabled={optionRows.length >= 10}
-                      className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <Plus className="h-4 w-4" aria-hidden />
-                      Antwort hinzufügen
-                    </button>
-
-                    <p className="mt-2 text-xs text-gray-500">
-                      Zwei bis zehn Antworten. Eltern antworten für jedes Kind
-                      einzeln.
-                    </p>
-                  </div>
-
-                  <label
-                    htmlFor="announcement-multi"
-                    className="flex cursor-pointer items-start gap-3"
-                  >
-                    <Checkbox
-                      id="announcement-multi"
-                      checked={multiChoice}
-                      onChange={(e) => setMultiChoice(e.target.checked)}
-                    />
-                    <span className="text-sm text-gray-800">
-                      <span className="block">Mehrfachauswahl erlauben</span>
-                      <span className="block text-xs text-gray-500">
-                        Eltern können pro Kind mehrere Antworten auswählen.
-                      </span>
-                    </span>
-                  </label>
-                </section>
-              )}
-
-              {isDeclarationForm && (
-                <section className="space-y-4">
-                  <div>
-                    <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                      Einverständnis
-                    </h3>
-                    <p className="mt-1 text-sm text-gray-600">
-                      Eltern stimmen im Eltern-Portal für jedes Kind einzeln zu
-                      oder lehnen ab. Das ist eine einfache Erklärung per
-                      Knopfdruck. Verlangt ein Gesetz eine Erklärung auf Papier,
-                      reicht sie nicht aus.
-                    </p>
-                    <p className="mt-1 text-sm text-gray-600">
-                      Soll nur bestätigt werden, dass Eltern etwas gelesen
-                      haben? Dann schreiben Sie einen Elternbrief mit
-                      Lesebestätigung.
-                    </p>
-                  </div>
-
-                  <fieldset className="space-y-2">
-                    <legend className="mb-2 text-sm font-medium text-gray-700">
-                      Wer muss antworten?
-                    </legend>
-                    {DECLARATION_SIGNER_OPTIONS.map((option) => (
-                      <ChoiceTile
-                        key={option.value}
-                        selected={declarationSigners === option.value}
-                        className="items-start px-4 py-3"
-                      >
-                        <Radio
-                          name="declaration-signers"
-                          value={option.value}
-                          checked={declarationSigners === option.value}
-                          onChange={() => setDeclarationSigners(option.value)}
-                        />
-                        <span>
-                          <span className="block">{option.label}</span>
-                          <span className="block text-xs font-normal text-gray-500">
-                            {option.hint}
-                          </span>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {hasDeadline && (
+                      <div>
+                        <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                          {isDeclarationForm
+                            ? "Frist (optional)"
+                            : "Antwortfrist (optional)"}
                         </span>
-                      </ChoiceTile>
-                    ))}
-                  </fieldset>
-
-                  <label
-                    htmlFor="declaration-revocable"
-                    className="flex cursor-pointer items-start gap-3"
-                  >
-                    <Checkbox
-                      id="declaration-revocable"
-                      checked={declarationRevocable}
-                      onChange={(e) =>
-                        setDeclarationRevocable(e.target.checked)
-                      }
-                    />
-                    <span className="text-sm text-gray-800">
-                      <span className="block">Widerruf erlauben</span>
-                      <span className="block text-xs text-gray-500">
-                        Eltern können eine Zustimmung später zurücknehmen, auch
-                        nach der Frist.
-                      </span>
-                    </span>
-                  </label>
-
-                  <label
-                    htmlFor="declaration-password"
-                    className="flex cursor-pointer items-start gap-3"
-                  >
-                    <Checkbox
-                      id="declaration-password"
-                      checked={declarationRequiresPassword}
-                      onChange={(e) =>
-                        setDeclarationRequiresPassword(e.target.checked)
-                      }
-                    />
-                    <span className="text-sm text-gray-800">
-                      <span className="block">
-                        Passwort vor dem Antworten abfragen
-                      </span>
-                      <span className="block text-xs text-gray-500">
-                        Eltern geben vor jeder Antwort das Passwort ihres
-                        Eltern-Kontos ein.
-                      </span>
-                    </span>
-                  </label>
-                </section>
-              )}
-
-              <section className="space-y-3">
-                <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                  Zeitraum
-                </h3>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {hasDeadline && (
+                        <DatePicker
+                          value={deadline}
+                          onChange={setDeadline}
+                          placeholder="Keine Frist"
+                          dropdownPlacement="down"
+                        />
+                        <p className="mt-1.5 text-xs text-gray-500">
+                          {isDeclarationForm
+                            ? declarationRevocable
+                              ? "Danach können Eltern nicht mehr antworten. Eine Zustimmung widerrufen geht weiter."
+                              : "Danach können Eltern nicht mehr antworten."
+                            : "Danach ist die Umfrage geschlossen, bleibt aber lesbar."}
+                        </p>
+                      </div>
+                    )}
                     <div>
                       <span className="mb-1.5 block text-sm font-medium text-gray-700">
-                        {isDeclarationForm
-                          ? "Frist (optional)"
-                          : "Antwortfrist (optional)"}
+                        Ablaufdatum (optional)
                       </span>
                       <DatePicker
-                        value={deadline}
-                        onChange={setDeadline}
-                        placeholder="Keine Frist"
+                        value={expiresAt}
+                        onChange={setExpiresAt}
+                        placeholder="Kein Ablaufdatum"
                         dropdownPlacement="down"
                       />
                       <p className="mt-1.5 text-xs text-gray-500">
-                        {isDeclarationForm
-                          ? declarationRevocable
-                            ? "Danach können Eltern nicht mehr antworten. Eine Zustimmung widerrufen geht weiter."
-                            : "Danach können Eltern nicht mehr antworten."
-                          : "Danach ist die Umfrage geschlossen, bleibt aber lesbar."}
+                        Danach wird{" "}
+                        {isPollForm
+                          ? "die Umfrage"
+                          : isLetterForm
+                            ? "der Elternbrief"
+                            : isDeclarationForm
+                              ? "das Einverständnis"
+                              : "die Mitteilung"}{" "}
+                        für Eltern ausgeblendet.
                       </p>
                     </div>
-                  )}
-                  <div>
-                    <span className="mb-1.5 block text-sm font-medium text-gray-700">
-                      Ablaufdatum (optional)
-                    </span>
-                    <DatePicker
-                      value={expiresAt}
-                      onChange={setExpiresAt}
-                      placeholder="Kein Ablaufdatum"
-                      dropdownPlacement="down"
-                    />
-                    <p className="mt-1.5 text-xs text-gray-500">
-                      Danach wird{" "}
-                      {isPollForm
-                        ? "die Umfrage"
-                        : isLetterForm
-                          ? "der Elternbrief"
-                          : isDeclarationForm
-                            ? "das Einverständnis"
-                            : "die Mitteilung"}{" "}
-                      für Eltern ausgeblendet.
-                    </p>
                   </div>
-                </div>
-              </section>
+                </section>
 
-              {!isPollForm && (
-                <section className="space-y-3">
-                  <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                    Erinnerung
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    Optional: moto schickt{" "}
-                    {isLetterForm
-                      ? "den Elternbrief"
-                      : isDeclarationForm
-                        ? "das Einverständnis"
-                        : "die Mitteilung"}{" "}
-                    zu diesem Zeitpunkt noch einmal an alle Empfänger, auch wenn
-                    sie schon{" "}
-                    {isDeclarationForm
-                      ? "geantwortet"
-                      : "gelesen oder bestätigt"}{" "}
-                    haben.
-                  </p>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <span className="mb-1.5 block text-sm font-medium text-gray-700">
-                        Erinnern am (optional)
-                      </span>
-                      <DatePicker
-                        value={reminderDay}
-                        onChange={setReminderDay}
-                        placeholder="Keine Erinnerung"
-                      />
+                {!isPollForm && (
+                  <section className="space-y-3">
+                    <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                      Erinnerung
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Optional: moto schickt{" "}
+                      {isLetterForm
+                        ? "den Elternbrief"
+                        : isDeclarationForm
+                          ? "das Einverständnis"
+                          : "die Mitteilung"}{" "}
+                      zu diesem Zeitpunkt noch einmal an alle Empfänger, auch
+                      wenn sie schon{" "}
+                      {isDeclarationForm
+                        ? "geantwortet"
+                        : "gelesen oder bestätigt"}{" "}
+                      haben.
+                    </p>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                          Erinnern am (optional)
+                        </span>
+                        <DatePicker
+                          value={reminderDay}
+                          onChange={setReminderDay}
+                          placeholder="Keine Erinnerung"
+                        />
+                      </div>
+                      {reminderDay && (
+                        <TimeField
+                          label="Uhrzeit"
+                          value={reminderTime}
+                          onChange={setReminderTime}
+                          hint="Uhrzeit im Format 08:00"
+                          placeholder="08:00"
+                          required
+                        />
+                      )}
                     </div>
                     {reminderDay && (
-                      <TimeField
-                        label="Uhrzeit"
-                        value={reminderTime}
-                        onChange={setReminderTime}
-                        hint="Uhrzeit im Format 08:00"
-                        placeholder="08:00"
-                        required
-                      />
+                      <div>
+                        <label
+                          htmlFor="announcement-reminder-text"
+                          className="mb-2 block text-sm font-medium text-gray-700"
+                        >
+                          Erinnerungstext (optional)
+                        </label>
+                        <textarea
+                          id="announcement-reminder-text"
+                          value={reminderText}
+                          onChange={(e) => setReminderText(e.target.value)}
+                          rows={2}
+                          maxLength={MAX_REMINDER_TEXT_LENGTH}
+                          placeholder="Kurz das Wichtigste, z. B. „Morgen endet die Betreuung um 13:00 Uhr.“"
+                          className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
+                        />
+                        <p className="mt-1.5 text-xs text-gray-500">
+                          {isLetterForm
+                            ? "Ohne eigenen Text schickt moto den Text des Elternbriefs noch einmal."
+                            : "Die E-Mail hat nur Titel und Link. Den Text sehen Eltern im Eltern-Portal."}
+                        </p>
+                      </div>
                     )}
+                  </section>
+                )}
+
+                <section className="space-y-3">
+                  <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                    Veröffentlichung
+                  </h3>
+
+                  <div>
+                    <span
+                      id="announcement-priority-label"
+                      className="mb-1.5 block text-sm font-medium text-gray-700"
+                    >
+                      Priorität
+                    </span>
+                    <div
+                      className="flex flex-wrap gap-2"
+                      role="group"
+                      aria-labelledby="announcement-priority-label"
+                    >
+                      {PRIORITY_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setPriority(opt.value)}
+                          className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                            priority === opt.value
+                              ? "bg-gray-900 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  {reminderDay && (
-                    <div>
-                      <label
-                        htmlFor="announcement-reminder-text"
-                        className="mb-2 block text-sm font-medium text-gray-700"
-                      >
-                        Erinnerungstext (optional)
-                      </label>
-                      <textarea
-                        id="announcement-reminder-text"
-                        value={reminderText}
-                        onChange={(e) => setReminderText(e.target.value)}
-                        rows={2}
-                        maxLength={MAX_REMINDER_TEXT_LENGTH}
-                        placeholder="Kurz das Wichtigste, z. B. „Morgen endet die Betreuung um 13:00 Uhr.“"
-                        className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
+
+                  {/* An Elternbrief is defined by both channels being mandatory, so
+                  they are stated as facts instead of offered as choices. Shown,
+                  not hidden: the author must see what will happen. */}
+                  {isLetterForm && (
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                      <p className="text-sm font-medium text-gray-800">
+                        Beim Veröffentlichen passiert automatisch:
+                      </p>
+                      <ul className="mt-2 space-y-1 text-sm text-gray-700">
+                        <li>
+                          Der Brief erscheint vollständig im Elternportal.
+                        </li>
+                        <li>
+                          Die Bezugspersonen bekommen den Brieftext per E-Mail.
+                        </li>
+                        <li>
+                          Eltern bestätigen den Brief im Elternportal. Eine
+                          Bestätigung pro Kind genügt.
+                        </li>
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* A poll answer already IS the confirmation — offering a second,
+                  weaker "gelesen" checkbox on top only muddies the result. */}
+                  {!isPollForm && !isLetterForm && !isDeclarationForm && (
+                    <label
+                      htmlFor="announcement-ack"
+                      className="flex cursor-pointer items-start gap-3"
+                    >
+                      <Checkbox
+                        id="announcement-ack"
+                        checked={requiresAck}
+                        onChange={(e) => setRequiresAck(e.target.checked)}
                       />
-                      <p className="mt-1.5 text-xs text-gray-500">
-                        {isLetterForm
-                          ? "Ohne eigenen Text schickt moto den Text des Elternbriefs noch einmal."
-                          : "Die E-Mail hat nur Titel und Link. Den Text sehen Eltern im Eltern-Portal."}
+                      <span className="text-sm text-gray-800">
+                        <span className="block">
+                          Lesebestätigung erforderlich
+                        </span>
+                        <span className="block text-xs text-gray-500">
+                          Eltern bestätigen ausdrücklich, dass sie die
+                          Mitteilung gelesen haben.
+                        </span>
+                      </span>
+                    </label>
+                  )}
+
+                  {!isLetterForm && (
+                    <label
+                      htmlFor="announcement-email"
+                      className="flex cursor-pointer items-start gap-3"
+                    >
+                      <Checkbox
+                        id="announcement-email"
+                        checked={sendEmail}
+                        onChange={(e) => setSendEmail(e.target.checked)}
+                      />
+                      <span className="text-sm text-gray-800">
+                        <span className="block">
+                          Eltern zusätzlich per E-Mail benachrichtigen
+                        </span>
+                        <span className="block text-xs text-gray-500">
+                          Beim Veröffentlichen erhalten die erreichten Eltern
+                          eine E-Mail mit Titel und Link ins Elternportal.
+                        </span>
+                      </span>
+                    </label>
+                  )}
+
+                  {(isLetterForm || sendEmail) && (
+                    <div>
+                      <p className="mb-2 text-sm font-medium text-gray-800">
+                        Wer erhält die E-Mail?
+                      </p>
+                      <SegmentedControl
+                        items={
+                          isLetterForm
+                            ? EMAIL_AUDIENCE_ITEMS
+                            : EMAIL_AUDIENCE_ITEMS.slice(0, 1)
+                        }
+                        value={emailAudience}
+                        onChange={setEmailAudience}
+                        ariaLabel="E-Mail-Empfänger"
+                        fullWidth
+                      />
+                      <p className="mt-2 text-xs text-gray-500">
+                        {emailAudience === "all_contacts"
+                          ? "Auch Bezugspersonen ohne Portal-Zugang bekommen die E-Mail. Sie können den Brief nicht in moto bestätigen. Geht es um Gesundheit oder andere sensible Angaben zu einem Kind? Dann wählen Sie die andere Option."
+                          : "Nur Bezugspersonen mit Portal-Zugang bekommen die E-Mail. Alle anderen sehen Sie danach in der Empfängerliste."}
                       </p>
                     </div>
                   )}
                 </section>
-              )}
 
-              <section className="space-y-3">
-                <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                  Veröffentlichung
-                </h3>
-
-                <div>
-                  <span
-                    id="announcement-priority-label"
-                    className="mb-1.5 block text-sm font-medium text-gray-700"
-                  >
-                    Priorität
-                  </span>
-                  <div
-                    className="flex flex-wrap gap-2"
-                    role="group"
-                    aria-labelledby="announcement-priority-label"
-                  >
-                    {PRIORITY_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setPriority(opt.value)}
-                        className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                          priority === opt.value
-                            ? "bg-gray-900 text-white"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* An Elternbrief is defined by both channels being mandatory, so
-                  they are stated as facts instead of offered as choices. Shown,
-                  not hidden: the author must see what will happen. */}
-                {isLetterForm && (
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                    <p className="text-sm font-medium text-gray-800">
-                      Beim Veröffentlichen passiert automatisch:
+                <section className="flex flex-col gap-3 border-t border-gray-200 pt-4">
+                  <div>
+                    <p className="flex items-center gap-2 text-sm font-medium text-gray-800">
+                      <Paperclip
+                        className="h-4 w-4 text-gray-400"
+                        aria-hidden
+                      />
+                      Dateien anhängen
                     </p>
-                    <ul className="mt-2 space-y-1 text-sm text-gray-700">
-                      <li>Der Brief erscheint vollständig im Elternportal.</li>
-                      <li>
-                        Die Bezugspersonen bekommen den Brieftext per E-Mail.
-                      </li>
-                      <li>
-                        Eltern bestätigen den Brief im Elternportal. Eine
-                        Bestätigung pro Kind genügt.
+                    <p className="mt-1 text-xs text-gray-500">
+                      Die Dateien sehen genau die Eltern, die auch die
+                      Mitteilung bekommen – nicht alle Eltern der Schule. Sie
+                      liegen im Elternportal zum Herunterladen bereit und gehen
+                      nicht per E-Mail mit.
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Erlaubt sind PDF, DOCX, XLSX, PPTX, PNG und JPEG. Bis zu{" "}
+                      {MAX_ATTACHMENT_MB} MB je Datei, höchstens{" "}
+                      {MAX_ATTACHMENTS} Dateien.
+                    </p>
+                  </div>
+
+                  {existingAttachments.length > 0 && (
+                    <AttachmentList
+                      attachments={existingAttachments}
+                      downloadUrl={(attachmentId) =>
+                        announcementAttachmentDownloadUrl(
+                          persistedId ?? "",
+                          attachmentId,
+                        )
+                      }
+                      onRemove={
+                        attachmentsEditable
+                          ? (attachmentId) =>
+                              void removeExistingAttachment(attachmentId)
+                          : undefined
+                      }
+                      busy={attachmentBusy}
+                    />
+                  )}
+
+                  {pendingFiles.length > 0 && (
+                    <ul className="flex flex-col gap-2">
+                      {pendingFiles.map((file, index) => (
+                        <li
+                          key={`${file.name}-${index}`}
+                          className="flex items-center gap-3 rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-2"
+                        >
+                          <Paperclip
+                            className="h-4 w-4 shrink-0 text-gray-400"
+                            aria-hidden
+                          />
+                          <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
+                            {file.name}
+                          </span>
+                          <span className="shrink-0 text-xs text-gray-500">
+                            {formatBytes(file.size)}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="compact"
+                            onClick={() => removePendingFile(index)}
+                          >
+                            Entfernen
+                          </Button>
+                        </li>
+                      ))}
+                      <li className="text-xs text-gray-500">
+                        Diese Dateien werden mit dem Speichern hochgeladen.
                       </li>
                     </ul>
-                  </div>
-                )}
+                  )}
 
-                {/* A poll answer already IS the confirmation — offering a second,
-                  weaker "gelesen" checkbox on top only muddies the result. */}
-                {!isPollForm && !isLetterForm && !isDeclarationForm && (
-                  <label
-                    htmlFor="announcement-ack"
-                    className="flex cursor-pointer items-start gap-3"
-                  >
-                    <Checkbox
-                      id="announcement-ack"
-                      checked={requiresAck}
-                      onChange={(e) => setRequiresAck(e.target.checked)}
-                    />
-                    <span className="text-sm text-gray-800">
-                      <span className="block">
-                        Lesebestätigung erforderlich
-                      </span>
-                      <span className="block text-xs text-gray-500">
-                        Eltern bestätigen ausdrücklich, dass sie die Mitteilung
-                        gelesen haben.
-                      </span>
-                    </span>
-                  </label>
-                )}
-
-                {!isLetterForm && (
-                  <label
-                    htmlFor="announcement-email"
-                    className="flex cursor-pointer items-start gap-3"
-                  >
-                    <Checkbox
-                      id="announcement-email"
-                      checked={sendEmail}
-                      onChange={(e) => setSendEmail(e.target.checked)}
-                    />
-                    <span className="text-sm text-gray-800">
-                      <span className="block">
-                        Eltern zusätzlich per E-Mail benachrichtigen
-                      </span>
-                      <span className="block text-xs text-gray-500">
-                        Beim Veröffentlichen erhalten die erreichten Eltern eine
-                        E-Mail mit Titel und Link ins Elternportal.
-                      </span>
-                    </span>
-                  </label>
-                )}
-
-                {(isLetterForm || sendEmail) && (
-                  <div>
-                    <p className="mb-2 text-sm font-medium text-gray-800">
-                      Wer erhält die E-Mail?
-                    </p>
-                    <SegmentedControl
-                      items={
-                        isLetterForm
-                          ? EMAIL_AUDIENCE_ITEMS
-                          : EMAIL_AUDIENCE_ITEMS.slice(0, 1)
-                      }
-                      value={emailAudience}
-                      onChange={setEmailAudience}
-                      ariaLabel="E-Mail-Empfänger"
-                      fullWidth
-                    />
-                    <p className="mt-2 text-xs text-gray-500">
-                      {emailAudience === "all_contacts"
-                        ? "Auch Bezugspersonen ohne Portal-Zugang bekommen die E-Mail. Sie können den Brief nicht in moto bestätigen. Geht es um Gesundheit oder andere sensible Angaben zu einem Kind? Dann wählen Sie die andere Option."
-                        : "Nur Bezugspersonen mit Portal-Zugang bekommen die E-Mail. Alle anderen sehen Sie danach in der Empfängerliste."}
-                    </p>
-                  </div>
-                )}
-              </section>
-
-              <section className="flex flex-col gap-3 border-t border-gray-200 pt-4">
-                <div>
-                  <p className="flex items-center gap-2 text-sm font-medium text-gray-800">
-                    <Paperclip className="h-4 w-4 text-gray-400" aria-hidden />
-                    Dateien anhängen
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Die Dateien sehen genau die Eltern, die auch die Mitteilung
-                    bekommen – nicht alle Eltern der Schule. Sie liegen im
-                    Elternportal zum Herunterladen bereit und gehen nicht per
-                    E-Mail mit.
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Erlaubt sind PDF, DOCX, XLSX, PPTX, PNG und JPEG. Bis zu{" "}
-                    {MAX_ATTACHMENT_MB} MB je Datei, höchstens {MAX_ATTACHMENTS}{" "}
-                    Dateien.
-                  </p>
-                </div>
-
-                {existingAttachments.length > 0 && (
-                  <AttachmentList
-                    attachments={existingAttachments}
-                    downloadUrl={(attachmentId) =>
-                      announcementAttachmentDownloadUrl(
-                        persistedId ?? "",
-                        attachmentId,
-                      )
-                    }
-                    onRemove={
-                      attachmentsEditable
-                        ? (attachmentId) =>
-                            void removeExistingAttachment(attachmentId)
-                        : undefined
-                    }
-                    busy={attachmentBusy}
-                  />
-                )}
-
-                {pendingFiles.length > 0 && (
-                  <ul className="flex flex-col gap-2">
-                    {pendingFiles.map((file, index) => (
-                      <li
-                        key={`${file.name}-${index}`}
-                        className="flex items-center gap-3 rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-2"
+                  {attachmentsEditable ? (
+                    <div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        accept={ACCEPTED_ATTACHMENT_TYPES}
+                        className="hidden"
+                        onChange={(e) => {
+                          addFiles(e.target.files);
+                          e.target.value = "";
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="md"
+                        disabled={
+                          attachmentBusy || attachmentCount >= MAX_ATTACHMENTS
+                        }
+                        onClick={() => fileInputRef.current?.click()}
                       >
-                        <Paperclip
-                          className="h-4 w-4 shrink-0 text-gray-400"
-                          aria-hidden
-                        />
-                        <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
-                          {file.name}
-                        </span>
-                        <span className="shrink-0 text-xs text-gray-500">
-                          {formatBytes(file.size)}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="compact"
-                          onClick={() => removePendingFile(index)}
-                        >
-                          Entfernen
-                        </Button>
-                      </li>
-                    ))}
-                    <li className="text-xs text-gray-500">
-                      Diese Dateien werden mit dem Speichern hochgeladen.
-                    </li>
-                  </ul>
-                )}
+                        Datei auswählen
+                      </Button>
+                      {attachmentCount >= MAX_ATTACHMENTS && (
+                        <p className="mt-2 text-xs text-gray-500">
+                          Die Höchstzahl ist erreicht. Entfernen Sie eine Datei,
+                          um eine andere anzuhängen.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500">{lockedHint}</p>
+                  )}
 
-                {attachmentsEditable ? (
-                  <div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      multiple
-                      accept={ACCEPTED_ATTACHMENT_TYPES}
-                      className="hidden"
-                      onChange={(e) => {
-                        addFiles(e.target.files);
-                        e.target.value = "";
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="md"
-                      disabled={
-                        attachmentBusy || attachmentCount >= MAX_ATTACHMENTS
-                      }
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      Datei auswählen
-                    </Button>
-                    {attachmentCount >= MAX_ATTACHMENTS && (
-                      <p className="mt-2 text-xs text-gray-500">
-                        Die Höchstzahl ist erreicht. Entfernen Sie eine Datei,
-                        um eine andere anzuhängen.
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-500">{lockedHint}</p>
-                )}
-
-                {attachmentError && (
-                  <Alert type="error" message={attachmentError} />
-                )}
-              </section>
-            </div>
-          ) : (
-            <TargetingStep
-              targets={targets}
-              groups={groups}
-              activities={activities}
-              schoolClasses={schoolClasses}
-              studentNames={studentNames}
-              onChange={setTargets}
-              onSetStudentName={(id, name) =>
-                setStudentNames((prev) => ({ ...prev, [id]: name }))
-              }
-              kindLabel={
-                isPollForm
-                  ? "diese Umfrage"
-                  : isLetterForm
-                    ? "diesen Elternbrief"
-                    : isDeclarationForm
-                      ? "dieses Einverständnis"
-                      : "diese Mitteilung"
-              }
-              heading={
-                isDeclarationForm ? "Wer soll gefragt werden?" : undefined
-              }
-              allowPendingEnrollment={
-                !isPollForm && !isLetterForm && !isDeclarationForm
-              }
-            />
-          )}
+                  <LoadErrorAlert error={attachmentsLoad.error} />
+                  <FormErrorAlert message={attachmentErrors.error} />
+                </section>
+              </div>
+            ) : (
+              <TargetingStep
+                targets={targets}
+                groups={groups}
+                activities={activities}
+                schoolClasses={schoolClasses}
+                studentNames={studentNames}
+                onChange={setTargets}
+                onSetStudentName={(id, name) =>
+                  setStudentNames((prev) => ({ ...prev, [id]: name }))
+                }
+                kindLabel={
+                  isPollForm
+                    ? "diese Umfrage"
+                    : isLetterForm
+                      ? "diesen Elternbrief"
+                      : isDeclarationForm
+                        ? "dieses Einverständnis"
+                        : "diese Mitteilung"
+                }
+                heading={
+                  isDeclarationForm ? "Wer soll gefragt werden?" : undefined
+                }
+                allowPendingEnrollment={
+                  !isPollForm && !isLetterForm && !isDeclarationForm
+                }
+                lookupLoadError={lookupLoadError}
+              />
+            )}
+          </div>
         </SlideOverBody>
         <SlideOverFooter className="flex-row flex-wrap justify-end gap-2">
           {footer}
@@ -1983,6 +2164,8 @@ interface TargetingStepProps {
    * Polls therefore hide the option; the backend refuses it as well.
    */
   readonly allowPendingEnrollment: boolean;
+  /** Gruppen, AGs oder Klassen konnten nicht geladen werden. */
+  readonly lookupLoadError: FormError | null;
 }
 
 function TargetingStep({
@@ -1996,6 +2179,7 @@ function TargetingStep({
   kindLabel,
   heading,
   allowPendingEnrollment,
+  lookupLoadError,
 }: TargetingStepProps) {
   // Single source of truth is `targets`; each control derives its selection
   // from it and rebuilds it on change.
@@ -2063,9 +2247,12 @@ function TargetingStep({
     };
   }, [studentSearch]);
 
-  const { data: studentResults, isLoading: studentsLoading } = useSWRAuth<
-    Student[]
-  >(
+  const {
+    data: studentResults,
+    isLoading: studentsLoading,
+    error: studentsError,
+    mutate: retryStudentSearch,
+  } = useSWRAuth<Student[]>(
     debouncedSearch.length >= 2
       ? `parent-announcements-student-search-${debouncedSearch}`
       : null,
@@ -2077,6 +2264,12 @@ function TargetingStep({
       return result.students;
     },
     { revalidateOnFocus: false },
+  );
+  // Eine gescheiterte Suche ist kein „Keine Kinder gefunden“.
+  const studentsLoadError = useSwrLoadError(
+    studentsError,
+    "die Suche nach Kindern",
+    () => void retryStudentSearch(),
   );
 
   const fieldLabel = "mb-1.5 block text-sm font-medium text-gray-700";
@@ -2112,6 +2305,7 @@ function TargetingStep({
 
       {!schoolAll && (
         <>
+          <LoadErrorAlert error={lookupLoadError} />
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
               <span className={fieldLabel}>Klassen</span>
@@ -2188,7 +2382,9 @@ function TargetingStep({
             />
             {debouncedSearch.length >= 2 && (
               <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-gray-200">
-                {studentsLoading ? (
+                {studentsLoadError ? (
+                  <LoadErrorAlert error={studentsLoadError} />
+                ) : studentsLoading || (studentsError && !studentResults) ? (
                   <p className="px-3 py-2 text-sm text-gray-500">
                     Wird gesucht…
                   </p>

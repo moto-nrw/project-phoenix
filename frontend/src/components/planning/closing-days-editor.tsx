@@ -7,16 +7,25 @@
  * section on the Kalenderzeiträume page.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { CalendarX, Pencil, Plus, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import { ClosingDayModal } from "~/components/planning/closing-day-modal";
 import { BulkCancelAppointmentsModal } from "~/components/timetable/bulk-cancel-appointments-modal";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { formErrorMessage } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -26,7 +35,11 @@ import {
   type ClosingDay,
   formatClosingDayRange,
 } from "~/lib/closing-day-helpers";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { useInvalidateClosingDays } from "~/lib/hooks/use-closing-days";
 import { createLogger } from "~/lib/logger";
@@ -41,11 +54,19 @@ export function ClosingDaysEditor({
 } = {}) {
   const [closingDays, setClosingDays] = useState<ClosingDay[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const loadError = useApiLoadError();
+  const showLoadError = loadError.show;
+  const clearLoadError = loadError.clear;
+  // „Wiederholen“ lädt bzw. löscht mit dem dann aktuellen Stand.
+  const latestLoadRef = useRef<() => void>(() => undefined);
+  const latestDeleteRef = useRef<() => void>(() => undefined);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ClosingDay | null>(null);
   const [deleting, setDeleting] = useState<ClosingDay | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  // Fehler beim Löschen bleiben im offenen Bestätigungsdialog.
+  const deleteErrors = useApiFormError();
   // #3594: Termine eines Schließtags absagen, aus der Zeile oder direkt nach
   // dem Speichern. Nur mit Planungsrecht, wie der Betreuungsplan selbst.
   const [cancelRange, setCancelRange] = useState<{
@@ -55,29 +76,44 @@ export function ClosingDaysEditor({
   } | null>(null);
   const { data: session } = useSession();
   const canManageSchedules = hasPermission(session, "schedules:manage");
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
   const invalidateClosingDays = useInvalidateClosingDays();
 
-  const load = useCallback(async (opts?: { silent?: boolean }) => {
-    if (!opts?.silent) setLoading(true);
-    setError(null);
-    try {
-      const data = await closingDayService.list();
-      setClosingDays(data);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("closing_days_load_failed", { error: message });
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!opts?.silent) setLoading(true);
+      try {
+        const data = await closingDayService.list();
+        setClosingDays(data);
+        setLoadFailed(false);
+        clearLoadError();
+      } catch (err) {
+        logger.error("closing_days_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setLoadFailed(true);
+        void showLoadError(err, {
+          object: "die Liste der Schließtage",
+          retry: () => latestLoadRef.current(),
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [showLoadError, clearLoadError],
+  );
+  useLayoutEffect(() => {
+    latestLoadRef.current = () => void load();
+  });
 
   useEffect(() => {
     void load();
   }, [load]);
 
   const refreshAfterMutation = useCallback(() => {
+    // Bewusst still: gespeichert ist der Schließtag schon. Scheitert nur das
+    // Auffrischen der Plan-Zwischenspeicher, laden Dienst- und Betreuungsplan
+    // ihn beim nächsten Öffnen ohnehin neu.
     void invalidateClosingDays().catch((err: unknown) => {
       logger.warn("closing_days_cache_invalidation_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -96,28 +132,39 @@ export function ClosingDaysEditor({
     setModalOpen(true);
   }, []);
 
+  const showDeleteError = deleteErrors.show;
+  const clearDeleteError = deleteErrors.clear;
   const handleDelete = useCallback(async () => {
     if (!deleting) return;
     setDeleteLoading(true);
+    clearDeleteError();
     try {
       await closingDayService.delete(deleting.id);
-      toastSuccess(`Schließtag "${deleting.reason}" gelöscht`);
+      toastSuccess(`Der Schließtag „${deleting.reason}“ ist gelöscht.`);
       setDeleting(null);
       refreshAfterMutation();
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Schließtag konnte nicht gelöscht werden";
       logger.error("closing_day_delete_failed", {
         closing_day_id: deleting.id,
-        error: message,
+        error: err instanceof Error ? err.message : String(err),
       });
-      toastError(message);
+      await showDeleteError(err, {
+        object: "das Löschen des Schließtags",
+        retry: () => latestDeleteRef.current(),
+      });
     } finally {
       setDeleteLoading(false);
     }
-  }, [deleting, refreshAfterMutation, toastSuccess, toastError]);
+  }, [
+    deleting,
+    refreshAfterMutation,
+    toastSuccess,
+    showDeleteError,
+    clearDeleteError,
+  ]);
+  useLayoutEffect(() => {
+    latestDeleteRef.current = () => void handleDelete();
+  });
 
   const columns = useMemo<DataTableColumn<ClosingDay>[]>(
     () => [
@@ -205,10 +252,40 @@ export function ClosingDaysEditor({
     [beginEdit, canManageSchedules],
   );
 
+  // Der Katalogtext des Ladefehlers kommt asynchron. Bis dahin steht das
+  // Ladeskelett, nie der Leerzustand „Noch keine Schließtage“.
+  const awaitingErrorText =
+    loadFailed && formErrorMessage(loadError.error) === null;
+  // Ohne je geladene Liste steht nur der Fehler da, keine leere Tabelle.
+  const failedWithoutData = loadFailed && closingDays.length === 0;
+  let body: ReactNode = null;
+  if (!loading && !loadFailed && closingDays.length === 0) {
+    body = (
+      <EmptyState
+        icon={
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+            <MotoConceptIcon concept="closingDays" size={28} />
+          </span>
+        }
+        title="Noch keine Schließtage"
+        description="Hinterlegen Sie die Schließtage des Schuljahres, damit die Zeiterfassung an diesen Tagen kein Soll ansetzt."
+      />
+    );
+  } else if (!failedWithoutData || awaitingErrorText) {
+    body = (
+      <DataTable
+        columns={columns}
+        rows={closingDays}
+        getRowKey={(day) => day.id}
+        defaultSortKey="range"
+        defaultSortDirection="asc"
+        isLoading={loading || failedWithoutData}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
-      {error && <Alert type="error" message={error} />}
-
       {/* Erklärtext und „Schließtag anlegen“ sitzen im Kartenkopf, statt als
           freier Absatz und eigene Buttonzeile über der Tabelle zu stehen. */}
       <SectionCard
@@ -227,26 +304,11 @@ export function ClosingDaysEditor({
           </Button>
         }
       >
-        {!loading && closingDays.length === 0 ? (
-          <EmptyState
-            icon={
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-                <MotoConceptIcon concept="closingDays" size={28} />
-              </span>
-            }
-            title="Noch keine Schließtage"
-            description="Hinterlegen Sie die Schließtage des Schuljahres, damit die Zeiterfassung an diesen Tagen kein Soll ansetzt."
-          />
-        ) : (
-          <DataTable
-            columns={columns}
-            rows={closingDays}
-            getRowKey={(day) => day.id}
-            defaultSortKey="range"
-            defaultSortDirection="asc"
-            isLoading={loading}
-          />
-        )}
+        <LoadErrorAlert
+          error={loadError.error}
+          className={failedWithoutData ? undefined : "mb-4"}
+        />
+        {body}
       </SectionCard>
 
       <ClosingDayModal
@@ -284,9 +346,12 @@ export function ClosingDaysEditor({
         }
         gate={{ mode: "twoStep" }}
         onConfirm={handleDelete}
-        onClose={() => setDeleting(null)}
+        onClose={() => {
+          clearDeleteError();
+          setDeleting(null);
+        }}
         loading={deleteLoading}
-        error=""
+        error={deleteErrors.error}
       />
     </div>
   );

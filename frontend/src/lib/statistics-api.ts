@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { apiErrorFromResponse, transportFetch } from "./api-error";
 // Statistik (#2606): client for GET /api/statistics/report and the export
 // URL. The proxy routes forward to the Go backend, which enforces
 // config:read + users:read, validates the window and writes the audit row.
@@ -94,18 +94,6 @@ export interface StatisticsReport {
   course_data_from: string;
 }
 
-export type StatisticsErrorCode = "forbidden" | "invalid_request" | "unknown";
-
-export class StatisticsError extends ApiError {
-  readonly legacyCode: StatisticsErrorCode;
-
-  constructor(legacyCode: StatisticsErrorCode, message?: string) {
-    super(message ?? legacyCode);
-    this.name = "StatisticsError";
-    this.legacyCode = legacyCode;
-  }
-}
-
 export type StatisticsExportFormat = "pdf" | "xlsx" | "docx";
 /**
  * attendance = children and groups (default), rooms = room utilization,
@@ -139,21 +127,14 @@ export async function fetchStatisticsReport(
   groupIds: readonly string[] = [],
 ): Promise<StatisticsReport> {
   const params = buildParams(fromISO, toISO, groupIds);
-  const response = await fetch(`/api/statistics/report?${params.toString()}`, {
-    cache: "no-store",
-  });
+  const response = await transportFetch(
+    `/api/statistics/report?${params.toString()}`,
+    { cache: "no-store" },
+  );
   if (!response.ok) {
-    let code: StatisticsErrorCode = "unknown";
-    if (response.status === 403) code = "forbidden";
-    if (response.status === 400) code = "invalid_request";
-    const payload: unknown = await response.json().catch(() => null);
-    throw enrichApiError(
-      new StatisticsError(
-        code,
-        `statistics request failed (${response.status})`,
-      ),
-      payload,
-      response.status,
+    throw await apiErrorFromResponse(
+      response,
+      `statistics request failed (${response.status})`,
     );
   }
   const body = (await response.json()) as { data: StatisticsReport };

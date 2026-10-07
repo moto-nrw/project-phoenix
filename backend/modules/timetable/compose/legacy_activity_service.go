@@ -392,11 +392,19 @@ func (s *Service) ListGroups(ctx context.Context, query *activities.GroupListQue
 	return groupsFromOwner(groups), nil
 }
 
-// ListGroupsWithOccupancy returns all activity groups with their active session status
+// ListGroupsWithOccupancy returns all activity groups with their active
+// session status. Duties (#3822) are left out: nobody checks children into a
+// Busaufsicht, so the kiosk must not offer one as an activity.
 func (s *Service) ListGroupsWithOccupancy(ctx context.Context) ([]ActivityGroupWithOccupancy, error) {
-	groups, err := s.groupRepo.ListWithCategory(ctx, nil)
+	listed, err := s.groupRepo.ListWithCategory(ctx, nil)
 	if err != nil {
 		return nil, &ActivityError{Op: "list groups with occupancy", Err: err}
+	}
+	groups := make([]*activities.Group, 0, len(listed))
+	for _, group := range listed {
+		if group != nil && group.Type != activities.GroupTypeDuty {
+			groups = append(groups, group)
+		}
 	}
 
 	if len(groups) == 0 {

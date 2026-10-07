@@ -275,9 +275,11 @@ describe("profile-api", () => {
       });
       global.fetch = mockFetch;
 
-      await expect(updateProfile(sampleUpdateRequest)).rejects.toThrow(
-        "Failed to update profile",
-      );
+      // #2517: an ApiError with the status class, for the catalog text.
+      await expect(updateProfile(sampleUpdateRequest)).rejects.toMatchObject({
+        status: 400,
+        code: "general.input",
+      });
       expect(consoleErrorSpy).toHaveBeenCalledWith("failed to update profile", {
         error: expect.stringContaining("HTTP error! status: 400") as unknown,
       });
@@ -295,17 +297,19 @@ describe("profile-api", () => {
       });
       global.fetch = mockFetch;
 
-      await expect(updateProfile(sampleUpdateRequest)).rejects.toThrow(
-        "Failed to update profile",
-      );
+      await expect(updateProfile(sampleUpdateRequest)).rejects.toMatchObject({
+        code: "general.server",
+      });
     });
 
     it("throws generic error when fetch fails", async () => {
       const mockFetch = vi.fn().mockRejectedValue(new Error("Network error"));
       global.fetch = mockFetch;
 
+      // The real sessionFetch turns this into general.unavailable; the
+      // client passes it on unchanged.
       await expect(updateProfile(sampleUpdateRequest)).rejects.toThrow(
-        "Failed to update profile",
+        "Network error",
       );
       expect(consoleErrorSpy).toHaveBeenCalledWith("failed to update profile", {
         error: expect.stringContaining("Network error") as unknown,
@@ -365,13 +369,19 @@ describe("profile-api", () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 400,
-        json: () => Promise.resolve({ error: "File too large" }),
+        text: () =>
+          Promise.resolve(JSON.stringify({ error: "File too large" })),
       });
       global.fetch = mockFetch;
 
-      await expect(uploadAvatar(mockFile)).rejects.toThrow("File too large");
+      // #2517: the backend sentence stays a diagnostic; the caller gets the
+      // status class for the catalog text.
+      await expect(uploadAvatar(mockFile)).rejects.toMatchObject({
+        status: 400,
+        code: "general.input",
+      });
       expect(consoleErrorSpy).toHaveBeenCalledWith("failed to upload avatar", {
-        error: expect.stringContaining("File too large") as unknown,
+        error: expect.stringContaining("HTTP error! status: 400") as unknown,
       });
     });
 
@@ -421,9 +431,9 @@ describe("profile-api", () => {
       const mockFetch = vi.fn().mockRejectedValue("String error");
       global.fetch = mockFetch;
 
-      await expect(uploadAvatar(mockFile)).rejects.toThrow(
-        "Failed to upload avatar",
-      );
+      await expect(uploadAvatar(mockFile)).rejects.toMatchObject({
+        code: "general.unavailable",
+      });
     });
   });
 

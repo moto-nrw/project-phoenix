@@ -12,14 +12,26 @@ type Middleware = func(http.Handler) http.Handler
 
 // Runtime supplies permission enforcement and the shared wire envelope.
 type Runtime struct {
-	ParseID             func(*http.Request, string) (int64, error)
-	Permission          func(string) Middleware
-	Success             func(http.ResponseWriter, *http.Request, int, any, string)
-	Failure             func(http.ResponseWriter, *http.Request, int, error, string)
+	ParseID    func(*http.Request, string) (int64, error)
+	Permission func(string) Middleware
+	Success    func(http.ResponseWriter, *http.Request, int, any, string)
+	Failure    func(http.ResponseWriter, *http.Request, int, error, string)
+	// ConflictOnField renders a 409 with a registered code that names the
+	// field the conflict is about (#2517).
+	ConflictOnField     func(w http.ResponseWriter, r *http.Request, err error, code, field string)
 	ConstraintViolation func(error) bool
 }
 
+// codeDeviceIDTaken is the registered code of a device ID that another
+// device already uses (error-registry.json). This package does not import
+// api/common, so it names the code once here.
+const codeDeviceIDTaken = "iot.device_id_taken"
+
 func (rs *Resource) renderError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, devicefleet.ErrAdministrationDuplicateDeviceID) && rs.runtime.ConflictOnField != nil {
+		rs.runtime.ConflictOnField(w, r, err, codeDeviceIDTaken, "device_id")
+		return
+	}
 	status := http.StatusInternalServerError
 	if failure, ok := err.(*devicefleet.AdministrationError); ok { //nolint:errorlint // preserve the historic outer-wrapper dispatch
 		switch {

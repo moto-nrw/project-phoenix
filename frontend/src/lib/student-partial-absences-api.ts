@@ -1,3 +1,9 @@
+import {
+  apiErrorFromBody,
+  apiErrorFromResponse,
+  transportFetch,
+} from "~/lib/api-error";
+
 export interface StudentPartialAbsence {
   id: string;
   studentId: string;
@@ -47,9 +53,15 @@ function mapPartialAbsence(row: BackendPartialAbsence): StudentPartialAbsence {
 }
 
 async function parseData<T>(response: Response, fallback: string): Promise<T> {
-  const body = (await response.json()) as ApiResponse<T>;
-  if (!response.ok || body.status === "error" || body.data === undefined) {
-    throw new Error(body.error ?? fallback);
+  let body: ApiResponse<T> | undefined;
+  try {
+    body = (await response.json()) as ApiResponse<T>;
+  } catch {
+    // Not JSON (proxy or gateway page): the status still classifies it.
+    body = undefined;
+  }
+  if (!response.ok || body?.status === "error" || body?.data === undefined) {
+    throw apiErrorFromBody(fallback, response.status, body);
   }
   return body.data;
 }
@@ -59,7 +71,7 @@ export async function fetchStudentPartialAbsences(
   from: string,
   to: string,
 ): Promise<StudentPartialAbsence[]> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/partial-absences?from=${from}&to=${to}`,
   );
   const rows = await parseData<BackendPartialAbsence[]>(
@@ -76,7 +88,7 @@ export async function saveStudentPartialAbsence(
   fromTime: string,
   reason?: string,
 ): Promise<StudentPartialAbsence> {
-  const response = await fetch(
+  const response = await transportFetch(
     partialAbsenceId
       ? `/api/students/${studentId}/partial-absences/${partialAbsenceId}`
       : `/api/students/${studentId}/partial-absences`,
@@ -101,11 +113,14 @@ export async function deleteStudentPartialAbsence(
   studentId: string,
   partialAbsenceId: string,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/partial-absences/${partialAbsenceId}`,
     { method: "DELETE" },
   );
   if (!response.ok) {
-    throw new Error("Teilentschuldigung konnte nicht entfernt werden");
+    throw await apiErrorFromResponse(
+      response,
+      "Teilentschuldigung konnte nicht entfernt werden",
+    );
   }
 }

@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { ApiError, enrichApiError, transportFetch } from "./api-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "MFAApi" });
@@ -109,7 +109,7 @@ async function postJson<T>(
     headers.Authorization = `Bearer ${options.bearerToken}`;
   }
 
-  const response = await fetch(url, {
+  const response = await transportFetch(url, {
     method: options.method ?? "POST",
     headers,
     credentials: "include",
@@ -152,9 +152,7 @@ async function postJson<T>(
 function extractErrorMessage(data: unknown): string | null {
   if (!data || typeof data !== "object") return null;
   const rec = data as Record<string, unknown>;
-  if (typeof rec.error === "string") return rec.error;
-  if (typeof rec.message === "string") return rec.message;
-  return null;
+  return typeof rec.error === "string" ? rec.error : null;
 }
 
 /**

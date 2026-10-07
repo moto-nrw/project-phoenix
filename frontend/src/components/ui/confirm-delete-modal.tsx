@@ -9,6 +9,8 @@ import {
 } from "react";
 import { Button } from "./button";
 import { ChoiceTile } from "./choice-tile";
+import type { FormErrorInput } from "./form-error";
+import { FormErrorAlert } from "./form-error-alert";
 import { Modal } from "./modal";
 import { Radio } from "./radio";
 
@@ -89,7 +91,9 @@ interface ConfirmDeleteModalProps {
   readonly onConfirm: () => Promise<void> | void;
   readonly onClose: () => void;
   readonly loading: boolean;
-  readonly error: string;
+  /** A plain string or the error from `useApiFormError`, which brings retry
+   *  and the request ID to copy for a server error (#2513). */
+  readonly error: FormErrorInput;
   readonly confirmLabel?: string;
   readonly loadingLabel?: string;
   /** Label of the cancel button. Defaults to German; pass a translated
@@ -315,11 +319,7 @@ export function ConfirmDeleteModal({
         </div>
       )}
 
-      {error && (
-        <div className="bg-moto-red/10 text-moto-red-strong mt-3 rounded-lg px-3 py-2 text-sm">
-          {error}
-        </div>
-      )}
+      <FormErrorAlert message={error} className="mt-3" />
     </Modal>
   );
 }

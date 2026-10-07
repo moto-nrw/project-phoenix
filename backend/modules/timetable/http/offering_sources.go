@@ -64,7 +64,7 @@ func (rs *Resource) listOfferingSources(w http.ResponseWriter, r *http.Request) 
 	options, err := rs.OfferingSourceOptions.ListOfferingSourceOptions(r.Context(), calendarPeriodID)
 	if err != nil {
 		if errors.Is(err, timetableModule.ErrOfferingSourceInvalid) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			common.RenderError(w, r, codedOr(common.CodeTimetableOfferingSourceInvalid)(err))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("list offering sources failed", err))
@@ -150,7 +150,7 @@ func (rs *Resource) getCombinedOfferingSourceCounts(w http.ResponseWriter, r *ht
 	counts, err := rs.OfferingSourceOptions.CombinedOfferingSourceCounts(r.Context(), offeringIDs, calendarPeriodID)
 	if err != nil {
 		if errors.Is(err, timetableModule.ErrOfferingSourceInvalid) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			common.RenderError(w, r, codedOr(common.CodeTimetableOfferingSourceInvalid)(err))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("combined offering source counts failed", err))

@@ -1,12 +1,8 @@
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
 import { setTestClock } from "~/test/clock";
+import { catalogText } from "~/test/error-catalog-text";
 
 import { ShiftEditModal } from "./shift-edit-modal";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
@@ -19,19 +15,8 @@ const getSeries = vi.fn();
 const updateShift = vi.fn();
 const deleteShift = vi.fn();
 const listPeriods = vi.fn();
-const mockUseClosingDaysState = vi.hoisted(() =>
-  vi.fn(() => ({
-    closingDays: new Map<string, string>(),
-    closingDayRanges: [],
-    isLoading: false,
-  })),
-);
 const mockDatePickerValue = vi.hoisted(() => ({
   value: new Date(2026, 11, 31),
-}));
-
-vi.mock("~/lib/hooks/use-closing-days", () => ({
-  useClosingDaysState: mockUseClosingDaysState,
 }));
 
 vi.mock("~/lib/shift-api", () => ({
@@ -153,17 +138,13 @@ const seriesRule = {
   weekPattern: 0,
   validFrom: "2026-09-01",
   validUntil: null,
+  includeSchoolBreaks: false,
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockDatePickerValue.value = new Date(2026, 11, 31);
   listPeriods.mockResolvedValue([halbjahr]);
-  mockUseClosingDaysState.mockReturnValue({
-    closingDays: new Map(),
-    closingDayRanges: [],
-    isLoading: false,
-  });
   getSeries.mockResolvedValue(seriesRule);
 });
 
@@ -212,79 +193,63 @@ describe("ShiftEditModal series creation", () => {
         weekPattern: 0,
         validFrom: "2026-09-07",
         validUntil: null,
+        includeSchoolBreaks: false,
       });
     });
     expect(onSaved).toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("asks when a generated series shift falls on a closing day", async () => {
+  // #3820: Ferien und Schließtage lässt die Serie standardmäßig aus; der
+  // Haken ersetzt die frühere Schließtag-Rückfrage (#2032).
+  it("plans Ferien and closing days only when the box is ticked", async () => {
     createSeries.mockResolvedValue({
       seriesId: "5",
       created: 20,
       skippedDates: [],
+      skippedNonWorkingDays: 0,
     });
-    renderModal({
-      closingDayRanges: [
-        {
-          startDate: "2026-09-14",
-          endDate: "2026-09-14",
-          reason: "Pädagogischer Tag",
-        },
-      ],
-    });
+    renderModal({});
 
     fireEvent.click(screen.getByLabelText("Als Serie wiederholen"));
     await screen.findByText("1. Halbjahr 2026/27");
+    const box = screen.getByLabelText(
+      /Auch in den Ferien und an Schließtagen planen/,
+    );
+    expect(box).not.toBeChecked();
+    fireEvent.click(box);
     fireEvent.click(screen.getByRole("button", { name: "Serie anlegen" }));
 
-    const dialog = await screen.findByRole("dialog", {
-      name: "An einem Schließtag planen?",
+    await waitFor(() => {
+      expect(createSeries).toHaveBeenCalledWith(
+        expect.objectContaining({ includeSchoolBreaks: true }),
+      );
     });
-    expect(within(dialog).getByText(/14\.09\.2026/)).toBeInTheDocument();
-    expect(createSeries).not.toHaveBeenCalled();
-
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Trotzdem planen" }),
-    );
-    await waitFor(() => expect(createSeries).toHaveBeenCalled());
+    expect(
+      screen.queryByRole("dialog", { name: "An einem Schließtag planen?" }),
+    ).not.toBeInTheDocument();
   });
 
-  it("uses the permitted window lookup when full closing-day ranges are unavailable", async () => {
-    mockUseClosingDaysState.mockReturnValue({
-      closingDays: new Map([["2026-09-14", "Pädagogischer Tag"]]),
-      closingDayRanges: [],
-      isLoading: false,
+  it("says how many days stayed free in the Ferien, on closing days or holidays", async () => {
+    createSeries.mockResolvedValue({
+      seriesId: "5",
+      created: 15,
+      skippedDates: [],
+      skippedNonWorkingDays: 5,
     });
-    renderModal({});
+    const onClose = vi.fn();
+    renderModal({ onClose });
 
     fireEvent.click(screen.getByLabelText("Als Serie wiederholen"));
     await screen.findByText("1. Halbjahr 2026/27");
     fireEvent.click(screen.getByRole("button", { name: "Serie anlegen" }));
 
     expect(
-      await screen.findByRole("dialog", {
-        name: "An einem Schließtag planen?",
-      }),
+      await screen.findByText(
+        "5 Tage liegen in den Ferien, an Schließtagen oder Feiertagen und bleiben frei.",
+      ),
     ).toBeInTheDocument();
-    expect(createSeries).not.toHaveBeenCalled();
-  });
-
-  it("keeps series submission disabled while closing days are loading", async () => {
-    mockUseClosingDaysState.mockReturnValue({
-      closingDays: new Map(),
-      closingDayRanges: [],
-      isLoading: true,
-    });
-    renderModal({});
-
-    fireEvent.click(screen.getByLabelText("Als Serie wiederholen"));
-    await screen.findByText("1. Halbjahr 2026/27");
-
-    const submit = screen.getByRole("button", { name: "Serie anlegen" });
-    expect(submit).toBeDisabled();
-    fireEvent.click(submit);
-    expect(createSeries).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("drops a stale A/B pattern when switching to a period without a week cycle", async () => {
@@ -301,7 +266,7 @@ describe("ShiftEditModal series creation", () => {
     // Enable A/B on the cycle period, then switch to a period without a
     // cycle: the hidden biweekly flag must not leak into the payload.
     fireEvent.click(screen.getByRole("radio", { name: "Alle 2 Wochen" }));
-    fireEvent.click(screen.getByLabelText("Kalenderzeitraum"));
+    fireEvent.click(screen.getByRole("combobox", { name: "Kalenderzeitraum" }));
     fireEvent.click(
       screen.getByRole("option", { name: "Ganzjahr ohne Zyklus" }),
     );
@@ -328,7 +293,7 @@ describe("ShiftEditModal series creation", () => {
     // Native radios do not emit change when the checked option is clicked. The
     // click still represents an explicit choice and must stop future defaults.
     fireEvent.click(weekA);
-    fireEvent.click(screen.getByLabelText("Kalenderzeitraum"));
+    fireEvent.click(screen.getByRole("combobox", { name: "Kalenderzeitraum" }));
     fireEvent.click(
       screen.getByRole("option", { name: "Versetzter A/B-Zyklus" }),
     );
@@ -523,6 +488,7 @@ describe("ShiftEditModal series rule editing", () => {
         weekdays: [1, 3, 5],
         weekPattern: 0,
         validUntil: null,
+        includeSchoolBreaks: false,
       });
     });
     expect(updateShift).not.toHaveBeenCalled();
@@ -668,108 +634,36 @@ describe("ShiftEditModal series rule editing", () => {
     ).not.toBeInTheDocument();
   });
 
-  // #2032: Die Serienbearbeitung plant ab dieser Stelle neu und kann dabei
-  // spätere Termine auf einen Schließtag legen — dieselbe Rückfrage wie beim
-  // Anlegen einer Serie.
-  it("asks before a series edit replans onto a closing day", async () => {
-    mockUseClosingDaysState.mockReturnValue({
-      // 2026-09-14 ist ein Montag und damit ein Termin der Mo/Mi-Serie.
-      closingDays: new Map([["2026-09-14", "Pädagogischer Tag"]]),
-      closingDayRanges: [],
-      isLoading: false,
-    });
+  // #3820: Der Haken zeigt die gespeicherte Wahl und geht beim Speichern mit.
+  it("shows the stored school-break choice and saves a changed one", async () => {
+    getSeries.mockResolvedValue({ ...seriesRule, includeSchoolBreaks: true });
     splitSeries.mockResolvedValue({
       seriesId: "6",
       created: 12,
       skippedDates: [],
+      skippedNonWorkingDays: 0,
     });
     renderModal({ mode: "edit", shift: seriesShift });
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Serie bearbeiten" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
-
-    const dialog = await screen.findByRole("dialog", {
-      name: "An einem Schließtag planen?",
-    });
-    expect(within(dialog).getByText(/14\.09\.2026/)).toBeInTheDocument();
-    expect(splitSeries).not.toHaveBeenCalled();
-
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Trotzdem planen" }),
+    const box = screen.getByLabelText(
+      /Auch in den Ferien und an Schließtagen planen/,
     );
+    expect(box).toBeChecked();
+    fireEvent.click(box);
+    fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
 
     await waitFor(() => {
       expect(splitSeries).toHaveBeenCalledWith(
         "5",
-        expect.objectContaining({ effectiveDate: "2026-09-07" }),
+        expect.objectContaining({
+          effectiveDate: "2026-09-07",
+          includeSchoolBreaks: false,
+        }),
       );
     });
-  });
-
-  it("writes nothing when the series closing-day warning is dismissed", async () => {
-    mockUseClosingDaysState.mockReturnValue({
-      closingDays: new Map([["2026-09-14", "Pädagogischer Tag"]]),
-      closingDayRanges: [],
-      isLoading: false,
-    });
-    renderModal({ mode: "edit", shift: seriesShift });
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Serie bearbeiten" }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
-
-    const dialog = await screen.findByRole("dialog", {
-      name: "An einem Schließtag planen?",
-    });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Abbrechen" }));
-
-    expect(splitSeries).not.toHaveBeenCalled();
-  });
-
-  it("saves a series edit without asking when no occurrence hits a closing day", async () => {
-    mockUseClosingDaysState.mockReturnValue({
-      // Ein Dienstag: die Mo/Mi-Serie erzeugt dort keinen Termin.
-      closingDays: new Map([["2026-09-15", "Brückentag"]]),
-      closingDayRanges: [],
-      isLoading: false,
-    });
-    splitSeries.mockResolvedValue({
-      seriesId: "6",
-      created: 12,
-      skippedDates: [],
-    });
-    renderModal({ mode: "edit", shift: seriesShift });
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Serie bearbeiten" }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
-
-    await waitFor(() => expect(splitSeries).toHaveBeenCalled());
-    expect(
-      screen.queryByRole("dialog", { name: "An einem Schließtag planen?" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("keeps the series save disabled until closing days have loaded", async () => {
-    mockUseClosingDaysState.mockReturnValue({
-      closingDays: new Map<string, string>(),
-      closingDayRanges: [],
-      isLoading: true,
-    });
-    renderModal({ mode: "edit", shift: seriesShift });
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Serie bearbeiten" }),
-    );
-    const save = screen.getByRole("button", { name: "Serie speichern" });
-    expect(save).toBeDisabled();
-
-    fireEvent.click(save);
-    expect(splitSeries).not.toHaveBeenCalled();
   });
 });
 
@@ -832,6 +726,7 @@ describe("ShiftEditModal series rule editing at the end of a segment", () => {
         weekPattern: 0,
         // Picker is inclusive, the API's valid_until exclusive.
         validUntil: "2027-01-01",
+        includeSchoolBreaks: false,
       });
     });
   });
@@ -853,6 +748,150 @@ describe("ShiftEditModal series rule editing at the end of a segment", () => {
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
+    expect(splitSeries).not.toHaveBeenCalled();
+  });
+});
+
+describe("ShiftEditModal error display", () => {
+  it("shows a refused save in the panel and retries with the current times", async () => {
+    updateShift
+      .mockRejectedValueOnce(
+        new ApiError("boom", 500, {
+          code: "general.server",
+          instance: "req-9",
+        }),
+      )
+      .mockResolvedValueOnce(undefined);
+    const onSaved = vi.fn();
+    renderModal({
+      mode: "edit",
+      shift: { ...seriesShift, seriesId: null },
+      onSaved,
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    expect(
+      await screen.findByText(catalogText("general.server", "die Schicht")),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-9");
+    expect(onSaved).not.toHaveBeenCalled();
+
+    const [endInput] = document.getElementsByName("end_time");
+    fireEvent.change(endInput!, { target: { value: "13:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(updateShift).toHaveBeenLastCalledWith(
+      "9",
+      expect.objectContaining({ endTime: "13:00" }),
+    );
+  });
+
+  it("marks the field the server names", async () => {
+    updateShift.mockRejectedValue(
+      new ApiError("invalid", 400, {
+        code: "general.input",
+        errors: [{ field: "break_minutes", reason: "too long" }],
+      }),
+    );
+    renderModal({ mode: "edit", shift: { ...seriesShift, seriesId: null } });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    expect(
+      await screen.findByText(catalogText("general.input", "die Schicht")),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(document.getElementsByName("break_minutes")[0]).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      ),
+    );
+  });
+
+  it("keeps a refused delete in the confirmation", async () => {
+    deleteShift.mockRejectedValue(
+      new ApiError("forbidden", 403, { code: "general.permission" }),
+    );
+    const onClose = vi.fn();
+    renderModal({
+      mode: "edit",
+      shift: { ...seriesShift, seriesId: null },
+      onClose,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Schicht löschen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ja, löschen" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Endgültig löschen" }),
+    );
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Schicht löschen",
+    });
+    expect(
+      await screen.findByText(catalogText("general.permission", "die Schicht")),
+    ).toBeInTheDocument();
+    expect(dialog).toHaveTextContent(
+      catalogText("general.permission", "die Schicht"),
+    );
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("shows a failed series load in place and loads it again on retry", async () => {
+    getSeries
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce(seriesRule);
+    renderModal({ mode: "edit", shift: seriesShift });
+
+    expect(
+      await screen.findByText(catalogText("general.unavailable", "die Serie")),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(await screen.findByText(/Mo, Mi · 08:00–12:00/)).toBeInTheDocument();
+    expect(getSeries).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not claim missing periods when the periods fail to load", async () => {
+    listPeriods.mockRejectedValue(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
+    renderModal({});
+
+    fireEvent.click(screen.getByText("Als Serie wiederholen"));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Kalenderzeiträume"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Kein aktiver Kalenderzeitraum vorhanden/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the local check in the alert when nothing is left to change", async () => {
+    getSeries.mockResolvedValue({ ...seriesRule, validUntil: "2026-09-08" });
+    renderModal({ mode: "edit", shift: seriesShift });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Serie bearbeiten" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /Setzen Sie „Gültig bis" auf ein späteres Datum/,
+    );
     expect(splitSeries).not.toHaveBeenCalled();
   });
 });

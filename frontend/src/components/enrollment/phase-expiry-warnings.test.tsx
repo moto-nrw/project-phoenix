@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const useSWRAuth = vi.hoisted(() => vi.fn());
@@ -8,6 +8,8 @@ vi.mock("~/lib/tenant-path", () => ({
   useTenantAwarePath: () => (path: string) => path,
 }));
 
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { PhaseExpiryWarnings } from "./phase-expiry-warnings";
 
 describe("PhaseExpiryWarnings", () => {
@@ -30,16 +32,24 @@ describe("PhaseExpiryWarnings", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("meldet einen anderen Ladefehler", () => {
+  it("meldet einen anderen Ladefehler mit Wiederholen", async () => {
+    const mutate = vi.fn();
     useSWRAuth.mockReturnValue({
       data: undefined,
-      error: Object.assign(new Error("Boom"), { status: 500 }),
+      error: new ApiError("Boom", 503, { code: "general.unavailable" }),
       isLoading: false,
+      mutate,
     });
 
     render(<PhaseExpiryWarnings />);
 
-    expect(screen.getByText("Hinweise nicht geladen")).toBeVisible();
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Übersicht zum Phasenende"),
+      ),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mutate).toHaveBeenCalledOnce();
   });
 
   it("fordert 30 Tage vorher zum Erstellen einer Anschlussphase auf", () => {
@@ -187,20 +197,17 @@ describe("PhaseExpiryWarnings", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("verschweigt einen fehlgeschlagenen Bericht nicht", () => {
+  it("verschweigt einen fehlgeschlagenen Bericht nicht", async () => {
     useSWRAuth.mockReturnValue({
       data: undefined,
       error: new Error("boom"),
       isLoading: false,
+      mutate: vi.fn(),
     });
 
     render(<PhaseExpiryWarnings />);
 
-    expect(screen.getByText("Hinweise nicht geladen")).toBeVisible();
-    expect(
-      screen.getByText(
-        "Die Hinweise zum Phasenende konnten nicht geladen werden. Laden Sie die Seite neu.",
-      ),
-    ).toBeVisible();
+    expect(await screen.findByRole("alert")).toBeVisible();
+    expect(screen.queryByText("boom")).not.toBeInTheDocument();
   });
 });

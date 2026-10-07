@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
@@ -43,7 +44,7 @@ func (rs *Resource) correctAdminChildData(w http.ResponseWriter, r *http.Request
 	}
 	dob, err := timezone.ParseDate(body.DateOfBirth)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(capability.InvalidInput(common.CodeEnrollmentChildBirthDateInvalid, "date_of_birth", err)))
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())

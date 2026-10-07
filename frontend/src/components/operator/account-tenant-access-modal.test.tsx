@@ -1,35 +1,34 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as renderPlain,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountTenantAccessModal } from "./account-tenant-access-modal";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
 
 const {
-  mockToastSuccess,
-  mockToastError,
   mockList,
   mockGrant,
   mockUpdateRole,
   mockRevoke,
   mockListAssignableRoles,
   mockListSchoolSummaries,
-  MockApiError,
 } = vi.hoisted(() => ({
-  mockToastSuccess: vi.fn(),
-  mockToastError: vi.fn(),
   mockList: vi.fn(),
   mockGrant: vi.fn(),
   mockUpdateRole: vi.fn(),
   mockRevoke: vi.fn(),
   mockListAssignableRoles: vi.fn(),
   mockListSchoolSummaries: vi.fn(),
-  MockApiError: class MockAccountTenantAccessApiError extends Error {
-    status: number;
-    constructor(message: string, status: number) {
-      super(message);
-      this.name = "AccountTenantAccessApiError";
-      this.status = status;
-    }
-  },
 }));
 
 vi.mock("~/components/ui/form-modal", async () => {
@@ -134,20 +133,6 @@ vi.mock("~/components/ui/custom-select", async () => {
   };
 });
 
-vi.mock("~/components/ui/alert", async () => {
-  const { createElement } = await import("react");
-  return {
-    Alert: ({ message }: { message?: string }) =>
-      message
-        ? createElement("div", { "data-testid": "alert" }, message)
-        : null,
-  };
-});
-
-vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
-}));
-
 vi.mock("~/lib/logger", () => ({
   createLogger: () => ({ error: vi.fn(), warn: vi.fn() }),
 }));
@@ -160,7 +145,6 @@ vi.mock("~/lib/operator/account-tenant-access-api", () => ({
     revoke: mockRevoke,
     listAssignableRoles: mockListAssignableRoles,
   },
-  AccountTenantAccessApiError: MockApiError,
 }));
 
 vi.mock("~/lib/operator/provisioning-api", () => ({
@@ -334,13 +318,18 @@ describe("AccountTenantAccessModal", () => {
         lastName: undefined,
       }),
     );
-    expect(mockToastSuccess).toHaveBeenCalled();
+    expect(
+      await screen.findByText("Schulzugang wurde erteilt."),
+    ).toBeInTheDocument();
     await waitFor(() => expect(onUpdated).toHaveBeenCalled());
   });
 
-  it("surfaces the backend reason when a grant is rejected", async () => {
+  // #2519: the catalog text by code, in the grant section, not the backend sentence.
+  it("shows a rejected grant in its section", async () => {
     mockGrant.mockRejectedValue(
-      new MockApiError("Diese Rolle existiert an der Zielschule nicht", 400),
+      new ApiError("role does not exist at target school", 400, {
+        code: "general.input",
+      }),
     );
     renderModal();
 
@@ -355,11 +344,67 @@ describe("AccountTenantAccessModal", () => {
     });
     fireEvent.click(screen.getByText("Zugang erteilen"));
 
+    expect(
+      await screen.findByText(
+        catalogText("general.input", "die Vergabe des Schulzugangs"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("role does not exist at target school"),
+    ).toBeNull();
+  });
+
+  it("shows a failed role change as a toast with retry", async () => {
+    mockUpdateRole
+      .mockRejectedValueOnce(new ApiError("down", 503))
+      .mockResolvedValueOnce([access()]);
+    renderModal();
+
+    const roleSelect = await screen.findByLabelText("Rolle an OGS Nord");
+    fireEvent.change(roleSelect, { target: { value: "2" } });
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Rolle an OGS Nord"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mockUpdateRole).toHaveBeenCalledTimes(2));
+  });
+
+  it("keeps a failed revoke inside the confirmation", async () => {
+    mockRevoke.mockRejectedValue(
+      new ApiError("conflict", 409, { code: "general.business_rejection" }),
+    );
+    renderModal();
+
+    fireEvent.click(await screen.findByText("Entziehen"));
+    fireEvent.click(screen.getByText("Zugang entziehen"));
+
+    const confirm = screen.getByTestId("confirm-modal");
     await waitFor(() =>
-      expect(screen.getByTestId("alert")).toHaveTextContent(
-        "Diese Rolle existiert an der Zielschule nicht",
+      expect(confirm.textContent).toContain(
+        catalogText(
+          "general.business_rejection",
+          "das Entziehen des Schulzugangs",
+        ),
       ),
     );
+  });
+
+  it("shows a failed load with retry", async () => {
+    mockList
+      .mockRejectedValueOnce(new ApiError("down", 503))
+      .mockResolvedValueOnce([access()]);
+    renderModal();
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Schulzugänge"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2));
   });
 
   it("never offers lehrkraft as target for an existing non-lehrkraft access", async () => {
@@ -473,7 +518,7 @@ describe("AccountTenantAccessModal", () => {
   it("disables the role selector when school roles cannot be loaded", async () => {
     mockListAssignableRoles.mockImplementation((_accountId, schoolId) =>
       schoolId === "3"
-        ? Promise.reject(new Error("network down"))
+        ? Promise.reject(new ApiError("network down", 503))
         : Promise.resolve([
             { id: "1", name: "admin" },
             { id: "2", name: "user" },
@@ -487,8 +532,10 @@ describe("AccountTenantAccessModal", () => {
 
     const roleSelect = screen.getByLabelText("account-access-role");
     await waitFor(() => expect(roleSelect).toBeDisabled());
-    expect(screen.getByTestId("alert")).toHaveTextContent(
-      "Die Rollen der Schule konnten nicht geladen werden.",
-    );
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Rollen"),
+      ),
+    ).toBeInTheDocument();
   });
 });

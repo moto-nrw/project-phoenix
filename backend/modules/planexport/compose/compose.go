@@ -213,6 +213,7 @@ func (a instanceBinding) InstancesInRange(ctx context.Context, from, to planexpo
 			ActivityGroupID:  instance.ActivityGroupID,
 			RoomID:           instance.RoomID,
 			Cancelled:        instance.Status == timetable.InstanceStatusCancelled,
+			IsDuty:           instance.IsDuty,
 			CancelReason:     instance.CancelReason,
 			Notes:            instance.Notes,
 			UnderstaffedNote: instance.UnderstaffedNote,

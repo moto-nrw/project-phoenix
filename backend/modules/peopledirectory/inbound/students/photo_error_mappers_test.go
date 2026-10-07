@@ -55,6 +55,22 @@ func TestMapPhotoUploadError(t *testing.T) {
 			t.Fatalf("withdrawn branch did not emit the German conflict message: %s", rec.Body.String())
 		}
 	})
+
+	// The frontend words these refusals from their codes (ADR 0006, #2513).
+	for _, tc := range []struct {
+		err  error
+		code string
+	}{
+		{peopleModule.ErrPhotoFeatureDisabled, "students.photos_disabled"},
+		{peopleModule.ErrPhotoConsentRequired, "students.photo_consent_required"},
+		{peopleModule.ErrPhotoConsentWithdrawn, "students.photo_consent_withdrawn"},
+	} {
+		rec := httptest.NewRecorder()
+		mapPhotoUploadError(rec, mapperReq(), tc.err)
+		if !contains(rec.Body.String(), `"code":"`+tc.code+`"`) {
+			t.Fatalf("%v: body lacks code %s: %s", tc.err, tc.code, rec.Body.String())
+		}
+	}
 }
 
 func contains(haystack, needle string) bool {

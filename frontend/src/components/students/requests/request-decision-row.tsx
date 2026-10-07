@@ -13,6 +13,7 @@ import { useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { CareRequestReviewItem } from "~/components/students/care-request-review-item";
 import { EnrollmentRequestItem } from "~/components/students/enrollment-request-item";
 import { ExcusedRequestReviewItem } from "~/components/students/excused-request-review-item";
@@ -31,7 +32,6 @@ import {
   DECISION_BLOCKED_BY_CONFLICT,
   CURRENT_VALUE_CHANGED_WARNING,
   PAST_REQUEST_HINT,
-  STALE_REQUEST_NOTICE,
 } from "./request-copy";
 
 const logger = createLogger({ component: "RequestDecisionRow" });
@@ -123,7 +123,7 @@ export function RequestDecisionRow({
 }>) {
   const key = itemKey(request);
   const [markingDone, setMarkingDone] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const actionErrors = useApiErrorDisplay();
 
   if (!hasReviewMetadata(request)) {
     return (
@@ -143,7 +143,6 @@ export function RequestDecisionRow({
 
   const markDone = async () => {
     setMarkingDone(true);
-    setError(null);
     try {
       await markRequestDone(
         request.request_type as ParentRequestKind,
@@ -155,16 +154,14 @@ export function RequestDecisionRow({
       logger.warn("parent_request_mark_done_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      if (err instanceof ChangeRequestStaleError) {
-        setError(STALE_REQUEST_NOTICE);
-        onStale();
-      } else {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Die Anfrage konnte nicht abgeschlossen werden.",
-        );
-      }
+      // Eine veraltete Anfrage meldet der Katalog über ihren Code; die Liste
+      // lädt dann die neue Fassung, statt einen Wiederholen-Klick anzubieten.
+      const stale = err instanceof ChangeRequestStaleError;
+      await actionErrors.show(err, {
+        object: "die Anfrage",
+        retry: stale ? undefined : () => void markDone(),
+      });
+      if (stale) onStale();
       setMarkingDone(false);
     }
   };
@@ -216,11 +213,6 @@ export function RequestDecisionRow({
           >
             Als erledigt markieren
           </Button>
-        </div>
-      )}
-      {error && (
-        <div className="px-4 pt-2 sm:px-5">
-          <Alert type="warning" message={error} />
         </div>
       )}
       <div className="min-w-0">

@@ -55,6 +55,7 @@ describe("StudentPhotoSection (controlled)", () => {
         onPickPhoto={() => {}}
         onMarkRemoved={() => {}}
         onCancelRemove={() => {}}
+        onPhotoError={() => {}}
       />,
     );
 
@@ -77,6 +78,7 @@ describe("StudentPhotoSection (controlled)", () => {
         onPickPhoto={() => {}}
         onMarkRemoved={() => {}}
         onCancelRemove={() => {}}
+        onPhotoError={() => {}}
       />,
     );
 
@@ -103,6 +105,7 @@ describe("StudentPhotoSection (controlled)", () => {
         onPickPhoto={() => {}}
         onMarkRemoved={() => {}}
         onCancelRemove={() => {}}
+        onPhotoError={() => {}}
       />,
     );
 
@@ -127,6 +130,7 @@ describe("StudentPhotoSection (controlled)", () => {
         onPickPhoto={onPickPhoto}
         onMarkRemoved={() => {}}
         onCancelRemove={() => {}}
+        onPhotoError={() => {}}
       />,
     );
 
@@ -157,6 +161,7 @@ describe("StudentPhotoSection (controlled)", () => {
         onPickPhoto={() => {}}
         onMarkRemoved={() => {}}
         onCancelRemove={() => {}}
+        onPhotoError={() => {}}
       />,
     );
 
@@ -185,6 +190,7 @@ describe("StudentPhotoSection (controlled)", () => {
         onPickPhoto={onPickPhoto}
         onMarkRemoved={onMarkRemoved}
         onCancelRemove={() => {}}
+        onPhotoError={() => {}}
       />,
     );
 
@@ -210,6 +216,7 @@ describe("StudentPhotoSection (controlled)", () => {
         onPickPhoto={onPickPhoto}
         onMarkRemoved={onMarkRemoved}
         onCancelRemove={() => {}}
+        onPhotoError={() => {}}
       />,
     );
 
@@ -243,6 +250,7 @@ describe("StudentPhotoSection (controlled)", () => {
         onPickPhoto={onPickPhoto}
         onMarkRemoved={onMarkRemoved}
         onCancelRemove={onCancelRemove}
+        onPhotoError={() => {}}
       />,
     );
 
@@ -278,6 +286,7 @@ describe("StudentPhotoSection (controlled)", () => {
         onPickPhoto={() => {}}
         onMarkRemoved={() => {}}
         onCancelRemove={() => {}}
+        onPhotoError={() => {}}
       />,
     );
 
@@ -289,11 +298,12 @@ describe("StudentPhotoSection (controlled)", () => {
   // picked a corrupt or oversize file the canvas can't decode), the
   // component must surface a German error string and NOT call onPickPhoto
   // — so the parent's submit handler doesn't try to upload garbage.
-  it("renders an error and skips onPickPhoto when compressAvatar throws", async () => {
+  it("reports a fixed German sentence to the form and skips onPickPhoto when compressAvatar throws", async () => {
     compressAvatar.mockImplementationOnce(async () => {
-      throw new Error("Bild zu groß");
+      throw new Error("canvas decode failed");
     });
     const onPickPhoto = vi.fn();
+    const onPhotoError = vi.fn();
     const { container } = render(
       <StudentPhotoSection
         student={makeStudent()}
@@ -304,6 +314,7 @@ describe("StudentPhotoSection (controlled)", () => {
         onPickPhoto={onPickPhoto}
         onMarkRemoved={() => {}}
         onCancelRemove={() => {}}
+        onPhotoError={onPhotoError}
       />,
     );
 
@@ -314,9 +325,14 @@ describe("StudentPhotoSection (controlled)", () => {
     Object.defineProperty(fileInput, "files", { value: [file] });
     fireEvent.change(fileInput);
 
+    // Der Satz der Bibliothek erreicht niemanden; das Formular zeigt einen
+    // festen Satz in seinem Fehlerkasten.
     await waitFor(() =>
-      expect(screen.getByText(/Bild zu groß/i)).toBeInTheDocument(),
+      expect(onPhotoError).toHaveBeenCalledWith(
+        "Dieses Foto lässt sich nicht verwenden. Bitte wählen Sie ein anderes Foto.",
+      ),
     );
+    expect(screen.queryByText(/canvas decode failed/)).not.toBeInTheDocument();
     expect(onPickPhoto).not.toHaveBeenCalled();
   });
 
@@ -334,6 +350,7 @@ describe("StudentPhotoSection (controlled)", () => {
         onPickPhoto={() => {}}
         onMarkRemoved={() => {}}
         onCancelRemove={() => {}}
+        onPhotoError={() => {}}
       />,
     );
 

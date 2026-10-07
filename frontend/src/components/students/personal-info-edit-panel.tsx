@@ -1,9 +1,22 @@
 "use client";
 
-import { useCallback, useMemo, useState, useEffect } from "react";
-import { useFormError } from "~/components/ui/form-error";
-import { Alert } from "~/components/ui/alert";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -40,12 +53,10 @@ import {
 } from "~/lib/student-companion-api";
 import { useCompanionRemoteRefresh } from "~/lib/hooks/use-companion-remote-refresh";
 import {
-  companionDepartureMessage,
   CompanionPlanConflictError,
-  companionsChangedMessage,
   isCompanionDepartureRefusal,
   isCompanionsChanged,
-  withPrivacyConsentSavedNotice,
+  isPrivacyConsentSaved,
 } from "~/lib/api";
 import type { AllowedDepartureModes } from "~/lib/student-helpers";
 import {
@@ -58,6 +69,10 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "PersonalInfoEditPanel" });
 
 const EMPTY_GROUP_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [];
+
+/** Die Rückfrage, wenn ein verknüpftes Kind die Tage noch nicht erlaubt. */
+const COMPANION_PLAN_QUESTION =
+  "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.";
 
 export type PersonalInfoSaveDraft = ExtendedStudent & {
   /** Datenschutzwerte werden nur bei einer bewussten Änderung gespeichert. */
@@ -131,15 +146,33 @@ export function PersonalInfoEditPanel({
     "loading" | "ready" | "error"
   >("loading");
   const [privacyConsentChanged, setPrivacyConsentChanged] = useState(false);
+  const [reloadPrivacyConsent, setReloadPrivacyConsent] = useState(0);
   // Ein Speicherfehler darf nicht nur als Kurzmeldung vorbeiziehen: er steht
   // oben im Bearbeiten-Bereich, und wo er zu einem Feld gehört, zusätzlich
-  // direkt an diesem Feld.
-  const [saveError, setSaveError] = useFormError();
-  const [departureError, setDepartureError] = useState<string | null>(null);
+  // direkt an diesem Feld. Text, Wiederholen und Vorgangskennung kommen vom
+  // gemeinsamen Fehlerweg (#2513).
+  const formRef = useRef<HTMLDivElement>(null);
+  const errors = useApiFormError(formRef);
+  const clearErrors = errors.clear;
+  // „Wiederholen“ speichert den aktuellen Entwurf, nicht den vom Fehler.
+  const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
+  // Scheitert nach gespeicherten Angaben nur das Foto, versucht
+  // „Wiederholen“ nur das Foto erneut, nicht das ganze Kind.
+  const latestPhotoRetryRef = useRef<() => Promise<void>>(
+    async () => undefined,
+  );
+  const { success: toastSuccess } = useToast();
+  // Ladefehler stehen dort, wo die Daten fehlen.
+  const consentLoad = useApiLoadError();
+  const showConsentLoadError = consentLoad.show;
+  const clearConsentLoadError = consentLoad.clear;
+  const companionsLoad = useApiLoadError();
+  const showCompanionsLoadError = companionsLoad.show;
+  const clearCompanionsLoadError = companionsLoad.clear;
   // Set when the backend refused because a linked child's own departure plan
   // does not allow the requested days. Answering yes re-sends the identical
   // payload with the confirmation flag.
-  const [planConflict, setPlanConflict] = useState<string | null>(null);
+  const [planConflict, setPlanConflict] = useState(false);
   // WHAT the user confirmed, not just that they did: the backend widens a
   // companion's plan only for the children and weekdays listed here, so a
   // conflict that appeared while the question was on screen is refused again
@@ -184,13 +217,12 @@ export function PersonalInfoEditPanel({
         ? { ...student, companions: prev.companions }
         : student,
     );
-    setPlanConflict(null);
+    setPlanConflict(false);
     setConfirmedExtensions([]);
     setPendingExtensions([]);
-    setSaveError(null);
-    setDepartureError(null);
+    clearErrors();
     setPrivacyConsentChanged(false);
-  }, [student, setSaveError]);
+  }, [student, clearErrors]);
 
   // Ein nicht gespeicherter Foto-Entwurf gehört zu genau dieser Sitzung des
   // Formulars und zu genau diesem Kind.
@@ -205,6 +237,7 @@ export function PersonalInfoEditPanel({
     let cancelled = false;
     setPrivacyConsentStatus("loading");
     setPrivacyConsentChanged(false);
+    clearConsentLoadError();
     fetchStudentPrivacyConsent(student.id)
       .then((consent) => {
         if (cancelled) return;
@@ -223,11 +256,20 @@ export function PersonalInfoEditPanel({
           error: err instanceof Error ? err.message : String(err),
         });
         setPrivacyConsentStatus("error");
+        void showConsentLoadError(err, {
+          object: "die Einwilligung",
+          retry: () => setReloadPrivacyConsent((count) => count + 1),
+        });
       });
     return () => {
       cancelled = true;
     };
-  }, [student.id]);
+  }, [
+    student.id,
+    reloadPrivacyConsent,
+    showConsentLoadError,
+    clearConsentLoadError,
+  ]);
 
   // The Laufgemeinschaft lives in its own table, so it is fetched when the
   // panel opens and submitted together with the departure plan it belongs to.
@@ -236,6 +278,7 @@ export function PersonalInfoEditPanel({
     let cancelled = false;
     setCompanionsStatus("loading");
     setLoadedCompanions([]);
+    clearCompanionsLoadError();
     fetchStudentCompanions(student.id)
       .then((companions: StudentCompanion[]) => {
         if (cancelled) return;
@@ -249,11 +292,20 @@ export function PersonalInfoEditPanel({
         logger.error("failed to load companions", {
           error: err instanceof Error ? err.message : String(err),
         });
+        void showCompanionsLoadError(err, {
+          object: "die Laufgemeinschaft",
+          retry: () => setReloadCompanions((count) => count + 1),
+        });
       });
     return () => {
       cancelled = true;
     };
-  }, [student.id, reloadCompanions]);
+  }, [
+    student.id,
+    reloadCompanions,
+    showCompanionsLoadError,
+    clearCompanionsLoadError,
+  ]);
 
   const companionsDirty =
     companionsStatus === "ready" &&
@@ -370,8 +422,8 @@ export function PersonalInfoEditPanel({
     // Ohne die gespeicherte Einwilligung würde der Vorgabewert des Formulars
     // die echte überschreiben (Bauart 2: ein Speichern, das nichts verliert).
     if (privacyConsentStatus !== "ready") {
-      setSaveError(
-        "Die Datenschutzeinstellungen konnten nicht geladen werden. Bitte neu laden, bevor Sie speichern.",
+      errors.invalid(
+        "Die Einwilligung ist noch nicht geladen. Bitte laden Sie sie zuerst.",
       );
       return;
     }
@@ -379,13 +431,12 @@ export function PersonalInfoEditPanel({
     // here (instead of saving and hoping the backend's stranding check happens
     // to object) is the only reading that cannot lose someone else's work.
     if (companionsStale) {
-      const message =
-        "Die Laufgemeinschaft wurde zwischenzeitlich an anderer Stelle geändert. Bitte neu laden und die Änderung wiederholen.";
-      setSaveError(message);
+      errors.invalid(
+        "Die Laufgemeinschaft wurde inzwischen geändert. Bitte laden Sie sie neu.",
+      );
       return;
     }
-    setSaveError(null);
-    setDepartureError(null);
+    errors.clear();
     const allowedDepartureModes = departureModesOf(editedStudent);
     // "Mit anderem Kind" needs to say with whom (#1694) — either a linked
     // child (better: structured, symmetric) or the free-text note for someone
@@ -408,9 +459,10 @@ export function PersonalInfoEditPanel({
         (day) => !coveredDays.has(day),
       )
     ) {
-      const message =
-        "Bitte ein Kind verknüpfen oder angeben, mit welcher Person das Kind nach Hause geht";
-      setDepartureError(message);
+      errors.invalid("Bitte prüfen Sie den Heimweg.", {
+        departure_companion_note:
+          "Bitte wählen Sie ein Kind oder schreiben Sie, mit wem das Kind nach Hause geht.",
+      });
       return;
     }
     await submit(
@@ -501,7 +553,7 @@ export function PersonalInfoEditPanel({
           }),
         mayAnnounceCompanions,
       );
-      setPlanConflict(null);
+      setPlanConflict(false);
       // One-shot: this save consumed the confirmation. The modal component
       // stays mounted across open/close, so a stale list would ride along
       // with a later save and re-widen a companion's plan unasked.
@@ -516,32 +568,32 @@ export function PersonalInfoEditPanel({
               ? photoError.message
               : String(photoError),
         });
-        setSaveError(
-          "Daten gespeichert, aber das Foto konnte nicht aktualisiert werden. Bitte versuchen Sie es erneut.",
-        );
+        // Die Angaben sind gespeichert, nur das Foto nicht: das sagt eine
+        // Erfolgsmeldung, der Fehler im Formular nennt nur das Foto. Der
+        // Foto-Entwurf bleibt stehen, „Wiederholen“ versucht nur ihn erneut.
+        toastSuccess("Die Angaben sind gespeichert.");
+        await showPhotoError(photoError);
         return;
       }
       onCancel();
     } catch (err) {
       if (err instanceof CompanionPlanConflictError) {
         // Not a failure: ask, then repeat the same save confirming exactly the
-        // children and weekdays the message named. The conflicts stay PENDING
+        // children and weekdays the backend named. The conflicts stay PENDING
         // until that yes — "Abbrechen" must leave nothing behind that a later
         // ordinary save could carry along and widen unasked.
-        setPlanConflict(err.message);
+        setPlanConflict(true);
         setPendingExtensions(err.conflicts);
         return;
       }
       logger.error("failed to save personal information", {
         error: err instanceof Error ? err.message : String(err),
       });
-      // The stranded-companion refusal is expected and user-actionable: the
-      // backend names the child whose Heimweg has to be filled in before this
-      // link can go. Swallowing it into the generic text would leave the user
-      // guessing what to change.
-      if (isCompanionDepartureRefusal(err)) {
-        setDepartureError(companionDepartureMessage(err));
-        return;
+      // Die Einwilligung wird im selben Aufruf, aber vor dem Kind geschrieben:
+      // ist sie schon durch, sagt das eine Erfolgsmeldung, statt „nichts
+      // gespeichert“.
+      if (isPrivacyConsentSaved(err)) {
+        toastSuccess("Die Einwilligung ist gespeichert.");
       }
       // The backend saw what the announcement bus could not: another browser
       // replaced the links this list was built on. Nothing was written — flag
@@ -549,26 +601,56 @@ export function PersonalInfoEditPanel({
       // retrying the same save, which is exactly the write that was refused.
       if (isCompanionsChanged(err)) {
         markStale();
-        setSaveError(companionsChangedMessage(err));
+        await errors.show(err, { object: "die Laufgemeinschaft" });
         return;
       }
-      // Die Einwilligung wird im selben Aufruf, aber vor dem Kind geschrieben:
-      // ist sie schon durch, sagt die Meldung das, statt „nichts gespeichert".
-      setSaveError(
-        withPrivacyConsentSavedNotice(
-          err,
-          "Fehler beim Speichern der persönlichen Informationen",
-        ),
-      );
+      // The stranded-companion refusal is expected and user-actionable: a
+      // linked child would lose its Heimweg. The catalog names it by code;
+      // the companion note is the field it points at.
+      const companionRefusal = isCompanionDepartureRefusal(err);
+      await errors.show(err, {
+        object: companionRefusal ? "die Laufgemeinschaft" : "das Kind",
+        retry: () => void latestSaveRef.current(),
+      });
     } finally {
       setIsSaving(false);
     }
   };
 
+  useLayoutEffect(() => {
+    latestSaveRef.current = handleSave;
+  });
+
+  const showPhotoError = (photoError: unknown) =>
+    errors.show(photoError, {
+      object: "das Foto",
+      retry: () => void latestPhotoRetryRef.current(),
+    });
+
+  useLayoutEffect(() => {
+    latestPhotoRetryRef.current = async () => {
+      errors.clear();
+      setIsSaving(true);
+      try {
+        await persistPendingPhoto();
+        onCancel();
+      } catch (photoError) {
+        logger.error("error saving student photo", {
+          error:
+            photoError instanceof Error
+              ? photoError.message
+              : String(photoError),
+        });
+        await showPhotoError(photoError);
+      } finally {
+        setIsSaving(false);
+      }
+    };
+  });
+
   const handleCancel = () => {
     setEditedStudent(student);
-    setSaveError(null);
-    setDepartureError(null);
+    errors.clear();
     onCancel();
   };
 
@@ -596,9 +678,9 @@ export function PersonalInfoEditPanel({
   );
 
   const fields = (
-    <div className="space-y-4">
+    <div ref={formRef} className="space-y-4">
       {/* Speicherfehler oben im Bearbeiten-Bereich (Bauart 2 Regel 5). */}
-      <FormErrorAlert message={saveError} />
+      <FormErrorAlert message={errors.error} />
       {companionsStale ? (
         <div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-3">
           <p className="text-sm text-gray-900">
@@ -616,7 +698,7 @@ export function PersonalInfoEditPanel({
               variant="primary"
               size="md"
               onClick={() => {
-                setSaveError(null);
+                errors.clear();
                 refreshFromRemote();
               }}
             >
@@ -626,27 +708,17 @@ export function PersonalInfoEditPanel({
         </div>
       ) : null}
       {companionsStatus === "error" ? (
-        <div className="border-moto-red bg-moto-red/5 rounded-lg border p-3">
-          <p className="text-sm text-gray-900">
-            Die Laufgemeinschaft konnte nicht geladen werden und wird unten
-            nicht angezeigt. Andere Angaben lassen sich speichern, die
-            bestehenden Verknüpfungen bleiben dabei unverändert.
+        <div className="space-y-1">
+          <LoadErrorAlert error={companionsLoad.error} />
+          <p className="text-xs text-gray-600">
+            Andere Angaben können Sie trotzdem speichern. Die Laufgemeinschaft
+            bleibt dabei unverändert.
           </p>
-          <div className="mt-2 flex justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => setReloadCompanions((count) => count + 1)}
-            >
-              Erneut laden
-            </Button>
-          </div>
         </div>
       ) : null}
       {planConflict ? (
         <div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-3">
-          <p className="text-sm text-gray-900">{planConflict}</p>
+          <p className="text-sm text-gray-900">{COMPANION_PLAN_QUESTION}</p>
           <p className="mt-1 text-xs text-gray-600">
             Soll „Anderes Kind“ im Heimweg des verknüpften Kindes ergänzt
             werden? Bestehende Heimwege bleiben erhalten.
@@ -660,7 +732,7 @@ export function PersonalInfoEditPanel({
                 // Dismissing the question is a NO: drop the conflicts with
                 // it, so the next save asks again instead of widening the
                 // linked child's Heimweg on a yes that was never given.
-                setPlanConflict(null);
+                setPlanConflict(false);
                 setPendingExtensions([]);
               }}
             >
@@ -756,9 +828,9 @@ export function PersonalInfoEditPanel({
           onPickPhoto={handlePickPhoto}
           onMarkRemoved={handleMarkPhotoRemoved}
           onCancelRemove={handleCancelPhotoRemove}
+          onPhotoError={errors.invalid}
         />
       ) : null}
-      {departureError && <Alert type="error" message={departureError} />}
       <DepartureSection
         companions={editedStudent.companions}
         // Editable ONLY once the stored links are known. While the fetch is
@@ -809,6 +881,7 @@ export function PersonalInfoEditPanel({
         onCompanionNoteChange={(value) =>
           updateField("departure_companion_note", value)
         }
+        companionNoteError={errors.fieldError("departure_companion_note")}
       />
       <TextAreaInput
         id="modal-student-health-info"
@@ -828,10 +901,13 @@ export function PersonalInfoEditPanel({
         rows={2}
       />
       {privacyConsentStatus === "error" ? (
-        <Alert
-          type="error"
-          message="Die Datenschutzeinstellungen konnten nicht geladen werden. Speichern ist gesperrt, damit die hinterlegte Einwilligung nicht überschrieben wird."
-        />
+        <div className="space-y-1">
+          <LoadErrorAlert error={consentLoad.error} />
+          <p className="text-xs text-gray-600">
+            Speichern geht erst, wenn die Einwilligung geladen ist. So bleibt
+            die hinterlegte Einwilligung erhalten.
+          </p>
+        </div>
       ) : privacyConsentStatus === "ready" ? (
         <PrivacyConsentSection
           formData={editedStudent}
@@ -841,7 +917,7 @@ export function PersonalInfoEditPanel({
               value as ExtendedStudent[keyof ExtendedStudent],
             )
           }
-          errors={{}}
+          fieldError={errors.fieldError}
         />
       ) : null}
     </div>

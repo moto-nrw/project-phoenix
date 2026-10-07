@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "./api-error";
 import {
   acceptGuardianInvitation,
   validateGuardianInvitation,
@@ -48,7 +49,10 @@ describe("guardian invitation API", () => {
       tenantSlug: "demo",
       schoolLogoUrl: "https://example.test/logo.png",
     });
-    expect(fetch).toHaveBeenCalledWith("/api/guardian-invitations/tok%20en");
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/guardian-invitations/tok%20en",
+      undefined,
+    );
   });
 
   it("accepts invitations and maps backend ids to strings", async () => {
@@ -111,6 +115,44 @@ describe("guardian invitation API", () => {
     ).rejects.toMatchObject({
       message: "plain failure",
       status: 500,
+    });
+  });
+
+  it("keeps the request ID and field errors for the shared error path", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      jsonResponse(
+        {
+          status: "error",
+          code: "general.input",
+          errors: [{ field: "password", reason: "too_short" }],
+          instance: "req-invite",
+        },
+        { status: 400 },
+      ),
+    );
+
+    const credential = acceptedCredential();
+    const failure = await acceptGuardianInvitation("tok", {
+      [passwordKey]: credential,
+      [confirmPasswordKey]: credential,
+    }).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(ApiError);
+    expect(failure).toMatchObject({
+      code: "general.input",
+      errors: [{ field: "password", reason: "too_short" }],
+      requestId: "req-invite",
+    });
+  });
+
+  it("reports a broken connection as unavailable", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(
+      new TypeError("Failed to fetch"),
+    );
+
+    await expect(validateGuardianInvitation("tok")).rejects.toMatchObject({
+      status: 503,
+      code: "general.unavailable",
     });
   });
 });

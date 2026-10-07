@@ -19,6 +19,27 @@ import {
   type FormSchema,
   type FormField,
 } from "./enrollment-form-schema-api";
+import { ApiError } from "./api-error";
+import { presentError } from "./error-presentation";
+import type { ErrorCode } from "./error-codes.generated";
+import { catalogText } from "~/test/error-catalog-text";
+
+/** The ApiError a client call rejects with (#2515). */
+async function rejection(promise: Promise<unknown>): Promise<ApiError> {
+  try {
+    await promise;
+  } catch (error) {
+    expect(error).toBeInstanceOf(ApiError);
+    return error as ApiError;
+  }
+  throw new Error("expected the call to reject");
+}
+
+/** The code arrives intact and the catalog shows its own German text. */
+function expectCatalogText(error: ApiError, code: ErrorCode, object: string) {
+  expect(error.code).toBe(code);
+  expect(presentError(error, object).message).toBe(catalogText(code, object));
+}
 
 // Type-safe fetch mock. The real fetch is global; we stub it per
 // test so each test controls the response shape.
@@ -436,13 +457,25 @@ describe("createSchema", () => {
     expect(seenBody).toContain(`"required":true`);
   });
 
-  it("translates duplicate-name errors on non-OK", async () => {
+  it("keeps the duplicate-name code and the name field on non-OK", async () => {
     mockFetch(async () =>
-      jsonResponse({ error: "duplicate name" }, { status: 400 }),
+      jsonResponse(
+        {
+          error: "duplicate name",
+          code: "enrollment.schema_name_exists",
+          errors: [{ field: "name", reason: "duplicate name" }],
+        },
+        { status: 409 },
+      ),
     );
-    await expect(createSchema("X", [])).rejects.toThrow(
-      /Dieser Name ist bereits vergeben/,
+    const error = await rejection(createSchema("X", []));
+    expectCatalogText(
+      error,
+      "enrollment.schema_name_exists",
+      "die Formularvorlage",
     );
+    expect(error.errors).toEqual([{ field: "name", reason: "duplicate name" }]);
+    expect(error.message).not.toContain("duplicate name");
   });
 
   it("falls back to HTTP status when body has no error string", async () => {
@@ -536,7 +569,7 @@ describe("updateSchema", () => {
     expect(seenBody).toContain(`"fields":[`);
   });
 
-  it("translates the name-collision code to a German message", async () => {
+  it("keeps the name-collision code for the catalog", async () => {
     // A combined save that collides on the new name comes back as the same
     // 409 + code the standalone rename returns.
     mockFetch(async () =>
@@ -545,18 +578,34 @@ describe("updateSchema", () => {
         { status: 409 },
       ),
     );
-    await expect(
+    const error = await rejection(
       updateSchema("1234", [], {}, undefined, "Schon vergeben"),
-    ).rejects.toThrow(/bereits ein Formular mit diesem Namen/);
+    );
+    expectCatalogText(
+      error,
+      "enrollment.schema_name_exists",
+      "die Formularvorlage",
+    );
   });
 
-  it("translates schema validation errors on non-OK", async () => {
+  it("keeps the code and field path of a schema validation error", async () => {
     mockFetch(async () =>
-      jsonResponse({ error: "invalid schema" }, { status: 400 }),
+      jsonResponse(
+        {
+          error: "form field label is required",
+          code: "enrollment.form_field_label_required",
+          errors: [{ field: "fields.2.label", reason: "required" }],
+        },
+        { status: 400 },
+      ),
     );
-    await expect(updateSchema("1234", [])).rejects.toThrow(
-      /Formularvorlage ist ungültig/,
+    const error = await rejection(updateSchema("1234", []));
+    expectCatalogText(
+      error,
+      "enrollment.form_field_label_required",
+      "die Formularvorlage",
     );
+    expect(error.errors?.[0]?.field).toBe("fields.2.label");
   });
 });
 
@@ -592,34 +641,48 @@ describe("uploadEnrollmentLegalDocument", () => {
     );
   });
 
-  it("maps oversized PDF responses to a German error", async () => {
-    mockFetch(async () => new Response("", { status: 413 }));
+  it("names the size limit of a refused PDF from the catalog", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        {
+          error: "document too large",
+          code: "enrollment.legal_document_invalid",
+          details: { max_mb: 10 },
+        },
+        { status: 400 },
+      ),
+    );
 
-    await expect(
+    const error = await rejection(
       uploadEnrollmentLegalDocument(
         new File(["%PDF-1.4"], "large.pdf", { type: "application/pdf" }),
       ),
-    ).rejects.toThrow(/maximal 10 MB/);
+    );
+    expect(error.code).toBe("enrollment.legal_document_invalid");
+    expect(presentError(error, "die PDF-Datei").message).toContain("10 MB");
   });
 
-  it("maps unsupported file responses to a German error", async () => {
+  it("classifies a refused upload without a body by its status", async () => {
     mockFetch(async () => new Response("", { status: 415 }));
 
-    await expect(
+    const error = await rejection(
       uploadEnrollmentLegalDocument(
         new File(["not pdf"], "terms.txt", { type: "text/plain" }),
       ),
-    ).rejects.toThrow(/Bitte eine PDF-Datei hochladen/);
+    );
+    expect(error.status).toBe(415);
+    expect(error.code).toBe("general.input");
   });
 
   it("rejects successful responses without a document URL", async () => {
     mockFetch(async () => jsonResponse({ data: {} }));
 
-    await expect(
+    const error = await rejection(
       uploadEnrollmentLegalDocument(
         new File(["%PDF-1.4"], "terms.pdf", { type: "application/pdf" }),
       ),
-    ).rejects.toThrow(/PDF-Datei konnte nicht hochgeladen werden/);
+    );
+    expect(error.code).toBe("general.server");
   });
 });
 
@@ -694,7 +757,7 @@ describe("renameSchema", () => {
     expect(seenURL).toContain("a%2Fb");
   });
 
-  it("translates the name-collision code to a German message", async () => {
+  it("keeps the name-collision code for the catalog", async () => {
     // The backend returns 409 + enrollment.schema_name_exists; the admin
     // must see why, not a generic failure.
     mockFetch(async () =>
@@ -706,8 +769,11 @@ describe("renameSchema", () => {
         { status: 409 },
       ),
     );
-    await expect(renameSchema("1234", "Schon vergeben")).rejects.toThrow(
-      /bereits ein Formular mit diesem Namen/,
+    const error = await rejection(renameSchema("1234", "Schon vergeben"));
+    expectCatalogText(
+      error,
+      "enrollment.schema_name_exists",
+      "die Formularvorlage",
     );
   });
 
@@ -737,26 +803,34 @@ describe("deleteSchema", () => {
     expect(seenURL).toContain("a%2Fb");
   });
 
-  it("uses German code messages for schema_has_phases", async () => {
+  it("keeps the schema_has_phases code for the catalog", async () => {
     mockFetch(async () =>
       jsonResponse(
         { code: "enrollment.schema_has_phases", error: "raw English msg" },
         { status: 409 },
       ),
     );
-    await expect(deleteSchema("1234")).rejects.toThrow(
-      /in einer Anmeldephase verwendet/,
+    const error = await rejection(deleteSchema("1234"));
+    expectCatalogText(
+      error,
+      "enrollment.schema_has_phases",
+      "die Formularvorlage",
     );
   });
 
-  it("uses German code messages for schema_has_requests", async () => {
+  it("keeps the schema_has_requests code for the catalog", async () => {
     mockFetch(async () =>
       jsonResponse(
         { code: "enrollment.schema_has_requests", error: "raw English msg" },
         { status: 409 },
       ),
     );
-    await expect(deleteSchema("1234")).rejects.toThrow(/Anmeldungen verwendet/);
+    const error = await rejection(deleteSchema("1234"));
+    expectCatalogText(
+      error,
+      "enrollment.schema_has_requests",
+      "die Formularvorlage",
+    );
   });
 
   it("uses the German fallback for unknown English codes", async () => {

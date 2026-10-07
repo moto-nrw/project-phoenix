@@ -1,8 +1,18 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import RoomsPage from "./page";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+/** Text of a FormErrorInput, as the shared kit components render it. */
+function errorText(error: unknown): string | null {
+  if (!error) return null;
+  return typeof error === "string"
+    ? error
+    : (error as { message: string }).message;
+}
 
 const mockTenantMutate = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 const mockRefreshRoomConsumers = vi.hoisted(() =>
@@ -41,14 +51,14 @@ vi.mock("~/lib/swr", () => ({
 const mockGetOne = vi.fn();
 const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
-const mockDelete = vi.fn();
+const mockRemove = vi.fn();
 vi.mock("@/lib/database/service-factory", () => ({
   createCrudService: vi.fn(() => ({
     getList: vi.fn(),
     getOne: mockGetOne,
     create: mockCreate,
     update: mockUpdate,
-    delete: mockDelete,
+    remove: mockRemove,
   })),
 }));
 
@@ -58,7 +68,8 @@ vi.mock("~/components/ui/hooks/useIsMobile", () => ({
 
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: vi.fn(() => ({
     success: mockToastSuccess,
     error: mockToastError,
@@ -70,13 +81,18 @@ vi.mock("~/components/ui/confirm-delete-modal", () => ({
     isOpen,
     onConfirm,
     onClose,
+    error,
   }: {
     isOpen: boolean;
     onConfirm?: () => void;
     onClose?: () => void;
+    error?: unknown;
   }) =>
     isOpen ? (
       <div data-testid="confirmation-modal">
+        {errorText(error) ? (
+          <span data-testid="delete-error">{errorText(error)}</span>
+        ) : null}
         <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
           Confirm
         </button>
@@ -101,7 +117,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
     loading: boolean;
     intro?: { title: string; description?: ReactNode; actions?: ReactNode };
     search?: ReactNode;
-    error?: string | null;
+    error?: unknown;
     empty?: {
       title: string;
       description?: string;
@@ -120,7 +136,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
         </div>
       ) : null}
       {/* Fehler und Leerzustand liefert das Geruest, nicht die Seite. */}
-      {error ? <div data-testid="page-error">{error}</div> : null}
+      {error ? <div data-testid="page-error">{errorText(error)}</div> : null}
       {!error && empty ? (
         <div data-testid="page-empty">
           <p>{empty.title}</p>
@@ -188,20 +204,26 @@ vi.mock("~/components/ui/database/database-form-modal", () => ({
     isOpen,
     onClose,
     onSubmit,
+    errorPath,
+    errorObject,
   }: {
     isOpen: boolean;
     onClose: () => void;
     onSubmit: (data: { name: string }) => Promise<void>;
+    errorPath: {
+      error: unknown;
+      show: (error: unknown, options: { object: string }) => unknown;
+    };
+    errorObject?: string;
   }) => {
-    // Mirrors DatabaseForm: catches the rejection from onSubmit and renders
-    // the message inline. Tests assert against the resulting message.
-    const [error, setError] = useState<string | null>(null);
+    // Mirrors DatabaseForm: catches the rejection from onSubmit and hands it
+    // to the owner's error path, whose catalog text it renders inline.
     const submit = (data: { name: string }) => {
-      setError(null);
       void onSubmit(data).catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : String(err));
+        void errorPath.show(err, { object: errorObject ?? "" });
       });
     };
+    const error = errorText(errorPath.error);
     return isOpen ? (
       <div data-testid="room-create-modal">
         {error ? <span data-testid="create-error">{error}</span> : null}
@@ -329,18 +351,18 @@ describe("RoomsPage", () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: undefined,
       isLoading: false,
-      error: new Error("Failed to fetch"),
+      error: new ApiError("Failed to fetch", 503, {
+        code: "general.unavailable",
+      }),
       isValidating: false,
       mutate: vi.fn(),
     } as ReturnType<typeof useSWRAuth>);
 
     render(<RoomsPage />);
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Fehler beim Laden der Räume/),
-      ).toBeInTheDocument();
-    });
+    expect(await screen.findByTestId("page-error")).toHaveTextContent(
+      catalogText("general.unavailable", "die Liste der Räume"),
+    );
   });
 
   it("shows empty state when no rooms exist", async () => {
@@ -423,11 +445,11 @@ describe("RoomsPage", () => {
     });
   });
 
-  it("re-throws create errors so the form can render them inline (Issue #1356)", async () => {
+  it("shows a refused create with the catalog text in the dialog (Issue #1356)", async () => {
     mockCreate.mockRejectedValueOnce(
-      new Error(
-        "facilities error during CreateRoom: Ein Raum mit diesem Namen existiert bereits",
-      ),
+      new ApiError("name taken", 409, {
+        code: "general.business_rejection",
+      }),
     );
 
     render(<RoomsPage />);
@@ -442,7 +464,7 @@ describe("RoomsPage", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("create-error")).toHaveTextContent(
-        /existiert bereits/,
+        catalogText("general.business_rejection", "das Speichern des Raums"),
       );
     });
     // The modal must NOT close on a duplicate so the user can correct the name.
@@ -450,11 +472,10 @@ describe("RoomsPage", () => {
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
-  it("logs the stringified value when create rejects with a non-Error", async () => {
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
-    mockCreate.mockRejectedValueOnce("plain-string-error");
+  it("starts a reopened create dialog without the previous error", async () => {
+    mockCreate.mockRejectedValueOnce(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
 
     render(<RoomsPage />);
 
@@ -464,13 +485,18 @@ describe("RoomsPage", () => {
     });
 
     fireEvent.click(screen.getByTestId("submit-create"));
-
     await waitFor(() => {
-      expect(consoleError).toHaveBeenCalledWith("failed to create room", {
-        error: "plain-string-error",
-      });
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        catalogText("general.unavailable", "das Speichern des Raums"),
+      );
     });
-    consoleError.mockRestore();
+
+    fireEvent.click(screen.getByTestId("close-create-modal"));
+    fireEvent.click(screen.getAllByLabelText("Raum erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("room-create-modal")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("create-error")).not.toBeInTheDocument();
   });
 
   it("links every row to the room page with the register as referrer", async () => {

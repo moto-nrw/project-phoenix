@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { Plus, Search, Trash2 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
@@ -13,16 +14,17 @@ import {
 } from "~/components/ui/slide-over";
 import { Input } from "~/components/ui/input";
 import { Alert } from "~/components/ui/alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { ButtonLink } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
+import { createLogger } from "~/lib/logger";
 import type { Student } from "@/lib/api";
 import { PersonalInfoSection, DepartureSection } from "./student-form-fields";
 import { StudentCommonFormSections } from "./student-common-form-sections";
-import {
-  validateStudentForm,
-  handleStudentFormSubmit,
-} from "~/lib/student-form-validation";
+import { validateStudentForm } from "~/lib/student-form-validation";
 import {
   busDaysHaveAny,
   pickupDaysHaveAny,
@@ -60,6 +62,8 @@ import {
   type BackendPickupScheduleRequest,
   type PickupScheduleFormData,
 } from "~/lib/pickup-schedule-helpers";
+
+const logger = createLogger({ component: "StudentCreateModal" });
 
 // Shape returned by GuardianFormModal's onSubmit for each entry.
 type GuardianSubmitEntry = {
@@ -209,7 +213,6 @@ export function StudentCreateModal({
     allowed_departure_modes: {},
     pickup_status: "Geht alleine nach Hause",
   });
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const [saveLoading, setSaveLoading] = useState(false);
   const [guardians, setGuardians] = useState<StudentGuardianPayload[]>([]);
   const [guardianModalOpen, setGuardianModalOpen] = useState(false);
@@ -231,8 +234,11 @@ export function StudentCreateModal({
   );
   const [timePresets, setTimePresets] = useState<CareTimePresets>();
   const [arrivalSettingsLoading, setArrivalSettingsLoading] = useState(false);
-  const [arrivalSettingsLoadError, setArrivalSettingsLoadError] =
-    useState(false);
+  // Erneut laden nach einem Ladefehler: zählt hoch, der Effekt lädt neu.
+  const [arrivalSettingsReload, setArrivalSettingsReload] = useState(0);
+  const settingsLoad = useApiLoadError();
+  const showSettingsLoadError = settingsLoad.show;
+  const clearSettingsLoadError = settingsLoad.clear;
   const [guardianPickerOpen, setGuardianPickerOpen] = useState(false);
   // The inline picker panel is tall; collapsing it (on add or cancel) shrinks
   // the modal so the kept scroll position lands further down the form. Re-anchor
@@ -240,10 +246,13 @@ export function StudentCreateModal({
   // result (the added guardian) instead of jumping past it.
   const guardianSectionRef = useRef<HTMLElement>(null);
   const pendingGuardianScrollRef = useRef(false);
-  // Scroll the form to the first invalid field on a failed submit — the modal
-  // body scrolls and the submit button sits at the bottom, so an error above
-  // is otherwise easy to miss. Same behaviour as the parents' enrollment form.
-  const { formRef, errorRef, scrollToError } = useScrollToFirstError();
+  // Fehler laufen über den gemeinsamen Weg (#2513): der Kasten oben im
+  // Formular scrollt sich ins Bild, das erste markierte Feld bekommt den
+  // Fokus. „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehler.
+  const formRef = useRef<HTMLFormElement>(null);
+  const errors = useApiFormError(formRef);
+  const clearErrors = errors.clear;
+  const latestSubmitRef = useRef<() => Promise<void>>(async () => undefined);
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -265,7 +274,7 @@ export function StudentCreateModal({
         departure_days: {},
         pickup_status: "Geht alleine nach Hause",
       });
-      setErrors({});
+      clearErrors();
       setGuardians([]);
       setGuardianModalOpen(false);
       setArrivalSchedules([]);
@@ -275,11 +284,10 @@ export function StudentCreateModal({
       setSchoolPeriods([]);
       setTimePresets(undefined);
       setArrivalSettingsLoading(false);
-      setArrivalSettingsLoadError(false);
       setGuardianPickerOpen(false);
       pendingGuardianScrollRef.current = false;
     }
-  }, [isOpen]);
+  }, [isOpen, clearErrors]);
 
   // The tenant decides where care days come from. Resolve that boundary as
   // soon as the dialog opens: in booking mode this direct form must not create
@@ -288,7 +296,7 @@ export function StudentCreateModal({
     if (!isOpen) return;
     let cancelled = false;
     setArrivalSettingsLoading(true);
-    setArrivalSettingsLoadError(false);
+    clearSettingsLoadError();
     void fetchArrivalSettings()
       .then((settings) => {
         if (!cancelled) {
@@ -300,12 +308,15 @@ export function StudentCreateModal({
           });
         }
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (!cancelled) {
           setCareDaysSource(null);
           setSchoolPeriods([]);
           setTimePresets(undefined);
-          setArrivalSettingsLoadError(true);
+          void showSettingsLoadError(error, {
+            object: "die Einstellung für Betreuungstage",
+            retry: () => setArrivalSettingsReload((count) => count + 1),
+          });
         }
       })
       .finally(() => {
@@ -314,7 +325,12 @@ export function StudentCreateModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen]);
+  }, [
+    isOpen,
+    arrivalSettingsReload,
+    showSettingsLoadError,
+    clearSettingsLoadError,
+  ]);
 
   // After the inline picker collapses (add or cancel), re-anchor to the guardian
   // section so the shrinking modal doesn't leave the user scrolled past it.
@@ -376,46 +392,47 @@ export function StudentCreateModal({
     .filter((id): id is number => id !== undefined)
     .map((id) => id.toString());
 
+  // Prüfung vor dem Senden: gleicher Kasten wie ein Fehler vom Server, die
+  // Felder heißen wie in der API, damit Markierung und Fokus sie finden.
   const validateForm = (): boolean => {
-    const newErrors = validateStudentForm(formData, {
+    const fieldErrors = validateStudentForm(formData, {
       firstName: true,
       lastName: true,
       schoolClass: true,
     });
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    if (Object.keys(fieldErrors).length === 0) return true;
+    errors.invalid("Bitte prüfen Sie die markierten Felder.", fieldErrors);
+    return false;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    // Class-list-only entry (#2382): three fields, one call — the same
-    // validation flags the student path uses (Vorname/Nachname/Klasse).
-    if (mode === "list-entry" && onCreateListEntry) {
-      e.preventDefault();
-      if (!validateForm()) {
-        scrollToError();
-        return;
-      }
-      setSaveLoading(true);
-      return onCreateListEntry({
+  // Klassenlisteneintrag (#2382): drei Felder, ein Aufruf, dieselben
+  // Pflichtfelder wie beim Kind (Vorname, Nachname, Klasse).
+  const submitListEntry = async () => {
+    if (!onCreateListEntry || !validateForm()) return;
+    errors.clear();
+    setSaveLoading(true);
+    try {
+      await onCreateListEntry({
         firstName: (formData.first_name ?? "").trim(),
         lastName: (formData.second_name ?? "").trim(),
         schoolClass: (formData.school_class ?? "").trim(),
-      })
-        .then(() => onClose())
-        .catch((error: unknown) => {
-          setErrors({
-            submit:
-              error instanceof Error
-                ? error.message
-                : "Eintrag konnte nicht angelegt werden",
-          });
-        })
-        .finally(() => setSaveLoading(false));
+      });
+      onClose();
+    } catch (error) {
+      logger.error("class_list_entry_create_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await errors.show(error, {
+        object: "die Klassenliste",
+        retry: () => void latestSubmitRef.current(),
+      });
+    } finally {
+      setSaveLoading(false);
     }
-    if (careDaysSource !== "weekly_plan") {
-      e.preventDefault();
-      return;
-    }
+  };
+
+  const submitStudent = async () => {
+    if (careDaysSource !== "weekly_plan" || !validateForm()) return;
     const payload: Partial<Student> & {
       guardians?: StudentGuardianPayload[];
     } & CreateStudentSchedules = { ...formData };
@@ -430,15 +447,36 @@ export function StudentCreateModal({
         schedules: pickupSchedules,
       }).schedules;
     }
-    return handleStudentFormSubmit(
-      e,
-      payload,
-      validateForm,
-      onCreate,
-      setSaveLoading,
-      setErrors,
-      scrollToError,
-    );
+    errors.clear();
+    setSaveLoading(true);
+    try {
+      await onCreate(payload);
+    } catch (error) {
+      logger.error("student_create_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Das volle Kinderkontingent nennt der Katalog samt Zahlen aus den
+      // Details der Antwort; kein Satz des Servers wird gelesen.
+      await errors.show(error, {
+        object: "das Kind",
+        retry: () => void latestSubmitRef.current(),
+      });
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  const submit =
+    mode === "list-entry" && onCreateListEntry
+      ? submitListEntry
+      : submitStudent;
+  useLayoutEffect(() => {
+    latestSubmitRef.current = submit;
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void submit();
   };
 
   const handleChange = (
@@ -446,14 +484,6 @@ export function StudentCreateModal({
     value: string | boolean | number | BusDays | null,
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    // Clear error for this field
-    if (errors[field]) {
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors[field];
-        return newErrors;
-      });
-    }
   };
 
   // Weekdays covered by either an arrival or a pickup time, for the summary.
@@ -495,17 +525,8 @@ export function StudentCreateModal({
             className="flex min-h-0 flex-1 flex-col"
           >
             <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 md:space-y-6">
-              {/* Submit Error */}
-              {errors.submit && (
-                <div
-                  ref={errorRef}
-                  className="border-moto-red/20 bg-moto-red-soft rounded-lg border p-2 md:p-3"
-                >
-                  <p className="text-moto-red-strong text-xs md:text-sm">
-                    {errors.submit}
-                  </p>
-                </div>
-              )}
+              {/* Fehler oben im Formular (Bauart 2 Regel 5). */}
+              <FormErrorAlert message={errors.error} />
 
               {/* Art des Eintrags (#2382): reguläres OGS-Kind oder minimaler
               Klassenlisteneintrag. Die Weiche sitzt im Erstell-Modal, weil
@@ -521,7 +542,7 @@ export function StudentCreateModal({
                   value={mode}
                   onChange={(next) => {
                     setMode(next);
-                    setErrors({});
+                    errors.clear();
                   }}
                 />
               ) : null}
@@ -533,11 +554,8 @@ export function StudentCreateModal({
                 />
               ) : null}
 
-              {mode === "student" && arrivalSettingsLoadError ? (
-                <Alert
-                  type="error"
-                  message="Die Betreuungstage konnten nicht geladen werden. Schließen Sie das Fenster und öffnen Sie es erneut."
-                />
+              {mode === "student" ? (
+                <LoadErrorAlert error={settingsLoad.error} />
               ) : null}
 
               {mode === "student" && careDaysSource === "bookings" ? (
@@ -578,17 +596,14 @@ export function StudentCreateModal({
                         </label>
                         <Input
                           id="list-entry-first-name"
+                          name="first_name"
                           value={formData.first_name ?? ""}
                           onChange={(e) =>
                             handleChange("first_name", e.target.value)
                           }
                           placeholder="Max"
+                          error={errors.fieldError("first_name")}
                         />
-                        {errors.first_name ? (
-                          <p className="text-moto-red mt-1 text-xs">
-                            {errors.first_name}
-                          </p>
-                        ) : null}
                       </div>
                       <div>
                         <label
@@ -599,17 +614,14 @@ export function StudentCreateModal({
                         </label>
                         <Input
                           id="list-entry-last-name"
+                          name="last_name"
                           value={formData.second_name ?? ""}
                           onChange={(e) =>
                             handleChange("second_name", e.target.value)
                           }
                           placeholder="Mustermann"
+                          error={errors.fieldError("last_name")}
                         />
-                        {errors.second_name ? (
-                          <p className="text-moto-red mt-1 text-xs">
-                            {errors.second_name}
-                          </p>
-                        ) : null}
                       </div>
                       <div>
                         <label
@@ -620,17 +632,15 @@ export function StudentCreateModal({
                         </label>
                         <Input
                           id="list-entry-school-class"
+                          name="school_class"
                           value={formData.school_class ?? ""}
                           onChange={(e) =>
                             handleChange("school_class", e.target.value)
                           }
                           placeholder="5A"
+                          error={errors.fieldError("school_class")}
                         />
-                        {errors.school_class ? (
-                          <p className="text-moto-red mt-1 text-xs">
-                            {errors.school_class}
-                          </p>
-                        ) : (
+                        {errors.fieldError("school_class") ? null : (
                           <p className="mt-1 text-xs text-gray-500">
                             Genau wie bei den regulären Kindern geschrieben.
                           </p>
@@ -646,7 +656,7 @@ export function StudentCreateModal({
                 <PersonalInfoSection
                   formData={formData}
                   onChange={handleChange}
-                  errors={errors}
+                  fieldError={errors.fieldError}
                   groups={groups}
                 />
               ) : null}
@@ -813,7 +823,7 @@ export function StudentCreateModal({
                   {/* Common Form Sections */}
                   <StudentCommonFormSections
                     formData={formData}
-                    errors={errors}
+                    fieldError={errors.fieldError}
                     onChange={handleChange}
                   />
 
@@ -845,7 +855,9 @@ export function StudentCreateModal({
                         departure_companion_note: value,
                       }))
                     }
-                    companionNoteError={errors.departure_companion_note}
+                    companionNoteError={errors.fieldError(
+                      "departure_companion_note",
+                    )}
                   />
                 </>
               ) : null}
@@ -925,7 +937,7 @@ export function StudentCreateModal({
           onClose={() => setCarePlanModalOpen(false)}
           initialArrivalSchedules={arrivalSchedules}
           initialPickupSchedules={pickupSchedules}
-          successMessage="Betreuungszeiten übernommen"
+          successMessage="Die Betreuungszeiten sind übernommen."
           onSubmit={async ({ arrivalSchedules: nextArrival, pickupData }) => {
             setArrivalSchedules(nextArrival);
             setPickupSchedules(pickupData.schedules);

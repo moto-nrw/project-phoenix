@@ -1278,7 +1278,11 @@ describe("activity-api", () => {
 
       await expect(
         activityApi.updateGroupEnrollments("1", { student_ids: ["1"] }),
-      ).rejects.toThrow("permission");
+      ).rejects.toMatchObject({
+        name: "ApiError",
+        status: 403,
+        code: "general.permission",
+      });
     });
   });
 });

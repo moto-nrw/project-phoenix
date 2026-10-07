@@ -1,6 +1,20 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+// Fehler einer Aktion kommen als Meldung über den gemeinsamen Weg (#2517).
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 const {
   mockPush,
@@ -148,16 +162,19 @@ describe("Als ungelesen markieren", () => {
   });
 
   it("stays on the thread and shows a hint when marking fails", async () => {
-    mockMarkThreadUnread.mockRejectedValue(new Error("messaging: forbidden"));
+    mockMarkThreadUnread.mockRejectedValue(
+      new ApiError("messaging: forbidden", 403, { code: "general.permission" }),
+    );
     render(<MessageThreadPage />);
 
     await chooseMarkUnread();
 
     expect(
       await screen.findByText(
-        "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+        catalogText("general.permission", "das Markieren als ungelesen"),
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/messaging: forbidden/)).not.toBeInTheDocument();
     expect(mockPush).not.toHaveBeenCalled();
   });
 

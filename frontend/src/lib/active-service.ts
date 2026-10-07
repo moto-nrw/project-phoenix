@@ -3,7 +3,11 @@ import { getCachedSession, sessionFetch } from "./session-cache";
 import api from "./api";
 import { resolveApiUrl } from "./api-url";
 import { createLogger } from "~/lib/logger";
-import { apiErrorFromBody, type ApiError } from "~/lib/api-error";
+import {
+  apiErrorFromBody,
+  transportFetch,
+  type ApiError,
+} from "~/lib/api-error";
 
 const logger = createLogger({ component: "ActiveService" });
 import {
@@ -508,12 +512,15 @@ export const activeService = {
   // Bulk fetch visits with student display data (optimized for SSE - single query)
   getActiveGroupVisitsWithDisplay: async (id: string): Promise<Visit[]> => {
     const session = await getCachedSession();
-    const response = await fetch(`/api/active/groups/${id}/visits/display`, {
-      headers: {
-        Authorization: `Bearer ${session?.user?.token}`,
-        "Content-Type": "application/json",
+    const response = await transportFetch(
+      `/api/active/groups/${id}/visits/display`,
+      {
+        headers: {
+          Authorization: `Bearer ${session?.user?.token}`,
+          "Content-Type": "application/json",
+        },
       },
-    });
+    );
 
     if (response.status === 404) {
       return [];
@@ -525,7 +532,11 @@ export const activeService = {
         status: response.status,
         error: errorText,
       });
-      throw new Error(`Get visits with display failed: ${response.status}`);
+      throw proxyError(
+        `Get visits with display failed: ${response.status}`,
+        response.status,
+        errorText,
+      );
     }
 
     const responseData = (await response.json()) as ApiResponse<BackendVisit[]>;
@@ -894,7 +905,7 @@ export const activeService = {
     try {
       if (useProxyApi) {
         const session = await getCachedSession();
-        const response = await fetch(url, {
+        const response = await transportFetch(url, {
           headers: {
             Authorization: `Bearer ${session?.user?.token}`,
             "Content-Type": "application/json",
@@ -907,7 +918,11 @@ export const activeService = {
             status: response.status,
             error: errorText,
           });
-          throw new Error(`Get unclaimed groups failed: ${response.status}`);
+          throw proxyError(
+            `Get unclaimed groups failed: ${response.status}`,
+            response.status,
+            errorText,
+          );
         }
 
         const responseData = (await response.json()) as unknown;
@@ -1040,7 +1055,7 @@ export const activeService = {
     const session = await getCachedSession();
     if (!session?.user?.token) return empty;
 
-    const response = await fetch("/api/active/tracking-indicators", {
+    const response = await transportFetch("/api/active/tracking-indicators", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${session.user.token}`,
@@ -1052,6 +1067,8 @@ export const activeService = {
     });
 
     if (!response.ok) {
+      // Bewusst still: die Markierungen sind eine Zusatzinfo; ohne sie zeigt
+      // die Liste die Kinder unverändert.
       logger.warn("tracking_indicators_fetch_failed", {
         status: response.status,
       });

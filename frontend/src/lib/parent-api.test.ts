@@ -357,20 +357,23 @@ describe("fetchParentEnrollmentProfile", () => {
     expect(seenURL).toContain("we%2Fird");
   });
 
-  it("throws with backend error message on non-OK non-401", async () => {
+  it("throws an ApiError with the status class, never the backend text", async () => {
     mockFetch(async () =>
       jsonResponse({ error: "tenant unknown" }, { status: 404 }),
     );
-    await expect(fetchParentEnrollmentProfile("school")).rejects.toThrow(
-      /tenant unknown/,
+    const error = await fetchParentEnrollmentProfile("school").catch(
+      (err: unknown) => err,
     );
+    expect(error).toMatchObject({ status: 404, code: "general.input" });
+    expect((error as Error).message).not.toMatch(/tenant unknown/);
   });
 
-  it("throws with generic message on non-OK + malformed body", async () => {
+  it("classifies a malformed error body by its status", async () => {
     mockFetch(async () => new Response("not json", { status: 500 }));
-    await expect(fetchParentEnrollmentProfile("school")).rejects.toThrow(
-      /Profile request failed \(500\)/,
-    );
+    await expect(fetchParentEnrollmentProfile("school")).rejects.toMatchObject({
+      status: 500,
+      code: "general.server",
+    });
   });
 
   it("handles flat (non-enveloped) response", async () => {
@@ -451,13 +454,27 @@ describe("submitParentEnrollment", () => {
     expect(out.status_url).toBe("");
   });
 
-  it("throws with backend error message on non-OK", async () => {
+  it("keeps the backend sentence out of the error", async () => {
     mockFetch(async () =>
       jsonResponse({ error: "Anmeldung bereits vorhanden" }, { status: 409 }),
     );
+    const error = await submitParentEnrollment("school", validPayload).catch(
+      (err: unknown) => err,
+    );
+    expect(error).toMatchObject({
+      status: 409,
+      code: "general.business_rejection",
+    });
+    expect((error as Error).message).not.toMatch(/bereits vorhanden/);
+  });
+
+  it("reports a broken connection as unavailable", async () => {
+    mockFetch(async () => {
+      throw new TypeError("Failed to fetch");
+    });
     await expect(
       submitParentEnrollment("school", validPayload),
-    ).rejects.toThrow(/Anmeldung bereits vorhanden/);
+    ).rejects.toMatchObject({ code: "general.unavailable" });
   });
 
   it("preserves coded enrollment errors from the parent submit route", async () => {
@@ -475,7 +492,6 @@ describe("submitParentEnrollment", () => {
     ).rejects.toMatchObject({
       code: "enrollment.late_invite_invalid",
       status: 403,
-      message: expect.stringContaining("Nachzügler-Link"),
     });
   });
 
@@ -629,10 +645,29 @@ describe("updateParentPortalLocale", () => {
   });
 
   it("throws when the backend rejects the update", async () => {
-    mockFetch(async () => jsonResponse({}, { status: 400 }));
-    await expect(updateParentPortalLocale("en")).rejects.toThrow(
-      /Profile update failed \(400\)/,
+    mockFetch(async () =>
+      jsonResponse(
+        { status: "error", code: "general.input", instance: "req-locale" },
+        { status: 400 },
+      ),
     );
+    // #2518: a coded error, so the switcher shows the catalog text.
+    await expect(updateParentPortalLocale("en")).rejects.toMatchObject({
+      name: "ParentApiError",
+      status: 400,
+      code: "general.input",
+      requestId: "req-locale",
+    });
+  });
+
+  it("reports a broken connection as unavailable", async () => {
+    mockFetch(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    await expect(updateParentPortalLocale("en")).rejects.toMatchObject({
+      status: 503,
+      code: "general.unavailable",
+    });
   });
 });
 

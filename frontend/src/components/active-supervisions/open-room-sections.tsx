@@ -311,6 +311,7 @@ function OpenRoomBlock({
           isOpen={actions.showCompleteConfirmation}
           roster={currentRoster}
           isCompleting={actions.isCompletingInstance}
+          error={actions.completeError}
           onClose={() => actions.setShowCompleteConfirmation(false)}
           onConfirm={() => void actions.confirmCompleteTimetableInstance()}
         />

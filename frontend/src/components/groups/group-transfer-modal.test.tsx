@@ -4,6 +4,8 @@
  */
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { GroupTransferModal } from "./group-transfer-modal";
 
 const mockGroup = {
@@ -291,7 +293,9 @@ describe("GroupTransferModal", () => {
       const scrollIntoViewMock = vi.fn();
       Element.prototype.scrollIntoView = scrollIntoViewMock;
 
-      mockOnTransfer.mockRejectedValue(new Error("Transfer failed"));
+      mockOnTransfer.mockRejectedValue(
+        new ApiError("boom", 500, { code: "general.server" }),
+      );
 
       render(
         <GroupTransferModal
@@ -313,24 +317,27 @@ describe("GroupTransferModal", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText(
-            "Fehler beim Übergeben der Gruppe. Bitte versuchen Sie es erneut.",
-          ),
+          screen.getByText(catalogText("general.server", "die Übergabe")),
         ).toBeInTheDocument();
       });
+      expect(
+        screen.getByRole("button", { name: "Wiederholen" }),
+      ).toBeInTheDocument();
 
       await waitFor(() => {
         expect(scrollIntoViewMock).toHaveBeenCalledWith({
           behavior: "smooth",
-          block: "start",
+          block: "nearest",
         });
       });
     });
 
     it("shows a typed server error", async () => {
-      const serverError = new Error("Diese Gruppenübergabe besteht bereits.");
-      serverError.name = "TransferError";
-      mockOnTransfer.mockRejectedValue(serverError);
+      mockOnTransfer.mockRejectedValue(
+        new ApiError("substitution already exists", 409, {
+          code: "substitutions.already_assigned",
+        }),
+      );
 
       render(
         <GroupTransferModal
@@ -347,8 +354,13 @@ describe("GroupTransferModal", () => {
       fireEvent.click(screen.getByText("Übergeben"));
 
       expect(
-        await screen.findByText("Diese Gruppenübergabe besteht bereits."),
+        await screen.findByText(
+          catalogText("substitutions.already_assigned", "die Übergabe"),
+        ),
       ).toBeInTheDocument();
+      expect(
+        screen.queryByText("substitution already exists"),
+      ).not.toBeInTheDocument();
     });
   });
 });

@@ -1,15 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useSession } from "next-auth/react";
 import { Trash2 } from "lucide-react";
-import { Alert } from "~/components/ui/alert";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { Skeleton } from "~/components/ui/skeleton";
 import { SectionCard } from "~/components/ui/section-card";
 import { EmptyState } from "~/components/ui/empty-state";
-import { useToast } from "~/contexts/ToastContext";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { formatDeviceLabelFromUserAgent } from "~/lib/device-label";
 import { createLogger } from "~/lib/logger";
 import {
@@ -48,33 +58,41 @@ export function TrustedDevicesSection({
   const toast = useToast();
   const [devices, setDevices] = useState<TrustedDeviceDTO[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [revokingId, setRevokingId] = useState<number | null>(null);
   // Entfernen läuft erst nach der Rückfrage (Bauart 2 Regel 6, #3109); ein
-  // Fehler bleibt im Dialog stehen.
+  // Fehler bleibt im Dialog stehen. Ladefehler stehen vor Ort mit
+  // Wiederholen, nie als leere Liste (#2517).
   const [revokeTarget, setRevokeTarget] = useState<TrustedDeviceDTO | null>(
     null,
   );
-  const [revokeError, setRevokeError] = useState("");
+  const { error: loadError, show: showLoadError, clear } = useApiLoadError();
+  const revokeRef = useRef<HTMLParagraphElement>(null);
+  const revokeErrors = useApiFormError(revokeRef);
+  const latestLoadRef = useRef<() => void>(() => undefined);
+  const latestRevokeRef = useRef<(deviceId: number) => void>(() => undefined);
 
   const load = useCallback(async () => {
     if (!bearerToken) return;
     setLoading(true);
-    setError(null);
+    setLoadFailed(false);
+    clear();
     try {
       const list = await listTrustedDevices(scope, bearerToken);
       setDevices(list);
     } catch (err) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : "Geräte konnten nicht geladen werden.";
-      logger.error("list_trusted_devices_failed", { error: msg });
-      setError(msg);
+      logger.error("list_trusted_devices_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setLoadFailed(true);
+      void showLoadError(err, {
+        object: "die Liste der vertrauten Geräte",
+        retry: () => latestLoadRef.current(),
+      });
     } finally {
       setLoading(false);
     }
-  }, [bearerToken, scope]);
+  }, [bearerToken, clear, scope, showLoadError]);
 
   useEffect(() => {
     if (sessionStatus === "authenticated") {
@@ -88,28 +106,32 @@ export function TrustedDevicesSection({
     async (deviceId: number) => {
       if (!bearerToken) return;
       setRevokingId(deviceId);
-      setRevokeError("");
+      revokeErrors.clear();
       try {
         await revokeTrustedDevice(scope, bearerToken, deviceId);
         setRevokeTarget(null);
-        toast.success("Gerät erfolgreich entfernt.");
+        toast.success("Das Gerät ist entfernt.");
         await load();
       } catch (err) {
-        const msg =
-          err instanceof Error
-            ? err.message
-            : "Gerät konnte nicht entfernt werden.";
         logger.error("revoke_trusted_device_failed", {
           device_id: deviceId,
-          error: msg,
+          error: err instanceof Error ? err.message : String(err),
         });
-        setRevokeError(msg);
+        void revokeErrors.show(err, {
+          object: "das Entfernen des Geräts",
+          retry: () => latestRevokeRef.current(deviceId),
+        });
       } finally {
         setRevokingId(null);
       }
     },
-    [bearerToken, scope, toast, load],
+    [bearerToken, scope, toast, load, revokeErrors],
   );
+
+  useLayoutEffect(() => {
+    latestLoadRef.current = () => void load();
+    latestRevokeRef.current = (deviceId) => void handleRevoke(deviceId);
+  });
 
   return (
     <SectionCard
@@ -117,26 +139,24 @@ export function TrustedDevicesSection({
       title="Meine vertrauten Geräte"
       description="Gemerkte Geräte überspringen den 2FA-Code. Entfernen Sie Geräte, die Sie nicht mehr nutzen."
     >
-      {error && (
-        <div className="mb-4">
-          <Alert type="error" message={error} />
-        </div>
-      )}
-
-      {loading && (
+      {/* Bis der Text eines Ladefehlers da ist, bleibt das Skelett stehen. */}
+      {(loading || (loadFailed && !loadError)) && (
         <div className="space-y-2">
           <Skeleton className="h-16 w-full rounded" />
           <Skeleton className="h-16 w-full rounded" />
         </div>
       )}
-      {!loading && (!devices || devices.length === 0) && (
+      {!loading && loadFailed && loadError ? (
+        <LoadErrorAlert error={loadError} />
+      ) : null}
+      {!loading && !loadFailed && (!devices || devices.length === 0) && (
         <EmptyState
           variant="compact"
           title="Sie haben aktuell keine vertrauten Geräte gespeichert."
           description="Beim nächsten Login können Sie ein Gerät merken lassen, um den 2FA-Code dort zu überspringen."
         />
       )}
-      {!loading && devices && devices.length > 0 && (
+      {!loading && !loadFailed && devices && devices.length > 0 && (
         <ul className="divide-y divide-gray-100">
           {devices.map((d) => (
             <li
@@ -169,7 +189,7 @@ export function TrustedDevicesSection({
                       destructive: true,
                       disabled: revokingId === d.id,
                       onClick: () => {
-                        setRevokeError("");
+                        revokeErrors.clear();
                         setRevokeTarget(d);
                       },
                     },
@@ -186,7 +206,7 @@ export function TrustedDevicesSection({
         title="Gerät entfernen?"
         description={
           revokeTarget ? (
-            <p>
+            <p ref={revokeRef}>
               Das Gerät{" "}
               <span className="font-medium text-gray-900">
                 {formatDeviceLabelFromUserAgent(revokeTarget.user_agent)}
@@ -200,13 +220,13 @@ export function TrustedDevicesSection({
         confirmLabel="Endgültig entfernen"
         loadingLabel="Wird entfernt…"
         loading={revokingId !== null}
-        error={revokeError}
+        error={revokeErrors.error}
         onConfirm={() => {
           if (revokeTarget) void handleRevoke(revokeTarget.id);
         }}
         onClose={() => {
           setRevokeTarget(null);
-          setRevokeError("");
+          revokeErrors.clear();
         }}
       />
     </SectionCard>

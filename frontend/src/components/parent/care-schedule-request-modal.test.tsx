@@ -8,6 +8,9 @@ import {
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 import deMessages from "~/i18n/messages/de.json";
+import { ApiError } from "~/lib/api-error";
+import { ParentApiError } from "~/lib/parent-api";
+import { catalogText } from "~/test/error-catalog-text";
 import { CareScheduleRequestModal } from "./care-schedule-request-modal";
 
 const weekdays = [
@@ -145,6 +148,58 @@ describe("CareScheduleRequestModal", () => {
       expect(onSubmit).toHaveBeenCalledWith({
         weekdays: [{ weekday: 1, scheduled: false }],
       }),
+    );
+  });
+});
+
+describe("CareScheduleRequestModal Fehlerweg (#2518)", () => {
+  const capabilities = { arrival: false, pickup: true, departure_mode: false };
+
+  async function submitPickupChange() {
+    fireEvent.change(screen.getByRole("textbox", { name: /^Abholzeit/ }), {
+      target: { value: "16:30" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
+    );
+    return screen.findByRole("alert");
+  }
+
+  it("zeigt einen Serverfehler mit Katalogtext statt Serversatz", async () => {
+    renderModal(
+      capabilities,
+      vi
+        .fn()
+        .mockRejectedValue(
+          new ApiError("backend sentence", 500, { code: "general.server" }),
+        ),
+    );
+
+    expect(await submitPickupChange()).toHaveTextContent(
+      catalogText(
+        "general.server",
+        deMessages.parentMasterData.careSchedule.requestErrorObject,
+      ),
+    );
+    expect(screen.queryByText(/backend sentence/)).not.toBeInTheDocument();
+  });
+
+  it("erklärt eine schon offene Anfrage mit eigenem Text", async () => {
+    renderModal(
+      capabilities,
+      vi
+        .fn()
+        .mockRejectedValue(
+          new ParentApiError(
+            "pending",
+            409,
+            "care.care_request_already_pending",
+          ),
+        ),
+    );
+
+    expect(await submitPickupChange()).toHaveTextContent(
+      deMessages.parentMasterData.careSchedule.requestAlreadyPending,
     );
   });
 });

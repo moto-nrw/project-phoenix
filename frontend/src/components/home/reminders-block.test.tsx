@@ -1,13 +1,16 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import type { Reminder, RemindersResult } from "~/lib/reminders-api";
+import { catalogText } from "~/test/error-catalog-text";
 
 const hook = vi.hoisted(() => ({
   reminders: [] as Reminder[],
   error: undefined as Error | undefined,
   isLoading: false,
   data: undefined as RemindersResult | undefined,
+  retry: vi.fn(),
 }));
 
 vi.mock("~/lib/hooks/use-reminders", () => ({
@@ -87,14 +90,18 @@ describe("RemindersBlock (#2180)", () => {
     expect(screen.getByText("Nichts steht an")).toBeInTheDocument();
   });
 
-  it("unterscheidet einen Ladefehler von einem ruhigen Tag", () => {
-    hook.error = new Error("boom");
+  it("unterscheidet einen Ladefehler von einem ruhigen Tag", async () => {
+    hook.error = new ApiError("boom", 503, { code: "general.unavailable" });
 
     render(<RemindersBlock />);
 
     expect(
-      screen.getByText(/konnten nicht geladen werden/),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Erinnerungen"),
+      ),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(hook.retry).toHaveBeenCalled();
     expect(screen.queryByText("Nichts steht an")).not.toBeInTheDocument();
   });
 });

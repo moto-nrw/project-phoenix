@@ -28,7 +28,7 @@ func (d *Decisions) dispatchContactList(ctx context.Context, raw any, studentID 
 	emails := make([]string, 0, len(entries))
 	for i := range entries {
 		if err := entries[i].Validate(); err != nil {
-			return linkedProfileIDs, err
+			return linkedProfileIDs, fmt.Errorf("%w: %w", enrollment.ErrDecisionInvalidData, err)
 		}
 		emails = append(emails, strings.ToLower(strings.TrimSpace(entries[i].Email)))
 	}

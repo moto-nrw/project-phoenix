@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useParams, redirect, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { KeyRound, Trash2, Users } from "lucide-react";
@@ -12,8 +19,8 @@ import type { Staff } from "~/lib/staff-api";
 import { teacherService, type Teacher } from "~/lib/teacher-api";
 import { teachersConfig } from "~/components/database/configs/teachers.config";
 import { createCrudService } from "~/lib/database/service-factory";
-import { getDbOperationMessage } from "~/lib/use-notification";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import {
   employmentTypeLabels,
@@ -29,6 +36,7 @@ import {
 } from "~/lib/account-role-assignment";
 import { Avatar } from "~/components/ui/avatar";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
@@ -37,12 +45,17 @@ import { AbwesenheitenTab } from "~/components/staff/abwesenheiten-tab";
 import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
 import { DokumenteTab } from "~/components/staff/dokumente-tab";
 import { KlassenTab } from "~/components/staff/klassen-tab";
-import { KontoTab, type KontoDraft } from "~/components/staff/konto-tab";
+import {
+  KontoRoleSaveError,
+  KontoTab,
+  type KontoDraft,
+} from "~/components/staff/konto-tab";
 import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { StammdatenTab } from "~/components/staff/stammdaten-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { staffAbsenceService } from "~/lib/staff-api";
 import { isValidISODate } from "~/lib/date-helpers";
 import { DetailSkeleton } from "~/components/ui/page-skeletons";
@@ -82,7 +95,14 @@ export default function StaffDetailContent() {
   const backLabel = referrer.startsWith("/database/personal")
     ? "Zurück zum Personal"
     : "Zurück zu den Mitarbeitenden";
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
+  // Ein Löschfehler steht im offenen Dialog; ein Toast läge hinter dem Modal
+  // (#2514).
+  const deleteErrors = useApiFormError();
+  const { clear: clearDeleteError, show: showDeleteError } = deleteErrors;
+  const handleDeleteRecordRef = useRef<() => Promise<void>>(
+    async () => undefined,
+  );
   const tenantMutate = useTenantMutate();
   const recordService = useMemo(() => createCrudService(teachersConfig), []);
   // Effective admin: the backend grants everything to `admin:*` / `*:*`
@@ -161,6 +181,7 @@ export default function StaffDetailContent() {
     data: staff,
     isLoading,
     error,
+    mutate: mutateStaff,
   } = useSWRAuth<Staff>(`staff-detail-${staffId}`, () =>
     canViewFinancial && !canViewStammdatenSections
       ? staffService.getFinancialProfile(staffId)
@@ -172,9 +193,25 @@ export default function StaffDetailContent() {
   // Der Datensatz für den Reiter „Konto" und das Bearbeiten: dieselbe
   // Abbildung wie das Register der Datenverwaltung (Systemrolle, RFID-Karte,
   // Notizen, Konto-ID), damit beide Seiten dieselben Felder kennen.
-  const { data: record, error: recordError } = useSWRAuth<Teacher>(
-    canViewRecord ? staffRecordKey(staffId) : null,
-    () => recordService.getOne(staffId),
+  const {
+    data: record,
+    error: recordError,
+    mutate: mutateRecord,
+  } = useSWRAuth<Teacher>(canViewRecord ? staffRecordKey(staffId) : null, () =>
+    recordService.getOne(staffId),
+  );
+  // Ladefehler stehen dort, wo die Daten fehlen, mit Wiederholen (#2514).
+  // Ein 404 ist kein Ladefehler, sondern eine Person, die es nicht mehr gibt.
+  const staffNotFound = error instanceof ApiError && error.status === 404;
+  const staffLoadError = useSwrLoadError(
+    staffNotFound ? undefined : error,
+    "die Personalakte",
+    mutateStaff,
+  );
+  const recordLoadError = useSwrLoadError(
+    recordError,
+    "das Konto",
+    mutateRecord,
   );
   const accountId = record?.account_id ?? "";
   const hasAccount = accountId !== "";
@@ -231,9 +268,7 @@ export default function StaffDetailContent() {
             staff_id: staffId,
             error: err instanceof Error ? err.message : String(err),
           });
-          throw new Error("Die Änderungen konnten nicht gespeichert werden.", {
-            cause: err,
-          });
+          throw err;
         }
       }
       if (targetRoleId !== undefined) {
@@ -247,18 +282,16 @@ export default function StaffDetailContent() {
             error: err instanceof Error ? err.message : String(err),
           });
           await refreshRecord();
-          throw new Error(
-            hasRecordChanges
-              ? "Name, Position und Notizen sind gespeichert. Die Systemrolle konnte nicht geändert werden."
-              : "Die Systemrolle konnte nicht geändert werden.",
-            { cause: err },
-          );
+          // Der Datensatz ist gespeichert; das sagt eine Erfolgsmeldung,
+          // der Fehler im Formular nennt nur die Systemrolle.
+          if (hasRecordChanges) {
+            toastSuccess("Name, Position und Notizen sind gespeichert.");
+          }
+          throw new KontoRoleSaveError(err);
         }
         await tenantMutate(roleAssignmentKey(accountId));
       }
-      toastSuccess(
-        getDbOperationMessage("update", teachersConfig.name.singular),
-      );
+      toastSuccess("Die Änderungen sind gespeichert.");
       await refreshRecord();
     },
     [accountId, refreshRecord, staffId, tenantMutate, toastSuccess],
@@ -266,30 +299,37 @@ export default function StaffDetailContent() {
 
   const handleDeleteRecord = useCallback(async () => {
     setDeleting(true);
+    clearDeleteError();
     try {
-      const deleteError = await recordService.delete(staffId);
-      if (deleteError) {
-        toastError(deleteError);
-        return;
-      }
-      toastSuccess(
-        getDbOperationMessage("delete", teachersConfig.name.singular),
-      );
+      await teacherService.deleteTeacher(staffId);
+      toastSuccess("Die Person ist gelöscht.");
       await tenantMutate("database-teachers-list");
       setShowDeleteModal(false);
       router.push(referrer);
+    } catch (err) {
+      logger.error("failed to delete staff record", {
+        staff_id: staffId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await showDeleteError(err, {
+        object: "die Person",
+        retry: () => void handleDeleteRecordRef.current(),
+      });
     } finally {
       setDeleting(false);
     }
   }, [
-    recordService,
+    clearDeleteError,
     referrer,
     router,
+    showDeleteError,
     staffId,
     tenantMutate,
-    toastError,
     toastSuccess,
   ]);
+  useLayoutEffect(() => {
+    handleDeleteRecordRef.current = handleDeleteRecord;
+  });
 
   // Counter for the "Abwesenheiten" tab — shows MA-Pending only.
   // The /staff dashboard inbox (Tranche 4c) will count across all staff.
@@ -344,7 +384,21 @@ export default function StaffDetailContent() {
     return <StaffDetailSkeleton />;
   }
 
-  if (!isLoading && (error || !staff)) {
+  if (!isLoading && error && !staffNotFound) {
+    // Bis der Katalogtext geladen ist, bleibt das Skelett stehen.
+    if (!staffLoadError) return <StaffDetailSkeleton />;
+    return (
+      <TenantPage
+        title="Mitarbeiter"
+        back
+        backHref={referrer}
+        backLabel={backLabel}
+        error={staffLoadError}
+      />
+    );
+  }
+
+  if (!isLoading && (staffNotFound || !staff)) {
     return (
       <TenantPage
         title="Mitarbeiter"
@@ -352,9 +406,8 @@ export default function StaffDetailContent() {
         backHref={referrer}
         backLabel={backLabel}
         empty={{
-          title: "Mitarbeiter konnte nicht geladen werden.",
-          description:
-            "Bitte laden Sie die Seite neu. Bleibt der Fehler bestehen, existiert die Person möglicherweise nicht mehr.",
+          title: "Diese Person gibt es nicht mehr.",
+          description: "Sie wurde gelöscht oder der Link ist veraltet.",
         }}
       />
     );
@@ -516,8 +569,12 @@ export default function StaffDetailContent() {
           <>
             <ConfirmDeleteModal
               isOpen={showDeleteModal}
-              onClose={() => setShowDeleteModal(false)}
+              onClose={() => {
+                clearDeleteError();
+                setShowDeleteModal(false);
+              }}
               onConfirm={() => void handleDeleteRecord()}
+              error={deleteErrors.error}
               title="Personal löschen?"
               description={
                 <>
@@ -536,7 +593,6 @@ export default function StaffDetailContent() {
                 placeholder: "Vorname Nachname",
               }}
               loading={deleting}
-              error=""
             />
             {hasAccount ? (
               <>
@@ -636,10 +692,7 @@ export default function StaffDetailContent() {
                 }
               />
             ) : recordError ? (
-              <TenantPage
-                title="Konto"
-                error="Der Personal-Datensatz konnte nicht geladen werden."
-              />
+              <LoadErrorAlert error={recordLoadError} />
             ) : (
               <DetailSkeleton sections={2} fieldsPerSection={4} />
             )

@@ -53,6 +53,10 @@ const (
 	// TemplateByArea is the Dienstplan as the schools keep it in Excel: one
 	// row per Einsatzbereich (Schichtart or Angebot), names in the cells.
 	TemplateByArea Template = "areas"
+	// TemplateByHours is the Dienstplan as an hours sheet (#3819): one row
+	// per staff member, one column per Schichtart, then total, target and
+	// difference. It prints figures only, so the variant changes nothing.
+	TemplateByHours Template = "hours"
 	// TemplateByOffering is the Betreuungsplan: one row per Betreuungsblock.
 	TemplateByOffering Template = "offerings"
 )
@@ -82,7 +86,13 @@ var (
 	// ErrRangeTooLarge is a specific ErrInvalidParams so the handler can
 	// phrase the limit for the user.
 	ErrRangeTooLarge = fmt.Errorf("%w: range exceeds %d weeks", ErrInvalidParams, maxExportWeeks)
+	// ErrRangeReversed is the ErrInvalidParams of a range ending before it
+	// starts (#2516).
+	ErrRangeReversed = fmt.Errorf("%w: to must not be before from", ErrInvalidParams)
 )
+
+// MaxExportWeeks is the cap a refused range names to the client (#2516).
+const MaxExportWeeks = maxExportWeeks
 
 // Params is one export request. From/To are any two calendar days; the
 // service widens them to whole Monday–Friday weeks, because a wall plan is
@@ -95,11 +105,12 @@ type Params struct {
 	Format   listexport.Format
 }
 
-// TemplatesForDienstplan and TemplatesForBetreuungsplan are the templates
+// TemplatesForDienstplan, TemplatesForHours and TemplatesForBetreuungsplan are the templates
 // each plan accepts — the single place the pairing is decided, shared by
 // validation and by the handlers' error messages.
 var (
 	TemplatesForDienstplan     = []Template{TemplateByPerson, TemplateByArea}
+	TemplatesForHours          = []Template{TemplateByHours}
 	TemplatesForBetreuungsplan = []Template{TemplateByOffering}
 )
 
@@ -138,7 +149,7 @@ func (p Params) validate(allowed []Template) (window, error) {
 		return window{}, fmt.Errorf("%w: to must be YYYY-MM-DD", ErrInvalidParams)
 	}
 	if to.Before(from) {
-		return window{}, fmt.Errorf("%w: to must not be before from", ErrInvalidParams)
+		return window{}, ErrRangeReversed
 	}
 	if !p.Variant.valid() {
 		return window{}, fmt.Errorf("%w: unknown variant %q", ErrInvalidParams, p.Variant)

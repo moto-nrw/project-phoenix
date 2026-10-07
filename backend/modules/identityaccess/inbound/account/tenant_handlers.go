@@ -488,7 +488,9 @@ func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
 			case errors.Is(err, identityaccess.ErrTenantNotFound):
 				common.RenderError(w, r, common.ErrorNotFound(identityaccess.ErrTenantNotFound))
 			case errors.Is(err, identityaccess.ErrTenantAccessDenied):
-				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantAccessDenied))
+				// The message text stays for older clients; the switcher reads
+				// the code (#2517).
+				common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrTenantAccessDenied, common.CodeIdentityTenantAccessDenied))
 			case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
 				common.RenderError(w, r, common.ErrorForbiddenWithCode(
 					identityaccess.ErrMustUseSchoolPortal, common.CodeIdentityUseSchoolPortal))

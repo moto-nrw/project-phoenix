@@ -1,9 +1,22 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import EmergencyPage from "./page";
 
 const mockUseSession = vi.fn();
 const mockExportEmergencySnapshot = vi.fn();
+
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 vi.mock("next-auth/react", () => ({
   useSession: () => mockUseSession(),
@@ -56,6 +69,7 @@ vi.mock("lucide-react", async (importOriginal) => {
 
 beforeEach(() => {
   mockUseSession.mockReturnValue({ status: "authenticated" });
+  mockExportEmergencySnapshot.mockReset();
   mockExportEmergencySnapshot.mockResolvedValue(undefined);
 });
 
@@ -100,8 +114,10 @@ describe("EmergencyPage", () => {
     });
   });
 
-  it("shows an error when export fails", async () => {
-    mockExportEmergencySnapshot.mockRejectedValueOnce(new Error("failed"));
+  it("shows the catalog text with retry in a toast when export fails", async () => {
+    mockExportEmergencySnapshot.mockRejectedValueOnce(
+      new ApiError("boom", 500, { code: "general.server" }),
+    );
     render(<EmergencyPage />);
 
     fireEvent.click(
@@ -110,9 +126,14 @@ describe("EmergencyPage", () => {
 
     expect(
       await screen.findByText(
-        "Die Notfallliste konnte nicht erstellt werden. Bitte versuchen Sie es erneut.",
+        catalogText("general.server", "die Notfallliste"),
       ),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => {
+      expect(mockExportEmergencySnapshot).toHaveBeenCalledTimes(2);
+    });
+    expect(mockExportEmergencySnapshot).toHaveBeenLastCalledWith("print");
   });
 
   // The page is the only place staff read before printing, so it has to name

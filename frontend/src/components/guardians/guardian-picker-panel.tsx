@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { Search, ArrowLeft, Check, X } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { formErrorMessage } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import {
   searchGuardians,
   GUARDIAN_PICKER_RESULT_LIMIT,
@@ -82,7 +85,13 @@ export default function GuardianPickerPanel({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Guardian[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Eine gescheiterte Suche ist ein Ladefehler der Trefferliste (#2517):
+  // Katalogtext an der Stelle der Treffer, „Wiederholen“ sucht erneut.
+  const [searchFailed, setSearchFailed] = useState(false);
+  const [searchAttempt, setSearchAttempt] = useState(0);
+  const searchError = useApiLoadError();
+  const showSearchError = searchError.show;
+  const clearSearchError = searchError.clear;
   const [selected, setSelected] = useState<Guardian | null>(null);
   const [relationship, setRelationship] =
     useState<RelationshipFormData>(DEFAULT_RELATIONSHIP);
@@ -96,7 +105,8 @@ export default function GuardianPickerPanel({
     if (trimmed.length < MIN_QUERY_LENGTH) {
       setResults([]);
       setLoading(false);
-      setError(null);
+      setSearchFailed(false);
+      clearSearchError();
       return;
     }
 
@@ -107,18 +117,21 @@ export default function GuardianPickerPanel({
         .then((found) => {
           if (!cancelled) {
             setResults(found);
-            setError(null);
+            setSearchFailed(false);
+            clearSearchError();
           }
         })
         .catch((err: unknown) => {
           if (!cancelled) {
-            // Log the technical detail, but never surface a raw (English)
-            // backend/JS message to the user — show a German message instead.
             logger.error("guardian_search_failed", {
               error: err instanceof Error ? err.message : String(err),
             });
             setResults([]);
-            setError("Suche fehlgeschlagen. Bitte erneut versuchen.");
+            setSearchFailed(true);
+            void showSearchError(err, {
+              object: "die Suche nach Erziehungsberechtigten",
+              retry: () => setSearchAttempt((attempt) => attempt + 1),
+            });
           }
         })
         .finally(() => {
@@ -130,7 +143,7 @@ export default function GuardianPickerPanel({
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [query, selected]);
+  }, [query, selected, searchAttempt, showSearchError, clearSearchError]);
 
   const updateRelationship = (field: RelationshipFlag, value: boolean) => {
     setRelationship((prev) => ({ ...prev, [field]: value }));
@@ -262,15 +275,15 @@ export default function GuardianPickerPanel({
             />
           </div>
 
-          {error && (
-            <div className="border-moto-red/20 bg-moto-red-soft rounded-lg border p-2 md:p-3">
-              <p className="text-moto-red-strong text-xs md:text-sm">{error}</p>
-            </div>
-          )}
+          <LoadErrorAlert error={searchError.error} />
 
           {/* Results */}
           <div className="max-h-72 space-y-2 overflow-y-auto">
-            {loading && (
+            {/* Bis der Katalogtext da ist, steht weiter „Suche läuft…“, nie
+                „Keine Erziehungsberechtigten gefunden“. */}
+            {(loading ||
+              (searchFailed &&
+                formErrorMessage(searchError.error) === null)) && (
               <p className="px-1 py-4 text-center text-xs text-gray-500">
                 Suche läuft…
               </p>
@@ -279,7 +292,7 @@ export default function GuardianPickerPanel({
             {!loading &&
               query.trim().length >= MIN_QUERY_LENGTH &&
               results.length === 0 &&
-              !error && (
+              !searchFailed && (
                 <p className="px-1 py-4 text-center text-xs text-gray-500">
                   Keine Erziehungsberechtigten gefunden.
                 </p>

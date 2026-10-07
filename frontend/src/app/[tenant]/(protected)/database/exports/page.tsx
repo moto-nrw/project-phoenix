@@ -27,7 +27,7 @@ import { Button } from "~/components/ui/button";
 import { InfoCard } from "~/components/ui/info-card";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { exportEmergencySnapshot } from "~/lib/emergency-export-api";
 import {
@@ -91,6 +91,9 @@ const STUDENT_LIST_ICONS: Record<StudentExportPreset, ReactNode> = {
  */
 export default function DatabaseExportsPage() {
   const toast = useToast();
+  // Ein Export ist eine Aktion ohne Formular: Fehler als Toast mit
+  // Wiederholen (#2517).
+  const { show: showExportError } = useApiErrorDisplay();
   const { data: session, status } = useSession();
   // Slot lists are part of the timetable feature; hide the entry when a tenant
   // has explicitly disabled it (#1565 review), mirroring the sidebar and the
@@ -154,12 +157,16 @@ export default function DatabaseExportsPage() {
     setBusy((current) => new Set(current).add(key));
     try {
       await task();
-      toast.success("Export wurde erstellt.");
+      toast.success("Der Export ist fertig.");
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Export fehlgeschlagen";
-      logger.error("central_export_failed", { export: key, error: message });
-      toast.error(message);
+      logger.error("central_export_failed", {
+        export: key,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      void showExportError(error, {
+        object: "die Exportdatei",
+        retry: () => void runExport(key, task),
+      });
     } finally {
       setBusy((current) => {
         const next = new Set(current);

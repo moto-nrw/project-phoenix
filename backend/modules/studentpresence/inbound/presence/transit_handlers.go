@@ -16,11 +16,11 @@ type assignTransitStudentsRequest struct {
 func (rs *Resource) assignTransitStudents(w http.ResponseWriter, r *http.Request) {
 	var req assignTransitStudentsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid request body")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
 	if len(req.StudentIDs) == 0 || req.ActiveGroupID <= 0 {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("student_ids and active_group_id are required")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("student_ids and active_group_id are required")))
 		return
 	}
 

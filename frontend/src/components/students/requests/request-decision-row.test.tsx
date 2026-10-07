@@ -2,8 +2,13 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RequestDecisionRow } from "./request-decision-row";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import type { AggregatedOpenRequest } from "~/lib/change-request-list-api";
-import { markRequestDone } from "~/lib/change-request-list-api";
+import {
+  ChangeRequestStaleError,
+  markRequestDone,
+} from "~/lib/change-request-list-api";
 
 vi.mock("~/lib/change-request-list-api", async () => {
   const actual = await vi.importActual<
@@ -53,16 +58,18 @@ function renderRow(
   }> = {},
 ) {
   return render(
-    <RequestDecisionRow
-      request={request}
-      selected={false}
-      position={1}
-      total={1}
-      inConflict={handlers.inConflict ?? false}
-      onSelectionChange={vi.fn()}
-      onDecided={handlers.onDecided ?? vi.fn()}
-      onStale={handlers.onStale ?? vi.fn()}
-    />,
+    <ToastProvider>
+      <RequestDecisionRow
+        request={request}
+        selected={false}
+        position={1}
+        total={1}
+        inConflict={handlers.inConflict ?? false}
+        onSelectionChange={vi.fn()}
+        onDecided={handlers.onDecided ?? vi.fn()}
+        onStale={handlers.onStale ?? vi.fn()}
+      />
+    </ToastProvider>,
   );
 }
 
@@ -126,6 +133,43 @@ describe("RequestDecisionRow", () => {
         "Die Anfrage wurde abgeschlossen.",
       ),
     );
+  });
+
+  it("meldet ein gescheitertes Abschließen als Toast mit Wiederholen", async () => {
+    mockMarkDone.mockRejectedValueOnce(
+      new ApiError("boom", 500, { code: "general.server", instance: "req-1" }),
+    );
+    renderRow(item({ past: true, bulk_eligible: false }));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Als erledigt markieren" }),
+    );
+
+    const toast = await screen.findByRole("alert", { name: /^Fehler:/ });
+    expect(toast).toHaveTextContent(
+      "Die Anfrage konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+    );
+    mockMarkDone.mockResolvedValueOnce(undefined);
+    fireEvent.click(screen.getByRole("button", { name: /Wiederholen/ }));
+    await waitFor(() => expect(mockMarkDone).toHaveBeenCalledTimes(2));
+  });
+
+  it("lädt bei einer veralteten Anfrage neu und meldet den Code-Text", async () => {
+    const onStale = vi.fn();
+    mockMarkDone.mockRejectedValueOnce(new ChangeRequestStaleError());
+    renderRow(item({ past: true, bulk_eligible: false }), { onStale });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Als erledigt markieren" }),
+    );
+
+    await waitFor(() => expect(onStale).toHaveBeenCalledOnce());
+    expect(
+      await screen.findByRole("alert", { name: /^Fehler:/ }),
+    ).toHaveTextContent(/wurde inzwischen geändert/);
+    expect(
+      screen.queryByRole("button", { name: /Wiederholen/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("sperrt die Einzel-Entscheidung, solange ein Widerspruch offen ist", () => {

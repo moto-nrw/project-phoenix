@@ -13,13 +13,18 @@
  * Eltern bekommen keine Nachricht.
  */
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { DateRange } from "react-day-picker";
 
 import { Checkbox } from "~/components/ui/checkbox";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
-import { useToast } from "~/contexts/ToastContext";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { formatClosingDayRange } from "~/lib/closing-day-helpers";
 import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -92,7 +97,14 @@ export function BulkCancelAppointmentsModal({
   const [includeSeries, setIncludeSeries] = useState(false);
   const [countState, setCountState] = useState<CountState>({ kind: "idle" });
   const [cancelling, setCancelling] = useState(false);
-  const [error, setError] = useState("");
+  // Der Dialog liegt über den Toasts: der Fehler des Absagens steht im
+  // Dialog (#2516), der Fehler des Zählens vor Ort mit Wiederholen.
+  const formErrors = useApiFormError();
+  const { clear: clearError } = formErrors;
+  const countLoad = useApiLoadError();
+  const { show: showCountError, clear: clearCountError } = countLoad;
+  const [countAttempt, setCountAttempt] = useState(0);
+  const latestConfirmRef = useRef<() => void>(() => undefined);
   const { success: toastSuccess } = useToast();
   const refreshPlan = useTenantMutateMatching(PLAN_CACHE_PREFIXES);
   const rangeLabelId = useId();
@@ -103,8 +115,8 @@ export function BulkCancelAppointmentsModal({
     setFrom(clampToToday(initialFrom, initialTo));
     setTo(initialTo);
     setIncludeSeries(false);
-    setError("");
-  }, [isOpen, initialFrom, initialTo]);
+    clearError();
+  }, [isOpen, initialFrom, initialTo, clearError]);
 
   useEffect(() => {
     if (!isOpen || from === "" || to === "") {
@@ -113,6 +125,7 @@ export function BulkCancelAppointmentsModal({
     }
     let active = true;
     setCountState({ kind: "loading" });
+    clearCountError();
     timetableService
       .bulkCancel(from, to, true, includeSeries)
       .then((preview) => {
@@ -130,12 +143,25 @@ export function BulkCancelAppointmentsModal({
           to,
           error: err instanceof Error ? err.message : String(err),
         });
-        if (active) setCountState({ kind: "error" });
+        if (!active) return;
+        setCountState({ kind: "error" });
+        void showCountError(err, {
+          object: "das Zählen der Termine",
+          retry: () => setCountAttempt((current) => current + 1),
+        });
       });
     return () => {
       active = false;
     };
-  }, [isOpen, from, to, includeSeries]);
+  }, [
+    isOpen,
+    from,
+    to,
+    includeSeries,
+    countAttempt,
+    showCountError,
+    clearCountError,
+  ]);
 
   const handleRangeChange = (range: DateRange | undefined) => {
     setFrom(range?.from ? toISODate(range.from) : "");
@@ -144,7 +170,7 @@ export function BulkCancelAppointmentsModal({
 
   const handleConfirm = async () => {
     setCancelling(true);
-    setError("");
+    formErrors.clear();
     try {
       const result = await timetableService.bulkCancel(
         from,
@@ -154,8 +180,8 @@ export function BulkCancelAppointmentsModal({
       );
       toastSuccess(
         result.count === 1
-          ? "1 Termin abgesagt"
-          : `${result.count} Termine abgesagt`,
+          ? "1 Termin ist abgesagt."
+          : `${result.count} Termine sind abgesagt.`,
       );
       await refreshPlan();
       onCancelled?.(result.count);
@@ -166,13 +192,18 @@ export function BulkCancelAppointmentsModal({
         to,
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
-      );
+      void formErrors.show(err, {
+        object: "die Absage der Termine",
+        retry: () => latestConfirmRef.current(),
+      });
     } finally {
       setCancelling(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestConfirmRef.current = () => void handleConfirm();
+  });
 
   // „Im Zeitraum 12.10.2026 – 16.10.2026“, ein einzelner Tag „Am 12.10.2026“.
   const rangeText = `${from === to ? "Am" : "Im Zeitraum"} ${formatClosingDayRange({ startDate: from, endDate: to })}`;
@@ -214,10 +245,7 @@ export function BulkCancelAppointmentsModal({
           </div>
           {countState.kind === "loading" && <p>Die Termine werden gezählt.</p>}
           {countState.kind === "error" && (
-            <p>
-              Die Termine konnten nicht gezählt werden. Bitte versuchen Sie es
-              noch einmal.
-            </p>
+            <LoadErrorAlert error={countLoad.error} />
           )}
           {ready && ready.count === 0 && keptSeries.length === 0 && (
             <p>{rangeText} sind keine Termine mehr geplant.</p>
@@ -262,7 +290,7 @@ export function BulkCancelAppointmentsModal({
       onConfirm={handleConfirm}
       onClose={onClose}
       loading={cancelling}
-      error={error}
+      error={formErrors.error}
       confirmLabel="Endgültig absagen"
       loadingLabel="Wird abgesagt…"
     />

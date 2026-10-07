@@ -448,7 +448,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Check for ownership error
 		if errors.Is(err, activitiesSvc.ErrNotOwner) {
-			common.RenderError(w, r, common.ErrorForbidden(err))
+			common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeTimetableActivityNotOwner))
 			return
 		}
 		common.RenderError(w, r, ErrorRenderer(err))
@@ -481,7 +481,7 @@ func (rs *Resource) deleteActivity(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		// Check for ownership error
 		if errors.Is(err, activitiesSvc.ErrNotOwner) {
-			common.RenderError(w, r, common.ErrorForbidden(err))
+			common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeTimetableActivityNotOwner))
 			return
 		}
 		common.RenderError(w, r, ErrorRenderer(err))

@@ -6,9 +6,17 @@
 // Dialog, was sich am Stundenkonto und an den Kontingenten ändert; was nicht
 // reicht oder gesperrt ist, lässt sich nicht speichern.
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
+  AccountsLoadError,
   bookingOptions,
   QuotaSummary,
   TypeChoice,
@@ -21,12 +29,11 @@ import { formatSignedDuration } from "~/components/staff/staff-time-views";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
-import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import {
   ABSENCE_TYPE_HEX,
   absenceRowLabel,
@@ -38,7 +45,6 @@ import type { AbsenceType } from "~/lib/absence-type-api";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
-  AbsenceRebookingBlockedError,
   staffAbsenceService,
   type AbsenceRebooking,
   type StaffAbsenceRow,
@@ -58,14 +64,14 @@ function useRebookingPreview(args: {
 }) {
   const { staffId, absenceIds, value } = args;
   const [preview, setPreview] = useState<AbsenceRebooking | null>(null);
-  const [blocked, setBlocked] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [attempt, setAttempt] = useState(0);
+  const reload = useCallback(() => setAttempt((value) => value + 1), []);
   const idsKey = absenceIds.join(",");
 
   useEffect(() => {
     setPreview(null);
-    setBlocked(null);
-    setFailed(false);
+    setError(null);
     if (!value || !idsKey) return;
     let stale = false;
     const request = absenceRequestFor(value);
@@ -82,23 +88,21 @@ function useRebookingPreview(args: {
       })
       .catch((err: unknown) => {
         if (stale) return;
-        if (err instanceof AbsenceRebookingBlockedError) {
-          setBlocked(err.message);
-          return;
-        }
-        logger.error("rebooking_preview_failed", {
+        // Eine gesperrte Umbuchung (workforce.rebooking_*) ist kein Defekt;
+        // sie steht wie jeder andere Fehler der Vorschau im Dialog.
+        logger.warn("rebooking_preview_failed", {
           staff_id: staffId,
           error: err instanceof Error ? err.message : String(err),
         });
-        setFailed(true);
+        setError(err);
       });
     return () => {
       stale = true;
     };
-  }, [staffId, idsKey, value]);
+  }, [staffId, idsKey, value, attempt]);
 
-  const loading = Boolean(value) && !preview && !blocked && !failed;
-  return { preview, blocked, failed, loading };
+  const loading = Boolean(value) && !preview && !error;
+  return { preview, error, loading, reload };
 }
 
 function BalanceLine({ minutes }: { readonly minutes: number }) {
@@ -154,9 +158,12 @@ export function AbsenceRebookModal({
   );
   const [value, setValue] = useState("");
   const [reason, setReason] = useState("");
-  const [reasonError, setReasonError] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useFormError();
+  const formErrors = useApiFormError();
+  const showFormError = formErrors.show;
+  const clearFormErrors = formErrors.clear;
+  // „Wiederholen“ sendet den aktuellen Grund, nicht den vom Fehlerzeitpunkt.
+  const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
 
   const absenceIds = useMemo(() => absences.map((row) => row.id), [absences]);
   const firstDay = useMemo(
@@ -187,7 +194,11 @@ export function AbsenceRebookModal({
     () => [...accountFirstDays.keys()].sort((left, right) => left - right),
     [accountFirstDays],
   );
-  const { accounts } = useYearAccounts(staff.id, types, years);
+  const {
+    accounts,
+    error: accountsError,
+    reload: reloadAccounts,
+  } = useYearAccounts(staff.id, types, years);
   const accountHints = useMemo(
     () =>
       years.map((year) => ({
@@ -198,15 +209,29 @@ export function AbsenceRebookModal({
     [accountFirstDays, accounts, years],
   );
   const selected = options.find((option) => option.value === value);
-  const { preview, blocked, failed, loading } = useRebookingPreview({
+  const {
+    preview,
+    error: previewError,
+    loading,
+    reload: reloadPreview,
+  } = useRebookingPreview({
     staffId: staff.id,
     absenceIds,
     value,
   });
 
+  // Eine andere Art verwirft alte Meldungen; scheitert die Vorschau, steht
+  // ihr Grund im Dialog, und „Art ändern“ bleibt gesperrt.
   useEffect(() => {
-    setSaveError(null);
-  }, [value, setSaveError]);
+    if (previewError) {
+      void showFormError(previewError, {
+        object: "die Änderung der Art",
+        retry: reloadPreview,
+      });
+    } else {
+      clearFormErrors();
+    }
+  }, [value, previewError, reloadPreview, showFormError, clearFormErrors]);
 
   const allowanceProjections: Projection[] = (preview?.allowances ?? [])
     .filter((item) => item.bookingDays > 0)
@@ -232,18 +257,18 @@ export function AbsenceRebookModal({
     (preview?.vacationExceeded ?? false);
 
   const disabled =
-    saving || !selected || loading || failed || blocked !== null || exceeded;
+    saving || !selected || loading || Boolean(previewError) || exceeded;
 
   const save = async () => {
     if (disabled || !selected) return;
     if (reason.trim() === "") {
-      setReasonError("Bitte kurz sagen, warum sich die Art ändert.");
-      setSaveError("Bitte prüfen Sie die markierten Felder.");
+      formErrors.invalid("Bitte prüfen Sie die markierten Felder.", {
+        reason: "Bitte kurz sagen, warum sich die Art ändert.",
+      });
       return;
     }
-    setReasonError(undefined);
     setSaving(true);
-    setSaveError(null);
+    formErrors.clear();
     try {
       const request = absenceRequestFor(value);
       await staffAbsenceService.rebookAbsences(staff.id, {
@@ -255,7 +280,7 @@ export function AbsenceRebookModal({
       });
       toast.success(
         absences.length === 1
-          ? `Eintrag ist jetzt ${selected.label}.`
+          ? `Der Eintrag ist jetzt ${selected.label}.`
           : `${absences.length} Einträge sind jetzt ${selected.label}.`,
       );
       await onSaved();
@@ -265,15 +290,18 @@ export function AbsenceRebookModal({
         absence_count: absences.length,
         error: error instanceof Error ? error.message : String(error),
       });
-      setSaveError(
-        error instanceof Error && error.message
-          ? error.message
-          : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
-      );
+      await formErrors.show(error, {
+        object: "die Änderung der Art",
+        retry: () => void latestSaveRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestSaveRef.current = save;
+  });
 
   return (
     <Modal
@@ -306,7 +334,7 @@ export function AbsenceRebookModal({
       }
     >
       <div className="space-y-4">
-        <FormErrorAlert message={saveError} />
+        <FormErrorAlert message={formErrors.error} />
         <p className="text-sm text-gray-600">
           Die Einträge bleiben stehen. Nur ihre Art ändert sich.
         </p>
@@ -350,13 +378,9 @@ export function AbsenceRebookModal({
         {loading ? (
           <p className="text-sm text-gray-500">Folgen werden berechnet…</p>
         ) : null}
-        {failed ? (
-          <Alert
-            type="error"
-            message="Die Folgen konnten nicht berechnet werden. Bitte schließen und noch einmal öffnen."
-          />
+        {accountsError ? (
+          <AccountsLoadError error={accountsError} onRetry={reloadAccounts} />
         ) : null}
-        {blocked ? <Alert type="error" message={blocked} /> : null}
         {preview && selected ? (
           <div className="space-y-3">
             <BalanceLine minutes={preview.balanceDeltaMinutes} />
@@ -394,15 +418,13 @@ export function AbsenceRebookModal({
           />
         ) : null}
         <Input
-          name="absence-rebook-reason"
+          id="absence-rebook-reason"
+          name="reason"
           label="Grund (Pflicht)"
           value={reason}
-          onChange={(event) => {
-            setReason(event.target.value);
-            if (reasonError) setReasonError(undefined);
-          }}
+          onChange={(event) => setReason(event.target.value)}
           placeholder="z. B. Kontingent jetzt angelegt"
-          error={reasonError}
+          error={formErrors.fieldError("reason")}
           disabled={saving}
         />
         <p className="text-xs text-gray-500">

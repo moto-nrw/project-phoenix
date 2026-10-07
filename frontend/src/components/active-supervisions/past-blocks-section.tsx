@@ -1,9 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { ChevronDown, History } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   CardGridSkeleton,
   ListSkeleton,
@@ -12,6 +19,7 @@ import {
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { rosterPickupTimeLabel } from "~/lib/timetable-roster-helpers";
@@ -59,7 +67,13 @@ export function PastBlocksSection() {
   const [expanded, setExpanded] = useState(false);
   const [blocks, setBlocks] = useState<PlannedTimetableInstance[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  // Erhöht von „Wiederholen“: lädt die Liste erneut.
+  const [attempt, setAttempt] = useState(0);
 
   // Lazy: the list loads when the section opens, and reloads on every open so
   // a block that ended in the meantime shows up without a page refresh.
@@ -67,7 +81,7 @@ export function PastBlocksSection() {
     if (!expanded) return;
     let cancelled = false;
     setIsLoading(true);
-    setLoadError(null);
+    clearLoadError();
     timetableOperationsApi
       .plannedNow({ scope: "past" })
       .then((instances) => {
@@ -81,9 +95,10 @@ export function PastBlocksSection() {
         logger.error("past_blocks_load_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        setLoadError(
-          "Vergangene Blöcke konnten nicht geladen werden. Bitte später erneut versuchen.",
-        );
+        void showLoadError(err, {
+          object: "die Liste der vergangenen Blöcke",
+          retry: () => setAttempt((value) => value + 1),
+        });
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -91,7 +106,7 @@ export function PastBlocksSection() {
     return () => {
       cancelled = true;
     };
-  }, [expanded]);
+  }, [expanded, attempt, showLoadError, clearLoadError]);
 
   return (
     <SectionCard
@@ -112,7 +127,7 @@ export function PastBlocksSection() {
           />
         </SkeletonRegion>
       ) : loadError ? (
-        <Alert type="error" message={loadError} />
+        <LoadErrorAlert error={loadError} />
       ) : blocks !== null && blocks.length === 0 ? (
         <p className="text-sm text-gray-600">
           Heute sind noch keine Blöcke beendet oder abgelaufen.
@@ -134,12 +149,18 @@ function PastBlockCard({
   const [expanded, setExpanded] = useState(false);
   const [roster, setRoster] = useState<TimetableRoster | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
   const completed = block.status === "completed";
+  // „Wiederholen“ lädt die Kinderliste dieses Blocks erneut.
+  const reloadRef = useRef<() => void>(() => undefined);
 
   const loadRoster = useCallback(() => {
     setIsLoading(true);
-    setLoadError(null);
+    clearLoadError();
     timetableOperationsApi
       .roster(block.id)
       .then(setRoster)
@@ -148,10 +169,16 @@ function PastBlockCard({
           instance_id: block.id,
           error: err instanceof Error ? err.message : String(err),
         });
-        setLoadError("Kinderliste konnte nicht geladen werden.");
+        void showLoadError(err, {
+          object: "die Kinderliste",
+          retry: () => reloadRef.current(),
+        });
       })
       .finally(() => setIsLoading(false));
-  }, [block.id]);
+  }, [block.id, showLoadError, clearLoadError]);
+  useLayoutEffect(() => {
+    reloadRef.current = loadRoster;
+  });
 
   const toggleRoster = () => {
     const next = !expanded;
@@ -206,7 +233,7 @@ function PastBlockCard({
                 <ListSkeleton rows={4} avatar={false} />
               </SkeletonRegion>
             ) : loadError ? (
-              <Alert type="error" message={loadError} />
+              <LoadErrorAlert error={loadError} />
             ) : roster !== null ? (
               <div className="space-y-2">
                 {!completed ? (

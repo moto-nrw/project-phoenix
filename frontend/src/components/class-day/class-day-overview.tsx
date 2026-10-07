@@ -17,9 +17,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useMemo } from "react";
 import type { CSSProperties } from "react";
-import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Skeleton } from "~/components/ui/skeleton";
 import { getUserDisplayName } from "~/lib/auth-utils";
@@ -27,6 +27,7 @@ import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { getTimeBasedGreeting } from "~/lib/greeting";
 import type { ClassDayReport } from "~/lib/class-day-api";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { schoolPath } from "~/lib/school-url";
@@ -171,6 +172,7 @@ export function ClassDayOverview({
     data: classes,
     error: classesError,
     isLoading: classesLoading,
+    mutate: reloadClasses,
   } = useSWRAuth("class-day-my-classes", fetchMyClasses, {
     revalidateOnFocus: true,
     focusThrottleInterval: REPORT_FOCUS_THROTTLE_MS,
@@ -181,7 +183,11 @@ export function ClassDayOverview({
   // allSettled, damit EINE fehlschlagende Klasse (z. B. 403 nach entzogener
   // Zuweisung) nicht die gesunden Klassen mit wegwischt. Wochenenden laden
   // gar nicht (spart pro Klasse den vollen Report samt GDPR-Logzeile).
-  const { data: dayData, isLoading: reportsLoading } = useSWRAuth(
+  const {
+    data: dayData,
+    isLoading: reportsLoading,
+    mutate: reloadReports,
+  } = useSWRAuth(
     classes && classes.length > 0 && !weekend
       ? `class-day-reports-${dateISO}-${JSON.stringify(classes)}`
       : null,
@@ -196,6 +202,8 @@ export function ClassDayOverview({
       );
       const loaded: Record<string, ClassDayReport> = {};
       const failed: string[] = [];
+      // Der erste Fehlschlag trägt Code und Vorgangskennung in die Meldung.
+      let firstFailure: unknown = null;
       for (const [index, result] of results.entries()) {
         if (result.status === "fulfilled") {
           const [klass, response] = result.value;
@@ -203,6 +211,7 @@ export function ClassDayOverview({
         } else {
           const klass = list[index];
           if (klass) failed.push(klass);
+          firstFailure ??= result.reason;
           logger.error("class_day_fetch_failed", {
             date: dateISO,
             error:
@@ -212,7 +221,7 @@ export function ClassDayOverview({
           });
         }
       }
-      return { reports: loaded, failed };
+      return { reports: loaded, failed, firstFailure };
     },
     {
       revalidateOnFocus: true,
@@ -236,14 +245,20 @@ export function ClassDayOverview({
       reportsLoading);
   // Fehler beim Laden der Klassenliste ist NICHT "keine Klassen zugewiesen":
   // sonst rennt die Lehrkraft bei einem transienten 500 der Verwaltung
-  // hinterher.
-  const error = classesError
-    ? "Die Klassenansicht konnte nicht geladen werden."
-    : failedClasses.size > 0
-      ? Object.keys(reports).length === 0
-        ? "Die Klassenansicht konnte nicht geladen werden."
-        : "Nicht alle Klassen konnten geladen werden. Bitte laden Sie die Seite neu."
-      : null;
+  // hinterher. Katalogtext mit Wiederholen (#2517); bei Teilausfall nennt
+  // die Meldung die erste fehlende Klasse, die geladenen bleiben stehen.
+  const firstFailedClass = dayData?.failed[0];
+  const loadError = useSwrLoadError(
+    classesError ?? dayData?.firstFailure ?? null,
+    classesError
+      ? "die Liste Ihrer Klassen"
+      : firstFailedClass
+        ? `die Klasse ${schoolClassLabel(firstFailedClass)}`
+        : "die Klassenansicht",
+    () => (classesError ? reloadClasses() : reloadReports()),
+  );
+  const hasLoadFailure =
+    Boolean(classesError) || (dayData?.failed.length ?? 0) > 0;
 
   const selectedDate = parseISODate(dateISO);
   const goToDate = (next: string) => {
@@ -273,7 +288,12 @@ export function ClassDayOverview({
             <p className="text-xs font-semibold tracking-wide text-[var(--class-day-blue)] uppercase">
               Klassenansicht
             </p>
-            <h2 className="mt-1 text-base font-semibold text-gray-900">
+            {/* Der Gruss kommt aus der Uhr: Server und Geraet koennen
+                verschiedene Stunden sehen, das ist hier kein Fehler. */}
+            <h2
+              className="mt-1 text-base font-semibold text-gray-900"
+              suppressHydrationWarning
+            >
               {getTimeBasedGreeting()}, {getUserDisplayName(session)}
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
@@ -334,24 +354,16 @@ export function ClassDayOverview({
             bei Teilausfall bleiben die gesunden Klassen stehen. */}
         {!noClasses &&
           !loading &&
-          error !== null &&
+          hasLoadFailure &&
           Object.keys(reports).length === 0 &&
-          !weekend && (
-            <EmptyState
-              className="mt-4"
-              title="Klassenansicht nicht verfügbar"
-              description={error}
-            />
-          )}
+          !weekend && <LoadErrorAlert error={loadError} className="mt-4" />}
 
         {!noClasses &&
           !loading &&
           (weekend || Object.keys(reports).length > 0) && (
             <>
-              {error !== null && Object.keys(reports).length > 0 && (
-                <div className="mt-4">
-                  <Alert type="error" message={error} />
-                </div>
+              {hasLoadFailure && Object.keys(reports).length > 0 && (
+                <LoadErrorAlert error={loadError} className="mt-4" />
               )}
 
               {weekend ? (

@@ -6,6 +6,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ChoiceModal } from "~/components/ui/choice-modal";
+import type { FormErrorInput } from "~/components/ui/form-error";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { OccupancyBadges } from "~/components/ui/occupancy-badges";
@@ -144,7 +145,8 @@ export async function runRosterActionRequest(
  *  could not be written (conflict with another excusal, network error). */
 export class RestOfDayNotSavedError extends Error {
   constructor(cause: unknown) {
-    super(cause instanceof Error ? cause.message : String(cause));
+    // The cause keeps code and request ID for the shared error display.
+    super(cause instanceof Error ? cause.message : String(cause), { cause });
     this.name = "RestOfDayNotSavedError";
   }
 }
@@ -701,7 +703,7 @@ interface AddUnplannedStudentModalProps {
   readonly isAddingStudent: boolean;
   readonly results: Student[];
   readonly search: string;
-  readonly error: string | null;
+  readonly error: FormErrorInput;
   readonly onAdd: (studentId: string) => Promise<boolean>;
   readonly onClose: () => void;
   readonly onSearchChange: (value: string) => void;
@@ -755,6 +757,7 @@ function AddUnplannedStudentModal({
       onClose={handleClose}
       title="Kind ungeplant hinzufügen"
       size="md"
+      error={error}
       closeDisabled={isAddingStudent}
       footer={
         <div className="flex flex-wrap justify-end gap-2">
@@ -780,7 +783,6 @@ function AddUnplannedStudentModal({
       }
     >
       <form id={formId} onSubmit={handleSubmit} className="space-y-3">
-        {error ? <Alert type="error" message={error} /> : null}
         <p className="text-sm text-gray-600">
           Das Kind wird sofort als anwesend in dieser Aktivität eingetragen.
         </p>
@@ -896,7 +898,7 @@ interface TimetableRosterContentProps {
   readonly onOpenStudent?: (row: TimetableRosterRow) => void;
   readonly onSearchChange: (value: string) => void;
   /** Fehler des Nachtragens; steht im Dialog „Kind ungeplant hinzufügen“. */
-  readonly addStudentError?: string | null;
+  readonly addStudentError?: FormErrorInput;
 }
 
 export function TimetableRosterContent({
@@ -1104,7 +1106,7 @@ export function TimetableRosterContent({
           isAddingStudent={isAddingStudent}
           results={addStudentResults}
           search={addStudentSearch}
-          error={addStudentError ?? null}
+          error={addStudentError}
           onAdd={onAddStudent}
           onClose={closeAddStudent}
           onSearchChange={onSearchChange}

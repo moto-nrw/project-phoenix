@@ -116,7 +116,18 @@ func validateAdminCorrectionInput(input enrollment.CorrectApprovedChildDataInput
 	lastName := strings.TrimSpace(input.LastName)
 	reason := strings.TrimSpace(input.Reason)
 	if input.RequestID <= 0 || input.ChildID <= 0 || input.ActorAccountID <= 0 || firstName == "" || lastName == "" || input.DateOfBirth.IsZero() || reason == "" {
-		return "", "", "", fmt.Errorf("%w: request, child, actor, child data, and reason are required", enrollment.ErrChangeRequestInvalidData)
+		err := fmt.Errorf("%w: request, child, actor, child data, and reason are required", enrollment.ErrChangeRequestInvalidData)
+		switch {
+		case firstName == "":
+			return "", "", "", enrollment.InvalidInput(enrollment.CodeChildNameRequired, "first_name", err)
+		case lastName == "":
+			return "", "", "", enrollment.InvalidInput(enrollment.CodeChildNameRequired, "last_name", err)
+		case input.DateOfBirth.IsZero():
+			return "", "", "", enrollment.InvalidInput(enrollment.CodeChildBirthDateInvalid, "date_of_birth", err)
+		case reason == "":
+			return "", "", "", enrollment.InvalidInput(enrollment.CodeCorrectionReasonRequired, "reason", err)
+		}
+		return "", "", "", err
 	}
 	return firstName, lastName, reason, nil
 }
@@ -189,7 +200,7 @@ func validatePreservedSchoolClassGrade(gradeChanged bool, targetGradeLevel *int1
 	class := trimmedOptionalString(targetSchoolClass)
 	grade := strconv.Itoa(int(*targetGradeLevel))
 	if prefix := gradePrefix(class); prefix != "" && prefix != grade {
-		return fmt.Errorf("%w: existing target_school_class %q does not match target grade %s", enrollment.ErrChangeRequestInvalidData, class, grade)
+		return enrollment.InvalidInput(enrollment.CodeCorrectionSchoolClassMismatch, "target_school_class", fmt.Errorf("%w: existing target_school_class %q does not match target grade %s", enrollment.ErrChangeRequestInvalidData, class, grade))
 	}
 	return nil
 }
@@ -211,14 +222,14 @@ func (s *ChangeRequests) adminCorrectionCapabilities(ctx context.Context) (bool,
 
 func (s *ChangeRequests) validateAdminCorrectionGrade(ctx context.Context, grade *int16) (*int16, error) {
 	if grade == nil {
-		return nil, fmt.Errorf("%w: target_grade_level is required", enrollment.ErrChangeRequestInvalidData)
+		return nil, enrollment.InvalidInput(enrollment.CodeChildGradeRequired, "target_grade_level", fmt.Errorf("%w: target_grade_level is required", enrollment.ErrChangeRequestInvalidData))
 	}
 	gradeMax, err := s.intake.resolveGradeMax(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if *grade < 1 || int(*grade) > gradeMax {
-		return nil, fmt.Errorf("%w: target_grade_level must be between 1 and %d", enrollment.ErrChangeRequestInvalidData, gradeMax)
+		return nil, enrollment.InvalidInput(enrollment.CodeChildGradeRequired, "target_grade_level", fmt.Errorf("%w: target_grade_level must be between 1 and %d", enrollment.ErrChangeRequestInvalidData, gradeMax))
 	}
 	return grade, nil
 }

@@ -1,11 +1,15 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { Modal } from "~/components/ui/modal";
-import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { getRoleDisplayName, isAssignableStaffRole } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
-import { FormField, FormError, SelectWithChevron } from "./provisioning-shared";
+import { FormField, SelectWithChevron } from "./provisioning-shared";
 
 const logger = createLogger({ component: "CreateAccountModal" });
 
@@ -37,11 +41,16 @@ export function CreateAccountModal({
   const [position, setPosition] = useState("");
   const [caregiverEnabled, setCaregiverEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const errorRef = useScrollToError(error);
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { show: showError, invalid, clear: clearError } = formErrors;
 
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [isLoadingRoles, setIsLoadingRoles] = useState(true);
+  const rolesLoad = useApiLoadError();
+  const { show: showRolesError, clear: clearRolesError } = rolesLoad;
+  // "Wiederholen" loads the roles again.
+  const [rolesReload, setRolesReload] = useState(0);
 
   const [result, setResult] = useState<{
     id: string;
@@ -57,6 +66,7 @@ export function CreateAccountModal({
     async function fetchRoles() {
       try {
         setIsLoadingRoles(true);
+        clearRolesError();
         const roleList = await operatorProvisioningService.listSystemRoles();
         if (cancelled) return;
         const options = roleList
@@ -73,6 +83,11 @@ export function CreateAccountModal({
         logger.error("failed_to_load_roles", {
           error: err instanceof Error ? err.message : String(err),
         });
+        if (cancelled) return;
+        void showRolesError(err, {
+          object: "die Liste der Rollen",
+          retry: () => setRolesReload((count) => count + 1),
+        });
       } finally {
         if (!cancelled) {
           setIsLoadingRoles(false);
@@ -84,7 +99,7 @@ export function CreateAccountModal({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [rolesReload, showRolesError, clearRolesError]);
 
   // Reset form when opening
   useEffect(() => {
@@ -97,10 +112,10 @@ export function CreateAccountModal({
       setConfirmPassword("");
       setPosition("");
       setCaregiverEnabled(false);
-      setError("");
+      clearError();
       setResult(null);
     }
-  }, [isOpen]);
+  }, [isOpen, clearError]);
 
   const selectedRole = roles.find((role) => role.id === roleId);
   const showCaregiverToggle = selectedRole?.systemName === "admin";
@@ -113,7 +128,8 @@ export function CreateAccountModal({
       // with no role lands here and must show a visible error instead of
       // returning silently. The remaining fields keep their native `required`.
       if (!roleId) {
-        setError("Bitte wählen Sie eine System-Rolle aus.");
+        const hint = "Bitte wählen Sie eine System-Rolle aus.";
+        invalid("Bitte prüfen Sie die markierten Felder.", { role_id: hint });
         return;
       }
       if (
@@ -127,12 +143,15 @@ export function CreateAccountModal({
         return;
 
       if (password !== confirmPassword) {
-        setError("Passwörter stimmen nicht überein.");
+        const hint = "Passwörter stimmen nicht überein.";
+        invalid("Bitte prüfen Sie die markierten Felder.", {
+          confirm_password: hint,
+        });
         return;
       }
 
       setSaving(true);
-      setError("");
+      clearError();
       try {
         const created = await operatorProvisioningService.createSchoolAccount(
           schoolId,
@@ -151,14 +170,10 @@ export function CreateAccountModal({
         setResult(created);
         onCreated();
       } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Fehler beim Erstellen des Kontos.",
-        );
         logger.error("account_create_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        void showError(err, { object: "das Anlegen des Kontos" });
       } finally {
         setSaving(false);
       }
@@ -175,6 +190,9 @@ export function CreateAccountModal({
       caregiverEnabled,
       showCaregiverToggle,
       onCreated,
+      invalid,
+      clearError,
+      showError,
     ],
   );
 
@@ -245,18 +263,23 @@ export function CreateAccountModal({
         </div>
       ) : (
         <form
+          ref={formRef}
           onSubmit={(e) => void handleSubmit(e)}
           className="space-y-4"
           id="create-account-form"
         >
+          <FormErrorAlert message={formErrors.error} />
+          <LoadErrorAlert error={rolesLoad.error} />
           <div className="grid grid-cols-2 gap-4">
             <FormField
               label="Vorname"
               htmlFor="create-account-first-name"
               required
+              error={formErrors.fieldError("first_name")}
             >
               <input
                 id="create-account-first-name"
+                name="first_name"
                 type="text"
                 autoComplete="given-name"
                 value={firstName}
@@ -270,9 +293,11 @@ export function CreateAccountModal({
               label="Nachname"
               htmlFor="create-account-last-name"
               required
+              error={formErrors.fieldError("last_name")}
             >
               <input
                 id="create-account-last-name"
+                name="last_name"
                 type="text"
                 autoComplete="family-name"
                 value={lastName}
@@ -283,9 +308,15 @@ export function CreateAccountModal({
               />
             </FormField>
           </div>
-          <FormField label="E-Mail" htmlFor="create-account-email" required>
+          <FormField
+            label="E-Mail"
+            htmlFor="create-account-email"
+            required
+            error={formErrors.fieldError("email")}
+          >
             <input
               id="create-account-email"
+              name="email"
               type="email"
               autoComplete="email"
               value={email}
@@ -299,9 +330,11 @@ export function CreateAccountModal({
             label="System-Rolle"
             htmlFor="create-account-role"
             required
+            error={formErrors.fieldError("role_id")}
           >
             <SelectWithChevron
               id="create-account-role"
+              name="role_id"
               value={roleId ?? ""}
               onChange={(e) =>
                 setRoleId(e.target.value === "" ? undefined : e.target.value)
@@ -346,9 +379,11 @@ export function CreateAccountModal({
             label="Passwort"
             htmlFor="create-account-password"
             required
+            error={formErrors.fieldError("password")}
           >
             <input
               id="create-account-password"
+              name="password"
               type="password"
               autoComplete="new-password"
               value={password}
@@ -365,9 +400,11 @@ export function CreateAccountModal({
             label="Passwort bestätigen"
             htmlFor="create-account-confirm-password"
             required
+            error={formErrors.fieldError("confirm_password")}
           >
             <input
               id="create-account-confirm-password"
+              name="confirm_password"
               type="password"
               autoComplete="new-password"
               value={confirmPassword}
@@ -377,9 +414,14 @@ export function CreateAccountModal({
               required
             />
           </FormField>
-          <FormField label="Position" htmlFor="create-account-position">
+          <FormField
+            label="Position"
+            htmlFor="create-account-position"
+            error={formErrors.fieldError("position")}
+          >
             <SelectWithChevron
               id="create-account-position"
+              name="position"
               value={position}
               onChange={(e) => setPosition(e.target.value)}
             >
@@ -391,7 +433,6 @@ export function CreateAccountModal({
               <option value="Extern">Extern</option>
             </SelectWithChevron>
           </FormField>
-          {error && <FormError ref={errorRef} message={error} />}
         </form>
       )}
     </Modal>

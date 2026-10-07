@@ -9,6 +9,7 @@ import {
   vi,
 } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
+import { ApiError } from "~/lib/api-error";
 import { ClassTripBulkStatusModal } from "./class-trip-bulk-status-modal";
 import {
   bulkCreateStudentStatusDays,
@@ -57,7 +58,8 @@ vi.mock("~/components/ui/form-modal", () => ({
 
 const toastError = vi.fn();
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: vi.fn(),
     error: toastError,
@@ -173,7 +175,7 @@ describe("ClassTripBulkStatusModal", () => {
     await waitFor(() => {
       const alerts = screen.getAllByRole("alert");
       expect(alerts[0]).toHaveTextContent(
-        "Bestehende Status-Tage verhindern die Speicherung. Es wurde nichts überschrieben.",
+        "Die Klassenfahrt konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
       );
       expect(alerts[1]).toHaveTextContent("Kevin Anders: 26.05.2026 (krank)");
     });
@@ -227,5 +229,32 @@ describe("ClassTripBulkStatusModal", () => {
       expect(alert).not.toHaveTextContent("undefined");
       expect(alert).not.toHaveTextContent("09.05.2026");
     });
+  });
+
+  it("names the class trip in a failed save without the server sentence", async () => {
+    vi.mocked(bulkCreateStudentStatusDays).mockRejectedValueOnce(
+      new ApiError("db down", 500, { code: "general.server" }),
+    );
+
+    render(
+      <ClassTripBulkStatusModal
+        isOpen
+        onClose={vi.fn()}
+        targetLabel="Klasse 3a"
+        students={students}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Für 1 Schüler speichern" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Die Klassenfahrt konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+      ),
+    );
+    expect(screen.queryByText(/db down/)).not.toBeInTheDocument();
+    expect(toastError).not.toHaveBeenCalled();
   });
 });

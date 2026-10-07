@@ -66,6 +66,8 @@ export function DeferredNotificationSetup({
         if (active) setDialog(() => NotificationSetupDialog);
       })
       .catch((error: unknown) => {
+        // Nobody asked for the dialog: when its code cannot load, it simply
+        // does not open. The settings card can start it again.
         logger.error("notification_setup_load_failed", {
           error: error instanceof Error ? error.message : String(error),
         });

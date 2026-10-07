@@ -1,5 +1,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { StudentsInRoomSection } from "./students-in-room-section";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import { useOptionalSupervision } from "~/lib/supervision-context";
@@ -94,7 +96,9 @@ vi.mock("~/lib/active-service", async (importOriginal) => {
   };
 });
 
-vi.mock("~/contexts/ToastContext", () => ({
+// Nur die Toasts ersetzen; der Fehlerweg (Katalogtexte) bleibt echt.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: mockToastSuccess,
   }),
@@ -393,13 +397,21 @@ describe("StudentsInRoomSection", () => {
       ).toBeInTheDocument();
     });
 
-    it("renders an error alert if the fetch fails", () => {
-      setSWR({ data: undefined, error: new Error("network down") });
+    it("renders the catalog load error if the fetch fails", async () => {
+      setSWR({
+        data: undefined,
+        error: new ApiError("network down", 503, {
+          code: "general.unavailable",
+        }),
+      });
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
-      const alert = screen.getByRole("alert");
-      expect(alert).toHaveTextContent(/Liste der Kinder/);
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "die Liste der Kinder im Raum"),
+        ),
+      ).toBeInTheDocument();
       // Error and empty states must stay mutually exclusive.
       expect(
         screen.queryByText(/Aktuell keine Kinder/),
@@ -642,7 +654,7 @@ describe("StudentsInRoomSection", () => {
       expect(mockUpdateVisit).not.toHaveBeenCalled();
       expect(refreshCaches).toHaveBeenCalledTimes(1);
       expect(mockToastSuccess).toHaveBeenCalledWith(
-        "2 Kinder nach Raum 6 bewegt.",
+        "2 Kinder sind jetzt in Raum 6.",
       );
     });
 
@@ -656,19 +668,32 @@ describe("StudentsInRoomSection", () => {
           max_participants: 20,
           incoming_students: 2,
         },
-        message:
-          "In der Aktivität „Fußball“ ist nur noch 1 Platz frei (19 von 20 Kindern). Es sollen 2 Kinder dazukommen. Die Grenze ändern Sie unter Datenverwaltung → Aktivitäten bei „Maximale Teilnehmer“.",
       },
       {
         kind: "room",
         code: "presence.room_capacity_exceeded",
-        details: {},
-        message:
-          "Der Raum ist voll. Die Grenze ändern Sie unter Datenverwaltung → Räume bei „Maximale Belegung“.",
+        details: {
+          room_name: "Raum 6",
+          current_occupancy: 30,
+          max_capacity: 30,
+          incoming_students: 2,
+        },
       },
     ])(
       "says the $kind is full when the move is refused (#3633)",
-      async ({ code, details, message }) => {
+      async ({ code, details }) => {
+        // The catalog text names the full room or activity with its numbers.
+        const maximum =
+          ("max_participants" in details
+            ? details.max_participants
+            : details.max_capacity) ?? 0;
+        const message = Object.entries({
+          ...details,
+          free_slots: Math.max(0, maximum - details.current_occupancy),
+        }).reduce(
+          (text, [key, value]) => text.replace(`{${key}}`, String(value)),
+          catalogText(code as Parameters<typeof catalogText>[0], ""),
+        );
         setSWR({
           data: {
             students: [
@@ -682,14 +707,10 @@ describe("StudentsInRoomSection", () => {
           },
         });
         mockMoveStudentsToActiveGroup.mockRejectedValue(
-          Object.assign(
-            new Error("Move students to active group failed: 409"),
-            {
-              status: 409,
-              code,
-              details,
-            },
-          ),
+          new ApiError("Move students to active group failed: 409", 409, {
+            code,
+            details,
+          }),
         );
 
         render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
@@ -755,7 +776,7 @@ describe("StudentsInRoomSection", () => {
       expect(mockGetStudentCurrentVisit).not.toHaveBeenCalled();
       expect(mockUpdateVisit).not.toHaveBeenCalled();
       expect(mockToastSuccess).toHaveBeenCalledWith(
-        "1 Kind nach Raum 6 bewegt.",
+        "1 Kind ist jetzt in Raum 6.",
       );
       expect(refreshCaches).toHaveBeenCalledTimes(1);
     });
@@ -791,11 +812,9 @@ describe("StudentsInRoomSection", () => {
       fireEvent.click(screen.getByRole("option", { name: "Raum 6" }));
       fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
 
-      await waitFor(() => {
-        expect(screen.getByRole("alert")).toHaveTextContent(
-          "1 von 2 Kindern konnten nicht bewegt werden.",
-        );
-      });
+      expect(
+        await screen.findByText("1 von 2 Kindern konnten nicht bewegt werden."),
+      ).toBeInTheDocument();
       expect(mockMoveStudentsToActiveGroup).toHaveBeenCalledWith(
         ["7", "8"],
         "900",
@@ -1470,7 +1489,7 @@ describe("StudentsInRoomSection", () => {
       });
       expect(mockMoveStudentsToActiveGroup).not.toHaveBeenCalled();
       expect(mockToastSuccess).toHaveBeenCalledWith(
-        "1 Kind nach Turnhalle bewegt.",
+        "1 Kind ist jetzt in Turnhalle.",
       );
       expect(refreshCaches).toHaveBeenCalledTimes(1);
     });
@@ -1482,8 +1501,7 @@ describe("StudentsInRoomSection", () => {
         rooms: [releasedGym],
       });
       mockMoveStudentsToOpenRoom.mockRejectedValue(
-        Object.assign(new Error("Move students to open room failed: 409"), {
-          status: 409,
+        new ApiError("Move students to open room failed: 409", 409, {
           code: "rooms.not_released",
         }),
       );
@@ -1500,7 +1518,7 @@ describe("StudentsInRoomSection", () => {
 
       expect(
         await screen.findByText(
-          "Dieser Raum ist nicht mehr freigegeben. Bitte wählen Sie einen anderen Raum.",
+          catalogText("rooms.not_released", "das Verschieben der Kinder"),
         ),
       ).toBeTruthy();
       expect(mockRefreshMoveRooms).toHaveBeenCalledTimes(1);

@@ -29,6 +29,26 @@ describe("TranslationsSection", () => {
     ).toBeInTheDocument();
   });
 
+  it("names the languages in German for the school staff", () => {
+    render(<TranslationsSection targets={[label]} onChange={vi.fn()} />);
+
+    const picker = screen.getByRole("group", {
+      name: "Sprache der Übersetzung",
+    });
+    expect(
+      within(picker)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual([
+      "Englisch",
+      "Russisch",
+      "Albanisch",
+      "Polnisch",
+      "Türkisch",
+      "Ukrainisch",
+    ]);
+  });
+
   it("shows the German text next to the translation of the chosen language", () => {
     render(<TranslationsSection targets={[label]} onChange={vi.fn()} />);
 
@@ -44,7 +64,7 @@ describe("TranslationsSection", () => {
     const onChange = vi.fn();
     render(<TranslationsSection targets={[label]} onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Русский" }));
+    fireEvent.click(screen.getByRole("button", { name: "Russisch" }));
 
     expect(screen.getByText("Bitte prüfen")).toBeInTheDocument();
     expect(screen.getByText("0 von 1 übersetzt")).toBeInTheDocument();
@@ -73,7 +93,7 @@ describe("TranslationsSection", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Polski" }));
+    fireEvent.click(screen.getByRole("button", { name: "Polnisch" }));
     const row = screen.getByRole("listitem");
     expect(within(row).getByText("Fehlt")).toBeInTheDocument();
     fireEvent.change(within(row).getByLabelText("Übersetzung"), {

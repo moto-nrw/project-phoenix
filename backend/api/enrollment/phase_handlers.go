@@ -190,11 +190,11 @@ func (req *PhaseRequest) UnmarshalJSON(data []byte) error {
 func (req *PhaseRequest) toModel(existingID int64) (*enrollmentOwner.Phase, error) {
 	startDate, err := timezone.ParseDate(req.ServiceStartDate)
 	if err != nil {
-		return nil, errors.New("service_start_date must be YYYY-MM-DD")
+		return nil, enrollmentOwner.InvalidInput(common.CodeEnrollmentPhaseServicePeriodInvalid, "service_start_date", errors.New("service_start_date must be YYYY-MM-DD"))
 	}
 	endDate, err := timezone.ParseDate(req.ServiceEndDate)
 	if err != nil {
-		return nil, errors.New("service_end_date must be YYYY-MM-DD")
+		return nil, enrollmentOwner.InvalidInput(common.CodeEnrollmentPhaseServicePeriodInvalid, "service_end_date", errors.New("service_end_date must be YYYY-MM-DD"))
 	}
 
 	p := &enrollmentOwner.Phase{
@@ -244,12 +244,12 @@ func (req *PhaseRequest) toModel(existingID int64) (*enrollmentOwner.Phase, erro
 	}
 	openAt, err := parseOptionalRFC3339(req.EnrollmentOpenAt, "enrollment_open_at must be RFC3339")
 	if err != nil {
-		return nil, err
+		return nil, enrollmentOwner.InvalidInput(common.CodeEnrollmentPhaseWindowInvalid, "enrollment_open_at", err)
 	}
 	p.EnrollmentOpenAt = openAt
 	closeAt, err := parseOptionalRFC3339(req.EnrollmentCloseAt, "enrollment_close_at must be RFC3339")
 	if err != nil {
-		return nil, err
+		return nil, enrollmentOwner.InvalidInput(common.CodeEnrollmentPhaseWindowInvalid, "enrollment_close_at", err)
 	}
 	p.EnrollmentCloseAt = closeAt
 	schemaID, err := parseOptionalPositiveID(req.FormSchemaID, "form_schema_id must be a positive integer string")
@@ -385,7 +385,7 @@ func (rs *Resource) getPhase(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, enrollmentOwner.ErrPhaseNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(err))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -480,11 +480,11 @@ func updateWithRefetch[M, E any](rs *Resource, w http.ResponseWriter, r *http.Re
 func phaseWriteErrorRenderer(err error) render.Renderer {
 	switch {
 	case errors.Is(err, enrollmentOwner.ErrPhaseDuplicateName):
-		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseDuplicateName, common.CodeEnrollmentPhaseNameExists)
+		return common.ErrorConflictOnField(enrollmentOwner.ErrPhaseDuplicateName, common.CodeEnrollmentPhaseNameExists, "name")
 	case errors.Is(err, enrollmentOwner.ErrPhaseCareOfferingConflict):
 		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseCareOfferingConflict, common.CodeEnrollmentPhaseCareOfferingConflict)
 	case errors.Is(err, enrollmentOwner.ErrPhaseNotFound):
-		return common.ErrorNotFound(err)
+		return common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound)
 	case errors.Is(err, enrollmentOwner.ErrInvalidPhase):
 		return common.ErrorInvalidRequest(err)
 	default:
@@ -535,7 +535,7 @@ func (rs *Resource) deletePhase(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, enrollmentOwner.ErrPhaseNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(err))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -571,7 +571,7 @@ func (rs *Resource) getPhaseDeleteImpact(w http.ResponseWriter, r *http.Request)
 	})
 	if err != nil {
 		if errors.Is(err, enrollmentOwner.ErrPhaseNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(err))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))

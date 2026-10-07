@@ -235,6 +235,7 @@ func TestPlanExportInstancesMapCancellationFromStatus(t *testing.T) {
 	// A block whose session ran keeps its session state in the status; it
 	// still prints as an ordinary block.
 	completed := scheduledBlock(12, monday.AddDays(1), "Lernzeit", "completed")
+	completed.IsDuty = true
 	source := &fakeInstances{instances: []*timetable.ScheduledInstance{cancelled, nil, completed}}
 
 	instances, err := (instanceBinding{source: source}).InstancesInRange(context.Background(), day(monday), day(monday.AddDays(6)))
@@ -248,6 +249,8 @@ func TestPlanExportInstancesMapCancellationFromStatus(t *testing.T) {
 		CancelReason: ptr("Personalmangel"), Notes: ptr("Ersatz"), UnderstaffedNote: ptr("eine Kraft fehlt"),
 	}, instances[0])
 	assert.False(t, instances[1].Cancelled)
+	assert.True(t, instances[1].IsDuty, "a duty prints without a head count")
+	assert.False(t, instances[0].IsDuty)
 	assert.Equal(t, planexport.Date("2026-07-28"), instances[1].Date)
 }
 

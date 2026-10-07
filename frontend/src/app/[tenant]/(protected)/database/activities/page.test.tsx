@@ -3,6 +3,16 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ActivitiesPage from "./page";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+/** Text of a FormErrorInput, as the shared kit components render it. */
+function errorText(error: unknown): string | null {
+  if (!error) return null;
+  return typeof error === "string"
+    ? error
+    : (error as { message: string }).message;
+}
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
@@ -39,14 +49,14 @@ vi.mock("~/lib/swr", () => ({
 const mockGetOne = vi.fn();
 const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
-const mockDelete = vi.fn();
+const mockRemove = vi.fn();
 vi.mock("@/lib/database/service-factory", () => ({
   createCrudService: vi.fn(() => ({
     getList: vi.fn(),
     getOne: mockGetOne,
     create: mockCreate,
     update: mockUpdate,
-    delete: mockDelete,
+    remove: mockRemove,
   })),
 }));
 
@@ -56,7 +66,8 @@ vi.mock("~/components/ui/hooks/useIsMobile", () => ({
 
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: vi.fn(() => ({
     success: mockToastSuccess,
     error: mockToastError,
@@ -68,13 +79,18 @@ vi.mock("~/components/ui/confirm-delete-modal", () => ({
     isOpen,
     onConfirm,
     onClose,
+    error,
   }: {
     isOpen: boolean;
     onConfirm?: () => void;
     onClose?: () => void;
+    error?: unknown;
   }) =>
     isOpen ? (
       <div data-testid="confirmation-modal">
+        {errorText(error) ? (
+          <span data-testid="delete-error">{errorText(error)}</span>
+        ) : null}
         <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
           Confirm
         </button>
@@ -99,7 +115,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
     loading: boolean;
     intro?: { title: string; description?: ReactNode; actions?: ReactNode };
     search?: ReactNode;
-    error?: string | null;
+    error?: unknown;
     empty?: {
       title: string;
       description?: string;
@@ -118,7 +134,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
         </div>
       ) : null}
       {/* Fehler und Leerzustand liefert das Geruest, nicht die Seite. */}
-      {error ? <div data-testid="page-error">{error}</div> : null}
+      {error ? <div data-testid="page-error">{errorText(error)}</div> : null}
       {!error && empty ? (
         <div data-testid="page-empty">
           <p>{empty.title}</p>
@@ -186,20 +202,26 @@ vi.mock("~/components/ui/database/database-form-modal", () => ({
     isOpen,
     onClose,
     onSubmit,
+    errorPath,
+    errorObject,
   }: {
     isOpen: boolean;
     onClose: () => void;
     onSubmit: (data: { name: string }) => Promise<void>;
+    errorPath: {
+      error: unknown;
+      show: (error: unknown, options: { object: string }) => unknown;
+    };
+    errorObject?: string;
   }) => {
-    // Mirrors DatabaseForm: catches the rejection from onSubmit and renders
-    // the message inline. Tests assert against the resulting message.
-    const [error, setError] = useState<string | null>(null);
+    // Mirrors DatabaseForm: catches the rejection from onSubmit and hands it
+    // to the owner's error path, whose catalog text it renders inline.
     const submit = (data: { name: string }) => {
-      setError(null);
       void onSubmit(data).catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : String(err));
+        void errorPath.show(err, { object: errorObject ?? "" });
       });
     };
+    const error = errorText(errorPath.error);
     return isOpen ? (
       <div data-testid="activity-create-modal">
         {error ? <span data-testid="create-error">{error}</span> : null}
@@ -227,6 +249,7 @@ vi.mock("@/components/activities/activities-master-detail", () => ({
     activities,
     selectedId,
     selectedActivity,
+    detailError,
     onSelect,
     onSaveActivity,
     onDeleteClick,
@@ -234,6 +257,7 @@ vi.mock("@/components/activities/activities-master-detail", () => ({
     activities: Array<{ id: string; name: string }>;
     selectedId: string | null;
     selectedActivity?: { name: string } | null;
+    detailError?: unknown;
     onSelect: (id: string | null) => void;
     onSaveActivity: (data: { name: string }) => Promise<void>;
     onDeleteClick: () => void;
@@ -262,6 +286,9 @@ vi.mock("@/components/activities/activities-master-detail", () => ({
         {selectedId ? (
           <div data-testid="activity-detail-panel">
             {error ? <span data-testid="update-error">{error}</span> : null}
+            {errorText(detailError) ? (
+              <span data-testid="detail-error">{errorText(detailError)}</span>
+            ) : null}
             <span data-testid="detail-selected-id">{selectedId}</span>
             <span data-testid="detail-activity-name">
               {selectedActivity?.name ?? "unbekannt"}
@@ -369,18 +396,18 @@ describe("ActivitiesPage", () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: undefined,
       isLoading: false,
-      error: new Error("Failed to fetch"),
+      error: new ApiError("Failed to fetch", 503, {
+        code: "general.unavailable",
+      }),
       isValidating: false,
       mutate: vi.fn(),
     } as ReturnType<typeof useSWRAuth>);
 
     render(<ActivitiesPage />);
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Fehler beim Laden der Aktivitäten/),
-      ).toBeInTheDocument();
-    });
+    expect(await screen.findByTestId("page-error")).toHaveTextContent(
+      catalogText("general.unavailable", "die Liste der Aktivitäten"),
+    );
   });
 
   it("shows empty state when no activities exist", async () => {
@@ -473,11 +500,11 @@ describe("ActivitiesPage", () => {
     });
   });
 
-  it("re-throws create errors so the form can render them inline (Issue #1356)", async () => {
+  it("shows a refused create with the catalog text in the dialog (Issue #1356)", async () => {
     mockCreate.mockRejectedValueOnce(
-      new Error(
-        "activities error during CreateActivity: Eine Aktivität mit diesem Namen existiert bereits",
-      ),
+      new ApiError("name taken", 409, {
+        code: "general.business_rejection",
+      }),
     );
 
     render(<ActivitiesPage />);
@@ -492,7 +519,7 @@ describe("ActivitiesPage", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("create-error")).toHaveTextContent(
-        /existiert bereits/,
+        catalogText("general.business_rejection", "die Aktivität"),
       );
     });
     // The modal must NOT close on a duplicate so the user can correct the name.
@@ -500,11 +527,10 @@ describe("ActivitiesPage", () => {
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
-  it("logs the stringified value when create rejects with a non-Error", async () => {
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
-    mockCreate.mockRejectedValueOnce("plain-string-error");
+  it("starts a reopened create dialog without the previous error", async () => {
+    mockCreate.mockRejectedValueOnce(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
 
     render(<ActivitiesPage />);
 
@@ -514,13 +540,18 @@ describe("ActivitiesPage", () => {
     });
 
     fireEvent.click(screen.getByTestId("submit-create"));
-
     await waitFor(() => {
-      expect(consoleError).toHaveBeenCalledWith("failed to create activity", {
-        error: "plain-string-error",
-      });
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        catalogText("general.unavailable", "die Aktivität"),
+      );
     });
-    consoleError.mockRestore();
+
+    fireEvent.click(screen.getByTestId("close-create-modal"));
+    fireEvent.click(screen.getAllByLabelText("Aktivität erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-create-modal")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("create-error")).not.toBeInTheDocument();
   });
 
   it("syncs activity selection into the URL when a row is clicked", async () => {
@@ -545,6 +576,37 @@ describe("ActivitiesPage", () => {
       expect(screen.getByTestId("activity-detail-panel")).toBeInTheDocument();
       expect(screen.getByTestId("detail-selected-id")).toHaveTextContent("1");
       expect(mockGetOne).toHaveBeenCalledWith("1");
+    });
+  });
+
+  it("shows a failed detail load with the catalog text in the detail panel", async () => {
+    setSelectedActivity("1");
+    mockGetOne.mockRejectedValueOnce(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
+
+    render(<ActivitiesPage />);
+
+    expect(await screen.findByTestId("detail-error")).toHaveTextContent(
+      catalogText("general.unavailable", "die Aktivität"),
+    );
+  });
+
+  it("names the saved activity in the success message", async () => {
+    setSelectedActivity("1");
+    mockUpdate.mockResolvedValueOnce(undefined);
+
+    render(<ActivitiesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-detail-panel")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("trigger-update"));
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Die Aktivität „Updated AG“ ist gespeichert.",
+      );
     });
   });
 
@@ -614,7 +676,7 @@ describe("ActivitiesPage", () => {
 
   it("calls delete service after confirming deletion from the detail panel", async () => {
     setSelectedActivity("1");
-    mockDelete.mockResolvedValueOnce(null);
+    mockRemove.mockResolvedValueOnce(true);
 
     render(<ActivitiesPage />);
 
@@ -631,16 +693,20 @@ describe("ActivitiesPage", () => {
     fireEvent.click(screen.getByTestId("confirm-delete"));
 
     await waitFor(() => {
-      expect(mockDelete).toHaveBeenCalledWith("1");
+      expect(mockRemove).toHaveBeenCalledWith("1");
       expect(mockReplace).toHaveBeenCalledWith("/tenant/database/activities", {
         scroll: false,
       });
     });
   });
 
-  it("shows an error toast when delete returns an error", async () => {
+  it("keeps a delete error in the confirmation dialog", async () => {
     setSelectedActivity("1");
-    mockDelete.mockResolvedValueOnce("Aktivität kann nicht gelöscht werden");
+    mockRemove.mockRejectedValueOnce(
+      new ApiError("still in use", 409, {
+        code: "general.business_rejection",
+      }),
+    );
 
     render(<ActivitiesPage />);
 
@@ -655,10 +721,11 @@ describe("ActivitiesPage", () => {
 
     fireEvent.click(screen.getByTestId("confirm-delete"));
 
-    await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith(
-        "Aktivität kann nicht gelöscht werden",
-      );
-    });
+    expect(await screen.findByTestId("delete-error")).toHaveTextContent(
+      catalogText("general.business_rejection", "das Löschen der Aktivität"),
+    );
+    expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 });

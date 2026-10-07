@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import useSWR from "swr";
 import {
   getDefaultValueForField,
@@ -10,9 +11,27 @@ import {
   validateNumberMax,
   validateField,
   validateFormFields,
-  DatabaseForm,
+  DatabaseForm as KitDatabaseForm,
 } from "./database-form";
 import type { FormField, FormSection } from "./database-form";
+import { useApiFormError } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+type KitDatabaseFormProps = ComponentProps<typeof KitDatabaseForm>;
+
+/**
+ * The kit form with its owner's shared error path, as every caller renders
+ * it (#2517). A test may hand in its own path instead.
+ */
+function DatabaseForm(
+  props: Omit<KitDatabaseFormProps, "errorPath"> & {
+    readonly errorPath?: KitDatabaseFormProps["errorPath"];
+  },
+) {
+  const errors = useApiFormError();
+  return <KitDatabaseForm {...props} errorPath={props.errorPath ?? errors} />;
+}
 
 // =============================================================================
 // getDefaultValueForField Tests
@@ -821,10 +840,142 @@ describe("DatabaseForm", () => {
     });
   });
 
-  it("displays external error when provided", () => {
-    render(<DatabaseForm {...defaultProps} error="External error message" />);
+  it("displays the error of the owner's error path", () => {
+    render(
+      <DatabaseForm
+        {...defaultProps}
+        errorPath={{
+          error: "Die Gruppe konnte nicht geändert werden.",
+          show: vi.fn(),
+          invalid: vi.fn(),
+          fieldError: () => undefined,
+          clear: vi.fn(),
+        }}
+      />,
+    );
 
-    expect(screen.getByText("External error message")).toBeInTheDocument();
+    expect(
+      screen.getByText("Die Gruppe konnte nicht geändert werden."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a failed save with the catalog text of its object and retries it", async () => {
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce(undefined);
+
+    render(
+      <DatabaseForm
+        {...defaultProps}
+        sections={[
+          {
+            title: "Test",
+            fields: [{ name: "field", label: "Field", type: "text" }],
+          },
+        ]}
+        onSubmit={onSubmit}
+        errorObject="die Gruppe"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(catalogText("general.unavailable", "die Gruppe")),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByText(catalogText("general.unavailable", "die Gruppe")),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("marks the field a refused save names", async () => {
+    const onSubmit = vi.fn().mockRejectedValue(
+      new ApiError("taken", 409, {
+        code: "general.business_rejection",
+        errors: [{ field: "test_field", reason: "taken" }],
+      }),
+    );
+
+    render(<DatabaseForm {...defaultProps} onSubmit={onSubmit} />);
+
+    fireEvent.change(screen.getByLabelText(/Test Field/), {
+      target: { value: "Blau" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.business_rejection", "die Änderung"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Test Field\*/).className).toContain(
+      "text-moto-red",
+    );
+  });
+
+  it("shows a failed option load with the catalog text instead of an empty choice and retries it", async () => {
+    const options = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce([{ value: "7", label: "Raum Blau" }]);
+
+    render(
+      <DatabaseForm
+        {...defaultProps}
+        sections={[
+          {
+            title: "Gruppendetails",
+            fields: [
+              {
+                name: "room_id",
+                label: "Gruppenraum",
+                type: "select",
+                options,
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Auswahl „Gruppenraum“"),
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => {
+      expect(options).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "die Auswahl „Gruppenraum“"),
+        ),
+      ).not.toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("combobox")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByRole("combobox"));
+    expect(
+      screen.getByRole("option", { name: "Raum Blau" }),
+    ).toBeInTheDocument();
   });
 
   it("disables buttons when isLoading is true", () => {
@@ -1276,9 +1427,13 @@ describe("DatabaseForm", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
+    // The catalog text, never the diagnostic message of the error.
     await waitFor(() => {
-      expect(screen.getByText("Server error")).toBeInTheDocument();
+      expect(
+        screen.getByText(catalogText("general.server", "die Änderung")),
+      ).toBeInTheDocument();
     });
+    expect(screen.queryByText("Server error")).not.toBeInTheDocument();
 
     consoleSpy.mockRestore();
   });
@@ -1373,7 +1528,11 @@ describe("DatabaseForm", () => {
         .spyOn(console, "error")
         .mockImplementation(() => undefined);
 
-      const onSubmit = vi.fn().mockRejectedValue(new Error("Network error"));
+      const onSubmit = vi
+        .fn()
+        .mockRejectedValue(
+          new ApiError("Network error", 503, { code: "general.unavailable" }),
+        );
 
       const sectionsOptional: FormSection[] = [
         {
@@ -1397,7 +1556,9 @@ describe("DatabaseForm", () => {
 
       // Wait for error to be displayed
       await waitFor(() => {
-        expect(screen.getByText("Network error")).toBeInTheDocument();
+        expect(
+          screen.getByText(catalogText("general.unavailable", "die Änderung")),
+        ).toBeInTheDocument();
       });
 
       // Button should be back to normal state
@@ -1528,7 +1689,7 @@ describe("DatabaseForm", () => {
         ).toBeInTheDocument();
         expect(scrollIntoViewMock).toHaveBeenCalledWith({
           behavior: "smooth",
-          block: "start",
+          block: "nearest",
         });
       });
     });

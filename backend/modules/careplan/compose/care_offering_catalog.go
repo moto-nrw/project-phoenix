@@ -19,6 +19,18 @@ type CatalogBookings = ports.CatalogBookings
 type CatalogSettings = ports.CatalogSettings
 type CatalogTranslations = ports.CatalogTranslations
 type OfferingSourceRules = ports.OfferingSourceRules
+type OfferingSourceRefusal = ports.OfferingSourceRefusal
+type OfferingSourceRefusalKind = ports.OfferingSourceRefusalKind
+
+// The offering-source refusals the editor words itself (#2516).
+const (
+	OfferingSourceTooMany       = ports.OfferingSourceTooMany
+	OfferingSourceNotFound      = ports.OfferingSourceNotFound
+	OfferingSourceInactive      = ports.OfferingSourceInactive
+	OfferingSourceMixedPhases   = ports.OfferingSourceMixedPhases
+	OfferingSourceOutsidePeriod = ports.OfferingSourceOutsidePeriod
+)
+
 type OfferingGradeCount = ports.OfferingGradeCount
 type SourcedTemplateResyncer = ports.SourcedTemplateResyncer
 type PickupResyncer = ports.PickupResyncer

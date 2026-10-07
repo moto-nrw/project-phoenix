@@ -943,3 +943,25 @@ describe("ISODateInput", () => {
     expect(onChange).toHaveBeenLastCalledWith("2024-01-15");
   });
 });
+
+describe("ISODatePicker name", () => {
+  it("carries the value under the field name for server field errors", () => {
+    const { container } = render(
+      <ISODatePicker
+        id="closing-day-start"
+        name="start_date"
+        value="2026-10-12"
+        onChange={() => undefined}
+      />,
+    );
+
+    const hidden = container.querySelector<HTMLInputElement>(
+      'input[type="hidden"][name="start_date"]',
+    );
+    expect(hidden?.value).toBe("2026-10-12");
+    // The shared error path focuses the trigger right after the hidden input.
+    expect(hidden?.nextElementSibling?.querySelector("button")?.id).toBe(
+      "closing-day-start",
+    );
+  });
+});

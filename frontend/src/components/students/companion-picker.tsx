@@ -5,6 +5,8 @@ import { Loader2, Plus, Search, X } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { fetchStudents } from "~/lib/student-api";
 import {
   allowedModesIncludeAccompanied,
@@ -72,6 +74,11 @@ export function CompanionPicker({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  // Eine gescheiterte Suche ist kein „Kein Kind gefunden“ (#2513).
+  const [searchAttempt, setSearchAttempt] = useState(0);
+  const searchError = useApiLoadError();
+  const showSearchError = searchError.show;
+  const clearSearchError = searchError.clear;
   const [pending, setPending] = useState<{
     result: SearchResult;
     missingDays: CompanionWeekday[];
@@ -122,6 +129,7 @@ export function CompanionPicker({
   useEffect(() => {
     if (!pickerOpen) return;
     const trimmed = query.trim();
+    clearSearchError();
     if (trimmed.length < MIN_QUERY_LENGTH) {
       setResults([]);
       return;
@@ -156,8 +164,14 @@ export function CompanionPicker({
         })
         .catch((err: unknown) => {
           if (cancelled) return;
-          logger.error("child search failed", { error: err });
+          logger.error("child search failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
           setResults([]);
+          void showSearchError(err, {
+            object: "die Kindersuche",
+            retry: () => setSearchAttempt((count) => count + 1),
+          });
         })
         .finally(() => {
           if (!cancelled) setSearching(false);
@@ -168,7 +182,15 @@ export function CompanionPicker({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [query, pickerOpen, value, excludeStudentId]);
+  }, [
+    query,
+    pickerOpen,
+    value,
+    excludeStudentId,
+    searchAttempt,
+    showSearchError,
+    clearSearchError,
+  ]);
 
   const closePicker = useCallback(() => {
     setPickerOpen(false);
@@ -375,6 +397,8 @@ export function CompanionPicker({
               <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
               Suche...
             </div>
+          ) : searchError.error ? (
+            <LoadErrorAlert error={searchError.error} />
           ) : results.length === 0 ? (
             <p className="text-xs text-gray-500">Kein Kind gefunden.</p>
           ) : (

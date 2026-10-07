@@ -26,6 +26,8 @@ import {
 } from "~/lib/enrollment-submission-api";
 import { parentPath } from "~/lib/parent-url";
 import { resolveTenant, type TenantInfo } from "~/lib/tenant-api";
+import { useApiLoadError } from "~/contexts/ToastContext";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 
 interface PageProps {
   readonly params: Promise<{ tenantSlug: string; phaseId: string }>;
@@ -58,12 +60,18 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
     prefetchedData: EnrollmentFormPrefetchedData;
   } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // A failed load stays where the form would be, with retry (#2515).
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setError(null);
+    clearLoadError();
     setLoaded(null);
 
     void Promise.all([
@@ -79,12 +87,15 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
       // Parent-profile lookup is best-effort, matching EnrollmentForm's
       // existing autofill contract. It stays on the parent-authenticated API;
       // public form metadata never receives the parent session token.
+      // Deliberately silent: the client logs the failure, and without the
+      // prefill the parent types the guardian fields.
       fetchParentEnrollmentProfile(tenantSlug).catch(() => null),
     ])
       .then(([tenant, bootstrap, profile]) => {
         if (cancelled) return;
+        // Without the school's grade setting the form cannot be built;
+        // `loaded` stays empty and the page shows its load-failed text.
         if (!tenant || !isSupportedGradeLevelMax(tenant.gradeLevelMax)) {
-          setError(t("detailsLoadFailed"));
           return;
         }
         setLoaded({
@@ -94,7 +105,10 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : t("unknownError"));
+        void showLoadError(err, {
+          object: t("errorObjectForm"),
+          retry: () => setLoadAttempt((n) => n + 1),
+        });
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -103,7 +117,15 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
     return () => {
       cancelled = true;
     };
-  }, [lateInviteToken, phaseId, tenantSlug, t]);
+  }, [
+    lateInviteToken,
+    phaseId,
+    tenantSlug,
+    loadAttempt,
+    clearLoadError,
+    showLoadError,
+    t,
+  ]);
 
   const handleSubmitted = (statusURL: string) => {
     try {
@@ -138,13 +160,8 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
           <ParentSectionSkeleton rows={5} />
           <ParentSectionSkeleton rows={3} />
         </div>
-      ) : error || !loaded ? (
-        <div
-          role="alert"
-          className="border-moto-red/30 bg-moto-red/5 text-moto-red-strong rounded-2xl border p-5 text-sm shadow-sm"
-        >
-          {error ?? t("detailsLoadFailed")}
-        </div>
+      ) : loadError || !loaded ? (
+        <LoadErrorAlert error={loadError ?? t("detailsLoadFailed")} />
       ) : (
         <TenantProvider tenantSlug={tenantSlug} tenant={loaded.tenant}>
           <EnrollmentForm

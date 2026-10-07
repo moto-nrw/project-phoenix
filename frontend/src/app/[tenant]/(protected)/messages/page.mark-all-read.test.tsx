@@ -1,7 +1,20 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+// Fehler einer Aktion kommen als Meldung über den gemeinsamen Weg (#2517).
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 const {
   mockMarkAllMessagesRead,
@@ -51,7 +64,8 @@ vi.mock("~/lib/hooks/use-messages-unread", () => ({
   }),
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: mockToastSuccess }),
 }));
 
@@ -240,19 +254,31 @@ describe("Alle als gelesen markieren", () => {
   });
 
   it("shows a hint and no confirmation when marking fails", async () => {
-    mockMarkAllMessagesRead.mockRejectedValue(
-      new Error("messaging: forbidden"),
-    );
+    mockMarkAllMessagesRead
+      .mockRejectedValueOnce(
+        new ApiError("mark all read kaputt", 500, { code: "general.server" }),
+      )
+      .mockResolvedValueOnce(0);
     render(<MessagesPage />);
 
     fireEvent.click(await findMarkAllRead());
 
     expect(
       await screen.findByText(
-        "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+        catalogText("general.server", "das Markieren als gelesen"),
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/kaputt/)).not.toBeInTheDocument();
     expect(mockToastSuccess).not.toHaveBeenCalled();
     expect(unreadRefreshes).toBe(0);
+
+    // Wiederholen markiert erneut und bestätigt dann.
+    fireEvent.click(screen.getByRole("button", { name: /Wiederholen/ }));
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Alle Nachrichten sind für Sie als gelesen markiert.",
+      ),
+    );
+    expect(mockMarkAllMessagesRead).toHaveBeenCalledTimes(2);
   });
 });

@@ -23,8 +23,13 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
@@ -82,10 +87,19 @@ export function GraduatesModal({
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
+  // Ladefehler im Dialog mit Wiederholen, Löschfehler als Toast nach dem
+  // Schließen der Rückfrage (#2517).
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
   const [loadFailed, setLoadFailed] = useState(false);
+  const { show: showPurgeError } = useApiErrorDisplay();
 
   const load = useCallback(async () => {
     setLoadFailed(false);
+    clearLoadError();
     try {
       const history = await fetchTransitionHistory(transition.id);
       // Only Abgänge: a promoted child was never hidden and is edited in the
@@ -98,8 +112,12 @@ export function GraduatesModal({
       });
       setEntries([]);
       setLoadFailed(true);
+      void showLoadError(err, {
+        object: "die Liste der Abgänge",
+        retry: () => void load(),
+      });
     }
-  }, [transition.id]);
+  }, [transition.id, clearLoadError, showLoadError]);
 
   useEffect(() => {
     void load();
@@ -133,7 +151,7 @@ export function GraduatesModal({
   const handlePurge = async () => {
     setIsPurging(true);
     let deleted = 0;
-    const failures: string[] = [];
+    const failures: { name: string; error: unknown }[] = [];
 
     // Sequential on purpose: each delete takes the per-tenant class-writes gate
     // plus the child's companion-graph locks, so firing them in parallel would
@@ -146,9 +164,10 @@ export function GraduatesModal({
         await purgeGraduatedStudent(studentId);
         deleted += 1;
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        logger.error("graduate_purge_failed", { error: message });
-        failures.push(`${entry?.personName ?? studentId}: ${message}`);
+        logger.error("graduate_purge_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        failures.push({ name: entry?.personName ?? studentId, error: err });
       }
     }
 
@@ -158,17 +177,21 @@ export function GraduatesModal({
     if (deleted > 0) {
       toast.success(
         deleted === 1
-          ? "1 Kind endgültig gelöscht."
-          : `${deleted} Kinder endgültig gelöscht.`,
+          ? "1 Kind ist endgültig gelöscht."
+          : `${deleted} Kinder sind endgültig gelöscht.`,
       );
       onPurged();
     }
-    if (failures.length > 0) {
-      toast.error(
-        failures.length === 1
-          ? (failures[0] ?? "Löschen fehlgeschlagen.")
-          : `${failures.length} Kinder konnten nicht gelöscht werden.`,
-      );
+    const [firstFailure] = failures;
+    if (firstFailure) {
+      // Der Grund des ersten Fehlschlags steht für alle: die Kinder scheitern
+      // in der Regel aus demselben Grund (etwa einer Laufgemeinschaft).
+      void showPurgeError(firstFailure.error, {
+        object:
+          failures.length === 1
+            ? `das Löschen von ${firstFailure.name}`
+            : `das Löschen von ${failures.length} Kindern`,
+      });
     }
     await load();
   };
@@ -210,11 +233,7 @@ export function GraduatesModal({
               </SkeletonRegion>
             )}
 
-            {loadFailed && (
-              <p className="text-moto-red rounded-lg border border-gray-200 p-4 text-sm">
-                Abgänge konnten nicht geladen werden. Bitte erneut versuchen.
-              </p>
-            )}
+            <LoadErrorAlert error={loadError} />
 
             {entries !== null && !loadFailed && entries.length === 0 && (
               <p className="rounded-lg border border-gray-200 p-4 text-sm text-gray-500">
@@ -280,10 +299,14 @@ export function GraduatesModal({
           </div>
           <SlideOverFooter className="flex-row items-center justify-between gap-3">
             <div className="flex w-full items-center justify-between gap-3">
+              {/* Ohne geladene Liste kein "0 von 0 noch löschbar" unter dem
+                  Ladefehler (#2517). */}
               <span className="text-sm text-gray-500">
                 {selectedIds.length > 0
                   ? `${selectedIds.length} ausgewählt`
-                  : `${deletable.length} von ${entries?.length ?? 0} noch löschbar`}
+                  : entries === null || loadFailed
+                    ? null
+                    : `${deletable.length} von ${entries.length} noch löschbar`}
               </span>
               <div className="flex gap-2">
                 <Button

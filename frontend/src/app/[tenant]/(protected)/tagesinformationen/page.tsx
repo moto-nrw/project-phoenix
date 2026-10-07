@@ -2,7 +2,7 @@
 
 import { Megaphone, Pencil, Trash2, Users } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import {
   OverflowMenu,
@@ -13,15 +13,16 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { StaffNoticeAcknowledgementsModal } from "~/components/staff-notices/staff-notice-acknowledgements-modal";
 import { StaffNoticeModal } from "~/components/staff-notices/staff-notice-modal";
 import { TodayNoticeList } from "~/components/staff-notices/today-notice-list";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Loading } from "~/components/ui/loading";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { getApiErrorMessage } from "~/lib/api-error-message";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { hasEffectiveAdminScope } from "~/lib/auth-utils";
 import { formatDate } from "~/lib/date-helpers";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
   createStaffNotice,
@@ -83,9 +84,22 @@ export default function TagesinformationenPage() {
   const [deleting, setDeleting] = useState<StaffNotice | null>(null);
   // Bestätigungsliste (#2208): welcher Hinweis gerade seine Namen zeigt.
   const [showingAcks, setShowingAcks] = useState<StaffNotice | null>(null);
-  const [deleteError, setDeleteError] = useState("");
+  // Löschfehler bleiben im Bestätigungsdialog (#2517).
+  const deleteErrors = useApiFormError();
   const [deletePending, setDeletePending] = useState(false);
-  const [listError, setListError] = useState("");
+  const latestDeleteRef = useRef<() => void>(() => undefined);
+  const toast = useToast();
+
+  const todayLoadError = useSwrLoadError(
+    todayError,
+    "die Liste der Tagesinformationen von heute",
+    () => mutateToday(),
+  );
+  const listLoadError = useSwrLoadError(
+    noticesError,
+    "die Liste aller Tagesinformationen",
+    () => mutate(),
+  );
 
   const todayNotices = todayData ?? [];
   const notices = data ?? [];
@@ -118,22 +132,11 @@ export default function TagesinformationenPage() {
         destructive: true,
         onClick: () => {
           setDeleting(notice);
-          setDeleteError("");
+          deleteErrors.clear();
         },
       },
     ];
   };
-
-  const visibleListError =
-    listError ||
-    (noticesError
-      ? getApiErrorMessage(
-          noticesError,
-          "laden",
-          "die Tagesinformationen",
-          "Die Tagesinformationen konnten nicht geladen werden.",
-        )
-      : "");
 
   const save = async (input: StaffNoticeInput) => {
     if (editing) {
@@ -141,39 +144,51 @@ export default function TagesinformationenPage() {
     } else {
       await createStaffNotice(input);
     }
+    toast.success(
+      editing
+        ? `Die Tagesinformation „${input.title}“ ist gespeichert.`
+        : `Die Tagesinformation „${input.title}“ ist angelegt.`,
+    );
     await Promise.all([mutate(), mutateToday()]);
   };
 
   const confirmDelete = async () => {
     if (!deleting) return;
     setDeletePending(true);
-    setDeleteError("");
+    deleteErrors.clear();
     try {
       await deleteStaffNotice(deleting.id);
+      toast.success(`Die Tagesinformation „${deleting.title}“ ist gelöscht.`);
       await Promise.all([mutate(), mutateToday()]);
       setDeleting(null);
     } catch (err) {
       logger.error("staff_notice_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setDeleteError(
-        getApiErrorMessage(
-          err,
-          "löschen",
-          "die Tagesinformation",
-          "Die Tagesinformation konnte nicht gelöscht werden.",
-        ),
-      );
+      void deleteErrors.show(err, {
+        object: "das Löschen der Tagesinformation",
+        retry: () => latestDeleteRef.current(),
+      });
     } finally {
       setDeletePending(false);
     }
   };
 
+  useLayoutEffect(() => {
+    latestDeleteRef.current = () => void confirmDelete();
+  });
+
   // Statuszeile aus echten Zahlen: was heute gilt, für Admins zusätzlich der
-  // Bestand. Der frühere Erklärsatz steht in der Hilfe, nicht im Kopf.
-  const statusLine = isAdmin
-    ? `${todayNotices.length} heute · ${notices.length} insgesamt`
-    : `${todayNotices.length} heute`;
+  // Bestand. Der frühere Erklärsatz steht in der Hilfe, nicht im Kopf. Eine
+  // Zahl steht nur für eine geladene Liste da, nie "0 heute" neben einem
+  // Ladefehler (#2517).
+  const statusLine =
+    [
+      todayData === undefined ? null : `${todayNotices.length} heute`,
+      isAdmin && data !== undefined ? `${notices.length} insgesamt` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || null;
 
   return (
     <TenantPage
@@ -204,7 +219,6 @@ export default function TagesinformationenPage() {
             onSubmit={async (input) => {
               try {
                 await save(input);
-                setListError("");
               } catch (err) {
                 logger.error("staff_notice_save_failed", {
                   error: err instanceof Error ? err.message : String(err),
@@ -227,7 +241,7 @@ export default function TagesinformationenPage() {
             }
             gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
             loading={deletePending}
-            error={deleteError}
+            error={deleteErrors.error}
             onConfirm={confirmDelete}
             onClose={() => setDeleting(null)}
           />
@@ -237,20 +251,12 @@ export default function TagesinformationenPage() {
       {/* Heute: das, was jede Mitarbeiterin braucht. Steht deshalb vor der
           Verwaltung und ist die ganze Seite für Nicht-Admins. */}
       <SectionCard title="Heute">
-        {todayLoading && todayNotices.length === 0 ? (
-          <Loading fullPage={false} />
-        ) : todayError ? (
+        {todayLoadError ? (
           // Ein Ladefehler darf nicht wie "keine Hinweise" aussehen: dann
           // verlässt sich jemand auf eine leere Tafel, die nur nicht geladen war.
-          <Alert
-            type="error"
-            message={getApiErrorMessage(
-              todayError,
-              "laden",
-              "die Tagesinformationen",
-              "Die Tagesinformationen konnten nicht geladen werden.",
-            )}
-          />
+          <LoadErrorAlert error={todayLoadError} />
+        ) : (todayLoading && todayNotices.length === 0) || todayError ? (
+          <Loading fullPage={false} />
         ) : todayNotices.length === 0 ? (
           <p className="text-sm leading-6 text-gray-600">
             Für heute liegen keine Hinweise vor.
@@ -260,13 +266,13 @@ export default function TagesinformationenPage() {
         )}
       </SectionCard>
 
-      {visibleListError && <Alert type="error" message={visibleListError} />}
-
       {isAdmin && (
         <SectionCard title="Alle Tagesinformationen">
-          {isLoading && notices.length === 0 ? (
+          {listLoadError ? (
+            <LoadErrorAlert error={listLoadError} />
+          ) : (isLoading && notices.length === 0) || noticesError ? (
             <Loading fullPage={false} />
-          ) : noticesError ? null : notices.length === 0 ? (
+          ) : notices.length === 0 ? (
             <EmptyState
               icon={<Megaphone className="h-6 w-6" />}
               title="Noch keine Tagesinformationen"

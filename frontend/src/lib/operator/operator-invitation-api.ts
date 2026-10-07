@@ -13,6 +13,7 @@ import {
   mapOperatorInfo,
   mapInvitationValidation,
 } from "./operator-invitation-helpers";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { OPERATOR_INVITATION_FLOW_HEADER } from "./operator-invitation-flow";
 
@@ -67,13 +68,19 @@ export async function revokeOperatorInvitation(id: string): Promise<void> {
 export async function establishOperatorInvitationSession(
   token: string,
 ): Promise<string> {
-  const response = await fetch("/api/operator/auth/invitations/session", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token }),
-  });
+  const response = await transportFetch(
+    "/api/operator/auth/invitations/session",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    },
+  );
   if (!response.ok) {
-    throw new Error("Einladungstoken konnte nicht geschützt werden");
+    throw await apiErrorFromResponse(
+      response,
+      `Invitation session failed (${response.status})`,
+    );
   }
   const body: unknown = await response.json();
   if (
@@ -91,30 +98,24 @@ export async function establishOperatorInvitationSession(
 export async function validateOperatorInvitation(
   flowID: string,
 ): Promise<OperatorInvitationValidation> {
-  const response = await fetch("/api/operator/auth/invitations/validate", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      [OPERATOR_INVITATION_FLOW_HEADER]: flowID,
+  const response = await transportFetch(
+    "/api/operator/auth/invitations/validate",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        [OPERATOR_INVITATION_FLOW_HEADER]: flowID,
+      },
+      body: JSON.stringify({}),
     },
-    body: JSON.stringify({}),
-  });
+  );
 
   if (!response.ok) {
-    let message = "Einladung nicht gefunden oder abgelaufen";
-    try {
-      // Operator backend serializes errors as { status, message } via
-      // ErrResponse json:"message" — matching api-helpers.ts, read both keys
-      // so the helper survives any intermediate layer that uses `error`.
-      const data = (await response.json()) as {
-        message?: string;
-        error?: string;
-      };
-      message = data.message ?? data.error ?? message;
-    } catch {
-      // use default
-    }
-    throw new Error(message);
+    // The operator backend answers in the shared error envelope (#2507).
+    throw await apiErrorFromResponse(
+      response,
+      `Invitation validation failed (${response.status})`,
+    );
   }
 
   const json: unknown = await response.json();
@@ -127,37 +128,32 @@ export async function acceptOperatorInvitation(
   data: AcceptOperatorInvitationRequest,
 ): Promise<void> {
   // Convert camelCase frontend shape to the snake_case the backend expects.
-  const response = await fetch("/api/operator/auth/invitations/accept", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      [OPERATOR_INVITATION_FLOW_HEADER]: flowID,
+  const response = await transportFetch(
+    "/api/operator/auth/invitations/accept",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        [OPERATOR_INVITATION_FLOW_HEADER]: flowID,
+      },
+      body: JSON.stringify({
+        display_name: data.displayName,
+        password: data.password,
+        confirm_password: data.confirmPassword,
+      }),
     },
-    body: JSON.stringify({
-      display_name: data.displayName,
-      password: data.password,
-      confirm_password: data.confirmPassword,
-    }),
-  });
+  );
 
   if (!response.ok) {
-    let message = "Einladung konnte nicht angenommen werden";
-    try {
-      // Dual-read matches api-helpers.ts — operator backend natively emits
-      // { message } but the helper tolerates { error } from intermediate layers.
-      const errorData = (await response.json()) as {
-        message?: string;
-        error?: string;
-      };
-      message = errorData.message ?? errorData.error ?? message;
-    } catch {
-      // use default
-    }
-    logger.error("accept_invitation_failed", {
+    const error = await apiErrorFromResponse(
+      response,
+      `Invitation accept failed (${response.status})`,
+    );
+    logger.warn("accept_invitation_failed", {
       status: response.status,
-      error: message,
+      code: error.code,
     });
-    throw new Error(message);
+    throw error;
   }
 }
 

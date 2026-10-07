@@ -23,13 +23,9 @@ function makeSetting(overrides: Partial<ResolvedSetting>): ResolvedSetting {
   };
 }
 
-async function noopSave(): Promise<string | null> {
-  return null;
-}
+async function noopSave(): Promise<void> {}
 
-async function noopReset(): Promise<string | null> {
-  return null;
-}
+async function noopReset(): Promise<void> {}
 
 const meta = {
   title: "settings/SettingsField",

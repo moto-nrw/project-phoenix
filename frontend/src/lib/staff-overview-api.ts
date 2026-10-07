@@ -7,6 +7,7 @@
 // Callers must gate the second one on the permission (see hasPermission in
 // ~/lib/auth-utils); it is not a fallback path but a different audience.
 
+import { apiErrorFromResponse } from "./api-error";
 import { sessionFetch } from "./session-cache";
 
 // ─── Wire shapes (backend snake_case) ────────────────────────────────────────
@@ -129,7 +130,7 @@ export function mapTimeAccountRow(
 
 async function readJson<T>(response: Response, failure: string): Promise<T> {
   if (!response.ok) {
-    throw new Error(failure);
+    throw await apiErrorFromResponse(response, failure);
   }
   const json = (await response.json()) as { data: T };
   return json.data;
