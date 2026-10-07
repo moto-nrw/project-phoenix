@@ -252,7 +252,7 @@ export default function OperatorSchoolsPage() {
             buttonLabel="Neue Schule"
             onAction={() => setCreateSchoolOpen(true)}
           />
-        ) : (
+        ) : schoolSummaries === undefined && !summariesLoading ? null : (
           <DataTable
             columns={columns}
             rows={activeSummaries}

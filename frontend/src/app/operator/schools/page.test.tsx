@@ -690,4 +690,18 @@ describe("OperatorSchoolsPage", () => {
       expect(screen.getByText("Z School")).toBeInTheDocument();
     });
   });
+
+  // #2519: a failed load is not an empty list.
+  it("shows a failed list load without claiming the list is empty", async () => {
+    withDefaultSWR({ schoolsError: new ApiError("down", 503) });
+
+    render(<OperatorSchoolsPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Schulen"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Keine Einträge vorhanden.")).toBeNull();
+  });
 });

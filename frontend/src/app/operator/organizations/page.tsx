@@ -269,7 +269,7 @@ export default function OperatorOrganizationsPage() {
             buttonLabel="Neuer Träger"
             onAction={() => setCreateOrgOpen(true)}
           />
-        ) : (
+        ) : organizations === undefined && !orgsLoading ? null : (
           <DataTable
             columns={columns}
             rows={activeOrganizations}

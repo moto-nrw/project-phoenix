@@ -193,7 +193,7 @@ function OperatorUnregisteredTagsPageContent() {
           title="Keine unbekannten RFID-Scans"
           description="Es liegen keine passenden Scanversuche vor."
         />
-      ) : (
+      ) : scans === undefined && !isLoading ? null : (
         <UnregisteredTagsTable
           scans={scans ?? []}
           isLoading={isLoading}

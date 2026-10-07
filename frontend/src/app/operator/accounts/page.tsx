@@ -209,7 +209,7 @@ function OperatorAccountsPageContent() {
               title="Keine Konten"
               description="Für diesen Träger gibt es noch keine zugewiesenen Konten."
             />
-          ) : (
+          ) : orgAccounts === undefined && !orgAccountsLoading ? null : (
             <AccountsTable
               accounts={orgAccounts ?? []}
               showSchool
@@ -229,7 +229,7 @@ function OperatorAccountsPageContent() {
               title="Keine Konten"
               description="Es gibt noch keine Konten im System."
             />
-          ) : (
+          ) : allAccounts === undefined && !allAccountsLoading ? null : (
             <AccountsTable
               accounts={allAccounts ?? []}
               showSchool
@@ -265,7 +265,7 @@ function OperatorAccountsPageContent() {
               title="Keine Konten"
               description="Für diese Schule gibt es noch keine zugewiesenen Konten."
             />
-          ) : (
+          ) : schoolAccounts === undefined && !schoolAccountsLoading ? null : (
             <AccountsTable
               accounts={schoolAccounts ?? []}
               selectedSchool={selectedSchool}

@@ -196,7 +196,7 @@ function OperatorDevicesPageContent() {
               title="Keine Geräte"
               description="Für diesen Träger gibt es noch keine registrierten Geräte."
             />
-          ) : (
+          ) : orgDevices === undefined && !orgDevicesLoading ? null : (
             <DevicesTable
               devices={orgDevices ?? []}
               showSchool
@@ -216,7 +216,7 @@ function OperatorDevicesPageContent() {
               title="Keine Geräte"
               description="Es gibt noch keine registrierten Geräte im System."
             />
-          ) : (
+          ) : allDevices === undefined && !allDevicesLoading ? null : (
             <DevicesTable
               devices={allDevices ?? []}
               showSchool
@@ -252,7 +252,7 @@ function OperatorDevicesPageContent() {
               title="Keine Geräte"
               description="Für diese Schule gibt es noch keine registrierten Geräte."
             />
-          ) : (
+          ) : schoolDevices === undefined && !schoolDevicesLoading ? null : (
             <DevicesTable
               devices={schoolDevices ?? []}
               isLoading={schoolDevicesLoading}

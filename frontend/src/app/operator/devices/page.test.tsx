@@ -633,4 +633,18 @@ describe("OperatorDevicesPage", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  // #2519: a failed load is not an empty list.
+  it("shows a failed list load without claiming the list is empty", async () => {
+    withDefaultSWR({ devicesError: new ApiError("down", 503) });
+
+    render(<OperatorDevicesPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Geräte"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Keine Einträge vorhanden.")).toBeNull();
+  });
 });

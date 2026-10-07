@@ -60,6 +60,9 @@ export interface SetupSWROptions {
   /** Failed load of the filter lists (#2519). */
   orgsError?: unknown;
   schoolsError?: unknown;
+  /** Failed load of the account and device lists (#2519). */
+  accountsError?: unknown;
+  devicesError?: unknown;
   schoolAccounts?: unknown[];
   orgAccounts?: unknown[];
   allAccounts?: unknown[];
@@ -89,6 +92,8 @@ export function setupSWR(opts: SetupSWROptions): void {
     schoolsLoading = false,
     orgsError,
     schoolsError,
+    accountsError,
+    devicesError,
     schoolAccounts,
     orgAccounts,
     allAccounts,
@@ -139,42 +144,52 @@ export function setupSWR(opts: SetupSWROptions): void {
     }
     if (key === "operator-all-accounts") {
       return {
-        data: accountsLoading ? undefined : (allAccounts ?? []),
+        data:
+          accountsLoading || accountsError ? undefined : (allAccounts ?? []),
+        error: accountsError,
         isLoading: accountsLoading,
         mutate: () => undefined,
       };
     }
     if (key.startsWith("operator-school-accounts-")) {
       return {
-        data: accountsLoading ? undefined : (schoolAccounts ?? []),
+        data:
+          accountsLoading || accountsError ? undefined : (schoolAccounts ?? []),
+        error: accountsError,
         isLoading: accountsLoading,
         mutate: () => undefined,
       };
     }
     if (key.startsWith("operator-org-accounts-")) {
       return {
-        data: accountsLoading ? undefined : (orgAccounts ?? []),
+        data:
+          accountsLoading || accountsError ? undefined : (orgAccounts ?? []),
+        error: accountsError,
         isLoading: accountsLoading,
         mutate: () => undefined,
       };
     }
     if (key === "operator-all-devices") {
       return {
-        data: devicesLoading ? undefined : (allDevices ?? []),
+        data: devicesLoading || devicesError ? undefined : (allDevices ?? []),
+        error: devicesError,
         isLoading: devicesLoading,
         mutate: () => undefined,
       };
     }
     if (key.startsWith("operator-school-devices-")) {
       return {
-        data: devicesLoading ? undefined : (schoolDevices ?? []),
+        data:
+          devicesLoading || devicesError ? undefined : (schoolDevices ?? []),
+        error: devicesError,
         isLoading: devicesLoading,
         mutate: () => undefined,
       };
     }
     if (key.startsWith("operator-org-devices-")) {
       return {
-        data: devicesLoading ? undefined : (orgDevices ?? []),
+        data: devicesLoading || devicesError ? undefined : (orgDevices ?? []),
+        error: devicesError,
         isLoading: devicesLoading,
         mutate: () => undefined,
       };
