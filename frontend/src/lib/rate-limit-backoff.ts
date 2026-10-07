@@ -23,7 +23,7 @@ function rateLimitBucket(method?: string): RateLimitBucket {
   }
 }
 
-export function retryAfterSeconds(value: string | null, now: number): number {
+function retryAfterSeconds(value: string | null, now: number): number {
   if (value) {
     const seconds = Number(value);
     if (Number.isFinite(seconds) && seconds > 0) return Math.ceil(seconds);
