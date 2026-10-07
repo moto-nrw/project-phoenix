@@ -10,10 +10,9 @@
  * line ~213). This modal is the only UI path to fix that today.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
-import { useFormError } from "~/components/ui/form-error";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -30,7 +29,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import {
   type CalendarPeriod,
@@ -138,7 +137,7 @@ export function CalendarPeriodModal({
   usage,
   phaseLink,
 }: CalendarPeriodModalProps) {
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -146,7 +145,16 @@ export function CalendarPeriodModal({
   // Entwurf der Phasen-Verknüpfungen: phase.id → gewünscht verknüpft. Leer
   // heißt: keine Abweichung vom gespeicherten Stand.
   const [phaseDraft, setPhaseDraft] = useState<Record<string, boolean>>({});
-  const [validationError, setValidationError] = useFormError();
+  // Fehler stehen im Formular (#2516): Katalogtext, Feldmarkierung und
+  // Wiederholen mit dem aktuellen Stand. Der Löschdialog liegt über dem
+  // Formular und zeigt seinen Fehler selbst.
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { clear: clearFormError } = formErrors;
+  const deleteErrors = useApiFormError();
+  const { clear: clearDeleteError } = deleteErrors;
+  const latestSubmitRef = useRef<() => void>(() => undefined);
+  const latestDeleteRef = useRef<() => void>(() => undefined);
   const [saveWarnings, setSaveWarnings] = useState<CalendarPeriodWarning[]>([]);
   // Once a save succeeded in this modal session, further submits must update
   // that period — otherwise a corrected re-submit after an advisory warning
@@ -189,17 +197,18 @@ export function CalendarPeriodModal({
     setForm(
       initial ? formFromPeriod(initial) : { ...emptyForm(), ...createDefaults },
     );
-    setValidationError(null);
+    clearFormError();
+    clearDeleteError();
     setDeleteConfirmOpen(false);
     setSaveWarnings([]);
     setSavedPeriod(null);
     setPeriodSaveNotified(false);
     setPhaseDraft({});
-  }, [isOpen, initial, createDefaults, setValidationError]);
+  }, [isOpen, initial, createDefaults, clearFormError, clearDeleteError]);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
-    setValidationError(null);
+    formErrors.clear();
     // Editing after a warning-bearing save dismisses the warning state so the
     // footer returns to Abbrechen + Speichern and the correction can be saved.
     setSaveWarnings([]);
@@ -217,8 +226,12 @@ export function CalendarPeriodModal({
     form.endDate !== "" &&
     !submitting;
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    void submit();
+  };
+
+  const submit = async () => {
     if (saveWarnings.length > 0) {
       // Already saved and untouched since (any edit clears the warnings);
       // Enter mirrors the "Schließen" primary action.
@@ -228,17 +241,21 @@ export function CalendarPeriodModal({
     if (!canSubmit) return;
 
     if (form.endDate <= form.startDate) {
-      setValidationError("Enddatum muss nach dem Startdatum liegen.");
+      formErrors.invalid("Das Enddatum muss nach dem Startdatum liegen.", {
+        end_date: "Bitte ein späteres Datum wählen.",
+      });
       return;
     }
     if (cycleLength > 1 && form.weekCycleAnchor === "") {
-      setValidationError(
-        "Bei einer Wiederholung über mehrere Wochen ist das Startdatum der Wiederholung erforderlich.",
+      formErrors.invalid(
+        "Bitte geben Sie an, ab wann die Wiederholung zählt.",
+        { week_cycle_anchor: "Bitte ein Datum wählen." },
       );
       return;
     }
 
     setSubmitting(true);
+    formErrors.clear();
     const body = {
       name: form.name.trim(),
       period_type: form.periodType,
@@ -262,12 +279,11 @@ export function CalendarPeriodModal({
         mode: isEdit ? "edit" : "create",
         error: err instanceof Error ? err.message : String(err),
       });
-      const msg =
-        err instanceof Error
-          ? err.message
-          : "Kalenderzeitraum konnte nicht gespeichert werden";
-      setValidationError(msg);
       setSubmitting(false);
+      void formErrors.show(err, {
+        object: "das Speichern des Kalenderzeitraums",
+        retry: () => latestSubmitRef.current(),
+      });
       return;
     }
 
@@ -279,23 +295,24 @@ export function CalendarPeriodModal({
     try {
       await applyPhaseDraft();
     } catch (err) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : "Verknüpfung konnte nicht gespeichert werden";
       logger.error("period_phase_link_save_failed", {
         period_id: period.id,
-        error: msg,
+        error: err instanceof Error ? err.message : String(err),
       });
-      setValidationError(msg);
       setSubmitting(false);
+      // Der Zeitraum ist gespeichert; offen sind nur die Verknüpfungen, die
+      // noch im Entwurf stehen. Wiederholen speichert genau diese erneut.
+      void formErrors.show(err, {
+        object: "die Verknüpfung der Anmeldephase",
+        retry: () => latestSubmitRef.current(),
+      });
       return;
     }
 
     toastSuccess(
       persisted
-        ? `Kalenderzeitraum "${period.name}" aktualisiert`
-        : `Kalenderzeitraum "${period.name}" angelegt`,
+        ? `Der Kalenderzeitraum „${period.name}“ ist gespeichert.`
+        : `Der Kalenderzeitraum „${period.name}“ ist angelegt.`,
     );
     if (warnings.length === 0) {
       onClose();
@@ -321,7 +338,7 @@ export function CalendarPeriodModal({
       }
       return next;
     });
-    setValidationError(null);
+    formErrors.clear();
     setSaveWarnings([]);
   };
 
@@ -345,9 +362,11 @@ export function CalendarPeriodModal({
   const handleDelete = async () => {
     if (!initial) return;
     setDeleting(true);
+    deleteErrors.clear();
     try {
       await calendarPeriodService.delete(initial.id);
-      toastSuccess(`Kalenderzeitraum "${initial.name}" gelöscht`);
+      toastSuccess(`Der Kalenderzeitraum „${initial.name}“ ist gelöscht.`);
+      setDeleteConfirmOpen(false);
       onDeleted?.(initial);
       onClose();
     } catch (err) {
@@ -355,17 +374,21 @@ export function CalendarPeriodModal({
         period_id: initial.id,
         error: err instanceof Error ? err.message : String(err),
       });
-      const msg =
-        err instanceof Error
-          ? err.message
-          : "Kalenderzeitraum konnte nicht gelöscht werden";
-      setValidationError(msg);
-      toastError(msg);
+      // Der Dialog bleibt offen und nennt den Grund; ein Toast läge
+      // darunter.
+      void deleteErrors.show(err, {
+        object: "das Löschen des Kalenderzeitraums",
+        retry: () => latestDeleteRef.current(),
+      });
     } finally {
       setDeleting(false);
-      setDeleteConfirmOpen(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestSubmitRef.current = () => void submit();
+    latestDeleteRef.current = () => void handleDelete();
+  });
 
   return (
     <SlideOver
@@ -385,169 +408,187 @@ export function CalendarPeriodModal({
           </div>
           <SlideOverCloseButton aria-label="Zeitraum schließen" />
         </SlideOverHeader>
-        <SlideOverBody error={validationError}>
-          <form
-            id="calendar-period-form"
-            onSubmit={(e) => void handleSubmit(e)}
-            className="flex flex-col gap-4"
-          >
-            <Field label="Bezeichnung" htmlFor="name" required>
-              <Input
-                id="name"
-                value={form.name}
-                onChange={(e) => update("name", e.target.value)}
-                placeholder="z. B. Schuljahr 2025/2026"
-                maxLength={255}
-                controlSize="compact"
-                required
-                autoFocus
-              />
-            </Field>
-
-            <Field label="Art" htmlFor="period_type" required>
-              <CustomSelect
-                id="period_type"
-                ariaLabel="Art"
-                value={form.periodType}
-                options={PERIOD_TYPES.map((t) => ({
-                  value: t,
-                  label: PERIOD_TYPE_LABELS[t],
-                }))}
-                onChange={(next) => update("periodType", next as PeriodType)}
-              />
-            </Field>
-
-            {/* #3594: „Ferien“ als Zeitraum sagt keine Termine ab und setzt
-                kein Soll auf null; das tut nur ein Schließtag. */}
-            {form.periodType === "holiday" && (
-              <Alert type="info" message={HOLIDAY_CLOSING_DAY_HINT} />
-            )}
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Startdatum" htmlFor="start_date" required>
-                <ISODatePicker
-                  id="start_date"
-                  controlSize="md"
-                  value={form.startDate}
-                  onChange={(next) => update("startDate", next)}
-                  calendarLayout="popover"
-                />
-              </Field>
-              <Field label="Enddatum" htmlFor="end_date" required>
-                <ISODatePicker
-                  id="end_date"
-                  controlSize="md"
-                  value={form.endDate}
-                  onChange={(next) => update("endDate", next)}
-                  calendarLayout="popover"
-                />
-              </Field>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Wiederholung in Wochen" htmlFor="cycle_length">
-                <Input
-                  id="cycle_length"
-                  type="number"
-                  min={1}
-                  max={4}
-                  value={form.weekCycleLength}
-                  controlSize="compact"
-                  onChange={(e) => update("weekCycleLength", e.target.value)}
-                />
-                <span className="text-xs font-normal text-gray-500">
-                  1 = jede Woche, 2 = alle 2 Wochen
-                </span>
-              </Field>
-              <Field
-                label="Startdatum der Wiederholung"
-                htmlFor="cycle_anchor"
-                required={cycleLength > 1}
-              >
-                <ISODatePicker
-                  id="cycle_anchor"
-                  controlSize="md"
-                  value={form.weekCycleAnchor}
-                  onChange={(next) => update("weekCycleAnchor", next)}
-                  disabled={cycleLength <= 1}
-                  calendarLayout="popover"
-                />
-              </Field>
-            </div>
-
-            <ChoiceTile
-              htmlFor="period_active"
-              className="gap-2 px-3 py-2 font-normal shadow-sm"
+        <SlideOverBody error={formErrors.error}>
+          <div ref={formRef}>
+            <form
+              id="calendar-period-form"
+              onSubmit={(e) => void handleSubmit(e)}
+              className="flex flex-col gap-4"
             >
-              <Checkbox
-                id="period_active"
-                checked={form.isActive}
-                onChange={(e) => update("isActive", e.target.checked)}
-              />
-              {/* Label und Hinweis stapeln auf schmalen Screens, nebeneinander
+              <Field label="Bezeichnung" htmlFor="name" required>
+                <Input
+                  id="name"
+                  name="name"
+                  error={formErrors.fieldError("name")}
+                  value={form.name}
+                  onChange={(e) => update("name", e.target.value)}
+                  placeholder="z. B. Schuljahr 2025/2026"
+                  maxLength={255}
+                  controlSize="compact"
+                  required
+                  autoFocus
+                />
+              </Field>
+
+              <Field label="Art" htmlFor="period_type" required>
+                <CustomSelect
+                  id="period_type"
+                  name="period_type"
+                  invalid={!!formErrors.fieldError("period_type")}
+                  ariaLabel="Art"
+                  value={form.periodType}
+                  options={PERIOD_TYPES.map((t) => ({
+                    value: t,
+                    label: PERIOD_TYPE_LABELS[t],
+                  }))}
+                  onChange={(next) => update("periodType", next as PeriodType)}
+                />
+              </Field>
+
+              {/* #3594: „Ferien“ als Zeitraum sagt keine Termine ab und setzt
+                kein Soll auf null; das tut nur ein Schließtag. */}
+              {form.periodType === "holiday" && (
+                <Alert type="info" message={HOLIDAY_CLOSING_DAY_HINT} />
+              )}
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="Startdatum" htmlFor="start_date" required>
+                  <ISODatePicker
+                    id="start_date"
+                    name="start_date"
+                    error={formErrors.fieldError("start_date")}
+                    controlSize="md"
+                    value={form.startDate}
+                    onChange={(next) => update("startDate", next)}
+                    calendarLayout="popover"
+                  />
+                </Field>
+                <Field label="Enddatum" htmlFor="end_date" required>
+                  <ISODatePicker
+                    id="end_date"
+                    name="end_date"
+                    error={formErrors.fieldError("end_date")}
+                    controlSize="md"
+                    value={form.endDate}
+                    onChange={(next) => update("endDate", next)}
+                    calendarLayout="popover"
+                  />
+                </Field>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="Wiederholung in Wochen" htmlFor="cycle_length">
+                  <Input
+                    id="cycle_length"
+                    name="week_cycle_length"
+                    error={formErrors.fieldError("week_cycle_length")}
+                    type="number"
+                    min={1}
+                    max={4}
+                    value={form.weekCycleLength}
+                    controlSize="compact"
+                    onChange={(e) => update("weekCycleLength", e.target.value)}
+                  />
+                  <span className="text-xs font-normal text-gray-500">
+                    1 = jede Woche, 2 = alle 2 Wochen
+                  </span>
+                </Field>
+                <Field
+                  label="Startdatum der Wiederholung"
+                  htmlFor="cycle_anchor"
+                  required={cycleLength > 1}
+                >
+                  <ISODatePicker
+                    id="cycle_anchor"
+                    name="week_cycle_anchor"
+                    error={formErrors.fieldError("week_cycle_anchor")}
+                    controlSize="md"
+                    value={form.weekCycleAnchor}
+                    onChange={(next) => update("weekCycleAnchor", next)}
+                    disabled={cycleLength <= 1}
+                    calendarLayout="popover"
+                  />
+                </Field>
+              </div>
+
+              <ChoiceTile
+                htmlFor="period_active"
+                className="gap-2 px-3 py-2 font-normal shadow-sm"
+              >
+                <Checkbox
+                  id="period_active"
+                  checked={form.isActive}
+                  onChange={(e) => update("isActive", e.target.checked)}
+                />
+                {/* Label und Hinweis stapeln auf schmalen Screens, nebeneinander
               bricht die Beschriftung sonst über drei Zeilen (#2033). */}
-              <span className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
-                <span className="font-semibold text-gray-700">
-                  Zeitraum im Plan verwenden
+                <span className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
+                  <span className="font-semibold text-gray-700">
+                    Zeitraum im Plan verwenden
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    Nur aktive Zeiträume legen Termine aus Regelterminen an
+                  </span>
                 </span>
-                <span className="text-xs text-gray-500">
-                  Nur aktive Zeiträume legen Termine aus Regelterminen an
-                </span>
-              </span>
-            </ChoiceTile>
+              </ChoiceTile>
 
-            {isEdit && initial && phaseLink && phaseLink.phases.length > 0 && (
-              <fieldset className="rounded-xl border border-gray-200 p-3">
-                <legend className="px-1 text-xs font-semibold text-gray-700">
-                  Verknüpfte Anmeldephasen
-                </legend>
-                <div className="flex flex-col">
-                  {phaseLink.phases.map((phase) => {
-                    const linked = phaseDraft[phase.id] ?? isPhaseLinked(phase);
-                    const linkedElsewhere =
-                      !linked &&
-                      !!phase.calendar_period_id &&
-                      phase.calendar_period_id !== initial.id;
-                    return (
-                      <label
-                        key={phase.id}
-                        className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-gray-50"
-                      >
-                        <Checkbox
-                          checked={linked}
-                          disabled={submitting}
-                          onChange={(e) =>
-                            handlePhaseToggle(phase, e.target.checked)
-                          }
-                        />
-                        <span className="min-w-0 flex-1 truncate text-gray-800">
-                          {phase.name}
-                        </span>
-                        {linkedElsewhere && (
-                          <span className="text-moto-orange shrink-0 text-xs">
-                            Mit anderem Zeitraum verknüpft
-                          </span>
-                        )}
-                        {!phase.is_active && (
-                          <span className="shrink-0 text-xs text-gray-400">
-                            Inaktiv
-                          </span>
-                        )}
-                      </label>
-                    );
-                  })}
-                </div>
-              </fieldset>
-            )}
+              {isEdit &&
+                initial &&
+                phaseLink &&
+                phaseLink.phases.length > 0 && (
+                  <fieldset className="rounded-xl border border-gray-200 p-3">
+                    <legend className="px-1 text-xs font-semibold text-gray-700">
+                      Verknüpfte Anmeldephasen
+                    </legend>
+                    <div className="flex flex-col">
+                      {phaseLink.phases.map((phase) => {
+                        const linked =
+                          phaseDraft[phase.id] ?? isPhaseLinked(phase);
+                        const linkedElsewhere =
+                          !linked &&
+                          !!phase.calendar_period_id &&
+                          phase.calendar_period_id !== initial.id;
+                        return (
+                          <label
+                            key={phase.id}
+                            className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-gray-50"
+                          >
+                            <Checkbox
+                              checked={linked}
+                              disabled={submitting}
+                              onChange={(e) =>
+                                handlePhaseToggle(phase, e.target.checked)
+                              }
+                            />
+                            <span className="min-w-0 flex-1 truncate text-gray-800">
+                              {phase.name}
+                            </span>
+                            {linkedElsewhere && (
+                              <span className="text-moto-orange shrink-0 text-xs">
+                                Mit anderem Zeitraum verknüpft
+                              </span>
+                            )}
+                            {!phase.is_active && (
+                              <span className="shrink-0 text-xs text-gray-400">
+                                Inaktiv
+                              </span>
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                )}
 
-            {saveWarnings.map((warning) => (
-              <Alert
-                key={`${warning.code}-${warning.overlappingPeriodIds.join("-")}`}
-                type="warning"
-                message={warning.message}
-              />
-            ))}
-          </form>
+              {saveWarnings.map((warning) => (
+                <Alert
+                  key={`${warning.code}-${warning.overlappingPeriodIds.join("-")}`}
+                  type="warning"
+                  message={warning.message}
+                />
+              ))}
+            </form>
+          </div>
         </SlideOverBody>
         <SlideOverFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="w-full sm:w-auto">
@@ -622,9 +663,12 @@ export function CalendarPeriodModal({
           }
           gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
           onConfirm={handleDelete}
-          onClose={() => setDeleteConfirmOpen(false)}
+          onClose={() => {
+            deleteErrors.clear();
+            setDeleteConfirmOpen(false);
+          }}
           loading={deleting}
-          error=""
+          error={deleteErrors.error}
         />
       )}
     </SlideOver>

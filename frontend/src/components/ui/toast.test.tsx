@@ -63,6 +63,40 @@ describe("Toast", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  // Das X stand in der Aktionsreihe und brach in der schmalen Toast-Breite
+  // allein in eine eigene Zeile um. Es sitzt jetzt oben rechts, getrennt von
+  // Wiederholen und Vorgangskennung.
+  it("keeps the close button in the top corner, apart from the actions", () => {
+    render(
+      <Toast
+        type="error"
+        message="Die Einstellung konnte nicht bearbeitet werden."
+        accessibleLabel="Fehler: Die Einstellung konnte nicht bearbeitet werden."
+        closeLabel="Schließen"
+        onClose={vi.fn()}
+        copySucceededLabel="Vorgangskennung kopiert."
+        copyFailedLabel="Kopieren nicht möglich."
+        copyRequestIdLabel="Vorgangskennung kopieren"
+        requestId="req-1"
+        requestIdLabel="Vorgangskennung: req-1"
+        action={{
+          label: "Wiederholen",
+          accessibleLabel: "Wiederholen",
+          onClick: vi.fn(),
+        }}
+        visible
+        reducedMotion
+        touchFriendly={false}
+      />,
+    );
+
+    const close = screen.getByRole("button", { name: "Schließen" });
+    const retry = screen.getByRole("button", { name: "Wiederholen" });
+    expect(close).toHaveClass("absolute", "top-2.5", "right-2.5");
+    expect(retry.parentElement).not.toContainElement(close);
+    expect(screen.getByRole("alert")).toHaveClass("pr-12");
+  });
+
   it("keeps a hidden toast mounted for its exit transition", () => {
     const { container } = render(
       <Toast

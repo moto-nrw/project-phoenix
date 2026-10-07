@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Skeleton } from "~/components/ui/skeleton";
 import { ChildDayCard } from "~/components/parent/child/child-day-card";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -35,6 +35,7 @@ import {
   type CalendarEvent,
 } from "~/lib/personal-calendar-api";
 import { useShellAuth } from "~/lib/shell-auth-context";
+import { useApiLoadError } from "~/contexts/ToastContext";
 
 const logger = createLogger({ component: "ParentStartPage" });
 
@@ -150,19 +151,34 @@ export function ParentStartPage() {
   const { profile } = useShellAuth();
   const [data, setData] = useState<StartData>(EMPTY_DATA);
   const [loading, setLoading] = useState(true);
-  const [failed, setFailed] = useState(false);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
 
   const load = useCallback(async () => {
     try {
       const [children, accountProfile] = await Promise.all([
         listMyChildren(),
+        // The greeting falls back to the session name, so a failed profile
+        // read changes nothing the parent could act on.
         fetchParentProfile().catch(() => undefined),
       ]);
+      // A failed child detail still renders the card in its unknown state;
+      // the first failure is shown above the cards so it stays visible.
+      let childFailure: unknown;
       const perChild = await Promise.all(
         children.map(async (child) => {
           const [features, today] = await Promise.all([
-            getChildFeatures(child.student_id).catch(() => undefined),
-            getChildToday(child.student_id).catch(() => UNKNOWN_CHILD_TODAY),
+            getChildFeatures(child.student_id).catch((err: unknown) => {
+              childFailure ??= err;
+              return undefined;
+            }),
+            getChildToday(child.student_id).catch((err: unknown) => {
+              childFailure ??= err;
+              return UNKNOWN_CHILD_TODAY;
+            }),
           ]);
           return [child.student_id, features, today] as const;
         }),
@@ -177,16 +193,33 @@ export function ParentStartPage() {
         today: Object.fromEntries(perChild.map(([id, , today]) => [id, today])),
         firstName: accountProfile?.first_name?.trim() ?? "",
       });
-      setFailed(false);
+      if (childFailure === undefined) {
+        clearLoadError();
+      } else {
+        logger.warn("parent_start_child_details_failed", {
+          error:
+            childFailure instanceof Error
+              ? childFailure.message
+              : String(childFailure),
+        });
+        await showLoadError(childFailure, {
+          object: t("errorObject"),
+          retry: () => void load(),
+        });
+      }
     } catch (err) {
       logger.warn("parent_start_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setFailed(true);
+      // Awaited so the empty state never flashes before the error arrives.
+      await showLoadError(err, {
+        object: t("errorObject"),
+        retry: () => void load(),
+      });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clearLoadError, showLoadError, t]);
 
   useEffect(() => {
     void load();
@@ -226,11 +259,11 @@ export function ParentStartPage() {
         <StartTodoSection />
 
         <div className="space-y-4">
-          {failed && <Alert type="error" message={t("loadError")} />}
+          <LoadErrorAlert error={loadError} />
 
           {loading ? (
             <StartChildCardSkeleton />
-          ) : data.children.length === 0 && !failed ? (
+          ) : data.children.length === 0 && !loadError ? (
             <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600 shadow-sm backdrop-blur-md">
               {t("noChildren")}
             </p>
@@ -364,7 +397,11 @@ function StartTodoSection() {
   const locale = useLocale();
   const [sources, setSources] = useState<TodoSources>(EMPTY_SOURCES);
   const [loaded, setLoaded] = useState(false);
-  const [partialFailure, setPartialFailure] = useState(false);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
   const [openAnnouncementId, setOpenAnnouncementId] = useState<string | null>(
     null,
   );
@@ -378,6 +415,7 @@ function StartTodoSection() {
       listMessageThreads(),
       getParentCalendar(from, to),
     ]);
+    let failure: unknown;
     let failed = false;
     const next = { ...EMPTY_SOURCES } as {
       announcements: readonly ParentAnnouncement[];
@@ -387,6 +425,7 @@ function StartTodoSection() {
     if (announcements.status === "fulfilled") {
       next.announcements = announcements.value;
     } else {
+      if (!failed) failure = announcements.reason;
       failed = true;
       logger.warn("parent_start_news_failed", {
         error: String(announcements.reason),
@@ -395,6 +434,7 @@ function StartTodoSection() {
     if (threads.status === "fulfilled") {
       next.threads = threads.value;
     } else {
+      if (!failed) failure = threads.reason;
       failed = true;
       logger.warn("parent_start_threads_failed", {
         error: String(threads.reason),
@@ -403,15 +443,24 @@ function StartTodoSection() {
     if (calendar.status === "fulfilled") {
       next.appointments = calendar.value.events;
     } else {
+      if (!failed) failure = calendar.reason;
       failed = true;
       logger.warn("parent_start_calendar_failed", {
         error: String(calendar.reason),
       });
     }
     setSources(next);
-    setPartialFailure(failed);
+    if (failed) {
+      // Awaited so "Alles erledigt" never shows for an incomplete list.
+      await showLoadError(failure, {
+        object: t("todo.errorObject"),
+        retry: () => void load(),
+      });
+    } else {
+      clearLoadError();
+    }
     setLoaded(true);
-  }, []);
+  }, [clearLoadError, showLoadError, t]);
 
   useEffect(() => {
     void load();
@@ -451,16 +500,14 @@ function StartTodoSection() {
     return <StartTodoSkeleton />;
   }
 
-  if (partialFailure && items.length === 0) {
-    return <Alert type="warning" message={t("todo.partialLoadError")} />;
+  if (loadError && items.length === 0) {
+    return <LoadErrorAlert error={loadError} />;
   }
 
   return (
     <>
       <TodoList items={items} />
-      {partialFailure && (
-        <Alert type="warning" message={t("todo.partialLoadError")} />
-      )}
+      <LoadErrorAlert error={loadError} />
       {openAnnouncement && (
         <NewsDetailModal
           item={openAnnouncement}

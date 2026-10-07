@@ -145,6 +145,10 @@ type ShiftPlanningDependencies struct {
 	WorkSchedules StaffWorkScheduleReader
 	WorkModels    WorkTimeModelReader
 	Holidays      planning.HolidayDatesReader
+	// NonWorkingDays lets series skip statutory holidays, Ferien and closing
+	// days (#3820), bound to the School Calendar. Optional: nil plans every
+	// occurrence.
+	NonWorkingDays planning.SeriesCalendarReads
 	// CategoryLinker syncs the optional Kategorie-Schichtart mapping, whose FK
 	// lives with the Timetable owner. Optional: nil leaves mappings untouched.
 	CategoryLinker planning.CategoryLinker
@@ -206,9 +210,7 @@ func NewShiftPlanning(deps ShiftPlanningDependencies) (*ShiftPlanning, error) {
 
 	series := planning.NewStaffShiftSeriesService(
 		NewShiftSeriesRows(deps.Workforce), exceptionRows, shiftRows, deps.Staff, planning.SchoolCalendarPeriods(deps.CalendarPeriods),
-		shiftTypes, lockStaffShifts, logger, shifts,
-		planning.WithStaffShiftSeriesBroadcaster(deps.Broadcaster),
-		planning.WithStaffShiftSeriesToday(deps.Today),
+		shiftTypes, lockStaffShifts, logger, shifts, seriesOptions(deps)...,
 	)
 
 	assignments := planning.NewStaffAssignmentService(planning.StaffAssignmentDependencies{
@@ -232,6 +234,19 @@ func NewShiftPlanning(deps ShiftPlanningDependencies) (*ShiftPlanning, error) {
 		series:      series,
 		overview:    overview,
 	}, nil
+}
+
+// seriesOptions binds the series service's optional collaborators. A nil
+// calendar is left unbound, so the service sees no typed-nil reader.
+func seriesOptions(deps ShiftPlanningDependencies) []planning.StaffShiftSeriesOption {
+	options := []planning.StaffShiftSeriesOption{
+		planning.WithStaffShiftSeriesBroadcaster(deps.Broadcaster),
+		planning.WithStaffShiftSeriesToday(deps.Today),
+	}
+	if deps.NonWorkingDays != nil {
+		options = append(options, planning.WithStaffShiftSeriesNonWorkingDays(planning.SchoolCalendarNonWorkingDays(deps.NonWorkingDays)))
+	}
+	return options
 }
 
 // Planning binds the public staff-shift facade. planExport may be nil, in

@@ -5,7 +5,7 @@
  * suppression of bubbled keydown from inner elements, and the loading
  * placeholder rendering path.
  */
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 
 import { DataTable } from "./data-table";
@@ -367,5 +367,212 @@ describe("DataTable stacked phone layout", () => {
     );
 
     expect(screen.queryByTestId("data-table-stacked")).not.toBeInTheDocument();
+  });
+});
+
+describe("DataTable selection and hidden columns (#3834)", () => {
+  const twoColumns: DataTableColumn<Row>[] = [
+    { key: "name", header: "Name", render: (row) => row.name },
+    { key: "id", header: "Nummer", render: (row) => `#${row.id}` },
+  ];
+
+  function renderSelectable(selectedKeys: ReadonlySet<string>) {
+    const onChange = vi.fn();
+    const onRowClick = vi.fn();
+    render(
+      <DataTable
+        columns={twoColumns}
+        rows={rows}
+        getRowKey={(row) => row.id}
+        onRowClick={onRowClick}
+        selection={{
+          selectedKeys,
+          onChange,
+          rowLabel: (row) => row.name,
+        }}
+      />,
+    );
+    return { onChange, onRowClick };
+  }
+
+  it("marks one row through its checkbox without opening the row", () => {
+    const { onChange, onRowClick } = renderSelectable(new Set());
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Beta auswählen" }));
+
+    expect(onChange).toHaveBeenCalledWith(["2"], true);
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
+  it("unmarks a marked row", () => {
+    const { onChange } = renderSelectable(new Set(["1"]));
+
+    const alpha = screen.getByRole("checkbox", { name: "Alpha auswählen" });
+    expect(alpha).toBeChecked();
+    fireEvent.click(alpha);
+
+    expect(onChange).toHaveBeenCalledWith(["1"], false);
+  });
+
+  it("selects every row from the header box while some are unmarked", () => {
+    const { onChange } = renderSelectable(new Set(["1"]));
+
+    const all = screen.getByRole("checkbox", { name: "Alle auswählen" });
+    expect(all).not.toBeChecked();
+    expect((all as HTMLInputElement).indeterminate).toBe(true);
+    fireEvent.click(all);
+
+    expect(onChange).toHaveBeenCalledWith(["1", "2"], true);
+  });
+
+  it("clears every row from the header box when all are marked", () => {
+    const { onChange } = renderSelectable(new Set(["1", "2"]));
+
+    const all = screen.getByRole("checkbox", { name: "Alle auswählen" });
+    expect(all).toBeChecked();
+    fireEvent.click(all);
+
+    expect(onChange).toHaveBeenCalledWith(["1", "2"], false);
+  });
+
+  it("keeps a selectable row out of the button role so the checkbox stays reachable", () => {
+    renderSelectable(new Set());
+
+    expect(
+      screen
+        .queryAllByRole("button")
+        .filter((element) => element.tagName === "TR"),
+    ).toHaveLength(0);
+  });
+
+  it("leaves hidden columns out of header and cells", () => {
+    render(
+      <DataTable
+        columns={twoColumns}
+        rows={rows}
+        getRowKey={(row) => row.id}
+        hiddenColumns={new Set(["id"])}
+      />,
+    );
+
+    expect(screen.getByText("Name")).toBeInTheDocument();
+    expect(screen.queryByText("Nummer")).not.toBeInTheDocument();
+    expect(screen.queryByText("#1")).not.toBeInTheDocument();
+  });
+});
+
+describe("DataTable one-line phone list (#3834)", () => {
+  const phoneColumns: DataTableColumn<Row>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (row) => row.name,
+      stacked: "title",
+    },
+    { key: "id", header: "Nummer", render: (row) => `#${row.id}` },
+    {
+      key: "end",
+      header: "Ende",
+      render: (row) => `bis ${row.id}`,
+    },
+  ];
+
+  function renderPhoneList() {
+    const onChange = vi.fn();
+    const onRowClick = vi.fn();
+    render(
+      <DataTable
+        columns={phoneColumns}
+        rows={rows}
+        getRowKey={(row) => row.id}
+        onRowClick={onRowClick}
+        stackedOnMobile
+        stackedLayout="row"
+        stackedDetailKey="end"
+        selection={{
+          selectedKeys: new Set(["1"]),
+          onChange,
+          rowLabel: (row) => row.name,
+        }}
+      />,
+    );
+    return {
+      onChange,
+      onRowClick,
+      list: within(screen.getByTestId("data-table-stacked")),
+    };
+  }
+
+  it("marks a row from its checkbox without opening it", () => {
+    const { onChange, onRowClick, list } = renderPhoneList();
+
+    expect(
+      list.getByRole("checkbox", { name: "Alpha auswählen" }),
+    ).toBeChecked();
+    fireEvent.click(list.getByRole("checkbox", { name: "Beta auswählen" }));
+
+    expect(onChange).toHaveBeenCalledWith(["2"], true);
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
+  it("keeps the phone status when its desktop column is hidden", () => {
+    render(
+      <DataTable
+        columns={[
+          phoneColumns[0]!,
+          {
+            key: "status",
+            header: "Status",
+            render: (row) => `Status ${row.id}`,
+            stacked: "meta",
+          },
+        ]}
+        rows={rows}
+        getRowKey={(row) => row.id}
+        hiddenColumns={new Set(["status"])}
+        stackedOnMobile
+        stackedLayout="row"
+      />,
+    );
+
+    const stacked = within(screen.getByTestId("data-table-stacked"));
+    expect(stacked.getByText("Status 1")).toBeInTheDocument();
+    expect(screen.getByTestId("data-table-table")).not.toHaveTextContent(
+      "Status 1",
+    );
+  });
+
+  it("opens the row from anywhere else", () => {
+    const { onRowClick, list } = renderPhoneList();
+
+    fireEvent.click(list.getByText("Beta"));
+
+    expect(onRowClick).toHaveBeenCalledWith(rows[1]);
+  });
+
+  it("shows only title and the chosen detail column", () => {
+    const { list } = renderPhoneList();
+
+    expect(list.getByText("bis 2")).toBeInTheDocument();
+    expect(list.getAllByText("Ende")).toHaveLength(2);
+    expect(list.queryByText("#2")).not.toBeInTheDocument();
+    expect(list.queryByText("Nummer")).not.toBeInTheDocument();
+  });
+});
+
+describe("DataTable heading (#3834)", () => {
+  it("puts title and count inside the table surface", () => {
+    render(
+      <DataTable
+        columns={columns}
+        rows={rows}
+        getRowKey={(row) => row.id}
+        heading={{ title: "Kreativraum", count: 2 }}
+      />,
+    );
+
+    const heading = screen.getByRole("heading", { name: "Kreativraum" });
+    expect(heading.closest(".moto-content-surface")).not.toBeNull();
+    expect(screen.getByText("2")).toBeInTheDocument();
   });
 });

@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -11,6 +17,7 @@ import { PlanningDisabledState } from "~/components/planning/planning-disabled-s
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
 import { DienstplanHalbjahrGrid } from "~/components/staff/dienstplan-halbjahr-grid";
+import { DienstplanHoursCard } from "~/components/staff/dienstplan-hours-card";
 import { DienstplanPersonWeekGrid } from "~/components/staff/dienstplan-person-week-grid";
 import { DienstplanResourceGrid } from "~/components/staff/dienstplan-resource-grid";
 import { DienstplanGridSkeleton } from "~/components/staff/dienstplan-skeleton";
@@ -20,12 +27,14 @@ import {
 } from "~/components/staff/shift-edit-modal";
 import { SickReportModal } from "~/components/staff/sick-report-modal";
 import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
@@ -141,6 +150,7 @@ function DienstplanContent() {
   // vor dem Redirect und liefe in einen 403.
   const {
     data: periods,
+    error: periodsError,
     isLoading: periodsLoading,
     mutate: mutatePeriods,
   } = useSWRAuth(
@@ -194,7 +204,60 @@ function DienstplanContent() {
     retryLoad,
     reducedPath,
     refreshPlanCaches,
+    mutateShiftTypes,
   } = useDienstplanData(weekFrom, weekTo);
+
+  // Ladefehler stehen dort, wo die Daten fehlen (#2514): der Wochenplan als
+  // Fehler des Gerüsts, Schichtarten und Kalenderzeiträume über dem Raster.
+  const scheduleLoad = useApiLoadError();
+  const shiftTypesLoad = useApiLoadError();
+  const periodsLoad = useApiLoadError();
+  const { show: showScheduleLoadError, clear: clearScheduleLoadError } =
+    scheduleLoad;
+  const { show: showShiftTypesLoadError, clear: clearShiftTypesLoadError } =
+    shiftTypesLoad;
+  const { show: showPeriodsLoadError, clear: clearPeriodsLoadError } =
+    periodsLoad;
+  useEffect(() => {
+    if (scheduleError) {
+      void showScheduleLoadError(scheduleError, {
+        object: "die Dienstplanung",
+        retry: retryLoad,
+      });
+    } else {
+      clearScheduleLoadError();
+    }
+  }, [scheduleError, retryLoad, showScheduleLoadError, clearScheduleLoadError]);
+  useEffect(() => {
+    if (shiftTypesError) {
+      void showShiftTypesLoadError(shiftTypesError, {
+        object: "die Liste der Schichtarten",
+        retry: () => void mutateShiftTypes(),
+      });
+    } else {
+      clearShiftTypesLoadError();
+    }
+  }, [
+    shiftTypesError,
+    mutateShiftTypes,
+    showShiftTypesLoadError,
+    clearShiftTypesLoadError,
+  ]);
+  useEffect(() => {
+    if (periodsError) {
+      void showPeriodsLoadError(periodsError, {
+        object: "die Liste der Kalenderzeiträume",
+        retry: () => void mutatePeriods(),
+      });
+    } else {
+      clearPeriodsLoadError();
+    }
+  }, [
+    periodsError,
+    mutatePeriods,
+    showPeriodsLoadError,
+    clearPeriodsLoadError,
+  ]);
 
   // OGS-Schließtage (#2032): die Woche markiert ihre fünf Tage, der
   // Verschieben-Dialog prüft seinen frei wählbaren Zieltag gegen alle
@@ -206,6 +269,8 @@ function DienstplanContent() {
   } = useClosingDaysState(weekFrom, weekTo);
 
   const refreshAfterPlanMutation = useCallback(() => {
+    // Bewusst still: die Änderung ist gespeichert; ein misslungenes
+    // Nachladen zeigt den alten Stand, bis SWR beim nächsten Fokus neu lädt.
     refreshPlanCaches().catch((err: unknown) => {
       logger.error("post_plan_mutation_refresh_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -318,18 +383,13 @@ function DienstplanContent() {
   // Kopfkarte mit der Zeitnavigation bleibt stehen, der Inhaltsbereich wird
   // ersetzt. Ein fehlgeschlagener Staff-/Overview-Load ist `error`, nie
   // `empty` — auch nicht in der Halbjahres-Sicht.
-  const pageLoading = showSkeleton || scheduleLoading;
-  const pageError = scheduleError
-    ? {
-        message:
-          "Der Dienstplan konnte nicht vollständig geladen werden. Bearbeiten ist deaktiviert, bis die Daten erfolgreich geladen wurden.",
-        action: (
-          <Button type="button" variant="outline" size="md" onClick={retryLoad}>
-            Erneut laden
-          </Button>
-        ),
-      }
-    : null;
+  const pageLoading =
+    showSkeleton ||
+    scheduleLoading ||
+    (scheduleError !== undefined && scheduleLoad.error === null);
+  // Bis der Katalogtext geladen ist, hält `pageLoading` das Raster zurück:
+  // ohne Daten darf nichts bearbeitbar wirken.
+  const pageError = scheduleError ? scheduleLoad.error : null;
   const pageEmpty =
     !pageError && !pageLoading && sortedStaff.length === 0
       ? noStaffEmpty
@@ -354,12 +414,7 @@ function DienstplanContent() {
   } else if (view === "person" && personMember) {
     content = (
       <div className="space-y-3">
-        {shiftTypesError && (
-          <Alert
-            type="warning"
-            message="Die Schichtarten konnten nicht geladen werden. Der Dienstplan zeigt die Schichten so lange in neutraler Farbe."
-          />
-        )}
+        <LoadErrorAlert error={shiftTypesLoad.error} />
         <DienstplanPersonWeekGrid
           member={personMember}
           shiftsByDate={shiftsByStaff.get(personMember.id)}
@@ -399,12 +454,7 @@ function DienstplanContent() {
       // Kein zusätzlicher Kartenrahmen um das Raster (#2031) — die ResourceGrid
       // bringt ihre Fläche selbst mit, wie das Wochenraster im Betreuungsplan.
       <div className="space-y-3">
-        {shiftTypesError && (
-          <Alert
-            type="warning"
-            message="Die Schichtarten konnten nicht geladen werden. Der Dienstplan zeigt die Schichten so lange in neutraler Farbe."
-          />
-        )}
+        <LoadErrorAlert error={shiftTypesLoad.error} />
         {allShifts.length === 0 && (
           // Leerzustand: Mitarbeitende vorhanden, aber keine Schichten in der
           // Woche. Als Hinweis aus dem Kit, nicht als freier Satz über dem
@@ -449,6 +499,15 @@ function DienstplanContent() {
               : undefined
           }
         />
+        {/* Stunden je Schichtart (#3819): dieselben Wochensummen wie im
+            Zeilenkopf, aufgeteilt. Im reduzierten Pfad gibt es keine. */}
+        {!reducedPath && (
+          <DienstplanHoursCard
+            staff={sortedStaff}
+            summaryByStaff={summaryByStaff}
+            shiftTypes={shiftTypes ?? []}
+          />
+        )}
       </div>
     );
   }
@@ -461,14 +520,18 @@ function DienstplanContent() {
   // auf dem Telefon eine Zeile, die nichts sagte.
   const displayedShiftCount =
     view === "person" ? personShiftCount : allShifts.length;
-  const statusLine = [
-    view !== "halbjahr"
-      ? `${displayedShiftCount} ${displayedShiftCount === 1 ? "Dienst" : "Dienste"}`
-      : null,
-    `${sortedStaff.length} ${sortedStaff.length === 1 ? "Person" : "Personen"}`,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  // Ohne geladenen Wochenplan steht keine "0 Dienste · 0 Personen" neben
+  // dem Ladefehler (#2517).
+  const statusLine = scheduleError
+    ? null
+    : [
+        view !== "halbjahr"
+          ? `${displayedShiftCount} ${displayedShiftCount === 1 ? "Dienst" : "Dienste"}`
+          : null,
+        `${sortedStaff.length} ${sortedStaff.length === 1 ? "Person" : "Personen"}`,
+      ]
+        .filter(Boolean)
+        .join(" · ");
 
   return (
     <TenantPage
@@ -575,6 +638,7 @@ function DienstplanContent() {
         </PlanningContextBar>
       }
     >
+      <LoadErrorAlert error={periodsLoad.error} className="mb-3" />
       {content}
 
       {modal && (
@@ -588,7 +652,6 @@ function DienstplanContent() {
           shiftTypes={shiftTypes ?? []}
           staffOptions={sortedStaff}
           existingReplacements={modal.replacements}
-          closingDayRanges={closingDayRanges}
           initialStartTime={modal.initialTimes?.startTime}
           initialEndTime={modal.initialTimes?.endTime}
           onClose={() => setModal(null)}
@@ -629,6 +692,7 @@ function DienstplanContent() {
           staff={sickModal}
           onClose={() => setSickModal(null)}
           onCreated={() => {
+            // Bewusst still wie oben: gespeichert ist die Krankmeldung schon.
             // refreshPlanCaches invalidiert per Präfix "dienstplan-overview-"
             // bereits den Overview-Key mit — ein separater Overview-Mutate wäre
             // redundant.

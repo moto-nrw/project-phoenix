@@ -4,6 +4,7 @@
 // student_documents:legal, rest → users:update) and returns only what the
 // caller may see plus the caller's visible categories.
 
+import { ApiError, apiErrorFromResponse, transportFetch } from "./api-error";
 import { getCachedSession, sessionFetch } from "./session-cache";
 
 interface StudentDocumentCategoryOption {
@@ -72,28 +73,14 @@ async function throwDocumentError(
   response: Response,
   fallback: string,
 ): Promise<never> {
-  let message = fallback;
-  try {
-    const body = (await response.json()) as { error?: string };
-    if (body.error) {
-      message = body.error;
-    }
-  } catch {
-    // Non-JSON body — keep the fallback.
-  }
-  if (response.status === 403) {
-    message = "Keine Berechtigung für diese Dokument-Kategorie.";
-  }
-  throw new Error(message);
+  throw await apiErrorFromResponse(response, fallback);
 }
 
 class StudentDocumentsService {
   async list(studentId: string): Promise<StudentDocumentList> {
     const response = await sessionFetch(`/api/students/${studentId}/documents`);
     if (!response.ok) {
-      throw new Error(
-        `Failed to fetch student documents: ${response.statusText}`,
-      );
+      await throwDocumentError(response, "Failed to fetch student documents");
     }
     const json = (await response.json()) as {
       data: BackendStudentDocumentList;
@@ -112,18 +99,22 @@ class StudentDocumentsService {
     const session = await getCachedSession();
     const token = session?.user?.token;
     if (!token) {
-      throw new Error("Authentifizierung erforderlich");
+      // Ohne Sitzung führt der gemeinsame Fehlerweg zur Anmeldung.
+      throw new ApiError("Authentifizierung erforderlich", 401);
     }
 
     // Raw fetch on purpose — sessionFetch forces Content-Type
     // application/json, which would clobber the multipart boundary the
     // browser sets for FormData bodies (same pattern as the staff document
     // and student photo uploads).
-    const response = await fetch(`/api/students/${studentId}/documents`, {
-      method: "POST",
-      body: formData,
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await transportFetch(
+      `/api/students/${studentId}/documents`,
+      {
+        method: "POST",
+        body: formData,
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
     if (!response.ok) {
       await throwDocumentError(
         response,

@@ -174,10 +174,10 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 			// new link" copy. Distinct from the 400 weak-password case
 			// below, which tells the user to fix the password itself —
 			// collapsing both into 400 sent the wrong remedy.
-			common.RenderError(w, r, common.ErrorGone(errors.New("invalid or expired reset token")))
+			common.RenderError(w, r, common.ErrorGoneWithCode(errors.New("invalid or expired reset token"), common.CodeIdentityPasswordResetLinkInvalid))
 			return
 		case rs.Resets.TooWeak(err):
-			common.RenderError(w, r, common.ErrorInvalidRequest(ErrPasswordTooWeak))
+			common.RenderError(w, r, common.ErrorInvalidOnField(ErrPasswordTooWeak, common.CodeIdentityPasswordTooWeak, "new_password"))
 			return
 		}
 

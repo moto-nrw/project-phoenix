@@ -31,7 +31,7 @@ func (s *operations) checkInStudent(ctx context.Context, accountID int64, isAdmi
 		return nil, err
 	}
 	if inst.Status != scheduleModels.InstanceStatusActive || inst.ActiveGroupID == nil {
-		return nil, fmt.Errorf("%w: instance is not active", timetable.ErrTimetableOperationConflict)
+		return nil, timetable.WithCode(fmt.Errorf("%w: instance is not active", timetable.ErrTimetableOperationConflict), timetable.CodeInstanceNotActive)
 	}
 	if err := s.requireRosterStudent(ctx, inst, instanceID, studentID); err != nil {
 		return nil, err
@@ -115,7 +115,7 @@ func (s *operations) moveStudentFromOtherSession(ctx context.Context, staffID in
 	}
 	if len(result.Moved) == 0 && len(result.Unchanged) == 0 {
 		tenant.MarkRollback(ctx)
-		return nil, fmt.Errorf("%w: student could not be moved from other session", timetable.ErrTimetableOperationConflict)
+		return nil, timetable.WithCode(fmt.Errorf("%w: student could not be moved from other session", timetable.ErrTimetableOperationConflict), timetable.CodeOperationStale)
 	}
 	if err := s.markPlannedStudentPresent(ctx, instanceID, studentID); err != nil {
 		return nil, err
@@ -187,7 +187,7 @@ func (s *operations) checkOutStudent(ctx context.Context, accountID int64, isAdm
 		return nil, err
 	}
 	if inst.ActiveGroupID == nil {
-		return nil, fmt.Errorf("%w: instance has no active group", timetable.ErrTimetableOperationConflict)
+		return nil, timetable.WithCode(fmt.Errorf("%w: instance has no active group", timetable.ErrTimetableOperationConflict), timetable.CodeInstanceNotActive)
 	}
 	if err := s.requireRosterStudent(ctx, inst, instanceID, studentID); err != nil {
 		return nil, err
@@ -197,7 +197,7 @@ func (s *operations) checkOutStudent(ctx context.Context, accountID int64, isAdm
 		return nil, err
 	}
 	if visit == nil {
-		return nil, timetable.ErrTimetableOperationNotFound
+		return nil, timetable.WithCode(timetable.ErrTimetableOperationNotFound, timetable.CodeStudentNotCheckedIn)
 	}
 	if err := s.deps.Attendance.EndVisitAs(ctx, staffID, visit.TenantID, visit.ID); err != nil && !errors.Is(err, studentpresence.ErrVisitAlreadyEnded) {
 		return nil, err

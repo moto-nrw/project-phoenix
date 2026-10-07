@@ -520,7 +520,7 @@ func TestDeviceCheckin_RoomCapacityExceeded(t *testing.T) {
 	require.Equal(t, 409, rr.Code, rr.Body.String())
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	assert.Equal(t, "iot.room_capacity_exceeded", response["code"])
-	assert.Equal(t, "Room capacity exceeded", response["message"])
+	assert.Equal(t, "Room capacity exceeded", response["error"])
 	details, ok := response["details"].(map[string]any)
 	require.True(t, ok, "room details are disclosed by default")
 	assert.EqualValues(t, 1, details["current_occupancy"])

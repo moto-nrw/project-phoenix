@@ -1,5 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
+
+import {
+  render as renderPlain,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { AnnouncementViewsAccordion } from "./announcement-views-accordion";
 import type { AnnouncementViewDetail } from "~/lib/operator/announcements-helpers";
 
@@ -26,7 +39,7 @@ describe("AnnouncementViewsAccordion", () => {
   });
 
   it("does not render when dismissedCount is 0", () => {
-    const { container } = render(
+    const { container } = renderPlain(
       <AnnouncementViewsAccordion announcementId="42" dismissedCount={0} />,
     );
 
@@ -78,10 +91,10 @@ describe("AnnouncementViewsAccordion", () => {
     });
   });
 
-  it("displays error message on fetch failure", async () => {
-    mockOperatorAnnouncementsService.fetchViewDetails.mockRejectedValue(
-      new Error("Network error"),
-    );
+  it("shows a failed load with retry", async () => {
+    mockOperatorAnnouncementsService.fetchViewDetails
+      .mockRejectedValueOnce(new ApiError("Network error", 503))
+      .mockResolvedValueOnce([]);
 
     render(
       <AnnouncementViewsAccordion announcementId="42" dismissedCount={3} />,
@@ -90,11 +103,17 @@ describe("AnnouncementViewsAccordion", () => {
     const button = screen.getByRole("button");
     fireEvent.click(button);
 
-    await waitFor(() => {
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Lesebestätigungen"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() =>
       expect(
-        screen.getByText("Ansichten konnten nicht geladen werden."),
-      ).toBeInTheDocument();
-    });
+        mockOperatorAnnouncementsService.fetchViewDetails,
+      ).toHaveBeenCalledTimes(2),
+    );
   });
 
   it("displays confirmed users after loading", async () => {
@@ -171,7 +190,7 @@ describe("AnnouncementViewsAccordion", () => {
     );
 
     // Component should not render at all
-    const { container } = render(
+    const { container } = renderPlain(
       <AnnouncementViewsAccordion announcementId="42" dismissedCount={0} />,
     );
     expect(container).toBeEmptyDOMElement();
@@ -208,7 +227,7 @@ describe("AnnouncementViewsAccordion", () => {
   it("rotates chevron icon when opening", async () => {
     mockOperatorAnnouncementsService.fetchViewDetails.mockResolvedValue([]);
 
-    const { container } = render(
+    const { container } = renderPlain(
       <AnnouncementViewsAccordion announcementId="42" dismissedCount={1} />,
     );
 

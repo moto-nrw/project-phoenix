@@ -73,7 +73,13 @@ var careOfferingWriteErrorRenderer = common.RulesRenderer(
 			},
 		},
 		{Target: capability.ErrCareOfferingInvalid, Render: common.ErrorInvalidRequest},
-		{Target: capability.ErrCareOfferingGroupRuleConflict, Render: common.ErrorInvalidRequest},
+		{
+			Target: capability.ErrCareOfferingGroupRuleConflict,
+			Render: func(err error) render.Renderer {
+				return common.ErrorInvalidRequest(capability.InvalidInput(
+					common.CodeEnrollmentCareOfferingSelectionInvalid, "selection_rule", err))
+			},
+		},
 	},
 	func(err error) render.Renderer {
 		return common.ErrorInternalServerWrap("care offering operation failed", err)
@@ -374,7 +380,7 @@ func (rs *Resource) getCareOffering(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, capability.ErrCareOfferingNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(err))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentCareOfferingNotFound))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load care offering failed", err))
@@ -584,7 +590,7 @@ func renderPublicEnrollmentError(w http.ResponseWriter, r *http.Request, err err
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentLateInviteInvalid))
 		return
 	}
-	common.RenderError(w, r, common.ErrorNotFound(err))
+	common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentFormNotFound))
 }
 
 // renderPublicBootstrapError maps a public-bootstrap error: a stage error

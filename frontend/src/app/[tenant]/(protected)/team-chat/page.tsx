@@ -37,6 +37,7 @@ function renderInboxFrame(parts: TeamChatInboxParts) {
           : undefined
       }
       loading={parts.loading}
+      error={parts.error}
       empty={parts.empty}
       overlays={parts.overlays}
     >

@@ -1290,6 +1290,7 @@ func newFactory(
 		WorkSchedules:   repos.StaffWorkSchedule,
 		WorkModels:      repos.WorkTimeModel,
 		Holidays:        nonWorkingDayService,
+		NonWorkingDays:  calendar,
 		CategoryLinker:  repositories.ShiftTypeCategoryLinker(activitiesService.SetCategoryShiftTypeLinks),
 		DB:              db,
 		Broadcaster:     realtimeHub,

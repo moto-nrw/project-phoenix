@@ -7,15 +7,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { QuickCreateActivityModal } from "./quick-create-modal";
 import { useActivityForm } from "~/hooks/useActivityForm";
+import { catalogText } from "~/test/error-catalog-text";
 
 // Mock all dependencies
-vi.mock("~/lib/use-notification", () => ({
-  getDbOperationMessage: vi.fn(
-    (operation: string, entity: string, name: string) =>
-      `${operation} ${entity} ${name}`,
-  ),
-}));
-
 vi.mock("~/hooks/useActivityForm", () => ({
   parseParticipantLimit: (value: string) =>
     value ? Number.parseInt(value, 10) : null,
@@ -32,22 +26,19 @@ vi.mock("~/hooks/useActivityForm", () => ({
       { id: "3", name: "Kreatives/Musik" },
     ],
     loading: false,
-    error: null,
-    setError: vi.fn(),
+    loadError: null,
     handleInputChange: vi.fn(),
     validateForm: vi.fn(() => null),
   })),
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+// Nur die Toasts ersetzen; der Fehlerweg (Katalogtexte) bleibt echt.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: vi.fn(() => ({
     success: vi.fn(),
     error: vi.fn(),
   })),
-}));
-
-vi.mock("~/lib/api-error-message", () => ({
-  getApiErrorMessage: vi.fn((_err: unknown) => "Error message"),
 }));
 
 vi.mock("~/components/ui/form-modal", () => ({
@@ -139,8 +130,7 @@ describe("QuickCreateActivityModal", () => {
         },
       ],
       loading: false,
-      error: null,
-      setError: vi.fn(),
+      loadError: null,
       handleInputChange: vi.fn(),
       validateForm: vi.fn(() => null),
       loadCategories: vi.fn(),
@@ -316,8 +306,7 @@ describe("QuickCreateActivityModal", () => {
           },
         ],
         loading: true, // Loading is true - this should disable the button
-        error: null,
-        setError: vi.fn(),
+        loadError: null,
         handleInputChange: vi.fn(),
         validateForm: vi.fn(() => null),
         loadCategories: vi.fn(),
@@ -353,8 +342,7 @@ describe("QuickCreateActivityModal", () => {
           },
         ],
         loading: false,
-        error: null,
-        setError: vi.fn(),
+        loadError: null,
         handleInputChange: vi.fn(),
         validateForm: vi.fn(() => null),
         loadCategories: vi.fn(),
@@ -390,8 +378,7 @@ describe("QuickCreateActivityModal", () => {
       });
     });
 
-    it("resets isSubmitting after validation error", async () => {
-      const mockSetError = vi.fn();
+    it("shows a failed check in the form and resets isSubmitting", async () => {
       const { useActivityForm } = await import("~/hooks/useActivityForm");
       vi.mocked(useActivityForm).mockReturnValue({
         form: {
@@ -409,10 +396,12 @@ describe("QuickCreateActivityModal", () => {
           },
         ],
         loading: false,
-        error: null,
-        setError: mockSetError,
+        loadError: null,
         handleInputChange: vi.fn(),
-        validateForm: vi.fn(() => "Validation error"), // Return an error
+        validateForm: vi.fn(() => ({
+          message: "Bitte wählen Sie eine Kategorie.",
+          field: "category_id" as const,
+        })),
         loadCategories: vi.fn(),
       });
 
@@ -425,8 +414,10 @@ describe("QuickCreateActivityModal", () => {
       // Click submit - validation will fail
       fireEvent.click(submitButton);
 
-      // setError should be called with validation error
-      expect(mockSetError).toHaveBeenCalledWith("Validation error");
+      expect(
+        await screen.findByText("Bitte wählen Sie eine Kategorie."),
+      ).toBeInTheDocument();
+      expect(global.fetch).not.toHaveBeenCalled();
 
       // Button should be enabled again (isSubmitting reset)
       await waitFor(() => {
@@ -434,8 +425,7 @@ describe("QuickCreateActivityModal", () => {
       });
     });
 
-    it("handles API error and resets isSubmitting", async () => {
-      const mockSetError = vi.fn();
+    it("shows the catalog text of a failed save in the form", async () => {
       const { useActivityForm } = await import("~/hooks/useActivityForm");
       vi.mocked(useActivityForm).mockReturnValue({
         form: {
@@ -453,8 +443,7 @@ describe("QuickCreateActivityModal", () => {
           },
         ],
         loading: false,
-        error: null,
-        setError: mockSetError,
+        loadError: null,
         handleInputChange: vi.fn(),
         validateForm: vi.fn(() => null),
         loadCategories: vi.fn(),
@@ -474,10 +463,9 @@ describe("QuickCreateActivityModal", () => {
 
       fireEvent.click(submitButton);
 
-      // Wait for error handling
-      await waitFor(() => {
-        expect(mockSetError).toHaveBeenCalled();
-      });
+      expect(
+        await screen.findByText(catalogText("general.server", "die Aktivität")),
+      ).toBeInTheDocument();
 
       // Button should be enabled again (isSubmitting reset in finally)
       await waitFor(() => {
@@ -503,8 +491,7 @@ describe("QuickCreateActivityModal", () => {
           },
         ],
         loading: false,
-        error: null,
-        setError: vi.fn(),
+        loadError: null,
         handleInputChange: vi.fn(),
         validateForm: vi.fn(() => null),
         loadCategories: vi.fn(),
@@ -545,7 +532,6 @@ describe("QuickCreateActivityModal", () => {
       const scrollIntoViewMock = vi.fn();
       Element.prototype.scrollIntoView = scrollIntoViewMock;
 
-      const mockSetError = vi.fn();
       const { useActivityForm } = await import("~/hooks/useActivityForm");
       vi.mocked(useActivityForm).mockReturnValue({
         form: {
@@ -563,21 +549,25 @@ describe("QuickCreateActivityModal", () => {
           },
         ],
         loading: false,
-        error: "Bitte gib einen name ein",
-        setError: mockSetError,
+        loadError: null,
         handleInputChange: vi.fn(),
-        validateForm: vi.fn(() => "Bitte gib einen name ein"),
+        validateForm: vi.fn(() => ({
+          message: "Bitte geben Sie einen Namen für die Aktivität ein.",
+          field: "name" as const,
+        })),
         loadCategories: vi.fn(),
       });
 
       render(<QuickCreateActivityModal isOpen={true} onClose={mockOnClose} />);
 
-      // The error is already set via the mock, so the error div with ref should render
-      // and trigger the scroll effect
+      fireEvent.click(
+        screen.getByRole("button", { name: /Aktivität erstellen/ }),
+      );
+
       await waitFor(() => {
         expect(scrollIntoViewMock).toHaveBeenCalledWith({
           behavior: "smooth",
-          block: "start",
+          block: "nearest",
         });
       });
     });

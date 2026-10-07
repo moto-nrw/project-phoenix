@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Mail, Plus, Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -8,9 +14,21 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Input } from "~/components/ui/input";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
-import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { suggestCurrentDeviceLabel } from "~/lib/device-label";
 import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { credentialError } from "~/components/auth/credential-error";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
+import { suggestCurrentDeviceLabel } from "~/lib/device-label";
+import { createLogger } from "~/lib/logger";
+import {
+  isPasskeyCeremonyIncompleteError,
   isPasskeySupported,
   listPasskeys,
   registerPasskey,
@@ -19,6 +37,8 @@ import {
   type PasskeyCredentialSummary,
   type PasskeyScope,
 } from "~/lib/passkey-api";
+
+const logger = createLogger({ component: "PasskeySettingsSection" });
 
 interface PasskeySettingsSectionProps {
   readonly scope?: PasskeyScope;
@@ -32,34 +52,48 @@ export function PasskeySettingsSection({
   );
   const [supported, setSupported] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirmingEnrollment, setConfirmingEnrollment] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
   const [maskedEmail, setMaskedEmail] = useState("");
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   // Ein Passkey ist ein Zugangsmittel: die Zeilenaktion öffnet erst die
   // Rückfrage (BAUARTEN-SPEC Bauart 2 Regel 6, #3109); entfernt wird im Dialog.
   const [revokeTarget, setRevokeTarget] =
     useState<PasskeyCredentialSummary | null>(null);
-  const [revokeError, setRevokeError] = useState("");
+  const toast = useToast();
+  // Fehlerweg (#2517): Ladefehler vor Ort mit Wiederholen, Fehler beim
+  // Einrichten im Einrichtungsbereich, Fehler beim Entfernen im Dialog.
+  const { error: loadError, show: showLoadError, clear } = useApiLoadError();
+  const enrollRef = useRef<HTMLDivElement>(null);
+  const enrollErrors = useApiFormError(enrollRef);
+  const revokeErrors = useApiFormError();
+  const latestLoadRef = useRef<() => void>(() => undefined);
+  const latestStartRef = useRef<() => void>(() => undefined);
+  const latestFinishRef = useRef<() => void>(() => undefined);
+  const latestRevokeRef = useRef<() => void>(() => undefined);
 
   const loadCredentials = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
+    clear();
     try {
       setCredentials(await listPasskeys(scope));
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Passkeys konnten nicht geladen werden.",
-      );
+      logger.error("passkey_list_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setLoadFailed(true);
+      void showLoadError(err, {
+        object: "die Liste der Passkeys",
+        retry: () => latestLoadRef.current(),
+      });
     } finally {
       setLoading(false);
     }
-  }, [scope]);
+  }, [clear, scope, showLoadError]);
 
   useEffect(() => {
     setSupported(isPasskeySupported());
@@ -68,8 +102,7 @@ export function PasskeySettingsSection({
 
   const startEnrollment = async () => {
     setBusy(true);
-    setError(null);
-    setMessage(null);
+    enrollErrors.clear();
     try {
       const challenge = await startPasskeyEnrollment(scope);
       setMaskedEmail(challenge.masked_email);
@@ -78,11 +111,13 @@ export function PasskeySettingsSection({
       setConfirmingEnrollment(false);
       setEnrolling(true);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Passkey-Einrichtung konnte nicht gestartet werden.",
-      );
+      logger.warn("passkey_enrollment_start_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void enrollErrors.show(err, {
+        object: "das Senden des Sicherheitscodes",
+        retry: () => latestStartRef.current(),
+      });
     } finally {
       setBusy(false);
     }
@@ -90,8 +125,7 @@ export function PasskeySettingsSection({
 
   const finishEnrollment = async () => {
     setBusy(true);
-    setError(null);
-    setMessage(null);
+    enrollErrors.clear();
     try {
       await registerPasskey(scope, { code, name });
       setConfirmingEnrollment(false);
@@ -99,13 +133,28 @@ export function PasskeySettingsSection({
       setCode("");
       setName("");
       setMaskedEmail("");
-      setMessage("Passkey wurde hinzugefügt.");
+      toast.success("Der Passkey ist hinzugefügt.");
       await loadCredentials();
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Passkey konnte nicht hinzugefügt werden.",
+      // Abgebrochen am Gerät: kein Fehler, der Bereich bleibt offen und
+      // „Speichern“ startet den Vorgang erneut.
+      if (isPasskeyCeremonyIncompleteError(err)) {
+        logger.info("passkey_registration_not_completed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return;
+      }
+      logger.warn("passkey_registration_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // Ein falscher Code kommt als 401: das ist keine abgelaufene Sitzung,
+      // also kein Sprung zur Anmeldung.
+      void enrollErrors.show(
+        credentialError(err, ["identity.mfa_code_invalid"]),
+        {
+          object: "das Hinzufügen des Passkeys",
+          retry: () => latestFinishRef.current(),
+        },
       );
     } finally {
       setBusy(false);
@@ -113,31 +162,39 @@ export function PasskeySettingsSection({
   };
 
   const beginRevoke = (credential: PasskeyCredentialSummary) => {
-    setError(null);
-    setMessage(null);
-    setRevokeError("");
+    enrollErrors.clear();
+    revokeErrors.clear();
     setRevokeTarget(credential);
   };
 
   const revoke = async () => {
     if (!revokeTarget) return;
     setBusy(true);
-    setRevokeError("");
+    revokeErrors.clear();
     try {
       await revokePasskey(scope, revokeTarget.id);
       setRevokeTarget(null);
-      setMessage("Passkey wurde entfernt.");
+      toast.success("Der Passkey ist entfernt.");
       await loadCredentials();
     } catch (err) {
-      setRevokeError(
-        err instanceof Error
-          ? err.message
-          : "Passkey konnte nicht entfernt werden.",
-      );
+      logger.warn("passkey_revoke_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void revokeErrors.show(err, {
+        object: "das Entfernen des Passkeys",
+        retry: () => latestRevokeRef.current(),
+      });
     } finally {
       setBusy(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestLoadRef.current = () => void loadCredentials();
+    latestStartRef.current = () => void startEnrollment();
+    latestFinishRef.current = () => void finishEnrollment();
+    latestRevokeRef.current = () => void revoke();
+  });
 
   return (
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
@@ -159,8 +216,7 @@ export function PasskeySettingsSection({
               className="gap-2"
               disabled={busy}
               onClick={() => {
-                setError(null);
-                setMessage(null);
+                enrollErrors.clear();
                 setConfirmingEnrollment(true);
               }}
             >
@@ -180,19 +236,12 @@ export function PasskeySettingsSection({
         </div>
       )}
 
-      {error && (
-        <div className="mb-3">
-          <Alert type="error" message={error} />
-        </div>
-      )}
-      {message && (
-        <div className="mb-3">
-          <Alert type="success" message={message} />
-        </div>
-      )}
-
       {confirmingEnrollment && (
-        <div className="mb-4 space-y-3 rounded-lg border border-gray-200 bg-white p-3">
+        <div
+          ref={enrollRef}
+          className="mb-4 space-y-3 rounded-lg border border-gray-200 bg-white p-3"
+        >
+          <FormErrorAlert message={enrollErrors.error} />
           <div className="space-y-1">
             <p className="text-sm font-medium text-gray-900">
               Sicherheitscode per E-Mail senden
@@ -222,7 +271,7 @@ export function PasskeySettingsSection({
               disabled={busy}
               onClick={() => {
                 setConfirmingEnrollment(false);
-                setError(null);
+                enrollErrors.clear();
               }}
             >
               Abbrechen
@@ -232,7 +281,11 @@ export function PasskeySettingsSection({
       )}
 
       {enrolling && (
-        <div className="mb-4 space-y-3 rounded-lg border border-gray-200 bg-white p-3">
+        <div
+          ref={enrollRef}
+          className="mb-4 space-y-3 rounded-lg border border-gray-200 bg-white p-3"
+        >
+          <FormErrorAlert message={enrollErrors.error} />
           {maskedEmail && (
             <div className="space-y-1">
               <p className="text-sm font-medium text-gray-900">
@@ -281,6 +334,7 @@ export function PasskeySettingsSection({
                 setCode("");
                 setName("");
                 setMaskedEmail("");
+                enrollErrors.clear();
               }}
             >
               Abbrechen
@@ -289,8 +343,12 @@ export function PasskeySettingsSection({
         </div>
       )}
 
-      {loading ? (
+      {/* Bis der Text eines Ladefehlers da ist, bleibt der Ladehinweis
+          stehen; danach steht der Fehler statt einer leeren Liste. */}
+      {loading || (loadFailed && !loadError) ? (
         <p className="text-sm text-gray-500">Laden...</p>
+      ) : loadFailed ? (
+        <LoadErrorAlert error={loadError} />
       ) : credentials.length === 0 ? (
         <EmptyState
           variant="compact"
@@ -352,11 +410,11 @@ export function PasskeySettingsSection({
         confirmLabel="Endgültig entfernen"
         loadingLabel="Wird entfernt…"
         loading={busy}
-        error={revokeError}
+        error={revokeErrors.error}
         onConfirm={() => void revoke()}
         onClose={() => {
           setRevokeTarget(null);
-          setRevokeError("");
+          revokeErrors.clear();
         }}
       />
     </div>

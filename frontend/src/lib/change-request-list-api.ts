@@ -1,5 +1,8 @@
-import { wireErrorCode } from "~/lib/api-error";
-import type { ErrorCode } from "~/lib/error-codes.generated";
+import {
+  ApiError,
+  apiErrorFromResponse,
+  transportFetch,
+} from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import type {
   StaffCareRequest,
@@ -260,30 +263,25 @@ async function fetchPage<T>(
   view: "open" | "history",
   params: AggregatedRequestParams,
 ): Promise<AggregatedRequestPage<T>> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/change-requests${buildQuery(view, params)}`,
     {
       cache: "no-store",
     },
   );
   if (!response.ok) {
-    let message = "Anfragen konnten nicht geladen werden.";
-    try {
-      const body = (await response.json()) as { error?: string; code?: string };
-      // Nur das Recht „Abwesenheiten" reicht nicht: ohne „Kinder sehen" darf
-      // niemand die Liste öffnen. Das muss dastehen, sonst sieht es aus wie
-      // ein Fehler der App (#2267).
-      if (wireErrorCode(body.code) === "students.absence_read_required") {
-        message = WRITE_ERROR_MESSAGES["students.absence_read_required"]!;
-      } else if (body.error) message = body.error;
-    } catch {
-      // Nicht-JSON-Fehlerantworten behalten die generische Meldung.
-    }
+    // Fehlt das Recht „Kinder sehen“, trägt die Antwort den Code
+    // students.absence_read_required; den Text liefert der Katalog (#2513).
+    const error = await apiErrorFromResponse(
+      response,
+      "change request list load failed",
+    );
     logger.warn("change_request_list_load_failed", {
       status: response.status,
       view,
+      ...(error.code ? { code: error.code } : {}),
     });
-    throw new Error(message);
+    throw error;
   }
   const envelope = (await response.json()) as Envelope<
     AggregatedRequestPage<T>
@@ -307,13 +305,16 @@ export function listAggregatedRequestHistory(
  * Die Anfrage wurde geändert, seit die Liste sie geladen hat (409
  * `students.change_request_stale`). Eigener Fehlertyp, damit die Oberfläche neu laden
  * kann, statt die Person eine verlorene Entscheidung wiederholen zu lassen
- * (#2267).
+ * (#2267). Den Text liefert der Katalog über den Code (#2513).
  */
-export class ChangeRequestStaleError extends Error {
-  constructor(
-    message = "Die Anfrage wurde inzwischen geändert. Die neue Fassung wird geladen.",
-  ) {
-    super(message);
+export class ChangeRequestStaleError extends ApiError {
+  constructor(source?: ApiError) {
+    super("change request stale", source?.status ?? 409, {
+      code: "students.change_request_stale",
+      details: source?.details,
+      errors: source?.errors,
+      instance: source?.instance,
+    });
     this.name = "ChangeRequestStaleError";
   }
 }
@@ -328,65 +329,32 @@ export interface BulkApproveRequestRef {
   readonly expected_version: string;
 }
 
-interface ErrorBody {
-  readonly error?: string;
-  readonly code?: string;
-}
-
 /**
  * Liest die Fehlerantwort einer schreibenden Anfrage. Eine veraltete Version
- * wird zum eigenen Fehlertyp; alles andere behält die verständliche Meldung
- * des Backends oder den mitgegebenen Rückfalltext.
+ * wird zum eigenen Fehlertyp; alles andere bleibt ein ApiError mit Code, den
+ * der gemeinsame Fehlerweg übersetzt (#2513).
  */
 async function throwWriteError(
   response: Response,
-  fallback: string,
+  message: string,
 ): Promise<never> {
-  let body: ErrorBody = {};
-  try {
-    body = (await response.json()) as ErrorBody;
-  } catch {
-    // Eine Nicht-JSON-Antwort behält den Rückfalltext.
-  }
-  const code = wireErrorCode(body.code);
-  if (code === "students.change_request_stale") {
-    throw new ChangeRequestStaleError();
+  const error = await apiErrorFromResponse(response, message);
+  if (error.code === "students.change_request_stale") {
+    throw new ChangeRequestStaleError(error);
   }
   logger.warn("change_request_write_failed", {
     status: response.status,
-    ...(body.code ? { code: body.code } : {}),
+    ...(error.code ? { code: error.code } : {}),
   });
-  throw new Error(
-    body.error ?? (code && WRITE_ERROR_MESSAGES[code]) ?? fallback,
-  );
+  throw error;
 }
-
-/** Verständliche Sätze zu den stabilen Fehlercodes des Backends (#2267). */
-const WRITE_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
-  "students.reason_required": "Bitte tragen Sie eine Begründung ein.",
-  "students.request_past":
-    "Diese Anfrage betrifft nur vergangene Tage. Sie kann nur noch abgelehnt oder als erledigt markiert werden.",
-  "students.request_not_past":
-    "Diese Anfrage betrifft noch kommende Tage. Bitte entscheiden Sie sie.",
-  "students.request_not_decided": "Diese Anfrage ist noch nicht entschieden.",
-  "students.correction_unsupported":
-    "Diese Entscheidung lässt sich nicht zurücknehmen. Bitte tragen Sie den richtigen Stand direkt ein.",
-  "students.absence_read_required":
-    "Sie brauchen zusätzlich das Recht „Kinder sehen“, um Elternanfragen zu entscheiden.",
-  "students.conflict_kind_unsupported":
-    "Für diese Art lässt sich kein gemeinsames Ergebnis festlegen. Bitte entscheiden Sie die Anfragen einzeln.",
-  "students.staff_value_unsupported":
-    "Für diese Art können Sie keinen eigenen Wert eintragen. Wählen Sie einen der Wünsche oder „Keine Änderung“.",
-  "students.staff_value_invalid":
-    "Der eingetragene Wert passt nicht. Bitte prüfen Sie ihn und tragen Sie ihn erneut ein.",
-};
 
 async function postLifecycle<T>(
   url: string,
   body: unknown,
   fallback: string,
 ): Promise<T> {
-  const response = await fetch(url, {
+  const response = await transportFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -422,7 +390,7 @@ export function markRequestDone(
       // der Historie erzeugen.
       ...(reason?.trim() ? { reason: reason.trim() } : {}),
     },
-    "Die Anfrage konnte nicht abgeschlossen werden.",
+    "change request mark done failed",
   );
 }
 
@@ -452,7 +420,7 @@ export function correctRequestDecision(
       reason: input.reason,
       expected_version: input.expectedVersion,
     },
-    "Die Korrektur konnte nicht gespeichert werden.",
+    "change request correction failed",
   );
 }
 
@@ -512,7 +480,7 @@ export async function resolveRequestConflict(
           : { none: true }),
       reason: input.reason,
     },
-    "Das Ergebnis konnte nicht gespeichert werden.",
+    "change request conflict resolution failed",
   );
   return result.resolved_count;
 }
@@ -521,36 +489,13 @@ export async function bulkApproveParentRequests(
   requests: readonly BulkApproveRequestRef[],
   reason: string,
 ): Promise<number> {
-  const response = await fetch("/api/students/change-requests", {
+  const response = await transportFetch("/api/students/change-requests", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ requests, reason }),
   });
   if (!response.ok) {
-    let code: ErrorCode | undefined;
-    try {
-      code = wireErrorCode(
-        ((await response.json()) as { code?: unknown }).code,
-      );
-    } catch {
-      // Eine Nicht-JSON-Antwort behält die verständliche Standardmeldung.
-    }
-    if (code === "students.change_request_stale") {
-      throw new ChangeRequestStaleError(
-        "Mindestens eine Anfrage wurde geändert. Die Liste wird neu geladen.",
-      );
-    }
-    let message = "Die Sammelfreigabe konnte nicht gespeichert werden.";
-    if (code === "students.reason_required") {
-      message = "Bitte tragen Sie eine Begründung ein.";
-    } else if (code === "students.bulk_approval_ineligible") {
-      message =
-        "Mindestens eine Anfrage muss einzeln geprüft werden. Es wurde nichts freigegeben.";
-    } else if (response.status === 403) {
-      message =
-        "Sie dürfen mindestens eine ausgewählte Anfrage nicht entscheiden.";
-    }
-    throw new Error(message);
+    await throwWriteError(response, "change request bulk approval failed");
   }
   const envelope = (await response.json()) as Envelope<{
     approved_count: number;
@@ -563,7 +508,7 @@ export async function setFamilyProtection(
   enabled: boolean,
   reason: string,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${encodeURIComponent(studentId)}/family-protection`,
     {
       method: "PUT",
@@ -572,7 +517,7 @@ export async function setFamilyProtection(
     },
   );
   if (!response.ok) {
-    throw new Error("Der Familienschutz konnte nicht gespeichert werden.");
+    throw await apiErrorFromResponse(response, "family protection save failed");
   }
 }
 
@@ -584,12 +529,12 @@ export interface FamilyProtectionState {
 export async function getFamilyProtection(
   studentId: string,
 ): Promise<FamilyProtectionState> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${encodeURIComponent(studentId)}/family-protection`,
     { cache: "no-store" },
   );
   if (!response.ok) {
-    throw new Error("Der Familienschutz konnte nicht geladen werden.");
+    throw await apiErrorFromResponse(response, "family protection load failed");
   }
   const envelope = (await response.json()) as Envelope<FamilyProtectionState>;
   return envelope.data;
@@ -629,7 +574,7 @@ export async function listEnrollmentChangeRequests(
   // Ohne Art-Filter: diese Quelle kennt nur eine Art. Und ohne Kind-Filter:
   // dieser Endpunkt kennt ihn nicht, würde also ungefiltert antworten.
   const { types: _types, studentId: _studentId, ...rest } = params;
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/enrollment/admin/change-requests/list${buildQuery(view, rest)}`,
     { cache: "no-store" },
   );
@@ -638,7 +583,10 @@ export async function listEnrollmentChangeRequests(
       status: response.status,
       view,
     });
-    throw new Error("Anmeldungsänderungen konnten nicht geladen werden.");
+    throw await apiErrorFromResponse(
+      response,
+      "enrollment change request list load failed",
+    );
   }
   const envelope = (await response.json()) as Envelope<
     AggregatedRequestPage<EnrollmentRequestItem>

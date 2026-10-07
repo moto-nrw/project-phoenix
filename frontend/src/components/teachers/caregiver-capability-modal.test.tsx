@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ChangeEvent, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { CaregiverCapabilityModal } from "./caregiver-capability-modal";
 
 const {
@@ -44,17 +46,26 @@ vi.mock("~/components/ui/form-modal", async () => {
       title,
       footer,
       children,
+      error,
     }: {
       isOpen: boolean;
       title: string;
       footer: ReactNode;
       children: ReactNode;
+      error?: string | { message: string } | null;
     }) =>
       isOpen
         ? createElement(
             "div",
             { "data-testid": "form-modal" },
             createElement("h1", null, title),
+            error
+              ? createElement(
+                  "div",
+                  { "data-testid": "form-error" },
+                  typeof error === "string" ? error : error.message,
+                )
+              : null,
             createElement("div", null, children),
             createElement("div", null, footer),
           )
@@ -158,7 +169,8 @@ vi.mock(
   },
 );
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: mockToastSuccess,
     error: mockToastError,
@@ -248,8 +260,8 @@ describe("CaregiverCapabilityModal", () => {
     await waitFor(() => {
       expect(mockGetOperatorAccountCapability).not.toHaveBeenCalled();
     });
-    expect(screen.getByTestId("alert")).toHaveTextContent(
-      "Die Betreuerfähigkeit konnte nicht geladen werden.",
+    expect(await screen.findByTestId("alert")).toHaveTextContent(
+      /Die Betreuung dieses Kontos konnte nicht bearbeitet werden/,
     );
   });
 
@@ -286,8 +298,8 @@ describe("CaregiverCapabilityModal", () => {
     fireEvent.click(screen.getByText("Betreuung aktivieren"));
 
     expect(mockEnableTenantAccountCapability).not.toHaveBeenCalled();
-    expect(screen.getByTestId("alert")).toHaveTextContent(
-      "Vorname und Nachname werden benötigt",
+    expect(screen.getByTestId("form-error")).toHaveTextContent(
+      "Bitte geben Sie Vor- und Nachnamen an.",
     );
   });
 
@@ -349,7 +361,7 @@ describe("CaregiverCapabilityModal", () => {
       );
     });
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      "Betreuung wurde erfolgreich aktiviert.",
+      "Die Betreuung für Ada Lovelace ist eingeschaltet.",
     );
     expect(onUpdated).toHaveBeenCalledWith(
       expect.objectContaining({ accountId: "42" }),
@@ -387,7 +399,7 @@ describe("CaregiverCapabilityModal", () => {
       expect(mockDisableTenantAccountCapability).toHaveBeenCalledWith("42");
     });
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      "Betreuung wurde deaktiviert.",
+      "Die Betreuung für Ada Lovelace ist ausgeschaltet.",
     );
     expect(onUpdated).toHaveBeenCalledWith(
       expect.objectContaining({ hasUserRole: false }),
@@ -500,7 +512,9 @@ describe("CaregiverCapabilityModal", () => {
   });
 
   it("shows a generic loading error when the capability state cannot be loaded", async () => {
-    mockGetTenantAccountCapability.mockRejectedValue(new Error("boom"));
+    mockGetTenantAccountCapability.mockRejectedValue(
+      new ApiError("boom", 503, { code: "general.unavailable" }),
+    );
 
     render(
       <CaregiverCapabilityModal
@@ -514,7 +528,7 @@ describe("CaregiverCapabilityModal", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("alert")).toHaveTextContent(
-        "Die Betreuerfähigkeit konnte nicht geladen werden.",
+        catalogText("general.unavailable", "die Betreuung dieses Kontos"),
       );
     });
   });
@@ -526,7 +540,9 @@ describe("CaregiverCapabilityModal", () => {
         hasUserRole: false,
       }),
     );
-    mockEnableTenantAccountCapability.mockRejectedValue(new Error("boom"));
+    mockEnableTenantAccountCapability.mockRejectedValue(
+      new ApiError("boom", 500),
+    );
 
     render(
       <CaregiverCapabilityModal
@@ -545,8 +561,8 @@ describe("CaregiverCapabilityModal", () => {
     fireEvent.click(screen.getByText("Betreuung aktivieren"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("alert")).toHaveTextContent(
-        "Die Betreuung konnte nicht aktiviert werden.",
+      expect(screen.getByTestId("form-error")).toHaveTextContent(
+        catalogText("general.server", "das Einschalten der Betreuung"),
       );
     });
   });
@@ -617,9 +633,13 @@ describe("CaregiverCapabilityModal", () => {
     await waitFor(() => {
       expect(mockDisableTenantAccountCapability).toHaveBeenCalledWith("42");
     });
-    expect(screen.getByTestId("alert")).toHaveTextContent("Blockiert");
-    expect(mockToastError).toHaveBeenCalledWith(
-      "Betreuung kann nicht deaktiviert werden. Bitte zuerst die offenen Zuordnungen entfernen.",
+    // Der Grund steht oben im Dialog, die offenen Zuordnungen darunter mit
+    // dem Weg zum Auflösen; kein zweiter Toast.
+    expect(await screen.findByTestId("form-error")).toHaveTextContent(
+      /Das Ausschalten der Betreuung/,
     );
+    expect(screen.getByText("Offene Zuordnungen")).toBeInTheDocument();
+    expect(screen.getByText("Aktive Gruppenaufsicht")).toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 });

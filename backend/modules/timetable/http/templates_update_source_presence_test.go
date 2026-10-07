@@ -94,6 +94,34 @@ func TestUpdateTemplateBind_DefersSourceValidationUntilMerge(t *testing.T) {
 	})
 }
 
+func TestUpdateTemplateBind_AssignsMissingTimesToTheirFields(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name  string
+		body  string
+		field string
+	}{
+		{
+			name:  "start time",
+			body:  `{"name":"Tpl","type":"care","weekdays":[1],"end_time":"15:00","room_id":3,"category_id":2}`,
+			field: "start_time",
+		},
+		{
+			name:  "end time",
+			body:  `{"name":"Tpl","type":"care","weekdays":[1],"start_time":"14:00","room_id":3,"category_id":2}`,
+			field: "end_time",
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			req := decodeUpdateSourceFields(t, testCase.body)
+			var fieldError *codedFieldError
+			require.ErrorAs(t, req.Bind(nil), &fieldError)
+			assert.Equal(t, testCase.field, fieldError.field)
+		})
+	}
+}
+
 func sourcedExistingTemplate(offeringIDs []int64, gradeLevels []int) templateResponse {
 	return templateResponse{
 		TargetGroupType:       timetableModule.TargetGroupTypeOffering,

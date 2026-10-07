@@ -1,6 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
 import { SchoolOverviewSection } from "./school-overview-section";
 
 const mutate = vi.hoisted(() => vi.fn());
@@ -90,10 +93,12 @@ describe("SchoolOverviewSection", () => {
     );
   });
 
-  it("zeigt Ladefehler mit Wiederholen statt leeren KPI-Werten", () => {
+  it("zeigt Ladefehler mit Wiederholen statt leeren KPI-Werten", async () => {
     swrResult.current = {
       data: undefined,
-      error: new Error("request failed"),
+      error: new ApiError("request failed", 503, {
+        code: "general.unavailable",
+      }),
       isLoading: false,
       isValidating: false,
       mutate,
@@ -102,8 +107,8 @@ describe("SchoolOverviewSection", () => {
     render(<SchoolOverviewSection />);
 
     expect(
-      screen.getByText(
-        "Die Einrichtungs-Übersicht konnte nicht geladen werden.",
+      await screen.findByText(
+        catalogText("general.unavailable", "die Übersicht der Einrichtung"),
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Aktive Mitarbeitende")).not.toBeInTheDocument();
@@ -111,7 +116,7 @@ describe("SchoolOverviewSection", () => {
       screen.queryByText("Stundenkonto der Einrichtung"),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(mutate).toHaveBeenCalledTimes(1);
   });
 

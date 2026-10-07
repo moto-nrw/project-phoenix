@@ -419,6 +419,41 @@ func TestResolveUnregisteredTagScanPersistenceFailuresAreInternal(t *testing.T) 
 	}
 }
 
+// #2519: an unknown or already handled scan reaches the surface with its
+// registered code, so the operator portal shows the reason, not the text.
+func TestResolveUnregisteredTagScanRefusalsCarryCodes(t *testing.T) {
+	t.Parallel()
+
+	for resolveErr, want := range map[error]string{
+		devicefleet.ErrUnregisteredTagScanNotFound:                            "devices.tag_scan_not_found",
+		fmt.Errorf("resolve: %w", devicefleet.ErrUnregisteredTagScanResolved): "devices.tag_scan_already_resolved",
+		devicefleet.ErrInvalidUnregisteredTagScan:                             "general.input",
+	} {
+		var rejected error
+		surface := (&testSurface{operatorID: 42}).surface()
+		invalid := surface.InvalidRequest
+		surface.InvalidRequest = func(err error) render.Renderer {
+			rejected = err
+			return invalid(err)
+		}
+		review := operator.NewResource(operator.Config{
+			Scans:     &fakeScans{resolveErr: resolveErr},
+			Directory: &fakeDirectory{},
+			Surface:   surface,
+			WithinAdmin: func(ctx context.Context, fn func(context.Context) error) error {
+				return fn(ctx)
+			},
+		})
+
+		rr := serve(t, review, http.MethodPost, "/123/resolve", `{}`)
+
+		require.Equal(t, http.StatusBadRequest, rr.Code, resolveErr.Error())
+		coded, ok := rejected.(interface{ ErrorCode() string })
+		require.True(t, ok, resolveErr.Error())
+		require.Equal(t, want, coded.ErrorCode(), resolveErr.Error())
+	}
+}
+
 func TestResolveUnregisteredTagScanKeepsOwnerRefusalsAsBadRequest(t *testing.T) {
 	t.Parallel()
 

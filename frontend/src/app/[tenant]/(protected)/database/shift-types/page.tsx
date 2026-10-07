@@ -15,7 +15,7 @@ import {
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
 import { CatalogColorField } from "~/components/ui/database/catalog-color-field";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import { categoryService } from "~/lib/category-api";
 import type { SectionConfig } from "~/lib/database/types";
@@ -24,6 +24,7 @@ import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { shiftTypeService } from "~/lib/shift-type-api";
 import type { ShiftType } from "~/lib/shift-type-helpers";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useTimetableEnabled } from "~/lib/tenant-context";
 
@@ -48,15 +49,25 @@ function ShiftTypesPageContent() {
   const searchParams = useSearchParams();
   const tenantMutate = useTenantMutate();
   const toast = useToast();
+  // „Beispiele hinzufügen“ ist eine Aktion ohne Formular: Fehler als Toast.
+  const { show: showSeedError } = useApiErrorDisplay();
   const timetableEnabled = useTimetableEnabled();
   const [seeding, setSeeding] = useState(false);
 
   const {
     data,
     isLoading,
-    error: loadError,
+    error: swrError,
+    mutate,
   } = useSWRAuth<ShiftType[]>(timetableEnabled ? CACHE_KEY : null, () =>
     shiftTypeService.getShiftTypes(),
+  );
+  // Ladefehler mit Katalogtext und Wiederholen statt eines eigenen Satzes
+  // (#2517).
+  const loadError = useSwrLoadError(
+    swrError,
+    "die Liste der Schichtarten",
+    () => mutate(),
   );
 
   // Die Kategorien tragen ihre aktuelle Schichtart; daraus kommt die
@@ -230,7 +241,8 @@ function ShiftTypesPageContent() {
             description: type.description,
             isActive: false,
           }),
-        toast: (type) => `Schichtart „${type.name}“ wird nicht mehr angeboten`,
+        toast: (type) =>
+          `Die Schichtart „${type.name}“ wird nicht mehr angeboten.`,
       },
       restore: {
         menuLabel: "Wieder anbieten",
@@ -241,14 +253,14 @@ function ShiftTypesPageContent() {
             description: type.description,
             isActive: true,
           }),
-        toast: (type) => `Schichtart „${type.name}“ wird wieder angeboten`,
+        toast: (type) => `Die Schichtart „${type.name}“ wird wieder angeboten.`,
       },
       remove: {
         menuLabel: "Löschen",
         confirmTitle: "Schichtart löschen",
         describe: describeDeletion,
         run: (type) => shiftTypeService.deleteShiftType(type.id),
-        toast: (type) => `Schichtart „${type.name}“ gelöscht`,
+        toast: (type) => `Die Schichtart „${type.name}“ ist gelöscht.`,
       },
     };
   }, [categories, categoriesReady]);
@@ -258,20 +270,19 @@ function ShiftTypesPageContent() {
     try {
       await shiftTypeService.createDefaults();
       await onChanged();
-      toast.success("Beispiele hinzugefügt");
+      toast.success("Die Beispiele sind hinzugefügt.");
     } catch (err: unknown) {
       logger.error("shift_type_seed_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error(
-        err instanceof Error && err.message
-          ? err.message
-          : "Die Beispiele konnten nicht angelegt werden.",
-      );
+      void showSeedError(err, {
+        object: "das Anlegen der Beispiele",
+        retry: () => void handleSeed(),
+      });
     } finally {
       setSeeding(false);
     }
-  }, [onChanged, toast]);
+  }, [onChanged, toast, showSeedError]);
 
   if (!timetableEnabled) {
     return (
@@ -288,12 +299,13 @@ function ShiftTypesPageContent() {
     <CatalogPage
       config={config}
       items={items}
-      isLoading={isLoading && data === undefined}
-      error={
-        loadError
-          ? "Die Schichtarten konnten nicht geladen werden. Bitte laden Sie die Seite neu."
-          : null
+      // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett
+      // stehen: sonst blitzt der Leerzustand auf.
+      isLoading={
+        (isLoading && data === undefined) ||
+        (swrError !== undefined && loadError === null)
       }
+      error={loadError}
       onChanged={onChanged}
       // Die Route liegt hinter time_tracking:manage (database/layout).
       canManage

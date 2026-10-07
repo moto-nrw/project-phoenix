@@ -16,6 +16,9 @@ var (
 	// ErrBaseRoleRequired rejects a custom role without the system role it
 	// maps to for announcement targeting.
 	ErrBaseRoleRequired = errors.New("base_role is required for custom roles")
+	// ErrRoleNameTaken rejects a role name the school (or the platform, for a
+	// system role) already uses.
+	ErrRoleNameTaken = errors.New("role name already exists")
 
 	ErrRoleCaregiverNeedsProfile     = errors.New("Ein Lehrkraft-Konto hat kein Betreuungsprofil und kann nicht auf eine Betreuer-Rolle umgestellt werden") //nolint:staticcheck // ST1005: user-facing German message
 	ErrLehrkraftRoleImmutable        = errors.New("Ein Lehrkraft-Konto kann nicht umgestellt werden")                                                       //nolint:staticcheck // ST1005: user-facing German message

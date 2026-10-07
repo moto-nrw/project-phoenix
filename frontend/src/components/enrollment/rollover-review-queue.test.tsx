@@ -24,7 +24,18 @@ vi.mock("~/components/ui/mobile-back-button", () => ({
   MobileBackButton: () => null,
 }));
 
-import { RolloverReviewQueue } from "./rollover-review-queue";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+import { RolloverReviewQueue as Queue } from "./rollover-review-queue";
+
+function RolloverReviewQueue(props: { phaseID: string }) {
+  return (
+    <ToastProvider>
+      <Queue {...props} />
+    </ToastProvider>
+  );
+}
 import type { ReviewQueueItem } from "~/lib/enrollment-phase-api";
 
 // ============================================================================
@@ -165,11 +176,16 @@ describe("RolloverReviewQueue", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /Behalten/ }));
 
+    const field = screen.getByLabelText(/Klassenstufe für nächste Phase/);
     await waitFor(() => {
       expect(
-        screen.getByText(/Klassenstufe muss eine ganze Zahl sein/),
+        screen.getByText(
+          "Bitte geben Sie die Klassenstufe als ganze Zahl ein.",
+        ),
       ).toBeInTheDocument();
     });
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    await waitFor(() => expect(field).toHaveFocus());
     expect(mockDecideReview).not.toHaveBeenCalled();
   });
 
@@ -219,9 +235,13 @@ describe("RolloverReviewQueue", () => {
     expect(input.decision).toBe("defer");
   });
 
-  it("surfaces backend errors as inline alerts", async () => {
+  it("reports a refused decision as a toast with the catalog text", async () => {
     mockListReview.mockResolvedValueOnce([makeItem()]);
-    mockDecideReview.mockRejectedValueOnce(new Error("backend down"));
+    mockDecideReview.mockRejectedValueOnce(
+      new ApiError("backend down", 409, {
+        code: "rollover.review_invalid",
+      }),
+    );
 
     render(<RolloverReviewQueue phaseID="77" />);
 
@@ -231,17 +251,50 @@ describe("RolloverReviewQueue", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Behalten/ }));
 
-    await waitFor(() => {
-      expect(screen.getByText("backend down")).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("rollover.review_invalid", "die Entscheidung"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("backend down")).not.toBeInTheDocument();
+    // Der Eintrag bleibt stehen, damit ein zweiter Versuch möglich ist.
+    expect(screen.getByText(/Lina Beispiel/)).toBeInTheDocument();
   });
 
-  it("renders the error state when the initial load fails", async () => {
-    mockListReview.mockRejectedValueOnce(new Error("kaputt"));
+  it("confirms a decision in a success toast", async () => {
+    mockListReview.mockResolvedValueOnce([makeItem()]);
+    mockDecideReview.mockResolvedValueOnce(undefined);
+    mockListReview.mockResolvedValueOnce([]);
     render(<RolloverReviewQueue phaseID="77" />);
 
     await waitFor(() => {
-      expect(screen.getByText("kaputt")).toBeInTheDocument();
+      expect(screen.getByText(/Lina Beispiel/)).toBeInTheDocument();
     });
+    fireEvent.click(screen.getByRole("button", { name: /Zurückstellen/ }));
+
+    expect(
+      await screen.findByText("Der Eintrag ist zurückgestellt."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a failed load in place with a retry instead of the empty state", async () => {
+    mockListReview.mockRejectedValueOnce(
+      new ApiError("kaputt", 503, { code: "general.unavailable" }),
+    );
+    mockListReview.mockResolvedValueOnce([makeItem()]);
+    render(<RolloverReviewQueue phaseID="77" />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Prüfliste"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("kaputt")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Keine offenen Einträge/),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText(/Lina Beispiel/)).toBeInTheDocument();
   });
 });

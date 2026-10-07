@@ -3,6 +3,9 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { InvitationOwnerAcceptForm } from "./invitation-owner-accept-form";
 import { listAllTenants } from "~/lib/tenant-api";
 import { acceptInvitation } from "~/lib/invitation-api";
+import { ApiError } from "~/lib/api-error";
+import type { ErrorCode } from "~/lib/error-codes.generated";
+import { catalogText } from "~/test/error-catalog-text";
 
 vi.mock("~/lib/invitation-api", () => ({ acceptInvitation: vi.fn() }));
 vi.mock("~/lib/tenant-api", () => ({ listAllTenants: vi.fn() }));
@@ -60,7 +63,7 @@ describe("existing-account invitation acceptance", () => {
       screen.getByRole("button", { name: "Andere moto-Adresse wählen" }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Die Schulliste ist gerade nicht verfügbar",
+      "Die Liste der Schulen ist gerade nicht erreichbar",
     );
     vi.mocked(listAllTenants).mockResolvedValueOnce({
       tenants: [
@@ -82,19 +85,18 @@ describe("existing-account invitation acceptance", () => {
     expect(listAllTenants).toHaveBeenCalledTimes(2);
   });
 
-  it.each([
-    [
-      "identity.invitation_account_login_required",
-      /Bitte melden Sie sich zuerst/,
-    ],
-    [
-      "identity.invitation_account_mismatch",
-      /Sie sind mit einem anderen Konto/,
-    ],
-    ["identity.account_inactive", /Ihr Konto ist gesperrt/],
-  ])("explains rejected acceptance: %s", async (code, message) => {
+  // Catalog text per code (#2517). "Log in first" answers 401; it stays
+  // in the form instead of jumping to the login screen.
+  it.each<[ErrorCode, number]>([
+    ["identity.invitation_account_login_required", 401],
+    ["identity.invitation_account_mismatch", 403],
+    ["identity.account_inactive", 403],
+  ])("explains rejected acceptance: %s", async (code, status) => {
+    const assign = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => undefined);
     vi.mocked(acceptInvitation).mockRejectedValue(
-      Object.assign(new Error("backend detail"), { code }),
+      new ApiError("backend detail", status, { code }),
     );
     render(
       <InvitationOwnerAcceptForm
@@ -104,8 +106,12 @@ describe("existing-account invitation acceptance", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Einladung annehmen" }));
     await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent(message),
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        catalogText(code, "die Einladung"),
+      ),
     );
     expect(screen.queryByText("Einladung angenommen")).not.toBeInTheDocument();
+    expect(assign).not.toHaveBeenCalled();
+    assign.mockRestore();
   });
 });

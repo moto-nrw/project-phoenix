@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   fetchStudentEnrollmentExtraFields,
   type StudentEnrollmentExtraFieldGroup,
@@ -14,6 +14,12 @@ export function useStudentEnrollmentExtraFields(
   const [groups, setGroups] = useState<StudentEnrollmentExtraFieldGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
+  // The raw failure for the shared load error path (#2517): the card shows
+  // the catalog text with "Wiederholen" instead of silently dropping the
+  // Anmeldung answers.
+  const [error, setError] = useState<unknown>(null);
+  const [attempt, setAttempt] = useState(0);
+  const reload = useCallback(() => setAttempt((count) => count + 1), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -21,6 +27,7 @@ export function useStudentEnrollmentExtraFields(
       setGroups([]);
       setLoading(false);
       setHasError(false);
+      setError(null);
       return () => {
         cancelled = true;
       };
@@ -29,6 +36,7 @@ export function useStudentEnrollmentExtraFields(
     setGroups([]);
     setLoading(true);
     setHasError(false);
+    setError(null);
     fetchStudentEnrollmentExtraFields(studentId)
       .then((nextGroups) => {
         if (cancelled) return;
@@ -38,6 +46,7 @@ export function useStudentEnrollmentExtraFields(
         if (cancelled) return;
         setGroups([]);
         setHasError(true);
+        setError(err);
         logger.warn("student_enrollment_extra_fields_load_failed", {
           student_id: studentId,
           error: err instanceof Error ? err.message : String(err),
@@ -50,7 +59,7 @@ export function useStudentEnrollmentExtraFields(
     return () => {
       cancelled = true;
     };
-  }, [hasFullAccess, studentId]);
+  }, [hasFullAccess, studentId, attempt]);
 
-  return { groups, loading, hasError };
+  return { groups, loading, hasError, error, reload };
 }

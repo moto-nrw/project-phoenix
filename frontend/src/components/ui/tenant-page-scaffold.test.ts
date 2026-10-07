@@ -128,6 +128,7 @@ const BAUART: Readonly<Record<string, Bauart>> = {
   "enrollment-form/page.tsx": "werkzeug",
   "lists/page.tsx": "werkzeug",
   "meal-plan/page.tsx": "werkzeug",
+  "mein-dienstplan/page.tsx": "werkzeug",
   "payroll/page.tsx": "werkzeug",
   "statistics/page.tsx": "werkzeug",
   "substitutions/page.tsx": "werkzeug",

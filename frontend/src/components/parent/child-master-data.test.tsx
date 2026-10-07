@@ -10,6 +10,7 @@ import type React from "react";
 import Link from "next/link";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
+import { catalogText } from "~/test/error-catalog-text";
 
 import { ChildMasterDataView } from "./child-master-data";
 import {
@@ -19,6 +20,7 @@ import {
   setRequestSharing,
   submitMasterDataRequest,
   updateMasterDataField,
+  ParentApiError,
   type ChildFeatures,
   type ChildMasterData,
 } from "~/lib/parent-api";
@@ -77,6 +79,12 @@ vi.mock("~/lib/parent-api", async (importOriginal) => {
     setRequestSharing: vi.fn(),
   };
 });
+
+// #2518: failures go through the shared error path, so the sentences come
+// from the error catalog instead of component texts.
+const unavailable = () =>
+  new ParentApiError("diag", 503, "general.unavailable");
+const REQUEST_ERROR = catalogText("general.unavailable", "die Anfrage");
 
 const mockGetFeatures = vi.mocked(getChildFeatures);
 const mockGetMasterData = vi.mocked(getChildMasterData);
@@ -374,7 +382,7 @@ describe("ChildMasterDataView", () => {
   });
 
   it("asks before leaving after a departure request has failed", async () => {
-    mockSubmit.mockRejectedValueOnce(new Error("request failed"));
+    mockSubmit.mockRejectedValueOnce(unavailable());
 
     render(
       <>
@@ -397,7 +405,7 @@ describe("ChildMasterDataView", () => {
     fireEvent.click(
       within(section).getByRole("button", { name: "Änderung anfragen" }),
     );
-    await screen.findByText("Die Anfrage konnte nicht gesendet werden.");
+    await screen.findByText(REQUEST_ERROR);
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
@@ -409,7 +417,7 @@ describe("ChildMasterDataView", () => {
   });
 
   it("does not block navigation after reverting a failed departure request", async () => {
-    mockSubmit.mockRejectedValueOnce(new Error("request failed"));
+    mockSubmit.mockRejectedValueOnce(unavailable());
 
     render(
       <>
@@ -433,13 +441,11 @@ describe("ChildMasterDataView", () => {
     fireEvent.click(
       within(section).getByRole("button", { name: "Änderung anfragen" }),
     );
-    await screen.findByText("Die Anfrage konnte nicht gesendet werden.");
+    await screen.findByText(REQUEST_ERROR);
 
     fireEvent.click(departureCheckbox);
     await waitFor(() =>
-      expect(
-        screen.queryByText("Die Anfrage konnte nicht gesendet werden."),
-      ).not.toBeInTheDocument(),
+      expect(screen.queryByText(REQUEST_ERROR)).not.toBeInTheDocument(),
     );
     fireEvent.click(screen.getByRole("link", { name: "Weiter" }));
     expect(
@@ -822,9 +828,7 @@ describe("ChildMasterDataView", () => {
     await submitIdentityRequest();
 
     expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
-    expect(
-      screen.queryByText("Die Anfrage konnte nicht gesendet werden."),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(REQUEST_ERROR)).not.toBeInTheDocument();
   });
 
   it("submits departure mode changes for review", async () => {
@@ -991,9 +995,7 @@ describe("ChildMasterDataView", () => {
     expect(
       within(section).getByRole("button", { name: "Änderung anfragen" }),
     ).toBeDisabled();
-    expect(
-      screen.queryByText("Die Anfrage konnte nicht gesendet werden."),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(REQUEST_ERROR)).not.toBeInTheDocument();
   });
 
   it("preserves dirty request drafts across unrelated direct-edit refreshes", async () => {
@@ -1168,21 +1170,26 @@ describe("ChildMasterDataView", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders a load error if either request fails", async () => {
-    mockGetMasterData.mockRejectedValue(new Error("boom"));
+  it("renders a load error if either request fails and retries it", async () => {
+    mockGetMasterData.mockRejectedValueOnce(unavailable());
 
     render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
     expect(
       await screen.findByText(
-        "Die Angaben konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
+        catalogText("general.unavailable", "die Übersicht der Angaben"),
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/diag/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(await screen.findByDisplayValue("Allergie")).toBeInTheDocument();
   });
 
   it("shows direct-save and request-submit errors", async () => {
-    mockUpdateField.mockRejectedValueOnce(new Error("write failed"));
-    mockSubmit.mockRejectedValueOnce(new Error("request failed"));
+    mockUpdateField.mockRejectedValueOnce(unavailable());
+    mockSubmit.mockRejectedValueOnce(unavailable());
 
     render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
@@ -1190,7 +1197,9 @@ describe("ChildMasterDataView", () => {
     fireEvent.change(health, { target: { value: "Neue Info" } });
     fireEvent.blur(health);
     expect(
-      await screen.findByText("Die Änderung konnte nicht gespeichert werden."),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Änderung"),
+      ),
     ).toBeInTheDocument();
 
     fireEvent.click(
@@ -1201,8 +1210,6 @@ describe("ChildMasterDataView", () => {
     });
     await submitIdentityRequest();
 
-    expect(
-      await screen.findByText("Die Anfrage konnte nicht gesendet werden."),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(REQUEST_ERROR)).toBeInTheDocument();
   });
 });

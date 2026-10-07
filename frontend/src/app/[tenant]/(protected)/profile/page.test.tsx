@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-return, @next/next/no-img-element */
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
@@ -19,7 +21,10 @@ vi.mock("next/navigation", () => ({
 // Mock Toast Context
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
-vi.mock("~/contexts/ToastContext", () => ({
+const mockApiErrorDisplay = { show: vi.fn() };
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useApiErrorDisplay: () => mockApiErrorDisplay,
   useToast: () => ({
     success: mockToastSuccess,
     error: mockToastError,
@@ -56,8 +61,8 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/password-change-modal", () => ({
-  PasswordChangeModal: ({
+vi.mock("~/components/auth/tenant-password-change-modal", () => ({
+  TenantPasswordChangeModal: ({
     isOpen,
     onClose,
     onSuccess,
@@ -380,13 +385,13 @@ describe("ProfilePage", () => {
           lastName: "Doe",
         });
         expect(mockToastSuccess).toHaveBeenCalledWith(
-          "Profil erfolgreich aktualisiert",
+          "Ihr Profil ist gespeichert.",
         );
       });
     });
 
     it("keeps a failed profile save in the form with the reason on top", async () => {
-      mockUpdateProfile.mockRejectedValue(new Error("Save failed"));
+      mockUpdateProfile.mockRejectedValue(new ApiError("Save failed", 500));
 
       render(<ProfilePage />);
 
@@ -399,9 +404,13 @@ describe("ProfilePage", () => {
 
       // Bauart 2 Regel 5 (#3113): the reason stands in the alert of the edit
       // block, not in a toast; the form stays open with the typed value.
+      // #2517: the catalog text, with retry for a server error.
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        "Fehler beim Speichern des Profils",
+        catalogText("general.server", "das Profil"),
       );
+      expect(
+        screen.getByRole("button", { name: "Wiederholen" }),
+      ).toBeInTheDocument();
       expect(screen.getByLabelText("Vorname")).toHaveValue("Jane");
       expect(mockToastError).not.toHaveBeenCalled();
     });
@@ -434,7 +443,7 @@ describe("ProfilePage", () => {
           expect(mockCompressAvatar).toHaveBeenCalledWith(mockFile);
           expect(mockUploadAvatar).toHaveBeenCalledWith(mockCompressedFile);
           expect(mockToastSuccess).toHaveBeenCalledWith(
-            "Profilbild erfolgreich aktualisiert",
+            "Ihr Profilbild ist gespeichert.",
           );
         },
         { timeout: 3000 },
@@ -463,7 +472,7 @@ describe("ProfilePage", () => {
       await waitFor(() => {
         expect(screen.queryByTestId("password-modal")).not.toBeInTheDocument();
         expect(mockToastSuccess).toHaveBeenCalledWith(
-          "Passwort erfolgreich geändert",
+          "Ihr Passwort ist geändert.",
         );
       });
     });

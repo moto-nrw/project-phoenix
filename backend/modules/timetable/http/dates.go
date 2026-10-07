@@ -14,7 +14,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-var errTimetableWeekend = errors.New("timetable entries can only be scheduled from Monday to Friday")
+var errTimetableWeekend = timetable.WithCode(errors.New("timetable entries can only be scheduled from Monday to Friday"),
+	timetable.CodeInstanceWeekend)
 
 // berlinDate parses a YYYY-MM-DD input into a calendar date. calendar.Date
 // carries no instant, so the historical 00:00–02:00 CET/UTC anchoring pitfall
@@ -73,16 +74,17 @@ func (rs *Resource) parseTodayFutureDateRange(w http.ResponseWriter, r *http.Req
 	}
 
 	if parsedFrom.After(parsedTo) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("'date' must be before or equal to 'date_to'")))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(errors.New("'date' must be before or equal to 'date_to'"), common.CodeTimetableWindowEndBeforeStart))
 		return calendar.Date(""), calendar.Date(""), false
 	}
 	if inclusiveDayCount(parsedFrom, parsedTo) > timetable.MaxTimetableReadRangeDays {
-		common.RenderError(w, r, common.ErrorInvalidRequest(
-			fmt.Errorf("date range exceeds maximum of %d days", timetable.MaxTimetableReadRangeDays)))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(
+			fmt.Errorf("date range exceeds maximum of %d days", timetable.MaxTimetableReadRangeDays),
+			common.CodeTimetableWindowTooLarge, map[string]any{"max_days": timetable.MaxTimetableReadRangeDays}))
 		return calendar.Date(""), calendar.Date(""), false
 	}
 	if parsedFrom.Before(rs.todayDate()) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("'date' must be today or a future date")))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(errors.New("'date' must be today or a future date"), common.CodeTimetableDateInPast))
 		return calendar.Date(""), calendar.Date(""), false
 	}
 

@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+} from "react";
+import type { FormError } from "~/components/ui/form-error";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { getCategories, type ActivityCategory } from "~/lib/activity-api";
 import { createLogger } from "~/lib/logger";
 
@@ -14,6 +22,12 @@ export interface ActivityFormState {
   name: string;
   category_id: string;
   max_participants: string;
+}
+
+/** A check that failed before sending: the hint and the field it marks. */
+interface ActivityFormProblem {
+  readonly message: string;
+  readonly field: keyof ActivityFormState;
 }
 
 export function parseParticipantLimit(value: string): number | null {
@@ -32,16 +46,14 @@ interface UseActivityFormReturn {
   categories: ActivityCategory[];
   /** Whether categories are loading */
   loading: boolean;
-  /** Current error message */
-  error: string | null;
-  /** Set error message */
-  setError: React.Dispatch<React.SetStateAction<string | null>>;
+  /** Failed category load, with retry, for `LoadErrorAlert` */
+  loadError: FormError | null;
   /** Handle input change events */
   handleInputChange: (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => void;
-  /** Validate form and return error message or null */
-  validateForm: () => string | null;
+  /** Validate form and return the first problem or null */
+  validateForm: () => ActivityFormProblem | null;
   /** Load categories from API */
   loadCategories: () => Promise<void>;
 }
@@ -58,7 +70,7 @@ interface UseActivityFormReturn {
  * @example
  * ```tsx
  * const {
- *   form, setForm, categories, loading, error, setError,
+ *   form, setForm, categories, loading, loadError,
  *   handleInputChange, validateForm, loadCategories
  * } = useActivityForm(initialValues, isOpen);
  * ```
@@ -70,10 +82,17 @@ export function useActivityForm(
   const [form, setForm] = useState<ActivityFormState>(initialForm);
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  // „Wiederholen“ lädt die Kategorien erneut.
+  const reloadRef = useRef<() => void>(() => undefined);
 
   // Load categories when modal opens
   const loadCategories = useCallback(async () => {
+    clearLoadError();
     try {
       setLoading(true);
       const categoriesData = await getCategories();
@@ -82,22 +101,23 @@ export function useActivityForm(
       logger.error("failed to load categories", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError("Failed to load categories");
+      void showLoadError(err, {
+        object: "die Liste der Kategorien",
+        retry: () => reloadRef.current(),
+      });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showLoadError, clearLoadError]);
+  useLayoutEffect(() => {
+    reloadRef.current = () => void loadCategories();
+  });
 
   // Auto-load categories when modal opens
   useEffect(() => {
-    if (isOpen) {
-      loadCategories().catch(() => {
-        // Error already handled in loadCategories
-      });
-    }
+    if (isOpen) void loadCategories();
   }, [isOpen, loadCategories]);
 
-  // Handle input changes and clear errors
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
       const { name, value } = e.target;
@@ -105,26 +125,33 @@ export function useActivityForm(
         ...prev,
         [name]: value,
       }));
-      // Clear error when user starts typing
-      setError(null);
     },
     [],
   );
 
   // Validate form fields
-  const validateForm = useCallback((): string | null => {
+  const validateForm = useCallback((): ActivityFormProblem | null => {
     if (!form.name.trim()) {
-      return "Activity name is required";
+      return {
+        message: "Bitte geben Sie einen Namen für die Aktivität ein.",
+        field: "name",
+      };
     }
     if (!form.category_id) {
-      return "Please select a category";
+      return {
+        message: "Bitte wählen Sie eine Kategorie.",
+        field: "category_id",
+      };
     }
     if (!form.max_participants) {
       return null;
     }
     const maxParticipants = Number.parseInt(form.max_participants, 10);
     if (Number.isNaN(maxParticipants) || maxParticipants < 1) {
-      return "Max participants must be a positive number";
+      return {
+        message: "Die Teilnehmerzahl muss mindestens 1 sein.",
+        field: "max_participants",
+      };
     }
     return null;
   }, [form.name, form.category_id, form.max_participants]);
@@ -134,8 +161,7 @@ export function useActivityForm(
     setForm,
     categories,
     loading,
-    error,
-    setError,
+    loadError,
     handleInputChange,
     validateForm,
     loadCategories,

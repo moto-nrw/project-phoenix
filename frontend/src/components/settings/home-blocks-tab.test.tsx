@@ -7,7 +7,18 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import type { HomeBlockPolicies } from "~/lib/home-blocks";
+import { catalogText } from "~/test/error-catalog-text";
+import { ToastProvider } from "~/contexts/ToastContext";
+
+// The shared error path shows failures through the toast provider (#2517).
+function renderWithToast(
+  ui: Parameters<typeof render>[0],
+  options?: Parameters<typeof render>[1],
+) {
+  return render(ui, { wrapper: ToastProvider, ...options });
+}
 
 const BIRTHDAYS_ENABLED_KEY = "birthday.display_enabled";
 const BIRTHDAYS_STAFF_KEY = "birthday.display_include_staff";
@@ -108,8 +119,8 @@ vi.mock("~/lib/hooks/use-settings-schema", () => ({
 
 const mockSetSettingValue = vi.fn();
 vi.mock("~/lib/settings-api", () => ({
-  setSettingValue: (key: string, value: unknown) =>
-    mockSetSettingValue(key, value) as Promise<string | null>,
+  saveSettingValue: (key: string, value: unknown) =>
+    mockSetSettingValue(key, value) as Promise<void>,
 }));
 vi.mock("~/lib/settings-broadcast", () => ({
   notifySettingsChanged: vi.fn(),
@@ -128,18 +139,18 @@ describe("HomeBlocksTab", () => {
       mockState.value = { ...mockState.value, policies };
     });
     setBirthdaySettings(true, false);
-    mockSetSettingValue.mockReset().mockResolvedValue(null);
+    mockSetSettingValue.mockReset().mockResolvedValue(undefined);
     mockRevalidateSchema.mockReset().mockResolvedValue(undefined);
   });
 
   it("sperrt 'Speichern', solange nichts geändert wurde", () => {
-    render(<HomeBlocksTab />);
+    renderWithToast(<HomeBlocksTab />);
 
     expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
   });
 
   it("speichert eine Vorgabe für einen Baustein", async () => {
-    render(<HomeBlocksTab />);
+    renderWithToast(<HomeBlocksTab />);
 
     const group = screen.getByRole("group", {
       name: "Vorgabe für Geburtstage",
@@ -155,7 +166,9 @@ describe("HomeBlocksTab", () => {
       }),
     );
     expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
-    expect(screen.getByText("Gespeichert.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Die Startseite für alle ist gespeichert."),
+    ).toBeInTheDocument();
   });
 
   it("speichert 'Frei wählbar' nicht mit", async () => {
@@ -167,7 +180,7 @@ describe("HomeBlocksTab", () => {
       policies: { "section.birthdays": "disabled" },
       canManagePolicies: true,
     };
-    render(<HomeBlocksTab />);
+    renderWithToast(<HomeBlocksTab />);
 
     const group = screen.getByRole("group", {
       name: "Vorgabe für Geburtstage",
@@ -181,8 +194,8 @@ describe("HomeBlocksTab", () => {
   });
 
   it("meldet einen fehlgeschlagenen Speicherversuch", async () => {
-    mockSavePolicies.mockRejectedValue(new Error("boom"));
-    render(<HomeBlocksTab />);
+    mockSavePolicies.mockRejectedValueOnce(new ApiError("boom", 500));
+    renderWithToast(<HomeBlocksTab />);
 
     const group = screen.getByRole("group", {
       name: "Vorgabe für Geburtstage",
@@ -190,13 +203,21 @@ describe("HomeBlocksTab", () => {
     fireEvent.click(within(group).getByRole("button", { name: "Aus" }));
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
+    // #2517: catalog text in the card, retry sends the current draft again.
     expect(
-      await screen.findByText(/Das Speichern hat nicht geklappt/),
+      await screen.findByText(
+        catalogText("general.server", "die Startseite für alle"),
+      ),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mockSavePolicies).toHaveBeenCalledTimes(2));
+    expect(mockSavePolicies).toHaveBeenLastCalledWith({
+      "section.birthdays": "disabled",
+    });
   });
 
   it("bietet Bausteine, die es im Betriebsmodus nicht gibt, nicht an", () => {
-    render(<HomeBlocksTab />);
+    renderWithToast(<HomeBlocksTab />);
 
     // NFC und Räume sind hier an, die offene Betreuung aus — also gibt es
     // Auslastung, aber keinen Grund, etwas Unsichtbares vorzugeben.
@@ -205,7 +226,7 @@ describe("HomeBlocksTab", () => {
   });
 
   it("zeigt die Geburtstags-Schalter direkt an der Geburtstagskarte", () => {
-    render(<HomeBlocksTab />);
+    renderWithToast(<HomeBlocksTab />);
 
     expect(
       screen.getByRole("switch", { name: "Geburtstage auf der Startseite" }),
@@ -218,7 +239,7 @@ describe("HomeBlocksTab", () => {
   });
 
   it("speichert einen geänderten Geburtstags-Schalter mit 'Speichern'", async () => {
-    render(<HomeBlocksTab />);
+    renderWithToast(<HomeBlocksTab />);
 
     fireEvent.click(
       screen.getByRole("switch", {
@@ -241,7 +262,7 @@ describe("HomeBlocksTab", () => {
 
   it("blendet Vorgabe und Personal-Schalter aus, solange Geburtstage aus sind", () => {
     setBirthdaySettings(false, false);
-    render(<HomeBlocksTab />);
+    renderWithToast(<HomeBlocksTab />);
 
     expect(
       screen.getByRole("switch", { name: "Geburtstage auf der Startseite" }),
@@ -257,10 +278,8 @@ describe("HomeBlocksTab", () => {
   });
 
   it("meldet einen fehlgeschlagenen Schalter und bleibt ungespeichert", async () => {
-    mockSetSettingValue.mockResolvedValue(
-      "Einstellung konnte nicht gespeichert werden",
-    );
-    render(<HomeBlocksTab />);
+    mockSetSettingValue.mockRejectedValue(new ApiError("rejected", 400));
+    renderWithToast(<HomeBlocksTab />);
 
     fireEvent.click(
       screen.getByRole("switch", { name: "Geburtstage auf der Startseite" }),
@@ -268,7 +287,9 @@ describe("HomeBlocksTab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(
-      await screen.findByText(/Das Speichern hat nicht geklappt/),
+      await screen.findByText(
+        catalogText("general.input", "die Startseite für alle"),
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
   });

@@ -6,6 +6,9 @@
 import { Suspense, act } from "react";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 const {
   mockUseSession,
@@ -88,8 +91,8 @@ vi.mock("~/components/settings/settings-category", () => ({
     onBookingAuthorityEnable,
   }: {
     category: { key: string; label: string };
-    onSave: (key: string, value: unknown) => Promise<string | null>;
-    onReset: (key: string) => Promise<string | null>;
+    onSave: (key: string, value: unknown) => Promise<void>;
+    onReset: (key: string) => Promise<void>;
     onBookingAuthorityEnable?: () => Promise<void>;
   }) => (
     <div data-testid={`category-${category.key}`}>
@@ -113,15 +116,6 @@ vi.mock("~/components/settings/settings-category", () => ({
   ),
 }));
 
-// The UI primitives are trivial — keep stubs minimal.
-vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ type, message }: { type: string; message: string }) => (
-    <div role="alert" data-type={type}>
-      {message}
-    </div>
-  ),
-}));
-
 vi.mock("~/components/ui/skeleton", () => ({
   Skeleton: ({ className }: { className?: string }) => (
     <div data-testid="skeleton" className={className} />
@@ -134,9 +128,11 @@ async function renderPage(id = "42") {
   let result!: ReturnType<typeof render>;
   await act(async () => {
     result = render(
-      <Suspense fallback={<div data-testid="suspense-fallback" />}>
-        <OperatorSchoolSettingsPage params={Promise.resolve({ id })} />
-      </Suspense>,
+      <ToastProvider>
+        <Suspense fallback={<div data-testid="suspense-fallback" />}>
+          <OperatorSchoolSettingsPage params={Promise.resolve({ id })} />
+        </Suspense>
+      </ToastProvider>,
     );
   });
   return result;
@@ -231,17 +227,96 @@ describe("OperatorSchoolSettingsPage", () => {
     });
   });
 
-  it("shows error alert when schema fetch throws", async () => {
-    mockFetchSchema.mockRejectedValue(new Error("server down"));
+  // #2519: the load error is the catalog text with retry, not a local
+  // sentence.
+  it("shows a failed schema load with retry", async () => {
+    mockFetchSchema
+      .mockRejectedValueOnce(new ApiError("down", 503))
+      .mockResolvedValueOnce({ tabs: [] });
 
     await renderPage();
 
-    await waitFor(() => {
-      const alert = screen.getByRole("alert");
-      expect(alert.textContent).toContain(
-        "Einstellungen konnten nicht geladen werden",
-      );
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Einstellungen"),
+      ),
+    ).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(
+      await screen.findByText(/Keine Einstellungen für diese Schule verfügbar/),
+    ).toBeDefined();
+    expect(
+      screen.queryByText(
+        catalogText("general.unavailable", "die Liste der Einstellungen"),
+      ),
+    ).toBeNull();
+  });
+
+  it("shows a failed impact check inside the dialog and keeps activation off", async () => {
+    mockFetchSchema.mockResolvedValue({
+      tabs: [
+        {
+          key: "operations",
+          label: "Ops",
+          categories: [{ key: "sessions", label: "Sessions", items: [] }],
+        },
+      ],
     });
+    mockFetchImpact.mockRejectedValue(new ApiError("boom", 500));
+
+    await renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "enable-booking-mode-sessions",
+      }),
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() =>
+      expect(dialog.textContent).toContain(
+        catalogText("general.server", "die Prüfung der Auswirkungen"),
+      ),
+    );
+    expect(
+      screen.getByRole("button", { name: "Buchungsmodus aktivieren" }),
+    ).toBeDisabled();
+  });
+
+  it("keeps a failed activation inside the open dialog", async () => {
+    mockFetchSchema.mockResolvedValue({
+      tabs: [
+        {
+          key: "operations",
+          label: "Ops",
+          categories: [{ key: "sessions", label: "Sessions", items: [] }],
+        },
+      ],
+    });
+    mockFetchImpact.mockResolvedValue(plannedBookingAuthorityImpact());
+    mockSetValue.mockRejectedValue(
+      new ApiError("conflict", 409, { code: "general.business_rejection" }),
+    );
+
+    await renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "enable-booking-mode-sessions",
+      }),
+    );
+    expect(await screen.findByText(/Noah Beispiel/)).toBeDefined();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Buchungsmodus aktivieren" }),
+    );
+
+    const dialog = screen.getByRole("dialog");
+    await waitFor(() =>
+      expect(dialog.textContent).toContain(
+        catalogText(
+          "general.business_rejection",
+          "die Aktivierung des Buchungsmodus",
+        ),
+      ),
+    );
   });
 
   it("invokes setOperatorSettingValue on save", async () => {
@@ -254,7 +329,7 @@ describe("OperatorSchoolSettingsPage", () => {
         },
       ],
     });
-    mockSetValue.mockResolvedValue(null);
+    mockSetValue.mockResolvedValue(undefined);
 
     await renderPage();
 
@@ -282,7 +357,7 @@ describe("OperatorSchoolSettingsPage", () => {
         },
       ],
     });
-    mockResetValue.mockResolvedValue(null);
+    mockResetValue.mockResolvedValue(undefined);
 
     await renderPage();
 
@@ -351,7 +426,7 @@ describe("OperatorSchoolSettingsPage", () => {
       ],
     });
     mockFetchImpact.mockResolvedValue(plannedBookingAuthorityImpact());
-    mockSetValue.mockResolvedValue(null);
+    mockSetValue.mockResolvedValue(undefined);
 
     await renderPage();
     fireEvent.click(
@@ -385,17 +460,44 @@ describe("OperatorSchoolSettingsPage", () => {
     expect(mockFetchSchema).not.toHaveBeenCalled();
   });
 
-  it("swallows school-name lookup failures without crashing", async () => {
+  // #2519: no silent catch; the missing school name is reported in place.
+  it("shows a failed school name lookup with retry", async () => {
     mockFetchSchema.mockResolvedValue({ tabs: [] });
-    mockListSchools.mockRejectedValue(new Error("listSchools failed"));
+    mockListSchools
+      .mockRejectedValueOnce(new ApiError("down", 503))
+      .mockResolvedValueOnce([{ id: "42", name: "Schule am Berg" }]);
 
     await renderPage();
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Keine Einstellungen für diese Schule verfügbar/),
-      ).toBeDefined();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Bezeichnung der Schule"),
+      ),
+    ).toBeDefined();
+    expect(
+      screen.getByText(/Keine Einstellungen für diese Schule verfügbar/),
+    ).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText(/Schule am Berg/)).toBeDefined();
+  });
+
+  it("shows an unknown school as a load error, not as a blank page", async () => {
+    mockFetchSchema.mockRejectedValue(
+      new ApiError("school not found", 404, {
+        code: "provisioning.school_not_found",
+      }),
+    );
+
+    await renderPage();
+
+    expect(
+      await screen.findByText(
+        catalogText(
+          "provisioning.school_not_found",
+          "die Liste der Einstellungen",
+        ),
+      ),
+    ).toBeDefined();
   });
 
   // --- Back link ---

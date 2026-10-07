@@ -1,4 +1,4 @@
-import { ApiError } from "../api-error";
+import { ApiError, transportFetch } from "../api-error";
 interface OperatorFetchOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;
@@ -29,7 +29,8 @@ export async function operatorFetch<T>(
 ): Promise<T> {
   const { method = "GET", body } = options;
 
-  const response = await fetch(endpoint, {
+  // A request that never reached the API becomes general.unavailable.
+  const response = await transportFetch(endpoint, {
     method,
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -59,13 +60,12 @@ export async function operatorFetch<T>(
     try {
       const errorData = (await response.json()) as {
         error?: string;
-        message?: string;
         code?: string;
         details?: Record<string, unknown>;
         errors?: { field: string; reason: string }[];
         instance?: string;
       };
-      errorMessage = errorData.message ?? errorData.error ?? errorMessage;
+      errorMessage = errorData.error ?? errorMessage;
       payload = errorData;
     } catch {
       // use statusText

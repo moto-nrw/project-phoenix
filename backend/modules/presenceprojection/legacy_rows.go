@@ -63,6 +63,8 @@ type legacyInstanceRow struct {
 	IdempotencyKey         *string       `bun:"idempotency_key"`
 	IdempotencyFingerprint *string       `bun:"idempotency_fingerprint"`
 	CreatedBy              *int64        `bun:"created_by"`
+	TemplateType           *string       `bun:"template_type"`
+	TemplateRequiredStaff  *int          `bun:"template_required_staff"`
 	SessionStatus          *string       `bun:"session_status"`
 	ActiveGroupID          *int64        `bun:"session_active_group_id"`
 	StartedBy              *int64        `bun:"session_started_by"`
@@ -80,10 +82,16 @@ const legacyInstanceColumns = `"activity_instance".id, "activity_instance".tenan
 	"activity_instance".is_spontaneous, "activity_instance".understaffed_ack, "activity_instance".understaffed_note,
 	"activity_instance".cancel_reason, "activity_instance".notes, "activity_instance".idempotency_key,
 	"activity_instance".idempotency_fingerprint, "activity_instance".created_by,
+	"template".type AS template_type, "template".required_staff AS template_required_staff,
 	"session".status AS session_status, "session".active_group_id AS session_active_group_id,
 	"session".started_by AS session_started_by, "session".started_at AS session_started_at,
 	"session".completed_at AS session_completed_at, "session".completed_by AS session_completed_by,
 	"session".reopen_until AS session_reopen_until, "session".completion_snapshot AS session_completion_snapshot`
+
+// instanceTemplateJoin reads the block type and Personalbedarf of the
+// template along (#3822): a duty is never started and has its own gap rule.
+const instanceTemplateJoin = `LEFT JOIN activities.groups AS "template"
+	ON "template".id = "activity_instance".activity_group_id AND "template".tenant_id = "activity_instance".tenant_id`
 
 // ListLegacyInstances lists activity instances with their execution as the
 // retained repositories read them.
@@ -92,7 +100,7 @@ func ListLegacyInstances(ctx context.Context, db bun.IDB, tenantID int64, filter
 		return nil, ErrInvalidTenantID
 	}
 	query := db.NewSelect().TableExpr(`schedule.activity_instances AS "activity_instance"`).
-		ColumnExpr(legacyInstanceColumns).Join(instanceSessionJoin).
+		ColumnExpr(legacyInstanceColumns).Join(instanceSessionJoin).Join(instanceTemplateJoin).
 		Where(`"activity_instance".tenant_id = ?`, tenantID)
 	query = legacyInstanceStateFilters(legacyInstanceKeyFilters(query, filter), filter)
 	rows := []legacyInstanceRow{}
@@ -184,6 +192,10 @@ func legacyInstance(row legacyInstanceRow) *scheduleModels.ActivityInstance {
 			instance.CompletionSnapshot = json.RawMessage(row.CompletionSnapshot)
 		}
 	}
+	if row.TemplateType != nil {
+		instance.TemplateType = *row.TemplateType
+	}
+	instance.TemplateRequiredStaff = row.TemplateRequiredStaff
 	instance.ID, instance.CreatedAt, instance.UpdatedAt = row.ID, row.CreatedAt, row.UpdatedAt
 	instance.SetTenantID(row.TenantID)
 	return instance

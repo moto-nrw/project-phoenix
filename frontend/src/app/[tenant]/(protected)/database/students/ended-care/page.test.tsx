@@ -4,6 +4,8 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 import type { EndedCarePage } from "~/lib/care-exit-api";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import Page from "./page";
 
 const { mockFetchEndedCare, mockResumeCare, mockHasPermission } = vi.hoisted(
@@ -56,8 +58,11 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutateMatching: () => vi.fn(),
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+// The form and load error hooks stay real; they need no provider.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
+  useApiErrorDisplay: () => ({ show: vi.fn() }),
 }));
 
 let lastSwrKey: string | null = null;
@@ -218,6 +223,27 @@ describe("Beendete Betreuungen", () => {
         true,
       ),
     );
+  });
+
+  // #2517: Ein gescheitertes Laden zeigt den Katalogtext, keine "0 Kinder".
+  it("shows the catalog load error without a zero count", async () => {
+    swrState.data = undefined;
+    swrState.error = new ApiError("load exploded", 503, {
+      code: "general.unavailable",
+    });
+
+    render(<Page />);
+
+    expect(
+      await screen.findByText(
+        catalogText(
+          "general.unavailable",
+          "die Liste der beendeten Betreuungen",
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Wiederholen" })).toBeVisible();
+    expect(screen.queryByText(/0 Kinder/)).not.toBeInTheDocument();
   });
 
   it("is closed to anybody without the delete permission", () => {

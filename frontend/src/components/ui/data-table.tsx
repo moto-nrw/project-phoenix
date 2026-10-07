@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useState,
   type ReactNode,
@@ -10,6 +11,7 @@ import {
 
 import { getAccessibleTextColor, LOCATION_COLORS } from "~/lib/location-helper";
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
 import { Skeleton } from "~/components/ui/skeleton";
 
 type SortDirection = "asc" | "desc";
@@ -21,12 +23,46 @@ export interface DataTableColumn<T> {
   align?: "left" | "right" | "center";
   className?: string;
   headerClassName?: string;
-  sortValue?: (row: T) => string | number;
+  // null is a missing value and sorts after all present values, independent
+  // of direction.
+  sortValue?: (row: T) => string | number | null;
   // Role this column plays in the stacked phone layout (`stackedOnMobile`).
   // "title" is the headline of a stacked row, "meta" the muted value beside
   // it, "field" a labelled line below, "hidden" is dropped on phones.
   // Defaults to "field".
   stacked?: "title" | "meta" | "field" | "hidden";
+  // Extra classes for the cell in the "row" phone line, e.g. to lay a
+  // stacked badge out side by side.
+  stackedClassName?: string;
+  // What the "row" phone line shows for this column, when it needs a
+  // shorter form than the table cell ("15:30" instead of "🕒 15:30 Uhr").
+  stackedRender?: (row: T) => ReactNode;
+  // In the "row" phone line, false drops the header in front of the value
+  // where the value names itself (a class, a group). Defaults to true.
+  stackedLabel?: boolean;
+}
+
+/**
+ * Row selection of a DataTable (#3834): a checkbox column in front, with an
+ * "alle auswählen" box in the header that covers every row of the table, not
+ * only the rows paged in so far. The caller owns the selection; the table
+ * only reports changes. Keys are `String(getRowKey(row))`. The "row"
+ * stacked phone layout shows the row checkboxes too, without the header box.
+ */
+interface DataTableSelection<T> {
+  readonly selectedKeys: ReadonlySet<string>;
+  /** One row or the whole table switched to `selected`. */
+  readonly onChange: (keys: readonly string[], selected: boolean) => void;
+  /** Name of the row for the checkbox's accessible label ("Mia Kaya"). */
+  readonly rowLabel: (row: T) => string;
+  /** Locks every checkbox, e.g. while a bulk action runs. */
+  readonly disabled?: boolean;
+}
+
+/** Title of a table inside its own surface, e.g. one group of a list. */
+export interface DataTableHeading {
+  readonly title: string;
+  readonly count?: number;
 }
 
 interface DataTableProps<T> {
@@ -61,6 +97,20 @@ interface DataTableProps<T> {
   // paging, loading and empty state stay shared between both layouts —
   // per-column roles come from `DataTableColumn.stacked`.
   stackedOnMobile?: boolean;
+  // "lines" (default) gives every field its own labelled line; "row" shows
+  // one entry per line with title, meta and the stackedDetailKey column
+  // under the title, so a phone still reads a list (#3834). Only with
+  // stackedOnMobile.
+  stackedLayout?: "lines" | "row";
+  // The column the "row" phone line shows under the title; null or unset
+  // shows title and meta only. Independent of hiddenColumns: the column
+  // choice is a computer setting.
+  stackedDetailKey?: string | null;
+  // Column keys left out of the table. The caller keeps the full column list
+  // so a column menu can offer the hidden ones again.
+  hiddenColumns?: ReadonlySet<string>;
+  selection?: DataTableSelection<T>;
+  heading?: DataTableHeading;
 }
 
 const alignClass: Record<
@@ -83,7 +133,11 @@ const headRowClass =
 // Monitor, 8 px auf einem kleinen oder flachen Bildschirm. Eine Liste ist die
 // haeufigste Seite des Portals, und die 8 px je Zeile summieren sich ueber
 // zwanzig Zeilen auf mehr als einen halben Bildschirm.
-const headCellClass = "px-5 py-3 max-sm:px-3 compact:px-4 compact:py-2";
+// font-medium on the cell itself: a <th> is bold by browser default, so a
+// column without a sort button rendered heavier than its sortable
+// neighbours, whose button carries the weight (#3834).
+const headCellClass =
+  "px-5 py-3 font-medium max-sm:px-3 compact:px-4 compact:py-2";
 const bodyRowClass = "border-b border-gray-50 last:border-0";
 const bodyCellClass =
   "px-5 py-3 align-middle max-sm:px-3 compact:px-4 compact:py-2";
@@ -129,6 +183,97 @@ function StackedField({
   );
 }
 
+// A control inside a stacked row (the selection checkbox) that must not
+// also trigger the row's own click.
+const STACKED_ROW_CONTROL = "[data-row-control]";
+
+/**
+ * The phone list row (#3834): one entry per line. Optional checkbox, the
+ * title with one chosen detail column under it, the meta value at the
+ * right. Every other column stays off the phone: a list that grows back
+ * into several lines per entry reads like cards again.
+ */
+function RowStackedRow<T>({
+  row,
+  rowKey,
+  title,
+  meta,
+  detail,
+  selection,
+}: Readonly<{
+  row: T;
+  rowKey: string;
+  title: DataTableColumn<T> | undefined;
+  meta: DataTableColumn<T> | undefined;
+  detail: DataTableColumn<T> | undefined;
+  selection?: DataTableSelection<T>;
+}>) {
+  const selected = selection?.selectedKeys.has(rowKey) ?? false;
+  return (
+    <div className="flex min-h-8 items-center gap-3">
+      {selection ? (
+        // The row ignores clicks from this label (STACKED_ROW_CONTROL):
+        // the checkbox marks the row, it must not also open it.
+        <label
+          data-row-control=""
+          className="-m-2 flex shrink-0 cursor-pointer items-center p-2"
+        >
+          <Checkbox
+            checked={selected}
+            disabled={selection.disabled}
+            onChange={() => selection.onChange([rowKey], !selected)}
+          />
+          <span className="sr-only">{`${selection.rowLabel(row)} auswählen`}</span>
+        </label>
+      ) : null}
+      {/* The title keeps at least 5rem and the meta value at most 9.5rem
+          (one badge): a second badge wraps below the first instead of
+          taking the name's room, and the name may use that second line too
+          rather than being cut. */}
+      <div className="min-w-20 flex-1">
+        <span className="line-clamp-2 break-words">{title?.render(row)}</span>
+        {detail ? (
+          <div className="mt-0.5 flex min-w-0 items-center gap-1 text-sm">
+            {detail.stackedLabel === false ? null : (
+              <span className="shrink-0 text-gray-500">{detail.header}</span>
+            )}
+            <span className="min-w-0">
+              {(detail.stackedRender ?? detail.render)(row)}
+            </span>
+          </div>
+        ) : null}
+      </div>
+      {meta ? (
+        <span
+          className={`flex max-w-[9.5rem] min-w-0 justify-end ${meta.stackedClassName ?? ""}`}
+        >
+          {(meta.stackedRender ?? meta.render)(row)}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Title row INSIDE the table surface (#3834): a grouped list puts each group's
+ * title on its own card, never free on the patterned page background
+ * (BAUARTEN-SPEC, Teil 3) — the same place SectionCard gives a tile group.
+ */
+function SurfaceHeading({ heading }: Readonly<{ heading: DataTableHeading }>) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-3 max-sm:px-4">
+      <h3 className="text-base font-semibold text-balance text-gray-900">
+        {heading.title}
+      </h3>
+      {heading.count === undefined ? null : (
+        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+          {heading.count}
+        </span>
+      )}
+    </div>
+  );
+}
+
 /**
  * The phone layout of DataTable: the same sorted, paged rows rendered stacked
  * inside one surface. Enabled per call site via `stackedOnMobile`.
@@ -146,6 +291,10 @@ function StackedRows<T>({
   hasMore,
   loadMore,
   totalCount,
+  layout,
+  selection,
+  detail,
+  heading,
 }: Readonly<{
   columns: DataTableColumn<T>[];
   rows: T[];
@@ -159,14 +308,20 @@ function StackedRows<T>({
   hasMore: boolean;
   loadMore: () => void;
   totalCount: number;
+  layout: "lines" | "row";
+  selection?: DataTableSelection<T>;
+  detail?: DataTableColumn<T>;
+  heading?: DataTableHeading;
 }>) {
   const title = columns.find((c) => c.stacked === "title") ?? columns[0];
   const meta = columns.find((c) => c.stacked === "meta");
+
   const fields = columns.filter(
     (c) => c !== title && c !== meta && c.stacked !== "hidden",
   );
   const clickable = Boolean(onRowClick);
-  const keyboardClickable = clickable && !rowHasInteractiveControls;
+  const keyboardClickable =
+    clickable && !rowHasInteractiveControls && selection === undefined;
 
   if (isLoading) {
     return (
@@ -199,12 +354,25 @@ function StackedRows<T>({
   return (
     <div className="space-y-3">
       <div className={surfaceClass}>
+        {heading ? <SurfaceHeading heading={heading} /> : null}
         <ul className="divide-y divide-gray-100">
           {rows.map((row) => (
             <li
               key={getRowKey(row)}
-              className={`p-4 ${clickable ? "cursor-pointer" : ""} ${rowClassName ? rowClassName(row) : ""}`}
-              onClick={onRowClick ? () => onRowClick(row) : undefined}
+              className={`${layout === "row" ? "px-4 py-2" : "p-4"} ${clickable ? "cursor-pointer" : ""} ${rowClassName ? rowClassName(row) : ""}`}
+              onClick={
+                onRowClick
+                  ? (event) => {
+                      if (
+                        event.target instanceof Element &&
+                        event.target.closest(STACKED_ROW_CONTROL)
+                      ) {
+                        return;
+                      }
+                      onRowClick(row);
+                    }
+                  : undefined
+              }
               onKeyDown={
                 keyboardClickable
                   ? (event) => {
@@ -219,22 +387,35 @@ function StackedRows<T>({
               tabIndex={keyboardClickable ? 0 : undefined}
               role={keyboardClickable ? "button" : undefined}
             >
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="min-w-0">{title?.render(row)}</span>
-                {meta ? (
-                  <span className="shrink-0 text-xs text-gray-500">
-                    {meta.render(row)}
-                  </span>
-                ) : null}
-              </div>
-              {fields.length > 0 && (
-                <dl className="mt-2 space-y-1 text-sm">
-                  {fields.map((col) => (
-                    <StackedField key={col.key} label={col.header}>
-                      {col.render(row)}
-                    </StackedField>
-                  ))}
-                </dl>
+              {layout === "row" ? (
+                <RowStackedRow
+                  row={row}
+                  rowKey={String(getRowKey(row))}
+                  title={title}
+                  meta={meta}
+                  detail={detail}
+                  selection={selection}
+                />
+              ) : (
+                <>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0">{title?.render(row)}</span>
+                    {meta ? (
+                      <span className="shrink-0 text-xs text-gray-500">
+                        {meta.render(row)}
+                      </span>
+                    ) : null}
+                  </div>
+                  {fields.length > 0 && (
+                    <dl className="mt-2 space-y-1 text-sm">
+                      {fields.map((col) => (
+                        <StackedField key={col.key} label={col.header}>
+                          {col.render(row)}
+                        </StackedField>
+                      ))}
+                    </dl>
+                  )}
+                </>
               )}
             </li>
           ))}
@@ -311,9 +492,30 @@ export function DataTable<T>({
   pageSize,
   paginationResetKey,
   stackedOnMobile = false,
+  stackedLayout = "lines",
+  stackedDetailKey,
+  hiddenColumns,
+  selection,
+  heading,
 }: Readonly<DataTableProps<T>>) {
   const clickable = Boolean(onRowClick);
-  const keyboardClickable = clickable && !rowHasInteractiveControls;
+  const shownColumns = useMemo(
+    () =>
+      hiddenColumns && hiddenColumns.size > 0
+        ? columns.filter((col) => !hiddenColumns.has(col.key))
+        : columns,
+    [columns, hiddenColumns],
+  );
+  // Selection checkboxes are controls inside the row, so the row itself must
+  // not also become an ARIA button (see rowHasInteractiveControls).
+  const rowControls = rowHasInteractiveControls || selection !== undefined;
+  const stackedDetail =
+    stackedDetailKey == null
+      ? undefined
+      : columns.find((col) => col.key === stackedDetailKey);
+  const cellCount = shownColumns.length + (selection ? 1 : 0);
+  const selectAllId = useId();
+  const keyboardClickable = clickable && !rowControls;
 
   const [sort, setSort] = useState<{
     key: string;
@@ -341,6 +543,8 @@ export function DataTable<T>({
     return [...rows].sort((a, b) => {
       const av = getValue(a);
       const bv = getValue(b);
+      if (av === null) return bv === null ? 0 : 1;
+      if (bv === null) return -1;
       // Branch on type so mixed string/number columns don't fall back to
       // lexicographic compare and so numeric sort doesn't run through the
       // `<` operator (which coerces undefined to NaN and shuffles rows).
@@ -369,6 +573,17 @@ export function DataTable<T>({
     setVisibleCount((c) => c + (pageSize ?? sortedRows.length));
   }, [pageSize, sortedRows.length]);
 
+  const allRowKeys = useMemo(
+    () => sortedRows.map((row) => String(getRowKey(row))),
+    [sortedRows, getRowKey],
+  );
+  const selectedRowCount = selection
+    ? allRowKeys.filter((key) => selection.selectedKeys.has(key)).length
+    : 0;
+  const allSelected =
+    allRowKeys.length > 0 && selectedRowCount === allRowKeys.length;
+  const someSelected = selectedRowCount > 0 && !allSelected;
+
   return (
     // Flex-Spalte, damit die Tabellenfläche wächst, wenn die Seite ihr Platz
     // gibt: als letzte Fläche einer Tenant-Seite reicht sie dann bis zur
@@ -396,6 +611,9 @@ export function DataTable<T>({
       {stackedOnMobile && (
         <div className="md:hidden" data-testid="data-table-stacked">
           <StackedRows
+            // The phone layout has its own detail choice. Desktop column
+            // visibility must therefore not remove the title or status that
+            // defines every phone row.
             columns={columns}
             rows={visibleRows}
             getRowKey={getRowKey}
@@ -408,6 +626,10 @@ export function DataTable<T>({
             hasMore={hasMore}
             loadMore={loadMore}
             totalCount={sortedRows.length}
+            layout={stackedLayout}
+            selection={selection}
+            detail={stackedDetail}
+            heading={heading}
           />
         </div>
       )}
@@ -424,11 +646,33 @@ export function DataTable<T>({
         }
         data-testid={stackedOnMobile ? "data-table-table" : undefined}
       >
+        {heading ? <SurfaceHeading heading={heading} /> : null}
         <div className="overflow-x-auto">
           <table className={tableClass}>
             <thead>
               <tr className={headRowClass}>
-                {columns.map((col) => {
+                {selection ? (
+                  <th scope="col" className={`${headCellClass} w-12 pr-0!`}>
+                    <label
+                      htmlFor={selectAllId}
+                      className="flex cursor-pointer items-center"
+                    >
+                      <Checkbox
+                        id={selectAllId}
+                        checked={allSelected}
+                        ref={(input: HTMLInputElement | null) => {
+                          if (input) input.indeterminate = someSelected;
+                        }}
+                        disabled={selection.disabled || allRowKeys.length === 0}
+                        onChange={() =>
+                          selection.onChange(allRowKeys, !allSelected)
+                        }
+                      />
+                      <span className="sr-only">Alle auswählen</span>
+                    </label>
+                  </th>
+                ) : null}
+                {shownColumns.map((col) => {
                   const align = alignClass[col.align ?? "left"];
                   const sortable = Boolean(col.sortValue);
                   const active = sort?.key === col.key;
@@ -495,13 +739,13 @@ export function DataTable<T>({
             <tbody>
               {isLoading ? (
                 <SkeletonBodyRows
-                  columnCount={columns.length}
+                  columnCount={cellCount}
                   rows={loadingRowCount}
                 />
               ) : sortedRows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={columns.length}
+                    colSpan={cellCount}
                     className="compact:py-6 px-5 py-10 text-center text-sm text-gray-500"
                   >
                     {emptyState ?? "Keine Einträge vorhanden."}
@@ -510,9 +754,12 @@ export function DataTable<T>({
               ) : (
                 visibleRows.map((row) => {
                   const rowKey = getRowKey(row);
+                  const selected =
+                    selection?.selectedKeys.has(String(rowKey)) ?? false;
                   const rowClasses = [
                     `${bodyRowClass} transition-colors`,
                     clickable ? "cursor-pointer hover:bg-gray-50" : "",
+                    selected ? "bg-gray-50" : "",
                     rowClassName ? rowClassName(row) : "",
                   ]
                     .filter(Boolean)
@@ -538,7 +785,28 @@ export function DataTable<T>({
                       tabIndex={keyboardClickable ? 0 : undefined}
                       role={keyboardClickable ? "button" : undefined}
                     >
-                      {columns.map((col) => {
+                      {selection ? (
+                        <td
+                          className={`${bodyCellClass} w-12 pr-0!`}
+                          // The checkbox toggles the mark; it must not also
+                          // open the row.
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <label className="flex cursor-pointer items-center">
+                            <Checkbox
+                              checked={selected}
+                              disabled={selection.disabled}
+                              onChange={() =>
+                                selection.onChange([String(rowKey)], !selected)
+                              }
+                            />
+                            <span className="sr-only">
+                              {`${selection.rowLabel(row)} auswählen`}
+                            </span>
+                          </label>
+                        </td>
+                      ) : null}
+                      {shownColumns.map((col) => {
                         const align = alignClass[col.align ?? "left"];
                         return (
                           <td
@@ -555,10 +823,7 @@ export function DataTable<T>({
               )}
               {!isLoading && hasMore && (
                 <tr className="border-t border-gray-100">
-                  <td
-                    colSpan={columns.length}
-                    className="px-5 py-3 text-center"
-                  >
+                  <td colSpan={cellCount} className="px-5 py-3 text-center">
                     <Button
                       type="button"
                       variant="surface"

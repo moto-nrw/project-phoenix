@@ -1,5 +1,6 @@
-import { useCallback, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -14,9 +15,11 @@ const logger = createLogger({ component: "HomeStartOwnBlock" });
  * Knöpfe, die dasselbe tun, dürfen nicht an zwei Stellen verschieden
  * scheitern.
  *
- * `onFailure` lädt die Tagesdaten neu: scheitert das Starten, hat meist ein
- * anderer den Block schon gestartet oder das Zeitfenster ist vorbei, und die
- * Anzeige soll das zeigen statt eines Knopfs, der wieder scheitert.
+ * Ein Fehler kommt als Toast über den gemeinsamen Anzeigeweg (#2517), mit
+ * Wiederholen, wenn ein zweiter Versuch helfen kann. `onFailure` lädt die
+ * Tagesdaten neu: scheitert das Starten, hat meist ein anderer den Block
+ * schon gestartet oder das Zeitfenster ist vorbei, und die Anzeige soll das
+ * zeigen statt eines Knopfs, der wieder scheitert.
  */
 export function useStartOwnBlock({
   onFailure,
@@ -24,13 +27,15 @@ export function useStartOwnBlock({
   readonly onFailure: () => Promise<unknown>;
 }) {
   const router = useTenantRouter();
+  const { show } = useApiErrorDisplay();
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const startRef = useRef<(instance: PlannedTimetableInstance) => void>(
+    () => undefined,
+  );
 
   const start = useCallback(
     async (instance: PlannedTimetableInstance) => {
       setBusyId(instance.id);
-      setError(null);
       try {
         const result = await timetableOperationsApi.start(instance.id);
         router.push(`/active-supervisions?session=${result.activeGroupId}`);
@@ -40,16 +45,22 @@ export function useStartOwnBlock({
           error: err instanceof Error ? err.message : String(err),
           status: errorStatus(err),
         });
-        setError(
-          "Der Block konnte nicht gestartet werden. Bitte noch einmal versuchen.",
-        );
+        void show(err, {
+          object: "das Starten des Blocks",
+          retry: () => startRef.current(instance),
+        });
         await onFailure();
       } finally {
         setBusyId(null);
       }
     },
-    [onFailure, router],
+    [onFailure, router, show],
   );
 
-  return { start, busyId, error };
+  // Wiederholen startet mit dem aktuellen Stand des Hooks.
+  useLayoutEffect(() => {
+    startRef.current = (instance) => void start(instance);
+  });
+
+  return { start, busyId };
 }

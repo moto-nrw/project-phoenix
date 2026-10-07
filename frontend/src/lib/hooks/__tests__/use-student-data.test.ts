@@ -108,10 +108,11 @@ describe("useStudentData", () => {
     });
 
     it("returns error state on fetch failure", () => {
+      const loadError = new Error("Network error");
       vi.mocked(useSWRAuth).mockReturnValue({
         data: null,
         isLoading: false,
-        error: new Error("Network error"),
+        error: loadError,
         mutate: vi.fn(() => Promise.resolve()),
         isValidating: false,
       });
@@ -119,7 +120,8 @@ describe("useStudentData", () => {
       const { result } = renderHook(() => useStudentData("123"));
 
       expect(result.current.loading).toBe(false);
-      expect(result.current.error).toBe("Fehler beim Laden der Kinderdaten.");
+      // The raw failure goes to the page's shared error path (#2513).
+      expect(result.current.error).toBe(loadError);
     });
 
     it("provides refreshData function", () => {

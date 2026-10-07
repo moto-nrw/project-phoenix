@@ -1,3 +1,4 @@
+import { apiErrorFromResponse } from "~/lib/api-error";
 import { fetchWithAuth } from "~/lib/fetch-with-auth";
 
 interface Envelope<T> {
@@ -25,7 +26,7 @@ async function request<T>(method: "GET" | "POST", suffix = ""): Promise<T> {
     { method, cache: "no-store" },
   );
   if (!response.ok) {
-    throw new Error(`Request feed failed: ${response.status}`);
+    throw await apiErrorFromResponse(response, "request feed failed");
   }
   return unwrap((await response.json()) as T | Envelope<T>);
 }

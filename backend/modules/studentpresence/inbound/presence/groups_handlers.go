@@ -20,7 +20,7 @@ func (rs *Resource) listActiveGroups(w http.ResponseWriter, r *http.Request) {
 
 	groups, err := rs.listPresenceLiveGroups(r.Context(), queryOptions)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -129,7 +129,7 @@ func (rs *Resource) getActiveGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidActiveGroupID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidActiveGroupID)))
 		return
 	}
 
@@ -148,7 +148,7 @@ func (rs *Resource) getActiveGroupsByRoom(w http.ResponseWriter, r *http.Request
 	// Parse room ID from URL
 	roomID, err := common.ParseIDParam(r, "roomId")
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid room ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID")))
 		return
 	}
 
@@ -173,7 +173,7 @@ func (rs *Resource) getActiveGroupsByGroup(w http.ResponseWriter, r *http.Reques
 	// Parse group ID from URL
 	groupID, err := common.ParseIDParam(r, "groupId")
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidGroupID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidGroupID)))
 		return
 	}
 
@@ -198,7 +198,7 @@ func (rs *Resource) getActiveGroupVisits(w http.ResponseWriter, r *http.Request)
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidActiveGroupID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidActiveGroupID)))
 		return
 	}
 
@@ -222,7 +222,7 @@ func (rs *Resource) getActiveGroupVisits(w http.ResponseWriter, r *http.Request)
 func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidActiveGroupID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidActiveGroupID)))
 		return
 	}
 
@@ -246,7 +246,7 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 
 	results, err := rs.Operations.SessionVisitsWithDisplay(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -262,7 +262,7 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 
 	attendanceStatuses, err := rs.fetchAttendanceStatusesForVisits(r, results, access)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -275,19 +275,19 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 func (rs *Resource) extractStaffFromRequest(w http.ResponseWriter, r *http.Request) (*StaffIdentity, error) {
 	principal, principalErr := common.CurrentPrincipal(r.Context())
 	if principalErr != nil {
-		common.RenderError(w, r, ErrorUnauthorized(errors.New("account not found")))
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("account not found")))
 		return nil, errors.New("account not found")
 	}
 
 	person, err := rs.PersonService.FindByAccountID(r.Context(), principal.AccountID())
 	if err != nil || person == nil {
-		common.RenderError(w, r, ErrorUnauthorized(errors.New("account not found")))
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("account not found")))
 		return nil, errors.New("account not found")
 	}
 
 	staff, err := rs.PersonService.GetStaffByPersonID(r.Context(), person.ID)
 	if err != nil || staff == nil {
-		common.RenderError(w, r, ErrorForbidden(errors.New("user is not a staff member")))
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("user is not a staff member")))
 		return nil, errors.New("user is not a staff member")
 	}
 
@@ -299,7 +299,7 @@ func (rs *Resource) verifyStaffSupervisionAccess(w http.ResponseWriter, r *http.
 	day := calendar.TodayDate().String()
 	supervisions, err := rs.presenceSupervisionResponses(r.Context(), studentpresence.GroupSupervisionFilter{StaffID: &staffID, ActiveOn: &day}, "GetStaffActiveSupervisions")
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return err
 	}
 
@@ -312,7 +312,7 @@ func (rs *Resource) verifyStaffSupervisionAccess(w http.ResponseWriter, r *http.
 	}
 
 	if !hasPermission {
-		common.RenderError(w, r, ErrorForbidden(errors.New("not authorized to view this group")))
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("not authorized to view this group")))
 		return errors.New("not authorized")
 	}
 
@@ -444,7 +444,7 @@ func (rs *Resource) getActiveGroupSupervisors(w http.ResponseWriter, r *http.Req
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidActiveGroupID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidActiveGroupID)))
 		return
 	}
 
@@ -463,7 +463,7 @@ func (rs *Resource) createActiveGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &ActiveGroupRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -502,14 +502,14 @@ func (rs *Resource) updateActiveGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidActiveGroupID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidActiveGroupID)))
 		return
 	}
 
 	// Parse request
 	req := &ActiveGroupRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -552,7 +552,7 @@ func (rs *Resource) deleteActiveGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidActiveGroupID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidActiveGroupID)))
 		return
 	}
 
@@ -570,7 +570,7 @@ func (rs *Resource) endActiveGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidActiveGroupID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidActiveGroupID)))
 		return
 	}
 

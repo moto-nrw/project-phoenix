@@ -4,6 +4,7 @@
 // the permission (like the time-accounts overview) so no request fires
 // without it.
 
+import { apiErrorFromResponse } from "./api-error";
 import { sessionFetch } from "./session-cache";
 
 // ─── Wire shapes (backend snake_case) ────────────────────────────────────────
@@ -127,7 +128,7 @@ export const staffAuditLogService = {
       `/api/staff/time-tracking/audit-log${suffix ? `?${suffix}` : ""}`,
     );
     if (!response.ok) {
-      throw new Error("Änderungsprotokoll konnte nicht geladen werden");
+      throw await apiErrorFromResponse(response, "Failed to fetch audit log");
     }
     const json = (await response.json()) as { data: BackendAuditLogPage };
     return {

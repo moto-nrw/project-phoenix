@@ -62,6 +62,7 @@ describe("student-care-plan-api", () => {
 
       expect(fetch).toHaveBeenCalledWith(
         "/api/timetable/student/42/day?date=2026-07-21",
+        undefined,
       );
       expect(day.studentId).toBe("42");
       expect(day.date).toBe("2026-07-21");
@@ -167,6 +168,7 @@ describe("student-care-plan-api", () => {
 
       expect(fetch).toHaveBeenCalledWith(
         "/api/timetable/student/42/week?from=2026-07-20&to=2026-07-24",
+        undefined,
       );
       expect(week.studentId).toBe("42");
       expect(week.from).toBe("2026-07-20");

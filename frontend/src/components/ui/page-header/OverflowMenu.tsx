@@ -70,6 +70,12 @@ interface OverflowMenuCheckboxItem {
   readonly checked: boolean;
   readonly onClick: () => void;
   readonly disabled?: boolean;
+  /**
+   * Leaves the menu open after the toggle. For a list of switches that are
+   * set together (which table columns to show): closing after every row
+   * would make the user reopen the menu once per column.
+   */
+  readonly keepOpen?: boolean;
 }
 
 export type OverflowMenuEntry =
@@ -381,6 +387,11 @@ export function OverflowMenu({
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
         if (item.disabled) return;
+        if ("kind" in item && item.kind === "checkbox" && item.keepOpen) {
+          // The entry stays mounted, so focus stays on it for the next key.
+          item.onClick();
+          return;
+        }
         setIsOpen(false);
         // The focused entry unmounts with the menu; the keyboard continues
         // from the trigger. An action that opens a dialog takes it from there.
@@ -473,7 +484,9 @@ export function OverflowMenu({
                       disabled={entry.disabled}
                       onClick={() => {
                         if (entry.disabled) return;
-                        setIsOpen(false);
+                        if (!(entry.kind === "checkbox" && entry.keepOpen)) {
+                          setIsOpen(false);
+                        }
                         entry.onClick();
                       }}
                       onKeyDown={onItemKey(entry)}

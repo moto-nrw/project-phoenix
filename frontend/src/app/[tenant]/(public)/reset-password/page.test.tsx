@@ -6,7 +6,11 @@ import {
   act,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import ResetPasswordPage from "./page";
+
+const ERROR_OBJECT = "das Zurücksetzen des Passworts";
 
 const mockPush = vi.fn();
 
@@ -88,7 +92,7 @@ describe("ResetPasswordPage", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          "Ungültiger oder fehlender Reset-Token. Bitte fordern Sie einen neuen Link an.",
+          "Der Link ist unvollständig. Bitte fordern Sie einen neuen Link an.",
         ),
       ).toBeInTheDocument();
     });
@@ -353,11 +357,13 @@ describe("ResetPasswordPage", () => {
     });
   });
 
-  it("handles 410 expired token error", async () => {
-    vi.mocked(confirmPasswordReset).mockRejectedValue({
-      status: 410,
-      message: "Token expired",
-    });
+  // The backend answers an expired or used link with its own code (#2517).
+  it("handles an expired or used link", async () => {
+    vi.mocked(confirmPasswordReset).mockRejectedValue(
+      new ApiError("invalid or expired reset token", 400, {
+        code: "identity.password_reset_link_invalid",
+      }),
+    );
 
     render(<ResetPasswordPage />);
 
@@ -382,17 +388,19 @@ describe("ResetPasswordPage", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          "Dieser Passwort-Reset-Link ist abgelaufen. Bitte fordere einen neuen Link an.",
+          catalogText("identity.password_reset_link_invalid", ERROR_OBJECT),
         ),
       ).toBeInTheDocument();
     });
   });
 
-  it("handles 404 not found error", async () => {
-    vi.mocked(confirmPasswordReset).mockRejectedValue({
-      status: 404,
-      message: "Not found",
-    });
+  it("handles a password the backend finds too weak", async () => {
+    vi.mocked(confirmPasswordReset).mockRejectedValue(
+      new ApiError("password too weak", 400, {
+        code: "identity.password_too_weak",
+        errors: [{ field: "new_password", reason: "too weak" }],
+      }),
+    );
 
     render(<ResetPasswordPage />);
 
@@ -417,16 +425,16 @@ describe("ResetPasswordPage", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          "Wir konnten diesen Passwort-Reset-Link nicht finden. Bitte fordere einen neuen Link an.",
+          catalogText("identity.password_too_weak", ERROR_OBJECT),
         ),
       ).toBeInTheDocument();
     });
   });
 
   it("handles generic server error", async () => {
-    vi.mocked(confirmPasswordReset).mockRejectedValue({
-      status: 500,
-    });
+    vi.mocked(confirmPasswordReset).mockRejectedValue(
+      new ApiError("boom", 500),
+    );
 
     render(<ResetPasswordPage />);
 
@@ -450,9 +458,7 @@ describe("ResetPasswordPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(
-          "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-        ),
+        screen.getByText(catalogText("general.server", ERROR_OBJECT)),
       ).toBeInTheDocument();
     });
   });

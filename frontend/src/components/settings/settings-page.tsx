@@ -6,15 +6,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createLogger } from "~/lib/logger";
 import {
   applyOptimisticSchemaUpdate,
-  setSettingValue,
-  resetSettingValue,
+  clearSettingValue,
+  saveSettingValue,
 } from "~/lib/settings-api";
 import { notifySettingsChanged } from "~/lib/settings-broadcast";
 import { TENANT_RESOLVE_AFFECTING_KEYS } from "~/lib/settings-keys";
 import type { SettingsSchema, SchemaTab } from "~/lib/settings-api";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Skeleton } from "~/components/ui/skeleton";
 import { SettingsCategory } from "./settings-category";
@@ -34,6 +34,7 @@ import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useNFCEnabled } from "~/lib/tenant-context";
 import { useTenantMutate } from "~/lib/swr/hooks";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 
 // Settings whose value affects the supervision context (sidebar / mobile nav)
@@ -100,8 +101,8 @@ interface SettingsTabContentProps {
   /** Every tab of the page; the search box looks across all of them. */
   readonly allTabs: readonly SchemaTab[];
   readonly highlightKey?: string | null;
-  readonly onSave: (key: string, value: unknown) => Promise<string | null>;
-  readonly onReset: (key: string) => Promise<string | null>;
+  readonly onSave: (key: string, value: unknown) => Promise<void>;
+  readonly onReset: (key: string) => Promise<void>;
   readonly onSchemaRefresh: () => void;
 }
 
@@ -318,7 +319,12 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
     isLoading,
     mutate: revalidate,
   } = useSettingsSchema();
-  const [saveError, setSaveError] = useState<string | null>(null);
+  // Ladefehler vor Ort mit Wiederholen (#2517), nie als Leerzustand.
+  const loadError = useSwrLoadError(
+    fetchError,
+    "die Liste der Einstellungen",
+    () => revalidate(),
+  );
 
   // Reminders settings decide whether the header reminders bell shows at all.
   // After saving/resetting one, revalidate THIS tenant's /api/reminders cache
@@ -345,19 +351,11 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
     [revalidate],
   );
 
+  // Save and reset throw the ApiError of a failed request; the field shows
+  // it on the shared error path (#2517).
   const handleSave = useCallback(
-    async (key: string, value: unknown): Promise<string | null> => {
-      const errorMsg = await setSettingValue(key, value);
-      if (errorMsg) {
-        if (
-          errorMsg.startsWith("Netzwerkfehler") ||
-          errorMsg.startsWith("Einstellung konnte nicht")
-        ) {
-          setSaveError(errorMsg);
-        }
-        return errorMsg;
-      }
-      setSaveError(null);
+    async (key: string, value: unknown): Promise<void> => {
+      await saveSettingValue(key, value);
       logger.info("setting_value_saved", { key });
       // Tenant-resolve-affecting keys: refresh the RSC tree so the cached
       // layout picks up the new value (BroadcastChannel only reaches OTHER
@@ -371,19 +369,13 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
         void refreshSupervision({ force: true });
       }
       revalidateRemindersIfNeeded(key);
-      return null;
     },
     [applyOptimistic, refreshSupervision, revalidateRemindersIfNeeded, router],
   );
 
   const handleReset = useCallback(
-    async (key: string): Promise<string | null> => {
-      const errorMsg = await resetSettingValue(key);
-      if (errorMsg) {
-        setSaveError(errorMsg);
-        return errorMsg;
-      }
-      setSaveError(null);
+    async (key: string): Promise<void> => {
+      await clearSettingValue(key);
       logger.info("setting_value_reset", { key });
       if (TENANT_RESOLVE_AFFECTING_KEYS.has(key)) {
         router.refresh();
@@ -396,7 +388,6 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
         void refreshSupervision({ force: true });
       }
       revalidateRemindersIfNeeded(key);
-      return null;
     },
     [refreshSupervision, revalidate, revalidateRemindersIfNeeded, router],
   );
@@ -410,27 +401,12 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
     return <SettingsSkeleton />;
   }
 
-  // Server error on initial fetch — show retry.
+  // Ladefehler: bis der Katalogtext da ist, bleibt das Skelett stehen.
   if (fetchError && !schema) {
-    return (
-      <Alert
-        type="error"
-        message={
-          fetchError instanceof Error
-            ? fetchError.message
-            : "Einstellungen konnten nicht geladen werden"
-        }
-        action={
-          <Button
-            type="button"
-            variant="surface"
-            size="md"
-            onClick={() => void revalidate()}
-          >
-            Erneut versuchen
-          </Button>
-        }
-      />
+    return loadError ? (
+      <LoadErrorAlert error={loadError} />
+    ) : (
+      <SettingsSkeleton />
     );
   }
 
@@ -452,31 +428,6 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
 
   return (
     <>
-      {saveError && (
-        <div className="relative mb-4">
-          <Alert type="error" message={saveError} />
-          <button
-            type="button"
-            onClick={() => setSaveError(null)}
-            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-4 -translate-y-1/2"
-            aria-label="Fehler schließen"
-          >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </div>
-      )}
       <SettingsTabContent
         tab={tab}
         allTabs={schemaTabsForPage(schema, nfcEnabled)}

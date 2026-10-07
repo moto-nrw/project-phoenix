@@ -1,15 +1,21 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import deMessages from "~/i18n/messages/de.json";
-import { listMessageThreads, listMyChildren } from "~/lib/parent-api";
+import {
+  ParentApiError,
+  listMessageThreads,
+  listMyChildren,
+} from "~/lib/parent-api";
+import { catalogText } from "~/test/error-catalog-text";
 import { ParentMessagesPage } from "./parent-messages-page";
 
 vi.mock("~/lib/parent-url", () => ({
   parentPath: (path: string) => path,
 }));
 
-vi.mock("~/lib/parent-api", () => ({
+vi.mock("~/lib/parent-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/parent-api")>()),
   listMyChildren: vi.fn(),
   listMessageThreads: vi.fn(),
 }));
@@ -211,5 +217,28 @@ describe("ParentMessagesPage", () => {
     expect(readReceipt.className).toContain("text-moto-blue");
     expect(screen.getByText("Sie: Danke für die Rückmeldung.")).toBeVisible();
     expect(screen.queryByText(/Zu .* ·/)).not.toBeInTheDocument();
+  });
+
+  // #2518: der Ladefehler steht mit Katalogtext und Wiederholen an der Stelle
+  // der Liste, nie der Satz vom Server.
+  it("zeigt einen Ladefehler mit Wiederholen statt einer leeren Seite", async () => {
+    mockedChildren
+      .mockRejectedValueOnce(
+        new ParentApiError("db kaputt", 503, "general.unavailable"),
+      )
+      .mockResolvedValueOnce([felix]);
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Unterhaltungen"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/db kaputt/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(await screen.findByTestId("conversation")).toHaveTextContent("42");
+    expect(mockedChildren).toHaveBeenCalledTimes(2);
   });
 });

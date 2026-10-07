@@ -156,8 +156,9 @@ refresh, tenant switching, and wrong-portal rejection for affected flows.
 `[tenant]/layout.tsx` resolves slugs through `/auth/tenant/resolve?slug=...`
 (cached five minutes). `POST /auth/switch-tenant` returns a tenant-session JWT
 for the target school, not a `scope=school` portal token.
-The backend string `"account does not have access to this tenant"` is mapped in
-`frontend/src/lib/tenant-api.ts`; coordinate producer and consumer changes.
+A switch to a school the account cannot access answers 401 with the code
+`identity.tenant_access_denied`, which `frontend/src/lib/tenant-api.ts` reads;
+coordinate producer and consumer changes.
 
 Class-day is mounted only at `/school/class-day`; `/api/class-day` and the
 tenant `/klassen` page were removed. Its frontend uses `app/school/*`, shared

@@ -1,7 +1,11 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { ApiError } from "~/lib/api-error";
 import type { Announcement } from "~/lib/parent-announcements-api";
+import { catalogText } from "~/test/error-catalog-text";
 import {
   AnnouncementReminderDialog,
   reminderError,
@@ -30,11 +34,12 @@ vi.mock("~/components/ui/confirm-delete-modal", () => ({
     isOpen: boolean;
     title: string;
     onConfirm: () => Promise<void> | void;
-    error?: string;
+    error?: FormErrorInput;
   }) =>
     isOpen ? (
+      // Wie der echte Dialog: der Fehler steht im Dialog.
       <div role="dialog" aria-label={title}>
-        {error ? <p role="alert">{error}</p> : null}
+        <FormErrorAlert message={error} />
         <button type="button" onClick={() => void onConfirm()}>
           Entfernen
         </button>
@@ -217,14 +222,21 @@ describe("AnnouncementReminderDialog (#3162)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Bitte einen Tag für die Erinnerung wählen.",
+      "Bitte prüfen Sie die markierten Felder.",
     );
+    // Der Hinweis steht am Tag, das Feld ist markiert.
+    expect(
+      screen.getByText("Bitte wählen Sie einen Tag für die Erinnerung."),
+    ).toBeInTheDocument();
     expect(updateMock).not.toHaveBeenCalled();
   });
 
-  it("shows the backend error and stays open", async () => {
+  // #2517: Katalogtext für den Code statt des Serversatzes.
+  it("shows the catalog text and stays open", async () => {
     updateMock.mockRejectedValueOnce(
-      new Error("Die Erinnerung wurde bereits verschickt."),
+      new ApiError("reminder already sent", 409, {
+        code: "communication.announcement_reminder_sent",
+      }),
     );
     const onClose = vi.fn();
     render(
@@ -238,8 +250,12 @@ describe("AnnouncementReminderDialog (#3162)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Die Erinnerung wurde bereits verschickt.",
+      catalogText(
+        "communication.announcement_reminder_sent",
+        "das Speichern der Erinnerung",
+      ),
     );
+    expect(screen.queryByText(/already sent/)).not.toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
   });
 });

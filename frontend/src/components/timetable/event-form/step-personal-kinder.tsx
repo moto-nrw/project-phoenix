@@ -3,19 +3,27 @@
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import type { FormError } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Field } from "./field";
-import type {
-  EventFormState,
-  PersonOption,
-  SourceFilterMode,
-  WeekdayRosterState,
+import {
+  conflictWarningText,
+  shiftCoverageWarningText,
+  type EventFormState,
+  type PersonOption,
+  type SourceFilterMode,
+  type WeekdayRosterState,
 } from "./form-model";
 import { MultiSelectField } from "./multi-select-field";
 import { WeekdayRosterSection } from "./weekday-roster-section";
-import type { GroupOption } from "./use-event-form";
+import {
+  CONFLICT_CHECK_FAILED_HINT,
+  COVERAGE_CHECK_FAILED_HINT,
+  type GroupOption,
+} from "./use-event-form";
 import { Checkbox } from "~/components/ui/checkbox";
 import type {
   ConflictWarningItem,
@@ -47,11 +55,13 @@ export interface StepPersonalKinderProps {
   staff: PersonOption[];
   loadingRefs: boolean;
   loadingStudents: boolean;
-  studentLoadError: string | null;
+  /** The Kinderliste failed: the roster stays read-only and unchanged. */
+  studentLoadFailed: boolean;
+  /** Its text from the shared load error path (null while it loads). */
+  studentLoadError: FormError | null;
   loadingStaff: boolean;
-  staffLoadError: string | null;
-  retryStudentLoad: () => Promise<void>;
-  retryStaffLoad: () => Promise<void>;
+  staffLoadFailed: boolean;
+  staffLoadError: FormError | null;
   expanded: boolean;
   isSeriesFlow: boolean;
   gradeLevelMax: number | undefined;
@@ -72,7 +82,7 @@ export interface StepPersonalKinderProps {
   targetCohortButtonLabel: string;
   addTargetCohort: () => void;
   offeringSources: OfferingSourceOption[] | null;
-  offeringSourcesError: string | null;
+  offeringSourcesError: FormError | null;
   sourcePhaseLockId: string | null;
   sourceGradeOptions: number[];
   sourceGradeCounts: Record<number, number>;
@@ -83,7 +93,8 @@ export interface StepPersonalKinderProps {
   /** Die genaue Kinderzahl steht noch aus (Anfrage läuft). */
   sourceCountsPending: boolean;
   /** Die Kinder der Quelle konnten nicht geladen werden. */
-  sourceCountsError: string | null;
+  sourceCountsFailed: boolean;
+  sourceCountsError: FormError | null;
   /** Namentliche Abweichung zur bisher manuell gepflegten Kinderliste. */
   sourceRosterDiff: { added: string[]; removed: string[] } | null;
   /** Advisory when series start is before the offering phase service start. */
@@ -96,7 +107,8 @@ export interface StepPersonalKinderProps {
   conflictWarnings: ConflictWarningItem[];
   coverageWarnings: ShiftCoverageWarningItem[];
   coverageWarningCount: number;
-  coverageCheckError: string | null;
+  coverageCheckFailed: boolean;
+  conflictCheckFailed: boolean;
   requiredStaffTouched: React.RefObject<boolean>;
   staffRosterTouched: React.RefObject<boolean>;
   /** Per-weekday roster controls (#2129); only rendered in the series flow. */
@@ -123,11 +135,11 @@ export function StepPersonalKinder({
   staff,
   loadingRefs,
   loadingStudents,
+  studentLoadFailed,
   studentLoadError,
   loadingStaff,
+  staffLoadFailed,
   staffLoadError,
-  retryStudentLoad,
-  retryStaffLoad,
   expanded,
   isSeriesFlow,
   gradeLevelMax,
@@ -148,6 +160,7 @@ export function StepPersonalKinder({
   sourceClassCounts,
   sourceFilteredCount,
   sourceCountsPending,
+  sourceCountsFailed,
   sourceCountsError,
   sourceRosterDiff,
   sourcePhaseKidsFromWarning,
@@ -159,7 +172,8 @@ export function StepPersonalKinder({
   conflictWarnings,
   coverageWarnings,
   coverageWarningCount,
-  coverageCheckError,
+  coverageCheckFailed,
+  conflictCheckFailed,
   requiredStaffTouched,
   staffRosterTouched,
   activeRosterWeekday,
@@ -168,6 +182,8 @@ export function StepPersonalKinder({
   setWeekdayRoster,
   applyActiveWeekdayRosterToAll,
 }: Readonly<StepPersonalKinderProps>) {
+  // Ein Dienst (#3822) hat nur Personal: keine Zielgruppe, keine Kinder.
+  const isDuty = form.type === "duty";
   const hasOfferingSource =
     isSeriesFlow &&
     form.targetGroupType === "angebot" &&
@@ -195,8 +211,8 @@ export function StepPersonalKinder({
   const showWeekdayRoster =
     isSeriesFlow &&
     !loadingStaff &&
-    !staffLoadError &&
-    (hasOfferingSource || (!loadingStudents && !studentLoadError));
+    !staffLoadFailed &&
+    (hasOfferingSource || (!loadingStudents && !studentLoadFailed));
   const usePerWeekdayRoster =
     showWeekdayRoster && form.perWeekdayRoster && rosterWeekdays.length >= 2;
   const preserveUnavailableWeekdayRoster =
@@ -213,19 +229,15 @@ export function StepPersonalKinder({
         message="Kinderliste wird geladen … Die bestehende Kinderzuordnung bleibt beim Speichern unverändert."
       />
     );
-  } else if (studentLoadError) {
+  } else if (studentLoadFailed) {
+    // Text, Wiederholen und Vorgangskennung kommen vom gemeinsamen Ladeweg;
+    // der Satz darunter sagt, was das für das Speichern heißt.
     studentRosterField = (
       <div className="flex flex-col gap-2">
-        <Alert type="warning" message={studentLoadError} />
-        <Button
-          type="button"
-          variant="outline"
-          size="compact"
-          className="self-start"
-          onClick={() => void retryStudentLoad()}
-        >
-          Kinder erneut laden
-        </Button>
+        <LoadErrorAlert error={studentLoadError} />
+        <p className="text-xs text-gray-500">
+          Die Kinderzuordnung bleibt beim Speichern unverändert.
+        </p>
       </div>
     );
   } else {
@@ -252,19 +264,13 @@ export function StepPersonalKinder({
         message="Personalliste wird geladen … Die bestehende Personalzuordnung bleibt beim Speichern unverändert."
       />
     );
-  } else if (staffLoadError) {
+  } else if (staffLoadFailed) {
     staffRosterField = (
       <div className="flex flex-col gap-2">
-        <Alert type="warning" message={staffLoadError} />
-        <Button
-          type="button"
-          variant="outline"
-          size="compact"
-          className="self-start"
-          onClick={() => void retryStaffLoad()}
-        >
-          Personal erneut laden
-        </Button>
+        <LoadErrorAlert error={staffLoadError} />
+        <p className="text-xs text-gray-500">
+          Die Personalzuordnung bleibt beim Speichern unverändert.
+        </p>
       </div>
     );
   } else {
@@ -309,7 +315,7 @@ export function StepPersonalKinder({
 
   return (
     <>
-      {expanded && isSeriesFlow && (
+      {expanded && isSeriesFlow && !isDuty && (
         <div className="flex flex-col gap-1">
           <span className="text-xs font-semibold text-gray-700">
             Zielgruppe
@@ -384,18 +390,18 @@ export function StepPersonalKinder({
                     label: schoolClass,
                   }))}
                   onChange={(next) => update("targetSchoolClasses", next)}
-                  disabled={loadingStudents || studentLoadError !== null}
+                  disabled={loadingStudents || studentLoadFailed}
                   emptyLabel="Klassen wählen ..."
                   searchable
                 />
               </Field>
-              {loadingStudents || studentLoadError ? (
+              {loadingStudents || studentLoadFailed ? (
                 <p
                   id="event_target_school_class_availability"
                   className="mt-1 text-xs text-gray-500"
                   role="status"
                 >
-                  {studentLoadError
+                  {studentLoadFailed
                     ? "Die Klassenliste ist nicht verfügbar. Eine bestehende Klassen-Zielgruppe bleibt unverändert."
                     : "Klassenliste wird geladen …"}
                 </p>
@@ -481,9 +487,7 @@ export function StepPersonalKinder({
                     </p>
                   )}
               </Field>
-              {offeringSourcesError ? (
-                <Alert type="warning" message={offeringSourcesError} />
-              ) : null}
+              <LoadErrorAlert error={offeringSourcesError} />
               {form.sourceCareOfferingIds.length === 0 && (
                 <Alert
                   type="info"
@@ -569,7 +573,7 @@ export function StepPersonalKinder({
                           <p className="text-xs text-gray-500">
                             {sourceCountsPending
                               ? "Klassen werden geladen ..."
-                              : sourceCountsError
+                              : sourceCountsFailed
                                 ? "Die Klassen konnten nicht geladen werden."
                                 : "Für die gewählten Angebote ist bei keinem Kind eine Klasse hinterlegt."}
                           </p>
@@ -585,12 +589,8 @@ export function StepPersonalKinder({
                       </p>
                     ) : null}
                   </fieldset>
-                  {sourceCountsError ? (
-                    <Alert
-                      type="warning"
-                      message={sourceCountsError}
-                      announce="polite"
-                    />
+                  {sourceCountsFailed ? (
+                    <LoadErrorAlert error={sourceCountsError} />
                   ) : sourceCountsPending ? (
                     <p className="text-xs text-gray-600" role="status">
                       Die Kinderzahl wird ermittelt ...
@@ -661,7 +661,7 @@ export function StepPersonalKinder({
                 />
               </div>
             )}
-          {targetCohort.label && !loadingStudents && !studentLoadError ? (
+          {targetCohort.label && !loadingStudents && !studentLoadFailed ? (
             <Button
               type="button"
               variant="outline"
@@ -688,7 +688,7 @@ export function StepPersonalKinder({
           setPerWeekdayRoster={setPerWeekdayRoster}
           setWeekdayRoster={setWeekdayRoster}
           applyActiveWeekdayToAll={applyActiveWeekdayRosterToAll}
-          childrenFromSource={hasOfferingSource}
+          childrenFromSource={hasOfferingSource || isDuty}
           staff={staff}
           students={students}
           studentBulkOptions={studentBulkOptions}
@@ -705,9 +705,10 @@ export function StepPersonalKinder({
                 : "Die wochentagsspezifischen Zuordnungen können erst bearbeitet werden, wenn Personal- und Kinderliste vollständig geladen sind. Die bestehenden Zuordnungen bleiben beim Speichern unverändert."
             }
           />
-          {(loadingStaff || staffLoadError) && staffRosterField}
+          {(loadingStaff || staffLoadFailed) && staffRosterField}
           {!hasOfferingSource &&
-            (loadingStudents || studentLoadError) &&
+            !isDuty &&
+            (loadingStudents || studentLoadFailed) &&
             studentRosterField}
         </div>
       )}
@@ -728,17 +729,19 @@ export function StepPersonalKinder({
             requiredStaffTouched.current = true;
             update("requiredStaff", event.target.value);
           }}
-          placeholder="automatisch aus Betreuungsschlüssel"
+          placeholder={
+            isDuty ? "z. B. 2" : "automatisch aus Betreuungsschlüssel"
+          }
           controlSize="compact"
         />
         <p className="mt-1 text-xs text-gray-500">
-          Leer = automatisch: Es gilt der Wert der Terminreihe, sonst die
-          Berechnung aus dem Betreuungsschlüssel (Kinderzahl). Eine Zahl legt
-          den Bedarf fest und überschreibt beides.
+          {isDuty
+            ? "So viele Personen braucht der Dienst. Sind weniger da, zeigt der Vertretungsplan eine Lücke."
+            : "Leer = automatisch: Es gilt der Wert der Terminreihe, sonst die Berechnung aus dem Betreuungsschlüssel (Kinderzahl). Eine Zahl legt den Bedarf fest und überschreibt beides."}
         </p>
       </Field>
 
-      {isSeriesFlow && (
+      {isSeriesFlow && !isDuty && (
         <Field
           label="Maximale Teilnehmerzahl"
           htmlFor="event_max_participants"
@@ -768,7 +771,7 @@ export function StepPersonalKinder({
         </Field>
       )}
 
-      {hasOfferingSource ? (
+      {isDuty ? null : hasOfferingSource ? (
         <div className="flex flex-col gap-1">
           <span className="text-xs font-semibold text-gray-700">Kinder</span>
           <p className="text-xs text-gray-500">
@@ -784,8 +787,9 @@ export function StepPersonalKinder({
       )}
 
       {(conflictWarnings.length > 0 ||
+        conflictCheckFailed ||
         coverageWarnings.length > 0 ||
-        coverageCheckError) && (
+        coverageCheckFailed) && (
         // Advisory pre-save hints (QA M7): never disables Speichern.
         <div className="flex flex-col gap-2 border-t border-gray-200 pt-3">
           <p className="sr-only" aria-live="polite">
@@ -795,10 +799,17 @@ export function StepPersonalKinder({
             <Alert
               key={`${warning.kind}-${warning.resourceId}-${warning.conflictingInstanceId}`}
               type="warning"
-              message={`Hinweis: ${warning.message}`}
+              message={`Hinweis: ${conflictWarningText(warning, staff, students)}`}
               announce="off"
             />
           ))}
+          {conflictCheckFailed && (
+            <Alert
+              type="warning"
+              message={`Hinweis: ${CONFLICT_CHECK_FAILED_HINT}`}
+              announce="off"
+            />
+          )}
           {coverageWarningCount > 0 && (
             <Alert
               type="warning"
@@ -811,7 +822,7 @@ export function StepPersonalKinder({
               key={`shift-coverage-example-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${warning.uncoveredEndTime}`}
               className="border-moto-amber/20 bg-moto-amber/5 rounded-lg border px-3 py-2 text-sm text-gray-700"
             >
-              {warning.message}
+              {shiftCoverageWarningText(warning)}
             </p>
           ))}
           {coverageWarningCount > 3 && (
@@ -825,7 +836,7 @@ export function StepPersonalKinder({
                     key={`shift-coverage-detail-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${warning.uncoveredEndTime}`}
                     className="border-moto-amber/20 border-t pt-2 first:border-t-0 first:pt-0"
                   >
-                    {warning.message}
+                    {shiftCoverageWarningText(warning)}
                   </p>
                 ))}
                 {coverageWarningCount > coverageWarnings.length && (
@@ -836,10 +847,10 @@ export function StepPersonalKinder({
               </div>
             </details>
           )}
-          {coverageCheckError && (
+          {coverageCheckFailed && (
             <Alert
               type="warning"
-              message={`Hinweis: ${coverageCheckError}`}
+              message={`Hinweis: ${COVERAGE_CHECK_FAILED_HINT}`}
               announce="off"
             />
           )}

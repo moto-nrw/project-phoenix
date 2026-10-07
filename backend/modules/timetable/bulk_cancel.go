@@ -79,10 +79,11 @@ func ValidateBulkCancelRange(from, to string) error {
 		return fmt.Errorf("%w: to must be a date in YYYY-MM-DD format", ErrInvalidBulkCancelRange)
 	}
 	if end.Before(start) {
-		return fmt.Errorf("%w: to must not be before from", ErrInvalidBulkCancelRange)
+		return WithCode(fmt.Errorf("%w: to must not be before from", ErrInvalidBulkCancelRange), CodeWindowEndBeforeStart)
 	}
 	if days := start.DaysUntil(end) + 1; days > MaxBulkCancelDays {
-		return fmt.Errorf("%w: range exceeds %d days", ErrInvalidBulkCancelRange, MaxBulkCancelDays)
+		return WithCode(fmt.Errorf("%w: range exceeds %d days", ErrInvalidBulkCancelRange, MaxBulkCancelDays),
+			CodeWindowTooLarge, RefusalValues{MaxDays: MaxBulkCancelDays})
 	}
 	return nil
 }

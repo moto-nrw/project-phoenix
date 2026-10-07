@@ -2,10 +2,11 @@
  * Tests for PrivacyConsentSection Component
  * Tests privacy consent display functionality
  */
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PrivacyConsentSection } from "./privacy-consent-section";
 import type { PrivacyConsent } from "~/lib/student-helpers";
+import { ApiError } from "~/lib/api-error";
 
 // Mock the student API
 vi.mock("~/lib/student-api", () => ({
@@ -140,30 +141,42 @@ describe("PrivacyConsentSection", () => {
     });
   });
 
-  it("handles errors gracefully", async () => {
+  // Ein Ladefehler ist kein „keine Einwilligung hinterlegt“ (#2513): er steht
+  // vor Ort, mit Wiederholen.
+  it("shows a failed load in place instead of an empty consent, with retry", async () => {
     const consoleErrorSpy = vi
       .spyOn(console, "error")
       .mockImplementation(() => {
         /* noop */
       });
-    vi.mocked(fetchStudentPrivacyConsent).mockRejectedValue(
-      new Error("API Error"),
-    );
+    vi.mocked(fetchStudentPrivacyConsent)
+      .mockRejectedValueOnce(
+        new ApiError("API Error", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce({
+        dataRetentionDays: 14,
+        accepted: true,
+      } as unknown as PrivacyConsent);
 
     render(<PrivacyConsentSection studentId="123" />);
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Keine Datenschutzeinwilligung hinterlegt/),
-      ).toBeInTheDocument();
-    });
-
+    expect(
+      await screen.findByText(
+        "Die Einwilligung ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Keine Datenschutzeinwilligung hinterlegt/),
+    ).not.toBeInTheDocument();
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       "failed to load privacy consent",
       expect.objectContaining({
         error: "API Error",
       }),
     );
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText("14 Tage")).toBeInTheDocument();
 
     consoleErrorSpy.mockRestore();
   });

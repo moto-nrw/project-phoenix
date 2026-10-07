@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import { Eye, Loader2, Plus, Search } from "lucide-react";
 import GuardianList from "./guardian-list";
 import GuardianFormModal from "./guardian-form-modal";
@@ -36,10 +42,16 @@ import {
   setGuardianPrimaryPhone,
   inviteGuardianToStudent,
   fetchGuardianDeletePreview,
-  GuardianApiError,
 } from "@/lib/guardian-api";
 import type { InviteGuardianResult } from "@/lib/guardian-api";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
+import { formErrorMessage } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { createLogger } from "~/lib/logger";
 import { useSession } from "next-auth/react";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
@@ -58,16 +70,16 @@ function inviteSuccessMessage(
 ): string {
   switch (outcome) {
     case "invited":
-      return `Einladung an ${email} gesendet`;
+      return `Die Einladung an ${email} ist gesendet.`;
     case "pending_approval":
-      return `Anfrage für ${name} wartet auf Freigabe`;
+      return `Die Anfrage für ${name} wartet auf Freigabe.`;
     case "already_linked":
     case "linked_existing_account":
       return confirmRoleUpgrade
-        ? `${name} hat jetzt vollen Zugriff`
-        : `${name} hat schon ein Konto. Hinweis zum Elternportal an ${email} gesendet`;
+        ? `${name} hat jetzt vollen Zugriff.`
+        : `${name} hat schon ein Konto. Ein Hinweis zum Elternportal ist an ${email} gesendet.`;
     default:
-      return `${name} wurde gespeichert`;
+      return `${name} ist gespeichert.`;
   }
 }
 
@@ -84,7 +96,12 @@ export default function StudentGuardianManager({
 }: StudentGuardianManagerProps) {
   const [guardians, setGuardians] = useState<GuardianWithRelationship[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Ladefehler stehen vor Ort, mit Wiederholen (#2517); nie als Leerzustand.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const loadError = useApiLoadError();
+  const showLoadError = loadError.show;
+  const clearLoadError = loadError.clear;
+  const latestLoadRef = useRef<() => void>(() => undefined);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [editingGuardian, setEditingGuardian] = useState<
@@ -118,7 +135,15 @@ export default function StudentGuardianManager({
     existingRole?: string;
   } | null>(null);
   const deletePreviewRequestIdRef = useRef(0);
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
+  // Aktionen ohne Formular (Verknüpfen, Einladen): Toast mit Katalogtext.
+  const { show: showActionError } = useApiErrorDisplay();
+  // Fehler beim Entfernen und bei der Vorschau bleiben im offenen
+  // Löschdialog; ein Toast läge unter dem Dialog.
+  const deleteErrors = useApiFormError();
+  const clearDeleteError = deleteErrors.clear;
+  const latestUnlinkRef = useRef<() => void>(() => undefined);
+  const latestFullDeleteRef = useRef<() => void>(() => undefined);
 
   // The full "Komplett löschen" path reaches across every linked child
   // (siblings included), so the backend restricts it to admin wildcards
@@ -140,31 +165,34 @@ export default function StudentGuardianManager({
   }, []);
 
   // Load guardians
+  // Never rejects: a failed load shows its error where the list belongs.
   const loadGuardians = useCallback(async () => {
     try {
       setIsLoading(true);
-      setError(null);
       const data = await fetchStudentGuardians(studentId);
       setGuardians(data);
+      setLoadFailed(false);
+      clearLoadError();
     } catch (err) {
       logger.error("guardians_load_failed", {
         error: err instanceof Error ? err.message : String(err),
         student_id: studentId,
       });
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Fehler beim Laden der Erziehungsberechtigten",
-      );
+      setLoadFailed(true);
+      void showLoadError(err, {
+        object: "die Liste der Erziehungsberechtigten",
+        retry: () => latestLoadRef.current(),
+      });
     } finally {
       setIsLoading(false);
     }
-  }, [studentId]);
+  }, [studentId, showLoadError, clearLoadError]);
+  useLayoutEffect(() => {
+    latestLoadRef.current = () => void loadGuardians();
+  });
 
   useEffect(() => {
-    loadGuardians().catch(() => {
-      // Error already handled in loadGuardians
-    });
+    void loadGuardians();
   }, [loadGuardians]);
 
   // Handle create guardian(s) - supports multiple guardians at once.
@@ -176,7 +204,7 @@ export default function StudentGuardianManager({
   // orphan a freshly-created profile — a non-admin supervisor cannot delete a
   // guardian once it has no remaining links, so the compensating delete would
   // 403 and leave the profile behind. On any failure nothing is persisted and we
-  // rethrow so the form modal shows the (translated) error and keeps the entries
+  // rethrow so the form modal shows the error and keeps the entries
   // for a retry.
   const handleCreateGuardians = async (
     guardians: Array<{
@@ -221,10 +249,11 @@ export default function StudentGuardianManager({
 
     await loadGuardians();
     onUpdate?.();
+    const first = guardians[0]?.guardianData;
     toastSuccess(
-      guardians.length === 1
-        ? "Erziehungsberechtigte/r erfolgreich hinzugefügt"
-        : `${guardians.length} Erziehungsberechtigte erfolgreich hinzugefügt`,
+      guardians.length === 1 && first
+        ? `${first.firstName} ${first.lastName} ist hinzugefügt.`
+        : `${guardians.length} Erziehungsberechtigte sind hinzugefügt.`,
     );
   };
 
@@ -243,16 +272,18 @@ export default function StudentGuardianManager({
       await loadGuardians();
       onUpdate?.();
       toastSuccess(
-        `${getGuardianFullName(guardian)} wurde erfolgreich hinzugefügt`,
+        `${getGuardianFullName(guardian)} ist jetzt mit diesem Kind verknüpft.`,
       );
     } catch (err) {
-      // Log the technical detail; show the user a German message only (the
-      // link API throws raw, often English, backend strings).
       logger.error("guardian_link_existing_failed", {
         error: err instanceof Error ? err.message : String(err),
         student_id: studentId,
       });
-      toastError("Fehler beim Verknüpfen der/des Erziehungsberechtigten");
+      // Der Suchdialog ist schon zu: die Meldung kommt als Toast.
+      void showActionError(err, {
+        object: "das Verknüpfen der Person",
+        retry: () => void handleSelectExistingGuardian(guardian, relationship),
+      });
     }
   };
 
@@ -299,7 +330,9 @@ export default function StudentGuardianManager({
     await loadGuardians();
     onUpdate?.();
     setEditingGuardian(undefined);
-    toastSuccess("Erziehungsberechtigte/r erfolgreich aktualisiert");
+    toastSuccess(
+      `Die Angaben von ${guardianData.firstName} ${guardianData.lastName} sind gespeichert.`,
+    );
   };
 
   // Helper: Sync phone numbers (add/update/delete)
@@ -421,7 +454,10 @@ export default function StudentGuardianManager({
         error: err instanceof Error ? err.message : String(err),
         student_id: studentId,
       });
-      toastError("Fehler beim Einladen der/des Erziehungsberechtigten");
+      void showActionError(err, {
+        object: "die Einladung",
+        retry: () => void handleInviteGuardian(guardian, confirmRoleUpgrade),
+      });
     } finally {
       setInvitingGuardianId(null);
     }
@@ -432,6 +468,7 @@ export default function StudentGuardianManager({
   // option), so they never see a single-option "choice".
   const handleDeleteClick = (guardian: GuardianWithRelationship) => {
     deletePreviewRequestIdRef.current += 1;
+    clearDeleteError();
     setDeletingGuardian(guardian);
     setDeleteScope(null);
     setFullDeleteWarning(null);
@@ -447,23 +484,23 @@ export default function StudentGuardianManager({
 
     const deletedName = getGuardianFullName(deletingGuardian);
     setIsDeleting(true);
+    clearDeleteError();
     try {
       await removeGuardianFromStudent(studentId, deletingGuardian.id);
       await loadGuardians();
       onUpdate?.();
       setShowDeleteModal(false);
       setDeletingGuardian(undefined);
-      toastSuccess(`${deletedName} wurde erfolgreich entfernt`);
+      toastSuccess(`${deletedName} ist von diesem Kind entfernt.`);
     } catch (err) {
       logger.error("guardian_remove_failed", {
         error: err instanceof Error ? err.message : String(err),
         student_id: studentId,
       });
-      toastError(
-        err instanceof Error
-          ? err.message
-          : "Fehler beim Entfernen der/des Erziehungsberechtigten",
-      );
+      await deleteErrors.show(err, {
+        object: "das Entfernen der Person",
+        retry: () => latestUnlinkRef.current(),
+      });
     } finally {
       setIsDeleting(false);
     }
@@ -485,6 +522,7 @@ export default function StudentGuardianManager({
     setFullDeleteAffectedLinkIds([]);
     setDeleteScope("full");
     setIsWarningLoading(true);
+    clearDeleteError();
     try {
       const preview = await fetchGuardianDeletePreview(guardianId);
       if (deletePreviewRequestIdRef.current !== requestId) return;
@@ -495,26 +533,17 @@ export default function StudentGuardianManager({
 
       logger.error("guardian_full_delete_preview_failed", {
         error: err instanceof Error ? err.message : String(err),
-        status: err instanceof GuardianApiError ? err.status : undefined,
         guardian_id: guardianId,
         student_id: studentId,
       });
-      // A 403 means the account may not fully delete a guardian — surface that
-      // explicitly rather than the generic "could not check children" message.
-      if (err instanceof GuardianApiError && err.status === 403) {
-        toastError(
-          "Sie haben keine Berechtigung, diese Person vollständig zu löschen.",
-        );
-      } else {
-        toastError(
-          err instanceof Error
-            ? err.message
-            : "Fehler beim Prüfen der betroffenen Kinder",
-        );
-      }
       // Preview failed — drop the scope rather than letting the user confirm
-      // a delete whose blast radius we never showed.
-      handleScopeChange(null);
+      // a delete whose blast radius we never showed. The reason (a 403 for a
+      // non-admin included) stays in the dialog; "Wiederholen" asks again.
+      handleScopeChange(null, { keepError: true });
+      await deleteErrors.show(err, {
+        object: "die Prüfung der betroffenen Kinder",
+        retry: () => handleScopeChange("full"),
+      });
     } finally {
       if (deletePreviewRequestIdRef.current === requestId) {
         setIsWarningLoading(false);
@@ -528,6 +557,7 @@ export default function StudentGuardianManager({
 
     const deletedName = getGuardianFullName(deletingGuardian);
     setIsDeleting(true);
+    clearDeleteError();
     try {
       await deleteGuardian(deletingGuardian.id, {
         force: true,
@@ -540,30 +570,38 @@ export default function StudentGuardianManager({
       setDeleteScope(null);
       setFullDeleteWarning(null);
       setFullDeleteAffectedLinkIds([]);
-      toastSuccess(`${deletedName} wurde vollständig gelöscht`);
+      toastSuccess(`${deletedName} ist vollständig gelöscht.`);
     } catch (err) {
       logger.error("guardian_full_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
         student_id: studentId,
       });
-      toastError(
-        err instanceof Error
-          ? err.message
-          : "Fehler beim Löschen der/des Erziehungsberechtigten",
-      );
+      await deleteErrors.show(err, {
+        object: "das Löschen der Person",
+        retry: () => latestFullDeleteRef.current(),
+      });
     } finally {
       setIsDeleting(false);
     }
   };
+  // „Wiederholen“ läuft mit dem dann aktuellen Stand des Dialogs.
+  useLayoutEffect(() => {
+    latestUnlinkRef.current = () => void handleConfirmUnlink();
+    latestFullDeleteRef.current = () => void handleConfirmFullDelete();
+  });
 
   // Scope change inside the dialog. Leaving "full" (or dropping the scope
   // after a failed preview) discards the warning so a stale blast radius can
   // never be confirmed; picking "full" starts the preview.
-  const handleScopeChange = (scope: GuardianDeleteScope | null) => {
+  const handleScopeChange = (
+    scope: GuardianDeleteScope | null,
+    options: { keepError?: boolean } = {},
+  ) => {
     if (scope === "full") {
       void handleSelectFullDelete();
       return;
     }
+    if (!options.keepError) clearDeleteError();
     deletePreviewRequestIdRef.current += 1;
     setDeleteScope(scope);
     setFullDeleteWarning(null);
@@ -574,6 +612,7 @@ export default function StudentGuardianManager({
   // Cancel delete
   const handleCancelDelete = () => {
     deletePreviewRequestIdRef.current += 1;
+    clearDeleteError();
     setShowDeleteModal(false);
     setDeletingGuardian(undefined);
     setDeleteScope(null);
@@ -602,7 +641,13 @@ export default function StudentGuardianManager({
 
   // Only show full-page loader on initial load (no data yet)
   // During refreshes, keep UI mounted to preserve modal state
-  if (isLoading && guardians.length === 0) {
+  // Bis der Katalogtext des Ladefehlers da ist, bleibt der Ladekreis stehen,
+  // nie eine leere Liste.
+  const failedWithoutData = loadFailed && guardians.length === 0;
+  if (
+    (isLoading && guardians.length === 0) ||
+    (failedWithoutData && formErrorMessage(loadError.error) === null)
+  ) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
@@ -610,12 +655,8 @@ export default function StudentGuardianManager({
     );
   }
 
-  if (error) {
-    return (
-      <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border px-4 py-3">
-        {error}
-      </div>
-    );
+  if (failedWithoutData) {
+    return <LoadErrorAlert error={loadError.error} />;
   }
 
   return (
@@ -682,6 +723,9 @@ export default function StudentGuardianManager({
         )}
       </FormModal>
 
+      {/* Ein gescheitertes Neuladen lässt die bekannte Liste stehen. */}
+      <LoadErrorAlert error={loadError.error} className="mb-4" />
+
       {/* Guardian List */}
       <div className="space-y-3">
         <GuardianList
@@ -737,6 +781,7 @@ export default function StudentGuardianManager({
         isWarningLoading={isWarningLoading}
         onConfirmUnlink={handleConfirmUnlink}
         onConfirmFullDelete={handleConfirmFullDelete}
+        error={deleteErrors.error}
       />
 
       {/* Restricted-contact upgrade confirmation (#2172) */}

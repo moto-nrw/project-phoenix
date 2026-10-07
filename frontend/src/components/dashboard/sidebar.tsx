@@ -213,6 +213,14 @@ const NAV_ITEMS: NavItem[] = [
     alwaysShow: true,
   },
   {
+    // Eigener Dienstplan (#3821): die Route liest nur über time_tracking:own.
+    // Ohne Betreuungsplan der Schule gibt es keine Schichten (filteredNavItems).
+    ...STAFF_FLAT_PAGES.ownShiftPlan,
+    icon: navigationIcons.dienstplan,
+    concept: "staffPlan",
+    requiresPermission: "time_tracking:own",
+  },
+  {
     // Tagesauswertung (#1456): rückwirkender Tagesstatus pro Gruppe
     // (Anwesend/Krank/Entschuldigt/Abwesend). Als Auswertung unten bei den
     // Berichts-Einträgen einsortiert. Opt-in über
@@ -816,6 +824,7 @@ function SidebarContent({
     // Tagesplan (#2383) nur an Schulen, die den Betreuungsplan nutzen. Das
     // Flag kommt vom Tenant-Resolve und ist damit auch ohne config:read da.
     if (!tagesplanEnabled && item.href === "/tagesplan") return false;
+    if (!tagesplanEnabled && item.href === "/mein-dienstplan") return false;
     if (item.alwaysShow) return true;
     // Permission-gated items (e.g. Änderungsanfragen on users:update): show for
     // admins or anyone holding the permission (any of them, for arrays),
@@ -1123,6 +1132,8 @@ function SidebarContent({
                   : item.href
             }
             className={getLinkClasses(item.href)}
+            // Ziel der geführten Touren (#2832, #3748).
+            data-setup-tour={`nav-${item.href}`}
             {...(collapsed
               ? { title: item.label, "aria-label": item.label }
               : {})}
@@ -1475,6 +1486,7 @@ function SidebarContent({
           icon={GROUP_NAV_ICON}
           concept="groups"
           label="Meine Gruppen"
+          tourId="nav-section-groups"
           activeColor="text-moto-green"
           isExpanded={expanded === "groups" && !areOtherGroupsExpanded}
           {...sectionProps("groups", handleGroupsToggle, () =>
@@ -1609,6 +1621,7 @@ function SidebarContent({
               ? "Aktuelle Aufsichten"
               : "Aktuelle Aufsicht"
           }
+          tourId="nav-section-supervisions"
           activeColor="text-moto-purple"
           isExpanded={expanded === "supervisions" && !areOpenRoomsExpanded}
           {...sectionProps("supervisions", handleSupervisionsToggle, () =>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, ExternalLink } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useSearchParams } from "next/navigation";
@@ -11,11 +11,14 @@ import {
   useTenantMutate,
   useTenantMutateMatching,
 } from "~/lib/swr";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatabaseSelect } from "~/components/ui/database/database-select";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import {
   activeService,
   summarizeStudentMoveResult,
@@ -23,7 +26,8 @@ import {
 import type { ActiveGroup, Supervisor } from "~/lib/active-helpers";
 import { roomService, studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
-import type { ApiError } from "~/lib/api-error";
+import { ApiError, wireErrorCode } from "~/lib/api-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import type { Room } from "~/lib/room-helpers";
 import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
@@ -33,7 +37,6 @@ import {
   useAttendanceWebEnabled,
   useSchoolWideAttendanceMoves,
 } from "~/lib/tenant-context";
-import { capacityErrorMessage } from "~/lib/capacity-error";
 
 const DETAIL_CARD_CLASS =
   "moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-6";
@@ -58,6 +61,21 @@ type TransitTargetOption =
       readonly roomName: string;
       readonly label: string;
     };
+
+/**
+ * Erfolgsmeldung als ganzer Satz (#2517): „2 Kinder sind jetzt in Mensa.“,
+ * übersprungene Kinder als zweiter Satz.
+ */
+function movedMessage(count: number, skipped: number, where: string): string {
+  const moved =
+    count === 1 ? `1 Kind ist ${where}.` : `${count} Kinder sind ${where}.`;
+  if (skipped === 0) return moved;
+  return `${moved} ${
+    skipped === 1
+      ? "1 Kind wurde übersprungen."
+      : `${skipped} Kinder wurden übersprungen.`
+  }`;
+}
 
 function buildSessionLabel(group: ActiveGroup): string {
   const roomName = group.room?.name ?? `Raum ${group.roomId}`;
@@ -107,7 +125,13 @@ export function TransitStudentsSection({
   const isExpanded = !collapsible || collapsibleExpanded;
   const [targetValue, setTargetValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  // „In Raum setzen“: Fehler stehen in der Leiste, der Zielraum wird
+  // markiert (#2517).
+  const assignBarRef = useRef<HTMLDivElement>(null);
+  const assignErrors = useApiFormError(assignBarRef);
+  const { clear: clearAssignErrors } = assignErrors;
+  // „Wiederholen“ weist die aktuell gewählten Kinder dem aktuellen Ziel zu.
+  const retryAssignRef = useRef<() => void>(() => undefined);
   const { success: toastSuccess } = useToast();
   const mutateKey = useTenantMutate();
   // "dashboard" (matching the aggregated active-supervision-dashboard key,
@@ -139,6 +163,7 @@ export function TransitStudentsSection({
     data: activeGroups = [],
     error: groupsError,
     isLoading: groupsLoading,
+    mutate: reloadGroups,
   } = useSWRAuth<ActiveGroup[]>("active-groups-for-transit", () =>
     activeService.getActiveGroups({ active: true }),
   );
@@ -146,6 +171,7 @@ export function TransitStudentsSection({
     data: currentStaff,
     error: staffError,
     isLoading: staffLoading,
+    mutate: reloadStaff,
   } = useSWRAuth<Staff>(
     showAllTargets ? null : "transit-target-current-staff",
     () => userContextService.getCurrentStaff(),
@@ -154,6 +180,7 @@ export function TransitStudentsSection({
     data: activeSupervisions = [],
     error: supervisionsError,
     isLoading: supervisionsLoading,
+    mutate: reloadSupervisions,
   } = useSWRAuth<Supervisor[]>(
     showAllTargets || !currentStaff?.id
       ? null
@@ -169,6 +196,23 @@ export function TransitStudentsSection({
   } = useSWRAuth<Room[]>(
     canTargetOpenRooms ? "transit-target-rooms" : null,
     () => roomService.getRooms(),
+  );
+  // Ladefehler einer der fünf Listen: eine Meldung, „Wiederholen“ lädt alle.
+  const loadError = useSwrLoadError(
+    studentsError ??
+      groupsError ??
+      staffError ??
+      supervisionsError ??
+      roomsError,
+    "die Liste der Kinder unterwegs",
+    () =>
+      Promise.all([
+        mutateStudents(),
+        reloadGroups(),
+        reloadStaff(),
+        reloadSupervisions(),
+        refreshTargetRooms(),
+      ]),
   );
 
   const supervisedTargetGroupIds = useMemo(
@@ -260,17 +304,17 @@ export function TransitStudentsSection({
       else next.add(studentId);
       return next;
     });
-    setSubmitError(null);
+    clearAssignErrors();
   };
 
   const selectAllVisible = () => {
     setSelectedIds(new Set(students.map((student) => student.id.toString())));
-    setSubmitError(null);
+    clearAssignErrors();
   };
 
   const clearSelection = () => {
     setSelectedIds(new Set());
-    setSubmitError(null);
+    clearAssignErrors();
   };
 
   const assignSelected = async () => {
@@ -280,7 +324,7 @@ export function TransitStudentsSection({
     const target = targetOptions.find((option) => option.value === targetValue);
     if (!target || studentIds.length === 0) return;
     setSubmitting(true);
-    setSubmitError(null);
+    clearAssignErrors();
     try {
       const message =
         target.kind === "openRoom"
@@ -295,23 +339,27 @@ export function TransitStudentsSection({
     } catch (err) {
       const releaseRemoved =
         target.kind === "openRoom" &&
-        (err as ApiError | undefined)?.code === "rooms.not_released";
+        err instanceof ApiError &&
+        wireErrorCode(err.code) === "rooms.not_released";
       if (releaseRemoved) {
         // The release was removed after the room list loaded: drop the stale
         // choice and reload the rooms, so the list stops offering it.
         setTargetValue("");
         await refreshTargetRooms();
       }
-      setSubmitError(
-        releaseRemoved
-          ? "Dieser Raum ist nicht mehr freigegeben. Bitte wählen Sie einen anderen Raum."
-          : (capacityErrorMessage(err) ??
-              "Die ausgewählten Kinder konnten nicht zugewiesen werden."),
-      );
+      // Katalogtext; ein voller Raum oder eine volle Aktivität nennt sich
+      // selbst über Code und Details (#3633).
+      void assignErrors.show(err, {
+        object: "das Zuweisen der Kinder",
+        retry: releaseRemoved ? undefined : () => retryAssignRef.current(),
+      });
     } finally {
       setSubmitting(false);
     }
   };
+  useLayoutEffect(() => {
+    retryAssignRef.current = () => void assignSelected();
+  });
 
   const assignToSession = async (
     studentIds: string[],
@@ -321,12 +369,11 @@ export function TransitStudentsSection({
       studentIds,
       activeGroupId,
     );
-    const skipped = result.skipped.length;
-    return skipped > 0
-      ? `${result.assigned.length} zugewiesen, ${skipped} übersprungen.`
-      : `${result.assigned.length} ${
-          result.assigned.length === 1 ? "Kind" : "Kinder"
-        } zugewiesen.`;
+    return movedMessage(
+      result.assigned.length,
+      result.skipped.length,
+      "zugewiesen",
+    );
   };
 
   // An explicit independent stay in a released room (#3066): the children
@@ -340,11 +387,11 @@ export function TransitStudentsSection({
       target.roomId,
     );
     const { successCount } = summarizeStudentMoveResult(result);
-    const skipped = result.skipped.length;
-    const moved = `${successCount} ${
-      successCount === 1 ? "Kind" : "Kinder"
-    } nach ${target.roomName} gesetzt`;
-    return skipped > 0 ? `${moved}, ${skipped} übersprungen.` : `${moved}.`;
+    return movedMessage(
+      successCount,
+      result.skipped.length,
+      `jetzt in ${target.roomName}`,
+    );
   };
 
   return (
@@ -392,22 +439,9 @@ export function TransitStudentsSection({
         </>
       )}
 
-      {isExpanded &&
-      (studentsError ||
-        groupsError ||
-        staffError ||
-        supervisionsError ||
-        roomsError) ? (
+      {isExpanded && loadError ? (
         <div className="mt-4">
-          <Alert
-            type="error"
-            message="Die Unterwegs-Daten konnten nicht geladen werden."
-          />
-        </div>
-      ) : null}
-      {isExpanded && submitError ? (
-        <div className="mt-4">
-          <Alert type="error" message={submitError} />
+          <LoadErrorAlert error={loadError} />
         </div>
       ) : null}
 
@@ -415,6 +449,7 @@ export function TransitStudentsSection({
         <>
           {attendanceWebEnabled ? (
             <div
+              ref={assignBarRef}
               className={`mt-4 mb-4 rounded-xl border p-3 transition-shadow ${
                 selectedVisibleCount > 0
                   ? "sticky bottom-3 z-20 border-gray-200 bg-white/95 shadow-sm backdrop-blur"
@@ -453,7 +488,7 @@ export function TransitStudentsSection({
                   value={targetValue}
                   onChange={(value) => {
                     setTargetValue(value);
-                    setSubmitError(null);
+                    clearAssignErrors();
                   }}
                   disabled={
                     targetsLoading || targetOptions.length === 0 || submitting
@@ -486,6 +521,7 @@ export function TransitStudentsSection({
                   In Raum setzen
                 </Button>
               </div>
+              <FormErrorAlert message={assignErrors.error} className="mt-2" />
             </div>
           ) : null}
 
@@ -494,7 +530,7 @@ export function TransitStudentsSection({
               <div className="moto-content-surface rounded-xl border px-4 py-6 text-center text-sm text-gray-500">
                 Kinder werden geladen...
               </div>
-            ) : students.length === 0 ? (
+            ) : studentsError ? null : students.length === 0 ? (
               <div className="moto-content-surface rounded-xl border border-dashed px-4 py-6 text-center text-sm text-gray-500 shadow-sm">
                 Aktuell keine Kinder unterwegs.
               </div>

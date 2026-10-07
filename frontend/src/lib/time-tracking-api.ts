@@ -2,6 +2,7 @@
 
 import type { ErrorCode } from "~/lib/error-codes.generated";
 import { getCachedSession } from "./session-cache";
+import { unavailableApiError } from "./api-error";
 import { buildApiError } from "./auth-api";
 import type {
   BackendClosingDayRange,
@@ -127,12 +128,17 @@ class TimeTrackingService {
     errorMessage: string,
     body?: unknown,
   ): Promise<ApiResponse<T>> {
-    const token = await this.getToken();
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      method,
-      headers: this.buildHeaders(token, body !== undefined),
-      ...(body !== undefined && { body: JSON.stringify(body) }),
-    });
+    let response: Response;
+    try {
+      const token = await this.getToken();
+      response = await fetch(`${this.baseUrl}${path}`, {
+        method,
+        headers: this.buildHeaders(token, body !== undefined),
+        ...(body !== undefined && { body: JSON.stringify(body) }),
+      });
+    } catch (error) {
+      throw unavailableApiError(error);
+    }
 
     if (!response.ok) {
       throw await buildApiError(response, errorMessage);
@@ -146,11 +152,16 @@ class TimeTrackingService {
     method: string,
     errorMessage: string,
   ): Promise<void> {
-    const token = await this.getToken();
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      method,
-      headers: this.buildHeaders(token, false),
-    });
+    let response: Response;
+    try {
+      const token = await this.getToken();
+      response = await fetch(`${this.baseUrl}${path}`, {
+        method,
+        headers: this.buildHeaders(token, false),
+      });
+    } catch (error) {
+      throw unavailableApiError(error);
+    }
 
     if (!response.ok) {
       throw await buildApiError(response, errorMessage);

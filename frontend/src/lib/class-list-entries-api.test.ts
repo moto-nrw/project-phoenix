@@ -2,6 +2,7 @@
 // trimming, and the German error-message passthrough.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "./api-error";
 import {
   assignClassListEntry,
   createClassListEntry,
@@ -91,6 +92,27 @@ describe("fetchClassListEntries", () => {
       json: () => Promise.reject(new Error("no body")),
     } as unknown as Response);
     await expect(fetchClassListEntries()).rejects.toThrow("API error (500)");
+  });
+
+  it("keeps code and request ID for the shared error path", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          error: "forbidden",
+          code: "general.permission",
+          instance: "req-cle",
+        },
+        false,
+        403,
+      ),
+    );
+    const error = await fetchClassListEntries().catch((err: unknown) => err);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 403,
+      code: "general.permission",
+      requestId: "req-cle",
+    });
   });
 });
 

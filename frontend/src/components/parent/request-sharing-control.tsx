@@ -1,13 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useTranslations } from "next-intl";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
 import { useSharingOptions } from "~/components/parent/sharing-options-context";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import {
   getRequestSharing,
   setRequestSharing,
@@ -39,14 +50,22 @@ export function RequestSharingSelector({
   onChange,
 }: RequestSharingSelectorProps) {
   const t = useTranslations("parentRequestSharing");
-  const { state, error } = useSharingOptions(studentId);
+  const { state, failed, error } = useSharingOptions(studentId);
   // No choice possible means no recipients: report an empty selection so a
   // stale pick from an earlier state can never travel with the request.
-  const unavailable = error || state?.family_protected === true;
+  const unavailable = failed || state?.family_protected === true;
   useEffect(() => {
     if (unavailable) onChange([]);
   }, [onChange, unavailable]);
-  if (error) return <Alert type="warning" message={t("optionsError")} />;
+  if (failed) {
+    // The message arrives once the catalog has loaded; until then the
+    // loading line stays, so the spot is never empty.
+    return error ? (
+      <LoadErrorAlert error={error} />
+    ) : (
+      <p className="text-sm text-gray-500">{t("loading")}</p>
+    );
+  }
   if (!state) return <p className="text-sm text-gray-500">{t("loading")}</p>;
   if (state.family_protected)
     return <Alert type="info" message={t("protected")} />;
@@ -76,11 +95,22 @@ function useSharingState(
   requestType: ParentRequestShareType,
   requestId: string,
   refreshCount: number,
+  reload: () => void,
 ) {
+  const t = useTranslations("parentRequestSharing");
   const [state, setState] = useState<RequestSharingState | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  // The retry runs the latest reload, not the one of the failed attempt.
+  const reloadRef = useRef(reload);
+  useLayoutEffect(() => {
+    reloadRef.current = reload;
+  });
   useEffect(() => {
     if (!enabled) return;
     let active = true;
@@ -89,13 +119,18 @@ function useSharingState(
       setSelected([]);
     }
     setLoading(true);
-    setError(false);
+    clearLoadError();
     void (async () => {
       try {
         const next = await getRequestSharing(studentId, requestType, requestId);
         if (active) applySharingState(next, setState, setSelected);
-      } catch {
-        if (active) setError(true);
+      } catch (err) {
+        if (active) {
+          void showLoadError(err, {
+            object: t("errorObjectRecipients"),
+            retry: () => reloadRef.current(),
+          });
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -103,8 +138,17 @@ function useSharingState(
     return () => {
       active = false;
     };
-  }, [enabled, refreshCount, requestId, requestType, studentId]);
-  return { state, setState, selected, setSelected, loading, error, setError };
+  }, [
+    clearLoadError,
+    enabled,
+    refreshCount,
+    requestId,
+    requestType,
+    showLoadError,
+    studentId,
+    t,
+  ]);
+  return { state, setState, selected, setSelected, loading, loadError };
 }
 
 function applySharingState(
@@ -133,7 +177,7 @@ function useSharingSave({
   requestId: string;
   selected: string[];
   saved: (state: RequestSharingState) => void;
-  failed: () => void;
+  failed: (err: unknown) => void;
 }>) {
   const [saving, setSaving] = useState(false);
   const save = useCallback(async () => {
@@ -142,8 +186,8 @@ function useSharingSave({
       saved(
         await setRequestSharing(studentId, requestType, requestId, selected),
       );
-    } catch {
-      failed();
+    } catch (err) {
+      failed(err);
     } finally {
       setSaving(false);
     }
@@ -231,23 +275,44 @@ function SharingFooter({
 
 function useRequestSharingControl(props: RequestSharingControlProps) {
   const { studentId, requestType, requestId, isSelf } = props;
+  const t = useTranslations("parentRequestSharing");
   const [open, setOpen] = useState(false);
   const [refreshCount, setRefreshCount] = useState(0);
+  const reload = useCallback(
+    () => setRefreshCount((current) => current + 1),
+    [],
+  );
   const sharing = useSharingState(
     isSelf,
     studentId,
     requestType,
     requestId,
     refreshCount,
+    reload,
   );
+  const {
+    error: saveError,
+    show: showSaveError,
+    clear: clearSaveError,
+  } = useApiFormError();
+  const { setState } = sharing;
   const saved = useCallback(
     (next: RequestSharingState) => {
-      sharing.setState(next);
+      setState(next);
       setOpen(false);
     },
-    [sharing],
+    [setState],
   );
-  const failed = useCallback(() => sharing.setError(true), [sharing]);
+  // The retry sends the selection the dialog shows at that moment.
+  const saveRef = useRef<() => Promise<void>>(async () => undefined);
+  const failed = useCallback(
+    (err: unknown) =>
+      void showSaveError(err, {
+        object: t("errorObjectSelection"),
+        retry: () => void saveRef.current(),
+      }),
+    [showSaveError, t],
+  );
   const { save, saving } = useSharingSave({
     studentId,
     requestType,
@@ -256,6 +321,9 @@ function useRequestSharingControl(props: RequestSharingControlProps) {
     saved,
     failed,
   });
+  useLayoutEffect(() => {
+    saveRef.current = save;
+  });
   const toggle = (id: string) =>
     sharing.setSelected((current) =>
       current.includes(id)
@@ -263,10 +331,11 @@ function useRequestSharingControl(props: RequestSharingControlProps) {
         : [...current, id],
     );
   const show = () => {
-    setRefreshCount((current) => current + 1);
+    clearSaveError();
+    reload();
     setOpen(true);
   };
-  return { open, setOpen, sharing, save, saving, toggle, show };
+  return { open, setOpen, sharing, save, saving, saveError, toggle, show };
 }
 
 function SharingDialog({
@@ -301,7 +370,7 @@ function SharingDialog({
         {sharing.loading ? (
           <p className="text-sm text-gray-500">{t("loading")}</p>
         ) : null}
-        {sharing.error ? <Alert type="error" message={t("error")} /> : null}
+        <FormErrorAlert message={control.saveError} />
         {sharing.state ? (
           <SharingRecipients
             state={sharing.state}
@@ -324,8 +393,8 @@ export function RequestSharingControl(props: RequestSharingControlProps) {
   if (!props.isSelf) return null;
   if (sharing.loading)
     return <p className="text-sm text-gray-500">{t("loading")}</p>;
-  if (sharing.error && !sharing.state)
-    return <Alert type="error" message={t("error")} />;
+  if (sharing.loadError && !sharing.state)
+    return <LoadErrorAlert error={sharing.loadError} />;
   if (sharing.state?.family_protected)
     return <Alert type="info" message={t("protected")} />;
   if (!sharing.state) return null;

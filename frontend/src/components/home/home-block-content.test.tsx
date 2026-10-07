@@ -112,6 +112,7 @@ function data(overrides: Partial<HomeBlockData> = {}): HomeBlockData {
     birthdays: undefined,
     birthdaysLoading: false,
     birthdaysError: undefined,
+    retryBirthdays: vi.fn(),
     canOpenStudentSearch: true,
     tenantPath: (path: string) => `/test-tenant${path}`,
     ...overrides,

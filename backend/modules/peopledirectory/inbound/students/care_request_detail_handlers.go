@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-chi/render"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
@@ -102,6 +104,12 @@ func (rs *Resource) getCareScheduleChangeRequest(w http.ResponseWriter, r *http.
 }
 
 var careRequestDetailErrorRenderer = common.RulesRenderer(parentRequestRules(
-	common.ErrorRule{Target: careplan.ErrCareScheduleRequestNotFound, Render: common.ErrorNotFound},
+	common.ErrorRule{Target: careplan.ErrCareScheduleRequestNotFound, Render: careRequestDetailNotFound},
 	common.ErrorRule{Target: carerequests.ErrCareRequestForbidden, Render: common.ErrorForbidden},
 ), common.ErrorInternalServer)
+
+// careRequestDetailNotFound names a withdrawn or deleted request by its code,
+// so the detail dialog explains it without reading the HTTP status (#2517).
+func careRequestDetailNotFound(err error) render.Renderer {
+	return common.ErrorNotFoundWithCode(err, common.CodeCareRequestNotFound)
+}

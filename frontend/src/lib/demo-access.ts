@@ -3,6 +3,7 @@
 // log records it.
 
 import { signIn } from "next-auth/react";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { parentsPortalUrl } from "~/lib/parent-url";
 
 /** Demo page of the website; the way back for an unknown or expired link. */
@@ -288,13 +289,18 @@ export const DEMO_RESTART_RUNNING = "Wird vorbereitet …";
 export async function restartDemo(
   role: DemoRole | undefined,
 ): Promise<string | null> {
-  const response = await fetch("/api/demo/access/reset", {
+  const response = await transportFetch("/api/demo/access/reset", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ role }),
   });
   if (response.status === 404 || response.status === 410) return null;
-  if (!response.ok) throw new Error(`demo restart failed: ${response.status}`);
+  if (!response.ok) {
+    throw await apiErrorFromResponse(
+      response,
+      `demo restart failed: ${response.status}`,
+    );
+  }
   const body = (await response.json()) as { entry_url?: string };
   if (!body.entry_url?.startsWith("http")) {
     throw new Error("demo restart without a waiting room");
@@ -322,7 +328,7 @@ export function demoHandoffPath(role: DemoRole): string {
 }
 
 async function postToken(path: string, token: string): Promise<Response> {
-  return fetch(path, {
+  return transportFetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token }),
@@ -345,7 +351,12 @@ async function fetchDemoAccessProgress(
   if (response.status === 404 || response.status === 410) {
     return { status: "invalid" };
   }
-  if (!response.ok) throw new Error(`demo status failed: ${response.status}`);
+  if (!response.ok) {
+    throw await apiErrorFromResponse(
+      response,
+      `demo status failed: ${response.status}`,
+    );
+  }
   const body = (await response.json()) as {
     status?: string;
     school_url?: string;
@@ -427,13 +438,18 @@ async function postSession(body: {
   token?: string;
   role: DemoRole;
 }): Promise<DemoSession | null> {
-  const response = await fetch("/api/demo/access/sessions", {
+  const response = await transportFetch("/api/demo/access/sessions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (response.status === 404 || response.status === 410) return null;
-  if (!response.ok) throw new Error(`demo redeem failed: ${response.status}`);
+  if (!response.ok) {
+    throw await apiErrorFromResponse(
+      response,
+      `demo redeem failed: ${response.status}`,
+    );
+  }
   const payload = (await response.json()) as DemoTokenPair & {
     demo?: {
       access_id?: string;

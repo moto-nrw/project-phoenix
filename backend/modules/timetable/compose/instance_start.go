@@ -115,6 +115,9 @@ func (s *InstanceLifecycleService) startableInstance(ctx context.Context, instan
 	if err := s.checkStartable(ctx, instance); err != nil {
 		return nil, err
 	}
+	if err := rejectDutyStart(instance); err != nil {
+		return nil, err
+	}
 	instance, err = s.lockDayAndReload(ctx, instance, "start instance")
 	if err != nil {
 		return nil, err
@@ -130,6 +133,16 @@ func (s *InstanceLifecycleService) checkStartable(ctx context.Context, instance 
 		return fmt.Errorf("%w: cannot start instance in status %q", timetable.ErrInvalidInstanceTransition, instance.Status)
 	}
 	return s.validateStartTime(ctx, instance, s.now())
+}
+
+// rejectDutyStart refuses to open a session for a duty (#3822): a duty has
+// no children to check in, so a session would only show up empty under
+// „Aktuelle Aufsicht“.
+func rejectDutyStart(instance *scheduleModel.ActivityInstance) error {
+	if instance.TemplateType == timetable.GroupTypeDuty {
+		return fmt.Errorf("%w: a duty is not started", timetable.ErrInvalidInstanceTransition)
+	}
+	return nil
 }
 
 // openStartedSession creates the session, its supervisors and absorbs the

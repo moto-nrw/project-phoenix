@@ -7,6 +7,7 @@ import {
   useMemo,
   useCallback,
   useRef,
+  useLayoutEffect,
 } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
@@ -18,7 +19,10 @@ import { CollectionGrid } from "~/components/ui/collection-grid";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -38,7 +42,9 @@ import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
 import { substitutionService } from "~/lib/substitution-api";
 import type { Substitution } from "~/lib/substitution-helpers";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiLoadError, useToast } from "~/contexts/ToastContext";
+import { ApiError, wireErrorCode } from "~/lib/api-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 
@@ -60,6 +66,26 @@ import {
 } from "~/lib/hooks/use-school-checkin-mode";
 import { buildGroupOverflowItems } from "./components/group-overflow-items";
 import { usePresenceMode } from "~/lib/tenant-context";
+import {
+  StudentTable,
+  arrivalColumn,
+  classColumn,
+  columnDefaults,
+  compactColumns,
+  nameColumn,
+  pickupColumn,
+  statusColumn,
+  trackingColumn,
+  type StudentTableDay,
+} from "~/components/students/student-table";
+import { StudentSelectionScope } from "~/components/students/student-selection-scope";
+import {
+  CollectionViewSwitch,
+  columnMenuEntries,
+  phoneDetailMenuEntries,
+} from "~/components/ui/collection-view-switch";
+import { useCollectionView } from "~/lib/hooks/use-collection-view";
+import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { fetchOgsGroupLive } from "~/lib/ogs-group-live-api";
 import type {
@@ -133,25 +159,34 @@ function useGroupTransferData(
     [],
   );
   const [transfers, setTransfers] = useState<GroupTransfer[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
   const reload = useCallback(async () => {
     if (!groupId) return;
     try {
       const context = await fetchGroupTransferContext(groupId);
       setUsers(context.users);
       setTransfers(context.transfers);
-      setLoadError(null);
+      clearLoadError();
     } catch (error) {
       logger.error("failed to load group handover modal", {
         error: error instanceof Error ? error.message : String(error),
       });
       setUsers([]);
       setTransfers([]);
-      setLoadError(
-        "Fachkräfte und Übergaben konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
-      );
+      void showLoadError(error, {
+        object: "die Liste der Fachkräfte und Übergaben",
+        retry: () => void reloadRef.current(),
+      });
     }
-  }, [groupId]);
+  }, [groupId, showLoadError, clearLoadError]);
+  const reloadRef = useRef(reload);
+  useLayoutEffect(() => {
+    reloadRef.current = reload;
+  });
   useEffect(() => {
     if (open) void reload();
   }, [open, reload]);
@@ -170,7 +205,9 @@ function useGroupTransferModal(
     if (!group) return;
     await assignGroupForToday(group.id, targetStaffId);
     await data.reload();
-    success(`Gruppe "${group.name}" an ${targetName} übergeben`);
+    success(
+      `Die Gruppe „${group.name}“ ist für heute an ${targetName} übergeben.`,
+    );
   };
   const cancel = async (substitutionId: string) => {
     if (!group) return;
@@ -179,7 +216,11 @@ function useGroupTransferModal(
     );
     await substitutionService.deleteSubstitution(substitutionId);
     await data.reload();
-    success(`Übergabe an ${transfer?.targetName ?? "Betreuer"} zurückgenommen`);
+    success(
+      transfer?.targetName
+        ? `Die Übergabe an ${transfer.targetName} ist zurückgenommen.`
+        : "Die Übergabe ist zurückgenommen.",
+    );
   };
   return { ...data, open, setOpen, transfer, cancel };
 }
@@ -356,7 +397,6 @@ function OGSGroupPageContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [attendanceFilter, setAttendanceFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [roomStatus, setRoomStatus] = useState<
     Record<string, { in_group_room: boolean; current_room_id?: string }>
   >({});
@@ -388,6 +428,7 @@ function OGSGroupPageContent() {
     data: liveData,
     isLoading: isLiveLoading,
     error: liveError,
+    mutate: reloadLive,
   } = useSWRAuth<OgsLiveViewData>(
     session?.user?.token ? `ogs-students-${selectedGroupId ?? "auto"}` : null,
     async () => {
@@ -517,7 +558,6 @@ function OGSGroupPageContent() {
       setStudents(mappedStudents);
       setRoomStatus(liveData.roomStatus);
       setPickupTimes(liveData.pickupTimes);
-      setError(null);
       setIsLoading(false);
     }
   }, [liveData, selectedGroupId, setGroupAttendanceCount, tenantMutate]);
@@ -560,20 +600,22 @@ function OGSGroupPageContent() {
 
   // Handle live-view error. The backend fails the whole aggregate instead of
   // degrading sections to empty arrays, so any error here means the page must
-  // show an error state — never a plausible-looking empty view.
+  // show an error state — never a plausible-looking empty view. A refusal
+  // (no group led) is the page's own "no group" view, identified by its code.
+  const liveNoAccess =
+    liveError instanceof ApiError &&
+    wireErrorCode(liveError.code) === "general.permission";
+  const error = useSwrLoadError(
+    liveNoAccess ? null : liveError,
+    "die Liste Ihrer OGS-Gruppe",
+    () => reloadLive(),
+  );
   useEffect(() => {
     if (liveError) {
-      if (liveError.message.includes("403")) {
-        setError(
-          "Sie haben keine Berechtigung für den Zugriff auf OGS-Gruppendaten.",
-        );
-        setHasAccess(false);
-      } else {
-        setError("Fehler beim Laden der OGS-Gruppendaten.");
-      }
+      if (liveNoAccess) setHasAccess(false);
       setIsLoading(false);
     }
-  }, [liveError]);
+  }, [liveError, liveNoAccess]);
 
   // Derive loading state from SWR
   useEffect(() => {
@@ -868,6 +910,107 @@ function OGSGroupPageContent() {
     return filters;
   }, [sortMode, searchTerm, attendanceFilter]);
 
+  // Kacheln oder Tabelle (#3834): dieselben Angaben wie auf der Karte, eine
+  // Spalte je Angabe, dazu Kästchen für die Sammelaktionen. Die Klasse steht
+  // nicht auf der Karte und ist deshalb erst nach Wahl im Spaltenmenü zu sehen.
+  const ogsStudentDay = useCallback(
+    (student: Student): StudentTableDay => {
+      const studentPickup = pickupTimes.get(student.id.toString());
+      const pickupNote = studentPickup
+        ? combineTimeNotes(studentPickup.notes, studentPickup.dayNotes)
+        : undefined;
+      const day = getOgsStudentDay(student, pickupTimes);
+      const result = {
+        arrival: {
+          arrivalTime: student.arrival_time,
+          actualTime: student.actual_arrival_time,
+          isException: student.arrival_is_exception ?? false,
+          isAbsent:
+            (student.arrival_is_exception ?? false) && !student.arrival_time,
+          notes: student.arrival_notes,
+          now,
+          day,
+        },
+        pickup: {
+          pickupTime: studentPickup?.pickupTime,
+          actualTime: student.actual_pickup_time,
+          isException: studentPickup?.isException ?? false,
+          notes: pickupNote,
+          now,
+          day,
+        },
+      };
+      if (student.actual_pickup_time) return result;
+      const absenceLabel =
+        getStudentAbsence({
+          sick: student.sick,
+          classTrip: student.class_trip,
+          excused: student.excused,
+        })?.label ?? getDayPlanningNotComingLabel(student);
+      return absenceLabel
+        ? { ...result, absence: { label: absenceLabel, note: pickupNote } }
+        : result;
+    },
+    [pickupTimes, now],
+  );
+  const tableColumns = useMemo(
+    () =>
+      compactColumns<Student>([
+        nameColumn(
+          (student) => `/students/${student.id}?from=/ogs-groups`,
+          photosEnabled,
+        ),
+        statusColumn("Aufenthalt", (student) => {
+          const badgePlanning = getStudentPresenceBadgePlanning(student);
+          return (
+            <StudentPresenceBadge
+              student={{
+                ...student,
+                not_arrival_today: badgePlanning.notArrivalToday,
+                not_arrival_reason: badgePlanning.notArrivalReason,
+              }}
+              displayMode="roomName"
+              isGroupRoom={isStudentInGroupRoom(student, currentGroup)}
+              variant="modern"
+              size="md"
+            />
+          );
+        }),
+        classColumn({ defaultVisible: false }),
+        arrivalColumn(ogsStudentDay),
+        pickupColumn(ogsStudentDay),
+        trackingColumn(trackingIndicators),
+      ]),
+    [photosEnabled, currentGroup, ogsStudentDay, trackingIndicators],
+  );
+  const tableColumnDefaults = useMemo(
+    () => columnDefaults(tableColumns),
+    [tableColumns],
+  );
+  const collectionView = useCollectionView(
+    "ogs-groups",
+    tableColumnDefaults,
+    // Ohne eigene Wahl zeigt die Handy-Liste unter dem Namen die Gehzeit.
+    "pickup",
+  );
+  const showTable = collectionView.view === "table";
+  // Die Spaltenwahl wirkt nur am Computer: auf dem Handy zeigt die Liste
+  // je Kind eine Zeile mit Name, Status und Gehzeit (#3834).
+  const isPhone = useMediaQuery(BELOW_MD);
+  const changeView = useCallback(
+    (next: "tiles" | "table") => {
+      if (next === collectionView.view) return;
+      schoolCheckin.deactivate();
+      schoolCheckin.clearSelection();
+      collectionView.setView(next);
+    },
+    [collectionView, schoolCheckin],
+  );
+  // Eine Markierung gilt nur für die Liste, in der sie gesetzt wurde: ein
+  // anderer Gruppenreiter, eine andere Suche oder ein anderer Ort leeren sie
+  // (wie in der Kindersuche, review #2372).
+  const selectionScope = `${selectedGroupId ?? ""}|${searchTerm}|${attendanceFilter}`;
+
   // Loading joins the access-unknown state below instead of an early return
   // before the header, so the real PageHeaderWithSearch (title, tabs,
   // actions) renders immediately and only the student-grid area
@@ -901,10 +1044,54 @@ function OGSGroupPageContent() {
       })
     : [];
 
+  // Die Spaltenwahl der Liste (#3834) steht im ⋮-Menü, nicht als eigener
+  // Knopf neben dem Umschalter.
+  const headMenuItems: OverflowMenuEntry[] = [
+    ...overflowItems,
+    ...(showTable && !isPhone
+      ? columnMenuEntries(
+          tableColumns,
+          collectionView.hiddenColumns,
+          collectionView.setColumnVisible,
+        )
+      : []),
+    ...(showTable && isPhone
+      ? phoneDetailMenuEntries(
+          tableColumns,
+          collectionView.phoneDetail,
+          collectionView.setPhoneDetail,
+        )
+      : []),
+  ];
+
   // Render helper for student grid content
   const renderStudentContent = () => {
     if (showSkeleton) {
       return <StudentCardGridSkeleton />;
+    }
+    if (showTable) {
+      return (
+        // Wie die Karten: An- und Abmelden aus der Gruppe gibt es nur im
+        // Anwesenheitsmodus ohne Räume.
+        <StudentSelectionScope
+          visibleStudents={filteredStudents}
+          scopeKey={selectionScope}
+          checkinAllowed={isBinaryMode}
+        >
+          {(selection) => (
+            <StudentTable
+              rows={sortedStudents}
+              columns={tableColumns}
+              hiddenColumns={collectionView.hiddenColumns}
+              phoneDetail={collectionView.phoneDetail}
+              onOpen={(student) =>
+                router.push(`/students/${student.id}?from=/ogs-groups`)
+              }
+              selection={selection}
+            />
+          )}
+        </StudentSelectionScope>
+      );
     }
     if (sortedStudents.length > 0) {
       return (
@@ -1103,7 +1290,13 @@ function OGSGroupPageContent() {
             {/* Der An- und Abmelde-Modus ist ab 1024px eine Kopfaktion;
                 darunter tragen ihn die Leiste am unteren Rand (Phone) und
                 der schwebende Knopf (Tablet). */}
-            {isBinaryMode ? (
+            <div data-icon-only="">
+              <CollectionViewSwitch
+                value={collectionView.view}
+                onChange={changeView}
+              />
+            </div>
+            {isBinaryMode && !showTable ? (
               <div className="hidden lg:block">
                 <SchoolCheckinFab
                   variant="inline"
@@ -1122,9 +1315,9 @@ function OGSGroupPageContent() {
                 </span>
               </div>
             ) : null}
-            {overflowItems.length > 0 ? (
+            {headMenuItems.length > 0 ? (
               <OverflowMenu
-                items={overflowItems}
+                items={headMenuItems}
                 ariaLabel="Weitere Aktionen"
               />
             ) : null}
@@ -1221,7 +1414,9 @@ function OGSGroupPageContent() {
             the card list when OFF; switches to a sticky bottom bar above
             the mobile nav when ON. Tablet keeps the floating FAB and
             desktop the header inline pill, both rendered below. */}
-        {isBinaryMode && (
+        {/* In der Liste markieren die Kästchen; der Modus gehört zu den
+            Kacheln (#3834). */}
+        {isBinaryMode && !showTable && (
           <div className="md:hidden">
             <SchoolCheckinModeMobile
               isActive={schoolCheckin.isActive}
@@ -1251,7 +1446,7 @@ function OGSGroupPageContent() {
       {/* Tablet (md..lg) check-in mode trigger — floating FAB. Mobile
           renders the inline pill / sticky bar combo above; desktop
           renders the inline pill inside the page header. */}
-      {isBinaryMode && (
+      {isBinaryMode && !showTable && (
         <div className="hidden md:block lg:hidden">
           <SchoolCheckinFab
             variant="floating"

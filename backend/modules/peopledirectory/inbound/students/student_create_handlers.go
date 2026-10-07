@@ -326,6 +326,10 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		// Bad guardian input (e.g. invalid email) is a client error: the
 		// transaction has already rolled back, so no partial data survives.
+		if errors.Is(err, peopleModule.ErrGuardianEmailTaken) {
+			renderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeStudentsGuardianEmailTaken))
+			return
+		}
 		if errors.Is(err, peopleModule.ErrInvalidGuardian) {
 			renderError(w, r, common.ErrorInvalidRequest(err))
 			return

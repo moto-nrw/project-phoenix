@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Mail, Check, X } from "lucide-react";
 import { Loading } from "~/components/ui/loading";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { operatorPath } from "~/lib/operator-url";
 import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "OperatorEmailConfirmPage" });
@@ -25,8 +28,8 @@ function extractToken(): string | null {
 export function EmailConfirmContent() {
   const [token, setToken] = useState<string | null>(null);
   const [state, setState] = useState<ConfirmState>("loading");
-  const [errorMessage, setErrorMessage] = useState("");
-  const [retryable, setRetryable] = useState(false);
+  const confirmErrors = useApiFormError();
+  const { show: showConfirmError, invalid: invalidConfirm } = confirmErrors;
   const { update: updateSession, status: sessionStatus } = useSession();
   const primaryRef = useRef<HTMLButtonElement | HTMLAnchorElement>(null);
 
@@ -39,10 +42,12 @@ export function EmailConfirmContent() {
       setState("idle");
       window.history.replaceState({}, "", window.location.pathname);
     } else {
-      setErrorMessage("Kein Token angegeben.");
+      invalidConfirm(
+        "Der Link enthält keinen Bestätigungscode. Bitte öffnen Sie den Link aus der E-Mail erneut.",
+      );
       setState("error");
     }
-  }, []);
+  }, [invalidConfirm]);
 
   useEffect(() => {
     primaryRef.current?.focus();
@@ -53,59 +58,44 @@ export function EmailConfirmContent() {
 
     setState("confirming");
     try {
-      const response = await fetch("/api/operator/auth/email-confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
-      });
+      const response = await transportFetch(
+        "/api/operator/auth/email-confirm",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        },
+      );
 
-      const data = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
+      if (!response.ok) {
+        throw await apiErrorFromResponse(
+          response,
+          `Email confirm failed (${response.status})`,
+        );
+      }
 
-      if (response.ok) {
-        setState("success");
-        // If the user has an active session, force-expire the access token
-        // so the next JWT callback triggers a proactive refresh — picking up
-        // the new email from the backend without waiting ~10 minutes.
-        if (sessionStatus === "authenticated") {
-          try {
-            await updateSession({ emailChanged: true });
-          } catch {
-            // Best-effort: session refresh will happen naturally on next token cycle
-          }
+      setState("success");
+      // If the user has an active session, force-expire the access token
+      // so the next JWT callback triggers a proactive refresh — picking up
+      // the new email from the backend without waiting ~10 minutes.
+      if (sessionStatus === "authenticated") {
+        try {
+          await updateSession({ emailChanged: true });
+        } catch {
+          // Best-effort: session refresh will happen naturally on next token cycle
         }
-        return;
       }
-
-      if (response.status >= 500) {
-        setErrorMessage(
-          data.error ??
-            data.message ??
-            "Ein Serverfehler ist aufgetreten. Bitte versuche es später erneut.",
-        );
-        setRetryable(true);
-      } else {
-        setErrorMessage(
-          data.error ??
-            data.message ??
-            "Dieser Link ist abgelaufen oder ungültig.",
-        );
-        setRetryable(false);
-      }
-      setState("error");
     } catch (err) {
-      logger.error("email_confirm_failed", {
+      logger.warn("email_confirm_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setErrorMessage(
-        "Ein Fehler ist aufgetreten. Bitte versuche es später erneut.",
-      );
-      setRetryable(true);
+      void showConfirmError(err, {
+        object: "die Bestätigung der E-Mail-Adresse",
+        retry: () => void handleConfirm(),
+      });
       setState("error");
     }
-  }, [token, state, sessionStatus, updateSession]);
+  }, [token, state, sessionStatus, updateSession, showConfirmError]);
 
   if (state === "loading") {
     return (
@@ -190,30 +180,15 @@ export function EmailConfirmContent() {
         <h1 className="mb-2 text-xl font-semibold text-gray-900">
           Bestätigung fehlgeschlagen
         </h1>
-        <p className="mb-6 text-gray-600">{errorMessage}</p>
+        <FormErrorAlert
+          message={confirmErrors.error}
+          className="mb-6 text-left"
+        />
         <div className="flex flex-col items-center gap-3">
-          {token && retryable && (
-            <button
-              type="button"
-              ref={primaryRef as React.RefObject<HTMLButtonElement>}
-              onClick={() => void handleConfirm()}
-              className="inline-block rounded-lg bg-gray-900 px-6 py-3 text-sm font-medium text-white transition-all hover:bg-gray-700"
-            >
-              Erneut versuchen
-            </button>
-          )}
           <Link
             href={operatorPath("/operator/settings")}
-            ref={
-              !(token && retryable)
-                ? (primaryRef as React.RefObject<HTMLAnchorElement>)
-                : undefined
-            }
-            className={
-              token && retryable
-                ? "text-sm text-gray-500 underline transition-colors hover:text-gray-700"
-                : "inline-block rounded-lg bg-gray-900 px-6 py-3 text-sm font-medium text-white transition-all hover:bg-gray-700"
-            }
+            ref={primaryRef as React.RefObject<HTMLAnchorElement>}
+            className="inline-block rounded-lg bg-gray-900 px-6 py-3 text-sm font-medium text-white transition-all hover:bg-gray-700"
           >
             Zu den Einstellungen
           </Link>

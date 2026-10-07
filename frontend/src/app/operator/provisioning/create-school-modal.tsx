@@ -1,16 +1,16 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Modal } from "~/components/ui/modal";
-import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
 import {
   operatorProvisioningService,
   revalidateTenantCache,
 } from "~/lib/operator/provisioning-api";
 import { generateSlug, isValidSlug } from "~/lib/operator/provisioning-helpers";
 import type { Organization } from "~/lib/operator/provisioning-helpers";
-import { isOperatorApiError } from "~/lib/operator/api-helpers";
 import { createLogger } from "~/lib/logger";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { FormField, FormError, VisibilityToggle } from "./provisioning-shared";
+import { FormField, VisibilityToggle } from "./provisioning-shared";
 
 const logger = createLogger({ component: "CreateSchoolModal" });
 
@@ -38,8 +38,9 @@ export function CreateSchoolModal({
   const [schoolEmail, setSchoolEmail] = useState("");
   const [schoolHidden, setSchoolHidden] = useState(false);
   const [schoolSaving, setSchoolSaving] = useState(false);
-  const [schoolError, setSchoolError] = useState("");
-  const errorRef = useScrollToError(schoolError);
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { show: showError, invalid, clear: clearError } = formErrors;
 
   // Reset form and pre-select org when opening
   useEffect(() => {
@@ -56,9 +57,9 @@ export function CreateSchoolModal({
       setSchoolPhone("");
       setSchoolEmail("");
       setSchoolHidden(false);
-      setSchoolError("");
+      clearError();
     }
-  }, [isOpen, organizations]);
+  }, [isOpen, organizations, clearError]);
 
   const handleSchoolNameChange = useCallback(
     (value: string) => {
@@ -81,25 +82,28 @@ export function CreateSchoolModal({
       // constraint validation, so an Enter-submit with no organization lands
       // here and must produce a visible error instead of a silent return.
       if (!schoolOrgId) {
-        setSchoolError("Bitte wählen Sie einen Träger aus.");
+        const hint = "Bitte wählen Sie einen Träger aus.";
+        invalid("Bitte prüfen Sie die markierten Felder.", {
+          organization_id: hint,
+        });
         return;
       }
       if (!schoolName.trim() || !schoolSlug.trim() || !schoolSubdomain.trim())
         return;
       if (!isValidSlug(schoolSlug)) {
-        setSchoolError(
-          "Slug darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.",
-        );
+        const hint =
+          "Slug darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.";
+        invalid("Bitte prüfen Sie die markierten Felder.", { slug: hint });
         return;
       }
       if (!isValidSlug(schoolSubdomain)) {
-        setSchoolError(
-          "Subdomain darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.",
-        );
+        const hint =
+          "Subdomain darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.";
+        invalid("Bitte prüfen Sie die markierten Felder.", { subdomain: hint });
         return;
       }
       setSchoolSaving(true);
-      setSchoolError("");
+      clearError();
       try {
         await operatorProvisioningService.createSchool({
           organization_id: parseInt(schoolOrgId, 10),
@@ -117,25 +121,10 @@ export function CreateSchoolModal({
         await onCreated();
         await revalidateTenantCache([schoolSubdomain.trim()]);
       } catch (error) {
-        if (isOperatorApiError(error) && error.status === 409) {
-          const msg = error.message.toLowerCase();
-          if (msg.includes("subdomain")) {
-            setSchoolError(
-              "Eine Schule mit dieser Subdomain existiert bereits.",
-            );
-          } else {
-            setSchoolError(
-              "Eine Schule mit diesem Slug existiert bereits in dieser Organisation.",
-            );
-          }
-        } else {
-          setSchoolError(
-            error instanceof Error ? error.message : "Fehler beim Erstellen.",
-          );
-          logger.error("school_create_failed", {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
+        logger.error("school_create_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        void showError(error, { object: "das Anlegen der Schule" });
       } finally {
         setSchoolSaving(false);
       }
@@ -153,6 +142,9 @@ export function CreateSchoolModal({
       schoolHidden,
       onClose,
       onCreated,
+      invalid,
+      clearError,
+      showError,
     ],
   );
 
@@ -188,11 +180,18 @@ export function CreateSchoolModal({
       }
     >
       <form
+        ref={formRef}
         onSubmit={(e) => void handleCreate(e)}
         className="space-y-4"
         id="create-school-form"
       >
-        <FormField label="Träger" htmlFor="school-org" required>
+        <FormErrorAlert message={formErrors.error} />
+        <FormField
+          label="Träger"
+          htmlFor="school-org"
+          required
+          error={formErrors.fieldError("organization_id")}
+        >
           <CustomSelect
             id="school-org"
             ariaLabel="Träger"
@@ -209,9 +208,15 @@ export function CreateSchoolModal({
             required
           />
         </FormField>
-        <FormField label="Name" htmlFor="school-name" required>
+        <FormField
+          label="Name"
+          htmlFor="school-name"
+          required
+          error={formErrors.fieldError("name")}
+        >
           <input
             id="school-name"
+            name="name"
             type="text"
             value={schoolName}
             onChange={(e) => handleSchoolNameChange(e.target.value)}
@@ -221,9 +226,15 @@ export function CreateSchoolModal({
           />
         </FormField>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Slug" htmlFor="school-slug" required>
+          <FormField
+            label="Slug"
+            htmlFor="school-slug"
+            required
+            error={formErrors.fieldError("slug")}
+          >
             <input
               id="school-slug"
+              name="slug"
               type="text"
               value={schoolSlug}
               onChange={(e) => {
@@ -235,9 +246,15 @@ export function CreateSchoolModal({
               required
             />
           </FormField>
-          <FormField label="Subdomain" htmlFor="school-subdomain" required>
+          <FormField
+            label="Subdomain"
+            htmlFor="school-subdomain"
+            required
+            error={formErrors.fieldError("subdomain")}
+          >
             <input
               id="school-subdomain"
+              name="subdomain"
               type="text"
               value={schoolSubdomain}
               onChange={(e) => {
@@ -256,9 +273,14 @@ export function CreateSchoolModal({
             Kontaktdaten (optional)
           </p>
           <div className="space-y-3">
-            <FormField label="Adresse" htmlFor="school-address">
+            <FormField
+              label="Adresse"
+              htmlFor="school-address"
+              error={formErrors.fieldError("address")}
+            >
               <input
                 id="school-address"
+                name="address"
                 type="text"
                 value={schoolAddress}
                 onChange={(e) => setSchoolAddress(e.target.value)}
@@ -267,9 +289,14 @@ export function CreateSchoolModal({
               />
             </FormField>
             <div className="grid grid-cols-2 gap-4">
-              <FormField label="PLZ" htmlFor="school-zip">
+              <FormField
+                label="PLZ"
+                htmlFor="school-zip"
+                error={formErrors.fieldError("zip")}
+              >
                 <input
                   id="school-zip"
+                  name="zip"
                   type="text"
                   value={schoolZip}
                   onChange={(e) => setSchoolZip(e.target.value)}
@@ -277,9 +304,14 @@ export function CreateSchoolModal({
                   className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                 />
               </FormField>
-              <FormField label="Stadt" htmlFor="school-city">
+              <FormField
+                label="Stadt"
+                htmlFor="school-city"
+                error={formErrors.fieldError("city")}
+              >
                 <input
                   id="school-city"
+                  name="city"
                   type="text"
                   value={schoolCity}
                   onChange={(e) => setSchoolCity(e.target.value)}
@@ -289,9 +321,14 @@ export function CreateSchoolModal({
               </FormField>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <FormField label="Telefon" htmlFor="school-phone">
+              <FormField
+                label="Telefon"
+                htmlFor="school-phone"
+                error={formErrors.fieldError("phone")}
+              >
                 <input
                   id="school-phone"
+                  name="phone"
                   type="tel"
                   value={schoolPhone}
                   onChange={(e) => setSchoolPhone(e.target.value)}
@@ -299,9 +336,14 @@ export function CreateSchoolModal({
                   className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                 />
               </FormField>
-              <FormField label="E-Mail" htmlFor="school-email">
+              <FormField
+                label="E-Mail"
+                htmlFor="school-email"
+                error={formErrors.fieldError("email")}
+              >
                 <input
                   id="school-email"
+                  name="email"
                   type="email"
                   value={schoolEmail}
                   onChange={(e) => setSchoolEmail(e.target.value)}
@@ -316,8 +358,6 @@ export function CreateSchoolModal({
           hidden={schoolHidden}
           onToggle={() => setSchoolHidden(!schoolHidden)}
         />
-
-        {schoolError && <FormError ref={errorRef} message={schoolError} />}
       </form>
     </Modal>
   );

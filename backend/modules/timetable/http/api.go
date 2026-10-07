@@ -162,23 +162,24 @@ type CalendarPeriodRequest struct {
 
 // Bind validates the request
 func (req *CalendarPeriodRequest) Bind(_ *http.Request) error {
+	invalid := common.CodeTimetableCalendarPeriodInvalid
 	if req.Name == "" {
-		return errors.New("name is required")
+		return invalidField(invalid, "name", "name is required")
 	}
 	if len(req.Name) > 255 {
-		return errors.New("name cannot exceed 255 characters")
+		return invalidField(invalid, "name", "name cannot exceed 255 characters")
 	}
 	if req.PeriodType == "" {
-		return errors.New("period_type is required")
+		return invalidField(invalid, "period_type", "period_type is required")
 	}
 	if !schoolcalendar.IsValidPeriodType(req.PeriodType) {
-		return errors.New("invalid period_type, must be one of: school_year, semester, holiday, custom")
+		return invalidField(invalid, "period_type", "invalid period_type, must be one of: school_year, semester, holiday, custom")
 	}
 	if req.StartDate == "" {
-		return errors.New("start_date is required")
+		return invalidField(invalid, "start_date", "start_date is required")
 	}
 	if req.EndDate == "" {
-		return errors.New("end_date is required")
+		return invalidField(invalid, "end_date", "end_date is required")
 	}
 	if req.WeekCycleLength <= 0 {
 		req.WeekCycleLength = 1
@@ -295,11 +296,11 @@ func periodFieldsFromRequest(req *CalendarPeriodRequest, startDate, endDate cale
 // Returns true on success, or renders an error and returns false.
 func validatePeriodRules(w http.ResponseWriter, r *http.Request, req *CalendarPeriodRequest, startDate, endDate calendar.Date, anchor *calendar.Date) bool {
 	if !endDate.After(startDate) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("end_date must be after start_date")))
+		common.RenderError(w, r, invalidOnField(common.CodeTimetableCalendarPeriodEndBeforeStart, "end_date", "end_date must be after start_date"))
 		return false
 	}
 	if req.WeekCycleLength > 1 && anchor == nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("week_cycle_anchor is required when week_cycle_length > 1")))
+		common.RenderError(w, r, invalidOnField(common.CodeTimetableCalendarPeriodWeekCycleAnchorMissing, "week_cycle_anchor", "week_cycle_anchor is required when week_cycle_length > 1"))
 		return false
 	}
 	return true
@@ -388,7 +389,7 @@ func (rs *Resource) getPeriod(w http.ResponseWriter, r *http.Request) {
 	period, err := rs.CalendarPeriods.FindCalendarPeriod(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, schoolcalendar.ErrCalendarPeriodNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
+			common.RenderError(w, r, calendarPeriodNotFound())
 		} else {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht geladen werden", err))
 		}
@@ -408,7 +409,7 @@ func (rs *Resource) getPeriod(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) createPeriod(w http.ResponseWriter, r *http.Request) {
 	req := &CalendarPeriodRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, bindErrorRenderer(err))
 		return
 	}
 
@@ -425,14 +426,7 @@ func (rs *Resource) createPeriod(w http.ResponseWriter, r *http.Request) {
 		CalendarPeriodFields: periodFieldsFromRequest(req, startDate, endDate, anchor),
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, schoolcalendar.ErrCalendarPeriodNameConflict):
-			common.RenderError(w, r, common.ErrorConflict(schoolcalendar.ErrCalendarPeriodNameConflict))
-		case errors.Is(err, schoolcalendar.ErrCalendarPeriodOverlapConflict):
-			common.RenderError(w, r, calendarPeriodOverlapRenderer(err))
-		default:
-			common.RenderError(w, r, common.ErrorInternalServerWrap(calendarPeriodCreateErrorMessage, err))
-		}
+		common.RenderError(w, r, calendarPeriodWriteErrorRenderer(r, err, calendarPeriodCreateErrorMessage))
 		return
 	}
 
@@ -486,7 +480,7 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 	existing, err := rs.CalendarPeriods.FindCalendarPeriod(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, schoolcalendar.ErrCalendarPeriodNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
+			common.RenderError(w, r, calendarPeriodNotFound())
 		} else {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht geladen werden", err))
 		}
@@ -495,7 +489,7 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 
 	req := &CalendarPeriodRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, bindErrorRenderer(err))
 		return
 	}
 
@@ -512,21 +506,7 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 		ID: existing.ID, CalendarPeriodFields: periodFieldsFromRequest(req, startDate, endDate, anchor),
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, schoolcalendar.ErrCalendarPeriodNameConflict):
-			common.RenderError(w, r, common.ErrorConflict(schoolcalendar.ErrCalendarPeriodNameConflict))
-		case errors.Is(err, schoolcalendar.ErrCalendarPeriodRequiredByCareOffering):
-			tenant.MarkRollback(r.Context())
-			common.RenderError(w, r, common.ErrorConflictWithCode(
-				errCalendarPeriodCareOfferingConflict,
-				common.CodeTimetableCalendarPeriodCareOfferingConflict,
-			))
-		case errors.Is(err, schoolcalendar.ErrCalendarPeriodOverlapConflict):
-			tenant.MarkRollback(r.Context())
-			common.RenderError(w, r, calendarPeriodOverlapRenderer(err))
-		default:
-			common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht aktualisiert werden", err))
-		}
+		common.RenderError(w, r, calendarPeriodWriteErrorRenderer(r, err, "Kalenderzeitraum konnte nicht aktualisiert werden"))
 		return
 	}
 
@@ -544,7 +524,7 @@ func (rs *Resource) deletePeriod(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := rs.CalendarPeriods.FindCalendarPeriod(r.Context(), id); err != nil {
 		if errors.Is(err, schoolcalendar.ErrCalendarPeriodNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
+			common.RenderError(w, r, calendarPeriodNotFound())
 		} else {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht geladen werden", err))
 		}
@@ -562,7 +542,7 @@ func (rs *Resource) deletePeriod(w http.ResponseWriter, r *http.Request) {
 		}
 		if isCalendarPeriodRosterDeleteConflict(err) {
 			tenant.MarkRollback(r.Context())
-			common.RenderError(w, r, common.ErrorConflictMessage(calendarPeriodRosterDeleteConflictMessage))
+			common.RenderError(w, r, common.ErrorConflictMessageWithCode(calendarPeriodRosterDeleteConflictMessage, common.CodeTimetableCalendarPeriodRosterConflict))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht gelöscht werden", err))
@@ -570,6 +550,34 @@ func (rs *Resource) deletePeriod(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Calendar period deleted successfully")
+}
+
+// calendarPeriodNotFound answers a period that is gone (#2516).
+func calendarPeriodNotFound() render.Renderer {
+	return common.ErrorNotFoundWithCode(schoolcalendar.ErrCalendarPeriodNotFound, common.CodeTimetableCalendarPeriodNotFound)
+}
+
+// calendarPeriodWriteErrorRenderer classifies a refused create or update
+// (#2516). The care-offering and overlap refusals may follow partial writes,
+// so they roll the request back; an invalid period is the caller's input and
+// no longer a server error.
+func calendarPeriodWriteErrorRenderer(r *http.Request, err error, serverMsg string) render.Renderer {
+	switch {
+	case errors.Is(err, schoolcalendar.ErrCalendarPeriodNameConflict):
+		return common.ErrorConflictOnField(schoolcalendar.ErrCalendarPeriodNameConflict, common.CodeTimetableCalendarPeriodNameTaken, "name")
+	case errors.Is(err, schoolcalendar.ErrCalendarPeriodRequiredByCareOffering):
+		tenant.MarkRollback(r.Context())
+		return common.ErrorConflictWithCode(errCalendarPeriodCareOfferingConflict, common.CodeTimetableCalendarPeriodCareOfferingConflict)
+	case errors.Is(err, schoolcalendar.ErrCalendarPeriodOverlapConflict):
+		tenant.MarkRollback(r.Context())
+		return calendarPeriodOverlapRenderer(err)
+	case errors.Is(err, schoolcalendar.ErrCalendarPeriodNotFound):
+		return calendarPeriodNotFound()
+	case errors.Is(err, schoolcalendar.ErrInvalidCalendarPeriod):
+		return common.ErrorInvalidRequestWithCode(err, common.CodeTimetableCalendarPeriodInvalid)
+	default:
+		return common.ErrorInternalServerWrap(serverMsg, err)
+	}
 }
 
 func isCalendarPeriodRosterDeleteConflict(err error) bool {

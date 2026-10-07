@@ -20,6 +20,7 @@ import {
   formatPermissionDisplay,
   localizeDescription,
 } from "@/lib/permission-labels";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
 
@@ -44,7 +45,12 @@ function PermissionsPageContent() {
 
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Ladefehler im Gerüst mit Wiederholen (#2517).
+  const {
+    error,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
 
   const { status } = useSession({
     required: true,
@@ -61,19 +67,21 @@ function PermissionsPageContent() {
       const data = await service.getList({ page: 1, pageSize: 500 });
       const arr = Array.isArray(data.data) ? data.data : [];
       setPermissions(arr);
-      setError(null);
+      clearLoadError();
     } catch (err) {
       logger.error("failed to fetch permissions", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        "Fehler beim Laden der Berechtigungen. Bitte versuchen Sie es später erneut.",
-      );
       setPermissions([]);
+      // Bis der Katalogtext da ist, bleibt das Skelett stehen.
+      await showLoadError(err, {
+        object: "die Liste der Berechtigungen",
+        retry: () => void fetchPermissions(),
+      });
     } finally {
       setLoading(false);
     }
-  }, [service]);
+  }, [service, clearLoadError, showLoadError]);
 
   useEffect(() => {
     void fetchPermissions();

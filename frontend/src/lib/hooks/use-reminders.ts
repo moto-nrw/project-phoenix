@@ -265,5 +265,7 @@ export function useReminders() {
     data,
     error,
     isLoading,
+    /** Lädt neu, etwa für Wiederholen an einem Ladefehler. */
+    retry: () => mutate(),
   };
 }

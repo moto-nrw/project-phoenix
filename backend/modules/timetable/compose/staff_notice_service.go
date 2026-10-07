@@ -308,18 +308,18 @@ func (s *staffNoticeService) AcknowledgeStaffNotice(ctx context.Context, id, acc
 	if !notice.RequiresAcknowledgement {
 		// Ein Hinweis ohne angeforderte Kenntnisnahme hat keine zu speichern.
 		// Das ist kein Fehler der Person, sondern eine veraltete Ansicht.
-		return fmt.Errorf("%w: notice does not ask for acknowledgement", timetable.ErrStaffNoticeInvalid)
+		return fmt.Errorf("%w: notice does not ask for acknowledgement", timetable.ErrStaffNoticeOutdated)
 	}
 	today := s.currentDate()
 	if !notice.AppliesOn(today) {
-		return fmt.Errorf("%w: notice does not apply today", timetable.ErrStaffNoticeInvalid)
+		return fmt.Errorf("%w: notice does not apply today", timetable.ErrStaffNoticeOutdated)
 	}
 	matching, err := s.filterByWeekPattern(ctx, []*usersModels.StaffNotice{notice}, today)
 	if err != nil {
 		return err
 	}
 	if len(matching) == 0 {
-		return fmt.Errorf("%w: notice does not apply today", timetable.ErrStaffNoticeInvalid)
+		return fmt.Errorf("%w: notice does not apply today", timetable.ErrStaffNoticeOutdated)
 	}
 	if err := s.repo.Acknowledge(ctx, id, accountID); err != nil {
 		return fmt.Errorf("staffnotice: acknowledge: %w", err)

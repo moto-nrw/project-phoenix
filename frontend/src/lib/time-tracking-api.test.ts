@@ -1,5 +1,6 @@
 import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 import { getSession } from "next-auth/react";
+import { ApiError } from "./api-error";
 import { timeTrackingService } from "./time-tracking-api";
 import type {
   CreateAbsenceRequest,
@@ -179,6 +180,65 @@ describe("TimeTrackingService", () => {
       await expect(timeTrackingService.checkIn("present")).rejects.toThrow(
         "Server error",
       );
+    });
+  });
+
+  describe("transport failures", () => {
+    // A request that never reaches the API is "not reachable", with retry
+    // (#2514), not a crash.
+    it("reports a network failure as unavailable", async () => {
+      global.fetch = vi
+        .fn()
+        .mockRejectedValue(new TypeError("Failed to fetch"));
+
+      const failure = timeTrackingService.checkIn("present");
+      await expect(failure).rejects.toBeInstanceOf(ApiError);
+      await expect(failure).rejects.toMatchObject({
+        code: "general.unavailable",
+      });
+    });
+
+    it("reports a network failure of a void request as unavailable", async () => {
+      global.fetch = vi
+        .fn()
+        .mockRejectedValue(new TypeError("Failed to fetch"));
+
+      await expect(
+        timeTrackingService.deleteAbsence("3"),
+      ).rejects.toMatchObject({ code: "general.unavailable" });
+    });
+
+    it("reports a session lookup failure as unavailable", async () => {
+      const { clearSessionCache } = await import("./session-cache");
+      clearSessionCache();
+      mockGetSession.mockRejectedValueOnce(new Error("Session unavailable"));
+
+      await expect(
+        timeTrackingService.checkIn("present"),
+      ).rejects.toMatchObject({
+        code: "general.unavailable",
+        status: 503,
+      });
+    });
+
+    it("keeps the code and request ID of a refused stamp", async () => {
+      global.fetch = mockFetchResponse(
+        {
+          error: "already checked in",
+          code: "general.business_rejection",
+          instance: "req-stamp",
+        },
+        false,
+        409,
+      );
+
+      await expect(
+        timeTrackingService.checkIn("present"),
+      ).rejects.toMatchObject({
+        code: "general.business_rejection",
+        status: 409,
+        requestId: "req-stamp",
+      });
     });
   });
 

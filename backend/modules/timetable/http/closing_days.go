@@ -24,17 +24,18 @@ type ClosingDayRequest struct {
 // Bind validates the request
 func (req *ClosingDayRequest) Bind(_ *http.Request) error {
 	req.Reason = strings.TrimSpace(req.Reason)
+	invalid := common.CodeTimetableClosingDayInvalid
 	if req.Reason == "" {
-		return errors.New("reason is required")
+		return invalidField(invalid, "reason", "reason is required")
 	}
 	if utf8.RuneCountInString(req.Reason) > schoolcalendar.ClosingDayReasonMaxLength {
-		return errors.New("reason cannot exceed 255 characters")
+		return invalidField(invalid, "reason", "reason cannot exceed 255 characters")
 	}
 	if req.StartDate == "" {
-		return errors.New("start_date is required")
+		return invalidField(invalid, "start_date", "start_date is required")
 	}
 	if req.EndDate == "" {
-		return errors.New("end_date is required")
+		return invalidField(invalid, "end_date", "end_date is required")
 	}
 	return nil
 }
@@ -79,7 +80,7 @@ func parseClosingDayDates(w http.ResponseWriter, r *http.Request, req *ClosingDa
 	}
 
 	if endDate.Before(startDate) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("end_date must not be before start_date")))
+		common.RenderError(w, r, invalidOnField(common.CodeTimetableClosingDayEndBeforeStart, "end_date", "end_date must not be before start_date"))
 		return calendar.Date(""), calendar.Date(""), false
 	}
 
@@ -104,7 +105,7 @@ func (rs *Resource) listClosingDays(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) createClosingDay(w http.ResponseWriter, r *http.Request) {
 	req := &ClosingDayRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, bindErrorRenderer(err))
 		return
 	}
 
@@ -119,7 +120,7 @@ func (rs *Resource) createClosingDay(w http.ResponseWriter, r *http.Request) {
 		Reason:    req.Reason,
 	}})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("Schließtag konnte nicht angelegt werden", err))
+		common.RenderError(w, r, closingDayWriteErrorRenderer(err, "Schließtag konnte nicht angelegt werden"))
 		return
 	}
 
@@ -135,7 +136,7 @@ func (rs *Resource) updateClosingDay(w http.ResponseWriter, r *http.Request) {
 
 	req := &ClosingDayRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, bindErrorRenderer(err))
 		return
 	}
 
@@ -147,7 +148,7 @@ func (rs *Resource) updateClosingDay(w http.ResponseWriter, r *http.Request) {
 	day, err := rs.ClosingDays.FindClosingDay(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, schoolcalendar.ErrClosingDayNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(errors.New("closing day not found")))
+			common.RenderError(w, r, closingDayNotFound())
 		} else {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("Schließtag konnte nicht geladen werden", err))
 		}
@@ -160,7 +161,7 @@ func (rs *Resource) updateClosingDay(w http.ResponseWriter, r *http.Request) {
 		Reason:    req.Reason,
 	}})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("Schließtag konnte nicht aktualisiert werden", err))
+		common.RenderError(w, r, closingDayWriteErrorRenderer(err, "Schließtag konnte nicht aktualisiert werden"))
 		return
 	}
 
@@ -176,7 +177,7 @@ func (rs *Resource) deleteClosingDay(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := rs.ClosingDays.FindClosingDay(r.Context(), id); err != nil {
 		if errors.Is(err, schoolcalendar.ErrClosingDayNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(errors.New("closing day not found")))
+			common.RenderError(w, r, closingDayNotFound())
 		} else {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("Schließtag konnte nicht geladen werden", err))
 		}
@@ -184,9 +185,28 @@ func (rs *Resource) deleteClosingDay(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.ClosingDays.DeleteClosingDay(r.Context(), id); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("Schließtag konnte nicht gelöscht werden", err))
+		common.RenderError(w, r, closingDayWriteErrorRenderer(err, "Schließtag konnte nicht gelöscht werden"))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Closing day deleted successfully")
+}
+
+// closingDayNotFound answers a closing day that is gone (#2516).
+func closingDayNotFound() render.Renderer {
+	return common.ErrorNotFoundWithCode(schoolcalendar.ErrClosingDayNotFound, common.CodeTimetableClosingDayNotFound)
+}
+
+// closingDayWriteErrorRenderer classifies a refused closing-day write
+// (#2516): an invalid range is the caller's input and a vanished row a stale
+// page, neither a server error.
+func closingDayWriteErrorRenderer(err error, serverMsg string) render.Renderer {
+	switch {
+	case errors.Is(err, schoolcalendar.ErrInvalidClosingDay):
+		return common.ErrorInvalidRequestWithCode(err, common.CodeTimetableClosingDayInvalid)
+	case errors.Is(err, schoolcalendar.ErrClosingDayNotFound):
+		return closingDayNotFound()
+	default:
+		return common.ErrorInternalServerWrap(serverMsg, err)
+	}
 }

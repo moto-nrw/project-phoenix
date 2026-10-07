@@ -30,6 +30,8 @@ function readStoredReopenBanner(): {
     }
     return { instanceId: parsed.instanceId, expiresAt };
   } catch {
+    // Bewusst still: ein unlesbarer Eintrag heißt nur, dass das Angebot
+    // „Rückgängig“ entfällt; die Aktivität selbst ist beendet.
     window.sessionStorage.removeItem(REOPEN_STORAGE_KEY);
     return null;
   }

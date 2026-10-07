@@ -1,6 +1,10 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import StudentFeedbackHistoryPage from "./page";
+import { ApiError } from "~/lib/api-error";
+import { fetchStudent } from "~/lib/student-api";
+import { fetchStudentFeedback } from "~/lib/feedback-api";
+import { catalogText } from "~/test/error-catalog-text";
 
 const mockPush = vi.fn();
 
@@ -309,5 +313,45 @@ describe("StudentFeedbackHistoryPage", () => {
       },
       { timeout: 2000 },
     );
+  });
+
+  it("shows a failed load in place with the catalog text", async () => {
+    vi.mocked(fetchStudentFeedback).mockRejectedValueOnce(
+      new ApiError("boom", 503, { code: "general.unavailable" }),
+    );
+
+    render(<StudentFeedbackHistoryPage />);
+
+    expect(await screen.findByTestId("alert-error")).toHaveTextContent(
+      "Die Feedbackhistorie ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+    );
+    // #2517: keine Zählung aus einer Historie, die nie geladen wurde.
+    expect(screen.getByTestId("alert-error")).toHaveTextContent(
+      catalogText("general.unavailable", "die Feedbackhistorie"),
+    );
+    expect(screen.queryByText(/0 Einträge/)).not.toBeInTheDocument();
+  });
+
+  it("shows the switched-off state from the child's record", async () => {
+    vi.mocked(fetchStudent).mockResolvedValueOnce({
+      id: "1",
+      name: "Emma Müller",
+      first_name: "Emma",
+      second_name: "Müller",
+      school_class: "3b",
+      feedback_enabled: false,
+    } as unknown as Awaited<ReturnType<typeof fetchStudent>>);
+    vi.mocked(fetchStudentFeedback).mockRejectedValueOnce(
+      new ApiError("feature_disabled", 403),
+    );
+
+    render(<StudentFeedbackHistoryPage />);
+
+    expect(
+      await screen.findByText(
+        /Die Feedbackhistorie ist für Ihre Schule ausgeschaltet/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
   });
 });

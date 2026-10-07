@@ -10,6 +10,17 @@ func onlySupervisorConflict(err error) render.Renderer {
 	return common.ErrorConflictWithCode(err, common.CodeTimetableOnlySupervisorReplacementRequired)
 }
 
+// Protected activities name the reason with their own code (#2517): the class
+// text "fehlende Berechtigung" would send the user to the school for a row
+// nobody may change.
+func systemActivityForbidden(err error) render.Renderer {
+	return common.ErrorForbiddenWithCode(err, common.CodeTimetableActivitySystemProtected)
+}
+
+func timetableTemplateConflict(err error) render.Renderer {
+	return common.ErrorConflictWithCode(err, common.CodeTimetableActivityTemplateProtected)
+}
+
 // errorRules map activity-service sentinels to HTTP responses. Matched via
 // errors.Is against the full error and rendered with the wrapper text.
 var errorRules = []common.ErrorRule{
@@ -21,12 +32,12 @@ var errorRules = []common.ErrorRule{
 	{Target: activities.ErrStudentNotFound, Render: common.ErrorNotFound},
 	{Target: activities.ErrGroupFull, Render: common.ErrorConflict},
 	{Target: activities.ErrAlreadyEnrolled, Render: common.ErrorConflict},
-	{Target: activities.ErrTimetableTemplateProtected, Render: common.ErrorConflict},
+	{Target: activities.ErrTimetableTemplateProtected, Render: timetableTemplateConflict},
 	{Target: activities.ErrOnlySupervisorRequiresReplacement, Render: onlySupervisorConflict},
 	{Target: activities.ErrNotEnrolled, Render: common.ErrorNotFound},
 	{Target: activities.ErrStudentIsAlumnus, Render: common.ErrorInvalidRequest},
 	{Target: activities.ErrStudentCareEnded, Render: common.ErrorInvalidRequest},
-	{Target: activities.ErrSystemActivityProtected, Render: common.ErrorForbidden},
+	{Target: activities.ErrSystemActivityProtected, Render: systemActivityForbidden},
 	{Target: activities.ErrSystemCategoryProtected, Render: common.ErrorForbidden},
 	{Target: activities.ErrSystemCategoryNameReserved, Render: common.ErrorConflict},
 	{Target: activities.ErrCategoryNameExists, Render: common.ErrorConflict},

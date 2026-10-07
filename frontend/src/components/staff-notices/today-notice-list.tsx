@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { getApiErrorMessage } from "~/lib/api-error-message";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   acknowledgeStaffNotice,
@@ -34,11 +34,15 @@ export function TodayNoticeList({
   readonly acknowledge?: (id: string) => Promise<void>;
 }) {
   const [pending, setPending] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Eine Kenntnisnahme ist eine Aktion ohne Formular: der Fehler kommt als
+  // Meldung mit Wiederholen (#2517).
+  const { show: showError } = useApiErrorDisplay();
+  const latestConfirmRef = useRef<(notice: StaffNotice) => void>(
+    () => undefined,
+  );
 
   const confirm = async (notice: StaffNotice) => {
     setPending(notice.id);
-    setError(null);
     try {
       await acknowledge(notice.id);
       await onChanged();
@@ -47,22 +51,20 @@ export function TodayNoticeList({
       logger.error("staff_notice_acknowledge_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        getApiErrorMessage(
-          err,
-          "bestätigen",
-          "die Tagesinformation",
-          "Die Kenntnisnahme konnte nicht gespeichert werden.",
-        ),
-      );
+      void showError(err, {
+        object: "die Kenntnisnahme",
+        retry: () => latestConfirmRef.current(notice),
+      });
     } finally {
       setPending(null);
     }
   };
+  useLayoutEffect(() => {
+    latestConfirmRef.current = (notice) => void confirm(notice);
+  });
 
   return (
     <>
-      {error && <p className="text-moto-red-strong mb-3 text-sm">{error}</p>}
       <ul className="space-y-4">
         {notices.map((notice) => (
           <li key={notice.id}>

@@ -2,9 +2,9 @@
 
 import { ChevronRight } from "lucide-react";
 
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import Link from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -20,6 +20,7 @@ import {
 } from "~/components/home/home-card-rows";
 import { useDayPlanHref, useDayPlanLabel } from "~/lib/hooks/use-day-plan-href";
 import { useStartOwnBlock } from "~/components/home/use-start-own-block";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
@@ -64,11 +65,12 @@ export function MyDayBlock() {
   );
 
   // Derselbe Weg wie „Aufsicht starten" in der Jetzt-Zone.
-  const {
-    start,
-    busyId: startBusyId,
-    error: actionError,
-  } = useStartOwnBlock({ onFailure: () => mutate() });
+  const { start, busyId: startBusyId } = useStartOwnBlock({
+    onFailure: () => mutate(),
+  });
+  const loadError = useSwrLoadError(error, "die Karte „Mein Tag“", () =>
+    mutate(),
+  );
 
   const mine = [...(data ?? [])]
     .filter((block) => block.isAssigned)
@@ -116,15 +118,9 @@ export function MyDayBlock() {
       }
     >
       {(() => {
-        if (error) {
-          return (
-            <Alert
-              type="error"
-              message="Ihr Tag konnte nicht geladen werden. Bitte die Seite neu laden."
-            />
-          );
-        }
-        if (isLoading && data === undefined) {
+        if (loadError) return <LoadErrorAlert error={loadError} />;
+        // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett.
+        if ((isLoading && data === undefined) || error) {
           return (
             <div className="space-y-2" aria-hidden="true">
               {[1, 2, 3, 4].map((i) => (
@@ -150,7 +146,6 @@ export function MyDayBlock() {
         }
         return (
           <>
-            {actionError && <Alert type="error" message={actionError} />}
             <ul className="space-y-1.5">
               {shown.map((block, index) => (
                 <BlockRow
@@ -227,16 +222,21 @@ function BlockRow({
     block.status === "planned" && canStartPlannedInstance(block, new Date());
   // Vorbei ist vorbei: gedimmt, damit das Laufende und Kommende von selbst
   // hervortritt — wie im Tagesplan.
-  const missed =
+  // Ein Dienst (#3822) wird nie gestartet und hat keine Kinder.
+  const isDuty = block.isDuty === true;
+  const ended =
     block.status === "planned" && now !== "" && block.endTime <= now;
-  const over = block.status === "completed" || missed;
+  const missed = ended && !isDuty;
+  const over = block.status === "completed" || ended;
   // Ein laufender Block führt in seine Kinderliste; jeder andere in den
   // Tagesplan, wo er bedient wird.
   const href =
     running && block.activeGroupId
       ? tenantPath(`/active-supervisions?session=${block.activeGroupId}`)
       : dayPlanHref;
-  const room = block.roomName ?? `Raum ${block.roomId}`;
+  const room =
+    block.roomName ??
+    (isDuty && block.roomId === "0" ? null : `Raum ${block.roomId}`);
   // Kinderzahl so knapp wie im Tagesplan: laufend „12 von 18 da", danach
   // nur noch, wer da war, davor, wer erwartet wird.
   const count =
@@ -245,11 +245,13 @@ function BlockRow({
       : block.expectedStudentsCount;
   const children = cancelled
     ? null
-    : running
-      ? `${block.presentStudentsCount} von ${block.expectedStudentsCount} da`
-      : count === 1
-        ? "1 Kind"
-        : `${count} Kinder`;
+    : isDuty
+      ? "Dienst"
+      : running
+        ? `${block.presentStudentsCount} von ${block.expectedStudentsCount} da`
+        : count === 1
+          ? "1 Kind"
+          : `${count} Kinder`;
   const staff = (block.staffNames ?? [])
     .map((entry) =>
       entry.isSubstitute

@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "./api-error";
 import {
+  bulkApproveParentRequests,
+  ChangeRequestStaleError,
   fetchPendingEnrollmentChangeRequestCount,
+  getFamilyProtection,
   listAggregatedOpenRequests,
   listAggregatedRequestHistory,
   listEnrollmentChangeRequests,
+  markRequestDone,
 } from "./change-request-list-api";
 
 describe("change request list API", () => {
@@ -74,36 +79,92 @@ describe("change request list API", () => {
     );
   });
 
-  it("uses the response error message when loading fails", async () => {
+  it("throws an ApiError with the wire code when loading fails", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ error: "Keine Berechtigung" }), {
-        status: 403,
-      }),
+      new Response(
+        JSON.stringify({
+          error: "absence read required",
+          code: "students.absence_read_required",
+          instance: "req-403",
+        }),
+        { status: 403 },
+      ),
     );
 
-    await expect(listAggregatedOpenRequests()).rejects.toThrow(
-      "Keine Berechtigung",
-    );
+    const error = await listAggregatedOpenRequests().catch((err) => err);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 403,
+      code: "students.absence_read_required",
+      requestId: "req-403",
+    });
   });
 
-  it("keeps the generic message when the error body carries no text", async () => {
+  it("keeps the status class when the error body carries no code", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({}), { status: 500 }),
     );
 
-    await expect(listAggregatedOpenRequests()).rejects.toThrow(
-      "Anfragen konnten nicht geladen werden.",
-    );
+    await expect(listAggregatedOpenRequests()).rejects.toMatchObject({
+      status: 500,
+      code: "general.server",
+    });
   });
 
-  it("uses the generic message for non-JSON failures", async () => {
+  it("classifies non-JSON failures by status", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("upstream error", { status: 502 }),
     );
 
-    await expect(listAggregatedRequestHistory()).rejects.toThrow(
-      "Anfragen konnten nicht geladen werden.",
+    await expect(listAggregatedRequestHistory()).rejects.toMatchObject({
+      status: 502,
+      code: "general.unavailable",
+    });
+  });
+
+  it("turns a stale write into ChangeRequestStaleError with its code", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ code: "students.change_request_stale" }), {
+        status: 409,
+      }),
     );
+
+    const error = (await markRequestDone("excused", "7", "v1").catch(
+      (err: unknown) => err,
+    )) as ApiError;
+    expect(error).toBeInstanceOf(ChangeRequestStaleError);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.code).toBe("students.change_request_stale");
+  });
+
+  it("keeps the code of any other failed write", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ code: "students.bulk_approval_ineligible" }),
+        { status: 409 },
+      ),
+    );
+
+    await expect(
+      bulkApproveParentRequests(
+        [{ kind: "excused", id: "1", expected_version: "v" }],
+        "",
+      ),
+    ).rejects.toMatchObject({
+      status: 409,
+      code: "students.bulk_approval_ineligible",
+    });
+  });
+
+  it("throws an ApiError when the family protection cannot be loaded", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("nope", { status: 503 }),
+    );
+
+    await expect(getFamilyProtection("5")).rejects.toMatchObject({
+      status: 503,
+      code: "general.unavailable",
+    });
   });
 });
 
@@ -243,13 +304,15 @@ describe("enrollment change request list", () => {
     );
   });
 
-  it("throws a German message when the list fails", async () => {
+  it("throws an ApiError when the list fails", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("nope", { status: 500 }),
     );
 
-    await expect(listEnrollmentChangeRequests("open")).rejects.toThrow(
-      "Anmeldungsänderungen konnten nicht geladen werden.",
+    const error = await listEnrollmentChangeRequests("open").catch(
+      (err) => err,
     );
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.code).toBe("general.server");
   });
 });

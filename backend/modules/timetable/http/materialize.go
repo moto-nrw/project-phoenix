@@ -81,7 +81,7 @@ func (rs *Resource) materialize(w http.ResponseWriter, r *http.Request) {
 
 	from, to, err := resolveMaterializationWindow(req, time.Now())
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, codedInvalid(err))
 		return
 	}
 
@@ -176,10 +176,12 @@ func resolveMaterializationWindow(req *materializeRequest, now time.Time) (from,
 	}
 
 	if to.Before(from) {
-		return calendar.Date(""), calendar.Date(""), errors.New("to_date must not be before from_date")
+		return calendar.Date(""), calendar.Date(""), timetableModule.WithCode(errors.New("to_date must not be before from_date"),
+			common.CodeTimetableWindowEndBeforeStart)
 	}
 	if from.DaysUntil(to)+1 > timetableModule.MaxMaterializationWindowDays {
-		return calendar.Date(""), calendar.Date(""), errors.New("window exceeds 56 days (8 weeks)")
+		return calendar.Date(""), calendar.Date(""), timetableModule.WithCode(errors.New("window exceeds 56 days (8 weeks)"),
+			common.CodeTimetableWindowTooLarge, timetableModule.RefusalValues{MaxDays: timetableModule.MaxMaterializationWindowDays})
 	}
 	return from, to, nil
 }

@@ -21,7 +21,7 @@ type Middleware = func(http.Handler) http.Handler
 type Runtime struct {
 	// Protected mounts the tenant group; withTx opens the tenant transaction.
 	Protected func(chi.Router, func(r chi.Router, withTx Middleware))
-	// RequireWrite checks config:update.
+	// RequireWrite checks config:update. The staff first steps do not use it.
 	RequireWrite Middleware
 	// Actor returns the school and account of the request.
 	Actor   func(context.Context) (tenantID, accountID int64)

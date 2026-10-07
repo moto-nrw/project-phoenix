@@ -107,6 +107,8 @@ vi.mock("~/lib/timetable-api", async (importOriginal) => {
 });
 
 import { InstanceDetailModal } from "./instance-detail-modal";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import {
   useAttendanceWebEnabled,
@@ -331,12 +333,16 @@ describe("InstanceDetailModal", () => {
     expect(screen.queryByText("Personal #11")).not.toBeInTheDocument();
   });
 
-  it("shows an error instead of fallback participant data when loading fails", () => {
+  it("shows an error instead of fallback participant data when loading fails", async () => {
+    const mutate = vi.fn();
     vi.mocked(useSWR).mockReturnValue({
       data: undefined,
-      error: new Error("network failed"),
+      error: new ApiError("Failed to fetch", 503, {
+        code: "general.unavailable",
+      }),
       isLoading: false,
-    } as ReturnType<typeof useSWR>);
+      mutate,
+    } as unknown as ReturnType<typeof useSWR>);
 
     render(
       <InstanceDetailModal
@@ -349,12 +355,15 @@ describe("InstanceDetailModal", () => {
     );
 
     expect(
-      screen.getByText(
-        "Die Teilnehmenden konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Teilnehmenden"),
       ),
     ).toBeVisible();
+    expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
     expect(screen.queryByText("Keine Kinder geplant.")).not.toBeInTheDocument();
     expect(screen.queryByText("Personal #11")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mutate).toHaveBeenCalled();
   });
 
   // The header count already leaves these children out (#1747). Listing them
@@ -852,6 +861,59 @@ describe("InstanceDetailModal", () => {
       ),
     );
     expect(onDeleteCancelled).not.toHaveBeenCalled();
+  });
+
+  it("shows a failed delete inside the open delete dialog and retries it", async () => {
+    const onDeleteCancelled = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ApiError("instance is not cancelled", 409, {
+          code: "timetable.invalid_transition",
+        }),
+      )
+      .mockRejectedValueOnce(
+        new ApiError("db down", 500, { code: "general.server" }),
+      )
+      .mockResolvedValueOnce(undefined);
+
+    render(
+      <InstanceDetailModal
+        instance={instance({ status: "cancelled" })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onDeleteCancelled={onDeleteCancelled}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
+    fireEvent.click(confirmDialogButton("Löschen"));
+    fireEvent.click(confirmDialogButton("Endgültig löschen"));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Abgesagten Termin löschen",
+    });
+    expect(
+      await within(dialog).findByText(
+        catalogText("timetable.invalid_transition", "das Löschen des Termins"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/is not cancelled/)).not.toBeInTheDocument();
+
+    fireEvent.click(confirmDialogButton("Endgültig löschen"));
+    expect(
+      await within(dialog).findByText(
+        catalogText("general.server", "das Löschen des Termins"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Wiederholen" }),
+    );
+    await waitFor(() => expect(onDeleteCancelled).toHaveBeenCalledTimes(3));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Abgesagten Termin löschen" }),
+      ).not.toBeInTheDocument(),
+    );
   });
 
   it("contains a reported recurring-delete rejection and keeps the scope dialog usable", async () => {

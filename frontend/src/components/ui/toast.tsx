@@ -1,9 +1,10 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useState, type MouseEventHandler } from "react";
+import type { MouseEventHandler } from "react";
 import { Alert, type AlertType } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { RequestIdButton } from "~/components/ui/request-id-button";
 import { cn } from "~/lib/utils";
 
 interface ToastAction {
@@ -53,62 +54,57 @@ export function Toast({
   onMouseEnter,
   onMouseLeave,
 }: Readonly<ToastProps>) {
-  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  // Wiederholen und Vorgangskennung stehen unter der Meldung, bündig mit
+  // ihrem Text (wie im Fehlerkasten); -ml-2.5 nimmt das Polster des ersten
+  // Knopfs zurück. Das Schließen-X gehört nicht in diese Reihe: in der
+  // schmalen Toast-Breite brach es sonst allein in eine eigene Zeile um.
+  const actions =
+    action || (requestId && copyRequestIdLabel) ? (
+      <span className="-ml-2.5 flex flex-wrap items-center gap-x-1">
+        {action ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="compact"
+            aria-label={action.accessibleLabel}
+            onClick={action.onClick}
+            className={cn(
+              "shrink-0 self-center text-current underline underline-offset-2 hover:bg-black/5 hover:text-current",
+              touchFriendly ? "h-11 px-3 text-sm" : "",
+            )}
+          >
+            {action.label}
+          </Button>
+        ) : null}
+        {requestId && copyRequestIdLabel ? (
+          <RequestIdButton
+            requestId={requestId}
+            label={requestIdLabel}
+            copyLabel={copyRequestIdLabel}
+            copiedLabel={copySucceededLabel}
+            copyFailedLabel={copyFailedLabel}
+          />
+        ) : null}
+      </span>
+    ) : undefined;
 
-  const handleCopy = async () => {
-    if (!requestId) return;
-    try {
-      await navigator.clipboard.writeText(requestId);
-      setCopyFeedback(copySucceededLabel);
-    } catch {
-      setCopyFeedback(copyFailedLabel);
-    }
-  };
-
-  const controls = (
-    <span className="flex flex-wrap items-center justify-end gap-1">
-      {copyFeedback ? <span role="status">{copyFeedback}</span> : null}
-      {action ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="compact"
-          aria-label={action.accessibleLabel}
-          onClick={action.onClick}
-          className={cn(
-            "shrink-0 self-center text-current underline underline-offset-2 hover:bg-black/5 hover:text-current",
-            touchFriendly ? "h-11 px-3 text-sm" : "",
-          )}
-        >
-          {action.label}
-        </Button>
-      ) : null}
-      {requestId && copyRequestIdLabel ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="compact"
-          aria-label={copyRequestIdLabel}
-          onClick={handleCopy}
-          className="shrink-0 self-center text-current underline underline-offset-2 hover:bg-black/5 hover:text-current"
-        >
-          {requestIdLabel?.replace("{requestId}", requestId) ?? requestId}
-        </Button>
-      ) : null}
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label={closeLabel}
-        onClick={onClose}
-        className={cn(
-          "shrink-0 text-current hover:bg-black/5 hover:text-current",
-          touchFriendly ? "h-11" : "",
-        )}
-      >
-        <X className="h-4 w-4" aria-hidden="true" />
-      </Button>
-    </span>
+  // Das X sitzt in der Toast-Fläche (es gehört zur Meldung), aber absolut
+  // oben rechts auf Höhe der ersten Textzeile: p-4 plus halbe Zeilenhöhe
+  // minus halbe Knopfhöhe. Die Alert-Fläche ist dafür `relative`.
+  const close = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      aria-label={closeLabel}
+      onClick={onClose}
+      className={cn(
+        "absolute shrink-0 text-current hover:bg-black/5 hover:text-current",
+        touchFriendly ? "top-1 right-1 h-11 w-11" : "top-2.5 right-2.5",
+      )}
+    >
+      <X className="h-4 w-4" aria-hidden="true" />
+    </Button>
   );
 
   return (
@@ -126,9 +122,19 @@ export function Toast({
         message={message}
         announce={type === "error" ? "assertive" : "polite"}
         aria-label={accessibleLabel}
-        action={controls}
-        actionLayout={requestId ? "responsive" : "inline"}
-        className="rounded-xl shadow-lg"
+        action={
+          <>
+            {actions}
+            {close}
+          </>
+        }
+        // Ohne Aktionen bleibt keine leere Reihe unter der Meldung stehen.
+        actionLayout={actions ? "stacked" : "inline"}
+        // Rechts Platz für das Schließen-X oben in der Ecke.
+        className={cn(
+          "relative rounded-xl shadow-lg",
+          touchFriendly ? "pr-14" : "pr-12",
+        )}
       />
     </div>
   );

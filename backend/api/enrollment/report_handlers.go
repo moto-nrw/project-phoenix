@@ -170,7 +170,7 @@ func (rs *Resource) getCareUsageReport(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, capability.ErrReportPhaseNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(err))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound))
 			return
 		}
 		if errors.Is(err, capability.ErrReportExportTooLarge) {
@@ -224,7 +224,7 @@ func exportReport[F, R any](rs *Resource, w http.ResponseWriter, r *http.Request
 	})
 	if err != nil {
 		if errors.Is(err, capability.ErrReportPhaseNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(err))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound))
 			return
 		}
 		if errors.Is(err, capability.ErrReportExportTooLarge) {

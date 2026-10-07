@@ -52,6 +52,44 @@ export function errorClassCode(status: number): ErrorCode {
   return status >= 500 ? "general.server" : "general.input";
 }
 
+/** A request failed before the API could return an HTTP response. */
+export function unavailableApiError(cause?: unknown): ApiError {
+  const message =
+    cause instanceof Error && cause.message
+      ? cause.message
+      : "Network request failed";
+  const error = new ApiError(message, 503, {
+    code: "general.unavailable",
+  });
+  if (cause instanceof Error && cause.name) error.name = cause.name;
+  return error;
+}
+
+/**
+ * `fetch` for domain clients: a request that never reached the API (offline
+ * or DNS failure) becomes `general.unavailable` instead of a raw `TypeError`
+ * like "Failed to fetch". Callers use AbortSignal to supersede stale work;
+ * those cancellations must retain their normal AbortError semantics.
+ */
+export async function transportFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    if (
+      error !== null &&
+      typeof error === "object" &&
+      "name" in error &&
+      error.name === "AbortError"
+    ) {
+      throw error;
+    }
+    throw unavailableApiError(error);
+  }
+}
+
 export function apiErrorFromBody(
   message: string,
   status: number,
@@ -80,6 +118,43 @@ export function apiErrorFromBody(
     errors,
     instance: typeof data.instance === "string" ? data.instance : undefined,
   });
+}
+
+/**
+ * For clients that already read the body as text: keeps their message and
+ * takes code, field errors and request ID from the envelope when the text is
+ * JSON.
+ */
+export function apiErrorFromText(
+  message: string,
+  status: number,
+  text: string,
+): ApiError {
+  let body: unknown;
+  try {
+    body = text ? JSON.parse(text) : undefined;
+  } catch {
+    body = undefined;
+  }
+  return apiErrorFromBody(message, status, body);
+}
+
+/**
+ * For clients that hold the failed `Response`: keeps their message and takes
+ * code, field errors and request ID from the envelope. A body that cannot be
+ * read still yields the status class.
+ */
+export async function apiErrorFromResponse(
+  response: Response,
+  message: string,
+): Promise<ApiError> {
+  let text = "";
+  try {
+    text = await response.text();
+  } catch {
+    // Body already consumed or the stream broke: the status still classifies.
+  }
+  return apiErrorFromText(message, response.status, text);
 }
 
 /** Add wire fields without replacing the domain error's message or type. */

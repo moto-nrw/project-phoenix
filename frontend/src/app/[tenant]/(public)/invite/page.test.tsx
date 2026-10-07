@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import InvitePage from "./page";
 
 // Mock next/navigation
@@ -82,7 +84,7 @@ describe("InvitePage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Kein Einladungstoken angegeben."),
+        screen.getByText(/Der Link ist unvollständig/),
       ).toBeInTheDocument();
     });
 
@@ -124,17 +126,18 @@ describe("InvitePage", () => {
 
   it("should show error for 410 expired invitation", async () => {
     mockSearchParams.set("token", "expired-token");
-    mockValidateInvitation.mockRejectedValueOnce({
-      status: 410,
-      message: "Invitation expired",
-    });
+    mockValidateInvitation.mockRejectedValueOnce(
+      new ApiError("Invitation expired", 410, {
+        code: "identity.invitation_expired",
+      }),
+    );
 
     render(<InvitePage />);
 
     await waitFor(() => {
       expect(
         screen.getByText(
-          "Diese Einladung ist abgelaufen oder wurde bereits verwendet.",
+          catalogText("identity.invitation_expired", "die Einladung"),
         ),
       ).toBeInTheDocument();
     });
@@ -144,32 +147,38 @@ describe("InvitePage", () => {
 
   it("should show error for 404 not found invitation", async () => {
     mockSearchParams.set("token", "invalid-token");
-    mockValidateInvitation.mockRejectedValueOnce({
-      status: 404,
-      message: "Not found",
-    });
+    mockValidateInvitation.mockRejectedValueOnce(
+      new ApiError("Not found", 404, {
+        code: "identity.invitation_not_found",
+      }),
+    );
 
     render(<InvitePage />);
 
     await waitFor(() => {
       expect(
-        screen.getByText("Wir konnten diese Einladung nicht finden."),
+        screen.getByText(
+          catalogText("identity.invitation_not_found", "die Einladung"),
+        ),
       ).toBeInTheDocument();
     });
   });
 
   it("should show generic error for other failures", async () => {
     mockSearchParams.set("token", "error-token");
-    mockValidateInvitation.mockRejectedValueOnce({
-      status: 500,
-      message: "Server error",
-    });
+    mockValidateInvitation.mockRejectedValueOnce(
+      new ApiError("Server error", 500),
+    );
 
     render(<InvitePage />);
 
+    // The catalog text, never the backend sentence (#2517).
     await waitFor(() => {
-      expect(screen.getByText("Server error")).toBeInTheDocument();
+      expect(
+        screen.getByText(catalogText("general.server", "die Einladung")),
+      ).toBeInTheDocument();
     });
+    expect(screen.queryByText("Server error")).not.toBeInTheDocument();
   });
 
   it("should show generic error when no message available", async () => {
@@ -180,11 +189,10 @@ describe("InvitePage", () => {
 
     render(<InvitePage />);
 
+    // Not an API error: the general text for the invitation.
     await waitFor(() => {
       expect(
-        screen.getByText(
-          "Beim Laden der Einladung ist ein Fehler aufgetreten.",
-        ),
+        screen.getByText(catalogText("general.server", "die Einladung")),
       ).toBeInTheDocument();
     });
   });
@@ -269,17 +277,18 @@ describe("InvitePage", () => {
     });
   });
 
-  it("should display error icon with error message", async () => {
+  it("should show the error in an alert", async () => {
     mockSearchParams.set("token", "expired-token");
-    mockValidateInvitation.mockRejectedValueOnce({
-      status: 410,
-    });
+    mockValidateInvitation.mockRejectedValueOnce(
+      new ApiError("gone", 410, { code: "identity.invitation_expired" }),
+    );
 
     render(<InvitePage />);
 
     await waitFor(() => {
-      const svg = screen.getByRole("img", { name: "Fehler" });
-      expect(svg).toBeInTheDocument();
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        catalogText("identity.invitation_expired", "die Einladung"),
+      );
     });
   });
 

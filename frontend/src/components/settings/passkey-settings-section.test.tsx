@@ -7,6 +7,17 @@ import {
   within,
 } from "@testing-library/react";
 import { PasskeySettingsSection } from "./passkey-settings-section";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+// The shared error path shows failures through the toast provider (#2517).
+function renderWithToast(
+  ui: Parameters<typeof render>[0],
+  options?: Parameters<typeof render>[1],
+) {
+  return render(ui, { wrapper: ToastProvider, ...options });
+}
 
 const {
   mockIsPasskeySupported,
@@ -25,6 +36,8 @@ const {
 }));
 
 vi.mock("~/lib/passkey-api", () => ({
+  isPasskeyCeremonyIncompleteError: (error: unknown) =>
+    error instanceof Error && error.name === "NotAllowedError",
   isPasskeySupported: mockIsPasskeySupported,
   listPasskeys: mockListPasskeys,
   registerPasskey: mockRegisterPasskey,
@@ -57,7 +70,7 @@ describe("PasskeySettingsSection", () => {
   it("shows an unsupported browser message", async () => {
     mockIsPasskeySupported.mockReturnValue(false);
 
-    render(<PasskeySettingsSection />);
+    renderWithToast(<PasskeySettingsSection />);
 
     expect(
       screen.getByText("Passkeys werden von diesem Browser nicht unterstützt."),
@@ -85,7 +98,7 @@ describe("PasskeySettingsSection", () => {
       },
     ]);
 
-    render(<PasskeySettingsSection scope="operator" />);
+    renderWithToast(<PasskeySettingsSection scope="operator" />);
 
     await waitFor(() => {
       expect(screen.getByText("Laptop")).toBeInTheDocument();
@@ -107,7 +120,7 @@ describe("PasskeySettingsSection", () => {
       },
     ]);
 
-    render(<PasskeySettingsSection />);
+    renderWithToast(<PasskeySettingsSection />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Hinzufügen" }));
 
@@ -145,7 +158,7 @@ describe("PasskeySettingsSection", () => {
     });
     await waitFor(() => {
       expect(
-        screen.getByText("Passkey wurde hinzugefügt."),
+        screen.getByText("Der Passkey ist hinzugefügt."),
       ).toBeInTheDocument();
       expect(screen.getByText("MacBook")).toBeInTheDocument();
     });
@@ -163,7 +176,7 @@ describe("PasskeySettingsSection", () => {
       ])
       .mockResolvedValueOnce([]);
 
-    render(<PasskeySettingsSection scope="operator" />);
+    renderWithToast(<PasskeySettingsSection scope="operator" />);
 
     // #3109: the row menu opens the ConfirmDeleteModal; the passkey is only
     // revoked after the two-step confirmation inside the dialog.
@@ -191,7 +204,7 @@ describe("PasskeySettingsSection", () => {
       ).not.toBeInTheDocument();
     });
     await waitFor(() => {
-      expect(screen.getByText("Passkey wurde entfernt.")).toBeInTheDocument();
+      expect(screen.getByText("Der Passkey ist entfernt.")).toBeInTheDocument();
       expect(
         screen.getByText("Keine Passkeys hinterlegt."),
       ).toBeInTheDocument();
@@ -202,7 +215,7 @@ describe("PasskeySettingsSection", () => {
     mockListPasskeys.mockResolvedValue([
       { id: "5", name: "Old phone", created_at: "2026-06-15T10:00:00Z" },
     ]);
-    render(<PasskeySettingsSection />);
+    renderWithToast(<PasskeySettingsSection />);
 
     fireEvent.click(await screen.findByLabelText("Aktionen für Old phone"));
     fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
@@ -220,8 +233,8 @@ describe("PasskeySettingsSection", () => {
     mockListPasskeys.mockResolvedValue([
       { id: "5", name: "Old phone", created_at: "2026-06-15T10:00:00Z" },
     ]);
-    mockRevokePasskey.mockRejectedValueOnce(new Error("Nicht erlaubt"));
-    render(<PasskeySettingsSection />);
+    mockRevokePasskey.mockRejectedValueOnce(new ApiError("Nicht erlaubt", 403));
+    renderWithToast(<PasskeySettingsSection />);
 
     fireEvent.click(await screen.findByLabelText("Aktionen für Old phone"));
     fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
@@ -230,7 +243,11 @@ describe("PasskeySettingsSection", () => {
       screen.getByRole("button", { name: "Endgültig entfernen" }),
     );
 
-    expect(await screen.findByText("Nicht erlaubt")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        catalogText("general.permission", "das Entfernen des Passkeys"),
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Passkey entfernen?" }),
     ).toBeInTheDocument();
@@ -238,21 +255,71 @@ describe("PasskeySettingsSection", () => {
   });
 
   it("shows load and action errors", async () => {
-    mockListPasskeys.mockRejectedValueOnce(new Error("Liste kaputt"));
-    render(<PasskeySettingsSection />);
+    mockListPasskeys.mockRejectedValueOnce(new ApiError("Liste kaputt", 500));
+    renderWithToast(<PasskeySettingsSection />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Liste kaputt");
+    // #2517: catalog text in place instead of an empty list.
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Liste der Passkeys"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Keine Passkeys hinterlegt.")).toBeNull();
 
     mockStartPasskeyEnrollment.mockRejectedValueOnce(
-      new Error("Code konnte nicht gesendet werden"),
+      new ApiError("Code konnte nicht gesendet werden", 503),
     );
     fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
     fireEvent.click(screen.getByRole("button", { name: "E-Mail senden" }));
 
-    await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Code konnte nicht gesendet werden",
-      );
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "das Senden des Sicherheitscodes"),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  // A wrong e-mail code answers 401 with identity.mfa_code_invalid. That is
+  // no expired session: the form says so instead of jumping to the login.
+  it("shows a wrong code in the form without leaving the page", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign });
+    mockRegisterPasskey.mockRejectedValueOnce(
+      new ApiError("invalid code", 401, { code: "identity.mfa_code_invalid" }),
+    );
+    renderWithToast(<PasskeySettingsSection />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Hinzufügen" }));
+    fireEvent.click(screen.getByRole("button", { name: "E-Mail senden" }));
+    fireEvent.change(await screen.findByLabelText("Code"), {
+      target: { value: "123456" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("identity.mfa_code_invalid", "das Hinzufügen des Passkeys"),
+      ),
+    ).toBeInTheDocument();
+    expect(assign).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("treats a cancelled device prompt as no error", async () => {
+    const cancelled = new Error("The operation was not allowed");
+    cancelled.name = "NotAllowedError";
+    mockRegisterPasskey.mockRejectedValueOnce(cancelled);
+    renderWithToast(<PasskeySettingsSection />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Hinzufügen" }));
+    fireEvent.click(screen.getByRole("button", { name: "E-Mail senden" }));
+    fireEvent.change(await screen.findByLabelText("Code"), {
+      target: { value: "123456" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(mockRegisterPasskey).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
   });
 });

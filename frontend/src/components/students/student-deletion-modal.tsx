@@ -9,6 +9,8 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import {
   DataField,
   DataGrid,
@@ -92,36 +94,46 @@ export function StudentDeletionModal({
   const [acknowledged, setAcknowledged] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [error, setError] = useState("");
+  const errors = useApiFormError();
+  const clearErrors = errors.clear;
+  const previewLoad = useApiLoadError();
+  const showPreviewError = previewLoad.show;
+  const clearPreviewError = previewLoad.clear;
   // Bumped after a 409 so the dialog returns to its first confirmation step.
   const [gateReset, setGateReset] = useState(0);
+  // Bumped by „Wiederholen“ on a failed preview to load it again.
+  const [previewAttempt, setPreviewAttempt] = useState(0);
 
   useEffect(() => {
     if (!isOpen) {
       setImpact(null);
       setReason("");
       setAcknowledged(false);
-      setError("");
+      clearErrors();
+      clearPreviewError();
       return;
     }
 
     let active = true;
     setLoadingPreview(true);
-    setError("");
+    clearPreviewError();
     void fetchStudentDeletionImpact(studentId, completionId)
       .then((result) => {
         if (active) setImpact(result);
       })
       .catch((previewError: unknown) => {
-        const message =
-          previewError instanceof Error
-            ? previewError.message
-            : "Auswirkungen der Löschung konnten nicht geladen werden.";
         logger.error("student_delete_preview_failed", {
           student_id: studentId,
-          error: message,
+          error:
+            previewError instanceof Error
+              ? previewError.message
+              : String(previewError),
         });
-        if (active) setError(message);
+        if (!active) return;
+        void showPreviewError(previewError, {
+          object: "die Vorschau der Löschung",
+          retry: () => setPreviewAttempt((attempt) => attempt + 1),
+        });
       })
       .finally(() => {
         if (active) setLoadingPreview(false);
@@ -130,7 +142,15 @@ export function StudentDeletionModal({
     return () => {
       active = false;
     };
-  }, [completionId, isOpen, studentId]);
+  }, [
+    clearErrors,
+    clearPreviewError,
+    completionId,
+    isOpen,
+    previewAttempt,
+    showPreviewError,
+    studentId,
+  ]);
 
   const countRows = useMemo(() => {
     if (!impact) return [];
@@ -154,7 +174,7 @@ export function StudentDeletionModal({
   const handleDelete = async () => {
     if (!impact || !reason || !acknowledged) return;
     setDeleting(true);
-    setError("");
+    errors.clear();
     try {
       const input = {
         expected_fingerprint: impact.fingerprint,
@@ -179,17 +199,16 @@ export function StudentDeletionModal({
         onClose();
       }
     } catch (deleteError) {
-      const message =
-        deleteError instanceof Error
-          ? deleteError.message
-          : "Das Kind konnte nicht gelöscht werden.";
       logger.error("student_delete_failed", {
         student_id: studentId,
         status:
           deleteError instanceof StudentDeletionApiError
             ? deleteError.status
             : undefined,
-        error: message,
+        error:
+          deleteError instanceof Error
+            ? deleteError.message
+            : String(deleteError),
       });
 
       if (
@@ -218,7 +237,9 @@ export function StudentDeletionModal({
           setLoadingPreview(false);
         }
       }
-      setError(message);
+      // Kein „Wiederholen“: ein erneutes Löschen geht wieder durch beide
+      // Bestätigungsschritte, nicht über einen Knopf im Fehlerkasten.
+      await errors.show(deleteError, { object: "die Löschung" });
     } finally {
       setDeleting(false);
     }
@@ -241,6 +262,7 @@ export function StudentDeletionModal({
       }
       warningSlot={
         <div className="space-y-4">
+          <LoadErrorAlert error={previewLoad.error} />
           {loadingPreview ? (
             <p className="text-sm text-gray-500">
               Auswirkungen werden geladen…
@@ -329,7 +351,7 @@ export function StudentDeletionModal({
       onConfirm={handleDelete}
       onClose={onClose}
       loading={deleting}
-      error={error}
+      error={errors.error}
     />
   );
 }

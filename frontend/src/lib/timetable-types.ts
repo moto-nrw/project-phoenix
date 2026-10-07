@@ -8,7 +8,12 @@
 
 export type InstanceStatus = "planned" | "active" | "completed" | "cancelled";
 
-export type ActivityType = "care" | "activity" | "external";
+/**
+ * Blocktyp eines Regeltermins. "duty" ist ein Dienst ohne Kinder (#3822):
+ * Essensausgabe, Busaufsicht, Abschließen. Kein Start, keine Kinderliste,
+ * Raum optional.
+ */
+export type ActivityType = "care" | "activity" | "external" | "duty";
 
 export type TimetableListKind =
   "edge_hours" | "learning_time" | "activity" | "mensa";
@@ -1447,6 +1452,8 @@ export interface ConflictCheckParams {
   staffIds?: string[];
   studentIds?: string[];
   excludeInstanceId?: string;
+  /** Regeltermin being edited: its own occurrences never conflict. */
+  excludeActivityGroupId?: string;
 }
 
 /**

@@ -1,16 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import { CircleNotchIcon, InfoIcon } from "@phosphor-icons/react/ssr";
 import { useTranslations } from "next-intl";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { RequestSharingSelector } from "~/components/parent/request-sharing-control";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { todayISO } from "~/lib/date-helpers";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import type { ChildMasterData, MasterDataChangeInput } from "~/lib/parent-api";
@@ -34,13 +35,15 @@ export function ChildMasterDataRequestModal({
   ) => Promise<void>;
 }>) {
   const t = useTranslations("parentMasterData");
+  const tError = useTranslations("errorCatalog");
   const datePicker = useLocalizedDatePicker();
   const [firstName, setFirstName] = useState(data.first_name);
   const [lastName, setLastName] = useState(data.last_name);
   const [birthday, setBirthday] = useState(data.birthday ?? "");
   const [schoolClass, setSchoolClass] = useState(data.school_class);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+  const { error, show, invalid, fieldError, clear } = useApiFormError(formRef);
   const [recipientIds, setRecipientIds] = useState<string[]>([]);
 
   const fields = useMemo(
@@ -76,16 +79,21 @@ export function ChildMasterDataRequestModal({
   const isPending = (field: IdentityField) => pendingFields.has(field);
 
   const submit = async () => {
-    setError(null);
+    clear();
     const changed = fields.filter(
       (field) => !isPending(field.key) && field.value !== field.original,
     );
-    if (changed.some((field) => field.value === "")) {
-      setError(t("identityModal.required"));
+    const emptied = changed.filter((field) => field.value === "");
+    if (emptied.length > 0) {
+      const hint = tError("actions.fieldCheck");
+      invalid(
+        t("identityModal.required"),
+        Object.fromEntries(emptied.map((field) => [field.key, hint])),
+      );
       return;
     }
     if (changed.length === 0) {
-      setError(t("identityModal.noChange"));
+      invalid(t("identityModal.noChange"));
       return;
     }
     setSubmitting(true);
@@ -99,12 +107,20 @@ export function ChildMasterDataRequestModal({
         recipientIds,
       );
       onClose();
-    } catch {
-      setError(t("requestError"));
+    } catch (err) {
+      void show(err, {
+        object: t("errorObjectRequest"),
+        retry: () => void submitRef.current(),
+      });
     } finally {
       setSubmitting(false);
     }
   };
+  // The retry sends the latest entries, not the ones of the failed attempt.
+  const submitRef = useRef(submit);
+  useLayoutEffect(() => {
+    submitRef.current = submit;
+  });
 
   const pendingBadge = (field: IdentityField) =>
     isPending(field) ? (
@@ -153,7 +169,8 @@ export function ChildMasterDataRequestModal({
         </>
       }
     >
-      <div className="space-y-4">
+      <div ref={formRef} className="space-y-4">
+        <FormErrorAlert message={error} />
         <p className="text-sm leading-6 text-gray-600">
           {t("identityModal.intro")}
         </p>
@@ -180,6 +197,7 @@ export function ChildMasterDataRequestModal({
           >
             <Input
               name="first_name"
+              error={fieldError("first_name")}
               aria-label={t("fields.firstName")}
               autoComplete="off"
               controlSize="compact"
@@ -194,6 +212,7 @@ export function ChildMasterDataRequestModal({
           >
             <Input
               name="last_name"
+              error={fieldError("last_name")}
               aria-label={t("fields.lastName")}
               autoComplete="off"
               controlSize="compact"
@@ -208,7 +227,9 @@ export function ChildMasterDataRequestModal({
           >
             <ISODatePicker
               {...datePicker}
+              name="birthday"
               ariaLabel={t("fields.birthday")}
+              error={fieldError("birthday")}
               value={birthday}
               disabled={isPending("birthday") || submitting}
               onChange={setBirthday}
@@ -224,6 +245,7 @@ export function ChildMasterDataRequestModal({
           >
             <Input
               name="school_class"
+              error={fieldError("school_class")}
               aria-label={t("fields.schoolClass")}
               autoComplete="off"
               controlSize="compact"
@@ -238,7 +260,6 @@ export function ChildMasterDataRequestModal({
           selected={recipientIds}
           onChange={setRecipientIds}
         />
-        {error && <Alert type="error" message={error} />}
       </div>
     </Modal>
   );

@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { act } from "react";
 import type { ActivityCategory } from "~/lib/activity-api";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import {
   parseParticipantLimit,
   useActivityForm,
@@ -73,7 +75,7 @@ describe("useActivityForm", () => {
       expect(result.current.form).toEqual(customForm);
       expect(result.current.categories).toEqual([]);
       expect(result.current.loading).toBe(false);
-      expect(result.current.error).toBeNull();
+      expect(result.current.loadError).toBeNull();
     });
 
     it("should initialize with empty form values", () => {
@@ -82,7 +84,7 @@ describe("useActivityForm", () => {
       expect(result.current.form).toEqual(initialForm);
       expect(result.current.categories).toEqual([]);
       expect(result.current.loading).toBe(false);
-      expect(result.current.error).toBeNull();
+      expect(result.current.loadError).toBeNull();
     });
   });
 
@@ -101,7 +103,7 @@ describe("useActivityForm", () => {
       });
 
       expect(result.current.categories).toEqual(mockCategories);
-      expect(result.current.error).toBeNull();
+      expect(result.current.loadError).toBeNull();
       expect(getCategories).toHaveBeenCalledTimes(1);
     });
 
@@ -150,7 +152,7 @@ describe("useActivityForm", () => {
       });
 
       expect(result.current.categories).toEqual([]);
-      expect(result.current.error).toBeNull();
+      expect(result.current.loadError).toBeNull();
     });
 
     it("should handle undefined response from getCategories", async () => {
@@ -165,56 +167,41 @@ describe("useActivityForm", () => {
       });
 
       expect(result.current.categories).toEqual([]);
-      expect(result.current.error).toBeNull();
+      expect(result.current.loadError).toBeNull();
     });
   });
 
   describe("Error handling", () => {
-    it("should set error when category loading fails", async () => {
-      const error = new Error("Network error");
-      vi.mocked(getCategories).mockRejectedValue(error);
+    it("shows the catalog load error with retry when category loading fails", async () => {
+      const error = new ApiError("Network error", 503, {
+        code: "general.unavailable",
+      });
+      vi.mocked(getCategories)
+        .mockRejectedValueOnce(error)
+        .mockResolvedValueOnce(mockCategories);
 
       const { result } = renderHook(() => useActivityForm(initialForm, true));
 
       expect(result.current.loading).toBe(true);
 
       await waitFor(() => {
-        expect(result.current.loading).toBe(false);
+        expect(result.current.loadError?.message).toBe(
+          catalogText("general.unavailable", "die Liste der Kategorien"),
+        );
       });
-
-      expect(result.current.error).toBe("Failed to load categories");
+      expect(result.current.loading).toBe(false);
       expect(result.current.categories).toEqual([]);
       expect(console.error).toHaveBeenCalledWith("failed to load categories", {
         error: "Network error",
       });
-    });
-
-    it("should allow manual error setting", () => {
-      const { result } = renderHook(() => useActivityForm(initialForm, false));
-
-      expect(result.current.error).toBeNull();
 
       act(() => {
-        result.current.setError("Custom error message");
+        result.current.loadError?.retry?.onClick();
       });
-
-      expect(result.current.error).toBe("Custom error message");
-    });
-
-    it("should allow clearing errors", () => {
-      const { result } = renderHook(() => useActivityForm(initialForm, false));
-
-      act(() => {
-        result.current.setError("Some error");
+      await waitFor(() => {
+        expect(result.current.categories).toEqual(mockCategories);
       });
-
-      expect(result.current.error).toBe("Some error");
-
-      act(() => {
-        result.current.setError(null);
-      });
-
-      expect(result.current.error).toBeNull();
+      expect(result.current.loadError).toBeNull();
     });
   });
 
@@ -263,29 +250,6 @@ describe("useActivityForm", () => {
       expect(result.current.form.max_participants).toBe("25");
     });
 
-    it("should clear error when user types", () => {
-      const { result } = renderHook(() => useActivityForm(initialForm, false));
-
-      // Set an error first
-      act(() => {
-        result.current.setError("Validation error");
-      });
-
-      expect(result.current.error).toBe("Validation error");
-
-      // Type in a field
-      const event = {
-        target: { name: "name", value: "Test" },
-      } as React.ChangeEvent<HTMLInputElement>;
-
-      act(() => {
-        result.current.handleInputChange(event);
-      });
-
-      expect(result.current.error).toBeNull();
-      expect(result.current.form.name).toBe("Test");
-    });
-
     it("should handle multiple field changes", () => {
       const { result } = renderHook(() => useActivityForm(initialForm, false));
 
@@ -326,7 +290,10 @@ describe("useActivityForm", () => {
 
       const error = result.current.validateForm();
 
-      expect(error).toBe("Activity name is required");
+      expect(error).toEqual({
+        message: "Bitte geben Sie einen Namen für die Aktivität ein.",
+        field: "name",
+      });
     });
 
     it("should return error when name is only whitespace", () => {
@@ -339,7 +306,10 @@ describe("useActivityForm", () => {
 
       const error = result.current.validateForm();
 
-      expect(error).toBe("Activity name is required");
+      expect(error).toEqual({
+        message: "Bitte geben Sie einen Namen für die Aktivität ein.",
+        field: "name",
+      });
     });
 
     it("should return error when category_id is empty", () => {
@@ -352,7 +322,10 @@ describe("useActivityForm", () => {
 
       const error = result.current.validateForm();
 
-      expect(error).toBe("Please select a category");
+      expect(error).toEqual({
+        message: "Bitte wählen Sie eine Kategorie.",
+        field: "category_id",
+      });
     });
 
     it("should return error when max_participants is not a number", () => {
@@ -365,7 +338,10 @@ describe("useActivityForm", () => {
 
       const error = result.current.validateForm();
 
-      expect(error).toBe("Max participants must be a positive number");
+      expect(error).toEqual({
+        message: "Die Teilnehmerzahl muss mindestens 1 sein.",
+        field: "max_participants",
+      });
     });
 
     it("should return error when max_participants is zero", () => {
@@ -378,7 +354,10 @@ describe("useActivityForm", () => {
 
       const error = result.current.validateForm();
 
-      expect(error).toBe("Max participants must be a positive number");
+      expect(error).toEqual({
+        message: "Die Teilnehmerzahl muss mindestens 1 sein.",
+        field: "max_participants",
+      });
     });
 
     it("should return error when max_participants is negative", () => {
@@ -391,7 +370,10 @@ describe("useActivityForm", () => {
 
       const error = result.current.validateForm();
 
-      expect(error).toBe("Max participants must be a positive number");
+      expect(error).toEqual({
+        message: "Die Teilnehmerzahl muss mindestens 1 sein.",
+        field: "max_participants",
+      });
     });
 
     it("should allow decimals (parseInt truncates them)", () => {
@@ -452,7 +434,10 @@ describe("useActivityForm", () => {
 
       // Initially invalid (empty name)
       let error = result.current.validateForm();
-      expect(error).toBe("Activity name is required");
+      expect(error).toEqual({
+        message: "Bitte geben Sie einen Namen für die Aktivität ein.",
+        field: "name",
+      });
 
       // Update name
       act(() => {
@@ -465,7 +450,10 @@ describe("useActivityForm", () => {
 
       // Now category is missing
       error = result.current.validateForm();
-      expect(error).toBe("Please select a category");
+      expect(error).toEqual({
+        message: "Bitte wählen Sie eine Kategorie.",
+        field: "category_id",
+      });
 
       // Update category
       act(() => {
@@ -526,7 +514,7 @@ describe("useActivityForm", () => {
     });
 
     it("should handle errors during manual load", async () => {
-      const error = new Error("API error");
+      const error = new ApiError("API error", 500, { code: "general.server" });
       vi.mocked(getCategories).mockRejectedValue(error);
 
       const { result } = renderHook(() => useActivityForm(initialForm, false));
@@ -535,7 +523,11 @@ describe("useActivityForm", () => {
         await result.current.loadCategories();
       });
 
-      expect(result.current.error).toBe("Failed to load categories");
+      await waitFor(() => {
+        expect(result.current.loadError?.message).toBe(
+          catalogText("general.server", "die Liste der Kategorien"),
+        );
+      });
       expect(result.current.loading).toBe(false);
       expect(console.error).toHaveBeenCalledWith("failed to load categories", {
         error: "API error",

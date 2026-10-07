@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
@@ -18,24 +18,21 @@ import type {
   FilterConfig,
   ActiveFilter,
 } from "~/components/ui/page-header/types";
-import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { formatFloor, type Room } from "@/lib/room-helpers";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { RoomsList } from "@/components/rooms/rooms-list";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
-import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import {
   DATABASE_ROOMS_LIST_CACHE_KEY,
   ROOM_LIST_CACHE_KEYS,
 } from "~/lib/swr/room-derived-caches";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-
-const logger = createLogger({ component: "DatabaseRoomsPage" });
 
 type RoomsGroupingMode = "none" | "building" | "floor";
 
@@ -86,6 +83,13 @@ function RoomsPageContent() {
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const { success: toastSuccess } = useToast();
+  // Ein Fehler beim Anlegen bleibt im Dialog (#2517).
+  const createErrors = useApiFormError();
+  const { clear: clearCreateErrors } = createErrors;
+  // Ein neu geöffnetes Anlegen beginnt ohne den Fehler des vorigen Versuchs.
+  useEffect(() => {
+    if (showCreateModal) clearCreateErrors();
+  }, [showCreateModal, clearCreateErrors]);
 
   const { status } = useSession({
     required: true,
@@ -103,16 +107,19 @@ function RoomsPageContent() {
 
   const {
     data: roomsData,
-    isLoading: loading,
+    isLoading: swrLoading,
     error: roomsError,
+    mutate: mutateRooms,
   } = useSWRAuth(DATABASE_ROOMS_LIST_CACHE_KEY, async () => {
     const data = await service.getList({ page: 1, pageSize: 500 });
     return Array.isArray(data.data) ? data.data : [];
   });
 
-  const error = roomsError
-    ? "Fehler beim Laden der Räume. Bitte versuchen Sie es später erneut."
-    : null;
+  const error = useSwrLoadError(roomsError, "die Liste der Räume", () =>
+    mutateRooms(),
+  );
+  // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett stehen.
+  const loading = swrLoading || (Boolean(roomsError) && error === null);
 
   // Statuszeile des Seitenkopfs aus der bereits geladenen Raumliste.
   const statusLine = useMemo(() => {
@@ -246,29 +253,15 @@ function RoomsPageContent() {
 
   const handleCreateRoom = useCallback(
     async (data: Partial<Room>) => {
-      try {
-        if (roomsConfig.form.transformBeforeSubmit) {
-          data = roomsConfig.form.transformBeforeSubmit(data);
-        }
-        const created = await service.create(data);
-        toastSuccess(
-          getDbOperationMessage(
-            "create",
-            roomsConfig.name.singular,
-            created.name,
-          ),
-        );
-        setShowCreateModal(false);
-        await refreshRoomLists();
-      } catch (createError) {
-        logger.error("failed to create room", {
-          error:
-            createError instanceof Error
-              ? createError.message
-              : String(createError),
-        });
-        throw createError;
-      }
+      // Ein Fehler bleibt im Dialog: DatabaseForm zeigt ihn über errorPath,
+      // eine vergebene Farbe (rooms.color_already_in_use) mit eigenem Text.
+      const payload = roomsConfig.form.transformBeforeSubmit
+        ? roomsConfig.form.transformBeforeSubmit(data)
+        : data;
+      const created = await service.create(payload);
+      toastSuccess(`Der Raum „${created.name}“ ist angelegt.`);
+      setShowCreateModal(false);
+      await refreshRoomLists();
     },
     [service, refreshRoomLists, toastSuccess],
   );
@@ -317,6 +310,8 @@ function RoomsPageContent() {
           mode="create"
           config={roomsConfig}
           onSubmit={handleCreateRoom}
+          errorPath={createErrors}
+          errorObject="das Speichern des Raums"
         />
       }
       className="flex w-full flex-col"

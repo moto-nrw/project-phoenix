@@ -1,11 +1,14 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getRequestSharingOptions } from "~/lib/parent-api";
+import { ParentApiError, getRequestSharingOptions } from "~/lib/parent-api";
+import { catalogText } from "~/test/error-catalog-text";
 import { RequestSharingSelector } from "./request-sharing-control";
 import { SharingOptionsProvider } from "./sharing-options-context";
 
-vi.mock("~/lib/parent-api", () => ({
+vi.mock("~/lib/parent-api", async (importOriginal) => ({
+  ParentApiError: (await importOriginal<typeof import("~/lib/parent-api")>())
+    .ParentApiError,
   getRequestSharingOptions: vi.fn(),
   getRequestSharing: vi.fn(),
   setRequestSharing: vi.fn(),
@@ -90,5 +93,35 @@ describe("SharingOptionsProvider", () => {
       await screen.findByRole("checkbox", { name: "Mara Muster" }),
     ).toBeInTheDocument();
     expect(getOptions).toHaveBeenCalledTimes(1);
+  });
+
+  // #2518: a failed load shows the shared message in place; Wiederholen
+  // fetches again because the provider dropped the failed request.
+  it("retries a failed load through the provider", async () => {
+    getOptions.mockRejectedValueOnce(
+      new ParentApiError("diag", 503, "general.unavailable"),
+    );
+    render(
+      <SharingOptionsProvider>
+        <RequestSharingSelector
+          studentId="42"
+          selected={[]}
+          onChange={vi.fn()}
+        />
+      </SharingOptionsProvider>,
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Empfänger"),
+        { exact: false },
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(
+      await screen.findByRole("checkbox", { name: "Mara Muster" }),
+    ).toBeInTheDocument();
+    expect(getOptions).toHaveBeenCalledTimes(2);
   });
 });

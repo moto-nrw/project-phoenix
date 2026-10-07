@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 
 // Segmented single-choice control: a small, fixed set of mutually exclusive
@@ -36,6 +36,11 @@ export interface SegmentedControlItem<T extends string> {
   /** Only honoured by the "pills" variant; "joined" is always neutral. */
   readonly tone?: SegmentedControlTone;
   readonly disabled?: boolean;
+  /**
+   * Symbol for `iconOnly` controls. The label stays the accessible name and
+   * the hover title, so the meaning never depends on the glyph alone.
+   */
+  readonly icon?: ReactNode;
 }
 
 // Das aktive Segment. `neutral` ist die Regel (hell abgehoben wie in jedem
@@ -76,6 +81,7 @@ export function SegmentedControl<T extends string>({
   onChange,
   variant = "joined",
   fullWidth = false,
+  iconOnly = false,
   ariaLabel,
   className = "",
 }: {
@@ -86,6 +92,11 @@ export function SegmentedControl<T extends string>({
   readonly variant?: "joined" | "pills";
   /** Stretch to the container; segments share the width and wrap when it is too narrow (modal tab bars). */
   readonly fullWidth?: boolean;
+  /**
+   * Square symbol segments instead of words, for a well-known pair such as
+   * Kacheln/Liste (#3834). Every item needs an `icon`.
+   */
+  readonly iconOnly?: boolean;
   readonly ariaLabel?: string;
   readonly className?: string;
 }) {
@@ -104,8 +115,7 @@ export function SegmentedControl<T extends string>({
   // dieselbe Touch-Höhe wie die Nachbarn.
   // Schriftgröße `text-sm`, nicht `text-xs`: ein Bedienelement ist kein
   // Kleingedrucktes (Typo-Boden, TENANT-PAGE-SPEC).
-  const base =
-    "flex h-8! min-w-[84px] items-center justify-center px-3 text-sm font-medium transition-[background-color,box-shadow,color,opacity] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none max-sm:h-9!";
+  const base = `flex h-8! ${iconOnly ? "w-9" : "min-w-[84px] px-3"} items-center justify-center text-sm font-medium transition-[background-color,box-shadow,color,opacity] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none max-sm:h-9!`;
 
   // Die frühere „pills"-Fassung (runde, einzeln getönte Pillen ohne Spur) ist
   // aufgegangen: sie war 32 px hoch, die andere 36, und beide standen im
@@ -183,13 +193,15 @@ export function SegmentedControl<T extends string>({
             aria-pressed={active}
             disabled={item.disabled}
             onClick={() => onChange(item.value)}
+            aria-label={iconOnly ? item.label : undefined}
+            title={iconOnly ? item.label : undefined}
             className={`${base} rounded-md ${
               active
                 ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
-            {item.label}
+            {iconOnly ? item.icon : item.label}
           </button>
         );
       })}

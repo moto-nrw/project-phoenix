@@ -1,25 +1,26 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as renderComponent,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Fehler laufen als Toast; die Karte selbst zeigt keinen Fehlerkasten mehr.
-const mockToast = {
-  success: vi.fn(),
-  error: vi.fn(),
-  warning: vi.fn(),
-  info: vi.fn(),
-};
-vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => mockToast,
-}));
+import type { ReactElement } from "react";
 
-// Fehlermeldungen laufen als Toast: geprüft wird der Toast-Aufruf, nicht die DOM.
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+
+// Fehler laufen als Toast über den gemeinsamen Fehlerweg; die Karte selbst
+// zeigt keinen Fehlerkasten.
+function render(ui: ReactElement) {
+  return renderComponent(ui, { wrapper: ToastProvider });
+}
+
 async function expectErrorToast(pattern: RegExp) {
-  await waitFor(() =>
-    expect(mockToast.error).toHaveBeenCalledWith(
-      expect.stringMatching(pattern),
-      expect.anything(),
-    ),
-  );
+  expect(
+    await screen.findByRole("alert", { name: /^Fehler:/ }),
+  ).toHaveTextContent(pattern);
 }
 
 import { MasterDataReviewItem } from "./master-data-review-item";
@@ -104,7 +105,7 @@ describe("MasterDataReviewItem", () => {
       expect(mockDecide).toHaveBeenCalledWith("100", true, "passt"),
     );
     await waitFor(() =>
-      expect(onDecided).toHaveBeenCalledWith("Änderung übernommen"),
+      expect(onDecided).toHaveBeenCalledWith("Die Änderung ist übernommen."),
     );
     expect(onDecided).toHaveBeenCalledTimes(1);
   });
@@ -234,11 +235,13 @@ describe("MasterDataReviewItem", () => {
     await waitFor(() =>
       expect(mockDecide).toHaveBeenCalledWith("100", false, undefined),
     );
-    expect(onDecided).toHaveBeenCalledWith("Änderung abgelehnt");
+    expect(onDecided).toHaveBeenCalledWith("Die Änderung ist abgelehnt.");
   });
 
   it("shows a decision error without calling onDecided", async () => {
-    mockDecide.mockRejectedValueOnce(new Error("boom"));
+    mockDecide.mockRejectedValueOnce(
+      new ApiError("boom", 500, { code: "general.server" }),
+    );
     const onDecided = vi.fn();
 
     render(<MasterDataReviewItem row={row()} onDecided={onDecided} />);
@@ -247,9 +250,25 @@ describe("MasterDataReviewItem", () => {
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
     await expectErrorToast(
-      /Die Entscheidung konnte nicht gespeichert werden\./,
+      /Die Anfrage konnte nicht bearbeitet werden\. Bitte versuchen Sie es später erneut\./,
     );
     expect(onDecided).not.toHaveBeenCalled();
     expect(screen.getByText("Lara Beispiel")).toBeInTheDocument();
+  });
+
+  it("names the next step from the catalog for a request already decided", async () => {
+    mockDecide.mockRejectedValueOnce(
+      new ApiError("not pending", 409, {
+        code: "students.change_request_not_pending",
+      }),
+    );
+
+    render(<MasterDataReviewItem row={row()} onDecided={vi.fn()} />);
+
+    expandAll();
+    fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
+
+    await expectErrorToast(/Die Anfrage ist nicht mehr offen/);
+    expect(screen.queryByText("not pending")).toBeNull();
   });
 });

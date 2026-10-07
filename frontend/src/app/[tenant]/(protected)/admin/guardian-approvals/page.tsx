@@ -10,6 +10,7 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { canReviewGuardianApprovals } from "~/lib/guardian-approval-access";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { getSettingValue } from "~/lib/settings-api";
 
 const INVITE_MODES: readonly GuardianInviteMode[] = [
@@ -51,6 +52,13 @@ export default function GuardianApprovalsPage() {
   const inviteMode = parseInviteMode(
     getSettingValue(settingsSchema, "guardians.parent_invite_mode"),
   );
+  // A failed settings request goes through the shared error path (#2517):
+  // catalog text, retry and request ID in the queue's empty area.
+  const settingsLoadError = useSwrLoadError(
+    settingsError,
+    "die Einladungs-Einstellung",
+    () => retrySettings(),
+  );
 
   const inviteModeState: GuardianInviteModeState = isSettingsLoading
     ? { status: "loading" }
@@ -61,6 +69,8 @@ export default function GuardianApprovalsPage() {
           status: "error",
           isRetrying: isSettingsValidating,
           retry: () => void retrySettings(),
+          error: settingsLoadError,
+          awaitingError: settingsError != null && settingsLoadError === null,
         }
       : { status: "ready", mode: inviteMode };
 

@@ -19,4 +19,37 @@ describe("SegmentedControl", () => {
       color: MOTO_COLOR_PALETTE.green.strong,
     });
   });
+
+  it("renders symbols with the label as accessible name in iconOnly mode (#3834)", () => {
+    const onChange = vi.fn();
+    render(
+      <SegmentedControl
+        iconOnly
+        ariaLabel="Ansicht"
+        value="tiles"
+        onChange={onChange}
+        items={[
+          {
+            value: "tiles",
+            label: "Kacheln",
+            icon: <svg data-testid="grid" />,
+          },
+          { value: "table", label: "Liste", icon: <svg data-testid="list" /> },
+        ]}
+      />,
+    );
+
+    const list = screen.getByRole("button", { name: "Liste" });
+    expect(list).toHaveAttribute("title", "Liste");
+    expect(list).toHaveAttribute("aria-pressed", "false");
+    expect(list).not.toHaveTextContent("Liste");
+    expect(screen.getByTestId("list")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Kacheln" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    list.click();
+    expect(onChange).toHaveBeenCalledWith("table");
+  });
 });

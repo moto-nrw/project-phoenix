@@ -3,9 +3,22 @@
 import { defineEntityConfig } from "@/lib/database/types";
 import type { Group, BackendGroup } from "@/lib/group-helpers";
 import { mapGroupResponse } from "@/lib/group-helpers";
-import { createLogger } from "~/lib/logger";
+import { apiErrorFromResponse, unavailableApiError } from "~/lib/api-error";
 
-const logger = createLogger({ component: "GroupsConfig" });
+/**
+ * Loads one option list of the group form. A failure throws the ApiError, so
+ * the form shows the catalog text with retry instead of an empty choice
+ * (#2517).
+ */
+async function fetchOptionsJson(url: string): Promise<unknown> {
+  const response = await fetch(url).catch((error: unknown) => {
+    throw unavailableApiError(error);
+  });
+  if (!response.ok) {
+    throw await apiErrorFromResponse(response, `failed to load ${url}`);
+  }
+  return response.json() as Promise<unknown>;
+}
 
 export const groupsConfig = defineEntityConfig<Group>({
   name: {
@@ -41,24 +54,17 @@ export const groupsConfig = defineEntityConfig<Group>({
             type: "select",
             required: false,
             options: async () => {
-              try {
-                // Fetch rooms from API
-                const response = await fetch("/api/rooms");
-                const result = (await response.json()) as {
-                  data?: Array<{ id: number; name: string }>;
-                };
-                const rooms = result.data ?? [];
-                return [
-                  { value: "", label: "Kein Gruppenraum" },
-                  ...rooms.map((room) => ({
-                    value: room.id.toString(),
-                    label: room.name,
-                  })),
-                ];
-              } catch (error) {
-                logger.error("failed to fetch rooms", { error: String(error) });
-                return [{ value: "", label: "Kein Gruppenraum" }];
-              }
+              const result = (await fetchOptionsJson("/api/rooms")) as {
+                data?: Array<{ id: number; name: string }>;
+              };
+              const rooms = result.data ?? [];
+              return [
+                { value: "", label: "Kein Gruppenraum" },
+                ...rooms.map((room) => ({
+                  value: room.id.toString(),
+                  label: room.name,
+                })),
+              ];
             },
           },
           {
@@ -68,21 +74,12 @@ export const groupsConfig = defineEntityConfig<Group>({
             required: false,
             colSpan: 2,
             options: async () => {
-              try {
-                // Fetch active caregivers from the canonical caregiver pool.
-                const response = await fetch("/api/staff/by-role?role=user");
-                const result = (await response.json()) as
-                  | {
-                      data?: Array<{
-                        id: string;
-                        full_name: string;
-                        first_name: string;
-                        last_name: string;
-                        specialization?: string;
-                        teacher_id?: string;
-                      }>;
-                    }
-                  | Array<{
+              // Fetch active caregivers from the canonical caregiver pool.
+              const result = (await fetchOptionsJson(
+                "/api/staff/by-role?role=user",
+              )) as
+                | {
+                    data?: Array<{
                       id: string;
                       full_name: string;
                       first_name: string;
@@ -90,32 +87,35 @@ export const groupsConfig = defineEntityConfig<Group>({
                       specialization?: string;
                       teacher_id?: string;
                     }>;
+                  }
+                | Array<{
+                    id: string;
+                    full_name: string;
+                    first_name: string;
+                    last_name: string;
+                    specialization?: string;
+                    teacher_id?: string;
+                  }>;
 
-                // Handle both array and wrapped response formats
-                const teachers = Array.isArray(result)
-                  ? result
-                  : (result.data ?? []);
+              // Handle both array and wrapped response formats
+              const teachers = Array.isArray(result)
+                ? result
+                : (result.data ?? []);
 
-                // Use teacher_id (not staff id) to match backend group teacher assignments
-                return teachers
-                  .filter((teacher) => teacher.teacher_id)
-                  .map((teacher) => {
-                    const name =
-                      teacher.full_name ||
-                      `${teacher.first_name} ${teacher.last_name}`.trim();
-                    return {
-                      value: String(teacher.teacher_id!),
-                      label: teacher.specialization
-                        ? `${name} (${teacher.specialization})`
-                        : name,
-                    };
-                  });
-              } catch (error) {
-                logger.error("failed to fetch teachers", {
-                  error: String(error),
+              // Use teacher_id (not staff id) to match backend group teacher assignments
+              return teachers
+                .filter((teacher) => teacher.teacher_id)
+                .map((teacher) => {
+                  const name =
+                    teacher.full_name ||
+                    `${teacher.first_name} ${teacher.last_name}`.trim();
+                  return {
+                    value: String(teacher.teacher_id!),
+                    label: teacher.specialization
+                      ? `${name} (${teacher.specialization})`
+                      : name,
+                  };
                 });
-                return [];
-              }
             },
             placeholder: "Gruppenleitung auswählen…",
             helperText:

@@ -75,6 +75,22 @@ func IsUnderstaffed(rows []InstanceStaff) bool {
 	return IsUnderstaffedCounts(present, planned)
 }
 
+// IsUnderstaffedWithMinimum adds a floor to IsUnderstaffed: a duty (#3822)
+// is also a gap while fewer people are present than its „Benötigtes
+// Personal“. minimum <= 0 leaves the rule unchanged.
+func IsUnderstaffedWithMinimum(rows []InstanceStaff, minimum int) bool {
+	if IsUnderstaffed(rows) {
+		return true
+	}
+	present := 0
+	for _, row := range rows {
+		if !row.IsAbsent {
+			present++
+		}
+	}
+	return present < minimum
+}
+
 // Slot sources name which rule supplied a student's arrival or pickup slot on
 // a given day. They are plain strings because the wire format is a plain
 // JSON string.

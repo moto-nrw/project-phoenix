@@ -115,9 +115,9 @@ func candidateSlot(
 	if skip {
 		return materialParams{}, nil, candidateCancelled
 	}
-	if effective.RoomID <= 0 {
-		// No primary room on the template and no override from an exception —
-		// the NOT NULL on room_id cannot be satisfied.
+	if effective.RoomID <= 0 && tmpl.Type != activities.GroupTypeDuty {
+		// No primary room on the template and no override from an exception.
+		// Only a duty may take place without a room (#3822).
 		return materialParams{}, nil, candidateIncomplete
 	}
 	return effective, period, candidateKept

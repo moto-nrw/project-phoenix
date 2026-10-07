@@ -1,8 +1,24 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as renderUi,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 import { DokumenteTab } from "./dokumente-tab";
 import type { StaffDocumentList } from "~/lib/staff-documents-api";
+
+// Fehler laufen über den gemeinsamen Anzeigeweg (#2514); die App hängt den
+// Provider global ein.
+function render(ui: ReactElement) {
+  return renderUi(ui, { wrapper: ToastProvider });
+}
 
 const mutate = vi.hoisted(() => vi.fn());
 const useSWRAuth = vi.hoisted(() => vi.fn());
@@ -96,13 +112,26 @@ describe("DokumenteTab", () => {
     ).toBeInTheDocument();
   });
 
-  it("zeigt bei einem Ladefehler eine Fehlermeldung", () => {
-    mockSWR({ error: new Error("request failed") });
+  it("zeigt einen Ladefehler vor Ort mit Wiederholen statt eines Leerzustands", async () => {
+    mockSWR({
+      error: new ApiError("boom", 500, {
+        code: "general.server",
+        instance: "req-docs",
+      }),
+    });
     render(<DokumenteTab staffId="42" />);
 
     expect(
-      screen.getByText("Dokumente konnten nicht geladen werden."),
+      await screen.findByText(
+        catalogText("general.server", "die Liste der Dokumente"),
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText("Noch keine Dokumente")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-docs");
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mutate).toHaveBeenCalled();
   });
 
   it("zeigt den Leerzustand ohne Dokumente", () => {
@@ -158,7 +187,9 @@ describe("DokumenteTab", () => {
     });
 
     expect(
-      await screen.findByText("Die Datei ist größer als 10 MB."),
+      await screen.findByText(
+        "Die Datei ist größer als 10 MB. Bitte wählen Sie eine kleinere Datei.",
+      ),
     ).toBeInTheDocument();
     expect(uploadMock).not.toHaveBeenCalled();
   });
@@ -183,5 +214,51 @@ describe("DokumenteTab", () => {
       expect(deleteMock).toHaveBeenCalledWith("42", "1");
     });
     expect(mutate).toHaveBeenCalled();
+  });
+
+  it("meldet einen abgelehnten Upload mit dem Katalogtext", async () => {
+    mockSWR({ data: sampleData });
+    uploadMock.mockRejectedValue(
+      new ApiError("forbidden", 403, { code: "general.permission" }),
+    );
+    render(<DokumenteTab staffId="42" />);
+
+    const file = new File(["%PDF-1.4"], "vertrag.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(screen.getByLabelText("Dokument auswählen"), {
+      target: { files: [file] },
+    });
+
+    expect(
+      await screen.findByText(
+        catalogText("general.permission", "das Dokument"),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("zeigt einen Löschfehler im offenen Dialog", async () => {
+    mockSWR({ data: sampleData });
+    deleteMock.mockRejectedValue(
+      new ApiError("boom", 503, { code: "general.unavailable" }),
+    );
+    render(<DokumenteTab staffId="42" />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für erste-hilfe.pdf" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ja, löschen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "das Dokument"),
+      ),
+    ).toBeInTheDocument();
+    expect(dialog).toContainElement(
+      screen.getByText(catalogText("general.unavailable", "das Dokument")),
+    );
   });
 });

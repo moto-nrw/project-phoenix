@@ -59,9 +59,10 @@ func targetOverrideError(err error) error {
 	if errors.Is(err, domain.ErrStaffTargetOverrideRejected) {
 		kind = workforce.ErrStaffTargetOverrideRejected
 	}
-	reason := err.Error()
+	public := &workforce.TargetOverrideError{Kind: kind, Reason: err.Error()}
 	if typed, ok := errors.AsType[*domain.TargetOverrideError](err); ok {
-		reason = typed.Reason
+		public.Reason, public.Code = typed.Reason, typed.Code
+		public.Values = workforce.TargetOverrideValues(typed.Values)
 	}
-	return &workforce.TargetOverrideError{Kind: kind, Reason: reason}
+	return public
 }

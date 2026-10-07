@@ -97,20 +97,23 @@ func (req *createInstanceRequest) Bind(_ *http.Request) error {
 	if req.Date == "" {
 		return errors.New("date is required (YYYY-MM-DD)")
 	}
+	invalid := common.CodeTimetableInstanceInvalid
 	if req.Title == "" {
-		return errors.New("title is required")
+		return invalidField(invalid, "title", "title is required")
 	}
 	if len(req.Title) > 255 {
-		return errors.New("title cannot exceed 255 characters")
+		return invalidField(invalid, "title", "title cannot exceed 255 characters")
 	}
 	if req.StartTime == "" {
-		return errors.New("start_time is required (HH:MM)")
+		return invalidField(invalid, "start_time", "start_time is required (HH:MM)")
 	}
 	if req.EndTime == "" {
-		return errors.New("end_time is required (HH:MM)")
+		return invalidField(invalid, "end_time", "end_time is required (HH:MM)")
 	}
-	if req.RoomID <= 0 {
-		return errors.New("room_id is required")
+	// 0 = no room: only an occurrence of a duty may omit it (#3822); the
+	// service checks the linked template. Without a template it is required.
+	if req.RoomID < 0 || (req.RoomID == 0 && req.ActivityGroupID == nil) {
+		return invalidField(invalid, "room_id", "room_id is required")
 	}
 	return nil
 }
@@ -143,7 +146,7 @@ func normalizeInstanceListKind(raw *string) (*string, error) {
 func bindCreateInstanceRequest(w http.ResponseWriter, r *http.Request) (*parsedCreateInstanceRequest, bool) {
 	req := &createInstanceRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, bindErrorRenderer(err))
 		return nil, false
 	}
 
@@ -154,7 +157,7 @@ func bindCreateInstanceRequest(w http.ResponseWriter, r *http.Request) (*parsedC
 		return nil, false
 	}
 	if err := validateTimetableWorkday(date); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, codedInvalidOnField(err, "date"))
 		return nil, false
 	}
 	startTime, err := parseClockTime(req.StartTime)
@@ -170,8 +173,8 @@ func bindCreateInstanceRequest(w http.ResponseWriter, r *http.Request) (*parsedC
 		return nil, false
 	}
 	if !endTime.After(startTime) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(
-			errors.New("end_time must be after start_time")))
+		common.RenderError(w, r, invalidOnField(common.CodeTimetableInstanceEndBeforeStart, "end_time",
+			"end_time must be after start_time"))
 		return nil, false
 	}
 
@@ -274,11 +277,12 @@ func respondCreatedWithoutEnrichment(w http.ResponseWriter, r *http.Request, ins
 var createInstanceErrorRules = []common.ErrorRule{
 	{
 		Match: func(err error) bool {
-			return errors.Is(err, timetable.ErrInvalidInstanceReference) ||
-				errors.Is(err, timetable.ErrInstanceOutsideActiveCalendarPeriod)
+			return errors.Is(err, timetable.ErrInvalidInstanceReference)
 		},
 		Render: common.ErrorInvalidRequest,
 	},
+	{Target: timetable.ErrInstanceOutsideActiveCalendarPeriod, Render: invalidWithCode(common.CodeTimetableInstanceOutsidePeriod)},
+	{Target: timetable.ErrInstanceWeekend, Render: invalidWithCode(common.CodeTimetableInstanceWeekend)},
 	{Target: timetable.ErrIdempotencyKeyReuse, Render: conflictCode(common.CodeTimetableIdempotencyKeyReused)},
 	{
 		Target: timetable.ErrDuplicateTemplateInstance,

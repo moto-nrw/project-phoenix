@@ -53,7 +53,7 @@ func (rs *Resource) parseOpeningBalanceRequest(w http.ResponseWriter, r *http.Re
 
 	rows, err := rs.files.OpeningBalances(file, uploadFormat(isExcel))
 	if err != nil {
-		rs.runtime.Failure(w, r, Failure{Status: http.StatusBadRequest, Cause: fmt.Errorf("Datei-Fehler: %s", err.Error())})
+		rs.runtime.Failure(w, r, decodeFailure(err))
 		return nil, false
 	}
 

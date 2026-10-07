@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const sessionFetch = vi.hoisted(() => vi.fn());
 vi.mock("./session-cache", () => ({ sessionFetch }));
 
+import { ApiError } from "./api-error";
 import { studentNotesService } from "./student-notes-api";
 
 describe("studentNotesService errors", () => {
@@ -13,14 +14,24 @@ describe("studentNotesService errors", () => {
       new Response(null, { status: 500, statusText: "Internal Server Error" }),
     );
 
-    await expect(studentNotesService.list("42")).rejects.toThrow(
-      "Notizen konnten nicht geladen werden.",
-    );
+    const error = await studentNotesService.list("42").catch((e) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      message: "Notizen konnten nicht geladen werden.",
+      code: "general.server",
+    });
   });
 
   it("does not expose a backend validation error when saving a note", async () => {
     sessionFetch.mockResolvedValueOnce(
-      Response.json({ error: "invalid student note" }, { status: 400 }),
+      Response.json(
+        {
+          error: "invalid student note",
+          code: "general.input",
+          errors: [{ field: "body", reason: "too long" }],
+        },
+        { status: 400 },
+      ),
     );
 
     await expect(
@@ -30,6 +41,10 @@ describe("studentNotesService errors", () => {
         body: "Kurzes Gespräch.",
         subjectDate: "2026-09-09",
       }),
-    ).rejects.toThrow("Notiz konnte nicht gespeichert werden.");
+    ).rejects.toMatchObject({
+      message: "Notiz konnte nicht gespeichert werden.",
+      code: "general.input",
+      errors: [{ field: "body", reason: "too long" }],
+    });
   });
 });

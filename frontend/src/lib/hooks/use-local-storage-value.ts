@@ -30,6 +30,7 @@ export function useLocalStorageValue(
     try {
       return globalThis.localStorage.getItem(key);
     } catch {
+      // Storage blocked (private mode, policy): behave as if nothing is stored.
       return null;
     }
   }, [enabled, key]);

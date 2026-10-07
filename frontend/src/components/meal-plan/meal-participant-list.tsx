@@ -1,15 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Download, FileSpreadsheet, Utensils } from "lucide-react";
 
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
-import { useToast } from "~/contexts/ToastContext";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
@@ -37,33 +44,47 @@ export function MealParticipantList() {
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
   const today = useBerlinToday();
-  const toast = useToast();
+  const { show: showActionError } = useApiErrorDisplay();
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  // „Wiederholen“ lädt bzw. exportiert mit dem aktuell gewählten Tag.
+  const reloadRef = useRef<() => void>(() => undefined);
+  const retryDownloadRef = useRef<(format: "pdf" | "xlsx") => void>(
+    () => undefined,
+  );
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const date = selectedDate ?? nextWeekday(today);
   const [cutoffTime, setCutoffTime] = useState("");
   const [participants, setParticipants] = useState<DailyMealParticipant[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
   const [exporting, setExporting] = useState<"pdf" | "xlsx" | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(false);
+    clearLoadError();
     try {
       const list = await getDailyMealParticipants(date);
       setParticipants(list.participants);
       setCutoffTime(list.cutoffTime);
-    } catch (loadError) {
+    } catch (cause) {
       logger.error("meal_participant_list_load_failed", {
-        error:
-          loadError instanceof Error ? loadError.message : String(loadError),
+        error: cause instanceof Error ? cause.message : String(cause),
       });
       setParticipants([]);
-      setError(true);
+      void showLoadError(cause, {
+        object: t("errorObject"),
+        retry: () => reloadRef.current(),
+      });
     } finally {
       setLoading(false);
     }
-  }, [date]);
+  }, [date, t, showLoadError, clearLoadError]);
+  useLayoutEffect(() => {
+    reloadRef.current = () => void load();
+  });
 
   useEffect(() => {
     void load();
@@ -100,11 +121,17 @@ export function MealParticipantList() {
             ? downloadError.message
             : String(downloadError),
       });
-      toast.error(t("downloadError"));
+      void showActionError(downloadError, {
+        object: t("errorObject"),
+        retry: () => retryDownloadRef.current(format),
+      });
     } finally {
       setExporting(null);
     }
   }
+  useLayoutEffect(() => {
+    retryDownloadRef.current = (format) => void download(format);
+  });
 
   return (
     <section className="space-y-4" aria-labelledby="meal-participants-title">
@@ -158,7 +185,7 @@ export function MealParticipantList() {
                 onClick={() => void download("pdf")}
                 isLoading={exporting === "pdf"}
                 loadingText={t("downloadLoading")}
-                disabled={loading || error || exporting !== null}
+                disabled={loading || Boolean(loadError) || exporting !== null}
               >
                 <Download className="h-4 w-4" aria-hidden="true" />
                 {t("pdf")}
@@ -173,7 +200,7 @@ export function MealParticipantList() {
                 onClick={() => void download("xlsx")}
                 isLoading={exporting === "xlsx"}
                 loadingText={t("downloadLoading")}
-                disabled={loading || error || exporting !== null}
+                disabled={loading || Boolean(loadError) || exporting !== null}
               >
                 <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
                 {t("excel")}
@@ -190,17 +217,8 @@ export function MealParticipantList() {
         </div>
       </div>
 
-      {error ? (
-        <div className="space-y-3">
-          <Alert
-            type="error"
-            title={t("loadErrorTitle")}
-            message={t("loadErrorMessage")}
-          />
-          <Button type="button" variant="outline" onClick={() => void load()}>
-            {t("retry")}
-          </Button>
-        </div>
+      {loadError ? (
+        <LoadErrorAlert error={loadError} />
       ) : (
         <DataTable
           columns={columns}

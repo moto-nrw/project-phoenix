@@ -1,7 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import type { PickupExtension } from "~/lib/pickup-extension-api";
+import { catalogText } from "~/test/error-catalog-text";
 
 const state = vi.hoisted(() => ({
   tasks: [] as PickupExtension[],
@@ -83,13 +85,17 @@ describe("PickupExtensionTodos (#3261)", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("zeigt einen Hinweis, wenn die Aufgaben nicht geladen werden können", () => {
-    state.error = new Error("request failed");
+  it("zeigt einen Hinweis, wenn die Aufgaben nicht geladen werden können", async () => {
+    state.error = new ApiError("request failed", 503, {
+      code: "general.unavailable",
+    });
     render(<PickupExtensionTodos enabled />);
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Die Aufgaben konnten nicht geladen werden. Bitte laden Sie die Seite neu.",
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      catalogText("general.unavailable", "die Liste der späteren Abholzeiten"),
     );
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(state.refresh).toHaveBeenCalled();
   });
 
   it("nennt Kind, Tag und neue Abholzeit und öffnet die Auswahl", () => {

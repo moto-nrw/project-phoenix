@@ -45,6 +45,31 @@ const (
 	CodeStaffAbsentOnTarget      = "timetable.staff_absent_on_target"
 	CodeStaffAlreadyOnTarget     = "timetable.staff_already_on_target"
 	CodeStaffAbsentOnDate        = "timetable.staff_absent_on_date"
+
+	// The 400 and 404 refusals of the Vertretungsplan, Sammel-Vertretung and
+	// Personal-Verschieben saves (#2516).
+	CodeInstanceInPast            = "timetable.instance_in_past"
+	CodeDeviationNoteTooLong      = "timetable.deviation_note_too_long"
+	CodeDeviationSelectionInvalid = "timetable.deviation_selection_invalid"
+	CodeStaffNotFound             = "timetable.staff_not_found"
+	CodeSubstituteSingleOnly      = "timetable.substitute_single_only"
+	CodeSubstituteSelf            = "timetable.substitute_self"
+	CodeSubstituteAbsent          = "timetable.substitute_absent"
+	CodeSubstituteAbsentOnDate    = "timetable.substitute_absent_on_date"
+	CodeStaffPresentAndAbsent     = "timetable.staff_present_and_absent"
+	CodeSubstituteNotOnInstances  = "timetable.substitute_not_on_instances"
+	CodeInstancesRequired         = "timetable.instances_required"
+	CodeInstanceSelectionInvalid  = "timetable.instance_selection_invalid"
+	CodeInstancesOtherDay         = "timetable.instances_other_day"
+	CodeInstancesNotAssigned      = "timetable.instances_not_assigned"
+	CodeMoveSameInstance          = "timetable.move_same_instance"
+	CodeMoveOtherDay              = "timetable.move_other_day"
+	CodeStaffNotOnSource          = "timetable.staff_not_on_source"
+	CodeStaffAbsentOnSource       = "timetable.staff_absent_on_source"
+	CodeDatesRequired             = "timetable.dates_required"
+	CodeDatesInPast               = "timetable.dates_in_past"
+	CodeTooManyDates              = "timetable.too_many_dates"
+	CodeDeviationInstanceNotFound = "timetable.instance_not_found"
 )
 
 // DeviationError carries the exact HTTP mapping a staffing save renders, so
@@ -56,6 +81,28 @@ type DeviationError struct {
 	Code      string
 	ClientMsg string
 	Cause     error
+	// Details are the values the refusal names (#2516), e.g. the day a
+	// Sammel-Vertretung failed on; Field names the request field it is about.
+	Details RefusalValues
+	Field   string
+}
+
+// WithCode names the registered wire code of a refusal (#2516).
+func (e *DeviationError) WithCode(code string) *DeviationError {
+	e.Code = code
+	return e
+}
+
+// OnField names the request field a refusal is about.
+func (e *DeviationError) OnField(field string) *DeviationError {
+	e.Field = field
+	return e
+}
+
+// WithValues sets the values the refusal names.
+func (e *DeviationError) WithValues(values RefusalValues) *DeviationError {
+	e.Details = values
+	return e
 }
 
 func (e *DeviationError) Error() string {

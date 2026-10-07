@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
 import { preloadDayPicker } from "~/components/ui/lazy-day-picker";
@@ -7,7 +13,6 @@ import "@testing-library/jest-dom/vitest";
 const mocks = vi.hoisted(() => ({
   getDailyMealParticipants: vi.fn(),
   downloadDailyMealParticipants: vi.fn(),
-  toastError: vi.fn(),
   today: "2026-09-07",
 }));
 
@@ -20,11 +25,14 @@ vi.mock("~/lib/hooks/use-berlin-today", () => ({
   useBerlinToday: () => mocks.today,
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => ({ error: mocks.toastError }),
-}));
-
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { MealParticipantList } from "./meal-participant-list";
+
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 // The kit loads the calendar grid lazily; load it once up front so a cold
 // import on a busy machine does not race the findBy timeout.
@@ -208,10 +216,12 @@ describe("MealParticipantList", () => {
     });
   });
 
-  it("shows a localized action when an export fails", async () => {
-    mocks.downloadDailyMealParticipants.mockRejectedValueOnce(
-      new Error("temporary failure"),
-    );
+  it("shows the catalog text with retry when an export fails", async () => {
+    mocks.downloadDailyMealParticipants
+      .mockRejectedValueOnce(
+        new ApiError("boom", 500, { code: "general.server" }),
+      )
+      .mockResolvedValueOnce(undefined);
     render(<MealParticipantList />);
 
     fireEvent.click(
@@ -220,16 +230,24 @@ describe("MealParticipantList", () => {
       }),
     );
 
+    expect(
+      await screen.findByText(catalogText("general.server", "die Tagesliste")),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     await waitFor(() => {
-      expect(mocks.toastError).toHaveBeenCalledWith(
-        "Die Tagesliste konnte nicht heruntergeladen werden. Bitte versuchen Sie es noch einmal.",
-      );
+      expect(mocks.downloadDailyMealParticipants).toHaveBeenCalledTimes(2);
     });
+    expect(mocks.downloadDailyMealParticipants).toHaveBeenLastCalledWith(
+      "2026-09-07",
+      "pdf",
+    );
   });
 
   it("retries after a temporary load error", async () => {
     mocks.getDailyMealParticipants
-      .mockRejectedValueOnce(new Error("temporary failure"))
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
       .mockResolvedValueOnce({
         date: "2026-09-07",
         cutoffTime: "09:00",
@@ -238,9 +256,12 @@ describe("MealParticipantList", () => {
 
     render(<MealParticipantList />);
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Erneut versuchen" }),
-    );
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Tagesliste"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     await waitFor(() => {
       expect(mocks.getDailyMealParticipants).toHaveBeenCalledTimes(2);
     });

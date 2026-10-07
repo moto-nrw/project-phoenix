@@ -1,12 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { XIcon } from "@phosphor-icons/react/ssr";
 import { useLocale, useTranslations } from "next-intl";
 import { ArrowLeft } from "lucide-react";
 import { parentPath } from "~/lib/parent-url";
-import { Alert } from "~/components/ui/alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -14,7 +24,6 @@ import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
 import { RequestStatusBadge } from "~/components/messaging/request-status-badge";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
-import { parentMessageError } from "~/lib/parent-message-error";
 import {
   parentEventI18nDescriptor,
   parentRequestStatusI18nKey,
@@ -79,13 +88,23 @@ export function OgsConversation({
   const locale = useLocale();
   const [thread, setThread] = useState<ThreadView | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // A failed load shows in the thread with retry (#2518). Only shown while
+  // nothing is on screen: a failed background refresh keeps the visible chat.
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
   const [draft, setDraft] = useState("");
   const care = useChildCare(studentId);
   const [today, setToday] = useState<ChildToday>(UNKNOWN_CHILD_TODAY);
   const [activeModal, setActiveModal] = useState<OgsActionKey | null>(null);
   const [sending, setSending] = useState(false);
-  const [sendError, setSendError] = useState<string | null>(null);
+  const {
+    error: sendError,
+    show: showSendError,
+    clear: clearSendError,
+  } = useApiFormError();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   // Pin the chat to the viewport and lock page scroll (only the list scrolls).
   const containerRef = useChatViewportLock<HTMLDivElement>(!loading);
@@ -94,7 +113,12 @@ export function OgsConversation({
     if (activeModal !== "pickup") return;
     void getChildToday(studentId)
       .then(setToday)
-      .catch(() => {
+      .catch((err: unknown) => {
+        // Deliberately silent: the pickup dialog works without today's
+        // schedule and only drops its hint about the usual pickup time.
+        logger.warn("ogs_child_today_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         setToday(UNKNOWN_CHILD_TODAY);
       });
   }, [activeModal, studentId]);
@@ -132,15 +156,24 @@ export function OgsConversation({
     const seq = ++applySeqRef.current;
     try {
       const view = await getChildConversation(studentId);
-      if (applyThread(seq, view)) setLoadError(null);
+      if (applyThread(seq, view)) clearLoadError();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      logger.warn("ogs_conversation_load_failed", { error: message });
+      logger.warn("ogs_conversation_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       if (mountedRef.current && seq === applySeqRef.current) {
-        setLoadError(message);
+        void showLoadError(err, {
+          object: tm("errorObjectConversation"),
+          retry: () => void refreshRef.current(),
+        });
       }
     }
-  }, [studentId, applyThread]);
+  }, [studentId, applyThread, clearLoadError, showLoadError, tm]);
+  // The retry runs the latest refresh, not the one of the failed attempt.
+  const refreshRef = useRef(refresh);
+  useLayoutEffect(() => {
+    refreshRef.current = refresh;
+  });
 
   useEffect(() => {
     let active = true;
@@ -195,13 +228,13 @@ export function OgsConversation({
     const body = draft.trim();
     if (!body || sending) return;
     setSending(true);
-    setSendError(null);
+    clearSendError();
     try {
       const view = await postChildMessage(studentId, body);
       // Claim the token AFTER the POST resolves so this authoritative result wins.
       // A successful send means the thread is loadable, so clear any stale
       // load error left by an earlier failed background refresh.
-      if (applyThread(++applySeqRef.current, view)) setLoadError(null);
+      if (applyThread(++applySeqRef.current, view)) clearLoadError();
       setDraft("");
       // Sending advances the reader's own cursor (any prior staff messages are now
       // read), so refresh the sidebar badge.
@@ -210,11 +243,28 @@ export function OgsConversation({
       logger.warn("ogs_message_send_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setSendError(parentMessageError(err, tm));
+      void showSendError(err, {
+        object: tm("errorObjectMessage"),
+        retry: () => void sendRef.current(),
+      });
     } finally {
       setSending(false);
     }
-  }, [draft, sending, studentId, applyThread, tm]);
+  }, [
+    draft,
+    sending,
+    studentId,
+    applyThread,
+    clearLoadError,
+    clearSendError,
+    showSendError,
+    tm,
+  ]);
+  // The retry sends the current draft, not the one of the failed attempt.
+  const sendRef = useRef(handleSend);
+  useLayoutEffect(() => {
+    sendRef.current = handleSend;
+  });
 
   return (
     <div
@@ -347,7 +397,7 @@ export function OgsConversation({
               );
             })
           ) : loadError ? (
-            <Alert type="error" message={tm("loadError")} />
+            <LoadErrorAlert error={loadError} />
           ) : (
             <EmptyThread />
           )}
@@ -356,11 +406,7 @@ export function OgsConversation({
         {/* Angeheftet am unteren Rand, mit Sicherheitsbereich des Geraets:
             auf dem Handy darf nichts unter dem Home-Indikator kleben. */}
         <div className="border-t border-gray-100 px-3 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-5 sm:pb-3">
-          {sendError ? (
-            <div className="mb-3">
-              <Alert type="error" message={sendError} />
-            </div>
-          ) : null}
+          <FormErrorAlert message={sendError} className="mb-3" />
           <QuickActions
             features={care.features}
             loading={care.loading}

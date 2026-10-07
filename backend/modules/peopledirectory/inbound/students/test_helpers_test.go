@@ -27,7 +27,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
 	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
@@ -174,45 +173,26 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 	require.NoError(t, err)
 	reviewAccess, err := requestreviewcompose.NewAccess(studentsAPI.RequestReviewPrincipal, nil)
 	require.NoError(t, err)
-	policy, err := reviewidentity.New(reviewidentity.Dependencies{
-		Principal: studentsAPI.RequestReviewPrincipal,
-		GroupLeaderEnabled: func(ctx context.Context) (bool, error) {
-			return svc.Settings.ResolveBool(ctx, reviewsettings.GroupLeaderEnabled)
-		},
-		GroupIDs: func(ctx context.Context) ([]int64, error) {
-			groups, err := svc.UserContext.GetMyGroups(ctx)
-			if err != nil {
-				return nil, err
-			}
-			ids := make([]int64, 0, len(groups))
-			for _, group := range groups {
-				if group != nil {
-					ids = append(ids, group.ID)
-				}
-			}
-			return ids, nil
-		},
-	})
-	require.NoError(t, err)
+	// The production root binds the same Identity & Access policy for the
+	// projection as for the decisions (#3804).
+	reviews := svc.UserContext.Caller().ParentRequestReviews
+	reviewScope := func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
+		schoolWide, groupIDs, err := reviews.ReviewScope(ctx, jwt.PermissionsFromCtx(ctx))
+		return requestreviewcompose.ReviewScope{SchoolWide: schoolWide, GroupIDs: groupIDs}, err
+	}
 	clock := firstClock(clocks)
 	if clock == nil {
 		clock = time.Now
 	}
 	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(db, svc.PeopleDirectory,
-		func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
-			scope, err := policy.Scope(ctx)
-			return requestreviewcompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
-		}, func() requestreviewcompose.ReviewDate {
+		reviewScope, func() requestreviewcompose.ReviewDate {
 			return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
 		},
 		func(requestreviewcompose.CareObservation) {})
 	require.NoError(t, err)
 	careReviews, err := requestreviewcompose.NewScheduleReviews(db, requestreviewcompose.ScheduleReviewDependencies{
 		People: svc.PeopleDirectory,
-		Scope: func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
-			scope, err := policy.Scope(ctx)
-			return requestreviewcompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
-		},
+		Scope:  reviewScope,
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return svc.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
 		},
@@ -229,10 +209,7 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 	require.NoError(t, err)
 	offeringReviews, err := requestreviewcompose.NewOfferingReviews(db, requestreviewcompose.OfferingReviewDependencies{
 		People: svc.PeopleDirectory,
-		Scope: func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
-			scope, err := policy.Scope(ctx)
-			return requestreviewcompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
-		},
+		Scope:  reviewScope,
 		Today: func() requestreviewcompose.ReviewDate {
 			return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
 		},
@@ -325,6 +302,8 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 		Logger:                   slog.Default(),
 		Now:                      firstClock(clocks),
 	})
+	// The production root reports the same policy the queues apply (#3804).
+	resource.RequestReviewAccess = callerReviewAccess{reviews: reviews}
 
 	return &testContext{
 		careRequests:         svc.CareRequests,
@@ -408,6 +387,18 @@ func authExec(t *testing.T, tc *testContext, req *http.Request, claims jwt.AppCl
 	claims.Permissions = perms
 	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
 	return testutil.ExecuteRequestForTest(t, tc.resource.Router(), req)
+}
+
+// callerReviewAccess reports the caller context's review access level, as the
+// production root's review policy adapter does.
+type callerReviewAccess struct {
+	reviews interface {
+		ReviewAccessLevel(ctx context.Context, permissions []string) (string, error)
+	}
+}
+
+func (a callerReviewAccess) AccessLevel(ctx context.Context, permissions []string) (string, error) {
+	return a.reviews.ReviewAccessLevel(ctx, permissions)
 }
 
 // exportSchools reads the export title through the Organisation & Tenancy

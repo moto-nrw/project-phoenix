@@ -1,11 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
-  render,
+  render as renderPlain,
   screen,
   fireEvent,
   waitFor,
   act,
 } from "@testing-library/react";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
 
 // Mock dependencies
 const { mockPush, mockRedirect, mockSignIn, mockSignOut, mockUseSession } =
@@ -167,11 +173,14 @@ describe("OperatorLoginPage", () => {
     fireEvent.change(passwordInput, { target: { value: "wrong" } });
     fireEvent.click(submitButton);
 
+    // #2519: the catalog text by code; an uncoded 401 at the login is a
+    // refused credential, never the backend sentence.
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(
-        "Ungültige Anmeldedaten",
+        catalogText("identity.invalid_credentials", "die Anmeldung"),
       );
     });
+    expect(screen.queryByText("Invalid credentials")).toBeNull();
   });
 
   it("shows loading state during authentication", async () => {
@@ -282,10 +291,11 @@ describe("OperatorLoginPage", () => {
     });
   });
 
-  it("shows account_inactive error message (HTTP 403)", async () => {
+  it("shows the inactive-account text by code (HTTP 403)", async () => {
     global.fetch = mockOperatorFetchResponse(403, {
       status: "error",
       error: "Account inactive",
+      code: "identity.account_inactive",
     });
 
     render(<OperatorLoginPage />);
@@ -300,12 +310,12 @@ describe("OperatorLoginPage", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(
-        "Ihr Konto ist deaktiviert. Bitte kontaktieren Sie den Administrator.",
+        catalogText("identity.account_inactive", "die Anmeldung"),
       );
     });
   });
 
-  it("shows rate_limited error message (HTTP 429)", async () => {
+  it("shows the rate limit by its class code (HTTP 429)", async () => {
     global.fetch = mockOperatorFetchResponse(429, {
       status: "error",
       error: "Too many requests",
@@ -318,13 +328,13 @@ describe("OperatorLoginPage", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(
-        "Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut.",
+        catalogText("general.unavailable", "die Anmeldung"),
       );
     });
   });
 
-  it("shows error message when fetch throws an exception", async () => {
-    global.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
+  it("shows a network failure as unavailable", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
 
     render(<OperatorLoginPage />);
 
@@ -332,7 +342,9 @@ describe("OperatorLoginPage", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent("Network error");
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        catalogText("general.unavailable", "die Anmeldung"),
+      );
     });
   });
 
@@ -346,9 +358,34 @@ describe("OperatorLoginPage", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(
-        "Anmeldefehler. Bitte versuchen Sie es erneut.",
+        catalogText("general.unavailable", "die Anmeldung"),
       );
     });
+  });
+
+  it("shows a failed session seed on the shared path", async () => {
+    mockSignIn.mockResolvedValue({ error: "CredentialsSignin" });
+
+    render(<OperatorLoginPage />);
+    fireEvent.click(screen.getByRole("button", { name: /Anmelden/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        catalogText("general.server", "die Anmeldung"),
+      );
+    });
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("explains an expired session from the URL", () => {
+    window.history.replaceState({}, "", "/operator/login?error=SessionExpired");
+
+    render(<OperatorLoginPage />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Ihre Anmeldung ist abgelaufen. Bitte melden Sie sich erneut an.",
+    );
+    expect(window.location.search).toBe("");
   });
 
   it("does not redirect when authenticated but not operator scope", () => {

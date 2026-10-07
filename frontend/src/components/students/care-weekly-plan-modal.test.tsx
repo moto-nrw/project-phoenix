@@ -1,11 +1,13 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
 import { CareWeeklyPlanModal } from "./care-weekly-plan-modal";
 
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: toastSuccess,
     error: toastError,
@@ -281,7 +283,11 @@ describe("CareWeeklyPlanModal", () => {
   });
 
   it("shows submit errors in the modal", async () => {
-    const onSubmit = vi.fn().mockRejectedValue(new Error("Backend kaputt"));
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError("Backend kaputt", 500, { code: "general.server" }),
+      );
 
     render(
       <CareWeeklyPlanModal
@@ -298,8 +304,9 @@ describe("CareWeeklyPlanModal", () => {
     submit();
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Backend kaputt",
+      "Die Übernahme des Wochenplans konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
     );
+    expect(screen.queryByText(/Backend kaputt/)).not.toBeInTheDocument();
     expect(toastError).not.toHaveBeenCalled();
   });
 

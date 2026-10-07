@@ -315,6 +315,8 @@ func TestTimetableOperationsPlannedNowPastScopeSelectsFinishedBlocks(t *testing.
 	completed := instanceWithTimes(361, scheduleModels.InstanceStatusCompleted, now.Add(-3*time.Hour), now.Add(-2*time.Hour))
 	expiredSpontaneous := instanceWithTimes(364, scheduleModels.InstanceStatusPlanned, now.Add(-3*time.Hour), now.Add(-2*time.Hour))
 	expiredSpontaneous.IsSpontaneous = true
+	expiredDuty := instanceWithTimes(366, scheduleModels.InstanceStatusPlanned, now.Add(-3*time.Hour), now.Add(-2*time.Hour))
+	expiredDuty.TemplateType = timetable.GroupTypeDuty
 	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
 		instanceWithTimes(360, scheduleModels.InstanceStatusPlanned, now.Add(-135*time.Minute), now.Add(-30*time.Minute)),
 		completed,
@@ -322,6 +324,7 @@ func TestTimetableOperationsPlannedNowPastScopeSelectsFinishedBlocks(t *testing.
 		instanceWithTimes(363, scheduleModels.InstanceStatusCancelled, now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
 		expiredSpontaneous,
 		instanceWithTimes(365, scheduleModels.InstanceStatusActive, now.Add(-time.Hour), now.Add(-30*time.Minute)),
+		expiredDuty,
 	}
 	for _, inst := range deps.instanceRepo.byDate {
 		deps.staffRepo.byInstance[inst.ID] = []*scheduleModels.InstanceStaff{{StaffID: 231}}
@@ -363,6 +366,54 @@ func TestTimetableOperationsPlannedNowPastScopeKeepsVisibilityRules(t *testing.T
 	result, err = deps.service.PlannedNow(context.Background(), 633, true, calendar.DateFromTime(now), now, timetable.PlannedNowOptions{Scope: timetable.PlannedNowScopePast})
 	require.NoError(t, err)
 	require.Len(t, result, 2)
+}
+
+// Every block the end-of-day review lists opens as a roster (#3874): the
+// list and the detail call ask the same overview, so neither an admin under
+// any scope nor staff under all_staff meets a 403 on a listed block.
+func TestTimetableOperationsPlannedNowPastBlocksOpenAsRoster(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 10, 15, 0, 0, 0, calendar.Berlin)
+	for _, tc := range []struct {
+		name  string
+		scope string
+		admin bool
+	}{
+		{name: "staff under all_staff", scope: overviewScopeAllStaff},
+		{name: "admin under all_staff", scope: overviewScopeAllStaff, admin: true},
+		{name: "admin under own", scope: overviewScopeOwn, admin: true},
+		{name: "admin under admins", scope: overviewScopeAdmins, admin: true},
+		{name: "planned staff under own", scope: overviewScopeOwn},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			deps := newTimetableOpsDeps()
+			deps.now = func() time.Time { return now }
+			deps.settings.scope = tc.scope
+			wireAssignedStaff(deps, 636, 443, 235, 390)
+			deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
+				instanceWithTimes(390, scheduleModels.InstanceStatusCompleted, now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
+				instanceWithTimes(391, scheduleModels.InstanceStatusCompleted, now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
+				instanceWithTimes(392, scheduleModels.InstanceStatusPlanned, now.Add(-2*time.Hour), now.Add(-time.Hour)),
+			}
+			for _, inst := range deps.instanceRepo.byDate {
+				deps.instanceRepo.byID[inst.ID] = inst
+			}
+			deps.staffRepo.byInstance[391] = []*scheduleModels.InstanceStaff{{StaffID: 999}}
+			deps.staffRepo.byInstance[392] = []*scheduleModels.InstanceStaff{{StaffID: 999}}
+
+			listed, err := deps.service.PlannedNow(context.Background(), 636, tc.admin, calendar.DateFromTime(now), now, timetable.PlannedNowOptions{Scope: timetable.PlannedNowScopePast})
+			require.NoError(t, err)
+			require.NotEmpty(t, listed)
+
+			for _, inst := range listed {
+				_, err := deps.service.Roster(context.Background(), 636, tc.admin, inst.ID)
+				require.NoError(t, err, "listed block %d must open as roster", inst.ID)
+			}
+		})
+	}
 }
 
 // Day scope follows the operational-overview rule (#2383): under all_staff a

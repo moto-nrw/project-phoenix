@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "./api-error";
 import {
   bulkCreateStudentStatusDays,
   createStudentStatusDays,
   deleteStudentStatusDay,
   fetchStatusDayOverview,
   fetchStudentStatusDays,
-  StatusDayOverviewForbiddenError,
   StudentStatusDayConflictError,
   StudentStatusDayPartialAbsenceConflictError,
 } from "./student-status-days-api";
@@ -39,6 +39,7 @@ describe("student-status-days-api", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/students/42/status-days?from=2026-05-25&to=2026-05-29",
+      undefined,
     );
     expect(days).toEqual([
       expect.objectContaining({
@@ -70,6 +71,30 @@ describe("student-status-days-api", () => {
       }),
     });
     expect(days[0]?.id).toBe("7");
+  });
+
+  it("keeps a code and request ID the conflict body carries", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json(
+        {
+          status: "error",
+          code: "students.sick_excused_conflict",
+          instance: "req-409",
+          conflicts: [backendDay],
+        },
+        { status: 409 },
+      ),
+    );
+
+    const error = await createStudentStatusDays("42", "sick", [
+      "2026-05-26",
+    ]).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(StudentStatusDayConflictError);
+    expect((error as StudentStatusDayConflictError).code).toBe(
+      "students.sick_excused_conflict",
+    );
+    expect((error as StudentStatusDayConflictError).requestId).toBe("req-409");
   });
 
   it("returns conflicting rows from an atomic create rejection", async () => {
@@ -228,14 +253,41 @@ describe("student-status-days-api", () => {
     expect((error as StudentStatusDayConflictError).totalCount).toBe(48);
   });
 
-  it("throws backend errors from successful HTTP responses", async () => {
+  it("throws backend errors from successful HTTP responses as ApiError with their code", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      Response.json({ status: "error", error: "Bereits geplant" }),
+      Response.json({
+        status: "error",
+        error: "Bereits geplant",
+        code: "general.business_rejection",
+      }),
     );
 
-    await expect(
-      fetchStudentStatusDays("42", "2026-05-25", "2026-05-29"),
-    ).rejects.toThrow("Bereits geplant");
+    const error = await fetchStudentStatusDays(
+      "42",
+      "2026-05-25",
+      "2026-05-29",
+    ).catch((caught: unknown) => caught);
+
+    // The backend sentence is diagnosis only (ADR 0006); the code is the identity.
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).code).toBe("general.business_rejection");
+  });
+
+  it("keeps code and request ID of a failed write", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json(
+        { status: "error", code: "general.server", instance: "req-7" },
+        { status: 500 },
+      ),
+    );
+
+    const error = await deleteStudentStatusDay("42", "7").catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(500);
+    expect((error as ApiError).requestId).toBe("req-7");
   });
 
   it("throws fallback messages for failed HTTP responses", async () => {
@@ -306,13 +358,21 @@ describe("student-status-days-api", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/students/status-days?from=2026-05-25&to=2026-05-29&page=1&page_size=50",
+      undefined,
     );
     expect(result).toEqual(overview);
   });
 
-  it("throws the dedicated forbidden error when the overview returns 403", async () => {
+  it("keeps status and backend code when the overview returns 403", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      new Response("forbidden", { status: 403 }),
+      new Response(
+        JSON.stringify({
+          status: "error",
+          error: "no permitted groups",
+          code: "general.permission",
+        }),
+        { status: 403 },
+      ),
     );
 
     await expect(
@@ -322,7 +382,22 @@ describe("student-status-days-api", () => {
         status: "all",
         groupId: "all",
       }),
-    ).rejects.toBeInstanceOf(StatusDayOverviewForbiddenError);
+    ).rejects.toMatchObject({ status: 403, code: "general.permission" });
+  });
+
+  it("turns a failed connection into general.unavailable", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(
+      new TypeError("Failed to fetch"),
+    );
+
+    await expect(
+      fetchStatusDayOverview("2026-05-25", "2026-05-29", {
+        page: 1,
+        query: "",
+        status: "all",
+        groupId: "all",
+      }),
+    ).rejects.toMatchObject({ code: "general.unavailable" });
   });
 
   it("throws a fallback message when the overview request fails", async () => {

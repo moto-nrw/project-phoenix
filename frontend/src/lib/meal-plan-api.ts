@@ -2,6 +2,7 @@
 // API client for the meal plan (Essensplan). Staff read a week, upsert a day,
 // and delete a day; the feature is gated per tenant by the backend.
 
+import { apiErrorFromResponse } from "./api-error";
 import { sessionFetch } from "./session-cache";
 import { parseISODate, toISODate } from "./date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -69,7 +70,7 @@ export async function getMealPlanWeek(
     { credentials: "include" },
   );
   if (!response.ok) {
-    throw new Error(`Failed to fetch meal plan: ${response.statusText}`);
+    throw await apiErrorFromResponse(response, "meal plan load failed");
   }
   const data = (await response.json()) as { data: unknown } | unknown[];
   return unwrap(data).map(mapEntry);
@@ -88,7 +89,7 @@ export async function setDay(date: string, dishes: DishInput[]): Promise<void> {
   );
   if (!response.ok) {
     logger.error("meal_set_day_failed", { status: response.status });
-    throw new Error(`Failed to save meal plan day: ${response.statusText}`);
+    throw await apiErrorFromResponse(response, "meal plan day save failed");
   }
 }
 
@@ -100,9 +101,7 @@ export async function getDailyMealParticipants(
     { credentials: "include" },
   );
   if (!response.ok) {
-    throw new Error(
-      `Failed to fetch meal participants: ${response.statusText}`,
-    );
+    throw await apiErrorFromResponse(response, "meal participants load failed");
   }
   const json = (await response.json()) as {
     data?: {
@@ -139,8 +138,9 @@ export async function downloadDailyMealParticipants(
     { credentials: "include" },
   );
   if (!response.ok) {
-    throw new Error(
-      `Failed to export meal participants: ${response.statusText}`,
+    throw await apiErrorFromResponse(
+      response,
+      "meal participants export failed",
     );
   }
   const blob = await response.blob();

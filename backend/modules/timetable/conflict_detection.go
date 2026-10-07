@@ -67,6 +67,9 @@ type PlannedConflictProbe struct {
 	StaffIDs          []int64
 	StudentIDs        []int64
 	ExcludeInstanceID *int64 // block being edited — never conflicts with itself
+	// ExcludeActivityGroupID is the Regeltermin being edited: its own
+	// occurrences never conflict with the edit, whatever their room.
+	ExcludeActivityGroupID *int64
 }
 
 // PlannedConflictWarning is one advisory hit of the planning-time conflict

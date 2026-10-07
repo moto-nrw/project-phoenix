@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
 import { CompanionPicker } from "./companion-picker";
+import { ApiError } from "~/lib/api-error";
+import { fetchStudents } from "~/lib/student-api";
 import type { StudentCompanion } from "~/lib/student-companion-api";
 
 vi.mock("~/lib/student-api", () => ({
@@ -127,5 +129,46 @@ describe("CompanionPicker plan trimming", () => {
     expect(onChange).toHaveBeenCalledWith([
       { ...LINKED[0], weekdays: ["mon"] },
     ]);
+  });
+});
+
+describe("CompanionPicker search", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // Eine gescheiterte Suche darf nicht wie „Kein Kind gefunden“ aussehen
+  // (#2513): sie steht vor Ort, mit Wiederholen.
+  it("shows a failed search in place, not as an empty result, and retries", async () => {
+    vi.mocked(fetchStudents)
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce({
+        students: [{ id: "7", name: "Lina Lustig", school_class: "2b" }],
+      } as unknown as Awaited<ReturnType<typeof fetchStudents>>);
+
+    render(
+      <CompanionPicker value={[]} onChange={vi.fn()} allowedDays={["mon"]} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Kind hinzufügen/ }));
+    fireEvent.change(
+      screen.getByRole("textbox", {
+        name: "Kind für die Laufgemeinschaft suchen",
+      }),
+      { target: { value: "Lin" } },
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Kindersuche ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Kein Kind gefunden.")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(await screen.findByText("Lina Lustig")).toBeInTheDocument();
   });
 });

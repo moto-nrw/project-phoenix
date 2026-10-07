@@ -1,19 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";
-import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
 import { Textarea } from "~/components/ui/textarea";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { absenceRowLabel, formatAbsenceRange } from "~/lib/absence-helpers";
+import { createLogger } from "~/lib/logger";
 import {
   staffAbsenceService,
   type StaffAbsenceRequestRow,
   type StaffAbsenceRow,
 } from "~/lib/staff-api";
+
+const logger = createLogger({ component: "AbsenceDecisionModals" });
 
 type AbsenceDecisionRow = Omit<
   StaffAbsenceRow,
@@ -34,7 +36,7 @@ function AbsenceNoteModal({
   submitVariant,
   onSubmitNote,
   successMessage,
-  errorMessage,
+  logEvent,
   onClose,
   onDone,
 }: {
@@ -46,19 +48,23 @@ function AbsenceNoteModal({
   readonly submitVariant: "danger" | "primary";
   readonly onSubmitNote: (note: string) => Promise<void>;
   readonly successMessage: string;
-  readonly errorMessage: string;
+  readonly logEvent: string;
   readonly onClose: () => void;
   readonly onDone: () => void | Promise<void>;
 }) {
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useFormError();
+  const formErrors = useApiFormError();
   const toast = useToast();
+  // „Wiederholen“ sendet die aktuelle Notiz, nicht die vom Fehlerzeitpunkt.
+  const latestSubmitRef = useRef<() => Promise<void>>(async () => undefined);
 
   const handleSubmit = async () => {
-    setError(null);
+    formErrors.clear();
     if (note.trim().length < 3) {
-      setError("Bitte gib eine kurze Begründung ein.");
+      formErrors.invalid("Bitte prüfen Sie die markierten Felder.", {
+        decision_note: "Bitte geben Sie eine kurze Begründung ein.",
+      });
       return;
     }
     setSubmitting(true);
@@ -67,11 +73,22 @@ function AbsenceNoteModal({
       toast.success(successMessage);
       await onDone();
     } catch (err) {
-      setError(err instanceof Error ? err.message : errorMessage);
+      logger.error(logEvent, {
+        absence_id: String(absence.id),
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await formErrors.show(err, {
+        object: "die Anfrage",
+        retry: () => void latestSubmitRef.current(),
+      });
     } finally {
       setSubmitting(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestSubmitRef.current = handleSubmit;
+  });
 
   return (
     <Modal
@@ -102,7 +119,7 @@ function AbsenceNoteModal({
       }
     >
       <div className="space-y-3">
-        <FormErrorAlert message={error} />
+        <FormErrorAlert message={formErrors.error} />
         <p className="text-sm text-gray-700">
           Antrag {formatAbsenceRange(absence.date_start, absence.date_end)} (
           {absenceRowLabel(absence)})
@@ -115,11 +132,13 @@ function AbsenceNoteModal({
         </label>
         <Textarea
           id="decision-note"
+          name="decision_note"
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={4}
           maxLength={500}
           placeholder={placeholder}
+          error={formErrors.fieldError("decision_note")}
         />
         <p className="text-right text-xs text-gray-400">{note.length}/500</p>
       </div>
@@ -145,8 +164,8 @@ export function DenyAbsenceModal({
       submitLabel="Ablehnen"
       submitVariant="danger"
       onSubmitNote={(note) => staffAbsenceService.deny(absence.id, note)}
-      successMessage="Antrag abgelehnt."
-      errorMessage="Ablehnung fehlgeschlagen."
+      successMessage="Der Antrag ist abgelehnt."
+      logEvent="absence_deny_failed"
       onClose={onClose}
       onDone={onDenied}
     />
@@ -171,8 +190,8 @@ export function QuestionAbsenceModal({
       submitLabel="Rückfrage senden"
       submitVariant="primary"
       onSubmitNote={(note) => staffAbsenceService.question(absence.id, note)}
-      successMessage="Rückfrage gesendet."
-      errorMessage="Rückfrage fehlgeschlagen."
+      successMessage="Die Rückfrage ist gesendet."
+      logEvent="absence_question_failed"
       onClose={onClose}
       onDone={onQuestioned}
     />

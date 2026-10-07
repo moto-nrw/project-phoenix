@@ -7,6 +7,7 @@ import {
   fireEvent,
   act,
 } from "@testing-library/react";
+import { CompanionsChangedError } from "~/lib/api";
 
 /**
  * The EDITABLE Stammdaten view holds a draft plus the snapshot its dirty check
@@ -28,7 +29,8 @@ vi.mock("~/lib/student-companion-api", async (importOriginal) => {
   return { ...actual, fetchStudentCompanions: fetchStudentCompanionsMock };
 });
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     error: toastErrorMock,
     success: vi.fn(),
@@ -190,7 +192,7 @@ describe("PersonalInfoEditPanel — remote companion changes", () => {
 
     fireEvent.click(screen.getByText("Speichern"));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Bitte neu laden und die Änderung wiederholen",
+      "Die Laufgemeinschaft wurde inzwischen geändert. Bitte laden Sie sie neu.",
     );
     expect(toastErrorMock).not.toHaveBeenCalled();
     expect(onSave).not.toHaveBeenCalled();
@@ -231,14 +233,11 @@ describe("PersonalInfoEditPanel — remote companion changes", () => {
   // state a local announcement would: draft kept, save blocked, reload offered.
   it("blocks the form when the backend reports the list as stale", async () => {
     fetchStudentCompanionsMock.mockResolvedValueOnce([companion("2")]);
-    const staleError = Object.assign(
-      new Error(
-        "Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert. Bitte neu laden und noch einmal speichern.",
-      ),
-      {
-        name: "CompanionsChangedError",
-        body: JSON.stringify({ code: "students.companions_changed" }),
-      },
+    const staleError = new CompanionsChangedError(
+      JSON.stringify({
+        error: "companions changed",
+        code: "students.companions_changed",
+      }),
     );
     const onSave = vi.fn().mockRejectedValue(staleError);
     await renderOpenModal(onSave);
@@ -249,9 +248,12 @@ describe("PersonalInfoEditPanel — remote companion changes", () => {
     fireEvent.click(screen.getByTestId("edit-companions"));
     fireEvent.click(screen.getByText("Speichern"));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "zwischenzeitlich geändert",
+    // Text aus dem Katalog nach dem Code, nie der Satz des Servers.
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      /Laufgemeinschaft wurde inzwischen geändert/,
     );
+    expect(alert).not.toHaveTextContent(/companions changed/);
     expect(toastErrorMock).not.toHaveBeenCalled();
     // The draft survives, and the form now offers the explicit way out.
     expect(screen.getByTestId("companion-count").textContent).toBe("1");
@@ -294,7 +296,7 @@ describe("PersonalInfoEditPanel — remote companion changes", () => {
 
     fireEvent.click(screen.getByText("Speichern"));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Bitte neu laden und die Änderung wiederholen",
+      "Die Laufgemeinschaft wurde inzwischen geändert. Bitte laden Sie sie neu.",
     );
     expect(toastErrorMock).not.toHaveBeenCalled();
     expect(onSave).not.toHaveBeenCalled();

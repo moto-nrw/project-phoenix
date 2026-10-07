@@ -9,6 +9,7 @@ import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PickupExtension } from "~/lib/pickup-extension-api";
+import { catalogText } from "~/test/error-catalog-text";
 
 const mockToast = vi.hoisted(() => ({
   success: vi.fn(),
@@ -16,8 +17,10 @@ const mockToast = vi.hoisted(() => ({
   warning: vi.fn(),
   info: vi.fn(),
 }));
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => mockToast,
+  useApiErrorDisplay: () => ({ show: vi.fn() }),
 }));
 vi.mock("~/lib/care-request-review-api", async (importActual) => {
   const actual =
@@ -124,7 +127,7 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
       await screen.findByText("Längere Betreuung eintragen"),
     ).toBeInTheDocument();
     expect(mockFetch).toHaveBeenCalledWith("42");
-    expect(onDecided).toHaveBeenCalledWith("Abholzeit übernommen");
+    expect(onDecided).toHaveBeenCalledWith("Die Abholzeit ist übernommen.");
 
     fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
 
@@ -230,8 +233,12 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     approve();
     await screen.findByText("Längere Betreuung eintragen");
     fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
+    // Katalogtext der Klasse; der Dialog lädt die Terminliste neu (#2516).
     await screen.findByText(
-      "Der Termin hat sich inzwischen geändert. Bitte wählen Sie noch einmal.",
+      catalogText(
+        "timetable.pickup_extension_block_gone",
+        "die Zuordnung zum Termin",
+      ),
     );
     fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
     await waitFor(() =>
@@ -310,7 +317,7 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     approve();
 
     await waitFor(() =>
-      expect(onDecided).toHaveBeenCalledWith("Abholzeit übernommen"),
+      expect(onDecided).toHaveBeenCalledWith("Die Abholzeit ist übernommen."),
     );
     expect(screen.queryByText("Längere Betreuung eintragen")).toBeNull();
   });
@@ -324,7 +331,7 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     approve();
 
     await waitFor(() =>
-      expect(onDecided).toHaveBeenCalledWith("Abholzeit übernommen"),
+      expect(onDecided).toHaveBeenCalledWith("Die Abholzeit ist übernommen."),
     );
     expect(mockFetch).not.toHaveBeenCalled();
   });
@@ -343,7 +350,9 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     approve();
 
     await waitFor(() =>
-      expect(onDecided).toHaveBeenCalledWith("Betreuungszeiten übernommen"),
+      expect(onDecided).toHaveBeenCalledWith(
+        "Die Betreuungszeiten sind übernommen.",
+      ),
     );
     expect(mockFetch).not.toHaveBeenCalled();
   });
@@ -363,7 +372,9 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ablehnen" }));
 
     await waitFor(() =>
-      expect(onDecided).toHaveBeenCalledWith("Abholzeit-Anfrage abgelehnt"),
+      expect(onDecided).toHaveBeenCalledWith(
+        "Die Anfrage zur Abholzeit ist abgelehnt.",
+      ),
     );
     expect(mockFetch).not.toHaveBeenCalled();
   });
@@ -380,7 +391,7 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     approve();
 
     await waitFor(() =>
-      expect(onDecided).toHaveBeenCalledWith("Abholzeit übernommen"),
+      expect(onDecided).toHaveBeenCalledWith("Die Abholzeit ist übernommen."),
     );
   });
 });

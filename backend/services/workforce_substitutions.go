@@ -314,7 +314,10 @@ func mapSubstitutionError(err error) error {
 		return nil
 	}
 	if operation, ok := errors.AsType[*education.OperationError](err); ok {
-		mapped := &workforce.SubstitutionOperationError{Target: operation.Target, Code: operation.Code, Message: operation.Message, Cause: operation.Cause}
+		mapped := &workforce.SubstitutionOperationError{
+			Target: operation.Target, Code: operation.Code, Message: operation.Message, Cause: operation.Cause,
+			Details: substitutionRefusalValues(operation.Details), Field: operation.Field,
+		}
 		for _, kind := range substitutionErrorKinds {
 			if errors.Is(operation.Target, kind.module) {
 				mapped.Target = kind.capability
@@ -329,4 +332,16 @@ func mapSubstitutionError(err error) error {
 		}
 	}
 	return err
+}
+
+// substitutionRefusalValues keeps the values a schedule refusal names (#2516).
+func substitutionRefusalValues(details map[string]any) workforce.SubstitutionRefusalValues {
+	var values workforce.SubstitutionRefusalValues
+	if date, ok := details["date"].(string); ok {
+		values.Date = date
+	}
+	if limit, ok := details["max"].(int); ok {
+		values.Max = limit
+	}
+	return values
 }

@@ -12,7 +12,7 @@
 // Anlegen als Kopf-Aktion. Eine Route liefert nur noch ihre Daten und ihre
 // Felder.
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
@@ -36,7 +36,12 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Skeleton } from "~/components/ui/skeleton";
-import { useToast } from "~/contexts/ToastContext";
+import type { FormErrorDetail } from "~/components/ui/form-error";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { configToFormSection, type SectionConfig } from "~/lib/database/types";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
@@ -130,8 +135,9 @@ interface CatalogPageProps<T extends CatalogItem> {
   readonly config: CatalogConfig<T>;
   readonly items: readonly T[] | undefined;
   readonly isLoading: boolean;
-  /** Ladefehler der Liste. Ein Fehler ist nie ein Leerzustand. */
-  readonly error: string | null;
+  /** Ladefehler der Liste, am besten aus `useSwrLoadError` (Wiederholen und
+   *  Vorgangskennung kommen mit). Ein Fehler ist nie ein Leerzustand. */
+  readonly error: string | FormErrorDetail | null;
   /** Neu laden, nachdem geschrieben wurde. */
   readonly onChanged: () => Promise<unknown> | void;
   /** Ohne Recht bleibt die Fläche eine Liste zum Nachlesen. */
@@ -142,8 +148,18 @@ interface CatalogPageProps<T extends CatalogItem> {
   readonly headAction?: React.ReactNode;
 }
 
-function messageOf(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
+/**
+ * Erfolg als ganzer Satz (moto-einfache-sprache): „Die Schichtart „Früh“ ist
+ * angelegt.“ Alle Kataloge heißen feminin, siehe `errorObject`.
+ */
+function successSentence(
+  singular: string,
+  name: unknown,
+  verb: "angelegt" | "gespeichert",
+): string {
+  return typeof name === "string" && name.trim()
+    ? `Die ${singular} „${name.trim()}“ ist ${verb}.`
+    : `Die ${singular} ist ${verb}.`;
 }
 
 export function CatalogPage<T extends CatalogItem>({
@@ -157,6 +173,17 @@ export function CatalogPage<T extends CatalogItem>({
   headAction,
 }: CatalogPageProps<T>) {
   const toast = useToast();
+  const { show: showWriteError } = useApiErrorDisplay();
+  // Alle Kataloge heißen feminin („Planungsspur“, „Schichtart“,
+  // „Abwesenheitsart“, „Terminkategorie“); der Katalogtext setzt die Phrase
+  // in Nominativ und Akkusativ ein.
+  const errorObject = `die ${config.singular}`;
+  // Speicherfehler der beiden Formulare laufen über den gemeinsamen Weg; das
+  // Kit-Formular selbst darf ToastContext nicht importieren.
+  const detailErrors = useApiFormError();
+  const createErrors = useApiFormError();
+  const { clear: clearDetailErrors } = detailErrors;
+  const { clear: clearCreateErrors } = createErrors;
   const updateUrlParams = useUpdateUrlParams();
   const [searchTerm, setSearchTerm] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -181,6 +208,13 @@ export function CatalogPage<T extends CatalogItem>({
     () => all.find((item) => item.id === selectedId) ?? null,
     [all, selectedId],
   );
+
+  // Ein anderer Eintrag oder ein neu geöffnetes Anlegen beginnt ohne den
+  // Fehler des vorigen Versuchs.
+  useEffect(() => clearDetailErrors(), [selectedId, clearDetailErrors]);
+  useEffect(() => {
+    if (createOpen) clearCreateErrors();
+  }, [createOpen, clearCreateErrors]);
 
   const visible = useMemo(() => {
     const needle = searchTerm.trim().toLocaleLowerCase("de");
@@ -225,9 +259,13 @@ export function CatalogPage<T extends CatalogItem>({
     }
   }, [onChanged, toast]);
 
-  /** Ein Schreibvorgang mit gemeinsamem Busy-, Fehler- und Nachlade-Vertrag. */
+  /**
+   * Ein Schreibvorgang mit gemeinsamem Busy-, Fehler- und Nachlade-Vertrag.
+   * Der Fehler kommt als Toast über den gemeinsamen Anzeigeweg: die
+   * Bestätigungsdialoge schließen danach, Listenaktionen haben kein Formular.
+   */
   const runWrite = useCallback(
-    async (event: string, fallback: string, write: () => Promise<unknown>) => {
+    async (event: string, write: () => Promise<unknown>) => {
       setBusy(true);
       try {
         await write();
@@ -236,13 +274,13 @@ export function CatalogPage<T extends CatalogItem>({
         logger.error(event, {
           error: err instanceof Error ? err.message : String(err),
         });
-        toast.error(messageOf(err, fallback));
+        void showWriteError(err, { object: errorObject });
         return { saved: false, refreshed: false };
       } finally {
         setBusy(false);
       }
     },
-    [refreshAfterWrite, toast],
+    [refreshAfterWrite, showWriteError, errorObject],
   );
 
   const handleCreate = useCallback(
@@ -252,7 +290,9 @@ export function CatalogPage<T extends CatalogItem>({
       await config.create(values);
       setCreateOpen(false);
       if (await refreshAfterWrite()) {
-        toast.success(`${config.singular} angelegt`);
+        toast.success(
+          successSentence(config.singular, values.name, "angelegt"),
+        );
       }
     },
     [config, refreshAfterWrite, toast],
@@ -264,7 +304,13 @@ export function CatalogPage<T extends CatalogItem>({
       await config.update(selected, values);
       if (await refreshAfterWrite()) {
         setFormGeneration((generation) => generation + 1);
-        toast.success("Änderungen gespeichert");
+        toast.success(
+          successSentence(
+            config.singular,
+            values.name ?? config.toRow(selected).name,
+            "gespeichert",
+          ),
+        );
       }
     },
     [config, refreshAfterWrite, selected, toast],
@@ -274,10 +320,8 @@ export function CatalogPage<T extends CatalogItem>({
     const target = retireTarget;
     const retire = config.retire;
     if (!target || !retire) return;
-    const result = await runWrite(
-      "catalog_retire_failed",
-      `${config.singular} konnte nicht geändert werden.`,
-      () => retire.run(target),
+    const result = await runWrite("catalog_retire_failed", () =>
+      retire.run(target),
     );
     setRetireTarget(null);
     if (result.saved && result.refreshed) toast.success(retire.toast(target));
@@ -287,10 +331,8 @@ export function CatalogPage<T extends CatalogItem>({
     async (item: T) => {
       const restore = config.restore;
       if (!restore) return;
-      const result = await runWrite(
-        "catalog_restore_failed",
-        `${config.singular} konnte nicht wiederhergestellt werden.`,
-        () => restore.run(item),
+      const result = await runWrite("catalog_restore_failed", () =>
+        restore.run(item),
       );
       if (result.saved && result.refreshed) toast.success(restore.toast(item));
     },
@@ -301,10 +343,8 @@ export function CatalogPage<T extends CatalogItem>({
     const target = removeTarget;
     const remove = config.remove;
     if (!target || !remove) return;
-    const result = await runWrite(
-      "catalog_remove_failed",
-      `${config.singular} konnte nicht gelöscht werden.`,
-      () => remove.run(target),
+    const result = await runWrite("catalog_remove_failed", () =>
+      remove.run(target),
     );
     setRemoveTarget(null);
     if (result.saved) {
@@ -333,10 +373,8 @@ export function CatalogPage<T extends CatalogItem>({
       if (movedIndex < 0 || displacedIndex < 0 || !displaced) return;
       ordered[movedIndex] = displaced;
       ordered[displacedIndex] = item;
-      await runWrite(
-        "catalog_reorder_failed",
-        "Die Reihenfolge konnte nicht gespeichert werden.",
-        () => reorder(ordered.map((item) => item.id)),
+      await runWrite("catalog_reorder_failed", () =>
+        reorder(ordered.map((item) => item.id)),
       );
     },
     [active, config, runWrite, visibleActive],
@@ -523,6 +561,8 @@ export function CatalogPage<T extends CatalogItem>({
                 preserveDraftOnSectionsChange={
                   config.preserveDraftOnSectionsChange
                 }
+                errorPath={detailErrors}
+                errorObject={errorObject}
               />
             ) : (
               <p className="text-sm text-gray-600">
@@ -641,6 +681,8 @@ export function CatalogPage<T extends CatalogItem>({
                 },
               }}
               onSubmit={handleCreate}
+              errorPath={createErrors}
+              errorObject={errorObject}
               preserveDraftOnSectionsChange={
                 config.preserveDraftOnSectionsChange
               }

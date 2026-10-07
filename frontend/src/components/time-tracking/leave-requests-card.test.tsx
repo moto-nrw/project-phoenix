@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ABSENCES_REFRESH_EVENT } from "~/lib/absence-helpers";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import type { StaffAbsence } from "~/lib/time-tracking-helpers";
 
 import { LeaveRequestsCard } from "./leave-requests-card";
@@ -37,7 +39,8 @@ vi.mock("~/components/ui/modal", () => ({
     ) : null,
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     error: mocks.toastError,
     success: mocks.toastSuccess,
@@ -191,7 +194,12 @@ describe("LeaveRequestsCard resubmitted requests", () => {
     };
     mocks.getAbsences.mockResolvedValue([]);
     mocks.getQuestionedAbsences.mockResolvedValue([question]);
-    mocks.resubmitAbsence.mockRejectedValue(new Error("Server weg"));
+    mocks.resubmitAbsence.mockRejectedValue(
+      new ApiError("Server weg", 500, {
+        code: "general.server",
+        instance: "req-resubmit",
+      }),
+    );
 
     render(<LeaveRequestsCard />);
 
@@ -200,16 +208,88 @@ describe("LeaveRequestsCard resubmitted requests", () => {
     });
     fireEvent.click(submit);
     expect(
-      await screen.findByText("Bitte gib eine kurze Antwort ein."),
+      await screen.findByText("Bitte geben Sie eine kurze Antwort ein."),
     ).toBeInTheDocument();
+    expect(screen.getByLabelText("Ihre Antwort")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
     expect(mocks.resubmitAbsence).not.toHaveBeenCalled();
 
-    fireEvent.change(screen.getByLabelText("Deine Antwort"), {
+    fireEvent.change(screen.getByLabelText("Ihre Antwort"), {
       target: { value: "Vertretung ist geklärt." },
     });
     fireEvent.click(submit);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Server weg");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      catalogText("general.server", "die Antwort"),
+    );
+    expect(screen.queryByText(/Server weg/)).not.toBeInTheDocument();
+    // „Wiederholen“ sendet die aktuelle Antwort erneut.
+    mocks.resubmitAbsence.mockResolvedValue(undefined);
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => {
+      expect(mocks.resubmitAbsence).toHaveBeenLastCalledWith(
+        "question-1",
+        "Vertretung ist geklärt.",
+      );
+    });
     expect(mocks.toastError).not.toHaveBeenCalled();
+  });
+
+  it("shows a failed load in the card instead of empty tiles", async () => {
+    mocks.getVacationQuota.mockRejectedValue(
+      new ApiError("down", 503, {
+        code: "general.unavailable",
+        instance: "req-leave",
+      }),
+    );
+
+    render(<LeaveRequestsCard />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Urlaubsübersicht"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Resturlaub")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Urlaub beantragen" }),
+    ).toBeDisabled();
+    mocks.getVacationQuota.mockResolvedValue({
+      staff_id: 42,
+      year: 2027,
+      entitled_days: 20,
+      carryover_days: 0,
+      taken_days: 0,
+      reserved_days: 2,
+      remaining_days: 18,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText("Resturlaub")).toBeInTheDocument();
+  });
+
+  it("keeps a refused cancellation in the dialog", async () => {
+    mocks.cancelAbsence.mockRejectedValue(
+      new ApiError("forbidden", 403, { code: "general.permission" }),
+    );
+
+    render(<LeaveRequestsCard />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Stornieren" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Stornierung bestätigen" }),
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.permission", "die Stornierung"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Stornierung bestätigen" }),
+    ).toBeInTheDocument();
+    expect(mocks.toastError).not.toHaveBeenCalled();
+    expect(mocks.toastSuccess).not.toHaveBeenCalled();
   });
 });

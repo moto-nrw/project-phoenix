@@ -1,4 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
@@ -56,5 +58,25 @@ describe("EnrollPhasePickerPage", () => {
     expect(
       await screen.findByRole("link", { name: /Schuljahr 2026\/27/ }),
     ).toHaveAttribute("href", "/demo/anmeldung/phase%2F1");
+  });
+
+  it("shows a failed load instead of claiming no phase is open (#2515)", async () => {
+    mocks.fetchPublicPhases.mockReset();
+    mocks.fetchPublicPhases
+      .mockRejectedValueOnce(new ApiError("down", 503))
+      .mockResolvedValueOnce([]);
+    render(<EnrollPhasePickerPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Anmeldephasen"),
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => {
+      expect(mocks.fetchPublicPhases).toHaveBeenCalledTimes(2);
+    });
   });
 });

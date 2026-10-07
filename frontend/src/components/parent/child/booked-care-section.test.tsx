@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import deMessages from "~/i18n/messages/de.json";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { getChildCareOfferings, getChildCareSchedule } from "~/lib/parent-api";
 import { BookedCareSection } from "./booked-care-section";
 
@@ -590,5 +592,35 @@ describe("BookedCareSection", () => {
     // Zurückziehen wurde durch das Bearbeiten der eigenen Anfrage ersetzt
     // (#2267); sichtbar bleibt die Freigabe an andere Sorgeberechtigte.
     expect(screen.getByTestId("request-sharing")).toBeInTheDocument();
+  });
+});
+
+describe("BookedCareSection Ladefehler (#2518)", () => {
+  it("zeigt jeden fehlgeschlagenen Abschnitt mit eigenem Katalogtext", async () => {
+    const failure = new ApiError("diag", 503, { code: "general.unavailable" });
+    mockedOfferings.mockRejectedValue(failure);
+    mockedSchedule.mockRejectedValue(failure);
+
+    renderSection();
+
+    expect(
+      await screen.findByText(
+        catalogText(
+          "general.unavailable",
+          deMessages.parentMasterData.careSchedule.errorObject,
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        catalogText(
+          "general.unavailable",
+          deMessages.parentMasterData.careOfferings.errorObject,
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Wiederholen" })).toHaveLength(
+      2,
+    );
   });
 });

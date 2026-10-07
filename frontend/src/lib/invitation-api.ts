@@ -1,5 +1,8 @@
-import type { ApiError } from "~/lib/auth-api";
-import { wireErrorCode } from "~/lib/api-error";
+import {
+  type ApiError,
+  apiErrorFromBody,
+  transportFetch,
+} from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "InvitationAPI" });
@@ -31,23 +34,25 @@ const parseRetryAfter = (value: string | null): number | undefined => {
   return undefined;
 };
 
+// Deliberately not auth-api's buildApiError: importing that module puts it
+// into the /invite bundle. The result is the same structured ApiError with
+// code, field errors and request ID (#2511).
 const createApiError = async (
   response: Response,
   fallbackMessage: string,
 ): Promise<ApiError> => {
   let message = fallbackMessage;
-  let code: string | undefined;
+  let payload: unknown;
 
   try {
     const contentType = response.headers.get("Content-Type") ?? "";
-    if (contentType.includes("application/json")) {
-      const payload = (await response.json()) as {
+    if (contentType.includes("json")) {
+      const body = (await response.json()) as {
         error?: string;
         message?: string;
-        code?: string;
       };
-      message = payload.error ?? payload.message ?? fallbackMessage;
-      code = payload.code;
+      message = body.error ?? body.message ?? fallbackMessage;
+      payload = body;
     } else {
       const text = (await response.text()).trim();
       if (text) {
@@ -60,9 +65,7 @@ const createApiError = async (
     });
   }
 
-  const apiError = new Error(message) as ApiError;
-  apiError.status = response.status;
-  apiError.code = wireErrorCode(code);
+  const apiError = apiErrorFromBody(message, response.status, payload);
   const retry = parseRetryAfter(response.headers.get("Retry-After"));
   if (retry !== undefined) {
     apiError.retryAfterSeconds = retry;
@@ -84,7 +87,7 @@ const extractData = <T>(payload: unknown): T => {
 export async function validateInvitation(
   token: string,
 ): Promise<InvitationValidation> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/invitations/validate?token=${encodeURIComponent(token)}`,
   );
   if (!response.ok) {
@@ -107,7 +110,7 @@ export async function acceptInvitation(
   token: string,
   data: InvitationAcceptRequest,
 ): Promise<AcceptInvitationResult> {
-  const response = await fetch("/api/invitations/accept", {
+  const response = await transportFetch("/api/invitations/accept", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -135,7 +138,7 @@ export async function acceptInvitation(
 export async function createInvitation(
   data: CreateInvitationRequest,
 ): Promise<PendingInvitation> {
-  const response = await fetch("/api/invitations", {
+  const response = await transportFetch("/api/invitations", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -157,7 +160,7 @@ export async function createInvitation(
 }
 
 export async function listPendingInvitations(): Promise<PendingInvitation[]> {
-  const response = await fetch("/api/invitations", {
+  const response = await transportFetch("/api/invitations", {
     credentials: "include",
   });
   if (!response.ok) {
@@ -175,7 +178,7 @@ export async function listPendingInvitations(): Promise<PendingInvitation[]> {
 }
 
 export async function resendInvitation(id: number): Promise<void> {
-  const response = await fetch(`/api/invitations/${id}/resend`, {
+  const response = await transportFetch(`/api/invitations/${id}/resend`, {
     method: "POST",
     credentials: "include",
   });
@@ -188,7 +191,7 @@ export async function resendInvitation(id: number): Promise<void> {
 }
 
 export async function revokeInvitation(id: number): Promise<void> {
-  const response = await fetch(`/api/invitations/${id}`, {
+  const response = await transportFetch(`/api/invitations/${id}`, {
     method: "DELETE",
     credentials: "include",
   });

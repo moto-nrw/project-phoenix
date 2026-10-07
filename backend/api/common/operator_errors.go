@@ -9,85 +9,107 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
-// Operator error bodies. The operator surface keeps its own wire format
-// (`message` instead of `error`, and a literal "error" status for most
-// outcomes), pinned by operator_wire_format_test.go. The operator router in
-// api/operator and the operator handlers its owner modules serve share these
-// constructors, so the surface keeps one wire format wherever a handler lives
-// (#3232, #3231).
+// Operator error bodies. The operator router in api/operator and the operator
+// handlers its owner modules serve share these constructors (#3232, #3231).
+// They answer in the shared error envelope like every other surface (#2507);
+// they exist for the operator surface's fixed texts and message strings.
 
-// OperatorErrResponse is the operator surface's error body.
-type OperatorErrResponse struct {
-	HTTPStatusCode int    `json:"-"`
-	StatusText     string `json:"status"`
-	ErrorText      string `json:"message,omitempty"`
-	Type           string `json:"type"`
-	Title          string `json:"title"`
-	Detail         string `json:"detail"`
-	Instance       string `json:"instance"`
-	Code           string `json:"code"`
+// operatorError carries no Err: the message is client text, not a cause, so a
+// 5xx neither logs it as one nor hands it to Sentry. ServerErrorReporting
+// reports the status as before.
+func operatorError(status int, message string) render.Renderer {
+	return &ErrResponse{HTTPStatusCode: status, Status: "error", ErrorText: message}
 }
 
-// Render implements render.Renderer.
-func (e *OperatorErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
-	e.Code = ErrorClassCode(e.HTTPStatusCode)
-	e.Type = problemType(e.Code, e.HTTPStatusCode)
-	e.Title = problemTitle(e.HTTPStatusCode)
-	e.Detail = e.ErrorText
-	e.Instance = requestID(r)
-	render.Status(r, e.HTTPStatusCode)
-	return nil
+// OperatorRejection renders an operator outcome with its registered code
+// (#2519). The message is developer diagnostics; the operator portal shows
+// the catalog text of the code.
+func OperatorRejection(status int, code, message string) render.Renderer {
+	return &ErrResponse{HTTPStatusCode: status, Status: "error", ErrorText: message, Code: code}
 }
 
-func operatorError(status int, statusText, message string) render.Renderer {
-	return &OperatorErrResponse{HTTPStatusCode: status, StatusText: statusText, ErrorText: message}
+// OperatorRejectionWithDetails is OperatorRejection with the structured
+// values the catalog text of the code interpolates.
+func OperatorRejectionWithDetails(status int, code, message string, details map[string]any) render.Renderer {
+	return &ErrResponse{HTTPStatusCode: status, Status: "error", ErrorText: message, Code: code, Details: details}
 }
 
-// OperatorInvalidRequest renders a 400 with the error's text.
+// OperatorInvalidRequest renders a 400 with the error's text. The field
+// errors of a validation error and the code of an InputRejection in its
+// chain go along, so the operator portal can mark the field (#2519).
 func OperatorInvalidRequest(err error) render.Renderer {
-	return operatorError(http.StatusBadRequest, "error", err.Error())
+	return ErrorInputRejection(err)
+}
+
+// OperatorInvalidRequestWithCode renders a 400 with a registered code.
+func OperatorInvalidRequestWithCode(err error, code string) render.Renderer {
+	resp := newErrResponse(http.StatusBadRequest, err)
+	resp.Errors = validationFieldErrors(err)
+	resp.Code = code
+	return resp
+}
+
+// OperatorRejectionOnField is OperatorRejection that also marks the request
+// field the outcome is about, e.g. the slug that is already taken (#2519).
+func OperatorRejectionOnField(status int, code, field, message string) render.Renderer {
+	return &ErrResponse{
+		HTTPStatusCode: status,
+		Status:         "error",
+		ErrorText:      message,
+		Code:           code,
+		Errors:         []FieldError{{Field: field, Reason: message}},
+	}
+}
+
+// OperatorInvalidField renders a 400 that marks one request field.
+func OperatorInvalidField(code, field, message string) render.Renderer {
+	return OperatorRejectionOnField(http.StatusBadRequest, code, field, message)
+}
+
+// OperatorInvalidInput renders a 400 with a fixed text: the cause may carry
+// adapter text, so only its field errors and InputRejection code go along.
+func OperatorInvalidInput(cause error, message string) render.Renderer {
+	resp := &ErrResponse{HTTPStatusCode: http.StatusBadRequest, Status: "error", ErrorText: message}
+	resp.Errors = validationFieldErrors(cause)
+	applyInputRejection(resp, cause)
+	return resp
 }
 
 // OperatorInvalidCredentials renders the 401 of a failed operator login.
 func OperatorInvalidCredentials() render.Renderer {
-	return operatorError(http.StatusUnauthorized, "error", "Invalid email or password")
+	return OperatorRejection(http.StatusUnauthorized, CodeIdentityInvalidCredentials, "Invalid email or password")
 }
 
 // OperatorUnauthorized renders the 401 of an invalid or expired token.
 func OperatorUnauthorized() render.Renderer {
-	return operatorError(http.StatusUnauthorized, "error", "Unauthorized")
+	return operatorError(http.StatusUnauthorized, "Unauthorized")
 }
 
 // OperatorNotFound renders a 404.
 func OperatorNotFound(message string) render.Renderer {
-	return operatorError(http.StatusNotFound, "error", message)
+	return operatorError(http.StatusNotFound, message)
 }
 
 // OperatorConflict renders a 409.
 func OperatorConflict(message string) render.Renderer {
-	return operatorError(http.StatusConflict, "error", message)
+	return operatorError(http.StatusConflict, message)
 }
 
 // OperatorForbidden renders a 403.
 func OperatorForbidden(message string) render.Renderer {
-	return operatorError(http.StatusForbidden, "error", message)
-}
-
-// OperatorTooManyRequests renders a 429.
-func OperatorTooManyRequests(message string) render.Renderer {
-	return operatorError(http.StatusTooManyRequests, "Too Many Requests", message)
+	return operatorError(http.StatusForbidden, message)
 }
 
 // OperatorInternal renders a 500.
 func OperatorInternal(message string) render.Renderer {
-	return operatorError(http.StatusInternalServerError, "error", message)
+	return operatorError(http.StatusInternalServerError, message)
 }
 
 // OperatorServiceUnavailable renders a 503. Used when a transient dependency
 // makes a security decision impossible and the safe behaviour is to refuse
 // this caller without globally locking everyone out.
 func OperatorServiceUnavailable(message string) render.Renderer {
-	return operatorError(http.StatusServiceUnavailable, "Service Unavailable", message)
+	return operatorError(http.StatusServiceUnavailable, message)
 }
 
 // OperatorAuditedIDAction parses one int64 id parameter and invokes an

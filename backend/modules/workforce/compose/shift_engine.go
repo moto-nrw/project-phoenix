@@ -212,8 +212,8 @@ func seriesToDomain(value workforce.StaffShiftSeries) domain.StaffShiftSeries {
 		StartTime: value.StartTime, EndTime: value.EndTime, BreakMinutes: value.BreakMinutes, ShiftTypeID: value.ShiftTypeID,
 		Notes: value.Notes, CalendarPeriodID: value.CalendarPeriodID, WeekPattern: value.WeekPattern,
 		ValidFrom: value.ValidFrom, ValidUntil: value.ValidUntil, SeriesRootID: value.SeriesRootID,
-		RetainedOccurrenceShiftID: value.RetainedOccurrenceShiftID, CreatedBy: value.CreatedBy, UpdatedBy: value.UpdatedBy,
-		CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		RetainedOccurrenceShiftID: value.RetainedOccurrenceShiftID, IncludeSchoolBreaks: value.IncludeSchoolBreaks,
+		CreatedBy: value.CreatedBy, UpdatedBy: value.UpdatedBy, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
 }
 
@@ -223,8 +223,8 @@ func seriesToPublic(value domain.StaffShiftSeries) workforce.StaffShiftSeries {
 		StartTime: value.StartTime, EndTime: value.EndTime, BreakMinutes: value.BreakMinutes, ShiftTypeID: value.ShiftTypeID,
 		Notes: value.Notes, CalendarPeriodID: value.CalendarPeriodID, WeekPattern: value.WeekPattern,
 		ValidFrom: value.ValidFrom, ValidUntil: value.ValidUntil, SeriesRootID: value.SeriesRootID,
-		RetainedOccurrenceShiftID: value.RetainedOccurrenceShiftID, CreatedBy: value.CreatedBy, UpdatedBy: value.UpdatedBy,
-		CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		RetainedOccurrenceShiftID: value.RetainedOccurrenceShiftID, IncludeSchoolBreaks: value.IncludeSchoolBreaks,
+		CreatedBy: value.CreatedBy, UpdatedBy: value.UpdatedBy, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
 }
 

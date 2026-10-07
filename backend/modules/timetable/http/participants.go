@@ -60,7 +60,7 @@ func (rs *Resource) getInstanceParticipants(w http.ResponseWriter, r *http.Reque
 
 	if _, err := rs.TimetableData.FindScheduledInstance(ctx, instanceID); err != nil {
 		if errors.Is(err, timetable.ErrActivityInstanceNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("instance not found"), common.CodeTimetableInstanceNotFound))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load instance failed", err))

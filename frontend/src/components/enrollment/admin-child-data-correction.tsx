@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { Pencil } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { todayISO } from "~/lib/date-helpers";
 import {
   correctAdminChildData,
@@ -33,7 +35,9 @@ export function AdminChildDataCorrection({
   );
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const errors = useApiFormError();
+  // „Wiederholen“ sendet den aktuellen Stand, nicht den vom Fehler.
+  const latestSubmitRef = useRef<() => Promise<void>>(async () => undefined);
 
   const close = () => {
     if (!saving) setOpen(false);
@@ -46,23 +50,26 @@ export function AdminChildDataCorrection({
     setGrade(child.target_grade_level?.toString() ?? "");
     setSchoolClass(child.target_school_class ?? "");
     setReason("");
-    setError(null);
+    errors.clear();
     setOpen(true);
   };
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
+  const save = async () => {
     const parsedGrade = grade === "" ? undefined : Number(grade);
     if (parsedGrade !== undefined && !Number.isInteger(parsedGrade)) {
-      setError("Die Klassenstufe muss eine ganze Zahl sein.");
+      errors.invalid("Die Klassenstufe muss eine ganze Zahl sein.", {
+        target_grade_level: "Bitte geben Sie eine ganze Zahl ein.",
+      });
       return;
     }
     if (!reason.trim()) {
-      setError("Bitte gib einen Grund für die Korrektur an.");
+      errors.invalid("Bitte geben Sie einen Grund für die Korrektur an.", {
+        reason: "Bitte geben Sie einen Grund an.",
+      });
       return;
     }
     setSaving(true);
-    setError(null);
+    errors.clear();
     try {
       const correction = {
         first_name: firstName.trim(),
@@ -90,10 +97,21 @@ export function AdminChildDataCorrection({
       setOpen(false);
       onSaved(correctedChild);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unbekannter Fehler");
+      await errors.show(err, {
+        object: "die Korrektur",
+        retry: () => void latestSubmitRef.current(),
+      });
     } finally {
       setSaving(false);
     }
+  };
+  useLayoutEffect(() => {
+    latestSubmitRef.current = save;
+  });
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    void save();
   };
 
   return (
@@ -113,6 +131,7 @@ export function AdminChildDataCorrection({
         title="Anmeldedaten korrigieren"
         size="sm"
         mobilePosition="center"
+        error={errors.error}
         footer={
           <>
             <Button
@@ -139,32 +158,26 @@ export function AdminChildDataCorrection({
         <form
           id={`child-data-correction-${child.id}`}
           className="space-y-4"
-          onSubmit={(event) => void submit(event)}
+          onSubmit={submit}
         >
           <p className="text-sm leading-6 text-gray-600">
             Die Anmeldung bleibt die Quelle. Nach dem Speichern werden die
             verknüpften Stammdaten automatisch aktualisiert und die Änderung
             protokolliert.
           </p>
-          {error ? (
-            <p
-              className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm"
-              role="alert"
-            >
-              {error}
-            </p>
-          ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <Input
-              name="correction-first-name"
+              name="first_name"
               label="Vorname"
+              error={errors.fieldError("first_name")}
               value={firstName}
               onChange={(event) => setFirstName(event.target.value)}
               required
             />
             <Input
-              name="correction-last-name"
+              name="last_name"
               label="Nachname"
+              error={errors.fieldError("last_name")}
               value={lastName}
               onChange={(event) => setLastName(event.target.value)}
               required
@@ -174,6 +187,7 @@ export function AdminChildDataCorrection({
             id="correction-date-of-birth"
             controlSize="lg"
             label="Geburtsdatum"
+            error={errors.fieldError("date_of_birth")}
             value={dateOfBirth}
             onChange={setDateOfBirth}
             monthYearNavigation
@@ -188,8 +202,9 @@ export function AdminChildDataCorrection({
           />
           <div className="grid gap-4 sm:grid-cols-2">
             <Input
-              name="correction-grade"
+              name="target_grade_level"
               label="Ziel-Klassenstufe"
+              error={errors.fieldError("target_grade_level")}
               type="number"
               min={1}
               max={13}
@@ -198,27 +213,25 @@ export function AdminChildDataCorrection({
               onChange={(event) => setGrade(event.target.value)}
             />
             <Input
-              name="correction-school-class"
+              name="target_school_class"
               label="Zielklasse (optional)"
+              error={errors.fieldError("target_school_class")}
               value={schoolClass}
               onChange={(event) => setSchoolClass(event.target.value)}
               placeholder="z. B. 2a"
             />
           </div>
-          <label htmlFor={`correction-reason-${child.id}`} className="block">
-            <span className="mb-2 block text-sm font-medium text-gray-700">
-              Grund der Korrektur
-            </span>
-            <textarea
-              id={`correction-reason-${child.id}`}
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              rows={3}
-              required
-              placeholder="z. B. Klassenstufe laut Rücksprache mit den Eltern berichtigt"
-              className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
-            />
-          </label>
+          <Textarea
+            id={`correction-reason-${child.id}`}
+            name="reason"
+            label="Grund der Korrektur"
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            rows={3}
+            required
+            placeholder="z. B. Klassenstufe laut Rücksprache mit den Eltern berichtigt"
+            error={errors.fieldError("reason")}
+          />
         </form>
       </FormModal>
     </>

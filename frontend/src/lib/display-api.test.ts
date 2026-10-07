@@ -9,6 +9,7 @@ import {
   regenerateDisplayToken,
   deleteDisplay,
 } from "./display-api";
+import { ApiError } from "./api-error";
 import type { BackendDisplay } from "./display-helpers";
 
 const originalFetch = globalThis.fetch;
@@ -100,18 +101,40 @@ describe("listDisplays", () => {
     await expect(listDisplays()).resolves.toEqual([]);
   });
 
-  it("throws the backend error message on failure", async () => {
+  it("throws an ApiError with code and request id on failure", async () => {
     mockFetch(() =>
-      Promise.resolve(jsonResponse({ error: "kaputt" }, { status: 500 })),
+      Promise.resolve(
+        jsonResponse(
+          { error: "kaputt", code: "general.server", instance: "req-7" },
+          { status: 500 },
+        ),
+      ),
     );
 
-    await expect(listDisplays()).rejects.toThrow("kaputt");
+    await expect(listDisplays()).rejects.toMatchObject({
+      name: "ApiError",
+      status: 500,
+      code: "general.server",
+      requestId: "req-7",
+    });
   });
 
-  it("falls back to a generic message when the error body is not JSON", async () => {
+  it("keeps the status class when the error body is not JSON", async () => {
     mockFetch(() => Promise.resolve(new Response("nope", { status: 502 })));
 
-    await expect(listDisplays()).rejects.toThrow("request failed (502)");
+    await expect(listDisplays()).rejects.toMatchObject({
+      name: "ApiError",
+      status: 502,
+      code: "general.unavailable",
+    });
+  });
+
+  it("turns a request that never reached the API into general.unavailable", async () => {
+    mockFetch(() => Promise.reject(new TypeError("Failed to fetch")));
+
+    const error: unknown = await listDisplays().catch((cause) => cause);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ code: "general.unavailable" });
   });
 });
 
@@ -188,17 +211,30 @@ describe("deleteDisplay", () => {
     expect(init?.method).toBe("DELETE");
   });
 
-  it("throws the backend error message on failure", async () => {
+  it("throws an ApiError with the wire code on failure", async () => {
     mockFetch(() =>
-      Promise.resolve(jsonResponse({ error: "verboten" }, { status: 403 })),
+      Promise.resolve(
+        jsonResponse(
+          { error: "verboten", code: "general.permission" },
+          { status: 403 },
+        ),
+      ),
     );
 
-    await expect(deleteDisplay("5")).rejects.toThrow("verboten");
+    await expect(deleteDisplay("5")).rejects.toMatchObject({
+      name: "ApiError",
+      status: 403,
+      code: "general.permission",
+    });
   });
 
-  it("falls back to a generic message when the error body is not JSON", async () => {
+  it("keeps the status class when the error body is not JSON", async () => {
     mockFetch(() => Promise.resolve(new Response("nope", { status: 500 })));
 
-    await expect(deleteDisplay("5")).rejects.toThrow("delete failed (500)");
+    await expect(deleteDisplay("5")).rejects.toMatchObject({
+      name: "ApiError",
+      status: 500,
+      code: "general.server",
+    });
   });
 });

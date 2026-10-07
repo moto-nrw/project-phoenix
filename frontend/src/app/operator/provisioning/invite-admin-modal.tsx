@@ -1,13 +1,13 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { Modal } from "~/components/ui/modal";
-import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { Invitation } from "~/lib/operator/provisioning-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   FormField,
-  FormError,
   DeliveryStatusBadge,
   SelectWithChevron,
 } from "./provisioning-shared";
@@ -31,8 +31,9 @@ export function InviteAdminModal({
   const [position, setPosition] = useState("");
   const [caregiverEnabled, setCaregiverEnabled] = useState(false);
   const [inviteSaving, setInviteSaving] = useState(false);
-  const [inviteError, setInviteError] = useState("");
-  const errorRef = useScrollToError(inviteError);
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { show: showError, clear: clearError } = formErrors;
 
   const [inviteResult, setInviteResult] = useState<Invitation | null>(null);
   const inputClasses =
@@ -46,17 +47,17 @@ export function InviteAdminModal({
       setInviteLastName("");
       setPosition("");
       setCaregiverEnabled(false);
-      setInviteError("");
+      clearError();
       setInviteResult(null);
     }
-  }, [isOpen]);
+  }, [isOpen, clearError]);
 
   const handleInvite = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       if (!schoolId || !inviteEmail.trim()) return;
       setInviteSaving(true);
-      setInviteError("");
+      clearError();
       try {
         const result = await operatorProvisioningService.inviteSchoolAdmin(
           schoolId,
@@ -70,12 +71,10 @@ export function InviteAdminModal({
         );
         setInviteResult(result);
       } catch (error) {
-        setInviteError(
-          error instanceof Error ? error.message : "Fehler beim Einladen.",
-        );
         logger.error("admin_invite_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
+        void showError(error, { object: "die Einladung" });
       } finally {
         setInviteSaving(false);
       }
@@ -87,6 +86,8 @@ export function InviteAdminModal({
       inviteLastName,
       caregiverEnabled,
       position,
+      clearError,
+      showError,
     ],
   );
 
@@ -168,10 +169,18 @@ export function InviteAdminModal({
           onSubmit={(e) => void handleInvite(e)}
           className="space-y-4"
           id="invite-admin-form"
+          ref={formRef}
         >
-          <FormField label="E-Mail" htmlFor="invite-email" required>
+          <FormErrorAlert message={formErrors.error} />
+          <FormField
+            label="E-Mail"
+            htmlFor="invite-email"
+            required
+            error={formErrors.fieldError("email")}
+          >
             <input
               id="invite-email"
+              name="email"
               type="email"
               autoComplete="email"
               value={inviteEmail}
@@ -182,9 +191,14 @@ export function InviteAdminModal({
             />
           </FormField>
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Vorname" htmlFor="invite-first-name">
+            <FormField
+              label="Vorname"
+              htmlFor="invite-first-name"
+              error={formErrors.fieldError("first_name")}
+            >
               <input
                 id="invite-first-name"
+                name="first_name"
                 type="text"
                 autoComplete="given-name"
                 value={inviteFirstName}
@@ -193,9 +207,14 @@ export function InviteAdminModal({
                 className={inputClasses}
               />
             </FormField>
-            <FormField label="Nachname" htmlFor="invite-last-name">
+            <FormField
+              label="Nachname"
+              htmlFor="invite-last-name"
+              error={formErrors.fieldError("last_name")}
+            >
               <input
                 id="invite-last-name"
+                name="last_name"
                 type="text"
                 autoComplete="family-name"
                 value={inviteLastName}
@@ -227,9 +246,14 @@ export function InviteAdminModal({
             </div>
           </div>
           {caregiverEnabled && (
-            <FormField label="Position" htmlFor="invite-admin-position">
+            <FormField
+              label="Position"
+              htmlFor="invite-admin-position"
+              error={formErrors.fieldError("position")}
+            >
               <SelectWithChevron
                 id="invite-admin-position"
+                name="position"
                 value={position}
                 onChange={(e) => setPosition(e.target.value)}
               >
@@ -242,7 +266,6 @@ export function InviteAdminModal({
               </SelectWithChevron>
             </FormField>
           )}
-          {inviteError && <FormError ref={errorRef} message={inviteError} />}
         </form>
       )}
     </Modal>

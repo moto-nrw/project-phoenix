@@ -1,6 +1,13 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useSession } from "next-auth/react";
 import { Download, Landmark, Lock } from "lucide-react";
 
@@ -10,7 +17,8 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { useToast } from "~/contexts/ToastContext";
+import { formErrorMessage } from "~/components/ui/form-error";
+import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import {
   exportPaymentOverview,
@@ -37,7 +45,14 @@ const ROWS_PER_PAGE = 25;
 
 function BankverbindungenContent() {
   const { data: session, status } = useSession({ required: true });
-  const toast = useToast();
+  // Ladefehler ersetzen die Liste (#2517), nie durch „Noch keine Kinder“;
+  // der Export ist eine Aktion ohne Formular und meldet sich als Toast.
+  const loadError = useApiLoadError();
+  const { show: showLoadError, clear: clearLoadError } = loadError;
+  const { show: showExportError } = useApiErrorDisplay();
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
+  const latestExportRef = useRef<() => void>(() => undefined);
 
   const [rows, setRows] = useState<PaymentOverviewRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,28 +63,30 @@ function BankverbindungenContent() {
 
   const canRead = hasPermission(session, "guardians:financial");
 
-  // The fetch effect deliberately depends on the session state only. `toast`
-  // comes from a context whose value is memoized today, but a list that
-  // refetches on every render — and flips back to its loading skeleton while
-  // doing so — is not a failure worth risking on that.
+  // The fetch effect depends on the session state and the retry counter.
+  // The error hooks' callbacks are stable, so the list never refetches on an
+  // ordinary render.
   useEffect(() => {
     if (status === "loading" || !canRead) return;
     let cancelled = false;
     setIsLoading(true);
     fetchPaymentOverview()
       .then((data) => {
-        if (!cancelled) setRows(data);
+        if (cancelled) return;
+        setRows(data);
+        setLoadFailed(false);
+        clearLoadError();
       })
       .catch((error: unknown) => {
         if (cancelled) return;
         logger.error("payment_overview_load_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : "Die Liste konnte nicht geladen werden. Bitte noch einmal versuchen.",
-        );
+        setLoadFailed(true);
+        void showLoadError(error, {
+          object: "die Liste der Bankverbindungen",
+          retry: () => setReloadToken((token) => token + 1),
+        });
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -77,8 +94,7 @@ function BankverbindungenContent() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, canRead]);
+  }, [status, canRead, reloadToken, showLoadError, clearLoadError]);
 
   const missingCount = useMemo(
     () => rows.filter((row) => row.ibanMasked === "").length,
@@ -113,15 +129,21 @@ function BankverbindungenContent() {
     try {
       await exportPaymentOverview(format);
     } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Der Export hat nicht geklappt. Bitte noch einmal versuchen.",
-      );
+      logger.error("payment_overview_export_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      void showExportError(error, {
+        object: "das Herunterladen der Bankverbindungen",
+        retry: () => latestExportRef.current(),
+      });
     } finally {
       setIsExporting(false);
     }
   };
+  // „Wiederholen“ lädt im dann gewählten Format herunter.
+  useLayoutEffect(() => {
+    latestExportRef.current = () => void handleExport();
+  });
 
   const columns: DataTableColumn<PaymentOverviewRow>[] = [
     {
@@ -201,11 +223,18 @@ function BankverbindungenContent() {
     );
   }
 
+  // Bis der Katalogtext da ist, bleibt das Skelett stehen; danach ersetzt der
+  // Fehler die Liste, solange nie eine geladen wurde.
+  const failedWithoutData = loadFailed && rows.length === 0;
+  const awaitingErrorText =
+    loadFailed && formErrorMessage(loadError.error) === null;
+
   return (
     <TenantPage
       title="Bankverbindungen"
-      stats={statusLine}
-      statsLoading={isLoading}
+      stats={loadFailed ? null : statusLine}
+      statsLoading={isLoading || awaitingErrorText}
+      error={failedWithoutData ? loadError.error : null}
       search={{
         value: searchValue,
         onChange: setSearchValue,
@@ -258,7 +287,7 @@ function BankverbindungenContent() {
         columns={columns}
         rows={visibleRows}
         getRowKey={(row) => row.studentId}
-        isLoading={isLoading}
+        isLoading={isLoading || failedWithoutData}
         defaultSortKey="student"
         caption={captionText}
         pageSize={ROWS_PER_PAGE}

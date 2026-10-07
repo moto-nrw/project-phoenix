@@ -9,6 +9,8 @@
 import { Lock } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Button } from "~/components/ui/button";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -94,7 +96,9 @@ function SummaryRow({
 export interface MonatskarteProps {
   readonly summary: MonthSummary | null;
   readonly isLoading: boolean;
-  readonly error?: string | null;
+  /** The failed load from `useApiLoadError` (with retry and request ID) or
+   *  a plain sentence. */
+  readonly error?: FormErrorInput;
   /** True while the viewed month is the current calendar month. */
   readonly isCurrentMonth?: boolean;
   /**
@@ -168,7 +172,7 @@ export function Monatskarte({
   if (error) {
     return (
       <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        <Alert type="error" message={error} />
+        <LoadErrorAlert error={error} />
       </div>
     );
   }

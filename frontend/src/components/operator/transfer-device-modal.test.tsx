@@ -15,7 +15,8 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
   },
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: mockToastSuccess }),
 }));
 
@@ -25,15 +26,22 @@ vi.mock("~/components/ui/form-modal", () => ({
     title,
     children,
     footer,
+    error,
   }: {
     isOpen: boolean;
     title: string;
     children: ReactNode;
     footer: ReactNode;
+    error?: { message: string } | string | null;
   }) =>
     isOpen ? (
       <section aria-label={title}>
         <h2>{title}</h2>
+        {error ? (
+          <p role="alert">
+            {typeof error === "string" ? error : error.message}
+          </p>
+        ) : null}
         {children}
         {footer}
       </section>
@@ -69,6 +77,8 @@ vi.mock("~/components/ui/custom-select", () => ({
 }));
 
 import { TransferDeviceModal } from "./transfer-device-modal";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import type {
   OperatorDevice,
   School,
@@ -164,6 +174,78 @@ describe("TransferDeviceModal", () => {
       "Burbach 2 wurde nach Walbach verschoben.",
     );
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // #2519: a failed transfer stays in the dialog and the status is read again.
+  it("keeps a failed transfer in the dialog and checks the status again", async () => {
+    mockGetStatus.mockResolvedValue({
+      canTransfer: true,
+      isOnline: false,
+      lastSeen: null,
+      activeSession: null,
+    });
+    mockTransfer.mockRejectedValue(
+      new ApiError("device busy", 409, { code: "general.business_rejection" }),
+    );
+    const onClose = vi.fn();
+
+    render(
+      <TransferDeviceModal
+        device={device}
+        schools={[school("10", "Burbach"), school("20", "Walbach")]}
+        onClose={onClose}
+        onTransferred={vi.fn()}
+      />,
+    );
+
+    await screen.findByText(
+      "Das Gerät ist offline und hat keine offene Sitzung.",
+    );
+    fireEvent.change(screen.getByLabelText("Zielschule"), {
+      target: { value: "20" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Schule wechseln" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.business_rejection", "die Übertragung des Geräts"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("device busy")).toBeNull();
+    await waitFor(() => expect(mockGetStatus).toHaveBeenCalledTimes(2));
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("shows a failed status check with retry", async () => {
+    mockGetStatus
+      .mockRejectedValueOnce(new ApiError("down", 503))
+      .mockResolvedValueOnce({
+        canTransfer: true,
+        isOnline: false,
+        lastSeen: null,
+        activeSession: null,
+      });
+
+    render(
+      <TransferDeviceModal
+        device={device}
+        schools={[school("10", "Burbach"), school("20", "Walbach")]}
+        onClose={vi.fn()}
+        onTransferred={vi.fn()}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Prüfung des Gerätestatus"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(
+      await screen.findByText(
+        "Das Gerät ist offline und hat keine offene Sitzung.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("shows online and session blockers and disables transfer", async () => {

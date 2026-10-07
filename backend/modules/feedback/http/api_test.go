@@ -80,7 +80,7 @@ func testResourceWithObserver(e engine, observe func(int, string)) *feedbackHTTP
 		},
 		Failure: func(w http.ResponseWriter, r *http.Request, failure feedbackHTTP.Failure) {
 			render.Status(r, failure.Status)
-			require.NoError(testingT(r.Context()), render.Render(w, r, &errorResponse{StatusCode: failure.Status, Status: failure.Classification, Error: failure.Err.Error()}))
+			require.NoError(testingT(r.Context()), render.Render(w, r, &errorResponse{StatusCode: failure.Status, Status: "error", Error: failure.Err.Error()}))
 		},
 		ObserveResponse: observe,
 	})
@@ -131,7 +131,7 @@ func TestStaffWireContractsStayStable(t *testing.T) {
 	}
 }
 
-func TestStaffErrorWireClassificationsStayStable(t *testing.T) {
+func TestStaffErrorStatusesStayStable(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
@@ -139,11 +139,11 @@ func TestStaffErrorWireClassificationsStayStable(t *testing.T) {
 		code int
 		body string
 	}{
-		{"not found", feedbackModule.ErrEntryNotFound, 404, `{"status":"Resource Not Found","error":"feedback entry not found"}`},
-		{"invalid", feedbackModule.ErrInvalidEntryData, 400, `{"status":"Invalid Feedback Data","error":"invalid feedback entry data"}`},
-		{"range", feedbackModule.ErrInvalidDateRange, 400, `{"status":"Invalid Date Range","error":"invalid date range"}`},
-		{"student", feedbackModule.ErrStudentNotFound, 404, `{"status":"Student Not Found","error":"student not found"}`},
-		{"internal", errors.New("boom"), 500, `{"status":"Internal Server Error","error":"boom"}`},
+		{"not found", feedbackModule.ErrEntryNotFound, 404, `{"status":"error","error":"feedback entry not found"}`},
+		{"invalid", feedbackModule.ErrInvalidEntryData, 400, `{"status":"error","error":"invalid feedback entry data"}`},
+		{"range", feedbackModule.ErrInvalidDateRange, 400, `{"status":"error","error":"invalid date range"}`},
+		{"student", feedbackModule.ErrStudentNotFound, 404, `{"status":"error","error":"student not found"}`},
+		{"internal", errors.New("boom"), 500, `{"status":"error","error":"boom"}`},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

@@ -4,6 +4,11 @@
  * which forward (with the tenant session token) to the backend.
  */
 
+import {
+  apiErrorFromResponse,
+  type ApiError,
+  transportFetch,
+} from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "MasterDataReviewAPI" });
@@ -37,19 +42,16 @@ function unwrap<T>(json: Envelope<T>): T {
   return json as unknown as T;
 }
 
-async function readError(response: Response, fallback: string): Promise<Error> {
-  let message = fallback;
-  try {
-    const body = (await response.json()) as { error?: string };
-    if (body.error) message = body.error;
-  } catch {
-    // not JSON
-  }
+async function readError(
+  response: Response,
+  message: string,
+): Promise<ApiError> {
+  const error = await apiErrorFromResponse(response, message);
   logger.error("master_data_review_request_failed", {
     status: response.status,
-    message,
+    ...(error.code ? { code: error.code } : {}),
   });
-  return new Error(message);
+  return error;
 }
 
 /** Approves (and applies) or rejects one change request. */
@@ -59,7 +61,7 @@ export async function decideMasterDataChangeRequest(
   reason?: string,
   expectedVersion?: string,
 ): Promise<StaffMasterDataChange> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/master-data-change-requests/${encodeURIComponent(requestId)}/decide`,
     {
       method: "POST",
@@ -72,10 +74,7 @@ export async function decideMasterDataChangeRequest(
     },
   );
   if (!response.ok) {
-    throw await readError(
-      response,
-      "Entscheidung konnte nicht gespeichert werden",
-    );
+    throw await readError(response, "master data decision failed");
   }
   return unwrap((await response.json()) as Envelope<StaffMasterDataChange>);
 }

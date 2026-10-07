@@ -69,8 +69,9 @@ func companionPlanErrorRenderer(err error) render.Renderer {
 // "Tom darf donnerstags noch nicht mit anderen Kindern gehen. Ergänzen?"
 // confirmation and resends with extend_companion_plans.
 type CompanionConflictResponse struct {
+	Status    string                       `json:"status"`
+	Error     string                       `json:"error"`
 	Conflicts []careplan.CompanionConflict `json:"conflicts"`
-	Message   string                       `json:"message"`
 }
 
 // Render satisfies render.Renderer.

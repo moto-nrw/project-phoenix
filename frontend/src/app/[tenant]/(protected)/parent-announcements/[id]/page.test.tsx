@@ -1,8 +1,22 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import type { Announcement } from "~/lib/parent-announcements-api";
+import { catalogText } from "~/test/error-catalog-text";
 import AnnouncementDetailPage from "./page";
+
+// Erfolgsmeldungen kommen als Toast (#2517).
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 const {
   searchParams,
@@ -236,7 +250,7 @@ describe("AnnouncementDetailPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the reminder confirmation on the page after a poll reminder", () => {
+  it("confirms a poll reminder in a toast", async () => {
     swrState.data = {
       ...announcement,
       status: "published",
@@ -248,7 +262,9 @@ describe("AnnouncementDetailPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Erinnern" }));
 
     expect(
-      screen.getByText("3 Eltern wurden an die offene Umfrage erinnert."),
+      await screen.findByText(
+        "3 Eltern wurden an die offene Umfrage erinnert.",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -262,14 +278,18 @@ describe("AnnouncementDetailPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the error state when loading fails", () => {
+  // #2517: Katalogtext mit Wiederholen statt eines festen Satzes.
+  it("renders the error state when loading fails", async () => {
     swrState.data = undefined;
-    swrState.error = new Error("boom");
+    swrState.error = new ApiError("boom", 500, { code: "general.server" });
     render(<AnnouncementDetailPage />);
 
     expect(
-      screen.getByText("Elternmitteilung konnte nicht geladen werden."),
+      await screen.findByText(catalogText("general.server", "die Mitteilung")),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/boom/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(detailMutateMock).toHaveBeenCalled();
   });
 
   it("renders not found when the backend has no such announcement", () => {
@@ -277,7 +297,17 @@ describe("AnnouncementDetailPage", () => {
     render(<AnnouncementDetailPage />);
 
     expect(
-      screen.getByText("Elternmitteilung nicht gefunden."),
+      screen.getByText("Diese Mitteilung gibt es nicht mehr."),
+    ).toBeInTheDocument();
+  });
+
+  it("treats a 404 as an announcement that no longer exists", () => {
+    swrState.data = undefined;
+    swrState.error = new ApiError("not found", 404);
+    render(<AnnouncementDetailPage />);
+
+    expect(
+      screen.getByText("Diese Mitteilung gibt es nicht mehr."),
     ).toBeInTheDocument();
   });
 });

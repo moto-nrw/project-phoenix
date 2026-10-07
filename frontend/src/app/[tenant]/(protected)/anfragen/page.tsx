@@ -14,6 +14,7 @@ import type { StaffAbsenceRequestFilters } from "~/components/staff/staff-absenc
 import { PickupExtensionAccessProvider } from "~/components/timetable/pickup-extension-access";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import type {
   ActiveFilter,
@@ -27,6 +28,7 @@ import { ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import { hasPermission } from "~/lib/auth-utils";
 import { toISODate } from "~/lib/date-helpers";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTimetableEnabled } from "~/lib/tenant-context";
 
@@ -91,6 +93,13 @@ export default function AnfragenPage() {
   const { status: sessionStatus } = useSession({ required: true });
   const tenantPath = useTenantAwarePath();
   const requestAccess = useChangeRequestAccess();
+  // Scheitert die Prüfung der Freigaben, fehlen sonst still der Eltern-Reiter
+  // oder die ganze Seite (#2517): der Fehler steht vor Ort, mit Wiederholen.
+  const accessError = useSwrLoadError(
+    requestAccess.error,
+    "die Prüfung Ihrer Freigaben",
+    () => requestAccess.refresh(),
+  );
   const showElternTab = requestAccess.canOpenParentRequestsTab;
   // Anmeldungsänderungen hängen an config:manage und kommen aus einem eigenen
   // Endpunkt (#2435); ohne das Recht bleiben Quelle und Filteroption weg.
@@ -364,9 +373,22 @@ export default function AnfragenPage() {
   const isAccessLoading =
     sessionStatus === "loading" || requestAccess.isLoading;
 
-  if (!isAccessLoading && !requestAccess.canOpenRequestsPage) {
+  if (
+    !isAccessLoading &&
+    !requestAccess.canOpenRequestsPage &&
+    !requestAccess.error
+  ) {
     redirect(tenantPath("/home"));
   }
+  // Mit einem anderen Reiter bleibt die Seite stehen, der Fehler darüber.
+  const pageError =
+    accessError && requestAccess.canOpenRequestsPage
+      ? {
+          message: accessError.message,
+          action: errorAlertActions(accessError),
+          keepContent: true,
+        }
+      : accessError;
 
   // Der Ladezustand kommt aus dem Gerüst (`loading` an TenantPage); bis der
   // effektive Prüfbereich feststeht, bleibt die Seite ohne Reiter und Filter.
@@ -396,6 +418,7 @@ export default function AnfragenPage() {
   return (
     <TenantPage
       title="Anfragen"
+      error={pageError}
       stats={
         listCount.count === null
           ? null

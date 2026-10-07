@@ -7,6 +7,8 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
+import { ApiError, transportFetch } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import type { GapInstance, TimetableTemplate } from "~/lib/timetable-types";
 
 const {
@@ -31,6 +33,8 @@ const {
   mockLoggerWarn,
   mockLoggerError,
   mockListPhases,
+  mockShowActionError,
+  mockAcknowledgeConflict,
 } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
   mockToastSuccess: vi.fn(),
@@ -53,6 +57,8 @@ const {
   mockLoggerWarn: vi.fn(),
   mockLoggerError: vi.fn(),
   mockListPhases: vi.fn(),
+  mockShowActionError: vi.fn(),
+  mockAcknowledgeConflict: vi.fn(),
 }));
 
 // useSearchParams spiegelt die echte URL wider; kombiniert mit dem
@@ -111,13 +117,32 @@ vi.mock("next-auth/react", () => ({
   useSession: mockUseSession,
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+// Lade- und Dialogfehler laufen über die echten Hooks (#2516). Der Toast für
+// Aktionen ohne Formular geht über denselben Katalog in mockToastError, mit
+// „Wiederholen“ als Aktion, wie es useApiErrorDisplay im Provider tut.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: mockToastSuccess,
     error: mockToastError,
     warning: mockToastWarning,
   }),
+  useApiErrorDisplay: () => ({ show: mockShowActionError }),
 }));
+
+async function showActionErrorAsToast(
+  err: unknown,
+  options: { object: string; retry?: () => void },
+) {
+  const { presentError } = await import("~/lib/error-presentation");
+  const presentation = presentError(err, options.object);
+  mockToastError(
+    presentation.message,
+    presentation.retryable && options.retry
+      ? { action: { label: "Wiederholen", onClick: options.retry } }
+      : undefined,
+  );
+}
 
 vi.mock("~/lib/logger", () => ({
   createLogger: () => ({
@@ -152,6 +177,7 @@ vi.mock("~/lib/timetable-api", () => ({
     deleteCancelled: mockDeleteCancelled,
     endTemplate: mockEndTemplate,
     archiveTemplate: mockArchiveTemplate,
+    acknowledgeConflict: mockAcknowledgeConflict,
   },
 }));
 
@@ -286,15 +312,22 @@ vi.mock("~/components/timetable/conflict-warnings-banner", () => ({
     openConflicts,
     hiddenConflicts,
     periodLabel,
+    onHide,
   }: {
     openConflicts: unknown[];
     hiddenConflicts: unknown[];
     periodLabel: string;
+    onHide: (entry: unknown) => Promise<void>;
   }) => (
     <div data-testid="conflicts">
       {openConflicts.length}
       <span data-testid="conflicts-hidden">{hiddenConflicts.length}</span>
       <span data-testid="conflicts-period">{periodLabel}</span>
+      {openConflicts[0] !== undefined && (
+        <button type="button" onClick={() => void onHide(openConflicts[0])}>
+          conflict-hide
+        </button>
+      )}
     </div>
   ),
 }));
@@ -471,7 +504,12 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
         <button type="button" onClick={onClose}>
           detail-close
         </button>
-        <button type="button" onClick={() => void onLifecycleAction("start")}>
+        {/* Das echte Panel fängt die Rejection eines schon gemeldeten
+            Fehlers (awaitReportedAction); der Mock bildet das nach. */}
+        <button
+          type="button"
+          onClick={() => void onLifecycleAction("start").catch(() => null)}
+        >
           detail-start
         </button>
         <button
@@ -490,7 +528,10 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
         >
           detail-reopen
         </button>
-        <button type="button" onClick={() => void onDeleteCancelled(instance)}>
+        <button
+          type="button"
+          onClick={() => void onDeleteCancelled(instance).catch(() => null)}
+        >
           detail-delete
         </button>
         {/* Das echte Modal schluckt eine Rejection (bereits gemeldeter
@@ -511,7 +552,9 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
         <button
           type="button"
           onClick={() =>
-            void onAttendancePatch(instance.id, "21", { status: "present" })
+            void onAttendancePatch(instance.id, "21", {
+              status: "present",
+            }).catch(() => null)
           }
         >
           detail-attendance
@@ -785,7 +828,12 @@ function setupSWR({
     if (key === "database-calendar-periods-list") {
       if (periodsState === "loading") return { isLoading: true };
       if (periodsState === "error") {
-        return { error: new Error("Zeiträume kaputt"), isLoading: false };
+        return {
+          error: new ApiError("Zeiträume kaputt", 503, {
+            code: "general.unavailable",
+          }),
+          isLoading: false,
+        };
       }
       return { data: periods, isLoading: false };
     }
@@ -826,7 +874,10 @@ function setupSWR({
     if (key.startsWith("timetable-gaps")) {
       if (gapsState === "loading") return { isLoading: true };
       if (gapsState === "error") {
-        return { error: new Error("gaps kaputt"), isLoading: false };
+        return {
+          error: new ApiError("gaps kaputt", 500, { code: "general.server" }),
+          isLoading: false,
+        };
       }
       return { data: { gaps, acknowledged: [] }, isLoading: false };
     }
@@ -913,6 +964,7 @@ describe("BetreuungsplanView", () => {
     );
     mockArchiveTemplate.mockResolvedValue({});
     mockListPhases.mockResolvedValue([]);
+    mockShowActionError.mockImplementation(showActionErrorAsToast);
     setupSWR();
 
     // Der syncPopstate-Hook reagiert auf popstate, nicht auf manuelle
@@ -1438,7 +1490,7 @@ describe("BetreuungsplanView", () => {
     expect(screen.queryByText("Keine Lücken")).not.toBeInTheDocument();
   });
 
-  it("hides the gap chip when the gaps request fails", () => {
+  it("hides the gap chip and says so in place when the gaps request fails", async () => {
     setupSWR({ gapsState: "error" });
     setUrl("view=woche");
     render(<BetreuungsplanView />);
@@ -1447,6 +1499,71 @@ describe("BetreuungsplanView", () => {
     expect(
       screen.queryByText("Lücken werden geprüft …"),
     ).not.toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Prüfung der Besetzung"),
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText(/gaps kaputt/)).not.toBeInTheDocument();
+    // Ein Ladefehler ist kein Toast (#2516).
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it("shows a network failure of the week in place, never the browser text (#1577)", async () => {
+    // Was der Client bei einem Netzfehler wirft: fetch scheitert mit
+    // TypeError, transportFetch macht daraus general.unavailable.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new TypeError("Failed to fetch")),
+    );
+    const networkError = await transportFetch("/api/timetable/instances").catch(
+      (err: unknown) => err,
+    );
+    vi.unstubAllGlobals();
+    const base = mockUseSWRAuth.getMockImplementation()!;
+    mockUseSWRAuth.mockImplementation((key: string | null) =>
+      key?.startsWith("timetable-week-")
+        ? { error: networkError, isLoading: false }
+        : base(key),
+    );
+    setUrl("view=woche");
+    render(<BetreuungsplanView />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Termine"),
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
+    // Kein leerer Plan, der aussieht, als sei nichts geplant, und keine
+    // Zahl in der Statuszeile, die nie geladen wurde.
+    expect(screen.queryByText("week-grid")).not.toBeInTheDocument();
+    expect(screen.queryByText("0 Termine")).not.toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mockTenantMutate).toHaveBeenCalledWith(
+      expect.stringMatching(/^timetable-week-/),
+    );
+  });
+
+  it("reports a failed conflict hide as a toast with the catalog text", async () => {
+    mockAcknowledgeConflict.mockRejectedValueOnce(
+      new ApiError("forbidden", 403, { code: "general.permission" }),
+    );
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("conflict-hide"));
+
+    await waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledWith(
+        catalogText("general.permission", "das Ausblenden des Konflikts"),
+        undefined,
+      ),
+    );
+    expect(mockAcknowledgeConflict).toHaveBeenCalledWith(
+      "aaaa1111bbbb2222cccc3333dddd4444",
+    );
   });
 
   it("shows a neutral chip while phases load instead of 'keine Anmeldung verknüpft'", () => {
@@ -1541,10 +1658,9 @@ describe("BetreuungsplanView", () => {
     await waitFor(() => expect(mockDeleteCancelled).toHaveBeenCalledWith("42"));
   });
 
-  it("names the full room when reopening is refused (#3633)", async () => {
+  it("names the full room from the details when reopening is refused (#3633)", async () => {
     mockReopen.mockRejectedValue(
-      Object.assign(new Error("room capacity exceeded: Turnhalle (30/30)"), {
-        status: 409,
+      new ApiError("room capacity exceeded: Turnhalle (30/30)", 409, {
         code: "presence.room_capacity_exceeded",
         details: {
           room_name: "Turnhalle",
@@ -1559,11 +1675,105 @@ describe("BetreuungsplanView", () => {
 
     fireEvent.click(screen.getByText("detail-reopen"));
 
+    // Name und Belegung kommen aus den Details, nie aus dem Satz des Servers.
+    const expected = Object.entries({
+      room_name: "Turnhalle",
+      current_occupancy: 30,
+      max_capacity: 30,
+      incoming_students: 1,
+      free_slots: 0,
+    }).reduce(
+      (text, [key, value]) => text.replace(`{${key}}`, String(value)),
+      catalogText("presence.room_capacity_exceeded", ""),
+    );
+    await waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledWith(expected, undefined),
+    );
+    expect(mockToastError).not.toHaveBeenCalledWith(
+      expect.stringContaining("room capacity exceeded"),
+      expect.anything(),
+    );
+  });
+
+  it("reports a failed start with the catalog text and retries the same block", async () => {
+    mockStart
+      .mockRejectedValueOnce(
+        new ApiError("start window expired", 409, {
+          code: "timetable.start_window_expired",
+        }),
+      )
+      .mockRejectedValueOnce(
+        new ApiError("upstream down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce({ warnings: [] });
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("detail-start"));
     await waitFor(() =>
       expect(mockToastError).toHaveBeenCalledWith(
-        "Der Raum „Turnhalle“ ist voll (30 von 30 Plätzen). Die Grenze ändern Sie unter Datenverwaltung → Räume bei „Maximale Belegung“.",
+        catalogText("timetable.start_window_expired", "die Aktivität"),
+        undefined,
       ),
     );
+
+    fireEvent.click(screen.getByText("detail-start"));
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledTimes(2));
+    const [message, options] = mockToastError.mock.calls[1] as [
+      string,
+      { action: { label: string; onClick: () => void } },
+    ];
+    expect(message).toBe(catalogText("general.unavailable", "die Aktivität"));
+    expect(options.action.label).toBe("Wiederholen");
+
+    options.action.onClick();
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Die Aktivität ist gestartet.",
+      ),
+    );
+    expect(mockStart).toHaveBeenCalledTimes(3);
+    expect(mockStart).toHaveBeenLastCalledWith("42");
+  });
+
+  it("reports a failed attendance change as a toast with the catalog text", async () => {
+    mockPatchAttendance.mockRejectedValueOnce(
+      new ApiError("attendance disabled", 409, {
+        code: "attendance.web_disabled",
+      }),
+    );
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("detail-attendance"));
+
+    await waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledWith(
+        catalogText("attendance.web_disabled", "die Anwesenheit"),
+        undefined,
+      ),
+    );
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("leaves a failed delete to the dialog of the detail panel", async () => {
+    mockDeleteCancelled.mockRejectedValueOnce(
+      new ApiError("server down", 500, { code: "general.server" }),
+    );
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("detail-delete"));
+
+    await waitFor(() => expect(mockDeleteCancelled).toHaveBeenCalledWith("42"));
+    await waitFor(() =>
+      expect(mockLoggerError).toHaveBeenCalledWith(
+        "instance_delete_failed",
+        expect.objectContaining({ instance_id: "42" }),
+      ),
+    );
+    expect(mockToastError).not.toHaveBeenCalled();
+    expect(mockShowActionError).not.toHaveBeenCalled();
   });
 
   it("ends following instances from the slide-over", async () => {
@@ -1584,17 +1794,20 @@ describe("BetreuungsplanView", () => {
   it("refuses to end a series from a past occurrence", async () => {
     // Uhr steht auf 2026-05-06, der Termin der Fixture auf 2026-05-04: das
     // Backend lehnt ein effective_date in der Vergangenheit ab, also fängt
-    // die View den Aufruf mit einer verständlichen Meldung ab.
+    // die View den Aufruf ab. Den Grund nennt der Löschdialog, der über den
+    // Toasts liegt; hier wird nur protokolliert und abgelehnt.
     setUrl("view=woche&block=42");
     render(<BetreuungsplanView />);
 
     fireEvent.click(screen.getByText("detail-delete-following"));
     await waitFor(() =>
-      expect(mockToastError).toHaveBeenCalledWith(
-        expect.stringContaining("nur ab heute beendet werden"),
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        "template_end_in_past_refused",
+        expect.objectContaining({ effective_date: "2026-05-04" }),
       ),
     );
     expect(mockEndTemplate).not.toHaveBeenCalled();
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 
   it("repeats an instance into a series from the slide-over", async () => {
@@ -1625,7 +1838,7 @@ describe("BetreuungsplanView", () => {
       }),
     );
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      "Regeltermin ab 06.05.2026 gelöscht",
+      "Der Regeltermin ist ab 06.05.2026 gelöscht.",
     );
     expect(mockTenantMutate).toHaveBeenCalledWith("timetable-templates-5");
 
@@ -1646,7 +1859,7 @@ describe("BetreuungsplanView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
     await waitFor(() => expect(mockArchiveTemplate).toHaveBeenCalledWith("7"));
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      'Regeltermin "Yoga" archiviert',
+      "Der Regeltermin „Yoga“ ist archiviert.",
     );
     expect(mockTenantMutate).toHaveBeenCalledWith("timetable-templates-5");
   });
@@ -1658,20 +1871,69 @@ describe("BetreuungsplanView", () => {
     expect(screen.getByText("event-save")).toBeInTheDocument();
   });
 
-  it("keeps archive confirmation open and reports errors", async () => {
+  it("keeps archive confirmation open and shows the error inside it", async () => {
     setUrl("view=serien");
-    mockArchiveTemplate.mockRejectedValueOnce(new Error("Archivierung kaputt"));
+    mockArchiveTemplate
+      .mockRejectedValueOnce(
+        new ApiError("Archivierung kaputt", 500, { code: "general.server" }),
+      )
+      .mockResolvedValueOnce({});
     render(<BetreuungsplanView />);
 
     fireEvent.click(screen.getByText("archive-template"));
     fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
 
-    await waitFor(() =>
-      expect(mockToastError).toHaveBeenCalledWith("Archivierung kaputt"),
-    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Regeltermin archivieren?",
+    });
+    // Der Dialog liegt über den Toasts: der Fehler steht im Dialog.
     expect(
-      screen.getByRole("dialog", { name: "Regeltermin archivieren?" }),
+      await within(dialog).findByText(
+        catalogText("general.server", "das Archivieren des Regeltermins"),
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText("Archivierung kaputt")).not.toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Wiederholen" }),
+    );
+    await waitFor(() => expect(mockArchiveTemplate).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Regeltermin archivieren?" }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("reports a failed Regeltermin apply as a toast with retry", async () => {
+    setUrl("view=serien");
+    mockMaterialize.mockRejectedValueOnce(
+      new ApiError("db timeout", 503, { code: "general.unavailable" }),
+    );
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("apply-template"));
+
+    await waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledWith(
+        catalogText("general.unavailable", "das Eintragen des Regeltermins"),
+        expect.objectContaining({
+          action: expect.objectContaining({ label: "Wiederholen" }),
+        }),
+      ),
+    );
+    const [, options] = mockToastError.mock.calls[0] as [
+      string,
+      { action: { onClick: () => void } },
+    ];
+    options.action.onClick();
+    await waitFor(() =>
+      // Der Mock legt je 56-Tage-Abschnitt des Zeitraums zwei Termine an.
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        expect.stringMatching(/^Für „Yoga“ sind \d+ Termine angelegt\.$/),
+      ),
+    );
   });
 
   it("shows loading state while the session loads", () => {
@@ -2044,13 +2306,20 @@ describe("BetreuungsplanView", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("zeigt bei einem Fehler der Planungszeiträume weiterhin geladene Termine", () => {
+  it("zeigt bei einem Fehler der Planungszeiträume weiterhin geladene Termine", async () => {
     setupSWR({ periodsState: "error" });
     render(<BetreuungsplanView />);
 
     expect(
-      screen.getByText("Planungszeiträume konnten nicht geladen werden"),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Planungszeiträume"),
+      ),
     ).toBeVisible();
+    expect(screen.queryByText("Zeiträume kaputt")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mockTenantMutate).toHaveBeenCalledWith(
+      "database-calendar-periods-list",
+    );
     expect(screen.getByText("week-grid")).toBeVisible();
     expect(screen.getByText("add-instance")).toBeDisabled();
     expect(

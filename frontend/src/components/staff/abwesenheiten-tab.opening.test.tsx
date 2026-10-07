@@ -60,9 +60,12 @@ const stable = vi.hoisted(() => ({
   swrMutate: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => stable.toast,
+  useApiErrorDisplay: () => ({ show: actionErrors.show }),
 }));
+const actionErrors = vi.hoisted(() => ({ show: vi.fn() }));
 
 // Without an SWRConfig provider `useSWRConfig()` hands back a fresh `mutate`
 // on every render, which would re-run the tab's load effect endlessly.

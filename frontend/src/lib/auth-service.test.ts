@@ -406,6 +406,20 @@ describe("authService", () => {
         expect(result.message).toBe("Password reset successfully");
       });
 
+      it("classifies a server-side network failure as unavailable", async () => {
+        mockedApiPost.mockRejectedValueOnce({
+          isAxiosError: true,
+          message: "Network Error",
+        });
+
+        await expect(
+          authService.resetPassword(confirmRequest),
+        ).rejects.toMatchObject({
+          status: 503,
+          code: "general.unavailable",
+        });
+      });
+
       it("confirms password reset in browser context", async () => {
         vi.stubGlobal("window", {});
 
@@ -460,6 +474,38 @@ describe("authService", () => {
           expect(apiError.status).toBe(429);
           expect(apiError.retryAfterSeconds).toBe(60);
         }
+      });
+
+      it("keeps structured errors from problem JSON responses", async () => {
+        vi.stubGlobal("window", {});
+        vi.stubGlobal(
+          "fetch",
+          vi.fn().mockResolvedValueOnce(
+            new Response(
+              JSON.stringify({
+                error: "The reset link is invalid",
+                code: "identity.password_reset_link_invalid",
+                errors: [{ field: "token", reason: "invalid" }],
+                details: { source: "reset" },
+                instance: "req-reset-1",
+              }),
+              {
+                status: 400,
+                headers: { "Content-Type": "application/problem+json" },
+              },
+            ),
+          ),
+        );
+
+        await expect(
+          authService.resetPassword(confirmRequest),
+        ).rejects.toMatchObject({
+          status: 400,
+          code: "identity.password_reset_link_invalid",
+          errors: [{ field: "token", reason: "invalid" }],
+          details: { source: "reset" },
+          requestId: "req-reset-1",
+        });
       });
     });
   });

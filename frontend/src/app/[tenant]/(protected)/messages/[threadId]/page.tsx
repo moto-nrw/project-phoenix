@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ArrowLeft } from "lucide-react";
@@ -9,6 +16,12 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
+import { formErrorDetail, formErrorMessage } from "~/components/ui/form-error";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+  errorAlertActions,
+} from "~/components/ui/form-error-alert";
 import { BackButton } from "~/components/ui/back-button";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -19,6 +32,8 @@ import { PickupRequestDetailModal } from "~/components/messaging/pickup-request-
 import { RequestStatusBadge } from "~/components/messaging/request-status-badge";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
@@ -30,7 +45,6 @@ import {
   postMessage,
   relationshipLabel,
 } from "~/lib/parent-messages-api";
-import { getApiErrorMessage } from "~/lib/api-error-message";
 import {
   pickupRequestRef,
   staffRequestStatusLabel,
@@ -43,8 +57,6 @@ import { ThreadSkeleton, ThreadMessagesSkeleton } from "./page-skeleton";
 const logger = createLogger({ component: "MessageThreadPage" });
 
 const MARK_UNREAD_LABEL = "Als ungelesen markieren";
-const MARK_UNREAD_ERROR =
-  "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
 
 export function isMessageSnapshotUnavailable(
   isLoading: boolean,
@@ -158,6 +170,10 @@ function MessageThreadContent() {
     },
   );
 
+  // Katalogtext, Wiederholen und Vorgangskennung für einen Ladefehler
+  // (#2517), dort, wo der Verlauf fehlt.
+  const shownLoadError = useSwrLoadError(loadError, "die Unterhaltung", mutate);
+
   const messages: Message[] = thread?.messages ?? [];
   // The inbox seed is passed as fallbackData with messages: [], so isLoading is
   // already false on first render while the real fetchThread is still in flight.
@@ -227,7 +243,9 @@ function MessageThreadContent() {
 
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [sendError, setSendError] = useState<string | null>(null);
+  // Ein Sendefehler steht direkt über dem Eingabefeld (#2517).
+  const sendError = useApiFormError();
+  const latestSendRef = useRef<() => void>(() => undefined);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // Parent sent a message or staff replied → revalidate this thread. The fan-out
@@ -275,11 +293,13 @@ function MessageThreadContent() {
     const body = draft.trim();
     if (!body || isSending) return;
     if (snapshotUnavailable) {
-      setSendError("Bitte warten Sie, bis der Nachrichtenverlauf geladen ist.");
+      sendError.invalid(
+        "Bitte warten Sie, bis der Nachrichtenverlauf geladen ist.",
+      );
       return;
     }
     setIsSending(true);
-    setSendError(null);
+    sendError.clear();
     try {
       const updated = await postMessage(threadId, body, messages.at(-1)?.id);
       // Show the sent message immediately. The postMessage response now carries
@@ -296,27 +316,28 @@ function MessageThreadContent() {
         error: err instanceof Error ? err.message : String(err),
         thread_id: threadId,
       });
-      setSendError(
-        getApiErrorMessage(
-          err,
-          "senden",
-          "Nachricht",
-          "Nachricht konnte nicht gesendet werden.",
-        ),
-      );
+      void sendError.show(err, {
+        object: "die Nachricht",
+        retry: () => latestSendRef.current(),
+      });
     } finally {
       setIsSending(false);
     }
   };
+  // „Wiederholen“ sendet den Text, der dann im Feld steht.
+  useLayoutEffect(() => {
+    latestSendRef.current = () => void handleSend();
+  });
 
   // Marks the conversation unread for the whole team and returns to the inbox.
   // Staying here is not an option: this page reloads the thread on every SSE
   // event, and loading it would mark it read again right away.
-  const [markUnreadError, setMarkUnreadError] = useState<string | null>(null);
+  // Eine Aktion ohne Formular: der Fehler kommt als Meldung mit Wiederholen.
+  const { show: showActionError } = useApiErrorDisplay();
+  const latestMarkUnreadRef = useRef<() => void>(() => undefined);
   const handleMarkUnread = async () => {
     if (leavingAsUnreadRef.current) return;
     leavingAsUnreadRef.current = true;
-    setMarkUnreadError(null);
     try {
       // A GET already in flight can mark the thread read after the POST.
       // Let every started read finish before creating the new unread mark.
@@ -330,9 +351,15 @@ function MessageThreadContent() {
         error: err instanceof Error ? err.message : String(err),
         thread_id: threadId,
       });
-      setMarkUnreadError(MARK_UNREAD_ERROR);
+      void showActionError(err, {
+        object: "das Markieren als ungelesen",
+        retry: () => latestMarkUnreadRef.current(),
+      });
     }
   };
+  useLayoutEffect(() => {
+    latestMarkUnreadRef.current = () => void handleMarkUnread();
+  });
 
   // Pin the chat to the viewport and lock page scroll (only the message list
   // scrolls). Measured once the thread renders so the layout is final.
@@ -346,7 +373,11 @@ function MessageThreadContent() {
   // data-bound and skeletonize. The composer stays real — its structural
   // frame doesn't depend on thread data, and `disabled` already covers the
   // loading window via `snapshotUnavailable`.
-  const showSkeleton = !thread && isLoading;
+  // Bis der Katalogtext eines Ladefehlers da ist, bleibt das Skelett stehen.
+  const showSkeleton =
+    !thread &&
+    (isLoading ||
+      (Boolean(loadError) && formErrorMessage(shownLoadError) === null));
 
   // Statuszeile unter dem Titel: Beziehung, Kind und die Zahl der geladenen
   // Nachrichten.
@@ -362,12 +393,15 @@ function MessageThreadContent() {
     return (
       <TenantPage
         title="Unterhaltung"
-        error={{
-          message: loadError
-            ? "Nachrichtenverlauf konnte nicht geladen werden."
-            : "Unterhaltung nicht gefunden.",
-          keepContent: true,
-        }}
+        error={
+          loadError
+            ? {
+                message: formErrorMessage(shownLoadError) ?? "",
+                action: errorAlertActions(formErrorDetail(shownLoadError)),
+                keepContent: true,
+              }
+            : { message: "Unterhaltung nicht gefunden.", keepContent: true }
+        }
       >
         <MessagesBackNav />
       </TenantPage>
@@ -412,12 +446,6 @@ function MessageThreadContent() {
       }
     >
       <MessagesBackNav />
-
-      {markUnreadError && (
-        <div className="mb-3">
-          <Alert type="error" message={markUnreadError} />
-        </div>
-      )}
 
       <div
         ref={containerRef}
@@ -470,10 +498,7 @@ function MessageThreadContent() {
                 // messages array, so a failed history fetch would otherwise render the
                 // "no messages" empty state for a thread that actually has history.
                 // Surface the load failure instead of a misleading empty conversation.
-                <Alert
-                  type="error"
-                  message="Nachrichtenverlauf konnte nicht geladen werden."
-                />
+                <LoadErrorAlert error={shownLoadError} />
               ) : (
                 <EmptyState
                   title="Noch keine Nachrichten"
@@ -483,11 +508,7 @@ function MessageThreadContent() {
             </div>
           )}
 
-          {sendError && (
-            <div className="mt-3">
-              <Alert type="error" message={sendError} />
-            </div>
-          )}
+          <FormErrorAlert message={sendError.error} className="mt-3" />
 
           <div className="mt-4">
             {messagingEnabled ? (

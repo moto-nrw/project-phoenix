@@ -677,6 +677,7 @@ describe("tenant-api", () => {
           JSON.stringify({
             status: "error",
             error: "account does not have access to this tenant",
+            code: "identity.tenant_access_denied",
           }),
           {
             status: 401,
@@ -689,7 +690,24 @@ describe("tenant-api", () => {
         name: "TenantSwitchError",
         message: "account does not have access to this tenant",
         status: 401,
-        code: "access_denied",
+        reason: "access_denied",
+        code: "identity.tenant_access_denied",
+      } satisfies Partial<TenantSwitchError>);
+    });
+
+    it("classifies by the code, not by the diagnostic text", async () => {
+      mockSessionFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: "account does not have access to this tenant",
+          }),
+          { status: 401, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+
+      await expect(switchTenant("school-b")).rejects.toMatchObject({
+        name: "TenantSwitchError",
+        reason: "unknown",
       } satisfies Partial<TenantSwitchError>);
     });
 
@@ -711,7 +729,8 @@ describe("tenant-api", () => {
       await expect(switchTenant("school-b")).rejects.toMatchObject({
         name: "TenantSwitchError",
         status: 403,
-        code: "use_school_portal",
+        reason: "use_school_portal",
+        code: "identity.use_school_portal",
       } satisfies Partial<TenantSwitchError>);
     });
 
@@ -722,7 +741,7 @@ describe("tenant-api", () => {
         name: "TenantSwitchError",
         message: "Failed to switch tenant",
         status: 500,
-        code: "unknown",
+        reason: "unknown",
       } satisfies Partial<TenantSwitchError>);
     });
 
@@ -735,7 +754,7 @@ describe("tenant-api", () => {
         name: "TenantSwitchError",
         message: "plain text error",
         status: 503,
-        code: "unknown",
+        reason: "unknown",
       } satisfies Partial<TenantSwitchError>);
     });
 
@@ -751,7 +770,7 @@ describe("tenant-api", () => {
         name: "TenantSwitchError",
         message: "something went wrong",
         status: 400,
-        code: "unknown",
+        reason: "unknown",
       } satisfies Partial<TenantSwitchError>);
     });
 
@@ -767,7 +786,7 @@ describe("tenant-api", () => {
         name: "TenantSwitchError",
         message: '{"foo":"bar"}',
         status: 422,
-        code: "unknown",
+        reason: "unknown",
       } satisfies Partial<TenantSwitchError>);
     });
   });
@@ -870,6 +889,7 @@ describe("tenant-api", () => {
         new Response(
           JSON.stringify({
             error: "account does not have access to this tenant",
+            code: "identity.tenant_access_denied",
           }),
           {
             status: 401,
@@ -882,7 +902,7 @@ describe("tenant-api", () => {
         performTenantSwitch("bad-tenant", mockSignIn, mockSwrMutate),
       ).rejects.toMatchObject({
         name: "TenantSwitchError",
-        code: "access_denied",
+        reason: "access_denied",
       });
 
       // Should NOT have called signIn or cache clearing

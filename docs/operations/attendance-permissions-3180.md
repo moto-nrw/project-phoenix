@@ -56,7 +56,8 @@ Fehlende neue Werte werden über die Registry aufgelöst:
 | `operations.student_absence_edit_scope` | `all_staff` | Bisherige rollenbasierte Tagesmeldungen bleiben möglich |
 | `operations.parent_sick_reports_enabled` | `true` | Bestehenden Hauptschalter nicht zusätzlich einschränken |
 | `operations.parent_excused_reports_enabled` | `true` | Bestehenden Hauptschalter nicht zusätzlich einschränken |
-| `operations.parent_absence_review_scope` | `inherit` | Bisherige Gruppenleitungsfreigabe übernehmen |
+| `operations.parent_absence_review_scope` | `inherit` | Freigabe von `operations.parent_request_review_scope` übernehmen (#3804) |
+| `operations.parent_request_review_scope` | `inherit` | Bisherige Gruppenleitungsfreigabe übernehmen; ersetzt den Schalter in der Oberfläche (#3804) |
 
 Die beiden Meldearten verwenden weiterhin
 `operations.parent_sick_note_enabled` als gemeinsamen Hauptschalter und

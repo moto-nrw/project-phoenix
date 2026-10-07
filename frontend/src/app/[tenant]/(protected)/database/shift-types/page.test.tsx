@@ -24,7 +24,9 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => currentSearch,
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useApiErrorDisplay: () => ({ show: vi.fn() }),
   useToast: () => ({
     success: vi.fn(),
     error: vi.fn(),

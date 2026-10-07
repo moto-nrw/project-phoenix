@@ -2091,6 +2091,7 @@ func (s *Scheduler) checkAndRunAutoStart(ctx context.Context, task *ScheduledTas
 				slog.Int("checked", result.Checked),
 				slog.Int("started", result.Started),
 				slog.Int("skipped_no_staff", result.SkippedNoStaff),
+				slog.Int("skipped_duty", result.SkippedDuty),
 				slog.Int("skipped_conflict", result.SkippedConflict),
 				slog.Int("skipped_moved", result.SkippedMoved),
 				slog.Int64("duration_ms", result.DurationMS),

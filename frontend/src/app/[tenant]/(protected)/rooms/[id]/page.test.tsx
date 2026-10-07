@@ -50,7 +50,9 @@ vi.mock("~/lib/tenant-context", () => ({
   useTenantRoutingModeSafe: () => "subdomain",
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+// Nur die Toasts ersetzen; der Fehlerweg (Katalogtexte) bleibt echt.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: toastSuccessMock, error: toastErrorMock }),
 }));
 
@@ -62,8 +64,14 @@ vi.mock("~/lib/swr", () => ({
 vi.mock("~/lib/database/service-factory", () => ({
   createCrudService: () => ({
     update: serviceUpdateMock,
-    delete: serviceDeleteMock,
   }),
+}));
+
+// Löschen geht direkt an den Raum-Client: dessen ApiError trägt Code und
+// Vorgangskennung in den Löschdialog (#2517).
+vi.mock("~/lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api")>()),
+  roomService: { deleteRoom: serviceDeleteMock },
 }));
 
 vi.mock("~/components/rooms/room-detail-content", () => ({

@@ -751,3 +751,7 @@ export function mapUnregisteredTagScan(
     deviceName: data.device_name ?? null,
   };
 }
+
+/** Shown when the browser refuses to copy an API key (#2519). */
+export const API_KEY_COPY_FAILED_MESSAGE =
+  "Der API-Key konnte nicht kopiert werden. Bitte markieren und kopieren Sie ihn selbst.";

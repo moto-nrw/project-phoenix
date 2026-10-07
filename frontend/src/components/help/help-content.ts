@@ -302,6 +302,56 @@ function installAppTopic(): HelpTopic {
   };
 }
 
+/**
+ * Die Checkliste „Erste Schritte“ für Betreuungskräfte (#3748). Sie öffnet
+ * sich nur Personen ohne `config:update`, die neu dazukommen, sobald die
+ * Schule eine Gruppe oder ein Kind hat. Die Beschriftungen stammen aus
+ * `components/staff-onboarding/`.
+ */
+function caregiverFirstStepsTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.caregiverFirstSteps,
+    title: "Erste Schritte im Arbeitsalltag",
+    question: "Wie zeigt mir moto die wichtigsten Handgriffe?",
+    summary:
+      "Eine Checkliste zeigt Ihnen Schritt für Schritt, wo Sie was in moto finden.",
+    group: "einstieg",
+    audience: "caregiver",
+    icon: "ClipboardList",
+    requirements: ["Sie sind neu im Team Ihrer OGS."],
+    steps: [
+      "Melden Sie sich an. Unten rechts öffnet sich die Checkliste `Erste Schritte mit moto`.",
+      "Der nächste Schritt ist aufgeklappt. Wählen Sie `Zeig es mir`.",
+      "moto zeigt Ihnen den Weg in der Seitenleiste und dann die wichtigen Stellen. Klicken Sie die hervorgehobene Stelle an oder wählen Sie `Weiter`.",
+      "Am Ende der Tour wählen Sie `Fertig`. Der Schritt bekommt einen Haken.",
+      "Sind alle Schritte erledigt, wählen Sie `Abschließen`.",
+    ],
+    result:
+      "Sie kennen die wichtigsten Handgriffe, und die Checkliste verschwindet. Alle Anleitungen bleiben hier in der Hilfe.",
+    notes: [
+      "Jeden Schritt können Sie mit `Überspringen` auslassen.",
+      "Einen erledigten Schritt sehen Sie sich mit `Noch einmal zeigen` wieder an.",
+      "Sie können die Checkliste einklappen. Unten rechts steht dann `Erste Schritte` mit der Zahl der offenen Schritte.",
+      "Die Tour zeigt nur. Sie meldet kein Kind an und stempelt Sie nicht ein.",
+    ],
+    differences: [
+      "Welche Schritte Sie sehen, hängt von Ihrer OGS ab. Ohne feste Gruppen fehlt zum Beispiel `Meine Gruppe ansehen`.",
+      "`Meine Gruppe ansehen` erscheint erst, wenn Ihnen eine Gruppe zugeordnet ist.",
+    ],
+    troubleshootingDetails: [
+      "Die Checkliste erscheint nicht? Sie kommt erst, wenn Ihre OGS eine Gruppe oder ein Kind in moto hat. Wer schon vor der Checkliste mit moto gearbeitet hat, bekommt sie nicht.",
+      "Die Tour ist plötzlich weg? Sie endet, wenn Sie eine andere Seite öffnen. Mit `Zeig es mir` starten Sie sie neu.",
+      "Sie haben `Nicht mehr anzeigen` gewählt? Die Checkliste kommt nicht wieder. Die Anleitungen stehen hier in der Hilfe.",
+    ],
+    related: [
+      HELP_TOPICS.appOverview,
+      HELP_TOPICS.studentSearch,
+      HELP_TOPICS.webAttendance,
+      HELP_TOPICS.trackWorkTime,
+    ],
+  };
+}
+
 function appOverviewTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.appOverview,
@@ -437,11 +487,26 @@ function studentSearchTopic(
           "Wählen Sie `Historie` für Anwesenheit, Feedback und weitere Verläufe.",
         ],
       },
+      {
+        // #3834: derselbe Umschalter steht auch in `Meine Gruppen` und in der
+        // aktuellen Aufsicht, auch auf dem Handy.
+        title: "Als Liste ansehen",
+        description:
+          "Die Liste zeigt dieselben Angaben wie die Karten, ein Kind pro Zeile.",
+        steps: [
+          "Wählen Sie oben rechts das Listensymbol (drei Striche). Mit dem Kachelsymbol (vier Kästchen) kommen die Karten zurück.",
+          "Spalten ein- oder ausblenden? Öffnen Sie oben rechts das Menü mit den drei Punkten. Wählen Sie unter `Spalten in der Liste` die Spalten.",
+          "Auf dem Handy zeigt die Liste je Kind eine Zeile. Was unter dem Namen steht, wählen Sie im Menü mit den drei Punkten unter `In der Zeile zeigen`, zum Beispiel `Gehzeit` oder `Gruppe`.",
+          "Kreuzen Sie links in der Zeile Kinder an. Oben erscheint eine Leiste mit `Exportieren`, `Anmelden` und `Abmelden`.",
+          "Wählen Sie `Aufheben`, um alle Kreuze zu entfernen.",
+        ],
+      },
     ],
     result:
       "Sie sehen jetzt die Angaben des Kindes. Auf dem Handy wählen Sie `Zurück`. Am Computer nutzen Sie die Navigation oben.",
     differences: [
       "Haben Sie einen anderen Tag gewählt? Dann sehen Sie die geplante Anwesenheit. Ein aktueller Aufenthaltsort wird nicht gezeigt.",
+      "Ansicht und Spalten bleiben auf diesem Gerät so, wie Sie sie gewählt haben.",
       "Einige Bereiche brauchen zusätzliche Rechte: `Betreuungsplan`, `Dokumente` und `Änderungsprotokoll`. Fehlt ein Bereich? Fragen Sie Ihre Leitung.",
       ...(presenceDifference ? [presenceDifference] : []),
     ],
@@ -571,6 +636,7 @@ function webAttendanceTopic(presenceMode: HelpPresenceMode): HelpTopic {
     result,
     notes: [
       "Möchten Sie mehrere Kinder ändern? Wählen Sie `Mehrere`.",
+      "In der Listenansicht kreuzen Sie die Kinder links an und wählen oben `Anmelden` oder `Abmelden`.",
       // Live geprueft: in `Direkt` schreibt jeder Tipp sofort, ohne Rueckfrage.
       // Ausnahme seit #3324: frühes Gehen öffnet vorher ein Fenster.
       "In `Direkt` meldet jeder Tipp sofort an oder ab. Auf der Karte steht `Tippen zum Anmelden`.",
@@ -724,6 +790,8 @@ function absencesTopic(): HelpTopic {
           "Wählen Sie `Gesund melden` oder `Entschuldigung aufheben`.",
           "Bestätigen Sie im Fenster mit `Gesundmelden` oder `Entschuldigung aufheben`.",
         ],
+        description:
+          "Das gilt auch, wenn die Eltern das Kind für heute abgemeldet haben.",
       },
       {
         title: "Einen geplanten Tag entfernen",
@@ -731,6 +799,7 @@ function absencesTopic(): HelpTopic {
           "Suchen Sie das Kind unter `Alle Kinder`.",
           "Öffnen Sie die Karte des Kindes.",
           "Wählen Sie `Krank melden` oder `Entschuldigen`.",
+          "Steht dort `Gesund melden` oder `Entschuldigung aufheben`? Wählen Sie das. Wählen Sie danach im Fenster `Alle Kranktage ansehen` oder `Alle entschuldigten Tage ansehen`.",
           "Suchen Sie den Tag unter `Bereits krank` oder `Bereits entschuldigt`.",
           "Öffnen Sie beim Tag das Menü mit den drei Punkten.",
           "Wählen Sie `Entfernen`.",
@@ -758,7 +827,7 @@ function absencesTopic(): HelpTopic {
     ],
     differences: [
       "Fehlen `Krank melden` und `Entschuldigen`? Fragen Sie Ihre Leitung, ob Ihre Rolle Abwesenheiten bearbeiten darf.",
-      "Steht dort `Gesund melden`? Dann ist das Kind heute krank gemeldet. Heben Sie erst die heutige Meldung auf.",
+      "Steht dort `Gesund melden` oder `Entschuldigung aufheben`? Dann ist das Kind heute krank gemeldet oder entschuldigt.",
       "Fehlt `Ab Uhrzeit`? Dann dürfen Sie nur ganze Tage entschuldigen.",
       "Steht beim Tag `Automatisch (Abholzeit)`? Dann kommt die Entschuldigung aus der früheren Abholzeit. Ändern Sie dafür die Abholzeit des Tages.",
     ],
@@ -1180,6 +1249,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
     differences: [
       "`Läuft` heißt: der Block ist gerade aktiv. `Beendet` und `Nicht gestartet` können Sie nur ansehen.",
       "`Fällt aus` zeigt zusätzlich den Grund.",
+      "Ein `Dienst` ist eine Aufgabe ohne Kinder, etwa die Busaufsicht. Er hat keinen Knopf `Starten`.",
       "Welche Blöcke Sie sehen, legt Ihre OGS fest. Manche sehen den ganzen Tag der Schule, andere nur die eigene Einteilung.",
       "Ob Sie nur eigene oder alle Blöcke starten dürfen, legt Ihre OGS fest. Wer einen fremden Block startet, wird nicht zur Aufsicht.",
       ...(presenceMode === "unknown"
@@ -1341,7 +1411,7 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
           "Öffnen Sie `Aktuelle Aufsicht`.",
           "Wählen Sie unter `Als Nächstes` einen geplanten Termin.",
           "Starten Sie ihn, sobald die Schaltfläche freigegeben ist.",
-          "Oder wählen Sie bei einem freien Raum `Beaufsichtigen`.",
+          "Oder übernehmen Sie einen offenen Raum, zum Beispiel den Schulhof: Öffnen Sie ihn unter `Offene Räume` und wählen Sie oben `Beaufsichtigen`.",
           // Live geprueft: der gruene Streifen steht immer oben auf der
           // Seite, auch ohne geplanten Block und ohne NFC.
           "Oder wählen Sie `Spontane Aktivität starten`, wenn nichts geplant ist.",
@@ -1375,7 +1445,8 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Steht am Termin `Nur für Eingeplante`? Dann dürfen hier nur eingeplante Kräfte starten. Ihre OGS kann das Starten für das ganze Team freigeben.",
       "Sie starten einen Termin, für den Sie nicht eingeplant sind? Dann werden Sie nicht zur Aufsicht. Wer beenden darf, legt Ihre OGS fest.",
       "Fehlt `Beenden`? Dann dürfen hier nur eingeplante Kräfte beenden. Ihre OGS kann das Beenden für das ganze Team freigeben.",
-      "Welche freien Räume Sie übernehmen können, legt Ihre OGS fest.",
+      "Auf dem Handy stehen die offenen Räume nicht in der Seitenleiste, sondern oben auf der Seite `Aufsicht` als Reiter.",
+      "Welche Räume offen sind, legt Ihre OGS fest.",
       "Fehlt `Spontane Aktivität starten`? Dann hat Ihre OGS in den `Einstellungen` unter `Betrieb` den Schalter `Spontane Aktivitäten erlauben` ausgeschaltet.",
     ],
     troubleshooting: HELP_TOPICS.attendanceProblem,
@@ -1553,11 +1624,9 @@ function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
     icon: "ListChecks",
     requirements: [
       "Ihr Konto darf Kinderdaten bearbeiten.",
-      // Ohne feste Gruppen gibt es keine Gruppenzuordnung, an der ein
-      // Zugriff haengen koennte.
-      ...(groupMode === "open_care"
-        ? []
-        : ["Sie haben Zugriff auf die Gruppe des Kindes."]),
+      // Wer freigibt, legt die Leitung fest (#3804): Admins, zustaendige
+      // Gruppenleitungen oder das berechtigte Team.
+      "Ihre OGS lässt Sie diese Anfragen freigeben. Das legt die Leitung fest.",
     ],
     steps: [
       "Öffnen Sie `Anfragen` in der Seitenleiste.",
@@ -1572,7 +1641,13 @@ function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
     differences: [
       "Bei einer geänderten Abholzeit zeigt moto vorher betroffene Termine an.",
       "Anmeldungsänderungen öffnen Sie über `Prüfen`. Dafür brauchen Sie ein zusätzliches Recht.",
-      "Fehlt eine Anfrage? Sie sehen nur Kinder, auf die Sie Zugriff haben.",
+      // Ohne feste Gruppen gibt es keine Gruppenleitung, an der die
+      // Freigabe haengen koennte.
+      ...(groupMode === "open_care"
+        ? []
+        : [
+            "Fehlt eine Anfrage? Je nach Einstellung Ihrer OGS sehen Sie nur Kinder Ihrer Gruppen.",
+          ]),
     ],
     notes: [
       "Über `Historie` sehen Sie bereits entschiedene oder zurückgezogene Anfragen.",
@@ -1785,6 +1860,40 @@ function correctWorkTimeTopic(): HelpTopic {
       "Klappen Sie einen geänderten Tag auf, um die Änderungshistorie zu sehen.",
     ],
     related: [HELP_TOPICS.trackWorkTime, HELP_TOPICS.vacation],
+  };
+}
+
+// Eigener Dienstplan (#3821): eigene Seite unter `Team`, nur lesend.
+function ownShiftPlanTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.ownShiftPlan,
+    title: "Eigenen Dienstplan ansehen",
+    question: "Wo sehe ich meinen Dienstplan für die Woche?",
+    summary:
+      "Sehen Sie Ihre Schichten der Woche, die Stunden je Schichtart und Ihr Soll.",
+    group: "arbeitszeit",
+    audience: ["caregiver", "lead"],
+    icon: "CalendarCheck",
+    steps: [
+      "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Mein Dienstplan`.",
+      "Wechseln Sie mit den Pfeilen zur gewünschten Woche. `Diese Woche` bringt Sie zurück.",
+    ],
+    result:
+      "Sie sehen jede Schicht im Wochenraster. Darunter stehen die Stunden je Tag und je Schichtart.",
+    notes: [
+      "Oben stehen die geplanten Stunden, Ihr `Soll` und die `Differenz`.",
+      "In der `Zeiterfassung` führt oben der Knopf `Mein Dienstplan` ebenfalls hierher.",
+      "Das Soll ist dasselbe wie in der Zeiterfassung. Feiertage und Schließtage sind schon eingerechnet.",
+    ],
+    differences: [
+      "Auf dem Handy finden Sie `Mein Dienstplan` unten unter `Mehr`. Dort stehen die Schichten als Liste je Tag statt im Wochenraster.",
+      "Sie können den Plan hier nur ansehen. Änderungen trägt die Leitung im Dienstplan ein.",
+      "Auf dem Handy erscheinen Samstag und Sonntag nur mit einer Schicht. Bei einem Sonntagsdienst kann im Wochenraster auch der Samstag erscheinen.",
+    ],
+    troubleshootingDetails: [
+      "`Mein Dienstplan` fehlt? Dann plant Ihre OGS die Schichten nicht in moto.",
+    ],
+    related: [HELP_TOPICS.trackWorkTime, HELP_TOPICS.mySchedule],
   };
 }
 
@@ -2558,6 +2667,7 @@ function caregiverTopics(
     sharedFilesTopic(),
     trackWorkTimeTopic(),
     correctWorkTimeTopic(),
+    ownShiftPlanTopic(),
     vacationTopic(),
     ownAbsenceTopic(),
 
@@ -3745,7 +3855,8 @@ function parentSurveyTopic(): HelpTopic {
     notes: [
       "Mit `Mehrfachauswahl erlauben` dürfen Eltern mehrere Antworten wählen.",
       "Die Ergebnisse sehen Sie später beim Öffnen der Umfrage.",
-      "Zwei bis zehn Antworten sind möglich. Eltern antworten für jedes Kind einzeln.",
+      "Zwei bis 60 Antworten sind möglich. Eltern antworten für jedes Kind einzeln.",
+      "Viele Termine zur Auswahl? Kopieren Sie die Liste, zum Beispiel aus einer Tabelle. Fügen Sie sie in ein Antwortfeld ein. Jede Zeile wird eine eigene Antwort.",
     ],
     differences: ["Das erste Feld heißt hier `Frage`, nicht `Titel`."],
     troubleshootingDetails: [
@@ -4063,7 +4174,7 @@ function enrollmentFormTopic(): HelpTopic {
           "Eltern wählen im Formular oben ihre Sprache. moto übersetzt nur die festen Texte. Ihre eigenen Fragen und Zustimmungen übersetzen Sie selbst.",
         steps: [
           "Öffnen Sie Ihre Vorlage und gehen Sie nach unten zu `Übersetzungen für Eltern`.",
-          "Wählen Sie die Sprache, zum Beispiel `Русский`.",
+          "Wählen Sie die Sprache, zum Beispiel `Russisch`.",
           "Links steht Ihr deutscher Text. Tragen Sie rechts bei `Übersetzung` den Text in der Sprache ein.",
           "Wählen Sie unten `Änderungen speichern`.",
           "Denselben Abschnitt finden Sie beim Bearbeiten einer Anmeldephase und eines Betreuungsangebots.",
@@ -4688,11 +4799,15 @@ function calendarPeriodsTopic(): HelpTopic {
       },
     ],
     result:
-      "An Schließtagen und gesetzlichen Feiertagen plant moto keine Termine. Abgesagte Termine verschwinden aus dem Plan. Eltern bekommen keine Nachricht.",
+      "Im Betreuungsplan plant moto an Schließtagen und gesetzlichen Feiertagen keine Termine. Abgesagte Termine verschwinden aus dem Plan. Eltern bekommen keine Nachricht.",
     notes: [
       "Die Seite heißt oben `Zeiträume`. In der Seitenleiste steht `Schuljahr und Ferien`.",
       "Ein Zeitraum, den noch nichts benutzt, trägt `Nicht verwendet`.",
       "Ferienbetreuung an Schließtagen: Wählen Sie beim Speichern der Serie `Auch an Schließtagen planen`. Tragen Sie bei `Letzter Tag` den letzten Ferientag ein. Dann endet die Serie mit den Ferien.",
+      "Schicht-Serien im Dienstplan lassen Ferien und Schließtage aus.",
+      "Mit `Auch in den Ferien und an Schließtagen planen` planen Sie auch dann Schichten.",
+      "An gesetzlichen Feiertagen plant eine Serie nie Schichten.",
+      "Schichten, die schon geplant waren, bleiben stehen.",
       "Termine ohne Schließtag absagen: Wählen Sie im Betreuungsplan im Menü `Termine im Zeitraum absagen`.",
     ],
     differences: [
@@ -4735,6 +4850,7 @@ function leadCarePlanTopic(): HelpTopic {
     result: "Ihr Team sieht den Plan im `Tagesplan` und unter `Mein Kalender`.",
     notes: [
       "Ein Regeltermin wiederholt sich. Die Ansicht `Serien` zeigt alle Regeltermine.",
+      "Aufgaben ohne Kinder, etwa Busaufsicht oder Essensausgabe, legen Sie mit dem `Typ` `Dienst` an. Ein Dienst hat keine Kinderliste und wird nicht gestartet. Der Raum ist freiwillig.",
       "Über das Menü mit den drei Punkten geht `Drucken oder exportieren`.",
     ],
     differences: [
@@ -4809,13 +4925,18 @@ function dutyRosterTopic(): HelpTopic {
       "Wählen Sie in der Zeile einer Person den passenden Tag.",
       "Tragen Sie die Schicht ein und speichern Sie sie.",
     ],
-    result: "Die Person sieht ihre Schichten unter `Mein Kalender`.",
+    result:
+      "Die Person sieht ihre Schichten unter `Mein Kalender`. Dort tragen sie die Farbe `Schicht`.",
     notes: [
       "Jede Schicht kann eine Schichtart tragen. Die Farbe kommt von der Schichtart.",
       "Über `Schichtarten verwalten` pflegen Sie die Arten.",
+      "Unter dem Plan steht `Stunden der Woche`. Dort sehen Sie je Person die Stunden je Schichtart und das Soll.",
       "Unter `Person` sehen Sie die Woche einer Person in Viertelstunden. Darunter stehen die Stunden je Tag und Schichtart.",
       "Ziehen Sie dort über die Viertelstunden, um eine Schicht anzulegen.",
       "Über das Menü mit den drei Punkten geht `Drucken oder exportieren`.",
+      "Die Vorlage `Stundenübersicht` druckt diese Stunden als Liste.",
+      "Eine Serie lässt Ferien, Schließtage und Feiertage aus. Arbeitet die Person auch in den Ferien, setzen Sie bei der Serie das Häkchen `Auch in den Ferien und an Schließtagen planen`.",
+      "An Feiertagen plant eine Serie nie eine Schicht.",
     ],
     differences: [
       "Eine neue Schicht auf einem Schließtag löst eine Rückfrage aus.",
@@ -4853,6 +4974,7 @@ function substitutionPlanTopic(): HelpTopic {
     result: "Die vertretende Person sieht den Einsatz unter `Mein Kalender`.",
     notes: [
       "Mit `Sammel-Vertretung` tragen Sie mehrere Einsätze auf einmal ein.",
+      "Auch ein `Dienst` ohne Kinder lässt sich vertreten. Sind weniger Personen da als unter `Benötigtes Personal` eingetragen, zeigt der Plan eine Lücke.",
     ],
     differences: [
       "Die Seite heißt oben `Vertretung`. In der Seitenleiste steht `Vertretungsplan`.",
@@ -5195,6 +5317,8 @@ function parentVisibilityTopic(): HelpTopic {
     notes: [
       "Einzeln schaltbar sind zum Beispiel `Nachrichten von Eltern`, `Abholzeit für einen Tag ändern (Eltern)` und `Stammdaten bearbeiten (Eltern)`.",
       "Wählen Sie bei `Krankmeldungen durch Eltern` die Möglichkeit `Erst bestätigen`, wenn Ihr Team jede Meldung freigeben soll.",
+      "Bei `Wer gibt Änderungswünsche von Eltern frei?` wählen Sie, wer Anfragen zu Stammdaten, Abholung und Angeboten freigibt.",
+      "`Berechtigtes Team` heißt: alle, die Kinderdaten bearbeiten dürfen. Das passt auch für ein gemeinsames Tablet.",
       "Der Essensplan ist ein eigener Schalter.",
     ],
     differences: [
@@ -7279,6 +7403,7 @@ export function getHelpTopics(
     loginTopic(presenceMode, groupMode),
     installAppTopic(),
     appOverviewTopic(),
+    caregiverFirstStepsTopic(),
     ...caregiverTopics(presenceMode, groupMode, nfcEnabled),
     ...leadTopics(presenceMode, groupMode, nfcEnabled),
     ...PARENT_DRAFT_TOPICS,

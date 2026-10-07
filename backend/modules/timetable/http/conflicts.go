@@ -2,6 +2,7 @@
 //
 //	GET /api/timetable/conflicts?date=YYYY-MM-DD&start_time=HH:MM&end_time=HH:MM
 //	    [&room_id=N][&staff_ids=1,2][&student_ids=3,4][&exclude_instance_id=N]
+//	    [&exclude_activity_group_id=N]
 //
 // Checks a hypothetical slot against the day's planned/active instances and
 // returns advisory warnings (room double-booking, staff double-planning,
@@ -43,6 +44,9 @@ type plannedConflictParams struct {
 	staffIDs          []int64
 	studentIDs        []int64
 	excludeInstanceID *int64
+	// excludeGroupID is the Regeltermin being edited; its own occurrences
+	// never conflict with it.
+	excludeGroupID *int64
 }
 
 // getPlannedConflicts handles GET /api/timetable/conflicts.
@@ -64,7 +68,7 @@ func (rs *Resource) getPlannedConflicts(w http.ResponseWriter, r *http.Request) 
 		RoomID:            params.roomID,
 		StaffIDs:          params.staffIDs,
 		StudentIDs:        params.studentIDs,
-		ExcludeInstanceID: params.excludeInstanceID,
+		ExcludeInstanceID: params.excludeInstanceID, ExcludeActivityGroupID: params.excludeGroupID,
 	})
 
 	rs.getLogger().Info("planned conflicts probed",
@@ -153,6 +157,10 @@ func parsePlannedConflictSubjects(w http.ResponseWriter, r *http.Request, out pl
 	if !ok {
 		return out, false
 	}
+	excludeGroupID, ok := parseOptionalQueryID(w, r, q.Get("exclude_activity_group_id"), "exclude_activity_group_id")
+	if !ok {
+		return out, false
+	}
 	staffIDs, ok := parseQueryIDList(w, r, q.Get("staff_ids"), "staff_ids")
 	if !ok {
 		return out, false
@@ -172,6 +180,7 @@ func parsePlannedConflictSubjects(w http.ResponseWriter, r *http.Request, out pl
 	out.staffIDs = staffIDs
 	out.studentIDs = studentIDs
 	out.excludeInstanceID = excludeID
+	out.excludeGroupID = excludeGroupID
 	return out, true
 }
 

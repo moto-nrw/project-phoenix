@@ -47,7 +47,7 @@ func (s *staffDeviations) ApplyDeviations(ctx context.Context, instanceID int64,
 	// Past blocks are historical record; no deviation — including a cancellation
 	// — may rewrite them. Guard before the exclusive cancel branch (#1840).
 	if instance.Date.Before(timezone.TodayDate()) {
-		return nil, timetable.DeviationBadRequest(msgInstanceInPast)
+		return nil, timetable.DeviationBadRequest(msgInstanceInPast).WithCode(timetable.CodeInstanceInPast)
 	}
 
 	if in.Cancel {
@@ -59,7 +59,7 @@ func (s *staffDeviations) ApplyDeviations(ctx context.Context, instanceID int64,
 	}
 
 	if in.UnderstaffedNote != nil && utf8.RuneCountInString(*in.UnderstaffedNote) > scheduleModel.ActivityExceptionReasonMaxLength {
-		return nil, timetable.DeviationBadRequest("der Hinweis ist zu lang")
+		return nil, timetable.DeviationBadRequest("der Hinweis ist zu lang").WithCode(timetable.CodeDeviationNoteTooLong).OnField("understaffed_note")
 	}
 
 	if err := rejectNonPositiveStaffIDs(in); err != nil {
@@ -78,17 +78,17 @@ func (s *staffDeviations) ApplyDeviations(ctx context.Context, instanceID int64,
 func rejectNonPositiveStaffIDs(in timetable.ApplyDeviationsInput) error {
 	for _, a := range in.Absences {
 		if a.StaffID <= 0 {
-			return timetable.DeviationBadRequest("die Auswahl der abwesenden Person ist ungültig")
+			return timetable.DeviationBadRequest("die Auswahl der abwesenden Person ist ungültig").WithCode(timetable.CodeDeviationSelectionInvalid).OnField("absences")
 		}
 	}
 	for _, presence := range in.Presences {
 		if presence.StaffID <= 0 {
-			return timetable.DeviationBadRequest("die Auswahl der anwesenden Person ist ungültig")
+			return timetable.DeviationBadRequest("die Auswahl der anwesenden Person ist ungültig").WithCode(timetable.CodeDeviationSelectionInvalid).OnField("presences")
 		}
 	}
 	for _, removal := range in.SubstitutionRemovals {
 		if removal.StaffID <= 0 {
-			return timetable.DeviationBadRequest("die Auswahl der Ersatzperson ist ungültig")
+			return timetable.DeviationBadRequest("die Auswahl der Ersatzperson ist ungültig").WithCode(timetable.CodeDeviationSelectionInvalid).OnField("substitution_removals")
 		}
 	}
 	return nil
@@ -102,12 +102,12 @@ func (s *staffDeviations) loadDeviationInstance(ctx context.Context, instanceID 
 		// FindByID wraps sql.ErrNoRows in a DatabaseError (never (nil, nil)), so a
 		// stale link or deleted/other-tenant instance maps to 404 here.
 		if modelBase.IsNoRows(err) {
-			return nil, timetable.DeviationNotFound(msgInstanceNotFound)
+			return nil, timetable.DeviationNotFound(msgInstanceNotFound).WithCode(timetable.CodeDeviationInstanceNotFound)
 		}
 		return nil, timetable.DeviationInternal("load instance failed", err)
 	}
 	if instance == nil {
-		return nil, timetable.DeviationNotFound(msgInstanceNotFound)
+		return nil, timetable.DeviationNotFound(msgInstanceNotFound).WithCode(timetable.CodeDeviationInstanceNotFound)
 	}
 	return instance, nil
 }
@@ -133,7 +133,7 @@ func (s *staffDeviations) cancelDeviation(ctx context.Context, instanceID int64,
 	// A move to a past day would rewrite history; the initial guard ran against a
 	// possibly-stale read, so re-check under the lock.
 	if locked.Date.Before(timezone.TodayDate()) {
-		return nil, timetable.DeviationBadRequest(msgInstanceInPast)
+		return nil, timetable.DeviationBadRequest(msgInstanceInPast).WithCode(timetable.CodeInstanceInPast)
 	}
 	cancelled, err := s.deps.Lifecycle.CancelBlock(ctx, DeviationCancellation{
 		InstanceID:     instanceID,

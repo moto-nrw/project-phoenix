@@ -1,7 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
+import { catalogText } from "~/test/error-catalog-text";
 import type {
   StaffScheduleOverview,
   StaffScheduleStaff,
@@ -78,6 +80,7 @@ function summary(
     plannedMinutes: planned,
     targetMinutes: target,
     deltaMinutes: target === null ? null : planned - target,
+    plannedByShiftType: [],
   };
 }
 
@@ -252,6 +255,29 @@ function renderGrid(
 describe("DienstplanHalbjahrGrid", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("shows a failed period load in place of the columns, with a retry", async () => {
+    const mutatePeriods = vi.fn();
+    configureSWR({
+      periods: undefined,
+      periodsError: new ApiError("down", 500, {
+        code: "general.server",
+        instance: "req-periods",
+      }),
+      mutatePeriods,
+    });
+
+    renderGrid();
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Liste der Kalenderzeiträume"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("KW 37")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mutatePeriods).toHaveBeenCalledTimes(1);
   });
 
   it("renders one column per calendar week of the found period", () => {

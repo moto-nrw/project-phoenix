@@ -3,7 +3,9 @@ import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import PlanningTracksPage from "./page";
+import { ApiError } from "~/lib/api-error";
 import { useTimetableEnabled } from "~/lib/tenant-context";
+import { catalogText } from "~/test/error-catalog-text";
 
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
@@ -16,7 +18,9 @@ vi.mock("~/hooks/useUpdateUrlParams", () => ({
   useUpdateUrlParams: () => vi.fn(),
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useApiErrorDisplay: () => ({ show: vi.fn() }),
   useToast: () => ({
     success: vi.fn(),
     error: vi.fn(),
@@ -49,6 +53,7 @@ const swrState = vi.hoisted(() => ({
   data: undefined as unknown,
   error: undefined as unknown,
   isLoading: true,
+  mutate: vi.fn(),
 }));
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: () => swrState,
@@ -60,6 +65,7 @@ beforeEach(() => {
   swrState.data = undefined;
   swrState.error = undefined;
   swrState.isLoading = true;
+  swrState.mutate = vi.fn(() => Promise.resolve(undefined));
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
@@ -110,5 +116,29 @@ describe("Planungsspuren", () => {
     })) {
       expect(action).toBeEnabled();
     }
+  });
+
+  // #2516: Katalogtext statt eines eigenen Satzes, nie der Leerzustand.
+  it("shows the catalog text of a failed load instead of the empty state", async () => {
+    swrState.error = new ApiError("list exploded", 503, {
+      code: "general.unavailable",
+    });
+    swrState.isLoading = false;
+
+    render(<PlanningTracksPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Planungsspuren"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/list exploded/)).not.toBeInTheDocument();
+    // Das Katalog-Kit reicht Wiederholen jetzt bis ins Gerüst durch.
+    expect(
+      screen.getByRole("button", { name: "Wiederholen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Noch keine Planungsspuren"),
+    ).not.toBeInTheDocument();
   });
 });

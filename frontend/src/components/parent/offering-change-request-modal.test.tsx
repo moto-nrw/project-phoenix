@@ -8,6 +8,9 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OfferingChangeRequestModal } from "./offering-change-request-modal";
+import deMessages from "~/i18n/messages/de.json";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import {
   getChildOfferingCatalog,
   getRequestSharingOptions,
@@ -501,7 +504,11 @@ describe("OfferingChangeRequestModal", () => {
   });
 
   it("shows a load error when the catalog cannot be fetched", async () => {
-    mockCatalog.mockRejectedValue(new Error("boom"));
+    mockCatalog
+      .mockRejectedValueOnce(
+        new ApiError("diag", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce(catalog());
     render(
       <OfferingChangeRequestModal
         studentId="42"
@@ -510,8 +517,99 @@ describe("OfferingChangeRequestModal", () => {
       />,
     );
 
-    expect(
-      await screen.findByText(/Angebote konnten nicht geladen werden/),
-    ).toBeInTheDocument();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      catalogText(
+        "general.unavailable",
+        deMessages.parentMasterData.careOfferingsModal.errorObjectCatalog,
+      ),
+    );
+
+    fireEvent.click(within(alert).getByRole("button", { name: "Wiederholen" }));
+
+    expect(await screen.findByText("Regelbetreuung")).toBeInTheDocument();
+    expect(mockCatalog).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows a failed request with the catalog text, never the backend sentence", async () => {
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValue(
+        new ParentApiError("backend sentence", 500, "general.server"),
+      );
+    render(
+      <OfferingChangeRequestModal
+        studentId="42"
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        reasonRequired={false}
+      />,
+    );
+
+    await clickSubmit();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      catalogText(
+        "general.server",
+        deMessages.parentMasterData.careOfferingsModal.errorObjectRequest,
+      ),
+    );
+    expect(screen.queryByText(/backend sentence/)).not.toBeInTheDocument();
+  });
+
+  it("tells parents to contact the school when the enrollment is gone", async () => {
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValue(
+        new ParentApiError(
+          "no enrollment",
+          403,
+          "students.offering_changes_no_enrollment",
+        ),
+      );
+    render(
+      <OfferingChangeRequestModal
+        studentId="42"
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        reasonRequired={false}
+      />,
+    );
+
+    await clickSubmit();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      deMessages.parentMasterData.errorNoEnrollment,
+    );
+    expect(alert).not.toHaveTextContent(/lehnen Sie/);
+  });
+
+  it("asks parents to choose another offering when one is full", async () => {
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValue(
+        new ParentApiError(
+          "full",
+          409,
+          "students.offering_change_capacity_full",
+        ),
+      );
+    render(
+      <OfferingChangeRequestModal
+        studentId="42"
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        reasonRequired={false}
+      />,
+    );
+
+    await clickSubmit();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      deMessages.parentMasterData.careOfferingsModal.capacityFull,
+    );
+    expect(alert).not.toHaveTextContent(/Belegung/);
   });
 });

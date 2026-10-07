@@ -76,7 +76,11 @@ func TestGetProfile_OperatorNotFound(t *testing.T) {
 	resource.GetProfile(rr, req)
 
 	assert.Equal(t, http.StatusNotFound, rr.Code)
-	assert.Contains(t, rr.Body.String(), "Operator not found")
+	var response struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	assert.Equal(t, "identity.account_not_found", response.Code)
 }
 
 func TestGetProfile_ServiceError(t *testing.T) {

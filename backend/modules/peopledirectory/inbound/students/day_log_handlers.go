@@ -120,7 +120,7 @@ func (rs *Resource) getStudentsDayLog(w http.ResponseWriter, r *http.Request) {
 	logger := rs.dayLogLogger()
 
 	if !resolveBoolSetting(ctx, rs.SettingsService, settingAttendanceLogEnabled, false, logger) {
-		renderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
+		renderError(w, r, common.ErrorForbiddenWithCode(errors.New("feature_disabled"), common.CodeStudentsDayLogDisabled))
 		return
 	}
 
@@ -210,6 +210,10 @@ func parseDayLogDate(r *http.Request, today timezone.Date) (timezone.Date, error
 var errDayLogGroupsUnavailable = errors.New("failed to resolve permitted groups")
 var errInvalidDayLogGroupID = errors.New("invalid group_id")
 
+// errNoPermittedDayLogGroups means the caller may see no group at all; it
+// answers 403 with its own code so the page can show a state, not an error.
+var errNoPermittedDayLogGroups = errors.New("no_permitted_groups")
+
 // resolveDayLogGroups returns the groups the caller may evaluate, optionally
 // narrowed to the requested group_id. Admins see all groups. Every other
 // caller must have a linked staff record; verified staff see all groups
@@ -266,6 +270,10 @@ func renderDayLogGroupError(w http.ResponseWriter, r *http.Request, err error, l
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	if errors.Is(err, errNoPermittedDayLogGroups) {
+		renderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeStudentsDayLogNoGroups))
+		return
+	}
 	renderError(w, r, common.ErrorForbidden(err))
 }
 
@@ -273,7 +281,7 @@ func filterDayLogGroups(r *http.Request, groups []*SchoolGroup) ([]*SchoolGroup,
 	raw := strings.TrimSpace(r.URL.Query().Get("group_id"))
 	if raw == "" {
 		if len(groups) == 0 {
-			return nil, errors.New("no_permitted_groups")
+			return nil, errNoPermittedDayLogGroups
 		}
 		return groups, nil
 	}

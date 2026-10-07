@@ -1,10 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { BooleanField } from "~/components/settings/fields/boolean-field";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -20,10 +27,11 @@ import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { createLogger } from "~/lib/logger";
 import { notifySettingsChanged } from "~/lib/settings-broadcast";
 import {
-  setSettingValue,
+  saveSettingValue,
   type SettingsSchema,
   type ResolvedSetting,
 } from "~/lib/settings-api";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import {
   useNFCEnabled,
   useOpenCareGroupMode,
@@ -103,8 +111,12 @@ export function HomeBlocksTab() {
   )?.key;
   const [birthdayDraft, setBirthdayDraft] = useState<BirthdaySettings>({});
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const toast = useToast();
+  // Speichern ist ein Formular mit eigenem Knopf: der Fehler steht oben in
+  // der Karte, Wiederholen speichert den Stand, der dann gilt (#2517).
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const latestSaveRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     setDraft(state.policies);
@@ -159,12 +171,10 @@ export function HomeBlocksTab() {
   const dirty = policiesDirty || changedBirthdayKeys.length > 0;
 
   const changeBirthdaySetting = (key: string, value: boolean) => {
-    setSaved(false);
     setBirthdayDraft((prev) => ({ ...prev, [key]: value }));
   };
 
   const change = (key: HomeBlockKey, policy: HomeBlockPolicy) => {
-    setSaved(false);
     setDraft((prev) => {
       const next = { ...prev };
       if (policy === "optional") delete next[key];
@@ -175,29 +185,32 @@ export function HomeBlocksTab() {
 
   const save = async () => {
     setBusy(true);
-    setError(null);
+    formErrors.clear();
     try {
       for (const key of changedBirthdayKeys) {
-        const failure = await setSettingValue(key, birthdayDraft[key]);
-        if (failure) throw new Error(failure);
+        await saveSettingValue(key, birthdayDraft[key]);
       }
       if (changedBirthdayKeys.length > 0) {
         notifySettingsChanged();
         await revalidateSchema();
       }
       if (policiesDirty) await savePolicies(draft);
-      setSaved(true);
+      toast.success("Die Startseite für alle ist gespeichert.");
     } catch (err) {
       logger.error("home_block_policies_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        "Das Speichern hat nicht geklappt. Bitte versuchen Sie es noch einmal.",
-      );
+      void formErrors.show(err, {
+        object: "die Startseite für alle",
+        retry: () => latestSaveRef.current(),
+      });
     } finally {
       setBusy(false);
     }
   };
+  useLayoutEffect(() => {
+    latestSaveRef.current = () => void save();
+  });
 
   if (isLoading || schemaLoading) {
     return <Skeleton className="h-64 w-full" />;
@@ -240,17 +253,14 @@ export function HomeBlocksTab() {
         </Button>
       }
     >
-      <div className="space-y-6">
+      <div ref={formRef} className="space-y-6">
         <p className="text-sm leading-6 text-gray-600">
           Legen Sie fest, was die Startseite allen zeigt. Bei „Frei wählbar“
           entscheidet jede Person selbst. „Immer anzeigen“ und „Aus“ gelten für
           alle.
         </p>
 
-        {error ? <Alert type="error" message={error} /> : null}
-        {saved && !dirty ? (
-          <Alert type="success" message="Gespeichert." />
-        ) : null}
+        <FormErrorAlert message={formErrors.error} />
 
         <PolicyGroup
           heading="Kennzahlen"

@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError, wireErrorCode } from "./api-error";
+import { ApiError, apiErrorFromResponse, transportFetch } from "./api-error";
 // Dateiablage (#2596): API client + type mapping for the school file
 // storage. The backend decides everything about authority (folder
 // visibility, files:manage, files.staff_upload_enabled) and tells the UI what
@@ -141,67 +141,16 @@ function mapFile(data: BackendFile): StoredFile {
   };
 }
 
-class FilesApiError extends ApiError {
-  constructor(
-    message: string,
-    readonly status: number,
-    code?: string,
-  ) {
-    super(message, status, { code });
-    this.name = "FilesApiError";
-  }
-}
-
 /**
- * The wording of a failed request, decided here rather than taken from the
- * response. Backend validation errors are English sentinels with an English
- * detail appended ("invalid file storage request: name is required") and the
- * page shows this message unchanged, so the raw `error` field is never used.
- * A stable `code` or the status decides; everything else keeps the wording
- * the calling method passes in.
+ * A failed request as ApiError with the backend's code, field errors, details
+ * and request ID (#2517). The screen shows the catalog text for the code; the
+ * message is a developer diagnostic only.
  */
-function filesErrorMessage(
-  wireCode: string | undefined,
-  status: number,
-): string | null {
-  const code = wireErrorCode(wireCode);
-  if (code === "files.folder_name_taken") {
-    return "Es gibt schon einen Ordner mit diesem Namen.";
-  }
-  if (code === "files.quota_exceeded") {
-    return "Der Speicherplatz der Dateiablage ist voll. Löschen Sie Dateien, die Sie nicht mehr brauchen. Für mehr Speicherplatz melden Sie sich bitte beim moto-Team.";
-  }
-  switch (status) {
-    case 401:
-      return "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
-    case 403:
-      return "Dafür fehlt Ihnen die Berechtigung.";
-    case 413:
-      return "Die Datei ist zu groß.";
-    default:
-      return null;
-  }
-}
-
 async function throwFilesError(
   response: Response,
   fallback: string,
 ): Promise<never> {
-  let code: string | undefined;
-  let payload: unknown;
-  try {
-    const body = (await response.json()) as { code?: string };
-    payload = body;
-    code = body.code;
-  } catch {
-    // Non-JSON body — the fallback carries the wording.
-  }
-  const message = filesErrorMessage(code, response.status) ?? fallback;
-  throw enrichApiError(
-    new FilesApiError(message, response.status, code),
-    payload,
-    response.status,
-  );
+  throw await apiErrorFromResponse(response, fallback);
 }
 
 function toBackendFolderInput(input: FolderInput) {
@@ -310,16 +259,21 @@ class FilesService {
     const session = await getCachedSession();
     const token = session?.user?.token;
     if (!token) {
-      throw new Error("Authentifizierung erforderlich");
+      throw new ApiError("Authentication required", 401, {
+        code: "general.permission",
+      });
     }
 
     // Raw fetch on purpose — sessionFetch forces Content-Type
     // application/json, which would clobber the multipart boundary.
-    const response = await fetch(`/api/files/folders/${folderId}/files`, {
-      method: "POST",
-      body: formData,
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await transportFetch(
+      `/api/files/folders/${folderId}/files`,
+      {
+        method: "POST",
+        body: formData,
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
     if (!response.ok) {
       await throwFilesError(
         response,

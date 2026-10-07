@@ -43,8 +43,9 @@ func actionAllowed(_ int64, err error) (bool, error) {
 	return err == nil, err
 }
 
-// requireCanView lets the all-staff operational overview read every running
-// roster without granting action rights.
+// requireCanView lets the operational overview read the rosters it lists
+// without granting action rights; everybody else, and every other block,
+// falls to requireCanOperate's people (#3874).
 func (s *operations) requireCanView(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (int64, error) {
 	staffID, hasStaff, err := s.resolveStaffID(ctx, accountID)
 	if err != nil {
@@ -55,15 +56,39 @@ func (s *operations) requireCanView(ctx context.Context, accountID int64, isAdmi
 		if err != nil {
 			return 0, err
 		}
-		if inst.Status != scheduleModels.InstanceStatusActive || inst.ActiveGroupID == nil {
-			return 0, timetable.ErrTimetableOperationForbidden
+		if s.overviewReaches(inst) {
+			return staffID, nil
 		}
+	}
+	if s.hasAdministrativeActionAccess(ctx, isAdmin) {
 		return staffID, nil
 	}
 	if !hasStaff {
 		return 0, timetable.ErrTimetableOperationForbidden
 	}
 	return s.requireFixedGroupOperationAccess(ctx, staffID, instanceID)
+}
+
+// overviewReaches names the blocks the overview reads: running sessions and
+// today's finished or expired blocks, which PlannedNow(scope=past) lists
+// (#2335). Rosters of other days stay closed: ids are guessable and a roster
+// carries pickup times.
+func (s *operations) overviewReaches(inst *scheduleModels.ActivityInstance) bool {
+	if inst.Status == scheduleModels.InstanceStatusActive && inst.ActiveGroupID != nil {
+		return true
+	}
+	return s.overviewPastReaches(inst)
+}
+
+// overviewPastReaches is the historical part of the operational overview.
+// Duties belong only in the day plan and must not be reached through a past
+// roster URL.
+func (s *operations) overviewPastReaches(inst *scheduleModels.ActivityInstance) bool {
+	if inst.TemplateType == timetable.GroupTypeDuty {
+		return false
+	}
+	now := s.now().In(timezone.Berlin)
+	return timezone.Date(inst.Date) == timezone.DateFromTime(now) && plannedPastToday(inst, now)
 }
 
 // requireScopedAction gates attendance, starts and ends, which each have a
@@ -92,10 +117,14 @@ func (s *operations) requireScopedAction(ctx context.Context, accountID int64, i
 }
 
 // scopeAdmits names the blocks a school-wide scope reaches: attendance and
-// ends reach running sessions, a start today's planned blocks.
+// ends reach running sessions, a start today's planned blocks that have not
+// expired into the read-only past overview.
 func (s *operations) scopeAdmits(action ScopedAction, inst *scheduleModels.ActivityInstance) bool {
 	if action == ScopedBlockStart {
-		return inst.Status == scheduleModels.InstanceStatusPlanned && timezone.Date(inst.Date) == s.today()
+		now := s.now().In(timezone.Berlin)
+		return inst.Status == scheduleModels.InstanceStatusPlanned &&
+			timezone.Date(inst.Date) == timezone.DateFromTime(now) &&
+			!plannedPastToday(inst, now)
 	}
 	return inst.Status == scheduleModels.InstanceStatusActive && inst.ActiveGroupID != nil
 }
@@ -139,10 +168,22 @@ func (s *operations) requireCanReportAbsence(ctx context.Context, accountID int6
 		return err
 	}
 	_, hasStaff, err := s.resolveStaffID(ctx, accountID)
-	if err == nil && (!hasStaff || !isOGSActorToken(ctx, accountID)) {
+	if err != nil {
+		return err
+	}
+	if !hasStaff || !isOGSActorToken(ctx, accountID) {
 		return timetable.ErrTimetableOperationForbidden
 	}
-	return err
+	if s.operationalOverview(ctx, isAdmin, hasStaff) {
+		inst, err := s.loadInstance(ctx, instanceID)
+		if err != nil {
+			return err
+		}
+		if s.overviewPastReaches(inst) {
+			return timetable.ErrTimetableOperationForbidden
+		}
+	}
+	return nil
 }
 
 // requireDirectAbsenceScope keeps the school-portal and admin contracts;
@@ -234,7 +275,7 @@ func isAssignmentBoundPortal(ctx context.Context) bool {
 }
 
 // operationalOverview reports whether the caller may see every running
-// block of the school (#2380). It reuses the resolved staff profile but asks
+// block of the school (#2380) and today's finished ones. It reuses the resolved staff profile but asks
 // the same setting as every other surface, so a block PlannedNow lists can
 // never 403 on the detail call. Fails closed on a settings fault.
 func (s *operations) operationalOverview(ctx context.Context, isAdmin, hasStaff bool) bool {

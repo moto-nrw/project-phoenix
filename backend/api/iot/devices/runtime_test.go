@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-chi/render"
+
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -31,6 +33,13 @@ func testRuntime() Runtime {
 		Success: testutil.RespondSuccess,
 		Failure: func(w http.ResponseWriter, r *http.Request, status int, err error, message string) {
 			testutil.RespondCoded(w, r, status, "", err, nil, message)
+		},
+		ConflictOnField: func(w http.ResponseWriter, r *http.Request, err error, code, field string) {
+			render.Status(r, http.StatusConflict)
+			render.JSON(w, r, map[string]any{
+				"status": "error", "error": err.Error(), "code": code,
+				"errors": []map[string]string{{"field": field, "reason": err.Error()}},
+			})
 		},
 		ConstraintViolation: func(err error) bool {
 			return strings.Contains(err.Error(), "violates foreign key constraint") || strings.Contains(err.Error(), "violates not-null constraint")

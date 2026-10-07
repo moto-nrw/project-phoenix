@@ -65,3 +65,19 @@ func TestVerifyManualStudentRowsCountsRoomsOnlyWithRoomTracking(t *testing.T) {
 	require.NoError(t, verifyManualStudentRows(rows, SeedExpectedState{PresentStudents: 1}, true))
 	assert.ErrorContains(t, verifyManualStudentRows(rows, SeedExpectedState{PresentStudents: 1}, false), `room-tracking location "Anwesend - Bauraum"`)
 }
+
+func TestVerifyManualStudentRowsCountsTransitOnlyWithRoomTracking(t *testing.T) {
+	t.Parallel()
+	raw := []byte(`[{"id": 7, "school_class": "1a", "group_id": 7, "current_location": "Unterwegs"}]`)
+	var rows []struct {
+		ID             int64   `json:"id"`
+		SchoolClass    string  `json:"school_class"`
+		GroupID        int64   `json:"group_id"`
+		Location       string  `json:"current_location"`
+		ActualPickupAt *string `json:"actual_pickup_time"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &rows))
+
+	require.NoError(t, verifyManualStudentRows(rows, SeedExpectedState{PresentStudents: 1}, true))
+	assert.Error(t, verifyManualStudentRows(rows, SeedExpectedState{PresentStudents: 1}, false))
+}
