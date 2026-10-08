@@ -598,9 +598,8 @@ func careStatusFromRequest(r *http.Request) (string, render.Renderer) {
 
 // schoolClassGrade returns the first run of ASCII digits in a school class
 // name ("2a" -> "2", "Klasse 12b" -> "12"), or "" when the class carries no
-// grade number ("Bienen"). It is School Structure's class grammar
-// (internal/schoolclass.GradePrefix), which this inbound may not import; the
-// People Directory filter answers the same question in SQL.
+// grade number ("Bienen"). The People Directory filter answers the same
+// class-label grammar question in SQL.
 func schoolClassGrade(class string) string {
 	class = strings.TrimSpace(class)
 	start := 0

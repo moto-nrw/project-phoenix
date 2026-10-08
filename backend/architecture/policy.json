@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 31,
+  "policy_epoch": 34,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -453,13 +453,6 @@
     "workflow-integration-test"
   ],
   "packages": [
-    {
-      "path": "modules/documentrendering/compose",
-      "owner": "document-rendering",
-      "role": "compose",
-      "internal_test_role": "workflow-integration-test",
-      "external_test_role": "module-behavior-test"
-    },
     {
       "path": "modules/documentrendering/lists",
       "owner": "document-rendering",
@@ -1154,14 +1147,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/documents",
-      "owner": "document-rendering",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "database/repositories/education",
+      "path": "modules/schoolstructure/internal/adapters/postgres/groups",
       "owner": "school-structure",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1378,13 +1364,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "internal/storage",
-      "owner": "delivery-platform",
-      "role": "adapter",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "internal/strutil",
       "owner": "legacy-shared",
       "role": "domain",
@@ -1478,13 +1457,6 @@
     {
       "path": "models/delivery",
       "owner": "delivery-platform",
-      "role": "domain",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models/documents",
-      "owner": "document-rendering",
       "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -1749,7 +1721,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/education",
+      "path": "modules/schoolstructure/internal/application/groups",
       "owner": "school-structure",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -2400,9 +2372,9 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/planexport/legacy",
+      "path": "modules/planexport/compose",
       "owner": "document-rendering",
-      "role": "adapter",
+      "role": "compose",
       "internal_test_role": "adapter-test",
       "external_test_role": "module-behavior-test"
     },
@@ -3448,6 +3420,34 @@
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/schoolstructure/contract",
+      "owner": "school-structure",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/objects",
+      "owner": "delivery-platform",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/transactionruntime",
+      "owner": "transaction-runtime",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/transactionruntime/internal/adapters/postgres",
+      "owner": "transaction-runtime",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     }
   ],
   "data_objects": [
@@ -4444,6 +4444,10 @@
       "write_owner": "file-storage"
     },
     {
+      "name": "documents.file_cleanup",
+      "write_owner": "file-storage"
+    },
+    {
       "name": "documents.folder_accounts",
       "write_owner": "file-storage"
     },
@@ -5216,51 +5220,8 @@
   ],
   "rules": [
     {
-      "id": "document-rendering.compose.cleanup-postgres",
-      "description": "Bind the retained document cleanup repository behind a consumer-owned port.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "compose",
-      "target_owner": "document-rendering",
-      "target_role": "postgres"
-    },
-    {
-      "id": "document-rendering.compose.cleanup-domain",
-      "description": "Translate retained document cleanup rows at the persistence composition boundary.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "compose",
-      "target_owner": "document-rendering",
-      "target_role": "domain"
-    },
-    {
-      "id": "document-rendering.compose.file-storage-port",
-      "description": "Implement File Storage's consumer-owned cleanup port without exposing the generic repository.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "compose",
-      "target_owner": "file-storage",
-      "target_role": "compose"
-    },
-    {
-      "id": "document-rendering.compose.orm-sql",
-      "description": "Construct the cleanup persistence binding with the root database.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "compose",
-      "target_class": "orm-sql"
-    },
-    {
-      "id": "legacy-composition.to.document-cleanup-compose",
-      "description": "Supply the retained cleanup persistence through File Storage's consumer-owned port.",
+      "id": "legacy-composition.to.document-rendering-compose",
+      "description": "The legacy root binds the plan export capability to the owners' public reads through the Document Rendering composition (#2706).",
       "scopes": [
         "production"
       ],
@@ -5817,17 +5778,6 @@
       "source_role": "e2e-test",
       "target_owner": "legacy-shared",
       "target_role": "domain"
-    },
-    {
-      "id": "workforce.contracttest.school-structure.application",
-      "description": "The new test-only Workforce contract root exercises retained adapter inputs and outputs; it grants no runtime or existing test package new imports.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "e2e-test",
-      "target_owner": "school-structure",
-      "target_role": "application"
     },
     {
       "id": "workforce.contracttest.workforce.public",
@@ -7123,17 +7073,6 @@
       "source_owner": "group-live-view",
       "source_role": "adapter",
       "target_owner": "people-directory",
-      "target_role": "application"
-    },
-    {
-      "id": "group-live-view.adapter.school-structure-application",
-      "description": "The live-group compatibility adapter lists tenant groups, group rooms, and the substitution overview through the retained education services (#2702).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "group-live-view",
-      "source_role": "adapter",
-      "target_owner": "school-structure",
       "target_role": "application"
     },
     {
@@ -9176,16 +9115,6 @@
       "source_role": "http",
       "target_owner": "identity-access",
       "target_role": "adapter"
-    },
-    {
-      "id": "communication.messages.http-orm",
-      "description": "The message HTTP adapters bind the existing tenant transaction middleware.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-messaging",
-      "source_role": "http",
-      "target_class": "orm-sql"
     },
     {
       "id": "communication.messages.compose-delivery-public",
@@ -11544,17 +11473,6 @@
       "target_role": "application"
     },
     {
-      "id": "facilities.compose.school-structure-application",
-      "description": "Room snapshot composition resolves supervision-group names.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "application"
-    },
-    {
       "id": "facilities.compose.document-application",
       "description": "Room snapshot composition renders established export formats.",
       "scopes": [
@@ -12840,16 +12758,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-notifications.orm-sql",
-      "description": "Legacy notification HTTP composition accepts Bun.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-notifications",
-      "source_role": "http",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "inbound-notifications.adapter-test.identity-adapter",
       "description": "Notification handler tests construct authenticated claims.",
       "scopes": [
@@ -13825,16 +13733,6 @@
       "source_role": "http",
       "target_owner": "identity-access",
       "target_role": "adapter"
-    },
-    {
-      "id": "communication.parent-http.orm",
-      "description": "The parent-announcement HTTP adapter binds the existing tenant transaction middleware.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-announcement",
-      "source_role": "http",
-      "target_class": "orm-sql"
     },
     {
       "id": "root-composition.to.parent-announcement-http",
@@ -17167,16 +17065,6 @@
       "target_role": "domain"
     },
     {
-      "id": "inbound-classday.orm-sql",
-      "description": "Class-day HTTP composition passes the concrete Bun database to the shared school-scope middleware (#2701).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-classday",
-      "source_role": "http",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "inbound-classday.adapter-test.identity-adapter",
       "description": "Class-day handler tests construct school-scope claims (#2701).",
       "scopes": [
@@ -17683,17 +17571,6 @@
       "target_role": "domain"
     },
     {
-      "id": "process-device-scan.compose.school-structure-application",
-      "description": "Compatibility binding (#2698): the group port resolves the child's education group through the retained education service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "process-device-scan",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "application"
-    },
-    {
       "id": "process-device-scan.compose.settings-application",
       "description": "Compatibility binding (#2698): the settings port resolves the kiosk settings through the retained settings service.",
       "scopes": [
@@ -17924,17 +17801,6 @@
       "target_role": "application"
     },
     {
-      "id": "calendar-view.adapter.school-structure-application",
-      "description": "The supervision compatibility adapter resolves education group rooms through the retained education service (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter",
-      "target_owner": "school-structure",
-      "target_role": "application"
-    },
-    {
       "id": "calendar-view.adapter-test.identity-access-adapter",
       "description": "Adapter tests place JWT claims and permissions in the context (#2703).",
       "scopes": [
@@ -17987,28 +17853,6 @@
       "source_owner": "calendar-view",
       "source_role": "adapter-test",
       "target_owner": "facilities",
-      "target_role": "application"
-    },
-    {
-      "id": "calendar-view.adapter-test.school-structure-domain",
-      "description": "Adapter tests build retained education group rows (#2703).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter-test",
-      "target_owner": "school-structure",
-      "target_role": "domain"
-    },
-    {
-      "id": "calendar-view.adapter-test.school-structure-application",
-      "description": "Adapter tests fake the retained education service (#2703).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter-test",
-      "target_owner": "school-structure",
       "target_role": "application"
     },
     {
@@ -18164,16 +18008,6 @@
       "source_role": "http",
       "target_owner": "document-rendering",
       "target_role": "application"
-    },
-    {
-      "id": "inbound-statistics.orm-sql",
-      "description": "Statistics HTTP composition passes the concrete Bun database to the shared tenant middleware (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-statistics",
-      "source_role": "http",
-      "target_class": "orm-sql"
     },
     {
       "id": "inbound-statistics.adapter-test.identity-adapter",
@@ -19184,16 +19018,6 @@
       "target_role": "contract"
     },
     {
-      "id": "inbound-emergency.orm-sql",
-      "description": "Emergency snapshot HTTP composition passes the concrete Bun database to the shared tenant middleware (#2704).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-emergency",
-      "source_role": "http",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "root-composition.to.inbound-emergency-http",
       "description": "The production root constructs the emergency snapshot HTTP adapter (#2704).",
       "scopes": [
@@ -19348,16 +19172,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-iot.compose.orm-sql",
-      "description": "IoT composition binds the HTTP router and ambient database runtime (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "inbound-iot.compose.http-router",
       "description": "IoT composition binds the HTTP router and ambient database runtime (#2739).",
       "scopes": [
@@ -19433,28 +19247,6 @@
       "target_class": "test"
     },
     {
-      "id": "document-rendering.public.calendar-date",
-      "description": "The public plan export capability resolves request and record days with the repository calendar-date value type (#2706).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "public",
-      "target_owner": "legacy-shared",
-      "target_role": "domain"
-    },
-    {
-      "id": "document-rendering.adapter.public",
-      "description": "The plan export compatibility adapter implements the capability's consumer-owned ports and returns its public service (#2706).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter",
-      "target_owner": "document-rendering",
-      "target_role": "public"
-    },
-    {
       "id": "document-rendering.decision-test.application",
       "description": "Plan export rendering tests inspect the rendered Document Rendering document field by field (#2706).",
       "scopes": [
@@ -19467,7 +19259,7 @@
     },
     {
       "id": "document-rendering.adapter-test.document-rendering-application",
-      "description": "Plan export adapter tests inspect the rendered Document Rendering document and render the runtime evidence through the real renderer (#2706).",
+      "description": "Plan export composition tests inspect the rendered Document Rendering document and render the runtime evidence through the real renderer (#2706).",
       "scopes": [
         "internal_test"
       ],
@@ -19475,6 +19267,50 @@
       "source_role": "adapter-test",
       "target_owner": "document-rendering",
       "target_role": "application"
+    },
+    {
+      "id": "document-rendering.compose.public",
+      "description": "The plan export composition returns the public plan export capability (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "compose",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "document-rendering.compose.timetable-activities-public",
+      "description": "The plan export composition reads blocks, their staff, Angebote and Planungsspuren through the public Timetable & Activities capability (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "document-rendering.compose.facilities-public",
+      "description": "The plan export composition reads the printed room names through the public Facilities capability (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "document-rendering.compose.workforce-public",
+      "description": "The plan export composition reads the Dienstplan overview and the Schichtarten through the public Workforce capability (#2706).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "public"
     },
     {
       "id": "timetable-activities.http.document-rendering",
@@ -19946,16 +19782,6 @@
       "source_role": "http",
       "target_owner": "identity-access",
       "target_role": "adapter"
-    },
-    {
-      "id": "inbound-filestore.orm-sql",
-      "description": "File HTTP composition passes the concrete Bun database to the shared tenant middleware (#2707).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-filestore",
-      "source_role": "http",
-      "target_class": "orm-sql"
     },
     {
       "id": "inbound-filestore.adapter-test.inbound-common",
@@ -21442,17 +21268,6 @@
       "target_role": "public"
     },
     {
-      "id": "school-structure.http.application",
-      "description": "The group routes drive the owner's group service, the inbound adapter calling its own application (#2742).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-structure",
-      "source_role": "http",
-      "target_owner": "school-structure",
-      "target_role": "application"
-    },
-    {
       "id": "school-structure.http.domain",
       "description": "The group routes read and write the owner's group rows and list query (#2742).",
       "scopes": [
@@ -21940,7 +21755,7 @@
     },
     {
       "id": "workforce.application.audit-domain",
-      "description": "Shift moves append the shift_moved Änderungsprotokoll entry through the retained audit contract (#1884, #3418).",
+      "description": "Shift moves append the shift_moved \u00c4nderungsprotokoll entry through the retained audit contract (#1884, #3418).",
       "scopes": [
         "production"
       ],
@@ -22128,28 +21943,6 @@
       "target_role": "public"
     },
     {
-      "id": "document-rendering.adapter.workforce-public",
-      "description": "The plan export adapter names the Dienstplan overview through the public Workforce query (#3418).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
-      "id": "document-rendering.adapter.facilities-domain",
-      "description": "The plan export adapter names the retained room rows it reads directly instead of through the retired reader interface (#3418).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter",
-      "target_owner": "facilities",
-      "target_role": "domain"
-    },
-    {
       "id": "legacy-composition.to.shift-plan-sync-public",
       "description": "The legacy factory binds the shift-plan-sync workflow contracts to the absence service and the substitution module (#3418).",
       "scopes": [
@@ -22181,18 +21974,6 @@
       "source_role": "public",
       "target_owner": "workforce",
       "target_role": "public"
-    },
-    {
-      "id": "shift-plan-sync.public.school-structure-application",
-      "description": "The shift-plan-sync contract serves the schedule port the retained substitution module owns until services/education dissolves (#3418).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "shift-plan-sync",
-      "source_role": "public",
-      "target_owner": "school-structure",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
     },
     {
       "id": "shift-plan-sync.port.workforce",
@@ -22271,18 +22052,6 @@
       "source_role": "application",
       "target_owner": "delivery-platform",
       "target_role": "public"
-    },
-    {
-      "id": "shift-plan-sync.application.school-structure-application",
-      "description": "The substitution moves implement the schedule port the retained substitution module owns until services/education dissolves (#3418).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "shift-plan-sync",
-      "source_role": "application",
-      "target_owner": "school-structure",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
     },
     {
       "id": "shift-plan-sync.application.tenant-runtime",
@@ -22459,18 +22228,6 @@
       "source_role": "adapter-test",
       "target_owner": "workforce",
       "target_role": "compose"
-    },
-    {
-      "id": "shift-plan-sync.adapter-test.school-structure-application",
-      "description": "The shift-plan-sync behaviour suites drive the retained substitution module.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "shift-plan-sync",
-      "source_role": "adapter-test",
-      "target_owner": "school-structure",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
     },
     {
       "id": "shift-plan-sync.adapter-test.compose",
@@ -22671,17 +22428,6 @@
       "source_role": "module-internal-test",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "document-rendering.adapter-test.workforce-compose",
-      "description": "The plan export isolation and checkpoint suites compose the Dienstplan overview they export (#3418).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter-test",
-      "target_owner": "workforce",
-      "target_role": "compose"
     },
     {
       "id": "timetable-activities.integration-test.legacy-shared-domain",
@@ -23193,6 +22939,227 @@
       "source_role": "workflow-integration-test",
       "target_owner": "settings-platform",
       "target_role": "postgres"
+    },
+    {
+      "id": "school-structure.public.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "public",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "school-structure.application.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "application",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "school-structure.http.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "http",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "process-device-scan.compose.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "facilities.compose.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "calendar-view.adapter.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "group-live-view.adapter.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "shift-plan-sync.public.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "public",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "shift-plan-sync.application.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "workforce.e2e-test.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "e2e-test",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "school-structure.compose.school-structure-contract",
+      "description": "The module composition translates public catalog values (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-common.http.identity-access-adapter",
+      "description": "The standing shared HTTP runtime consumes the permanent session adapter and request identity memo (ADR 0031) (ADR 0046, #2738, #3898).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-common.http.tenant-runtime-public",
+      "description": "The standing shared HTTP runtime consumes tenant scope, transactions and rollback markers (ADR 0046, #2738, #3898).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-common.http.security-runtime-contract",
+      "description": "The standing shared HTTP runtime consumes validated principals and the permission registry (ADR 0046, #2738, #3898).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-common.http.security-runtime-public",
+      "description": "The standing shared HTTP runtime consumes authorization decisions, local-seeder gates and upload filename entropy (ADR 0046, #2738, #3898).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-common.http.settings-platform-public",
+      "description": "The standing shared HTTP runtime consumes settings keys, immutable snapshots and the request memo (ADR 0046, #2738, #3898).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "http",
+      "target_owner": "settings-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-common.http.delivery-platform-public",
+      "description": "The standing shared HTTP runtime consumes the native byte storage capability without implementation imports (ADR 0046, #2738, #3898).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "http",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-common.http.transaction-runtime-public",
+      "description": "The standing shared HTTP runtime consumes driver-free database failure classification (ADR 0046, #2738, #3898).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "http",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-common.adapter-test.identity-access-adapter",
+      "description": "Shared HTTP behavior tests construct session claims at the permanent session adapter (ADR 0046, #2738).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "transaction-runtime.public.postgres-errors",
+      "description": "The driver-free public failure classifier delegates SQL details to its private Postgres adapter (#2738).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "transaction-runtime",
+      "source_role": "public",
+      "target_owner": "transaction-runtime",
+      "target_role": "postgres"
     }
   ],
   "relocations": [
@@ -23200,6 +23167,16 @@
       "from": "auth/jwt",
       "to": "modules/identityaccess/legacy/jwt",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3226"
+    },
+    {
+      "from": "database/repositories/education",
+      "to": "modules/schoolstructure/internal/adapters/postgres/groups",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
+    },
+    {
+      "from": "services/education",
+      "to": "modules/schoolstructure/internal/application/groups",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
     }
   ]
 }

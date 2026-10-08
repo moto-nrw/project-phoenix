@@ -239,13 +239,16 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		// NFC-Arbeitsblock. Nach einem App-Checkout am selben Tag verhindert
 		// die Zeiterfassung bewusst einen erneuten Auto-Check-in.
 		seedStatisticsDemoStep{},
+		// Nach den Live-Stempeln: deren sofortiges Ausstempeln wiche sonst vom
+		// geplanten Dienst ab und bräuchte eine Begründung.
+		seedTodaysShiftsStep{},
 	}
 	if !seeder.options.DeferHistory {
 		steps = append(steps, deferredPastSteps()...)
 	}
 	steps = append(steps, parentEnrollmentSeedStep{seeder: seeder})
 	if !seeder.options.DeferHistory {
-		steps = append(steps, parentRequestsSeedStep{seeder: seeder})
+		steps = append(steps, parentRequestsSeedStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder})
 	}
 	steps = append(steps,
 		seedParentEngagementStep{},
@@ -292,10 +295,13 @@ func deferredPastSteps() []Step {
 
 // deferredDemoSteps are what a demo school opens without (DeferHistory): the
 // past, then the parents' requests. The requests go after the history, since
-// the running simulation's parents may collide with them. The child quota is
-// sized to the children in care once the requests are decided, and the
-// billing snapshot counts them, so both follow.
+// the running simulation's parents may collide with them. The app accounts of
+// the other families wait as well: a visitor needs them only for writing to
+// parents, not for the school to open. The child quota is sized to the
+// children in care once the requests are decided, and the billing snapshot
+// counts them, so both follow.
 func deferredDemoSteps(seeder *Seeder) []Step {
 	return append(deferredPastSteps(),
-		parentRequestsSeedStep{seeder: seeder}, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
+		parentRequestsSeedStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder},
+		seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
 }

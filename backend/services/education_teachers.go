@@ -4,7 +4,7 @@ import (
 	"context"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/education"
+	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 )
 
 // EducationTeachers serves the teacher directory of the retained School

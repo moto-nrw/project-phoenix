@@ -225,6 +225,7 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
     () => (staffId ? adminAbsences : ownAbsences?.map(adaptAbsenceForMetrics)),
     [staffId, adminAbsences, ownAbsences],
   );
+  const weekAbsencesError = staffId ? adminAbsencesError : ownAbsencesError;
 
   const { data: config } = useSWRAuth("time-tracking-config", () =>
     timeTrackingService.getConfig(),
@@ -239,7 +240,11 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
     // No Soll, no week card: showing Ist against a 0h Soll would read as a
     // pile of Überstunden, and applying the current schedule as a stand-in is
     // exactly the contradiction this hook exists to remove.
-    if (!weekTargets || !weekSessions) return null;
+    // No absences, no week card either: without them a sick or vacation week
+    // loses its credit and reads as "0 Std. von 39 Std." (#3885).
+    if (!weekTargets || !weekSessions || !weekAbsences || weekAbsencesError) {
+      return null;
+    }
     const effectiveEnd = today < weekEnd ? today : weekEnd;
     return computePeriodTotalsFromTargets(
       weekTargets,
@@ -249,7 +254,15 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
       weekEnd,
       effectiveEnd,
     );
-  }, [weekTargets, weekSessions, weekAbsences, weekStart, weekEnd, today]);
+  }, [
+    weekTargets,
+    weekSessions,
+    weekAbsences,
+    weekAbsencesError,
+    weekStart,
+    weekEnd,
+    today,
+  ]);
 
   const month = useMemo<PeriodTotals | null>(() => {
     if (!monthSummary) return null;

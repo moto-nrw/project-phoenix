@@ -393,12 +393,22 @@ func authExec(t *testing.T, tc *testContext, req *http.Request, claims jwt.AppCl
 // production root's review policy adapter does.
 type callerReviewAccess struct {
 	reviews interface {
+		ReviewScope(ctx context.Context, permissions []string) (bool, []int64, error)
+		AbsenceReviewScope(ctx context.Context, permissions []string) (bool, []int64, error)
 		ReviewAccessLevel(ctx context.Context, permissions []string) (string, error)
 	}
 }
 
 func (a callerReviewAccess) AccessLevel(ctx context.Context, permissions []string) (string, error) {
 	return a.reviews.ReviewAccessLevel(ctx, permissions)
+}
+
+func (a callerReviewAccess) Scope(ctx context.Context, permissions []string) (bool, []int64, error) {
+	return a.reviews.ReviewScope(ctx, permissions)
+}
+
+func (a callerReviewAccess) AbsenceScope(ctx context.Context, permissions []string) (bool, []int64, error) {
+	return a.reviews.AbsenceReviewScope(ctx, permissions)
 }
 
 // exportSchools reads the export title through the Organisation & Tenancy

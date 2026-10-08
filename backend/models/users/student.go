@@ -7,8 +7,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // StudentStatus represents the lifecycle status of a student.
@@ -134,8 +134,8 @@ type Student struct {
 	Excused       *bool          `bun:"excused" json:"excused,omitempty"`                             // true = currently excused (not attending today)
 	ExcusedSince  *time.Time     `bun:"excused_since" json:"excused_since,omitempty"`                 // When excused status was reported
 	Status        StudentStatus  `bun:"status,notnull,default:'active'" json:"status"`
-	EnrolledFrom  *timezone.Date `bun:"enrolled_from,type:date" json:"enrolled_from,omitempty"`
-	EnrolledUntil *timezone.Date `bun:"enrolled_until,type:date" json:"enrolled_until,omitempty"`
+	EnrolledFrom  *calendar.Date `bun:"enrolled_from,type:date" json:"enrolled_from,omitempty"`
+	EnrolledUntil *calendar.Date `bun:"enrolled_until,type:date" json:"enrolled_until,omitempty"`
 
 	// Photo (optional, gated by operations.student_photos_enabled setting +
 	// per-student parental consent recorded in photo_consent_given_at).

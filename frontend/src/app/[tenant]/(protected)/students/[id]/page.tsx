@@ -36,6 +36,10 @@ import {
 import { useStudentEnrollmentExtraFields } from "~/lib/hooks/use-student-enrollment-extra-fields";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
+import {
+  LAST_GROUP_SECTION_STORAGE_KEY,
+  parseOgsGroupSection,
+} from "~/lib/ogs-group-sections";
 import { useSWRAuth } from "~/lib/swr";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
@@ -571,9 +575,13 @@ function StudentDetailPageContent() {
       : visibleTabs;
 
   // Set breadcrumb data, include group/room name for 3-level breadcrumb
-  // when navigating from an accordion section (e.g. Meine Gruppe > 1a > Mia Fischer)
+  // when navigating from an accordion section (e.g. Weitere Gruppen > 1a > Mia Fischer)
   const breadcrumbGroupName = useLocalStorageValue(
     "sidebar-last-group-name",
+    referrer.startsWith("/ogs-groups"),
+  );
+  const breadcrumbGroupSection = useLocalStorageValue(
+    LAST_GROUP_SECTION_STORAGE_KEY,
     referrer.startsWith("/ogs-groups"),
   );
   const breadcrumbRoomName = useLocalStorageValue(
@@ -585,6 +593,7 @@ function StudentDetailPageContent() {
     studentName: student?.name,
     referrerPage: referrer,
     ogsGroupName: breadcrumbGroupName ?? undefined,
+    ogsGroupSection: parseOgsGroupSection(breadcrumbGroupSection),
     activeSupervisionName: breadcrumbRoomName ?? undefined,
   });
 

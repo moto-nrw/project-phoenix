@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -37,17 +36,16 @@ import (
 type StaffNoticeResource struct {
 	Service   timetable.StaffNotices
 	accountID func(context.Context) int64
-	db        *bun.DB
 }
 
 // NewStaffNoticeResource verdrahtet die Ressource. accountID löst das handelnde
 // Konto der Anfrage auf (die Session-Claims); die Wurzel reicht dafür eine
 // Funktion über ihre Identitäts-Middleware herein.
-func NewStaffNoticeResource(service timetable.StaffNotices, accountID func(context.Context) int64, db *bun.DB) *StaffNoticeResource {
-	if service == nil || accountID == nil || db == nil {
-		panic("staff notice resource: service, identity and db are required")
+func NewStaffNoticeResource(service timetable.StaffNotices, accountID func(context.Context) int64) *StaffNoticeResource {
+	if service == nil || accountID == nil {
+		panic("staff notice resource: service and identity are required")
 	}
-	return &StaffNoticeResource{Service: service, accountID: accountID, db: db}
+	return &StaffNoticeResource{Service: service, accountID: accountID}
 }
 
 // Router liefert den Router unter /api/staff-notices: die Sicht der Betreuung
@@ -56,7 +54,7 @@ func (rs *StaffNoticeResource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
+	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		read := common.RequiresPermission(permissions.UsersRead)
 		// Schreiben ist adminexklusiv: die Zielgruppe wählt die Leitung beim
 		// Anlegen, sie ist kein Recht, das jemand anderes halten könnte.
@@ -82,7 +80,7 @@ func (rs *StaffNoticeResource) SchoolRouter() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedSchoolGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
+	common.ProtectedSchoolRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		read := common.RequiresPermission(permissions.StaffNoticesRead)
 
 		r.With(read, withTx).Get("/today", rs.todayFor(timetable.StaffNoticeAudienceLehrkraft))

@@ -120,10 +120,9 @@ type staffShiftsRoute struct {
 // resolves to staff 42 and account 7, the way the JWT claims normally drive.
 func setupStaffShiftsRoute(t *testing.T, planning workforce.StaffShiftPlanning) *staffShiftsRoute {
 	t.Helper()
-	db := testpkg.SetupTestDB(t)
+	testpkg.SetupTestDB(t)
 	resource := NewStaffShiftsResource(StaffShiftsDependencies{
 		Planning:       planning,
-		DB:             db,
 		ResolveStaffID: func(context.Context) (int64, error) { return testActorStaffID, nil },
 		ActorAccountID: func(context.Context) *int64 { var account int64 = 7; return &account },
 	})

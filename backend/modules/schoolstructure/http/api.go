@@ -11,22 +11,23 @@ import (
 	"strconv"
 	"time"
 
+	educationModels "github.com/moto-nrw/project-phoenix/models/education"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // CallerGroups resolves the educational groups of the request's caller.
 type CallerGroups interface {
-	GetMyGroups(ctx context.Context) ([]*education.Group, error)
+	GetMyGroups(ctx context.Context) ([]*educationModels.Group, error)
 }
 
 // GroupPeople is the People Directory side of the group routes: the children
@@ -45,14 +46,14 @@ type GroupPeople interface {
 
 // Resource defines the group API resource
 type Resource struct {
-	EducationService   educationSvc.Service
+	EducationService   GroupService
 	ActiveService      studentpresence.Presence
 	People             GroupPeople
 	UserContextService CallerGroups
 }
 
 // NewResource creates a new groups resource
-func NewResource(educationService educationSvc.Service, activeService studentpresence.Presence, people GroupPeople, userContextService CallerGroups) *Resource {
+func NewResource(educationService GroupService, activeService studentpresence.Presence, people GroupPeople, userContextService CallerGroups) *Resource {
 	return &Resource{
 		EducationService:   educationService,
 		ActiveService:      activeService,
@@ -132,7 +133,7 @@ func (req *GroupRequest) Bind(_ *http.Request) error {
 }
 
 // newGroupResponse converts a group model to a response object
-func newGroupResponse(group *education.Group, teachers []*educationSvc.Teacher, studentCount int) GroupResponse {
+func newGroupResponse(group *education.Group, teachers []*education.Teacher, studentCount int) GroupResponse {
 	response := GroupResponse{
 		ID:           group.ID,
 		Name:         group.Name,
@@ -275,7 +276,7 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 	teachersByGroup, err := rs.EducationService.GetTeachersForGroups(r.Context(), groupIDs)
 	if err != nil {
 		slog.Default().Warn("failed to batch load teachers", slog.String("error", err.Error()))
-		teachersByGroup = make(map[int64][]*educationSvc.Teacher)
+		teachersByGroup = make(map[int64][]*education.Teacher)
 	}
 
 	// Build response using pre-loaded data
@@ -316,7 +317,7 @@ func (rs *Resource) getGroup(w http.ResponseWriter, r *http.Request) {
 		slog.Default().Warn("failed to get teachers for group",
 			slog.Int64("group_id", id),
 			slog.String("error", err.Error()))
-		teachers = []*educationSvc.Teacher{}
+		teachers = []*education.Teacher{}
 	}
 
 	// Get student count for this group

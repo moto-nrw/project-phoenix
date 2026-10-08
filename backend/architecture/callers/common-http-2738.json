@@ -1,0 +1,33 @@
+{
+  "evidence_base": "6f7128cff805697af1b1ac9c1e213c2e68aca03e",
+  "generator": "scripts/run-go-toolchain.sh go run scripts/backend-common-http-callers/main.go; Go AST inventory over backend/**/*.go including tests, excluding synthetic testdata and ignored runtime directories",
+  "replacement_provider": "github.com/moto-nrw/project-phoenix/modules/delivery/objects",
+  "retired_provider": {
+    "package": "github.com/moto-nrw/project-phoenix/internal/storage",
+    "remaining_importers": [],
+    "remaining_source_files": []
+  },
+  "retired_symbols": [
+    {
+      "package": "github.com/moto-nrw/project-phoenix/api/common",
+      "symbol": "ProtectedTenantGroup",
+      "declarations": [],
+      "references": []
+    },
+    {
+      "package": "github.com/moto-nrw/project-phoenix/api/common",
+      "symbol": "ProtectedSchoolGroup",
+      "declarations": [],
+      "references": []
+    },
+    {
+      "package": "github.com/moto-nrw/project-phoenix/internal/schoolclass",
+      "symbol": "GradePrefix",
+      "declarations": [],
+      "references": []
+    }
+  ],
+  "scanned_go_files": 6988,
+  "schema_version": 1,
+  "verification": "Full compilation and architecture graph verify type resolution; import and caller inventories report zero retired references, without a relocation mapping."
+}

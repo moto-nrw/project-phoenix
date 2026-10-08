@@ -192,8 +192,11 @@ function SettingsTabContent({
     });
   };
 
+  // Ein Gitter wächst nicht mit dem Seitenrumpf. Die Bereiche sind eine
+  // Liste einzelner Karten; die letzte zog sich sonst auf einem kurzen Reiter
+  // als leere Fläche bis zur Unterkante (#3893).
   return (
-    <div className="space-y-4">
+    <div className="grid grid-cols-1 gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-sm">
           <Search

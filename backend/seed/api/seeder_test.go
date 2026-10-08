@@ -1653,7 +1653,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				"data":   []map[string]any{{"id": idCounter, "name": "Betreuung"}},
 			})
 
-		case "/api/active/visits":
+		case "/api/active/visits", "/api/time-tracking/holidays":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
 				"data":   []any{},
@@ -1678,6 +1678,24 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				"data": map[string]any{
 					"id": fmt.Sprintf("%d", idCounter),
 				},
+			})
+
+		case "/api/guardians/invitations/pending":
+			// Three approvals left an open invitation; two stay open.
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": []map[string]any{
+					{"id": 1, "guardian_profile_id": 703, "token": "existing-invite-703"},
+					{"id": 2, "guardian_profile_id": 701, "token": "existing-invite-701"},
+					{"id": 3, "guardian_profile_id": 702, "token": "existing-invite-702"},
+				},
+			})
+
+		case "/api/import/students/import":
+			// The import audit upserts one child the school already has.
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data":   map[string]any{"CreatedCount": 0, "UpdatedCount": 1, "ErrorCount": 0},
 			})
 
 		case "/api/files/audience":

@@ -17,11 +17,9 @@ import (
 	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/uptrace/bun"
 )
 
 type Resource = roomsHTTP.Resource
@@ -32,27 +30,26 @@ type Dependencies struct {
 	UserContext CallerStaff
 	Active      studentpresence.Presence
 	Users       usersService.PersonService
-	Education   educationService.Service
+	Education   SchoolGroups
 	ListExport  *listexport.RendererService
 }
 
 func NewResource(
 	rooms facilitiesModule.Capability,
 	dependencies Dependencies,
-	db *bun.DB,
 	logger *slog.Logger,
 ) *roomsHTTP.Resource {
 	if dependencies.Facilities == nil || dependencies.Settings == nil || dependencies.UserContext == nil ||
 		dependencies.Active == nil || dependencies.Users == nil || dependencies.Education == nil ||
-		dependencies.ListExport == nil || db == nil || logger == nil {
+		dependencies.ListExport == nil || logger == nil {
 		panic("rooms HTTP composition: all dependencies are required")
 	}
-	return roomsHTTP.NewResource(rooms, runtime(dependencies, db, logger))
+	return roomsHTTP.NewResource(rooms, runtime(dependencies, logger))
 }
 
-func runtime(dependencies Dependencies, db *bun.DB, logger *slog.Logger) roomsHTTP.Runtime {
+func runtime(dependencies Dependencies, logger *slog.Logger) roomsHTTP.Runtime {
 	return roomsHTTP.Runtime{
-		Protected:        protectedRoutes(db),
+		Protected:        protectedRoutes(),
 		Permission:       apiCommon.RequiresPermission,
 		ParseID:          apiCommon.ParseID,
 		Pagination:       apiCommon.ParsePagination,
@@ -76,9 +73,9 @@ func runtime(dependencies Dependencies, db *bun.DB, logger *slog.Logger) roomsHT
 	}
 }
 
-func protectedRoutes(db *bun.DB) func(chi.Router, func(chi.Router, roomsHTTP.Middleware)) {
+func protectedRoutes() func(chi.Router, func(chi.Router, roomsHTTP.Middleware)) {
 	return func(router chi.Router, routes func(chi.Router, roomsHTTP.Middleware)) {
-		apiCommon.ProtectedTenantGroup(router, db, routes)
+		apiCommon.ProtectedTenantRoutes(router, routes)
 	}
 }
 

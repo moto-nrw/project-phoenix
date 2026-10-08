@@ -277,6 +277,9 @@ type ScheduledInstance struct {
 	ReopenUntil      *time.Time `json:"reopen_until,omitempty"`
 	// HasCompletionSnapshot reports a completion a reopen can restore.
 	HasCompletionSnapshot bool `json:"-"`
+	// IsDuty marks a block of a duty template (#3822): staff only, no
+	// children. Read along from the linked template; not part of the wire.
+	IsDuty bool `json:"-"`
 }
 
 // OperationQuery reads the operational day: the caller's planned blocks,

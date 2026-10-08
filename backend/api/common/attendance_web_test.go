@@ -8,8 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
 )
@@ -18,8 +17,10 @@ func TestRequireWebAttendanceEnabled(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		settings   configService.SettingsService
+		name     string
+		settings interface {
+			ResolveBool(context.Context, string) (bool, error)
+		}
 		wantStatus int
 		wantBody   string
 		wantNext   bool

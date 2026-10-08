@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
-	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 )
 
 // activityCatalog binds the activity provisioning of the special rooms to
@@ -86,7 +85,7 @@ func (c activityCatalog) CreateActivity(ctx context.Context, input ports.NewActi
 
 // groupDirectory binds the education group lookup of the daily-checkout
 // gate to the retained education service.
-type groupDirectory struct{ education educationSvc.Service }
+type groupDirectory struct{ education SchoolGroups }
 
 func (g groupDirectory) Find(ctx context.Context, id int64) (*ports.Group, error) {
 	group, err := g.education.GetGroup(ctx, id)

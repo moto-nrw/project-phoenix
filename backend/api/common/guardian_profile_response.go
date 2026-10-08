@@ -1,10 +1,9 @@
 package common
 
 import (
+	"regexp"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
@@ -47,10 +46,27 @@ type GuardianProfileChild struct {
 	Status string `json:"status"`
 }
 
+// GuardianProfileData is the enrollment renderer's input projection. Present
+// distinguishes an absent profile from an existing profile with empty fields.
+type GuardianProfileData struct {
+	Present             bool
+	FirstName, LastName string
+	Email               *string
+	PrimaryPhone        string
+	Children            []GuardianProfileChildData
+}
+
+type GuardianProfileChildData struct {
+	StudentID                        int64
+	FirstName, LastName, SchoolClass string
+	EnrollmentSubmit                 bool
+	Status                           string
+}
+
 // BuildGuardianProfileResponse merges claims-derived defaults with the
 // (possibly nil) loaded profile. Nil loaded → defaults only with an empty
 // children list.
-func BuildGuardianProfileResponse(claims jwt.AppClaims, loaded *usersModels.GuardianProfileWithChildren) GuardianProfileResponse {
+func BuildGuardianProfileResponse(claims jwt.AppClaims, loaded *GuardianProfileData) GuardianProfileResponse {
 	resp := GuardianProfileResponse{
 		Guardian: GuardianProfileGuardian{
 			FirstName: claims.FirstName,
@@ -59,17 +75,17 @@ func BuildGuardianProfileResponse(claims jwt.AppClaims, loaded *usersModels.Guar
 		},
 		Children: []GuardianProfileChild{},
 	}
-	if loaded == nil || loaded.Profile == nil {
+	if loaded == nil || !loaded.Present {
 		return resp
 	}
-	if loaded.Profile.FirstName != "" {
-		resp.Guardian.FirstName = loaded.Profile.FirstName
+	if loaded.FirstName != "" {
+		resp.Guardian.FirstName = loaded.FirstName
 	}
-	if loaded.Profile.LastName != "" {
-		resp.Guardian.LastName = loaded.Profile.LastName
+	if loaded.LastName != "" {
+		resp.Guardian.LastName = loaded.LastName
 	}
-	if loaded.Profile.Email != nil && *loaded.Profile.Email != "" {
-		resp.Guardian.Email = *loaded.Profile.Email
+	if loaded.Email != nil && *loaded.Email != "" {
+		resp.Guardian.Email = *loaded.Email
 	}
 	if loaded.PrimaryPhone != "" {
 		phone := loaded.PrimaryPhone
@@ -97,7 +113,7 @@ func BuildGuardianProfileResponse(claims jwt.AppClaims, loaded *usersModels.Guar
 // grade number or the extracted value cannot be represented as an int; the
 // form treats that as "no prefill".
 func ParseLeadingGradeLevel(schoolClass string) int {
-	digits := schoolclass.GradePrefix(schoolClass)
+	digits := enrollmentGradeDigits.FindString(schoolClass)
 	if digits == "" {
 		return 0
 	}
@@ -107,3 +123,5 @@ func ParseLeadingGradeLevel(schoolClass string) int {
 	}
 	return n
 }
+
+var enrollmentGradeDigits = regexp.MustCompile(`[0-9]+`)

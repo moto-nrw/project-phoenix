@@ -3,18 +3,35 @@ package repositories
 import (
 	"context"
 
-	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
 // NewEducationGroupRepository is the retained group store on the tenant
 // runtime of the School Structure owner.
-func NewEducationGroupRepository(db *bun.DB) *educationRepo.GroupRepository {
-	return educationRepo.NewGroupRepository(schoolStructureCompose.NewLegacyRepositoryRuntime(db))
+func NewEducationGroupRepository(db *bun.DB, options ...educationRepo.GroupRepositoryDependencies) *educationGroupRepository {
+	var deps educationRepo.GroupRepositoryDependencies
+	if len(options) > 0 {
+		deps = options[0]
+	}
+	directory := &educationRoomDirectory{}
+	if deps.Rooms == nil {
+		deps.Rooms = func() educationRepo.GroupRoomLookup {
+			if directory.rooms == nil {
+				return nil
+			}
+			return directory
+		}
+	}
+	return &educationGroupRepository{GroupRepository: educationRepo.NewGroupRepository(educationRepo.NewLegacyRepositoryRuntime(db), deps), rooms: directory}
+}
+
+type educationGroupRepository struct {
+	*educationRepo.GroupRepository
+	rooms *educationRoomDirectory
 }
 
 // The retained School Structure repository contracts the legacy composition
@@ -23,7 +40,7 @@ func NewEducationGroupRepository(db *bun.DB) *educationRepo.GroupRepository {
 // rows (#2742). Every contract goes with the last consumer that uses it.
 
 // EducationGroupRepository is the retained contract of education.groups,
-// served by database/repositories/education.
+// served by the School Structure composition adapter.
 type EducationGroupRepository interface {
 	Create(ctx context.Context, group *educationModels.Group) error
 	FindByID(ctx context.Context, id any) (*educationModels.Group, error)

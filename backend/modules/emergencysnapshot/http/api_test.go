@@ -72,7 +72,7 @@ func TestSnapshotRouteAuthorization(t *testing.T) {
 				_, ok := tenant.TransactionFromContext(ctx)
 				require.True(t, ok, "the export must run inside the authenticated school's transaction")
 				return emergencysnapshot.File{Filename: "notfallliste.pdf", ContentType: "application/pdf", Data: []byte("%PDF-test")}, nil
-			}}, db)
+			}})
 			foreignID := strconv.FormatInt(foreign.TenantID, 10)
 			req := httptest.NewRequest(http.MethodPost, "/snapshot/export?tenant_id="+foreignID, strings.NewReader(`{"tenant_id":`+foreignID+`}`))
 			if tc.authenticated {
@@ -98,7 +98,7 @@ func TestSnapshotRouteAuthorization(t *testing.T) {
 
 func TestBinaryOwnerFailureWire(t *testing.T) {
 	t.Parallel()
-	rs := NewResource(fakeQuery{err: errors.New("active: GetStudentsAttendanceStatuses: database operation failed")}, nil)
+	rs := NewResource(fakeQuery{err: errors.New("active: GetStudentsAttendanceStatuses: database operation failed")})
 	rr := httptest.NewRecorder()
 	rs.exportSnapshot(rr, httptest.NewRequest(http.MethodPost, "/snapshot/export", nil))
 	require.Equal(t, 500, rr.Code)
@@ -107,7 +107,7 @@ func TestBinaryOwnerFailureWire(t *testing.T) {
 
 func TestExportSnapshotStreamsTheFile(t *testing.T) {
 	t.Parallel()
-	rs := NewResource(fakeQuery{file: emergencysnapshot.File{Filename: "notfallliste.pdf", ContentType: "application/pdf", Data: []byte("%PDF-1.4")}}, nil)
+	rs := NewResource(fakeQuery{file: emergencysnapshot.File{Filename: "notfallliste.pdf", ContentType: "application/pdf", Data: []byte("%PDF-1.4")}})
 	rr := httptest.NewRecorder()
 	rs.exportSnapshot(rr, httptest.NewRequest(http.MethodPost, "/snapshot/export", nil))
 
@@ -121,7 +121,7 @@ func TestExportSnapshotStreamsTheFile(t *testing.T) {
 // One owner-query failure surfaces through the existing error contract.
 func TestExportSnapshotReportsProjectionFailures(t *testing.T) {
 	t.Parallel()
-	rs := NewResource(fakeQuery{err: errors.New("owner query failed")}, nil)
+	rs := NewResource(fakeQuery{err: errors.New("owner query failed")})
 	rr := httptest.NewRecorder()
 	rs.exportSnapshot(rr, httptest.NewRequest(http.MethodPost, "/snapshot/export", nil))
 
@@ -131,7 +131,7 @@ func TestExportSnapshotReportsProjectionFailures(t *testing.T) {
 
 func TestExportSnapshotRejectsMissingProjection(t *testing.T) {
 	t.Parallel()
-	rs := NewResource(nil, nil)
+	rs := NewResource(nil)
 	rr := httptest.NewRecorder()
 	rs.exportSnapshot(rr, httptest.NewRequest(http.MethodPost, "/snapshot/export", nil))
 

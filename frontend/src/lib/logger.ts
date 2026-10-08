@@ -18,6 +18,10 @@ import {
 } from "~/lib/log-redaction";
 import { expectedFailure } from "~/lib/expected-failure";
 import { reportLogToSentry } from "~/lib/logger-sentry";
+import {
+  isClientLogShippingPaused,
+  pauseClientLogShipping,
+} from "~/lib/rate-limit-backoff";
 
 /**
  * Log severity levels (matches backend slog)
@@ -369,6 +373,9 @@ class ClientLogger implements Logger {
     // Clear batch immediately (avoid duplicates)
     this.batch = [];
 
+    // Over the log quota: drop silently. Errors still reach Sentry.
+    if (isClientLogShippingPaused()) return;
+
     try {
       const response = await fetch(clientLogEndpoint(), {
         method: "POST",
@@ -379,7 +386,9 @@ class ClientLogger implements Logger {
           this.MAX_KEEPALIVE_PAYLOAD_BYTES,
       });
 
-      if (!response.ok) {
+      if (response.status === 429) {
+        pauseClientLogShipping(response.headers.get("Retry-After"));
+      } else if (!response.ok) {
         // Fallback to console if API fails
         console.warn("[Logger] Failed to ship logs:", response.statusText);
       }

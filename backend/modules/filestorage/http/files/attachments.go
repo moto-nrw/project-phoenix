@@ -82,7 +82,7 @@ func newAttachmentListResponse(attachments []filestorage.Attachment, editable bo
 // attach a file to it.
 func (rs *Resource) AnnouncementAttachmentRouter() chi.Router {
 	r := chi.NewRouter()
-	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
+	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		admin := common.RequiresPermission(permissions.AdminWildcard)
 
 		r.With(admin, withTx).Get("/{announcementId}", rs.listAnnouncementAttachments)

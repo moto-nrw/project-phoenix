@@ -119,7 +119,7 @@ func newStaffComposition(module schoolMembershipModule.Capability, workforce wor
 	staffAdmin := newStaffAdminResource(capabilities, workforce, services.StaffTimeTrackingNotifier(svc.RealtimeHub), exportTransfer, db, logger)
 	return newStaffResource(module, func(hooks services.StaffMembershipHooks) services.StaffMembershipRuntime {
 		return svc.NewStaffMembershipRuntime(db, logger, hooks)
-	}, staffAdmin, db, logger), staffAdmin, nil
+	}, staffAdmin, logger), staffAdmin, nil
 }
 
 // newExportTransferModule wires the Export Transfer capability (#3050) over
@@ -155,7 +155,7 @@ func newExportTransferModule(svc *services.Factory, db *bun.DB, logger *slog.Log
 
 // newStaffResource binds the School Membership HTTP adapter to the shared
 // renderer, the JWT identity and the legacy-service composition.
-func newStaffResource(module schoolMembershipModule.Capability, buildRuntime func(services.StaffMembershipHooks) services.StaffMembershipRuntime, staffAdmin *timeTrackingHTTP.StaffAdminResource, db *bun.DB, logger *slog.Logger) *staffHTTP.Resource {
+func newStaffResource(module schoolMembershipModule.Capability, buildRuntime func(services.StaffMembershipHooks) services.StaffMembershipRuntime, staffAdmin *timeTrackingHTTP.StaffAdminResource, logger *slog.Logger) *staffHTTP.Resource {
 	runtime := buildRuntime(services.StaffMembershipHooks{
 		ResolveEditorStaffID:           staffAdmin.ResolveEditorStaffID,
 		QueueOffboardedDocumentCleanup: staffAdmin.QueueOffboardedStaffDocumentCleanup,
@@ -165,7 +165,7 @@ func newStaffResource(module schoolMembershipModule.Capability, buildRuntime fun
 		// routes register first, then the workforce admin routes from
 		// the Workforce module, both inside one protected tenant group.
 		Protected: func(router chi.Router, register func(chi.Router, staffHTTP.Middleware)) {
-			apiCommon.ProtectedTenantGroup(router, db, func(protected chi.Router, withTx apiCommon.Middleware) {
+			apiCommon.ProtectedTenantRoutes(router, func(protected chi.Router, withTx apiCommon.Middleware) {
 				register(protected, withTx)
 				staffAdmin.RegisterStaffRoutes(protected, withTx)
 			})

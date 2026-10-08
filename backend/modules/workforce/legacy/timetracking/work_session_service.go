@@ -357,26 +357,6 @@ func scheduleValidationErrorf(format string, args ...any) error {
 	return scheduleValidationError{message: fmt.Sprintf(format, args...)}
 }
 
-// ScheduleEntry mirrors a single day of the schedule-update request at the
-// service boundary (no api DTO types).
-type ScheduleEntry struct {
-	WeekIndex     int
-	DayOfWeek     int
-	TargetMinutes int
-	StartTime     *string
-}
-
-// ScheduleUpdateInput mirrors the PUT /staff/{id}/schedule request body at the
-// service boundary.
-type ScheduleUpdateInput struct {
-	Mode               string
-	ModelID            *int64
-	RotationLength     int
-	RotationAnchorDate string
-	Entries            []ScheduleEntry
-	SaveAsTemplateName string
-}
-
 // workSessionService implements WorkSessionService
 type workSessionService struct {
 	repo        timerecords.WorkSessionRepository
@@ -2849,7 +2829,7 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 
 // ApplyCustomScheduleRows replaces the schedule with custom rows and unbinds
 // any assigned template.
-func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff *StaffScheduleBinding, entries []*WorkScheduleRow, anchor timezone.Date) error {
+func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff *StaffScheduleBinding, entries []*WorkScheduleRow, anchor, validFrom timezone.Date) error {
 	// An omitted anchor keeps the staff-level one; the new version must be
 	// stamped with that same effective anchor, or it would silently re-parity
 	// once the staff anchor moves.
@@ -2857,15 +2837,15 @@ func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff 
 	if effective.IsZero() && staff.RotationAnchorDate != nil {
 		effective = *staff.RotationAnchorDate
 	}
-	// First rotational schedule of a staff member who has no anchor anywhere:
-	// stamp today, which is the version's valid_from. Leaving the column NULL
-	// would let a later template assignment write a staff-level anchor that
-	// these rows then fall back to, re-paritying their A/B weeks and moving a
-	// historical Saldo.
+	// First rotational schedule with no anchor uses its start day; a later
+	// template assignment would otherwise re-parity historical A/B weeks and Saldo.
 	if effective.IsZero() && isRotationalSchedule(entries) {
-		effective = timezone.DateFromTime(s.now())
+		effective = validFrom
+		if effective.IsZero() {
+			effective = timezone.DateFromTime(s.now())
+		}
 	}
-	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries, effective); err != nil {
+	if err := s.scheduleRepo.ReplaceScheduleWithValidFrom(ctx, staff.ID, entries, effective, validFrom); err != nil {
 		return fmt.Errorf("write custom schedule: %w", err)
 	}
 
@@ -2968,98 +2948,5 @@ func (s *workSessionService) applyCustomSchedule(ctx context.Context, staff *Sta
 		return nil
 	}
 
-	return s.ApplyCustomScheduleRows(ctx, staff, entries, anchor)
-}
-
-func buildScheduleEntries(reqEntries []ScheduleEntry, rotation int) ([]*WorkScheduleRow, []*WorkTimeTemplateEntry, error) {
-	entries := make([]*WorkScheduleRow, 0, len(reqEntries))
-	templateEntries := make([]*WorkTimeTemplateEntry, 0, len(reqEntries))
-	seenSlots := make(map[string]struct{}, len(reqEntries))
-	for _, e := range reqEntries {
-		if e.TargetMinutes <= 0 {
-			continue
-		}
-		if err := validateScheduleEntryRequest(e, rotation, seenSlots); err != nil {
-			return nil, nil, err
-		}
-		startTime, err := parseScheduleStartTime(e.StartTime)
-		if err != nil {
-			return nil, nil, err
-		}
-		entries = append(entries, &WorkScheduleRow{
-			WeekIndex:      e.WeekIndex,
-			RotationLength: rotation,
-			DayOfWeek:      e.DayOfWeek,
-			TargetMinutes:  e.TargetMinutes,
-			StartTime:      startTime,
-		})
-		templateEntries = append(templateEntries, &WorkTimeTemplateEntry{
-			WeekIndex:     e.WeekIndex,
-			DayOfWeek:     e.DayOfWeek,
-			TargetMinutes: e.TargetMinutes,
-			StartTime:     startTime,
-		})
-	}
-	return entries, templateEntries, nil
-}
-
-func parseScheduleStartTime(raw *string) (*time.Time, error) {
-	if raw == nil || *raw == "" {
-		return nil, nil
-	}
-	parsed, err := time.Parse("15:04", *raw)
-	if err != nil {
-		return nil, scheduleValidationErrorf("start_time must be HH:MM")
-	}
-	wallClock := timezone.NormalizeWallClock(parsed)
-	return &wallClock, nil
-}
-
-func validateScheduleEntryRequest(e ScheduleEntry, rotation int, seenSlots map[string]struct{}) error {
-	if e.WeekIndex < 0 || e.WeekIndex >= rotation {
-		return scheduleValidationErrorf("week_index %d outside rotation_length %d", e.WeekIndex, rotation)
-	}
-	if e.DayOfWeek < DayMonday || e.DayOfWeek > DaySunday {
-		return scheduleValidationErrorf("day_of_week must be between 0 and 6")
-	}
-	if e.TargetMinutes > scheduleEntryMaxTargetMinutes {
-		return scheduleValidationErrorf("target_minutes must be between 0 and %d", scheduleEntryMaxTargetMinutes)
-	}
-	slot := fmt.Sprintf("%d:%d", e.WeekIndex, e.DayOfWeek)
-	if _, ok := seenSlots[slot]; ok {
-		return scheduleValidationErrorf("duplicate schedule entry for week_index %d and day_of_week %d", e.WeekIndex, e.DayOfWeek)
-	}
-	seenSlots[slot] = struct{}{}
-	return nil
-}
-
-// isRotationalSchedule reports whether the rows span more than one week, i.e.
-// whether their parity depends on a rotation anchor at all. Single-week
-// schedules have no parity, so they keep a NULL anchor.
-func isRotationalSchedule(entries []*WorkScheduleRow) bool {
-	for _, e := range entries {
-		if e != nil && (e.RotationLength > 1 || e.WeekIndex > 0) {
-			return true
-		}
-	}
-	return false
-}
-
-// modelEntriesToScheduleRows converts work-time-model entries into schedule
-// snapshot rows, dropping non-positive target minutes.
-func modelEntriesToScheduleRows(modelEntries []*WorkTimeTemplateEntry, rotation int) []*WorkScheduleRow {
-	rows := make([]*WorkScheduleRow, 0, len(modelEntries))
-	for _, e := range modelEntries {
-		if e.TargetMinutes <= 0 {
-			continue
-		}
-		rows = append(rows, &WorkScheduleRow{
-			WeekIndex:      e.WeekIndex,
-			RotationLength: rotation,
-			DayOfWeek:      e.DayOfWeek,
-			TargetMinutes:  e.TargetMinutes,
-			StartTime:      e.StartTime,
-		})
-	}
-	return rows
+	return s.ApplyCustomScheduleRows(ctx, staff, entries, anchor, timezone.Date(in.ValidFrom))
 }

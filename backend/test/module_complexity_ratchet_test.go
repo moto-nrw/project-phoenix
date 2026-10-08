@@ -272,7 +272,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/workforce/internal/application/absence_allowance.go:(*Service).PreviewAllowanceRebooking":                               17,
 	"modules/workforce/internal/application/absence_allowance.go:(*Service).SetAllowance":                                            22,
 	"modules/workforce/internal/application/offboarding.go:(*Service).ExecuteStaffOffboarding":                                       39,
-	"modules/workforce/internal/application/service.go:(*Service).ReplaceStaffSchedule":                                              16,
 	"modules/workforce/internal/application/substitution.go:(*Service).UpdateGroupSubstitution":                                      16,
 	"modules/workforce/internal/domain/absence_allowance.go:BuildAllowanceLedger":                                                    23,
 	"modules/workforce/internal/domain/shift.go:ValidateStaffShiftSeries":                                                            20,

@@ -141,6 +141,59 @@ describe("rate-limit fetch guard", () => {
     expect(blocked.status).toBe(429);
   });
 
+  it("lets a log-route 429 pass without locking requests or toasting", async () => {
+    const backendFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("rate limited", {
+          status: 429,
+          headers: { "Retry-After": "60" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response("rate limited", {
+          status: 429,
+          headers: { "Retry-After": "60" },
+        }),
+      )
+      .mockResolvedValue(new Response(null));
+    const notice = vi.fn();
+    window.addEventListener("phoenix:rate-limited", notice);
+    const rateLimit = await loadGuard(backendFetch);
+
+    const tenantLogs = await fetch("/api/logs", { method: "POST" });
+    const parentLogs = await fetch("/api/parent/logs", { method: "POST" });
+    const write = await fetch("/api/students/1", { method: "PATCH" });
+
+    expect(tenantLogs.status).toBe(429);
+    expect(parentLogs.status).toBe(429);
+    expect(write.status).toBe(200);
+    expect(backendFetch).toHaveBeenCalledTimes(3);
+    expect(rateLimit.remainingRateLimitMs("POST")).toBe(0);
+    expect(notice).not.toHaveBeenCalled();
+
+    window.removeEventListener("phoenix:rate-limited", notice);
+  });
+
+  it("still ships logs while the write bucket is locked", async () => {
+    const backendFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("rate limited", {
+          status: 429,
+          headers: { "Retry-After": "17" },
+        }),
+      )
+      .mockResolvedValue(new Response(null));
+    await loadGuard(backendFetch);
+
+    await fetch("/api/students/1", { method: "PATCH" });
+    const logs = await fetch("/api/logs", { method: "POST" });
+
+    expect(logs.status).toBe(200);
+    expect(backendFetch).toHaveBeenCalledTimes(2);
+  });
+
   it("recognizes structured and message-based 429 errors", async () => {
     const rateLimit = await loadGuard(vi.fn());
 

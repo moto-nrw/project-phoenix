@@ -3,7 +3,7 @@ package users
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Care-status windows of the staff directory: the two sides of the enrolment
@@ -35,7 +35,7 @@ type StudentDirectoryFilter struct {
 	// running.
 	CareStatus string
 	// CareStatusOn is the caller's frozen calendar day for that boundary.
-	CareStatusOn timezone.Date
+	CareStatusOn calendar.Date
 	// Page is 1-based; a PageSize of 0 returns the whole selection, which is
 	// what the exports need.
 	Page     int
@@ -45,11 +45,11 @@ type StudentDirectoryFilter struct {
 // OptionalCalendarDate reads a calendar day the owner rendered, or nil when it
 // is unset. A value the owner cannot have produced becomes unset rather than a
 // wrong day.
-func OptionalCalendarDate(value string) *timezone.Date {
+func OptionalCalendarDate(value string) *calendar.Date {
 	if value == "" {
 		return nil
 	}
-	parsed, err := timezone.ParseDate(value)
+	parsed, err := calendar.ParseDate(value)
 	if err != nil {
 		return nil
 	}
@@ -59,7 +59,7 @@ func OptionalCalendarDate(value string) *timezone.Date {
 // CalendarDate is the calendar-day value the retained models carry, named here
 // so a composition seam can pass one across without reaching for the shared
 // date package itself.
-type CalendarDate = timezone.Date
+type CalendarDate = calendar.Date
 
 // RenderCalendarDate is the inverse of OptionalCalendarDate: the owner's wire
 // form of a day, empty when there is none.
@@ -72,7 +72,7 @@ func RenderCalendarDate(value *CalendarDate) string {
 
 // TodayCalendarDate is the current Berlin calendar day. The live rosters
 // compare the care window against it.
-func TodayCalendarDate() CalendarDate { return timezone.TodayDate() }
+func TodayCalendarDate() CalendarDate { return calendar.TodayDate() }
 
 // CalendarDateOf is the calendar day an instant falls on in Berlin.
-func CalendarDateOf(value time.Time) CalendarDate { return timezone.DateFromTime(value) }
+func CalendarDateOf(value time.Time) CalendarDate { return calendar.DateFromTime(value) }

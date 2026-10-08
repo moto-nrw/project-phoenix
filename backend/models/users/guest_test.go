@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-func datePtr(d timezone.Date) *timezone.Date { return &d }
+func datePtr(d calendar.Date) *calendar.Date { return &d }
 
 func TestGuest_Validate(t *testing.T) {
 	t.Parallel()
@@ -34,8 +34,8 @@ func TestGuest_Validate(t *testing.T) {
 				ContactEmail:      "guest@example.com",
 				ContactPhone:      "+49 123 456789",
 				ActivityExpertise: "Basketball",
-				StartDate:         datePtr(timezone.TodayDate()),
-				EndDate:           datePtr(timezone.TodayDate().AddDays(30)),
+				StartDate:         datePtr(calendar.TodayDate()),
+				EndDate:           datePtr(calendar.TodayDate().AddDays(30)),
 			},
 			wantErr: false,
 		},
@@ -100,8 +100,8 @@ func TestGuest_Validate(t *testing.T) {
 			guest: &Guest{
 				StaffID:           1,
 				ActivityExpertise: "Soccer",
-				StartDate:         datePtr(timezone.TodayDate().AddDays(1)),
-				EndDate:           datePtr(timezone.TodayDate()),
+				StartDate:         datePtr(calendar.TodayDate().AddDays(1)),
+				EndDate:           datePtr(calendar.TodayDate()),
 			},
 			wantErr: true,
 		},

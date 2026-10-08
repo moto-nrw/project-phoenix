@@ -237,7 +237,7 @@ func (e engine) ReplaceStaffSchedule(ctx context.Context, input workforce.Replac
 			DayOfWeek: entry.DayOfWeek, TargetMinutes: entry.TargetMinutes, StartTime: entry.StartTime,
 		})
 	}
-	return mapError(e.service.ReplaceStaffSchedule(ctx, input.StaffID, entries, input.RotationAnchorDate))
+	return mapError(e.service.ReplaceStaffSchedule(ctx, input.StaffID, entries, input.RotationAnchorDate, input.ValidFrom))
 }
 
 func (e engine) CurrentStaffSchedule(ctx context.Context, staffID int64) ([]workforce.StaffWorkSchedule, error) {

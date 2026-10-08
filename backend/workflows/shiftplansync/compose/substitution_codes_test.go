@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	substitution "github.com/moto-nrw/project-phoenix/services/education"
+	substitution "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -56,6 +56,6 @@ func TestScheduleSubstitutionExternalInterfaceKeepsRefusalCodes(t *testing.T) {
 	require.ErrorIs(t, err, substitution.ErrInvalidTarget)
 	require.ErrorAs(t, err, &operationError)
 	require.Equal(t, "timetable.substitute_absent_on_date", operationError.Code)
-	require.Equal(t, map[string]any{"date": secondDate.Format("02.01.2006")}, operationError.Details)
+	require.Equal(t, substitution.SubstitutionRefusalValues{Date: secondDate.Format("02.01.2006")}, operationError.Details)
 	require.Equal(t, "substitute_staff_id", operationError.Field)
 }

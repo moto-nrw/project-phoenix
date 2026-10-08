@@ -12,7 +12,7 @@ const MIN_VISIBLE_PX = 8;
 export type ParentFirstStepKey =
   "start" | "childData" | "messagesNews" | "installApp" | "notifications";
 
-export interface ParentTourStop {
+interface ParentTourStop {
   readonly targets: string | readonly string[];
   readonly title: string;
   readonly text: string;
@@ -365,7 +365,7 @@ function isShown(element: Element): boolean {
   return bottom - top >= MIN_VISIBLE_PX && right - left >= MIN_VISIBLE_PX;
 }
 
-export function findParentTourTarget(
+function findParentTourTarget(
   selectors: string | readonly string[],
 ): Element | null {
   const candidates = typeof selectors === "string" ? [selectors] : selectors;

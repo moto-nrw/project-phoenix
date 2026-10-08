@@ -46,6 +46,11 @@ import { useSidebarGroups } from "~/lib/hooks/use-sidebar-groups";
 import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
 import { useSidebarCollapseTransition } from "~/lib/hooks/use-sidebar-collapse-transition";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
+import {
+  LAST_GROUP_SECTION_STORAGE_KEY,
+  OGS_GROUP_SECTION_LABELS,
+  ogsGroupSectionOf,
+} from "~/lib/ogs-group-sections";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";
@@ -1259,11 +1264,13 @@ function SidebarContent({
   useEffect(() => {
     if (pathname.startsWith("/ogs-groups") && currentGroupParam) {
       localStorage.setItem("sidebar-last-group", currentGroupParam);
-      const groupName = groups.find(
-        (g) => g.id.toString() === currentGroupParam,
-      )?.name;
-      if (groupName) {
-        localStorage.setItem("sidebar-last-group-name", groupName);
+      const group = groups.find((g) => g.id.toString() === currentGroupParam);
+      if (group) {
+        localStorage.setItem("sidebar-last-group-name", group.name);
+        localStorage.setItem(
+          LAST_GROUP_SECTION_STORAGE_KEY,
+          ogsGroupSectionOf(group.is_personal),
+        );
       }
     }
   }, [pathname, currentGroupParam, groups]);
@@ -1485,7 +1492,7 @@ function SidebarContent({
         <SidebarAccordionSection
           icon={GROUP_NAV_ICON}
           concept="groups"
-          label="Meine Gruppen"
+          label={OGS_GROUP_SECTION_LABELS.personal}
           tourId="nav-section-groups"
           activeColor="text-moto-green"
           isExpanded={expanded === "groups" && !areOtherGroupsExpanded}
@@ -1553,7 +1560,7 @@ function SidebarContent({
               <SidebarAccordionSection
                 icon={GROUP_NAV_ICON}
                 concept="groups"
-                label="Weitere Gruppen"
+                label={OGS_GROUP_SECTION_LABELS.other}
                 activeColor="text-moto-green"
                 isExpanded={areOtherGroupsExpanded}
                 collapsed={collapsed}

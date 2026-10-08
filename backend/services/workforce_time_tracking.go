@@ -363,21 +363,15 @@ func (c workSessionCapability) ExportSessions(ctx context.Context, staffID int64
 }
 
 func (c workSessionCapability) UpdateStaffSchedule(ctx context.Context, staffID int64, input workforce.ScheduleUpdateInput) error {
+	// A template keeps the version it assigns starting today (#3892).
+	if input.ValidFrom != "" && (input.Mode == "template" || input.SaveAsTemplateName != "") {
+		return fmt.Errorf("%w: valid_from is only supported for a custom schedule", workforce.ErrScheduleValidation)
+	}
 	staff, err := c.people.GetStaffByID(ctx, staffID)
 	if err != nil {
 		return err
 	}
-	legacyInput := timetracking.ScheduleUpdateInput{
-		Mode: input.Mode, ModelID: input.ModelID, RotationLength: input.RotationLength,
-		RotationAnchorDate: input.RotationAnchorDate, SaveAsTemplateName: input.SaveAsTemplateName,
-	}
-	if input.Entries != nil {
-		legacyInput.Entries = make([]timetracking.ScheduleEntry, 0, len(input.Entries))
-		for _, entry := range input.Entries {
-			legacyInput.Entries = append(legacyInput.Entries, timetracking.ScheduleEntry(entry))
-		}
-	}
-	return mapTimeTrackingFailure(c.sessions.UpdateSchedule(ctx, &timetracking.StaffScheduleBinding{ID: staff.ID, WorkTimeModelID: staff.WorkTimeModelID, RotationAnchorDate: staff.RotationAnchorDate}, legacyInput))
+	return mapTimeTrackingFailure(c.sessions.UpdateSchedule(ctx, &timetracking.StaffScheduleBinding{ID: staff.ID, WorkTimeModelID: staff.WorkTimeModelID, RotationAnchorDate: staff.RotationAnchorDate}, input))
 }
 
 // --- absences ---------------------------------------------------------------

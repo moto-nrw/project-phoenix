@@ -502,6 +502,7 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
+import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useSession } from "next-auth/react";
 import { isHomeLocation } from "~/lib/location-helper";
 import { substitutionService } from "~/lib/substitution-api";
@@ -2434,6 +2435,16 @@ describe("OGSGroupPage ID-based selection: First load initialization", () => {
     // First render with no selectedGroupId (adopted from the response)
     vi.mocked(useSWRAuth).mockReturnValue({
       data: liveData({
+        groups: [
+          {
+            id: "1",
+            name: "Mondgruppe",
+            roomId: "10",
+            roomName: "Raum 101",
+            viaSubstitution: false,
+            isPersonal: false,
+          },
+        ],
         students: [
           wireStudent({
             id: 1,
@@ -2458,6 +2469,11 @@ describe("OGSGroupPage ID-based selection: First load initialization", () => {
 
     // Verify first group's students are shown
     expect(screen.getByText(/Max Mustermann/)).toBeInTheDocument();
+    expect(localStorageMock).toMatchObject({
+      "sidebar-last-group": "1",
+      "sidebar-last-group-name": "Mondgruppe",
+      "sidebar-last-group-section": "other",
+    });
   });
 
   it("shows first group students only when first group is selected", async () => {
@@ -2724,6 +2740,8 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
     // is seeded synchronously from localStorage, so the very first SWR
     // call already targets group 2.
     localStorageMock["sidebar-last-group"] = "2";
+    localStorageMock["sidebar-last-group-name"] = "Veraltete Gruppe";
+    localStorageMock["sidebar-last-group-section"] = "personal";
 
     vi.mocked(useSWRAuth).mockReturnValue({
       data: liveData({
@@ -2738,11 +2756,11 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
           },
           {
             id: "2",
-            name: "Group B",
+            name: "Mondgruppe",
             roomId: "20",
             roomName: "Raum 202",
             viaSubstitution: false,
-            isPersonal: true,
+            isPersonal: false,
           },
         ],
         groupId: "2",
@@ -2768,6 +2786,11 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Erika Schmidt/)).toBeInTheDocument();
+    });
+    expect(localStorageMock).toMatchObject({
+      "sidebar-last-group": "2",
+      "sidebar-last-group-name": "Mondgruppe",
+      "sidebar-last-group-section": "other",
     });
   });
 
@@ -2802,7 +2825,11 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
 
     // Should persist first group to localStorage
     await waitFor(() => {
-      expect(localStorageMock["sidebar-last-group"]).toBe("1");
+      expect(localStorageMock).toMatchObject({
+        "sidebar-last-group": "1",
+        "sidebar-last-group-name": "OGS Gruppe A",
+        "sidebar-last-group-section": "personal",
+      });
     });
   });
 
@@ -3390,5 +3417,60 @@ describe("RoleGuard integration", () => {
 
     expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
     expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
+  });
+});
+
+// #3890: Eine Gruppe aus „Weitere Gruppen" hieß im Titel „Meine Gruppen" und
+// stand im Breadcrumb unter „Meine Gruppe". Titel ist jetzt der Gruppenname,
+// der Breadcrumb nennt den Bereich, unter dem die Gruppe in der Leiste steht.
+describe("OGSGroupPage title and breadcrumb (#3890)", () => {
+  function renderWithGroup(group: OgsLiveViewData["groups"][number]) {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({ groups: [group], groupId: group.id }),
+      isLoading: false,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+    } as never);
+    render(<OGSGroupPage />);
+  }
+
+  it("titles a group from „Weitere Gruppen“ with its name and that section", async () => {
+    renderWithGroup({
+      id: "7",
+      name: "Mondgruppe",
+      viaSubstitution: false,
+      isPersonal: false,
+    });
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Mondgruppe" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { level: 1, name: "Meine Gruppen" }),
+    ).not.toBeInTheDocument();
+    expect(vi.mocked(useSetBreadcrumb)).toHaveBeenLastCalledWith({
+      ogsGroupName: "Mondgruppe",
+      ogsGroupSection: "other",
+      pageTitle: "Weitere Gruppen",
+    });
+  });
+
+  it("keeps „Meine Gruppen“ as the section of an own group", async () => {
+    renderWithGroup({
+      id: "1",
+      name: "Sonnengruppe",
+      viaSubstitution: false,
+      isPersonal: true,
+    });
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Sonnengruppe" }),
+    ).toBeInTheDocument();
+    expect(vi.mocked(useSetBreadcrumb)).toHaveBeenLastCalledWith({
+      ogsGroupName: "Sonnengruppe",
+      ogsGroupSection: "personal",
+      pageTitle: "Meine Gruppen",
+    });
   });
 });

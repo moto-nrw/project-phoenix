@@ -51,7 +51,7 @@ func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *schoo
 	t.Helper()
 
 	db, services := testutil.SetupSchoolModule(t, clocks...)
-	classDayResource := classdayhttp.NewResource(services.ClassDay, db, nil)
+	classDayResource := classdayhttp.NewResource(services.ClassDay, nil)
 	timetableResource := timetable.NewResource(timetable.Dependencies{
 		OperationsService: services.TimetableOperations,
 		SupervisionSheets: services.TimetableSupervisionSheets, SettingsService: services.Settings,
@@ -62,7 +62,7 @@ func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *schoo
 		schoolportal.PasswordResetRuntime{}, classDayResource, timetableResource,
 		emptySchoolMessagingRouter{},
 		nil,
-		notifications.NewResource(services.Notifications, services.PushSubscriptions, services.NotificationPreferences, db),
+		notifications.NewResource(services.Notifications, services.PushSubscriptions, services.NotificationPreferences),
 	)
 
 	tenantID, subdomain := testpkg.CreateTestTenant(t, db)
@@ -148,7 +148,7 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 		_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("id = ?", assignment.ID).Exec(tenantCtx)
 	})
 
-	classDayResource := classdayhttp.NewResource(resource.ClassDay.ClassDay, db, nil)
+	classDayResource := classdayhttp.NewResource(resource.ClassDay.ClassDay, nil)
 	schoolRouter := schoolportal.NewResource(resource.AuthService, resource.MFAService, resource.Resets, classDayResource, newSchoolTimetableResource(db, resource), resource.StaffMessaging, nil, nil).Router()
 
 	schoolClaims := jwt.AppClaims{

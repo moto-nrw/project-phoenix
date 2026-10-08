@@ -67,9 +67,15 @@ vi.mock("~/lib/swr", () => ({
   mutate: vi.fn(),
 }));
 
+vi.mock("~/lib/parent-url", () => ({
+  parentAbsoluteUrl: (path: string) => path,
+  parentPath: (path: string) => path,
+}));
+
 import {
   TeacherShellProvider,
   OperatorShellProvider,
+  ParentShellProvider,
   useShellAuth,
 } from "./shell-auth-context";
 
@@ -696,6 +702,73 @@ describe("OperatorShellProvider", () => {
     await result.current.logout();
 
     expect(mockClearSessionCache).toHaveBeenCalled();
+  });
+});
+
+describe("ParentShellProvider", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // A parent token carries no names; its session name is the username,
+    // which is the account's address (#3891).
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "sabine.schneider@demo-7.example",
+          email: "sabine.schneider@demo-7.example",
+          roles: ["guardian"],
+        },
+      },
+      status: "authenticated",
+    });
+  });
+
+  it("names the parent after the guardian profile, not the session", () => {
+    const { result } = renderHook(() => useShellAuth(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <ParentShellProvider
+          accountName={{ firstName: "Florian", lastName: "Besuch" }}
+        >
+          {children}
+        </ParentShellProvider>
+      ),
+    });
+
+    expect(result.current.user?.name).toBe("Florian Besuch");
+    expect(result.current.profile).toEqual({
+      firstName: "Florian",
+      lastName: "Besuch",
+    });
+  });
+
+  it("never shows the address as the name while the profile is missing", () => {
+    const { result } = renderHook(() => useShellAuth(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <ParentShellProvider>{children}</ParentShellProvider>
+      ),
+    });
+
+    expect(result.current.user?.name).toBe("Eltern");
+    expect(result.current.profile).toBeNull();
+  });
+
+  it("keeps a real session name when the profile has none", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Karin Klein",
+          email: "karin@example.com",
+          roles: ["guardian"],
+        },
+      },
+      status: "authenticated",
+    });
+    const { result } = renderHook(() => useShellAuth(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <ParentShellProvider accountName={{}}>{children}</ParentShellProvider>
+      ),
+    });
+
+    expect(result.current.user?.name).toBe("Karin Klein");
   });
 });
 

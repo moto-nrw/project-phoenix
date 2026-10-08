@@ -34,7 +34,6 @@ func TestSessionStartMirrorsTenantAndWallClock(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "mirror-device")
 	deviceAuth := testutil.NewDeviceAuthenticators(active.IoT.Fleet(), testutil.DeviceSchools(t, db), auth.Settings, "1234")
 	resource := newRouterTestResource()
-	resource.DB = db
 	resource.DeviceAuthenticator = deviceAuth.Device()
 	resource.DeviceOnlyAuthenticator = deviceAuth.DeviceOnly()
 	// Mirroring must survive a failure of the trailing best-effort response read.

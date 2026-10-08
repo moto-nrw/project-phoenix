@@ -104,11 +104,10 @@ function context(overviewEnabled: boolean): OpenRoomBlockContext {
     allRooms: [],
     currentStaffId: "staff-1",
     mutateDashboard: vi.fn(),
-    refresh: vi.fn(),
     adoptSession: vi.fn(() => "/active-supervisions"),
     setSelectedTimetableInstanceId: vi.fn(),
     router: { push: vi.fn() },
-    reopenableInstanceId: null,
+    reopenable: null,
     rememberReopenable: vi.fn(),
     clearReopenable: vi.fn(),
     attendanceWebEnabled: true,
@@ -274,5 +273,43 @@ describe("OpenRoomSections (#3281)", () => {
     for (const name of BLOCK_ACTIONS) {
       expect(screen.getByRole("button", { name })).toBeInTheDocument();
     }
+  });
+});
+
+describe("OpenRoomSections search (#3889)", () => {
+  beforeEach(() => {
+    rosters.clear();
+    rosters.set("timetable-roster-own", roster("own", true));
+  });
+
+  it("narrows an own block's list to the children the page search finds", () => {
+    const sections = openRoomSections({
+      sessions: [block("own", { own: true, canOperate: true })],
+    });
+    if (!sections) throw new Error("the room has blocks");
+    render(
+      <OpenRoomSections
+        sections={sections}
+        students={[]}
+        filteredStudents={[]}
+        grid={{
+          pickupTimesData: undefined,
+          arrivalTimesData: undefined,
+          trackingData: undefined,
+          myGroupIds: [],
+          myGroupRooms: [],
+          now: new Date(),
+          onOpenStudent: vi.fn(),
+        }}
+        blocks={{
+          ...context(true),
+          rosterRowFilter: (row) => row.studentName.startsWith("Ben"),
+        }}
+      />,
+      { wrapper: ToastProvider },
+    );
+
+    expect(screen.getByText("Ben Beispiel")).toBeInTheDocument();
+    expect(screen.queryByText("Marie Muster")).not.toBeInTheDocument();
   });
 });

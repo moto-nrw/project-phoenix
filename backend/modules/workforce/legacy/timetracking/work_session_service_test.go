@@ -191,6 +191,7 @@ type wsMockStaffWorkScheduleRepository struct {
 	getCurrentByStaffIDFunc        func(ctx context.Context, staffID int64) ([]*WorkScheduleRow, error)
 	getByStaffIDAndDateFunc        func(ctx context.Context, staffID int64, date Date) ([]*WorkScheduleRow, error)
 	replaceScheduleFunc            func(ctx context.Context, staffID int64, entries []*WorkScheduleRow, anchor Date) error
+	replaceScheduleWithValidFromFn func(ctx context.Context, staffID int64, entries []*WorkScheduleRow, anchor, validFrom Date) error
 	findByStaffIDsValidInRangeFunc func(ctx context.Context, staffIDs []int64, from, to Date) ([]*WorkScheduleRow, error)
 	hasScheduleHistoryFunc         func(ctx context.Context, staffID int64) (bool, error)
 }
@@ -214,6 +215,13 @@ func (m *wsMockStaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context,
 		return m.replaceScheduleFunc(ctx, staffID, entries, anchor)
 	}
 	return nil
+}
+
+func (m *wsMockStaffWorkScheduleRepository) ReplaceScheduleWithValidFrom(ctx context.Context, staffID int64, entries []*WorkScheduleRow, anchor, validFrom Date) error {
+	if m.replaceScheduleWithValidFromFn != nil {
+		return m.replaceScheduleWithValidFromFn(ctx, staffID, entries, anchor, validFrom)
+	}
+	return m.ReplaceSchedule(ctx, staffID, entries, anchor)
 }
 
 func (m *wsMockStaffWorkScheduleRepository) FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to Date) ([]*WorkScheduleRow, error) {
@@ -3522,11 +3530,39 @@ func TestWSApplyCustomScheduleRows_StampsAnchorForFirstRotation(t *testing.T) {
 		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 2, DayOfWeek: DayMonday, TargetMinutes: 480},
 		{StaffID: staff.ID, WeekIndex: 1, RotationLength: 2, DayOfWeek: DayMonday, TargetMinutes: 240},
 	}
-	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, Date("")))
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, Date(""), Date("")))
 
 	assert.Equal(t, NewDate(2026, 8, 24), written, "rotational rows must carry the version's own anchor")
 	require.NotNil(t, staff.RotationAnchorDate)
 	assert.Equal(t, NewDate(2026, 8, 24), *staff.RotationAnchorDate)
+}
+
+func TestWSApplyCustomScheduleRows_UsesValidFromForFirstRotationAnchor(t *testing.T) {
+	t.Parallel()
+	svc, _, _, _, _ := wsCreateTestService()
+	staff := &StaffScheduleBinding{ID: 100}
+	validFrom := NewDate(2026, 6, 1)
+
+	var written Date
+	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
+		replaceScheduleFunc: func(_ context.Context, _ int64, _ []*WorkScheduleRow, anchor Date) error {
+			written = anchor
+			return nil
+		},
+	}
+	svc.staffRepo = &wsStaffAccessMock{
+		BindFn: func(context.Context, StaffScheduleBinding) error { return nil },
+	}
+
+	entries := []*WorkScheduleRow{
+		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 2, DayOfWeek: DayMonday, TargetMinutes: 480},
+		{StaffID: staff.ID, WeekIndex: 1, RotationLength: 2, DayOfWeek: DayMonday, TargetMinutes: 240},
+	}
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, Date(""), validFrom))
+
+	assert.Equal(t, validFrom, written)
+	require.NotNil(t, staff.RotationAnchorDate)
+	assert.Equal(t, validFrom, *staff.RotationAnchorDate)
 }
 
 // A single-week schedule has no A/B parity, so it keeps a NULL anchor.
@@ -3549,7 +3585,7 @@ func TestWSApplyCustomScheduleRows_SingleWeekKeepsAnchorUnset(t *testing.T) {
 	entries := []*WorkScheduleRow{
 		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 1, DayOfWeek: DayMonday, TargetMinutes: 480},
 	}
-	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, Date("")))
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, Date(""), Date("")))
 
 	assert.True(t, written.IsZero(), "single-week rows have no parity to anchor")
 	assert.Nil(t, staff.RotationAnchorDate)
@@ -3577,7 +3613,7 @@ func TestWSApplyCustomScheduleRows_ExistingStaffAnchorWins(t *testing.T) {
 	entries := []*WorkScheduleRow{
 		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 2, DayOfWeek: DayMonday, TargetMinutes: 480},
 	}
-	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, Date("")))
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, Date(""), Date("")))
 
 	assert.Equal(t, existing, written)
 	require.NotNil(t, staff.RotationAnchorDate)

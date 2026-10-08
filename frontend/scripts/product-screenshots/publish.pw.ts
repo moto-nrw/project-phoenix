@@ -3,9 +3,11 @@ import { test } from "@playwright/test";
 import { berlinTodayISO } from "../../src/lib/date-helpers";
 import { drivePublisher } from "./publish-drive";
 
-// Lädt eine fertige Ausgabe der Pipeline nach Google Drive (#3759). Läuft nur
-// in CI (.github/workflows/product-screenshots.yml), nach einem erfolgreichen
-// Lauf von generate.pw.ts; lokal wird nichts hochgeladen.
+// Lädt eine fertige Ausgabe der Pipeline nach Google Drive (#3759). Derzeit
+// in keinem Workflow angebunden: Releases bekommen die Ausgabe als ZIP-Anhang
+// (.github/workflows/product-screenshots.yml), bis es ein geteiltes
+// Google-Konto gibt. Danach wieder als Job nach einem erfolgreichen Lauf von
+// generate.pw.ts.
 //
 //   SHOT_OUT       Ausgabeverzeichnis der Pipeline
 //   SHOT_VERSION   Release-Version ohne `v`; muss im Manifest stehen
