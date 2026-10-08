@@ -268,7 +268,13 @@ const SCHOOL_ROLE_LABELS: Record<string, string> = {
   betreuungskraft: "Betreuungskraft",
 };
 
-const SYSTEM_ROLE_NAMES = new Set(Object.keys(SYSTEM_ROLE_TRANSLATIONS));
+// "teacher" is the retired predecessor of "user". It can no longer be
+// assigned, but existing sessions still carry it and must not be presented as
+// a school-specific role.
+const SYSTEM_ROLE_NAMES = new Set([
+  ...Object.keys(SYSTEM_ROLE_TRANSLATIONS),
+  "teacher",
+]);
 
 /**
  * The role label next to the name in the staff portal's header (#3891). An
@@ -287,7 +293,11 @@ export function getAccountRoleLabel(roleNames: readonly string[]): string {
     );
   }
   const systemRole = names.find((name) => name !== "user");
-  return systemRole ? getRoleDisplayName(systemRole) : "Betreuer";
+  return systemRole === "teacher"
+    ? "Betreuer"
+    : systemRole
+      ? getRoleDisplayName(systemRole)
+      : "Betreuer";
 }
 
 export interface RoleOption {

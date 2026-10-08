@@ -54,7 +54,9 @@ export function ParentAuthGuard({
   const { data: session, status } = useSession();
   // Der Name der Kopfzeile kommt aus dem Elternprofil (#3891).
   const { data: profile } = useSWR(
-    !isPublicPage && status === "authenticated" ? "parent-shell-profile" : null,
+    !isPublicPage && status === "authenticated" && session?.user?.id
+      ? ["parent-shell-profile", session.user.id]
+      : null,
     fetchParentProfile,
   );
 

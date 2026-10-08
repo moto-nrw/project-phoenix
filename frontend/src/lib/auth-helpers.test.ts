@@ -147,6 +147,7 @@ describe("getAccountRoleLabel", () => {
 
   it("falls back to the system roles", () => {
     expect(getAccountRoleLabel(["user"])).toBe("Betreuer");
+    expect(getAccountRoleLabel(["teacher"])).toBe("Betreuer");
     expect(getAccountRoleLabel([])).toBe("Betreuer");
     expect(getAccountRoleLabel(["guest"])).toBe("Gast");
   });
