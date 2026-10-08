@@ -122,14 +122,13 @@ function mockSWR(
       }
       if (typeof key === "string" && key.includes("absences")) {
         // Own portal: raw camelCase StaffAbsence[]; admin: StaffAbsenceRow[].
-        return errors.absences
-          ? {
-              data: undefined,
-              isLoading: false,
-              error: errors.absences,
-              mutate,
-            }
-          : { data: data.absences ?? [], isLoading: false, mutate };
+        return {
+          // SWR keeps the last response while a revalidation fails.
+          data: data.absences ?? [],
+          isLoading: false,
+          error: errors.absences,
+          mutate,
+        };
       }
       // The own history key is SHARED with the Zeiterfassung table and carries
       // that table's shape; the admin key carries a flat session array.
@@ -284,15 +283,17 @@ describe("usePeriodMetrics", () => {
     expect(result.current.week).toBeNull();
   });
 
-  // Without the absences a sick week loses its credit: Ist 0 against the full
-  // Soll would read as a reliable figure, not as a failed load (#3885).
-  it("reports no week when the week's absences failed to load", async () => {
+  // A failed refresh still exposes SWR's cached absence response. The week's
+  // figure must nevertheless stay unavailable: a cached empty list might miss
+  // a sick day's credit and read as a reliable value (#3885).
+  it("reports no week when refreshing cached absences fails", async () => {
     const error = new Error("absences unavailable");
     const swr = mockSWR(
       {
         summary: SUMMARY,
         targets: new Map([["2026-08-03", 480]]),
         sessions: [],
+        absences: [],
       },
       { absences: error },
     );
