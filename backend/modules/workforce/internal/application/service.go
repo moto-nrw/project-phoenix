@@ -235,8 +235,10 @@ func (s *Service) refreshAssignedSchedules(ctx context.Context, model domain.Wor
 
 // ReplaceStaffSchedule closes the staff member's running schedule versions at
 // today and writes the given entries as the new current version. A zero anchor
-// leaves the per-version anchor NULL: a one-week rotation has no parity.
-func (s *Service) ReplaceStaffSchedule(ctx context.Context, staffID int64, entries []domain.StaffWorkScheduleFields, anchor string) error {
+// leaves the per-version anchor NULL: a one-week rotation has no parity. An
+// empty validFrom starts the version today; an earlier day is checked by
+// domain.ScheduleVersionStart.
+func (s *Service) ReplaceStaffSchedule(ctx context.Context, staffID int64, entries []domain.StaffWorkScheduleFields, anchor, validFrom string) error {
 	if err := domain.ValidateDate(anchor, "rotation_anchor_date"); err != nil {
 		return err
 	}
@@ -247,36 +249,62 @@ func (s *Service) ReplaceStaffSchedule(ctx context.Context, staffID int64, entri
 	}
 	return s.run("replace_staff_schedule", func(stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
-			if err := s.transaction.LockStaffBalance(txCtx, staffID); err != nil {
-				return err
-			}
-			today := s.clock.Today()
-			closeStats, err := s.store.CloseStaffSchedules(txCtx, []int64{staffID}, today)
-			stats.Add(closeStats)
-			if err != nil {
-				return err
-			}
-			if len(entries) == 0 {
-				return nil
-			}
-			rows := make([]domain.StaffWorkSchedule, 0, len(entries))
-			for _, entry := range entries {
-				rows = append(rows, domain.StaffWorkSchedule{
-					StaffID:            staffID,
-					WeekIndex:          entry.WeekIndex,
-					RotationLength:     entry.RotationLength,
-					DayOfWeek:          entry.DayOfWeek,
-					TargetMinutes:      entry.TargetMinutes,
-					StartTime:          entry.StartTime,
-					RotationAnchorDate: anchor,
-					ValidFrom:          today,
-				})
-			}
-			insertStats, err := s.store.InsertStaffSchedules(txCtx, rows)
-			stats.Add(insertStats)
-			return err
+			return s.writeStaffSchedule(txCtx, staffID, entries, anchor, validFrom, stats)
 		})
 	})
+}
+
+// writeStaffSchedule is ReplaceStaffSchedule inside its unit of work.
+func (s *Service) writeStaffSchedule(ctx context.Context, staffID int64, entries []domain.StaffWorkScheduleFields, anchor, validFrom string, stats *domain.OperationStats) error {
+	if err := s.transaction.LockStaffBalance(ctx, staffID); err != nil {
+		return err
+	}
+	today := s.clock.Today()
+	start, err := s.scheduleVersionStart(ctx, staffID, validFrom, today, stats)
+	if err != nil {
+		return err
+	}
+	closeStats, err := s.store.CloseStaffSchedules(ctx, []int64{staffID}, today)
+	stats.Add(closeStats)
+	if err != nil {
+		return err
+	}
+	if len(entries) == 0 {
+		return nil
+	}
+	rows := make([]domain.StaffWorkSchedule, 0, len(entries))
+	for _, entry := range entries {
+		rows = append(rows, domain.StaffWorkSchedule{
+			StaffID:            staffID,
+			WeekIndex:          entry.WeekIndex,
+			RotationLength:     entry.RotationLength,
+			DayOfWeek:          entry.DayOfWeek,
+			TargetMinutes:      entry.TargetMinutes,
+			StartTime:          entry.StartTime,
+			RotationAnchorDate: anchor,
+			ValidFrom:          start,
+		})
+	}
+	insertStats, err := s.store.InsertStaffSchedules(ctx, rows)
+	stats.Add(insertStats)
+	return err
+}
+
+func (s *Service) scheduleVersionStart(ctx context.Context, staffID int64, validFrom, today string, stats *domain.OperationStats) (string, error) {
+	if validFrom == "" || validFrom == today {
+		return today, nil
+	}
+	hasHistory, historyStats, err := s.store.HasStaffScheduleHistory(ctx, staffID)
+	stats.Add(historyStats)
+	if err != nil {
+		return "", err
+	}
+	closed, snapshotStats, err := s.store.ClosedMonthSnapshotsForStaff(ctx, []int64{staffID})
+	stats.Add(snapshotStats)
+	if err != nil {
+		return "", err
+	}
+	return domain.ScheduleVersionStart(validFrom, today, hasHistory, closed)
 }
 
 func (s *Service) CurrentStaffSchedule(ctx context.Context, staffID int64) (result []domain.StaffWorkSchedule, err error) {

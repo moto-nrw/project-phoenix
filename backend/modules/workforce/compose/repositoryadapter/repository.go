@@ -121,9 +121,15 @@ func (r *StaffWorkScheduleRepository) FindStaffIDsWithScheduleHistory(ctx contex
 
 func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*configModels.StaffWorkSchedule, anchor configModels.CalendarDate) error {
 	rows := make([]workforce.StaffWorkScheduleEntry, 0, len(entries))
+	// The rows of one version share their start day; a row without one
+	// starts the version today.
+	validFrom := ""
 	for _, entry := range entries {
 		if entry == nil {
 			continue
+		}
+		if validFrom == "" {
+			validFrom = string(entry.ValidFrom)
 		}
 		rows = append(rows, workforce.StaffWorkScheduleEntry{
 			WeekIndex:      entry.WeekIndex,
@@ -134,7 +140,7 @@ func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staff
 		})
 	}
 	return r.workforce.ReplaceStaffSchedule(ctx, workforce.ReplaceStaffSchedule{
-		StaffID: staffID, Entries: rows, RotationAnchorDate: string(anchor),
+		StaffID: staffID, Entries: rows, RotationAnchorDate: string(anchor), ValidFrom: validFrom,
 	})
 }
 

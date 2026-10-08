@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"slices"
@@ -125,12 +126,23 @@ func TestBreakSessionDayIsOldestHistoryWeekday(t *testing.T) {
 	t.Parallel()
 
 	today := time.Date(2026, 8, 31, 0, 0, 0, 0, time.UTC)
-	day := breakSessionDay(today)
+	day := breakSessionDay(today, nil)
 	assert.True(t, shouldSeedTimeTrackingDay(day, today))
 	assert.False(t, day.Before(today.AddDate(0, 0, -(timeTrackingDaysBack-1))))
 	for earlier := today.AddDate(0, 0, -(timeTrackingDaysBack - 1)); earlier.Before(day); earlier = earlier.AddDate(0, 0, 1) {
 		assert.False(t, shouldSeedTimeTrackingDay(earlier, today))
 	}
+}
+
+// A statutory holiday carries no Soll, so the break block moves past it.
+func TestBreakSessionDaySkipsHolidays(t *testing.T) {
+	t.Parallel()
+
+	today := time.Date(2026, 8, 31, 0, 0, 0, 0, time.UTC)
+	assert.Equal(t, "2026-06-03", toDateKey(historyStart(today)))
+	// Fronleichnam 2026 in NRW, and the day before it as a second holiday.
+	holidays := map[string]bool{"2026-06-03": true, "2026-06-04": true}
+	assert.Equal(t, "2026-06-05", toDateKey(breakSessionDay(today, holidays)))
 }
 
 // A demo school opens before its history exists; the history, its export
@@ -154,6 +166,8 @@ func TestFullDemoWorkflowDeferHistoryLeavesOutDeferredSteps(t *testing.T) {
 		return slices.IndexFunc(steps, func(step Step) bool { return reflect.TypeOf(step) == reflect.TypeOf(want) })
 	}
 	assert.Less(t, stepIndex(deferred, seedWorkSessionBreakStep{}), stepIndex(deferred, seedStatisticsDemoStep{}), "the break block must be the first live stamp")
+	assert.Less(t, stepIndex(deferred, seedStatisticsDemoStep{}), stepIndex(deferred, seedTodaysShiftsStep{}), "today is planned after the live stamps")
+	assert.Less(t, stepIndex(deferred, seedTodaysShiftsStep{}), stepIndex(deferred, buildStateStep{}), "today is planned before the school opens")
 }
 
 func TestExtractSessionID(t *testing.T) {
@@ -231,11 +245,18 @@ func TestSeedTimeTrackingCoverageCreatesQuotaOpeningAndBreak(t *testing.T) {
 	require.NoError(t, seedTimeTrackingCoverage(rt, 17, 2026))
 	assert.Equal(t, []string{
 		"/api/staff/17/vacation/quota",
+		"/api/staff/17/target-overrides",
+		"/api/staff/17/target-overrides",
+	}, paths)
+
+	// The opening books against the balance it finds, so the step books it
+	// once the history exists (#3892).
+	paths = nil
+	require.NoError(t, seedOpeningBalance(rt, 17))
+	assert.Equal(t, []string{
 		"/api/staff/17/time-tracking/opening",
 		"/api/staff/17/time-tracking/adjustments",
 		"/api/staff/17/time-tracking/adjustments/91",
-		"/api/staff/17/target-overrides",
-		"/api/staff/17/target-overrides",
 	}, paths)
 
 	paths = nil
@@ -251,8 +272,12 @@ func TestSeedSchedulesViaAPISkipsExternalStaff(t *testing.T) {
 	t.Parallel()
 
 	var paths []string
+	var validFrom []any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		paths = append(paths, r.URL.Path)
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		validFrom = append(validFrom, body["valid_from"])
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprint(w, `{"status":"success","data":{}}`)
 	})
@@ -266,8 +291,11 @@ func TestSeedSchedulesViaAPISkipsExternalStaff(t *testing.T) {
 		&Runtime{Client: newTestClient(srv.URL, false), TenantAuth: AuthRef{Token: "admin"}},
 		staff,
 		map[string]int64{"teacher@example.test": 11, "external@example.test": 22},
+		time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, 5, count)
 	assert.Equal(t, []string{"/api/staff/11/schedule"}, paths)
+	// The schedule reaches back to the history, or its days carry no Soll.
+	assert.Equal(t, []any{"2026-06-03"}, validFrom)
 }

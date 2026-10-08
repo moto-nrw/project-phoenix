@@ -239,6 +239,9 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		// NFC-Arbeitsblock. Nach einem App-Checkout am selben Tag verhindert
 		// die Zeiterfassung bewusst einen erneuten Auto-Check-in.
 		seedStatisticsDemoStep{},
+		// Nach den Live-Stempeln: deren sofortiges Ausstempeln wiche sonst vom
+		// geplanten Dienst ab und bräuchte eine Begründung.
+		seedTodaysShiftsStep{},
 	}
 	if !seeder.options.DeferHistory {
 		steps = append(steps, deferredPastSteps()...)

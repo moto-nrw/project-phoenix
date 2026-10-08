@@ -221,12 +221,12 @@ type ScheduleEntry struct {
 
 // ScheduleUpdateInput mirrors the schedule PUT at the capability boundary.
 type ScheduleUpdateInput struct {
-	Mode               string
-	ModelID            *int64
-	RotationLength     int
-	RotationAnchorDate string
-	Entries            []ScheduleEntry
-	SaveAsTemplateName string
+	Mode                          string
+	ModelID                       *int64
+	RotationLength                int
+	RotationAnchorDate, ValidFrom string
+	Entries                       []ScheduleEntry
+	SaveAsTemplateName            string
 }
 
 // WorkSessions is the work session administration of the web app: stamps,

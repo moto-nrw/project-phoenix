@@ -32,7 +32,11 @@ const (
 	MaxDailyTargetMinutes = 720
 )
 
+// ScheduleEntry and ScheduleUpdateInput are the schedule PUT at the service
+// boundary.
 type (
+	ScheduleEntry         = workforce.ScheduleEntry
+	ScheduleUpdateInput   = workforce.ScheduleUpdateInput
 	WorkScheduleRow       = workforce.ScheduleRow
 	WorkTimeTemplate      = workforce.ScheduleTemplate
 	WorkTimeTemplateEntry = workforce.ScheduleTemplateEntry
