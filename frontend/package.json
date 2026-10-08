@@ -67,7 +67,7 @@
     "react-dom": "^19.2.8",
     "react-markdown": "^10.1.0",
     "recharts": "^3.10.1",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "swr": "^2.5.0",
     "tailwind-merge": "^3.6.0",
     "vaul": "^1.1.2",
