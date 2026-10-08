@@ -1,8 +1,14 @@
 const FALLBACK_RETRY_SECONDS = 60;
 
+// Client log shipping has its own quota and pauses itself on 429 (logger.ts).
+// A log 429 says nothing about the user's own requests, so it must neither
+// lock a bucket nor show the rate-limit toast (#3884).
+const CLIENT_LOG_PATHS = new Set(["/api/logs", "/api/parent/logs"]);
+
 type RateLimitBucket = "read" | "write";
 
 const blockedUntil: Record<RateLimitBucket, number> = { read: 0, write: 0 };
+let clientLogShippingPausedUntil = 0;
 let restoreFetch: (() => void) | null = null;
 
 function rateLimitBucket(method?: string): RateLimitBucket {
@@ -50,6 +56,7 @@ function guardedApiRequest(input: RequestInfo | URL): boolean {
     url.origin === window.location.origin &&
     url.pathname.startsWith("/api/") &&
     !url.pathname.startsWith("/api/sse/") &&
+    !CLIENT_LOG_PATHS.has(url.pathname) &&
     !url.pathname.includes("/auth/")
   );
 }
@@ -70,6 +77,22 @@ export function remainingRateLimitMs(
 export function clearRateLimitBackoff(): void {
   blockedUntil.read = 0;
   blockedUntil.write = 0;
+  clientLogShippingPausedUntil = 0;
+}
+
+export function isClientLogShippingPaused(now = Date.now()): boolean {
+  return now < clientLogShippingPausedUntil;
+}
+
+export function pauseClientLogShipping(
+  retryAfter: string | null,
+  now = Date.now(),
+): void {
+  const seconds = retryAfterSeconds(retryAfter, now);
+  clientLogShippingPausedUntil = Math.max(
+    clientLogShippingPausedUntil,
+    now + seconds * 1000,
+  );
 }
 
 export function rateLimitBlockedError(method?: string): Error | null {

@@ -179,6 +179,64 @@ describe("resolveHomeLayout — Standardansicht", () => {
     expect(cell("section.birthdays")).toEqual([0, 5]);
   });
 
+  // Die Startseite der Betreuungskraft hatte unten rechts ein Loch: ohne
+  // Erinnerungen stand „Geburtstage" allein in der Reihe, und mit allen
+  // Bausteinen stand die dreizeilige Liste neben einer zweizeiligen (#3893).
+  it("lässt in keiner Standardansicht ein Loch, welche Schalter auch aus sind", () => {
+    const switches = [
+      "detailed",
+      "openCareGroupMode",
+      "nfcEnabled",
+      "birthdaysEnabled",
+      "timetableEnabled",
+      "remindersEnabled",
+      "messagingEnabled",
+      "staffMessagingEnabled",
+    ] as const;
+    const accesses = [
+      leadAccess,
+      careAccess,
+      customLeadAccess,
+      leadCareAccess,
+      { ...careAccess, hasOwnGroups: false },
+    ];
+    const holes: string[] = [];
+    for (const access of accesses) {
+      for (let mask = 0; mask < 1 << switches.length; mask += 1) {
+        const context = { ...fullContext, access };
+        switches.forEach((name, bit) => {
+          const on = (mask & (1 << bit)) === 0;
+          Object.assign(context, {
+            [name]: name === "openCareGroupMode" ? !on : on,
+          });
+        });
+        const { placements } = resolveHomeLayout(context, [], {}, {});
+        const cells = [...computeBoardCells(placements, 4).values()];
+        const height = Math.max(
+          0,
+          ...cells.map((cell) => cell.rowStart - 1 + cell.rowSpan),
+        );
+        for (let row = 0; row < height; row += 1) {
+          for (let col = 0; col < 4; col += 1) {
+            const covered = cells.some(
+              (cell) =>
+                col >= cell.columnStart - 1 &&
+                col < cell.columnStart - 1 + cell.columnSpan &&
+                row >= cell.rowStart - 1 &&
+                row < cell.rowStart - 1 + cell.rowSpan,
+            );
+            if (!covered) {
+              holes.push(
+                `${homeProfileFor(access)} mask=${mask} ${col}/${row}`,
+              );
+            }
+          }
+        }
+      }
+    }
+    expect(holes.slice(0, 10)).toEqual([]);
+  });
+
   // Ohne eigene Gruppe wäre „Meine Gruppe" eine Karte, die nur sagt, dass sie
   // leer ist.
   it("lässt Meine Gruppe weg, wer heute keine Gruppe hat", () => {

@@ -39,6 +39,7 @@ declare module "next-auth" {
       token?: string;
       refreshToken?: string;
       roles?: string[];
+      roleIsSystem?: boolean[];
       permissions?: string[];
       firstName?: string;
       isAdmin?: boolean;
@@ -60,6 +61,7 @@ declare module "next-auth" {
     token?: string;
     refreshToken?: string;
     roles?: string[];
+    roleIsSystem?: boolean[];
     permissions?: string[];
     firstName?: string;
     isAdmin?: boolean;
@@ -73,6 +75,7 @@ declare module "next-auth" {
     token?: string;
     refreshToken?: string;
     roles?: string[];
+    roleIsSystem?: boolean[];
     permissions?: string[];
     firstName?: string;
     isAdmin?: boolean;
@@ -169,6 +172,7 @@ function syncTokenFromPayload(
   token.tenantId = payload.tenant_id;
   token.orgId = payload.org_id;
   token.roles = payload.roles ?? [];
+  token.roleIsSystem = payload.role_is_system ?? [];
   token.permissions = payload.permissions ?? [];
   token.isAdmin = payload.is_admin ?? false;
   token.scope = payload.scope;
@@ -199,6 +203,10 @@ export function buildAuthUser(
     payload.permissions && Array.isArray(payload.permissions)
       ? payload.permissions
       : [];
+  const roleIsSystem =
+    payload.role_is_system && Array.isArray(payload.role_is_system)
+      ? payload.role_is_system
+      : [];
 
   return {
     id: String(payload.id),
@@ -207,6 +215,7 @@ export function buildAuthUser(
     token: token,
     refreshToken: refreshToken,
     roles: scope === "platform" ? ["operator"] : roles,
+    roleIsSystem: scope === "platform" ? [true] : roleIsSystem,
     permissions: permissions,
     firstName: payload.first_name,
     isAdmin: payload.is_admin ?? false,
@@ -1177,6 +1186,7 @@ export const sharedJwtCallback: NonNullable<
     token.token = user.token ?? "";
     token.refreshToken = user.refreshToken ?? "";
     token.roles = user.roles;
+    token.roleIsSystem = user.roleIsSystem;
     token.permissions = user.permissions;
     token.firstName = user.firstName;
     token.isAdmin = user.isAdmin;
@@ -1477,6 +1487,7 @@ export const sharedSessionCallback: NonNullable<
         token: "",
         refreshToken: "",
         roles: [],
+        roleIsSystem: [],
         permissions: [],
         firstName: (token.firstName as string) || "",
         isAdmin: false,
@@ -1495,6 +1506,7 @@ export const sharedSessionCallback: NonNullable<
       token: token.token as string,
       refreshToken: token.refreshToken as string,
       roles: token.roles as string[],
+      roleIsSystem: token.roleIsSystem as boolean[],
       permissions: token.permissions as string[],
       firstName: token.firstName as string,
       isAdmin: (token.isAdmin as boolean) ?? false,

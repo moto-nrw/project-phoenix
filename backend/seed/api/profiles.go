@@ -16,7 +16,8 @@ const (
 	profileSettingAbsenceScope          = "operations.student_absence_edit_scope"
 	profileSettingParentSickMode        = "operations.parent_sick_reports_enabled"
 	profileSettingParentExcusedMode     = "operations.parent_excused_reports_enabled"
-	profileSettingParentReviewScope     = "operations.parent_absence_review_scope"
+	profileSettingAbsenceReviewScope    = "operations.parent_absence_review_scope"
+	profileSettingRequestReviewScope    = "operations.parent_request_review_scope"
 	profileSettingGroupMode             = "operations.group_mode"
 	profileSettingWebSpontaneous        = "attendance.web_spontaneous_activities_enabled"
 	profileSettingEnrollmentEnabled     = "enrollment.enabled"
@@ -65,7 +66,11 @@ func fullOperationSettings() map[string]SeedSetting {
 		profileSettingAbsenceScope:       {Value: json.RawMessage(`"all_staff"`), ManagedBy: SettingManagedByTenant},
 		profileSettingParentSickMode:     {Value: json.RawMessage(`"immediate"`), ManagedBy: SettingManagedByTenant},
 		profileSettingParentExcusedMode:  {Value: json.RawMessage(`"approval"`), ManagedBy: SettingManagedByTenant},
-		profileSettingParentReviewScope:  {Value: json.RawMessage(`"group_leaders"`), ManagedBy: SettingManagedByTenant},
+		profileSettingAbsenceReviewScope: {Value: json.RawMessage(`"group_leaders"`), ManagedBy: SettingManagedByTenant},
+		// The Betreuungskraft of the demo leads the group of the demo parents'
+		// child, so she reviews their requests too, not only their sick notes
+		// (#3894). Without it the request scope inherits "admins".
+		profileSettingRequestReviewScope: {Value: json.RawMessage(`"group_leaders"`), ManagedBy: SettingManagedByTenant},
 		profileSettingPresenceMode: {
 			Value: json.RawMessage(`"` + profilePresenceDetailed + `"`), ManagedBy: SettingManagedByOperator,
 		},
@@ -144,7 +149,7 @@ func manualProfileSettings() map[string]SeedSetting {
 		profileSettingAbsenceScope:       {Value: json.RawMessage(`"admins"`), ManagedBy: SettingManagedByTenant},
 		profileSettingParentSickMode:     {Value: json.RawMessage(`"approval"`), ManagedBy: SettingManagedByTenant},
 		profileSettingParentExcusedMode:  {Value: json.RawMessage(`"immediate"`), ManagedBy: SettingManagedByTenant},
-		profileSettingParentReviewScope:  {Value: json.RawMessage(`"admins"`), ManagedBy: SettingManagedByTenant},
+		profileSettingAbsenceReviewScope: {Value: json.RawMessage(`"admins"`), ManagedBy: SettingManagedByTenant},
 		profileSettingPresenceMode: {
 			Value: json.RawMessage(`"` + profilePresenceBinary + `"`), ManagedBy: SettingManagedByOperator,
 		},

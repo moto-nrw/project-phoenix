@@ -3,7 +3,7 @@ package users
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // BirthdayKind separates the two populations a birthday display mixes. They
@@ -18,14 +18,14 @@ const (
 
 // MonthDay is an annually recurring calendar day. A birthday recurs every
 // year, so a birthday query matches on month and day and never on the stored
-// birth year — modelling it as a timezone.Date would invite exactly that bug.
+// birth year — modelling it as a calendar.Date would invite exactly that bug.
 type MonthDay struct {
 	Month time.Month
 	Day   int
 }
 
 // MonthDayOf reduces a stored birth date to its recurring day.
-func MonthDayOf(d timezone.Date) MonthDay {
+func MonthDayOf(d calendar.Date) MonthDay {
 	return MonthDay{Month: d.Month(), Day: d.Day()}
 }
 
@@ -38,7 +38,7 @@ type BirthdayEntry struct {
 	ID        int64         `json:"id"`
 	FirstName string        `json:"first_name"`
 	LastName  string        `json:"last_name"`
-	Birthday  timezone.Date `json:"birthday"`
+	Birthday  calendar.Date `json:"birthday"`
 	// GroupID is the child's education group. Nil for staff and for children
 	// without a group. No longer drives visibility (#2329) — kept because the
 	// repository scan populates it alongside GroupName.

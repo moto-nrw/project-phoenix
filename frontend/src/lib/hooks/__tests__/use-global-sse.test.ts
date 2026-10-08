@@ -688,6 +688,49 @@ describe("useGlobalSSE", () => {
       expect(mutate).toHaveBeenCalled();
     });
 
+    it.each(["instance_started", "instance_completed", "instance_cancelled"])(
+      "wakes the sidebar supervision list when a planned block changes (%s, #3888)",
+      (reason) => {
+        const listener = vi.fn();
+        window.addEventListener("phoenix:supervision-stale", listener);
+        try {
+          renderHook(() => useGlobalSSE());
+          fire({
+            type: "active_supervision_changed",
+            active_group_id: "456",
+            data: { reason },
+          });
+          vi.advanceTimersByTime(DEBOUNCE_MS);
+
+          expect(listener).toHaveBeenCalledTimes(1);
+          const event = listener.mock.calls[0]?.[0] as CustomEvent<{
+            groupsOnly?: boolean;
+          }>;
+          expect(event.detail?.groupsOnly).toBe(false);
+        } finally {
+          window.removeEventListener("phoenix:supervision-stale", listener);
+        }
+      },
+    );
+
+    it("leaves the sidebar alone for an attendance-only supervision change", () => {
+      const listener = vi.fn();
+      window.addEventListener("phoenix:supervision-stale", listener);
+      try {
+        renderHook(() => useGlobalSSE());
+        fire({
+          type: "active_supervision_changed",
+          active_group_id: "456",
+          data: { reason: "timetable_attendance_updated" },
+        });
+        vi.advanceTimersByTime(DEBOUNCE_MS);
+
+        expect(listener).not.toHaveBeenCalled();
+      } finally {
+        window.removeEventListener("phoenix:supervision-stale", listener);
+      }
+    });
+
     it("invalidates active supervision caches on active_supervision_changed event", () => {
       renderHook(() => useGlobalSSE());
 

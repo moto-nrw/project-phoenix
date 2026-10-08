@@ -10,6 +10,7 @@ import {
 import Image from "next/image";
 import { ImageUp } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { MotoBrand } from "~/components/auth/moto-brand";
 import { useTenant } from "~/lib/tenant-context";
 import {
   useApiErrorDisplay,
@@ -231,14 +232,17 @@ export function PersonalizationTab() {
   }, []);
 
   return (
-    <div className="space-y-6">
+    // Ein Gitter wächst nicht mit dem Seitenrumpf: Die Karte ist so hoch wie
+    // ihr Inhalt, statt als leere weiße Fläche bis zur Unterkante zu reichen
+    // (#3893).
+    <div className="grid grid-cols-1 gap-6">
       <SectionCard
         headingLevel={3}
         title="Login-Seite"
         description={
           canEdit
             ? "Laden Sie ein eigenes Bild hoch, das auf der Login-Seite Ihrer Einrichtung angezeigt wird."
-            : "Das aktuelle Bild wird auf der Login-Seite Ihrer Einrichtung angezeigt."
+            : "So sieht die Login-Seite Ihrer Einrichtung oben aus. Ein neues Bild kann nur hochladen, wer Einstellungen ändern darf."
         }
       >
         {loadError ? (
@@ -270,11 +274,20 @@ export function PersonalizationTab() {
               </button>
             )}
           </div>
-        ) : null}
+        ) : loadError ? null : (
+          // Ohne eigenes Bild zeigt die Login-Seite das moto-Logo. Die
+          // Vorschau sagt das, statt die Karte leer zu lassen (#3893).
+          <div className="moto-content-surface flex flex-col items-center gap-3 rounded-xl border p-6 shadow-sm">
+            <MotoBrand />
+            <p className="text-center text-sm text-gray-600">
+              Noch kein eigenes Bild. Die Login-Seite zeigt das moto-Logo.
+            </p>
+          </div>
+        )}
 
         {/* Upload dropzone — shown when editable */}
         {canEdit && (
-          <div className={currentImageUrl ? "mt-4" : ""}>
+          <div className={loadError && !currentImageUrl ? "" : "mt-4"}>
             {/* Hidden file input */}
             <input
               ref={fileInputRef}
