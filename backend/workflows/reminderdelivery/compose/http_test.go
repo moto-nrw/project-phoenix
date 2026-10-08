@@ -48,7 +48,7 @@ func TestListRemindersAdminScope(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			query := &captureQuery{result: &reminder.Result{Enabled: true}}
-			runtime := compose.HTTPRuntime(nil)
+			runtime := compose.HTTPRuntime()
 			// These scope tests start with authenticated claims, as the former
 			// direct-handler tests did. Keep the real permission middleware.
 			runtime.Protected = func(router chi.Router, register func(chi.Router, remindersHTTP.Middleware)) {
@@ -76,7 +76,7 @@ func TestReminderHTTPErrorContract(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			query := &captureQuery{err: tt.err}
-			runtime := compose.HTTPRuntime(nil)
+			runtime := compose.HTTPRuntime()
 			runtime.Protected = func(router chi.Router, register func(chi.Router, remindersHTTP.Middleware)) {
 				register(router, func(next http.Handler) http.Handler { return next })
 			}

@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -20,13 +19,11 @@ import (
 // Resource serves the emergency snapshot routes.
 type Resource struct {
 	Snapshot emergencysnapshot.Query
-	db       *bun.DB
 }
 
-// NewResource binds the routes to the projection. db is the concrete
-// database the shared tenant middleware takes.
-func NewResource(snapshot emergencysnapshot.Query, db *bun.DB) *Resource {
-	return &Resource{Snapshot: snapshot, db: db}
+// NewResource binds the routes to the projection.
+func NewResource(snapshot emergencysnapshot.Query) *Resource {
+	return &Resource{Snapshot: snapshot}
 }
 
 // Router mounts the routes.
@@ -34,7 +31,7 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
+	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/snapshot/export", rs.exportSnapshot)
 	})
 

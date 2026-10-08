@@ -3,7 +3,7 @@ package common
 import (
 	"net/http"
 
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	configSvc "github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
 // RequestSettingsCacheMiddleware attaches the request-scoped settings memo

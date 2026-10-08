@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 33,
+  "policy_epoch": 34,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -1360,13 +1360,6 @@
       "path": "modules/exporttransfer/internal/ports",
       "owner": "export-transfer",
       "role": "port",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "internal/storage",
-      "owner": "delivery-platform",
-      "role": "adapter",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -3432,6 +3425,27 @@
       "path": "modules/schoolstructure/contract",
       "owner": "school-structure",
       "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/objects",
+      "owner": "delivery-platform",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/transactionruntime",
+      "owner": "transaction-runtime",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/transactionruntime/internal/adapters/postgres",
+      "owner": "transaction-runtime",
+      "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     }
@@ -9103,16 +9117,6 @@
       "target_role": "adapter"
     },
     {
-      "id": "communication.messages.http-orm",
-      "description": "The message HTTP adapters bind the existing tenant transaction middleware.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-messaging",
-      "source_role": "http",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "communication.messages.compose-delivery-public",
       "description": "Communication composition adapts the existing realtime broadcaster until its delivery port migrates.",
       "scopes": [
@@ -12754,16 +12758,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-notifications.orm-sql",
-      "description": "Legacy notification HTTP composition accepts Bun.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-notifications",
-      "source_role": "http",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "inbound-notifications.adapter-test.identity-adapter",
       "description": "Notification handler tests construct authenticated claims.",
       "scopes": [
@@ -13739,16 +13733,6 @@
       "source_role": "http",
       "target_owner": "identity-access",
       "target_role": "adapter"
-    },
-    {
-      "id": "communication.parent-http.orm",
-      "description": "The parent-announcement HTTP adapter binds the existing tenant transaction middleware.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-announcement",
-      "source_role": "http",
-      "target_class": "orm-sql"
     },
     {
       "id": "root-composition.to.parent-announcement-http",
@@ -17081,16 +17065,6 @@
       "target_role": "domain"
     },
     {
-      "id": "inbound-classday.orm-sql",
-      "description": "Class-day HTTP composition passes the concrete Bun database to the shared school-scope middleware (#2701).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-classday",
-      "source_role": "http",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "inbound-classday.adapter-test.identity-adapter",
       "description": "Class-day handler tests construct school-scope claims (#2701).",
       "scopes": [
@@ -18034,16 +18008,6 @@
       "source_role": "http",
       "target_owner": "document-rendering",
       "target_role": "application"
-    },
-    {
-      "id": "inbound-statistics.orm-sql",
-      "description": "Statistics HTTP composition passes the concrete Bun database to the shared tenant middleware (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-statistics",
-      "source_role": "http",
-      "target_class": "orm-sql"
     },
     {
       "id": "inbound-statistics.adapter-test.identity-adapter",
@@ -19054,16 +19018,6 @@
       "target_role": "contract"
     },
     {
-      "id": "inbound-emergency.orm-sql",
-      "description": "Emergency snapshot HTTP composition passes the concrete Bun database to the shared tenant middleware (#2704).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-emergency",
-      "source_role": "http",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "root-composition.to.inbound-emergency-http",
       "description": "The production root constructs the emergency snapshot HTTP adapter (#2704).",
       "scopes": [
@@ -19216,16 +19170,6 @@
       "source_role": "compose",
       "target_owner": "observability",
       "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.compose.orm-sql",
-      "description": "IoT composition binds the HTTP router and ambient database runtime (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_class": "orm-sql"
     },
     {
       "id": "inbound-iot.compose.http-router",
@@ -19838,16 +19782,6 @@
       "source_role": "http",
       "target_owner": "identity-access",
       "target_role": "adapter"
-    },
-    {
-      "id": "inbound-filestore.orm-sql",
-      "description": "File HTTP composition passes the concrete Bun database to the shared tenant middleware (#2707).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-filestore",
-      "source_role": "http",
-      "target_class": "orm-sql"
     },
     {
       "id": "inbound-filestore.adapter-test.inbound-common",
@@ -21821,7 +21755,7 @@
     },
     {
       "id": "workforce.application.audit-domain",
-      "description": "Shift moves append the shift_moved Änderungsprotokoll entry through the retained audit contract (#1884, #3418).",
+      "description": "Shift moves append the shift_moved \u00c4nderungsprotokoll entry through the retained audit contract (#1884, #3418).",
       "scopes": [
         "production"
       ],
@@ -23126,6 +23060,106 @@
       "source_role": "compose",
       "target_owner": "school-structure",
       "target_role": "contract"
+    },
+    {
+      "id": "inbound-common.http.identity-access-adapter",
+      "description": "The standing shared HTTP runtime consumes the permanent session adapter and request identity memo (ADR 0031) (ADR 0046, #2738, #3898).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-common.http.tenant-runtime-public",
+      "description": "The standing shared HTTP runtime consumes tenant scope, transactions and rollback markers (ADR 0046, #2738, #3898).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-common.http.security-runtime-contract",
+      "description": "The standing shared HTTP runtime consumes validated principals and the permission registry (ADR 0046, #2738, #3898).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-common.http.security-runtime-public",
+      "description": "The standing shared HTTP runtime consumes authorization decisions, local-seeder gates and upload filename entropy (ADR 0046, #2738, #3898).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-common.http.settings-platform-public",
+      "description": "The standing shared HTTP runtime consumes settings keys, immutable snapshots and the request memo (ADR 0046, #2738, #3898).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "http",
+      "target_owner": "settings-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-common.http.delivery-platform-public",
+      "description": "The standing shared HTTP runtime consumes the native byte storage capability without implementation imports (ADR 0046, #2738, #3898).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "http",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-common.http.transaction-runtime-public",
+      "description": "The standing shared HTTP runtime consumes driver-free database failure classification (ADR 0046, #2738, #3898).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "http",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-common.adapter-test.identity-access-adapter",
+      "description": "Shared HTTP behavior tests construct session claims at the permanent session adapter (ADR 0046, #2738).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "transaction-runtime.public.postgres-errors",
+      "description": "The driver-free public failure classifier delegates SQL details to its private Postgres adapter (#2738).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "transaction-runtime",
+      "source_role": "public",
+      "target_owner": "transaction-runtime",
+      "target_role": "postgres"
     }
   ],
   "relocations": [

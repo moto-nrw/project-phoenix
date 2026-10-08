@@ -45,25 +45,15 @@ import (
 // Target is 0 entries. The seed below freezes the state of 2026-09-18 at
 // commit 19feca2822, measured with an AST walk over the scan area described
 // above (23 files, all with exactly one bun import).
+// #2738 removed twelve captures used only by the retired DB-bearing HTTP
+// group wrappers; the remaining entries perform real database work.
 var moduleHTTPORMAllowlist = map[string]int{
 	"modules/careplan/inbound/parent/api.go":                 1,
 	"modules/careplan/inbound/parent/enrollment_handlers.go": 1,
-	"modules/classday/http/api.go":                           1,
-	"modules/communication/http/parentannouncements/api.go":  1,
-	"modules/communication/http/parentmessages/api.go":       1,
-	"modules/communication/http/staffmessages/api.go":        1,
 	"modules/dataimport/inbound/compose/runtime.go":          1,
-	"modules/delivery/http/notifications/api.go":             1,
 	"modules/delivery/http/sse/api.go":                       1,
 	"modules/delivery/http/sse/resource.go":                  1,
-	"modules/emergencysnapshot/http/api.go":                  1,
-	"modules/filestorage/http/files/api.go":                  1,
-	"modules/statistics/http/api.go":                         1,
-	"modules/workforce/inbound/absencetypes.go":              1,
-	"modules/workforce/inbound/shiftplanning/resources.go":   1,
-	"modules/workforce/inbound/substitutions.go":             1,
 	"modules/workforce/inbound/timetracking/api.go":          1,
-	"modules/workforce/inbound/timetracking/staff_admin.go":  1,
 }
 
 // moduleHTTPORMImportPath is the ORM module path; imports of this path or of

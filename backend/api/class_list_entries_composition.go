@@ -13,7 +13,6 @@ import (
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	classListHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http/classlistentries"
 	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/uptrace/bun"
 )
 
 // The class-list entries under /api/class-list-entries are served by the
@@ -24,10 +23,10 @@ import (
 
 // newClassListEntriesResource binds the adapter to the shared renderer and
 // the JWT identity.
-func newClassListEntriesResource(entries schoolMembershipModule.ClassListEntries, db *bun.DB, logger *slog.Logger) *classListHTTP.Resource {
+func newClassListEntriesResource(entries schoolMembershipModule.ClassListEntries, logger *slog.Logger) *classListHTTP.Resource {
 	return classListHTTP.NewResource(entries, classListHTTP.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, classListHTTP.Middleware)) {
-			apiCommon.ProtectedTenantGroup(router, db, func(protected chi.Router, withTx apiCommon.Middleware) {
+			apiCommon.ProtectedTenantRoutes(router, func(protected chi.Router, withTx apiCommon.Middleware) {
 				register(protected, withTx)
 			})
 		},

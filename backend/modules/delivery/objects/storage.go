@@ -1,11 +1,11 @@
-// Package storage owns every byte the application writes outside the
+// Package objects owns every byte the application writes outside the
 // database. Before it existed, six upload families each resolved their own
 // directory and called os.* inline, so save, serve and delete of the same
 // file could disagree about where it lived. Everything now goes through one
 // Backend, which makes that class of bug structural rather than a matter of
 // review discipline, and makes an object-store implementation a drop-in
 // replacement instead of a sweep through every handler.
-package storage
+package objects
 
 import (
 	"context"
@@ -22,11 +22,11 @@ var ErrNotFound = errors.New("storage: object not found")
 // segment, absolute path). It never reaches the underlying medium.
 var ErrInvalidKey = errors.New("storage: invalid key")
 
-// Object is an open stored object. *os.File satisfies it, and http.ServeContent
-// needs exactly this shape (ReadSeeker plus a modification time).
-type Object interface {
-	io.ReadSeekCloser
-	ModTime() time.Time
+// Object carries an open byte stream and the timestamp captured when it opened.
+// The caller closes Content. This is a byte capability, not a row repository.
+type Object struct {
+	Content    io.ReadSeekCloser
+	ModifiedAt time.Time
 }
 
 // SaveOptions controls the visibility of a newly written object.
@@ -47,12 +47,12 @@ type SaveOptions struct {
 type Backend interface {
 	// Save writes r under key, replacing any existing object, and returns
 	// the number of bytes stored. A failed write leaves no partial object.
-	Save(ctx context.Context, key string, r io.Reader, opts SaveOptions) (int64, error)
+	WriteObject(ctx context.Context, key string, r io.Reader, opts SaveOptions) (int64, error)
 	// Open returns the stored object. The caller closes it.
-	Open(ctx context.Context, key string) (Object, error)
+	OpenObject(ctx context.Context, key string) (*Object, error)
 	// Remove deletes the object. Removing a missing object is not an error,
 	// so cleanup retries are idempotent.
-	Remove(ctx context.Context, key string) error
+	RemoveObject(ctx context.Context, key string) error
 	// Stat returns the stored size in bytes.
-	Stat(ctx context.Context, key string) (int64, error)
+	ObjectSize(ctx context.Context, key string) (int64, error)
 }

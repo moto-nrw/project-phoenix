@@ -3,7 +3,6 @@ package common
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
@@ -60,7 +59,14 @@ var _ StudentLocationReader = studentpresence.Presence(nil)
 // In binary-mode tenants it skips the visit/group queries as a perf win — those
 // fields become irrelevant because the resolver won't read them anyway.
 func LoadStudentLocationSnapshot(ctx context.Context, svc StudentLocationReader, studentIDs []int64) (*StudentLocationSnapshot, error) {
-	uniqueIDs := sliceutil.Unique(studentIDs)
+	uniqueIDs := make([]int64, 0, len(studentIDs))
+	seen := make(map[int64]struct{}, len(studentIDs))
+	for _, id := range studentIDs {
+		if _, found := seen[id]; !found {
+			seen[id] = struct{}{}
+			uniqueIDs = append(uniqueIDs, id)
+		}
+	}
 	mode, err := svc.GetPresenceMode(ctx)
 	if err != nil {
 		return nil, err

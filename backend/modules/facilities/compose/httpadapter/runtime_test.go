@@ -74,7 +74,7 @@ func setupRoomsRoute(t *testing.T) *testContext {
 	resource := NewResource(rooms, Dependencies{
 		Facilities: svc.Facilities, Settings: svc.Settings, UserContext: svc.UserContext,
 		Active: svc.Active, Users: svc.Users, Education: svc.Education, ListExport: svc.ListExport,
-	}, db, slog.Default())
+	}, slog.Default())
 
 	return &testContext{
 		services: svc,

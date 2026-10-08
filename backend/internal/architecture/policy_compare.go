@@ -426,7 +426,7 @@ func ruleLoosenings(base, candidate *Policy, candidateOnlyPoints map[string]stru
 			continue
 		}
 		if candidate.PolicyEpoch > base.PolicyEpoch &&
-			(reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule) || reviewedSharedKernelRule(rule)) {
+			(reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule) || reviewedSharedKernelRule(rule) || reviewedCommonHTTPRule(rule)) {
 			continue
 		}
 		if problem := uncoveredRulePermission(rule, baseEvaluator, candidateEvaluator, owners, roles); problem != "" {
@@ -753,7 +753,8 @@ func firstPartyImportLoosenings(base, candidate *Policy, sourcePath string, base
 				!shiftPlanningCutoverPermission(base, candidate, scope, baseSource, target) &&
 				!enrollmentApplicationCutoverPermission(base, candidate, scope, baseSource, target) &&
 				!firstPartyAllowedByReviewedSharedFixtureRule(base, candidate, scope, source, target) &&
-				!firstPartyAllowedByReviewedSharedKernelRule(base, candidate, scope, source, target) {
+				!firstPartyAllowedByReviewedSharedKernelRule(base, candidate, scope, source, target) &&
+				!firstPartyAllowedByReviewedCommonHTTPRule(base, candidate, scope, source, target) {
 				problems = append(problems, Violation{Scope: scope, Rule: "imports.forbidden", Source: sourcePath, Target: targetPath}.Key())
 			}
 		}

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/uptrace/bun"
 
@@ -85,7 +87,7 @@ func (rs *Resource) getEnrollmentProfile(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	resp := common.BuildGuardianProfileResponse(claims, loaded)
+	resp := common.BuildGuardianProfileResponse(claims, enrollmentProfileData(loaded))
 	common.Respond(w, r, http.StatusOK, resp, "Profile retrieved")
 }
 
@@ -441,4 +443,23 @@ func (rs *Resource) respondParentEnrollment(w http.ResponseWriter, r *http.Reque
 		Warnings:  out.result.Warnings,
 	}
 	common.Respond(w, r, http.StatusCreated, resp, "Enrollment submitted")
+}
+
+// enrollmentProfileData maps the already-authorized loader result to HTTP values.
+func enrollmentProfileData(loaded *usersModels.GuardianProfileWithChildren) *common.GuardianProfileData {
+	if loaded == nil || loaded.Profile == nil {
+		return nil
+	}
+	data := &common.GuardianProfileData{
+		Present: true, FirstName: loaded.Profile.FirstName, LastName: loaded.Profile.LastName,
+		Email: loaded.Profile.Email, PrimaryPhone: loaded.PrimaryPhone,
+		Children: make([]common.GuardianProfileChildData, 0, len(loaded.Children)),
+	}
+	for _, child := range loaded.Children {
+		data.Children = append(data.Children, common.GuardianProfileChildData{
+			StudentID: child.StudentID, FirstName: child.FirstName, LastName: child.LastName,
+			SchoolClass: child.SchoolClass, EnrollmentSubmit: child.EnrollmentSubmit, Status: child.Status,
+		})
+	}
+	return data
 }

@@ -50,7 +50,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Protected routes that require authentication and permissions
-	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
+	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 
 		// Activity reads include creator and supervisor names.
 		r.With(common.RequiresAnyPermission(permissions.ActivitiesList, permissions.ActivitiesRead), withTx).Get("/", rs.listActivities)

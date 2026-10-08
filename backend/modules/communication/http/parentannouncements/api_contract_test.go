@@ -105,7 +105,7 @@ func announcementRoute(t *testing.T) (*announcementContract, *announcement.Resou
 	claims.Permissions = []string{permissions.AdminWildcard}
 	claims.IsAdmin = true
 	s := &announcementContract{t: t, id: staff.ID, tenantID: testpkg.Tenant(t), actorID: int64(claims.ID), row: communication.ParentAnnouncement{ID: staff.ID, Title: "Information", Body: "Text", Active: true, Targets: []communication.ParentAnnouncementTarget{{TargetType: "student", RefID: &staff.ID}}, Options: []communication.ParentAnnouncementOption{{ID: staff.ID, Label: "Ja"}}}}
-	return s, announcement.NewResource(s, nil, db), routetest.MintTestJWT(t, claims)
+	return s, announcement.NewResource(s, nil), routetest.MintTestJWT(t, claims)
 }
 func announcementRequest(t *testing.T, r *announcement.Resource, token, method, path string, body any) (int, string) {
 	t.Helper()

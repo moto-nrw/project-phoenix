@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -29,18 +28,6 @@ func ParentScopeMiddleware(next http.Handler) http.Handler {
 // SchoolScopeMiddleware accepts school-portal tokens only and binds their school.
 func SchoolScopeMiddleware(next http.Handler) http.Handler {
 	return jwt.SchoolMiddleware(tenant.ClaimScope{})(next)
-}
-
-// ProtectedTenantGroup registers a route group behind the standard
-// JWT + tenant middleware chain (Verifier → Authenticator → TenantMiddleware)
-// and hands the callback the tenant-transaction middleware for per-route use.
-//
-// withTx is passed to the callback instead of being applied group-wide on
-// purpose: permission middleware must run before the tenant transaction is
-// opened (a group-level Use would open tenant transactions on 403s), so
-// routes attach it per-route via r.With(..., withTx).
-func ProtectedTenantGroup(r chi.Router, db *bun.DB, fn func(r chi.Router, withTx Middleware)) {
-	ProtectedTenantRoutes(r, fn)
 }
 
 // ProtectedTenantRoutes registers the tenant security chain and supplies the
@@ -80,15 +67,6 @@ func ProtectedParentGroup(r chi.Router, fn func(r chi.Router)) {
 		gr.Use(ParentScopeMiddleware)
 		fn(gr)
 	})
-}
-
-// ProtectedSchoolGroup is the school-portal sibling of ProtectedTenantGroup
-// (#2207): identical chain, but with jwt.SchoolMiddleware gating the group to
-// school-scope tokens. School tokens are tenant-bound, so the tenant
-// transaction middleware works unchanged — SchoolMiddleware puts the pinned
-// tenant id on the context exactly like TenantMiddleware does.
-func ProtectedSchoolGroup(r chi.Router, db *bun.DB, fn func(r chi.Router, withTx Middleware)) {
-	ProtectedSchoolRoutes(r, fn)
 }
 
 // ProtectedSchoolRoutes registers the school-portal security chain and
