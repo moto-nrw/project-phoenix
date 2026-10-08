@@ -988,9 +988,9 @@ function ownGroupsTopic(
       audience: ["caregiver", "lead"],
       icon: "Users",
       steps: [
-        "Prüfen Sie, ob `Meine Gruppen` in der Seitenleiste steht.",
-        "Ist der Bereich vorhanden? Öffnen Sie dort die gewünschte Gruppe.",
-        "Fehlt der Bereich? Öffnen Sie `Alle Kinder` und nutzen Sie Suche und Filter.",
+        "Prüfen Sie, ob `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste steht.",
+        "Ist einer der Bereiche vorhanden? Öffnen Sie dort die gewünschte Gruppe.",
+        "Fehlen beide Bereiche? Öffnen Sie `Alle Kinder` und nutzen Sie Suche und Filter.",
       ],
       result:
         "Sie sehen die Kinder entweder in festen eigenen Gruppen oder in einer gemeinsamen Kinderliste.",
@@ -1012,7 +1012,7 @@ function ownGroupsTopic(
     audience: ["caregiver", "lead"],
     icon: "Users",
     steps: [
-      "Öffnen Sie `Meine Gruppen` in der Seitenleiste.",
+      "Öffnen Sie `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste.",
       "Wählen Sie die gewünschte Gruppe.",
       "Prüfen Sie die Zahlen für `krank` und `entschuldigt`.",
       "Suchen Sie bei Bedarf über `Name suchen...` nach einem Kind.",
@@ -1026,6 +1026,7 @@ function ownGroupsTopic(
     differences: [
       "In der Seitenleiste steht hinter jeder Gruppe, wie viele Kinder gerade da sind.",
       "Eine vorübergehend übernommene Gruppe erscheint ebenfalls unter `Meine Gruppen`.",
+      "Gruppen, die nicht Ihre eigenen sind, stehen unter `Weitere Gruppen`.",
       "Fehlt eine Gruppe? Bitten Sie Ihre Leitung, Ihre Gruppenzuordnung zu prüfen.",
     ],
     troubleshooting: HELP_TOPICS.missingChildOrGroup,

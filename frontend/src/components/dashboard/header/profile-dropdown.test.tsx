@@ -153,6 +153,21 @@ describe("ProfileTrigger", () => {
 });
 
 describe("ProfileDropdownMenu", () => {
+  it("leaves out the address line when there is no address to show (#3891)", () => {
+    const { container } = render(
+      <ProfileDropdownMenu
+        isOpen={true}
+        displayName="Florian Besuch"
+        userEmail=""
+        onClose={vi.fn()}
+        onLogout={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Florian Besuch")).toBeInTheDocument();
+    expect(container.querySelector("[title]")).not.toBeInTheDocument();
+  });
+
   it("is hidden when closed", () => {
     const onClose = vi.fn();
     const onLogout = vi.fn();

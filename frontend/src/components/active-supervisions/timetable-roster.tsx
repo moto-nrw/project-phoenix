@@ -8,8 +8,10 @@ import { Button } from "~/components/ui/button";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { FormModal } from "~/components/ui/form-modal";
+import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import { Input } from "~/components/ui/input";
 import { OccupancyBadges } from "~/components/ui/occupancy-badges";
+import { SectionCard } from "~/components/ui/section-card";
 import { overbookedHintFor, type Occupancy } from "~/lib/activity-occupancy";
 import { useNFCEnabled } from "~/lib/tenant-context";
 import {
@@ -897,8 +899,82 @@ interface TimetableRosterContentProps {
   readonly onExcuseRestOfDay?: (row: TimetableRosterRow) => Promise<void>;
   readonly onOpenStudent?: (row: TimetableRosterRow) => void;
   readonly onSearchChange: (value: string) => void;
+  /**
+   * Suche und Filter der Seite (#3889). Sie engen die Abschnitte ein, die
+   * Zahlen im Kopf bleiben die des ganzen Blocks. Ohne Filter alle Zeilen.
+   */
+  readonly rowFilter?: ((row: TimetableRosterRow) => boolean) | null;
   /** Fehler des Nachtragens; steht im Dialog „Kind ungeplant hinzufügen“. */
   readonly addStudentError?: FormErrorInput;
+}
+
+/**
+ * Sorts a roster's rows into the sections of the list. Runs once over every
+ * row for the head figures and the bulk confirm, and once over the rows the
+ * page's search and filters leave for the sections on screen (#3889).
+ */
+function rosterSections(
+  rows: readonly TimetableRosterRow[],
+  now: Date,
+  date: string,
+) {
+  const present = rows.filter((row) => row.currentlyPresent && row.planned);
+  // The care plan decides who counts as expected (#1747): rows the plan does
+  // not place here today — not booked, or the day was cancelled — go into
+  // their own section below, never into "Erwartet" and never into the bulk
+  // confirm, which would persist attendance for a child who is not coming.
+  const stillExpected = rows.filter(
+    (row) =>
+      row.planned &&
+      !row.currentlyPresent &&
+      row.status === "expected" &&
+      isCareDayExpected(row.careDayStatus),
+  );
+  // A child whose expected arrival is still ahead (six lessons instead of
+  // five, #2878) is not expected yet: it gets its own "Kommt später" section
+  // and stays out of the bulk confirm, which would check it in prematurely.
+  // Once the minute clock passes the arrival time the row moves to "Erwartet"
+  // by itself.
+  const arrivingLater = stillExpected.filter(
+    (row) => upcomingArrivalTime(row.warnings, now, date) !== null,
+  );
+  const expected = stillExpected.filter(
+    (row) => upcomingArrivalTime(row.warnings, now, date) === null,
+  );
+  // An absence a sick / excused / class-trip day status wrote onto a day the
+  // child was never booked into care belongs here too, not under "Abwesend":
+  // the block has not ended yet, so nothing has undone that false absence, and
+  // the header count already groups it this way (#1747).
+  const notScheduled = rows.filter(
+    (row) =>
+      row.planned &&
+      !row.currentlyPresent &&
+      isNotScheduledRow(row.status, row.careDayStatus),
+  );
+  const absent = rows.filter(
+    (row) =>
+      row.planned &&
+      !row.currentlyPresent &&
+      row.status === "absent" &&
+      !isNotScheduledRow(row.status, row.careDayStatus),
+  );
+  const departed = rows.filter(
+    (row) =>
+      !row.currentlyPresent &&
+      (row.status === "present" || (row.isUnplanned && row.visitId)),
+  );
+  const unplanned = rows.filter(
+    (row) => row.isUnplanned && row.currentlyPresent,
+  );
+  return {
+    present,
+    expected,
+    arrivingLater,
+    notScheduled,
+    absent,
+    departed,
+    unplanned,
+  };
 }
 
 export function TimetableRosterContent({
@@ -922,6 +998,7 @@ export function TimetableRosterContent({
   onExcuseRestOfDay,
   onOpenStudent,
   onSearchChange,
+  rowFilter = null,
   addStudentError,
 }: TimetableRosterContentProps) {
   const now = useMinuteClock();
@@ -993,58 +1070,14 @@ export function TimetableRosterContent({
     // wird vom gemeinsamen Such-Handler zurückgesetzt.
     onSearchChange("");
   };
-  const present = roster.rows.filter(
-    (row) => row.currentlyPresent && row.planned,
-  );
-  // The care plan decides who counts as expected (#1747): rows the plan does
-  // not place here today — not booked, or the day was cancelled — go into
-  // their own section below, never into "Erwartet" and never into the bulk
-  // confirm, which would persist attendance for a child who is not coming.
-  const stillExpected = roster.rows.filter(
-    (row) =>
-      row.planned &&
-      !row.currentlyPresent &&
-      row.status === "expected" &&
-      isCareDayExpected(row.careDayStatus),
-  );
-  // A child whose expected arrival is still ahead (six lessons instead of
-  // five, #2878) is not expected yet: it gets its own "Kommt später" section
-  // and stays out of the bulk confirm, which would check it in prematurely.
-  // Once the minute clock passes the arrival time the row moves to "Erwartet"
-  // by itself.
-  const arrivingLater = stillExpected.filter(
-    (row) =>
-      upcomingArrivalTime(row.warnings, now, roster.instance.date) !== null,
-  );
-  const expected = stillExpected.filter(
-    (row) =>
-      upcomingArrivalTime(row.warnings, now, roster.instance.date) === null,
-  );
-  // An absence a sick / excused / class-trip day status wrote onto a day the
-  // child was never booked into care belongs here too, not under "Abwesend":
-  // the block has not ended yet, so nothing has undone that false absence, and
-  // the header count already groups it this way (#1747).
-  const notScheduled = roster.rows.filter(
-    (row) =>
-      row.planned &&
-      !row.currentlyPresent &&
-      isNotScheduledRow(row.status, row.careDayStatus),
-  );
-  const absent = roster.rows.filter(
-    (row) =>
-      row.planned &&
-      !row.currentlyPresent &&
-      row.status === "absent" &&
-      !isNotScheduledRow(row.status, row.careDayStatus),
-  );
-  const departed = roster.rows.filter(
-    (row) =>
-      !row.currentlyPresent &&
-      (row.status === "present" || (row.isUnplanned && row.visitId)),
-  );
-  const unplanned = roster.rows.filter(
-    (row) => row.isUnplanned && row.currentlyPresent,
-  );
+  const all = rosterSections(roster.rows, now, roster.instance.date);
+  const { present, expected, arrivingLater, absent, departed, unplanned } = all;
+  // The page's search and filters narrow the sections, never the figures in
+  // the head: those describe the block, not the search (#3889).
+  const visible = rowFilter
+    ? rosterSections(roster.rows.filter(rowFilter), now, roster.instance.date)
+    : all;
+  const hasNoMatch = rowFilter ? !roster.rows.some(rowFilter) : false;
   const confirmableExpectedRows = expected.filter(
     (row) => row.planned && !row.currentlyPresent,
   );
@@ -1121,39 +1154,47 @@ export function TimetableRosterContent({
           onSelect={(scope) => void handleExcuseScope(scope)}
         />
       ) : null}
+      {hasNoMatch ? (
+        <SectionCard>
+          <EmptyStudentResults
+            totalCount={roster.rows.length}
+            filteredCount={0}
+          />
+        </SectionCard>
+      ) : null}
       <TimetableRosterSection
         title="Anwesend"
-        rows={present}
+        rows={visible.present}
         {...sectionProps}
       />
       <TimetableRosterSection
         title="Erwartet"
-        rows={expected}
+        rows={visible.expected}
         {...sectionProps}
       />
       <TimetableRosterSection
         title="Kommt später"
-        rows={arrivingLater}
+        rows={visible.arrivingLater}
         {...sectionProps}
       />
       <TimetableRosterSection
         title="Heute nicht eingeplant"
-        rows={notScheduled}
+        rows={visible.notScheduled}
         {...sectionProps}
       />
       <TimetableRosterSection
         title="Entschuldigt / Abwesend"
-        rows={absent}
+        rows={visible.absent}
         {...sectionProps}
       />
       <TimetableRosterSection
         title="Nicht mehr im Raum"
-        rows={departed}
+        rows={visible.departed}
         {...sectionProps}
       />
       <TimetableRosterSection
         title={unplannedTitle}
-        rows={unplanned}
+        rows={visible.unplanned}
         {...sectionProps}
       />
     </div>

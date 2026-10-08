@@ -129,7 +129,7 @@ func newGuardiansResource(module peopleModule.Capability, runtime services.Guard
 			result := make([]usersAPI.PendingGuardianInvitation, 0, len(invitations))
 			for _, invitation := range invitations {
 				result = append(result, usersAPI.PendingGuardianInvitation{
-					ID: invitation.ID, GuardianProfileID: invitation.GuardianProfileID, CreatedAt: invitation.CreatedAt,
+					ID: invitation.ID, GuardianProfileID: invitation.GuardianProfileID, Token: invitation.Token, CreatedAt: invitation.CreatedAt,
 					ExpiresAt: invitation.ExpiresAt, EmailSentAt: invitation.EmailSentAt, EmailError: invitation.EmailError,
 					EmailRetryCount: invitation.EmailRetryCount,
 				})

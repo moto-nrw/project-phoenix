@@ -125,3 +125,19 @@ func TestSubmitRenewalSkipsAParentWithoutAnswer(t *testing.T) {
 	err := (parentEnrollmentSeedStep{}).submitRenewal(nil, AuthRef{}, 0, ParentCredentials{}, nil, "")
 	require.NoError(t, err)
 }
+
+// The demo visitor signs in as the first parent. An approved renewal is next
+// school year's enrollment and would be that child's only care period, so the
+// parents portal showed next year as current care (#3894).
+func TestRenewalPhaseAnswersLeaveTheVisitorParentUndecided(t *testing.T) {
+	t.Parallel()
+
+	approved := false
+	for _, answer := range renewalPhaseAnswers {
+		if answer.parent == 0 {
+			assert.NotEqual(t, "approved", answer.status, "the visitor's child must keep its current care period")
+		}
+		approved = approved || answer.status == "approved"
+	}
+	assert.True(t, approved, "the overview still needs one confirmed answer")
+}

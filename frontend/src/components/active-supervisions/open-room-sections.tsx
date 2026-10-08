@@ -1,6 +1,11 @@
 "use client";
 
-import { useState, type ComponentProps, type ReactNode } from "react";
+import {
+  useEffect,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from "react";
 import { UserPlus } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -42,6 +47,15 @@ export type OpenRoomBlockContext = Omit<
   /** The school-wide overview lets the caller read every running roster. */
   readonly overviewEnabled: boolean;
   readonly onAddSupervisor: (activeGroupId: string) => void;
+  /** Makes each loaded block's groups available to the page's common filters. */
+  readonly onRosterGroups?: (
+    instanceId: string,
+    groups: readonly string[],
+  ) => void;
+  /** The page's search and filters over each block's list (#3889). */
+  readonly rosterRowFilter?: ComponentProps<
+    typeof TimetableRosterContent
+  >["rowFilter"];
 };
 
 type StudentGridProps = Omit<
@@ -210,6 +224,8 @@ function OpenRoomBlock({
     canExcuseRestOfDay,
     overviewEnabled,
     onAddSupervisor,
+    onRosterGroups,
+    rosterRowFilter,
     ...actionOptions
   } = context;
   const [collapsed, setCollapsed] = useState(!section.isOwn);
@@ -221,6 +237,14 @@ function OpenRoomBlock({
       !collapsed && canViewRoster ? block.instanceId : null,
     currentRoomId: undefined,
   });
+  const currentRoster = roster.currentTimetableRoster;
+  const rosterRows = currentRoster?.rows;
+  const rosterGroups = rosterRows?.map((row) => row.groupName);
+  useEffect(() => {
+    if (rosterGroups) {
+      onRosterGroups?.(block.instanceId, rosterGroups);
+    }
+  }, [block.instanceId, onRosterGroups, rosterGroups]);
   const actions = useTimetableActions({
     ...actionOptions,
     activeTimetableInstanceId: roster.activeTimetableInstanceId,
@@ -272,7 +296,6 @@ function OpenRoomBlock({
 
   if (collapsed) return header;
 
-  const currentRoster = roster.currentTimetableRoster;
   if (currentRoster) {
     return (
       <SectionGroup label={title}>
@@ -306,6 +329,7 @@ function OpenRoomBlock({
             canExcuseRestOfDay ? actions.handleExcuseRestOfDay : undefined
           }
           onSearchChange={actions.handleAddStudentSearchChange}
+          rowFilter={rosterRowFilter}
         />
         <CompleteInstanceModal
           isOpen={actions.showCompleteConfirmation}

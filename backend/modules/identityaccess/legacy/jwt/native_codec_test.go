@@ -66,7 +66,7 @@ func TestNativeSessionCodecPreservesTokenWire(t *testing.T) {
 	require.NoError(t, err)
 	for _, scope := range []string{"", "org", "parent", "school", "platform"} {
 		t.Run(scope, func(t *testing.T) {
-			claims := identityaccess.SessionClaims{AccountID: 42, Email: "codec@test.local", Username: "codec", FirstName: "Test", LastName: "Account", Roles: []string{"user"}, Permissions: []string{"students:read"}, IsAdmin: true, Scope: scope, TenantID: 73, OrgID: 8, FamilyID: "family"}
+			claims := identityaccess.SessionClaims{AccountID: 42, Email: "codec@test.local", Username: "codec", FirstName: "Test", LastName: "Account", Roles: []string{"user"}, RoleIsSystem: []bool{true}, Permissions: []string{"students:read"}, IsAdmin: true, Scope: scope, TenantID: 73, OrgID: 8, FamilyID: "family"}
 			refresh := identityaccess.RefreshClaims{AccountID: claims.AccountID, Token: "persisted-refresh", Scope: scope, TenantID: claims.TenantID, ExpiresAt: time.Now().Add(2 * time.Hour).Unix()}
 			accessToken, refreshToken, err := native.IssueTokenPair(claims, refresh)
 			require.NoError(t, err)
@@ -88,6 +88,8 @@ func TestNativeSessionCodecPreservesTokenWire(t *testing.T) {
 			decodedOld, err := native.ParseAccessToken(oldToken)
 			require.NoError(t, err)
 			decodedOld.ExpiresAt = decoded.ExpiresAt
+			// Old callers do not know the display-only role origin claim.
+			decoded.RoleIsSystem = nil
 			require.Equal(t, decoded, decodedOld)
 			oldRefresh, err := legacy.CreateRefreshJWT(RefreshClaims{ID: int(refresh.AccountID), Token: refresh.Token, TenantID: refresh.TenantID, Scope: scope, CommonClaims: CommonClaims{ExpiresAt: refresh.ExpiresAt}})
 			require.NoError(t, err)

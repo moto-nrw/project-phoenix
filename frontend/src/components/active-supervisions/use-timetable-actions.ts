@@ -25,6 +25,7 @@ import type {
 import type { Student } from "~/lib/student-helpers";
 import { useLatest } from "~/lib/hooks/use-latest";
 import { isTimetableOperationForbidden } from "~/lib/timetable-operation-access";
+import { useOptionalSupervision } from "~/lib/supervision-context";
 import {
   RestOfDayNotSavedError,
   moveNoticeFromRoster,
@@ -35,6 +36,7 @@ import {
 } from "~/components/active-supervisions/timetable-roster";
 import type { SpontaneousActivityStartPayload } from "~/components/active-supervisions/spontaneous-activity-start";
 import type { ActiveSupervisionRoom } from "~/components/active-supervisions/view-model";
+import type { ReopenableInstance } from "~/components/active-supervisions/use-reopen-banner";
 
 const logger = createLogger({ component: "ActiveSupervisionsPage" });
 
@@ -59,7 +61,6 @@ interface TimetableActionsOptions {
     opts?: { revalidate?: boolean },
   ) => Promise<unknown>;
   readonly mutateDashboard: () => Promise<unknown>;
-  readonly refresh: () => void;
   readonly adoptSession: (
     activeGroupId: string,
     timetableInstanceId: string | null,
@@ -67,9 +68,9 @@ interface TimetableActionsOptions {
   ) => string;
   readonly setSelectedTimetableInstanceId: (id: string | null) => void;
   readonly router: { push: (url: string) => void };
-  readonly reopenableInstanceId: string | null;
+  readonly reopenable: ReopenableInstance | null;
   readonly rememberReopenable: (
-    instanceId: string,
+    instance: ReopenableInstance,
     reopenUntil: string | null | undefined,
   ) => void;
   readonly clearReopenable: () => void;
@@ -78,7 +79,13 @@ interface TimetableActionsOptions {
 export interface TimetableActions {
   readonly isStartingInstance: string | null;
   readonly isStartingSpontaneous: boolean;
+  /**
+   * True from „Aktivität beenden“ until the page and the sidebar have
+   * reloaded, so the dialog shows the pending end instead of a block that
+   * still looks active (#3888).
+   */
   readonly isCompletingInstance: boolean;
+  readonly isReopeningInstance: boolean;
   readonly isConfirmingExpected: boolean;
   readonly isAddingStudent: boolean;
   readonly showCompleteConfirmation: boolean;
@@ -132,14 +139,14 @@ export function useTimetableActions(
     currentTimetableRoster,
     mutateRoster,
     mutateDashboard,
-    refresh,
     adoptSession,
     setSelectedTimetableInstanceId,
     router,
-    reopenableInstanceId,
+    reopenable,
     rememberReopenable,
     clearReopenable,
   } = options;
+  const { refresh: refreshSupervision } = useOptionalSupervision();
 
   const activeTimetableInstanceIdRef = useLatest(activeTimetableInstanceId);
   const { show: showActionError } = useApiErrorDisplay();
@@ -154,6 +161,7 @@ export function useTimetableActions(
   );
   const [isStartingSpontaneous, setIsStartingSpontaneous] = useState(false);
   const [isCompletingInstance, setIsCompletingInstance] = useState(false);
+  const [isReopeningInstance, setIsReopeningInstance] = useState(false);
   const [showCompleteConfirmation, setShowCompleteConfirmation] =
     useState(false);
   const [isConfirmingExpected, setIsConfirmingExpected] = useState(false);
@@ -186,6 +194,20 @@ export function useTimetableActions(
     confirmExpected: () => undefined,
     reopen: () => undefined,
   });
+
+  // Starting, ending or reopening a block changes which supervisions run.
+  // The sidebar („Aktuelle Aufsichten“) keeps its own copy and otherwise only
+  // hears SSE, which may drop events. So the own action reloads both lists;
+  // a failed reload leaves the next refresh to fix it and never reports the
+  // write itself as failed. No extra SWR key bump afterwards: it fetched the
+  // same aggregate a second time and kept the old view on screen meanwhile
+  // (#3888).
+  const reloadAfterLifecycleChange = useCallback(async () => {
+    await Promise.allSettled([
+      mutateDashboard(),
+      refreshSupervision({ silent: true, force: true }),
+    ]);
+  }, [mutateDashboard, refreshSupervision]);
 
   const addStudentResults =
     addStudentResult?.instanceId === activeTimetableInstanceId
@@ -289,8 +311,7 @@ export function useTimetableActions(
         } else {
           localStorage.removeItem("sidebar-last-room-name");
         }
-        await mutateDashboard();
-        refresh();
+        await reloadAfterLifecycleChange();
       } catch (err) {
         logger.error("failed to start planned timetable instance", {
           instance_id: instance.id,
@@ -305,7 +326,13 @@ export function useTimetableActions(
         setIsStartingInstance(null);
       }
     },
-    [allRooms, adoptSession, mutateDashboard, refresh, router, showActionError],
+    [
+      allRooms,
+      adoptSession,
+      reloadAfterLifecycleChange,
+      router,
+      showActionError,
+    ],
   );
 
   const handleStartSpontaneousActivity = useCallback(
@@ -338,8 +365,7 @@ export function useTimetableActions(
         );
         localStorage.setItem("supervision-last-session", result.activeGroupId);
         localStorage.setItem("sidebar-last-room", payload.roomId);
-        await mutateDashboard();
-        refresh();
+        await reloadAfterLifecycleChange();
       } catch (err) {
         const context = {
           title: payload.title,
@@ -368,8 +394,7 @@ export function useTimetableActions(
     [
       currentStaffId,
       adoptSession,
-      mutateDashboard,
-      refresh,
+      reloadAfterLifecycleChange,
       router,
       showActionError,
     ],
@@ -499,11 +524,20 @@ export function useTimetableActions(
           .filter((row) => row.currentlyPresent)
           .map((row) => row.studentId) ?? [],
       );
-      rememberReopenable(activeTimetableInstanceId, completed.reopenUntil);
+      rememberReopenable(
+        {
+          instanceId: activeTimetableInstanceId,
+          title: currentTimetableRoster?.instance.title ?? null,
+          roomId: currentTimetableRoster?.instance.roomId ?? null,
+        },
+        completed.reopenUntil,
+      );
+      // The dialog stays open with its pending button until both lists no
+      // longer carry the ended block; closing first would show it as still
+      // running for the length of the reload (#3888).
+      await reloadAfterLifecycleChange();
       setShowCompleteConfirmation(false);
       setSelectedTimetableInstanceId(null);
-      await mutateDashboard();
-      refresh();
     } catch (err) {
       logger.error("failed to complete timetable instance", {
         instance_id: activeTimetableInstanceId,
@@ -523,10 +557,9 @@ export function useTimetableActions(
     activeTimetableInstanceId,
     clearCompleteError,
     currentTimetableRoster,
-    mutateDashboard,
-    refresh,
     rememberReopenable,
     reloadAfterDenial,
+    reloadAfterLifecycleChange,
     setSelectedTimetableInstanceId,
     showCompleteError,
   ]);
@@ -537,16 +570,31 @@ export function useTimetableActions(
   }, [clearCompleteError]);
 
   const handleReopenTimetableInstance = useCallback(async () => {
-    if (!reopenableInstanceId) return;
+    if (!reopenable) return;
     try {
-      const result = await timetableOperationsApi.reopen(reopenableInstanceId);
+      setIsReopeningInstance(true);
+      const result = await timetableOperationsApi.reopen(reopenable.instanceId);
       clearReopenable();
-      setSelectedTimetableInstanceId(result.instanceId);
-      await mutateDashboard();
-      refresh();
+      // Undo opens the restored block, wherever the page went after the end.
+      // An entry stored before the room was remembered keeps the old
+      // behaviour: it only selects the block.
+      if (reopenable.roomId) {
+        router.push(
+          adoptSession(
+            result.activeGroupId,
+            result.instanceId,
+            reopenable.roomId,
+          ),
+        );
+        localStorage.setItem("supervision-last-session", result.activeGroupId);
+        localStorage.setItem("sidebar-last-room", reopenable.roomId);
+      } else {
+        setSelectedTimetableInstanceId(result.instanceId);
+      }
+      await reloadAfterLifecycleChange();
     } catch (err) {
       logger.error("failed to reopen timetable instance", {
-        instance_id: reopenableInstanceId,
+        instance_id: reopenable.instanceId,
         error: err instanceof Error ? err.message : String(err),
         status: errorStatus(err),
       });
@@ -560,12 +608,15 @@ export function useTimetableActions(
         object: "die Rücknahme",
         retry: unavailable ? undefined : () => retryRef.current.reopen(),
       });
+    } finally {
+      setIsReopeningInstance(false);
     }
   }, [
+    adoptSession,
     clearReopenable,
-    mutateDashboard,
-    refresh,
-    reopenableInstanceId,
+    reloadAfterLifecycleChange,
+    reopenable,
+    router,
     setSelectedTimetableInstanceId,
     showActionError,
   ]);
@@ -685,6 +736,7 @@ export function useTimetableActions(
     isStartingInstance,
     isStartingSpontaneous,
     isCompletingInstance,
+    isReopeningInstance,
     isConfirmingExpected,
     isAddingStudent,
     showCompleteConfirmation,

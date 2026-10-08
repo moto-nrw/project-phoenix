@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 
+// The provider now shares the real SWR cache with the parent shell.
+vi.unmock("swr");
+
+import { SWRConfig } from "swr";
+
 import { ParentLocaleProvider, useParentLocale } from "./parent-locale-context";
 import { fetchParentProfile, updateParentPortalLocale } from "./parent-api";
 import { useSession } from "next-auth/react";
@@ -35,6 +40,7 @@ vi.mock("~/contexts/ToastContext", () => ({
 // The profile API is exercised through the provider, never hit for real.
 vi.mock("./parent-api", () => ({
   fetchParentProfile: vi.fn(),
+  parentProfileCacheKey: (accountID: string) => ["parent-profile", accountID],
   updateParentPortalLocale: vi.fn(),
 }));
 
@@ -51,10 +57,10 @@ const mockedUpdateLocale = vi.mocked(updateParentPortalLocale);
 const mockedWriteCookie = vi.mocked(writeLocaleCookie);
 
 function setSession(status: "authenticated" | "unauthenticated" | "loading") {
-  // The provider only reads `status`; data/update are unused.
+  // The provider keys the profile cache by the authenticated account.
   mockedUseSession.mockReturnValue({
     status,
-    data: null,
+    data: status === "authenticated" ? { user: { id: "parent-1" } } : null,
     update: vi.fn(),
   } as unknown as ReturnType<typeof useSession>);
 }
@@ -77,9 +83,11 @@ function Consumer() {
 
 function renderProvider() {
   return render(
-    <ParentLocaleProvider>
-      <Consumer />
-    </ParentLocaleProvider>,
+    <SWRConfig value={{ provider: () => new Map() }}>
+      <ParentLocaleProvider>
+        <Consumer />
+      </ParentLocaleProvider>
+    </SWRConfig>,
   );
 }
 
