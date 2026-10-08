@@ -68,21 +68,25 @@ func TestFamiliesWithoutAppAreReEnrolled(t *testing.T) {
 	}
 }
 
-// The parents of approved online enrollments accept their invitation, except
-// two the school still sees waiting.
-func TestEnrollmentInvitationGuardiansKeepTwoOpen(t *testing.T) {
+// The parents of approved online enrollments accept their existing invitation,
+// except two the school still sees waiting.
+func TestEnrollmentInvitationsKeepTwoOpen(t *testing.T) {
 	t.Parallel()
 
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		assert.Equal(t, "/api/guardians/invitations/pending", r.URL.Path)
+		assert.Equal(t, "true", r.Header.Get(seedTokenHeader))
 		_, _ = fmt.Fprint(w, `{"status":"success","data":[`+
-			`{"id":1,"guardian_profile_id":704},{"id":2,"guardian_profile_id":701},`+
-			`{"id":3,"guardian_profile_id":703},{"id":4,"guardian_profile_id":702}]}`)
+			`{"id":1,"guardian_profile_id":704,"token":"invite-704"},{"id":2,"guardian_profile_id":701,"token":"invite-701"},`+
+			`{"id":3,"guardian_profile_id":703,"token":"invite-703"},{"id":4,"guardian_profile_id":702,"token":"invite-702"}]}`)
 	})
 	defer srv.Close()
 
 	rt := &Runtime{Client: newTestClient(srv.URL, false)}
-	ids, err := enrollmentInvitationGuardians(rt, AuthRef{Token: "admin"})
+	invitations, err := enrollmentInvitationsToAccept(rt, AuthRef{Token: "admin"})
 	require.NoError(t, err)
-	assert.Equal(t, []int64{703, 704}, ids)
+	assert.Equal(t, []enrollmentInvitation{
+		{ID: 3, GuardianProfileID: 703, Token: "invite-703"},
+		{ID: 1, GuardianProfileID: 704, Token: "invite-704"},
+	}, invitations)
 }

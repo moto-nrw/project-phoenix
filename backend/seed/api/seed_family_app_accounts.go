@@ -10,7 +10,7 @@ import (
 // parents app: the re-enrollment overview (#3379) shows a family that can
 // only be reached by phone, and "Neue Nachricht" shows the hint that a child
 // has no parent access. Both need a real example, not a whole school of them.
-var familiesWithoutApp = map[int]bool{24: true, 47: true}
+var familiesWithoutApp = map[int]bool{24: true, 48: true}
 
 // openInvitationsKept is how many parents of approved online enrollments keep
 // their invitation open: the school still sees one waiting for an answer.
@@ -46,13 +46,11 @@ func (s seedFamilyAppAccountsStep) Run(ctx context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
-	invited, err := enrollmentInvitationGuardians(rt, adminAuth)
+	invitations, err := enrollmentInvitationsToAccept(rt, adminAuth)
 	if err != nil {
 		return err
 	}
-	guardians = append(guardians, invited...)
 	for _, guardianID := range guardians {
-		// For an open invitation the invite returns that one with its token.
 		token, err := step.inviteGuardian(rt, adminAuth, guardianID)
 		if err != nil {
 			return fmt.Errorf("invite guardian %d: %w", guardianID, err)
@@ -61,7 +59,12 @@ func (s seedFamilyAppAccountsStep) Run(ctx context.Context, rt *Runtime) error {
 			return fmt.Errorf("accept guardian invitation %d: %w", guardianID, err)
 		}
 	}
-	fmt.Printf("  %d parent app accounts created\n", len(guardians))
+	for _, invitation := range invitations {
+		if _, err := step.acceptGuardianInvitation(rt, invitation.Token, password); err != nil {
+			return fmt.Errorf("accept guardian invitation %d: %w", invitation.GuardianProfileID, err)
+		}
+	}
+	fmt.Printf("  %d parent app accounts created\n", len(guardians)+len(invitations))
 	return nil
 }
 
@@ -95,29 +98,53 @@ func familyAppGuardians(guardianIDs map[string]int64, parents []ParentCredential
 	return result, nil
 }
 
-// enrollmentInvitationGuardians returns the guardians whose invitation is
-// still open, except the openInvitationsKept lowest ids.
-func enrollmentInvitationGuardians(rt *Runtime, auth AuthRef) ([]int64, error) {
-	raw, err := rt.Client.GetWithAuth(auth, "/api/guardians/invitations/pending")
+type enrollmentInvitation struct {
+	ID                int64  `json:"id"`
+	GuardianProfileID int64  `json:"guardian_profile_id"`
+	Token             string `json:"token"`
+}
+
+// enrollmentInvitationsToAccept returns the redeemable invitations to accept,
+// keeping two guardians' invitations open for the demo overview. Its tokens
+// are exposed only to the locally authorized seeder.
+func enrollmentInvitationsToAccept(rt *Runtime, auth AuthRef) ([]enrollmentInvitation, error) {
+	raw, err := rt.Client.GetWithAuthAndHeaders(auth, "/api/guardians/invitations/pending", map[string]string{seedTokenHeader: "true"})
 	if err != nil {
 		return nil, fmt.Errorf("list open guardian invitations: %w", err)
 	}
 	var resp struct {
-		Data []struct {
-			GuardianProfileID int64 `json:"guardian_profile_id"`
-		} `json:"data"`
+		Data []enrollmentInvitation `json:"data"`
 	}
 	if err := parseJSON(raw, &resp); err != nil {
 		return nil, fmt.Errorf("parse open guardian invitations: %w", err)
 	}
-	ids := make([]int64, 0, len(resp.Data))
+	slices.SortFunc(resp.Data, func(left, right enrollmentInvitation) int {
+		switch {
+		case left.GuardianProfileID < right.GuardianProfileID:
+			return -1
+		case left.GuardianProfileID > right.GuardianProfileID:
+			return 1
+		case left.ID < right.ID:
+			return -1
+		case left.ID > right.ID:
+			return 1
+		default:
+			return 0
+		}
+	})
+	keptGuardians := make(map[int64]bool, openInvitationsKept)
+	result := make([]enrollmentInvitation, 0, len(resp.Data))
 	for _, invitation := range resp.Data {
-		ids = append(ids, invitation.GuardianProfileID)
+		if len(keptGuardians) < openInvitationsKept {
+			keptGuardians[invitation.GuardianProfileID] = true
+		}
+		if keptGuardians[invitation.GuardianProfileID] {
+			continue
+		}
+		if invitation.Token == "" {
+			return nil, fmt.Errorf("open guardian invitation %d did not include seed token", invitation.ID)
+		}
+		result = append(result, invitation)
 	}
-	slices.Sort(ids)
-	ids = slices.Compact(ids)
-	if len(ids) <= openInvitationsKept {
-		return nil, nil
-	}
-	return ids[openInvitationsKept:], nil
+	return result, nil
 }

@@ -659,7 +659,7 @@ func (rs *GuardianResource) listPendingInvitations(w http.ResponseWriter, r *htt
 	}
 	responses := make([]map[string]any, 0, len(invitations))
 	for _, invitation := range invitations {
-		responses = append(responses, map[string]any{
+		response := map[string]any{
 			"id":                  invitation.ID,
 			"guardian_profile_id": invitation.GuardianProfileID,
 			"created_at":          invitation.CreatedAt,
@@ -667,7 +667,11 @@ func (rs *GuardianResource) listPendingInvitations(w http.ResponseWriter, r *htt
 			"email_sent_at":       invitation.EmailSentAt,
 			"email_error":         invitation.EmailError,
 			"email_retry_count":   invitation.EmailRetryCount,
-		})
+		}
+		if rs.runtime.ExposeInvitationToken(r) {
+			response["token"] = invitation.Token
+		}
+		responses = append(responses, response)
 	}
 	rs.succeed(w, r, http.StatusOK, responses, "Pending invitations retrieved successfully")
 }

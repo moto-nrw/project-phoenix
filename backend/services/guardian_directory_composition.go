@@ -591,6 +591,7 @@ type GuardianInvitationSummary struct {
 type PendingGuardianInvitation struct {
 	ID                int64
 	GuardianProfileID int64
+	Token             string
 	CreatedAt         time.Time
 	ExpiresAt         time.Time
 	EmailSentAt       *time.Time
@@ -707,7 +708,7 @@ func (f *Factory) NewGuardianDirectoryRuntime(db *bun.DB) GuardianDirectoryRunti
 			result := make([]PendingGuardianInvitation, 0, len(invitations))
 			for _, invitation := range invitations {
 				result = append(result, PendingGuardianInvitation{
-					ID: invitation.ID, GuardianProfileID: invitation.GuardianProfileID, CreatedAt: invitation.CreatedAt,
+					ID: invitation.ID, GuardianProfileID: invitation.GuardianProfileID, Token: invitation.Token, CreatedAt: invitation.CreatedAt,
 					ExpiresAt: invitation.ExpiresAt, EmailSentAt: invitation.EmailSentAt, EmailError: invitation.EmailError,
 				})
 			}

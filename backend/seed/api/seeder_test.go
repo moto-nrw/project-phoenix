@@ -1685,9 +1685,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
 				"data": []map[string]any{
-					{"id": 1, "guardian_profile_id": 703},
-					{"id": 2, "guardian_profile_id": 701},
-					{"id": 3, "guardian_profile_id": 702},
+					{"id": 1, "guardian_profile_id": 703, "token": "existing-invite-703"},
+					{"id": 2, "guardian_profile_id": 701, "token": "existing-invite-701"},
+					{"id": 3, "guardian_profile_id": 702, "token": "existing-invite-702"},
 				},
 			})
 
