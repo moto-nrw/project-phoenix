@@ -163,6 +163,7 @@ export const nodeLogicTestFiles = [
   "src/lib/utils/date-helpers.test.ts",
   "src/server/auth/route-handler-coverage.test.ts",
   "src/server/auth/route-handler.test.ts",
+  "src/server/node-header-limit.test.ts",
   "src/styles/moto-token-drift.test.ts",
   "src/test/phosphor-imports-plugin.test.ts",
 ];

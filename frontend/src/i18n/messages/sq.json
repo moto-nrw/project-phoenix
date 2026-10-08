@@ -2173,6 +2173,7 @@
         "business_rejection": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "input": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "permission": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "request_too_large": "Nuk u përpunua: {object}. Fshini në shfletues cookies e kësaj faqeje. Pastaj hyni përsëri.",
         "server": "Nuk u përpunua: {object}. Provoni përsëri më vonë.",
         "unavailable": "{object} nuk është i disponueshëm tani. Provoni përsëri."
       },

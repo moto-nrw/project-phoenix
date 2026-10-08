@@ -237,6 +237,8 @@ export const ERROR_CATALOG = {
         "Es gibt schon einen Ordner mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
       "files.quota_exceeded":
         "Der Speicherplatz der Dateiablage ist voll. Bitte löschen Sie Dateien, die Sie nicht mehr brauchen.",
+      "general.request_too_large":
+        "{object} konnte nicht bearbeitet werden. Bitte löschen Sie im Browser die Cookies dieser Seite. Melden Sie sich danach neu an.",
       "grade_transition.graduates_checked_in":
         "Es sind noch Kinder mit Abgang eingecheckt. Bitte buchen Sie diese Kinder zuerst nach Hause. Wenden Sie den Jahrgangswechsel danach erneut an.",
       "grade_transition.not_applied":
@@ -1305,6 +1307,8 @@ export const ERROR_CATALOG = {
         "This weekday is not available for this option. Please only choose the days shown.",
       "enrollment.window_closed":
         "The enrollment period has ended or has not started yet. Please contact the school.",
+      "general.request_too_large":
+        "{object} could not be processed. Please delete the cookies of this site in your browser. Then sign in again.",
       "identity.account_already_has_tenant_access":
         "This person already has access to this school. You can find them in the staff list.",
       "identity.account_inactive":
@@ -1567,6 +1571,8 @@ export const ERROR_CATALOG = {
         "Этот день недели недоступен для программы. Выбирайте только показанные дни.",
       "enrollment.window_closed":
         "Срок записи истёк или ещё не начался. Обратитесь в школу.",
+      "general.request_too_large":
+        "Не удалось обработать: {object}. Удалите в браузере файлы cookie этого сайта. Затем войдите снова.",
       "identity.account_already_has_tenant_access":
         "У этого человека уже есть доступ к этой школе. Он есть в списке сотрудников.",
       "identity.account_inactive":
@@ -1829,6 +1835,8 @@ export const ERROR_CATALOG = {
         "Kjo ditë nuk ofrohet për këtë ofertë. Ju lutemi zgjidhni vetëm ditët e treguara.",
       "enrollment.window_closed":
         "Afati i regjistrimit ka mbaruar ose nuk ka filluar ende. Ju lutemi kontaktoni shkollën.",
+      "general.request_too_large":
+        "Nuk u përpunua: {object}. Fshini në shfletues cookies e kësaj faqeje. Pastaj hyni përsëri.",
       "identity.account_already_has_tenant_access":
         "Ky person ka tashmë qasje në këtë shkollë. E gjeni në listën e personelit.",
       "identity.account_inactive":
@@ -2097,6 +2105,8 @@ export const ERROR_CATALOG = {
         "Ten dzień tygodnia nie jest dostępny dla oferty. Wybieraj tylko pokazane dni.",
       "enrollment.window_closed":
         "Termin zapisów minął lub jeszcze się nie zaczął. Skontaktuj się ze szkołą.",
+      "general.request_too_large":
+        "Nie udało się przetworzyć: {object}. Usuń w przeglądarce pliki cookie tej strony. Następnie zaloguj się ponownie.",
       "identity.account_already_has_tenant_access":
         "Ta osoba ma już dostęp do tej szkoły. Znajdziesz ją na liście personelu.",
       "identity.account_inactive":
@@ -2357,6 +2367,8 @@ export const ERROR_CATALOG = {
         "Bu gün bu hizmet için mümkün değil. Lütfen yalnızca gösterilen günleri seçin.",
       "enrollment.window_closed":
         "Kayıt süresi bitti veya henüz başlamadı. Lütfen okulla iletişime geçin.",
+      "general.request_too_large":
+        "{object} işlenemedi. Lütfen tarayıcınızda bu sitenin çerezlerini silin. Ardından yeniden giriş yapın.",
       "identity.account_already_has_tenant_access":
         "Bu kişinin bu okula zaten erişimi var. Kişiyi personel listesinde bulabilirsiniz.",
       "identity.account_inactive":
@@ -2619,6 +2631,8 @@ export const ERROR_CATALOG = {
         "Цей день тижня недоступний для програми. Обирайте лише показані дні.",
       "enrollment.window_closed":
         "Термін запису минув або ще не почався. Зверніться до школи.",
+      "general.request_too_large":
+        "Не вдалося обробити: {object}. Видаліть у браузері файли cookie цього сайту. Потім увійдіть знову.",
       "identity.account_already_has_tenant_access":
         "Ця особа вже має доступ до цієї школи. Її можна знайти в списку персоналу.",
       "identity.account_inactive":
