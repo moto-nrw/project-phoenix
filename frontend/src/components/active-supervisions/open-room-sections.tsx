@@ -1,6 +1,11 @@
 "use client";
 
-import { useState, type ComponentProps, type ReactNode } from "react";
+import {
+  useEffect,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from "react";
 import { UserPlus } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -18,6 +23,7 @@ import { SupervisionStudentGrid } from "~/components/active-supervisions/student
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
 import { useTimetableRoster } from "~/components/active-supervisions/use-timetable-roster";
+import type { TimetableRosterRow } from "~/lib/timetable-operations-types";
 import type {
   ActiveSupervisionStudent,
   OpenRoomBlockSection,
@@ -42,6 +48,11 @@ export type OpenRoomBlockContext = Omit<
   /** The school-wide overview lets the caller read every running roster. */
   readonly overviewEnabled: boolean;
   readonly onAddSupervisor: (activeGroupId: string) => void;
+  /** Makes each loaded block roster available to the page's common filters. */
+  readonly onRosterRows?: (
+    instanceId: string,
+    rows: readonly TimetableRosterRow[],
+  ) => void;
   /** The page's search and filters over each block's list (#3889). */
   readonly rosterRowFilter?: ComponentProps<
     typeof TimetableRosterContent
@@ -214,6 +225,7 @@ function OpenRoomBlock({
     canExcuseRestOfDay,
     overviewEnabled,
     onAddSupervisor,
+    onRosterRows,
     rosterRowFilter,
     ...actionOptions
   } = context;
@@ -226,6 +238,13 @@ function OpenRoomBlock({
       !collapsed && canViewRoster ? block.instanceId : null,
     currentRoomId: undefined,
   });
+  const currentRoster = roster.currentTimetableRoster;
+  const rosterRows = currentRoster?.rows;
+  useEffect(() => {
+    if (rosterRows) {
+      onRosterRows?.(block.instanceId, rosterRows);
+    }
+  }, [block.instanceId, onRosterRows, rosterRows]);
   const actions = useTimetableActions({
     ...actionOptions,
     activeTimetableInstanceId: roster.activeTimetableInstanceId,
@@ -277,7 +296,6 @@ function OpenRoomBlock({
 
   if (collapsed) return header;
 
-  const currentRoster = roster.currentTimetableRoster;
   if (currentRoster) {
     return (
       <SectionGroup label={title}>

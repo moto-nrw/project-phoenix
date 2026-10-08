@@ -79,6 +79,7 @@ import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { OpenRoomSections } from "~/components/active-supervisions/open-room-sections";
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
+import type { TimetableRosterRow } from "~/lib/timetable-operations-types";
 
 function reopenBannerMessage(title: string | null): string {
   const ended = title
@@ -150,10 +151,32 @@ function MeinRaumPageContent() {
   });
   const { currentTimetableRoster } = roster;
   const { overviewEnabled } = useOptionalSupervision();
+  const [openRoomRosterRows, setOpenRoomRosterRows] = useState<
+    ReadonlyMap<string, readonly TimetableRosterRow[]>
+  >(() => new Map());
+  const rememberOpenRoomRosterRows = useCallback(
+    (instanceId: string, rows: readonly TimetableRosterRow[]) => {
+      setOpenRoomRosterRows((current) => {
+        if (current.get(instanceId) === rows) return current;
+        const next = new Map(current);
+        next.set(instanceId, rows);
+        return next;
+      });
+    },
+    [],
+  );
+  const filterRosterRows = useMemo(() => {
+    if (!openRoomLayout) return currentTimetableRoster?.rows;
+    return openRoomLayout.flatMap((section) =>
+      section.kind === "block"
+        ? (openRoomRosterRows.get(section.block.instanceId) ?? [])
+        : [],
+    );
+  }, [currentTimetableRoster?.rows, openRoomLayout, openRoomRosterRows]);
 
   // The header search covers the block list too (#3889): expected, absent
   // and departed children, not only those checked in right now.
-  const filters = useStudentFilters(students, currentTimetableRoster?.rows);
+  const filters = useStudentFilters(students, filterRosterRows);
   const reopen = useReopenBanner();
   // The session „Betreuer hinzufügen“ was opened for: the head action or one
   // section of a released room.
@@ -596,6 +619,7 @@ function MeinRaumPageContent() {
             canExcuseRestOfDay: hasPermission(session, "users:update"),
             overviewEnabled,
             onAddSupervisor: setAddSupervisorTarget,
+            onRosterRows: rememberOpenRoomRosterRows,
             rosterRowFilter: filters.rosterRowFilter,
           }}
         />
