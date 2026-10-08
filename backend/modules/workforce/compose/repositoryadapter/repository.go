@@ -120,16 +120,25 @@ func (r *StaffWorkScheduleRepository) FindStaffIDsWithScheduleHistory(ctx contex
 }
 
 func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*configModels.StaffWorkSchedule, anchor configModels.CalendarDate) error {
-	rows := make([]workforce.StaffWorkScheduleEntry, 0, len(entries))
 	// The rows of one version share their start day; a row without one
 	// starts the version today.
-	validFrom := ""
+	validFrom := configModels.CalendarDate("")
 	for _, entry := range entries {
 		if entry == nil {
 			continue
 		}
 		if validFrom == "" {
-			validFrom = string(entry.ValidFrom)
+			validFrom = entry.ValidFrom
+		}
+	}
+	return r.ReplaceScheduleWithValidFrom(ctx, staffID, entries, anchor, validFrom)
+}
+
+func (r *StaffWorkScheduleRepository) ReplaceScheduleWithValidFrom(ctx context.Context, staffID int64, entries []*configModels.StaffWorkSchedule, anchor, validFrom configModels.CalendarDate) error {
+	rows := make([]workforce.StaffWorkScheduleEntry, 0, len(entries))
+	for _, entry := range entries {
+		if entry == nil {
+			continue
 		}
 		rows = append(rows, workforce.StaffWorkScheduleEntry{
 			WeekIndex:      entry.WeekIndex,
@@ -140,7 +149,7 @@ func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staff
 		})
 	}
 	return r.workforce.ReplaceStaffSchedule(ctx, workforce.ReplaceStaffSchedule{
-		StaffID: staffID, Entries: rows, RotationAnchorDate: string(anchor), ValidFrom: validFrom,
+		StaffID: staffID, Entries: rows, RotationAnchorDate: string(anchor), ValidFrom: string(validFrom),
 	})
 }
 

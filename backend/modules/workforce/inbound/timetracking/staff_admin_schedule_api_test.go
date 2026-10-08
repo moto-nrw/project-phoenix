@@ -220,3 +220,43 @@ func TestUpdateSchedule_FirstScheduleStartsOnValidFrom(t *testing.T) {
 	require.Len(t, rows, 1)
 	assert.Equal(t, "2025-09-01", rows[0].ValidFrom)
 }
+
+func TestUpdateSchedule_RejectsFutureValidFromForEmptyCustomSchedule(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupStaffRoute(t)
+	capability := newWorkforceCapability(t, ctx.db)
+	claims := testutil.DefaultTestClaims()
+	claims.Permissions = []string{"time_tracking:manage"}
+	token := testutil.MintTestJWT(t, claims)
+
+	for _, test := range []struct {
+		name    string
+		entries []map[string]any
+	}{
+		{name: "no entries", entries: []map[string]any{}},
+		{name: "only zero targets", entries: []map[string]any{{"week_index": 0, "day_of_week": dayMonday, "target_minutes": 0}}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			staff := testpkg.CreateTestStaff(t, ctx.db, "ScheduleFuture", test.name)
+			require.NoError(t, capability.ReplaceStaffSchedule(testpkg.Ctx(t), workforce.ReplaceStaffSchedule{
+				StaffID: staff.ID,
+				Entries: []workforce.StaffWorkScheduleEntry{{
+					WeekIndex: 0, RotationLength: 1, DayOfWeek: dayMonday, TargetMinutes: 480,
+				}},
+			}))
+
+			body := map[string]any{
+				"mode": "custom", "rotation_length": 1, "valid_from": "2999-01-04", "entries": test.entries,
+			}
+			req := testutil.NewAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/staff/%d/schedule", staff.ID), body, testutil.WithJWTBearer(token))
+			rr := testutil.ExecuteRequest(ctx.router, req)
+			assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+
+			rows, err := capability.CurrentStaffSchedule(testpkg.Ctx(t), staff.ID)
+			require.NoError(t, err)
+			require.Len(t, rows, 1, "the rejected write must not close the current schedule")
+			assert.Equal(t, 480, rows[0].TargetMinutes)
+		})
+	}
+}

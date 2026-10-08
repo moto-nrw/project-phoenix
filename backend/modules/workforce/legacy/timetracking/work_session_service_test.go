@@ -191,6 +191,7 @@ type wsMockStaffWorkScheduleRepository struct {
 	getCurrentByStaffIDFunc        func(ctx context.Context, staffID int64) ([]*WorkScheduleRow, error)
 	getByStaffIDAndDateFunc        func(ctx context.Context, staffID int64, date Date) ([]*WorkScheduleRow, error)
 	replaceScheduleFunc            func(ctx context.Context, staffID int64, entries []*WorkScheduleRow, anchor Date) error
+	replaceScheduleWithValidFromFn func(ctx context.Context, staffID int64, entries []*WorkScheduleRow, anchor, validFrom Date) error
 	findByStaffIDsValidInRangeFunc func(ctx context.Context, staffIDs []int64, from, to Date) ([]*WorkScheduleRow, error)
 	hasScheduleHistoryFunc         func(ctx context.Context, staffID int64) (bool, error)
 }
@@ -214,6 +215,13 @@ func (m *wsMockStaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context,
 		return m.replaceScheduleFunc(ctx, staffID, entries, anchor)
 	}
 	return nil
+}
+
+func (m *wsMockStaffWorkScheduleRepository) ReplaceScheduleWithValidFrom(ctx context.Context, staffID int64, entries []*WorkScheduleRow, anchor, validFrom Date) error {
+	if m.replaceScheduleWithValidFromFn != nil {
+		return m.replaceScheduleWithValidFromFn(ctx, staffID, entries, anchor, validFrom)
+	}
+	return m.ReplaceSchedule(ctx, staffID, entries, anchor)
 }
 
 func (m *wsMockStaffWorkScheduleRepository) FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to Date) ([]*WorkScheduleRow, error) {
