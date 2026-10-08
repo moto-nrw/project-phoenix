@@ -17,7 +17,6 @@ import (
 	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
@@ -32,7 +31,7 @@ type Dependencies struct {
 	UserContext CallerStaff
 	Active      studentpresence.Presence
 	Users       usersService.PersonService
-	Education   educationService.Service
+	Education   SchoolGroups
 	ListExport  *listexport.RendererService
 }
 

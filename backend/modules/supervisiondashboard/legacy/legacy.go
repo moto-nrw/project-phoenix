@@ -23,11 +23,11 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	educationService "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 )
 
@@ -55,7 +55,7 @@ type Sources struct {
 	OpenVisits   studentpresence.SessionReads
 	Rooms        supervisiondashboard.RoomDirectory
 	UserContext  CallerContext
-	Education    educationService.Service
+	Education    educationService.GroupRoomsQuery
 	Schulhof     facilitiesService.SchulhofService
 	Operations   timetable.OperationQuery
 	Settings     configService.SettingsService
@@ -299,7 +299,7 @@ func schulhofStatus(status *facilitiesService.SchulhofStatus) *supervisiondashbo
 }
 
 type groups struct {
-	education   educationService.Service
+	education   educationService.GroupRoomsQuery
 	userContext CallerContext
 }
 

@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -73,7 +72,7 @@ type Dependencies struct {
 	// scan rule (#3282).
 	Rosters Rosters
 	// Education resolves the child's group for the daily-checkout gate.
-	Education educationSvc.Service
+	Education SchoolGroups
 	// Pickups reads the effective pickup plan.
 	Pickups PickupReader
 	// OpenRooms books independent stays in released rooms (#3067). The root

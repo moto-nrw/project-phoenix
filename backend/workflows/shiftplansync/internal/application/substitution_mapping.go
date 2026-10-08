@@ -3,8 +3,8 @@ package application
 import (
 	"errors"
 
+	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services/education"
 )
 
 // Registered error codes (error-registry.json) of a rejected substitution.
@@ -183,16 +183,6 @@ func mapScheduleSubstitutionError(err error) error {
 
 // refusalDetails puts the values a refusal names into wire form; nil when it
 // names none.
-func refusalDetails(values timetable.RefusalValues) map[string]any {
-	details := map[string]any{}
-	if values.Date != "" {
-		details["date"] = values.Date
-	}
-	if values.Max > 0 {
-		details["max"] = values.Max
-	}
-	if len(details) == 0 {
-		return nil
-	}
-	return details
+func refusalDetails(values timetable.RefusalValues) education.SubstitutionRefusalValues {
+	return education.SubstitutionRefusalValues{Date: values.Date, Max: values.Max}
 }

@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
 	"github.com/moto-nrw/project-phoenix/analytics"
@@ -35,7 +34,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicefleetModule "github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
@@ -63,6 +61,7 @@ import (
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -80,7 +79,6 @@ import (
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/moto-nrw/project-phoenix/services/database"
-	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
@@ -155,7 +153,7 @@ type Factory struct {
 	TimeTrackingAuditLog timetracking.TimeTrackingAuditLogService
 	StaffTimeExport      timetracking.StaffTimeExportService
 	Activities           activities.ActivityService
-	Education            education.Service
+	Education            schoolstructure.GroupManagement
 	Substitution         education.SubstitutionModule
 	// GradeTransition is the owner workflow behind the school-year rollover
 	// (#2711): the admin HTTP surface calls exactly its public commands.
@@ -692,7 +690,7 @@ func newFactory(
 	}
 
 	// Initialize education service first (needed for active service)
-	educationService := education.NewService(
+	educationService := education.NewGroupManagement(
 		repos.Group,
 		repos.GroupTeacher,
 		repos.ClassTeacher,
@@ -701,21 +699,9 @@ func newFactory(
 		repositories.NewEducationStaff(repos.Staff),
 		repos.Student,
 		repos.GroupSubstitution,
-		schoolStructure.NewLegacyRepositoryRuntime(db),
+		education.NewLegacyRepositoryRuntime(db),
+		education.GroupServiceOptions{Broadcaster: realtimeHub, Audit: repositories.NewEducationClassAssignmentAudit(repos.StaffMasterDataChange)},
 	)
-	// Announces group_access_changed after a group-leader change (#2084).
-	if broadcastAware, ok := educationService.(interface {
-		SetBroadcaster(realtimeevents.Publisher)
-	}); ok {
-		broadcastAware.SetBroadcaster(realtimeHub)
-	}
-	// Class assignment rewrites scope the Lehrkraft student day view (#1772)
-	// and land in the Stammdaten audit trail.
-	if auditAware, ok := educationService.(interface {
-		SetMasterDataAudit(education.ClassAssignmentAudit)
-	}); ok {
-		auditAware.SetMasterDataAudit(repositories.NewEducationClassAssignmentAudit(repos.StaffMasterDataChange))
-	}
 
 	// Reconciles already-materialized future timetable rosters when a grade
 	// transition graduates or restores students (#405).
@@ -1807,7 +1793,7 @@ func newFactory(
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 		Audit:                   repositories.NewEducationSubstitutionAudit(repos.SubstitutionChange),
-		Runtime:                 schoolStructure.NewLegacyRepositoryRuntime(db), Broadcaster: realtimeHub,
+		Runtime:                 education.NewLegacyRepositoryRuntime(db), Broadcaster: realtimeHub,
 		Logger:   logger.With("service", "substitution"),
 		Schedule: scheduleSubstitution,
 		CanSeeAll: func(ctx context.Context, assignmentBound, admin, hasStaff bool) (bool, error) {

@@ -127,12 +127,12 @@
   "runtime_evidence": {
     "source": "Local runs on the #2742 branch on 2026-10-02 against the local postgres-test server and the worktree's local development database.",
     "sources": [
-      "backend/database/repositories/education/group.go",
-      "backend/database/repositories/education/runtime.go",
+      "backend/modules/schoolstructure/internal/adapters/postgres/groups/group.go",
+      "backend/modules/schoolstructure/internal/adapters/postgres/groups/runtime.go",
       "backend/database/repositories/education_service_ports.go",
       "backend/modules/schoolstructure/compose/legacy_repository_runtime.go",
       "backend/modules/schoolstructure/http/api.go",
-      "backend/services/education/ports.go",
+      "backend/modules/schoolstructure/internal/application/groups/ports.go",
       "backend/services/group_route_people.go",
       "backend/workflows/gradetransition/http/grade_transitions.go"
     ],

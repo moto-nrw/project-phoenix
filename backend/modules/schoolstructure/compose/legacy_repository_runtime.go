@@ -8,10 +8,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// LegacyRepositoryRuntime binds the retained School Structure repositories
-// (database/repositories/education) and services (services/education) to the
-// shared tenant runtime, so those packages read neither the tenant context nor
-// the transaction protocol themselves (#2742).
+// LegacyRepositoryRuntime binds the private School Structure application and
+// store to the shared tenant runtime, so they read neither tenant context nor
+// the transaction protocol themselves (#2742, #3555).
 type LegacyRepositoryRuntime struct{ db *bun.DB }
 
 // NewLegacyRepositoryRuntime returns the runtime over db, the pool used

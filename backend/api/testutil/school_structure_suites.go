@@ -76,7 +76,10 @@ var (
 )
 
 // NewEducationSuiteService composes the group service over the repositories.
-func NewEducationSuiteService(repos *services.PeopleRepositorySuiteFactory, db *bun.DB) services.EducationSuiteService {
+func NewEducationSuiteService(repos *services.PeopleRepositorySuiteFactory, db *bun.DB, broadcasters ...*testpkg.RecordingBroadcaster) services.EducationSuiteService {
+	if len(broadcasters) > 0 {
+		return services.NewEducationSuiteService(repos, db, broadcasters[0])
+	}
 	return services.NewEducationSuiteService(repos, db)
 }
 
@@ -99,10 +102,4 @@ type GradeTransitionSuiteOwners = services.GradeTransitionSuiteOwners
 // NewGradeTransitionSuiteOwners composes those owners on the given clock.
 func NewGradeTransitionSuiteOwners(db *bun.DB, clock func() time.Time) (GradeTransitionSuiteOwners, error) {
 	return services.NewGradeTransitionSuiteOwners(db, clock)
-}
-
-// SetEducationSuiteBroadcaster swaps the group service's broadcaster for the
-// recording one and reports whether the service accepts one.
-func SetEducationSuiteBroadcaster(service EducationSuiteService, broadcaster *testpkg.RecordingBroadcaster) bool {
-	return services.SetEducationSuiteBroadcaster(service, broadcaster)
 }
