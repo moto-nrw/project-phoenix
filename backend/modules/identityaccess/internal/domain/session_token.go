@@ -162,7 +162,10 @@ func optionalStrings(value any) []string {
 }
 
 func optionalBools(value any) []bool {
-	items, _ := value.([]any)
+	items, ok := value.([]any)
+	if !ok {
+		return nil
+	}
 	result := make([]bool, 0, len(items))
 	for _, item := range items {
 		if flag, ok := item.(bool); ok {
