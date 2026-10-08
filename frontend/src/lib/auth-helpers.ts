@@ -260,6 +260,36 @@ export function getRoleDisplayDescription(
   );
 }
 
+// Labels of school roles that are not system roles. The demo school seeds
+// both (backend/seed/api/demo_roles.go); role names are stored lowercase, so
+// "ogs-leitung" would otherwise read as „Ogs-leitung".
+const SCHOOL_ROLE_LABELS: Record<string, string> = {
+  "ogs-leitung": "OGS-Leitung",
+  betreuungskraft: "Betreuungskraft",
+};
+
+const SYSTEM_ROLE_NAMES = new Set(Object.keys(SYSTEM_ROLE_TRANSLATIONS));
+
+/**
+ * The role label next to the name in the staff portal's header (#3891). An
+ * administrator stays „Admin"; otherwise the school's own role names the
+ * person better than the system role behind it, so the OGS lead of the demo
+ * reads „OGS-Leitung", not „Betreuer".
+ */
+export function getAccountRoleLabel(roleNames: readonly string[]): string {
+  const names = roleNames.map((name) => name.toLowerCase());
+  if (names.includes("admin")) return "Admin";
+  const schoolRole = names.find((name) => !SYSTEM_ROLE_NAMES.has(name));
+  if (schoolRole) {
+    return (
+      SCHOOL_ROLE_LABELS[schoolRole] ??
+      schoolRole.charAt(0).toUpperCase() + schoolRole.slice(1)
+    );
+  }
+  const systemRole = names.find((name) => name !== "user");
+  return systemRole ? getRoleDisplayName(systemRole) : "Betreuer";
+}
+
 export interface RoleOption {
   id: string;
   name: string;

@@ -28,6 +28,8 @@ import {
   getSchoolHelpTopicForPath,
 } from "~/lib/help-topics";
 import { ContextHelpLink } from "~/components/help/context-help-link";
+import { getAccountRoleLabel } from "~/lib/auth-helpers";
+import { isDemoBuild } from "~/lib/demo-access";
 
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
@@ -227,7 +229,9 @@ export function Header() {
 
   // Derive user info from ShellAuth context
   const userName = user?.name ?? "Benutzer";
-  const userEmail = user?.email ?? "";
+  // Die Konten der öffentlichen Demo tragen technische Adressen
+  // (sabine.schneider@demo-…); die gehören nicht vor den Besucher (#3891).
+  const userEmail = isDemoBuild() ? "" : (user?.email ?? "");
   const userRoles = user?.roles ?? [];
   const userRole =
     mode === "operator"
@@ -236,9 +240,7 @@ export function Header() {
         ? tParentNav("role")
         : mode === "school"
           ? "Lehrkraft"
-          : userRoles.includes("admin")
-            ? "Admin"
-            : "Betreuer";
+          : getAccountRoleLabel(userRoles);
 
   // Beim Scrollen bekommt die Kopfzeile nur noch einen Schatten (Hysterese
   // gegen Flackern). Die Höhe bleibt fest: der frühere Scroll-Zustand von

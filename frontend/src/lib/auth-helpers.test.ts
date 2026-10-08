@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  getAccountRoleLabel,
   getRoleDisplayName,
   getRoleDisplayDescription,
   toAssignableRoleOptions,
@@ -124,5 +125,29 @@ describe("toAssignableRoleOptions", () => {
     ]);
 
     expect(options.map((option) => option.id)).toEqual(["2"]);
+  });
+});
+
+describe("getAccountRoleLabel", () => {
+  it("names the demo's school roles as the visitor chose them (#3891)", () => {
+    expect(getAccountRoleLabel(["ogs-leitung"])).toBe("OGS-Leitung");
+    expect(getAccountRoleLabel(["betreuungskraft"])).toBe("Betreuungskraft");
+  });
+
+  it("keeps Admin for an administrator", () => {
+    expect(getAccountRoleLabel(["admin"])).toBe("Admin");
+    expect(getAccountRoleLabel(["ogs-leitung", "admin"])).toBe("Admin");
+  });
+
+  it("prefers a school role over the system role behind it", () => {
+    expect(getAccountRoleLabel(["user", "hausaufgabenhilfe"])).toBe(
+      "Hausaufgabenhilfe",
+    );
+  });
+
+  it("falls back to the system roles", () => {
+    expect(getAccountRoleLabel(["user"])).toBe("Betreuer");
+    expect(getAccountRoleLabel([])).toBe("Betreuer");
+    expect(getAccountRoleLabel(["guest"])).toBe("Gast");
   });
 });
