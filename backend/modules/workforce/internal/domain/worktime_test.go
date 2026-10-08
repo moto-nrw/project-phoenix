@@ -3,6 +3,7 @@ package domain
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -122,4 +123,44 @@ func TestValidateStaffScheduleFields_AcceptsRotationalVersion(t *testing.T) {
 	require.NoError(t, ValidateStaffScheduleFields(StaffWorkScheduleFields{
 		WeekIndex: 1, RotationLength: 2, DayOfWeek: 4, TargetMinutes: 480, StartTime: "08:30:00",
 	}))
+}
+
+func TestScheduleVersionStart(t *testing.T) {
+	t.Parallel()
+
+	const today = "2026-10-08"
+	closedSeptember := []*StaffMonthBalanceSnapshot{{Year: 2026, Month: 9}}
+	reopenedAt := time.Date(2026, time.October, 2, 9, 0, 0, 0, time.UTC)
+	reopenedSeptember := []*StaffMonthBalanceSnapshot{{Year: 2026, Month: 9, ReopenedAt: &reopenedAt}}
+
+	for _, test := range []struct {
+		name       string
+		validFrom  string
+		hasHistory bool
+		closed     []*StaffMonthBalanceSnapshot
+		want       string
+		wantErr    string
+	}{
+		{name: "empty starts today", hasHistory: true, want: today},
+		{name: "today with history", validFrom: today, hasHistory: true, want: today},
+		{name: "first schedule backdated", validFrom: "2026-07-10", want: "2026-07-10"},
+		{name: "backdated before a closed month", validFrom: "2026-10-01", closed: closedSeptember, want: "2026-10-01"},
+		{name: "reopened month is open", validFrom: "2026-09-01", closed: reopenedSeptember, want: "2026-09-01"},
+		{name: "backdated with history", validFrom: "2026-07-10", hasHistory: true, wantErr: "first schedule"},
+		{name: "into a closed month", validFrom: "2026-07-10", closed: closedSeptember, wantErr: "closed month 2026-09"},
+		{name: "future", validFrom: "2026-10-09", wantErr: "after today"},
+		{name: "malformed", validFrom: "2026-7-10", wantErr: "valid_from must be"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := ScheduleVersionStart(test.validFrom, today, test.hasHistory, test.closed)
+			if test.wantErr != "" {
+				require.ErrorIs(t, err, ErrInvalidWorkTime)
+				assert.Contains(t, err.Error(), test.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, test.want, got)
+		})
+	}
 }

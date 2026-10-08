@@ -32,7 +32,11 @@ const (
 	MaxDailyTargetMinutes = 720
 )
 
+// ScheduleEntry and ScheduleUpdateInput are the schedule PUT at the service
+// boundary.
 type (
+	ScheduleEntry         = workforce.ScheduleEntry
+	ScheduleUpdateInput   = workforce.ScheduleUpdateInput
 	WorkScheduleRow       = workforce.ScheduleRow
 	WorkTimeTemplate      = workforce.ScheduleTemplate
 	WorkTimeTemplateEntry = workforce.ScheduleTemplateEntry
@@ -56,6 +60,7 @@ type WorkSessionSchedules interface {
 	FindByStaffIDsValidInRange(context.Context, []int64, timezone.Date, timezone.Date) ([]*WorkScheduleRow, error)
 	GetCurrentByStaffID(context.Context, int64) ([]*WorkScheduleRow, error)
 	ReplaceSchedule(context.Context, int64, []*WorkScheduleRow, timezone.Date) error
+	ReplaceScheduleWithValidFrom(context.Context, int64, []*WorkScheduleRow, timezone.Date, timezone.Date) error
 }
 
 // WorkSessionTimeModels is the work-time-template capability the work-session
