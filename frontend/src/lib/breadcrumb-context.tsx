@@ -11,6 +11,11 @@ import {
 import type { ReactNode } from "react";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import type { HelpTopicId } from "~/lib/help-topics";
+import {
+  LAST_GROUP_SECTION_STORAGE_KEY,
+  parseOgsGroupSection,
+  type OgsGroupSection,
+} from "~/lib/ogs-group-sections";
 
 interface BreadcrumbData {
   studentName?: string;
@@ -22,6 +27,8 @@ interface BreadcrumbData {
   referrerPage?: string;
   activeSupervisionName?: string;
   ogsGroupName?: string;
+  /** Bereich der Seitenleiste, unter dem die Gruppe steht (#3890). */
+  ogsGroupSection?: OgsGroupSection;
   pageTitle?: string;
   helpTopic?: HelpTopicId;
 }
@@ -74,6 +81,10 @@ export function useStudentHistoryBreadcrumb(opts: {
     "sidebar-last-group-name",
     opts.referrer.startsWith("/ogs-groups"),
   );
+  const breadcrumbGroupSection = useLocalStorageValue(
+    LAST_GROUP_SECTION_STORAGE_KEY,
+    opts.referrer.startsWith("/ogs-groups"),
+  );
   const breadcrumbRoomName = useLocalStorageValue(
     "sidebar-last-room-name",
     opts.referrer.startsWith("/active-supervisions"),
@@ -83,6 +94,7 @@ export function useStudentHistoryBreadcrumb(opts: {
     studentName: opts.studentName,
     referrerPage: opts.referrer,
     ogsGroupName: breadcrumbGroupName ?? undefined,
+    ogsGroupSection: parseOgsGroupSection(breadcrumbGroupSection),
     activeSupervisionName: breadcrumbRoomName ?? undefined,
   });
 }
