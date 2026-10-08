@@ -277,7 +277,7 @@ export function PersonalizationTab() {
         ) : loadError ? null : (
           // Ohne eigenes Bild zeigt die Login-Seite das moto-Logo. Die
           // Vorschau sagt das, statt die Karte leer zu lassen (#3893).
-          <div className="flex flex-col items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 p-6">
+          <div className="moto-content-surface flex flex-col items-center gap-3 rounded-xl border p-6 shadow-sm">
             <MotoBrand />
             <p className="text-center text-sm text-gray-600">
               Noch kein eigenes Bild. Die Login-Seite zeigt das moto-Logo.
