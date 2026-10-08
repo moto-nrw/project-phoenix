@@ -146,7 +146,7 @@ describe("Anfrage-Aktionen im Nachrichtenverlauf (#3886)", () => {
     expect(mockUseSWRAuth).toHaveBeenCalledWith(
       "request-review-coverage:5:42",
       expect.any(Function),
-      expect.any(Object),
+      expect.objectContaining({ revalidateOnFocus: true }),
     );
   });
 

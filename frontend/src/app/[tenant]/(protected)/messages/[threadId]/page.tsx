@@ -191,7 +191,9 @@ function MessageThreadContent() {
       : null,
     () => fetchStudentRequestReviewCoverage(studentId ?? ""),
     {
-      revalidateOnFocus: false,
+      // The policy can change while this thread stays open. Refresh on return
+      // to remove actions that are no longer covered before they lead to a 403.
+      revalidateOnFocus: true,
       shouldRetryOnError: false,
       onError: (err: unknown) =>
         logger.warn("request_review_coverage_failed", {
