@@ -2829,11 +2829,7 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 
 // ApplyCustomScheduleRows replaces the schedule with custom rows and unbinds
 // any assigned template.
-func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff *StaffScheduleBinding, entries []*WorkScheduleRow, anchor timezone.Date) error {
-	return s.applyCustomScheduleRows(ctx, staff, entries, anchor, "")
-}
-
-func (s *workSessionService) applyCustomScheduleRows(ctx context.Context, staff *StaffScheduleBinding, entries []*WorkScheduleRow, anchor, validFrom timezone.Date) error {
+func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff *StaffScheduleBinding, entries []*WorkScheduleRow, anchor, validFrom timezone.Date) error {
 	// An omitted anchor keeps the staff-level one; the new version must be
 	// stamped with that same effective anchor, or it would silently re-parity
 	// once the staff anchor moves.
@@ -2952,5 +2948,5 @@ func (s *workSessionService) applyCustomSchedule(ctx context.Context, staff *Sta
 		return nil
 	}
 
-	return s.applyCustomScheduleRows(ctx, staff, entries, anchor, timezone.Date(in.ValidFrom))
+	return s.ApplyCustomScheduleRows(ctx, staff, entries, anchor, timezone.Date(in.ValidFrom))
 }

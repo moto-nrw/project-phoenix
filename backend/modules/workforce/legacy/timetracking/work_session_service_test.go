@@ -3530,7 +3530,7 @@ func TestWSApplyCustomScheduleRows_StampsAnchorForFirstRotation(t *testing.T) {
 		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 2, DayOfWeek: DayMonday, TargetMinutes: 480},
 		{StaffID: staff.ID, WeekIndex: 1, RotationLength: 2, DayOfWeek: DayMonday, TargetMinutes: 240},
 	}
-	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, Date("")))
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, Date(""), Date("")))
 
 	assert.Equal(t, NewDate(2026, 8, 24), written, "rotational rows must carry the version's own anchor")
 	require.NotNil(t, staff.RotationAnchorDate)
@@ -3557,7 +3557,7 @@ func TestWSApplyCustomScheduleRows_SingleWeekKeepsAnchorUnset(t *testing.T) {
 	entries := []*WorkScheduleRow{
 		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 1, DayOfWeek: DayMonday, TargetMinutes: 480},
 	}
-	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, Date("")))
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, Date(""), Date("")))
 
 	assert.True(t, written.IsZero(), "single-week rows have no parity to anchor")
 	assert.Nil(t, staff.RotationAnchorDate)
@@ -3585,7 +3585,7 @@ func TestWSApplyCustomScheduleRows_ExistingStaffAnchorWins(t *testing.T) {
 	entries := []*WorkScheduleRow{
 		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 2, DayOfWeek: DayMonday, TargetMinutes: 480},
 	}
-	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, Date("")))
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, Date(""), Date("")))
 
 	assert.Equal(t, existing, written)
 	require.NotNil(t, staff.RotationAnchorDate)
