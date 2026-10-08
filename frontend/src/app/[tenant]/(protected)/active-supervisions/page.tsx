@@ -87,6 +87,14 @@ function reopenBannerMessage(title: string | null): string {
   return `${ended} Sie können das fünf Minuten lang rückgängig machen.`;
 }
 
+function hasSameGroupNames(
+  previous: readonly string[] | undefined,
+  next: readonly string[],
+): boolean {
+  if (!previous || previous.length !== next.length) return false;
+  return previous.every((group, index) => group === next[index]);
+}
+
 function MeinRaumPageContent() {
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const nfcEnabled = useNFCEnabled();
@@ -150,8 +158,36 @@ function MeinRaumPageContent() {
   });
   const { currentTimetableRoster } = roster;
   const { overviewEnabled } = useOptionalSupervision();
+  const [openRoomRosterGroups, setOpenRoomRosterGroups] = useState<
+    ReadonlyMap<string, readonly string[]>
+  >(() => new Map());
+  const rememberOpenRoomRosterGroups = useCallback(
+    (instanceId: string, groups: readonly string[]) => {
+      setOpenRoomRosterGroups((current) => {
+        if (hasSameGroupNames(current.get(instanceId), groups)) return current;
+        const next = new Map(current);
+        next.set(instanceId, groups);
+        return next;
+      });
+    },
+    [],
+  );
+  const filterOpenRoomRosterGroups = useMemo(() => {
+    if (!openRoomLayout) return [];
+    return openRoomLayout.flatMap((section) =>
+      section.kind === "block"
+        ? (openRoomRosterGroups.get(section.block.instanceId) ?? [])
+        : [],
+    );
+  }, [openRoomLayout, openRoomRosterGroups]);
 
-  const filters = useStudentFilters(students);
+  // The header search covers the block list too (#3889): expected, absent
+  // and departed children, not only those checked in right now.
+  const filters = useStudentFilters(
+    students,
+    currentTimetableRoster?.rows,
+    filterOpenRoomRosterGroups,
+  );
   const reopen = useReopenBanner();
   // The session „Betreuer hinzufügen“ was opened for: the head action or one
   // section of a released room.
@@ -594,6 +630,8 @@ function MeinRaumPageContent() {
             canExcuseRestOfDay: hasPermission(session, "users:update"),
             overviewEnabled,
             onAddSupervisor: setAddSupervisorTarget,
+            onRosterGroups: rememberOpenRoomRosterGroups,
+            rosterRowFilter: filters.rosterRowFilter,
           }}
         />
       );
@@ -628,6 +666,7 @@ function MeinRaumPageContent() {
                 : undefined
             }
             onSearchChange={actions.handleAddStudentSearchChange}
+            rowFilter={filters.rosterRowFilter}
           />
         </>
       );
