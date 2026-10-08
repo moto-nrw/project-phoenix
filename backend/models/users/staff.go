@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Employment type constants
@@ -45,7 +45,7 @@ type Staff struct {
 	// Generic Staff JSON must not expose it; payroll handlers use a dedicated,
 	// permission-gated response.
 	PersonnelNumber    *string        `bun:"personnel_number" json:"-"`
-	RotationAnchorDate *timezone.Date `bun:"rotation_anchor_date,type:date" json:"rotation_anchor_date,omitempty"`
+	RotationAnchorDate *calendar.Date `bun:"rotation_anchor_date,type:date" json:"rotation_anchor_date,omitempty"`
 	// BirthdayDisplayOptOut removes this person from the dashboard birthday
 	// display (#1542). Self-service: the staff member sets it on their own
 	// profile, so the school-wide setting decides whether staff birthdays are
