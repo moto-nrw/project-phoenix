@@ -1,4 +1,4 @@
-package legacy
+package compose
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -18,36 +17,27 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Measures the Betreuungsplan export over the real retained instance,
-// instance-staff and room sources, independently of HTTP. The same workload
-// runs against the pre-cutover services/planexport with the same sources.
+// Measures the Betreuungsplan export over the owners' real block and
+// staff-assignment reads and the tenant transaction's room names,
+// independently of HTTP. The same workload ran against the pre-cutover
+// services/planexport and the retired modules/planexport/legacy binding.
 func TestPlanExportRuntimeEvidence(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.Ctx(t)
 	room := testpkg.CreateTestRoom(t, db, "Runtime-room")
-	members := map[int64]*usersModel.Staff{}
+	members := make([]*planexport.StaffMember, 0, 4)
 	for i := range 4 {
 		member := testpkg.CreateTestStaff(t, db, "Runtime", fmt.Sprintf("Staff%d", i))
-		members[member.ID] = member
+		members = append(members, &planexport.StaffMember{ID: member.ID, FirstName: member.Person.FirstName, LastName: member.Person.LastName})
 	}
 	staffIDs := make([]int64, 0, len(members))
-	for id := range members {
-		staffIDs = append(staffIDs, id)
+	for _, member := range members {
+		staffIDs = append(staffIDs, member.ID)
 	}
 	slices.Sort(staffIDs)
-	rooms := facadeRooms{facade: newFacilities(t, db)}
-	sources := func(renderer planexport.Renderer) Sources {
-		return Sources{
-			Instances:     newOwnerInstances(t, db),
-			InstanceStaff: newOwnerInstanceStaff(t, db),
-			Rooms:         rooms,
-			Staff:         fakeStaff{members: members},
-			Renderer:      renderer,
-		}
-	}
-	pdfService := New(sources(listexport.NewService()))
-	documentService := New(sources(documentProbe{}))
+	names := staffNames(members...)
+	pdfRenderer := listexport.NewService()
 	var postgres string
 	require.NoError(t, db.NewRaw("SHOW server_version").Scan(ctx, &postgres))
 	counter := testpkg.CaptureQueriesForContext(t, db)
@@ -91,13 +81,13 @@ func TestPlanExportRuntimeEvidence(t *testing.T) {
 				before := db.Stats()
 				start := time.Now()
 				var file listexport.File
-				err := testpkg.WithTenantTx(t, counter.Context(ctx), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-					var err error
+				err := testpkg.WithTenantTx(t, counter.Context(ctx), db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
+					var renderer planexport.Renderer = documentProbe{}
 					if scenario.pdf {
-						file, err = pdfService.ExportBetreuungsplan(txCtx, params)
-						return err
+						renderer = pdfRenderer
 					}
-					file, err = documentService.ExportBetreuungsplan(txCtx, params)
+					var err error
+					file, err = New(betreuungsplanSources(t, db, tx, names, renderer)).ExportBetreuungsplan(txCtx, params)
 					return err
 				})
 				elapsed := float64(time.Since(start)) / float64(time.Millisecond)

@@ -1,7 +1,7 @@
 // Package postgres is the File Storage owner's persistence adapter over
 // documents.folders, documents.folder_roles, documents.folder_accounts,
-// documents.files, documents.announcement_attachments and
-// documents.announcement_attachment_cleanup. Every statement names its table
+// documents.files, documents.file_cleanup, documents.announcement_attachments
+// and documents.announcement_attachment_cleanup. Every statement names its table
 // statically and carries the tenant predicate: RLS is the first guard, the
 // predicate the second, for connections that bypass RLS.
 package postgres

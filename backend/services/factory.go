@@ -40,7 +40,6 @@ import (
 	devicefleetModule "github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
-	documentCompose "github.com/moto-nrw/project-phoenix/modules/documentrendering/compose"
 	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
 	emergencysnapshotlegacy "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/legacy"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -58,7 +57,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	planexportlegacy "github.com/moto-nrw/project-phoenix/modules/planexport/legacy"
+	planexportCompose "github.com/moto-nrw/project-phoenix/modules/planexport/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
@@ -2536,7 +2535,6 @@ func newFactory(
 			People:           persons,
 			Settings:         fileStorageSettings{service: settingsService},
 			Events:           fileStorageEvents{repo: repos.FileEvent},
-			FileCleanups:     documentCompose.NewFileCleanupStore(db),
 			HasPermission:    securityruntime.HasPermission,
 			Announcements:    parentAnnouncementService,
 			GuardianAudience: parentService,
@@ -2626,18 +2624,18 @@ func newFactory(
 
 	// Printable weekly plans (#2079) are the Document Rendering plan export
 	// capability (#2706): a pure projection over the same reads the two
-	// planning screens use — it renders, it never writes. The retained
-	// schedule services and repositories are its compatibility bindings.
-	planExportService := planexportlegacy.New(planexportlegacy.Sources{
+	// planning screens use — it renders, it never writes. The root binds its
+	// ports to the owners' public reads.
+	planExportService := planexportCompose.New(planexportCompose.Sources{
 		Overview:       shiftPlanning.Overview,
-		ShiftTypes:     shiftTypeRows,
-		Instances:      repos.ActivityInstance,
-		InstanceStaff:  repos.InstanceStaff,
+		ShiftTypes:     workTime,
+		Instances:      repositories.NewTimetableInstanceReads(repos.ActivityInstance),
+		InstanceStaff:  repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
 		Students:       repos.InstanceStudent,
-		Rooms:          repos.Room,
+		Rooms:          rooms,
 		Staff:          planExportStaffNames{staff: repos.Staff},
-		ActivityGroups: repos.ActivityGroup,
-		PlanningTracks: repos.PlanningTrack,
+		ActivityGroups: repositories.NewTimetableGroupReads(repos.ActivityGroup),
+		PlanningTracks: timetableCapability,
 		ClosingDays:    planExportClosingDays{calendar: calendar},
 		Holidays:       planExportHolidays{calendar: calendar},
 		Renderer:       listExportService,

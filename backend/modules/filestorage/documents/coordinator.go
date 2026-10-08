@@ -25,9 +25,9 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/internal/storage"
 )
 
 // Store is the subset of a domain's document service the coordinator needs to
@@ -41,11 +41,27 @@ type Store interface {
 	ActivateQueuedCleanup(ctx context.Context, storedName string) error
 }
 
+// Object is an open stored object; http.ServeContent needs exactly this shape.
+type Object = interface {
+	io.ReadSeekCloser
+	ModTime() time.Time
+}
+
+// Objects is the private object store the coordinator moves bytes through,
+// keyed by storage kind, tenant and stored name. The binding validates the
+// tenant key before every access and writes every object private; the root
+// supplies the shared uploads backend.
+type Objects interface {
+	SavePrivate(ctx context.Context, kind string, tenantID int64, storedName string, source io.Reader) (int64, error)
+	OpenPrivate(ctx context.Context, kind string, tenantID int64, storedName string) (Object, error)
+	RemovePrivate(ctx context.Context, kind string, tenantID int64, storedName string) error
+}
+
 // Coordinator moves document bytes for one domain.
 type Coordinator struct {
 	// Kind is the storage key prefix, e.g. "student-documents".
 	Kind    string
-	Backend storage.Backend
+	Backend Objects
 	Store   Store
 	Logger  *slog.Logger
 }
@@ -55,10 +71,6 @@ func (c *Coordinator) logger() *slog.Logger {
 		return slog.Default()
 	}
 	return c.Logger
-}
-
-func (c *Coordinator) key(tenantID int64, storedName string) (string, error) {
-	return storage.TenantKey(c.Kind, tenantID, storedName)
 }
 
 // NewStoredName generates the storage name for a validated content type. The
@@ -77,11 +89,7 @@ func NewStoredName(extension string) (string, error) {
 
 // Save writes the uploaded object privately and returns the stored size.
 func (c *Coordinator) Save(ctx context.Context, tenantID int64, storedName string, source io.Reader) (int64, error) {
-	key, err := c.key(tenantID, storedName)
-	if err != nil {
-		return 0, err
-	}
-	return c.Backend.Save(ctx, key, source, storage.SaveOptions{Private: true})
+	return c.Backend.SavePrivate(ctx, c.Kind, tenantID, storedName, source)
 }
 
 // Serve streams the object as a download named displayName. It returns false
@@ -116,11 +124,7 @@ func (c *Coordinator) ServeInline(w http.ResponseWriter, r *http.Request, tenant
 }
 
 func (c *Coordinator) serve(w http.ResponseWriter, r *http.Request, tenantID int64, storedName, displayName, contentType string, inline bool) bool {
-	key, err := c.key(tenantID, storedName)
-	if err != nil {
-		return false
-	}
-	object, err := c.Backend.Open(r.Context(), key)
+	object, err := c.Backend.OpenPrivate(r.Context(), c.Kind, tenantID, storedName)
 	if err != nil {
 		return false
 	}
@@ -150,11 +154,7 @@ func (c *Coordinator) serve(w http.ResponseWriter, r *http.Request, tenantID int
 // Remove deletes the stored object. A missing object counts as removed so
 // retries converge.
 func (c *Coordinator) Remove(ctx context.Context, tenantID int64, storedName string) error {
-	key, err := c.key(tenantID, storedName)
-	if err != nil {
-		return err
-	}
-	return c.Backend.Remove(ctx, key)
+	return c.Backend.RemovePrivate(ctx, c.Kind, tenantID, storedName)
 }
 
 // CleanupDocument removes a soft-deleted document's bytes and records that
