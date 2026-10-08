@@ -120,7 +120,6 @@ import (
 	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
-	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	gradeTransitionHTTP "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 )
@@ -1356,7 +1355,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	// One Student Presence owner for this entry point; it also serves the
 	// students resource's privacy-consent routes (#3349).
 	presence := newStudentPresence(db, logger)
-	var studentClassResyncer educationSvc.OfferingSourceResyncer = api.Services.EnrollmentCareOffering
+	var studentClassResyncer schoolStructureCompose.OfferingSourceResyncer = api.Services.EnrollmentCareOffering
 	reviewDependencies, careReviews, err := requestReviewDependencies(api, modules, db)
 	if err != nil {
 		return err
@@ -1374,7 +1373,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		StudentDeletion:              api.Services.StudentDeletion,
 		CareLifecycleService:         api.Services.CareLifecycle,
 		StudentAuditService:          api.Services.PeopleDirectory,
-		SchoolGroups:                 studentSchoolGroups{Service: api.Services.Education},
+		SchoolGroups:                 studentSchoolGroups{GroupManagement: api.Services.Education},
 		UserContextService:           api.Services.UserContext,
 		ActiveService:                api.Services.Active,
 		DeviceAuthenticator:          deviceAuth.Device(),

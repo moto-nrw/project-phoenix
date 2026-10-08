@@ -4,19 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
-
-// supervisionStaffResolverSetter is the seam the group repository exposes
-// for its staff lookup. It is declared with a plain function type so this
-// package needs neither the calendar-date nor the query-option vocabulary
-// of the repository layer.
-type supervisionStaffResolverSetter interface {
-	SetSupervisionStaffResolver(func(context.Context, educationRepo.GroupMembershipPairs) ([]educationModels.StaffGroupID, error))
-}
 
 // substitutedStaffQuery answers who substitutes in the given groups on a
 // day. education.group_substitution belongs to Workforce (#2688); the root

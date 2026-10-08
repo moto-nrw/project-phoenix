@@ -7,10 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	substitution "github.com/moto-nrw/project-phoenix/services/education"
+	substitution "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -503,12 +505,8 @@ func scheduleSubstitutionCaller(t *testing.T) substitution.Caller {
 // newScheduleSubstitutionModule drives the substitution module's schedule half
 // through the composed workflow: the module keeps its own authorization and
 // transaction handling, the workflow performs the deviation writes.
-func newScheduleSubstitutionModule(t *testing.T) (*bun.DB, repositories.TimetableTestRepositories, substitution.Module) {
+func newScheduleSubstitutionModule(t *testing.T) (*bun.DB, repositories.TimetableTestRepositories, substitution.SubstitutionModule) {
 	t.Helper()
 	env := newPlanSyncEnv(t, nil, nil)
-	return env.db, env.repos, substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
-		Schedule: env.substitution,
-		Runtime:  testpkg.TenantTransactionRuntime{},
-		Logger:   slog.Default(),
-	})
+	return env.db, env.repos, services.NewScheduleSubstitutionSuiteModule(env.substitution, testpkg.TenantTransactionRuntime{}, slog.Default())
 }

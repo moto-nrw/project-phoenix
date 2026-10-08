@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
+	educationSvc "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -18,13 +18,13 @@ import (
 // below shadow the embedded service's own and reduce each to the students'
 // view.
 type studentSchoolGroups struct {
-	educationSvc.Service
+	educationSvc.GroupManagement
 }
 
 // GetGroupTeachers reduces the group's teachers to the supervisor contact the
 // detail lists; a teacher without a staff member or person is left out.
 func (s studentSchoolGroups) GetGroupTeachers(ctx context.Context, groupID int64) ([]students.GroupTeacher, error) {
-	teachers, err := s.Service.GetGroupTeachers(ctx, groupID)
+	teachers, err := s.GroupManagement.GetGroupTeachers(ctx, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (s studentSchoolGroups) GetGroupTeachers(ctx context.Context, groupID int64
 }
 
 func (s studentSchoolGroups) GetGroup(ctx context.Context, id int64) (*students.SchoolGroup, error) {
-	group, err := s.Service.GetGroup(ctx, id)
+	group, err := s.GroupManagement.GetGroup(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (s studentSchoolGroups) GetGroup(ctx context.Context, id int64) (*students.
 }
 
 func (s studentSchoolGroups) GetGroupsByIDs(ctx context.Context, ids []int64) (map[int64]*students.SchoolGroup, error) {
-	groups, err := s.Service.GetGroupsByIDs(ctx, ids)
+	groups, err := s.GroupManagement.GetGroupsByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func (s studentSchoolGroups) GetGroupsByIDs(ctx context.Context, ids []int64) (m
 }
 
 func (s studentSchoolGroups) ListGroups(ctx context.Context) ([]*students.SchoolGroup, error) {
-	groups, err := s.Service.ListGroups(ctx, nil)
+	groups, err := s.GroupManagement.ListGroups(ctx, nil)
 	if err != nil {
 		return nil, err
 	}

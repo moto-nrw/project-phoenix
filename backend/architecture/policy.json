@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 33,
+  "policy_epoch": 34,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -1147,7 +1147,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/education",
+      "path": "modules/schoolstructure/internal/adapters/postgres/groups",
       "owner": "school-structure",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1721,7 +1721,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/education",
+      "path": "modules/schoolstructure/internal/application/groups",
       "owner": "school-structure",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -3420,6 +3420,13 @@
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/schoolstructure/contract",
+      "owner": "school-structure",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     },
     {
       "path": "modules/delivery/objects",
@@ -5773,17 +5780,6 @@
       "target_role": "domain"
     },
     {
-      "id": "workforce.contracttest.school-structure.application",
-      "description": "The new test-only Workforce contract root exercises retained adapter inputs and outputs; it grants no runtime or existing test package new imports.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "e2e-test",
-      "target_owner": "school-structure",
-      "target_role": "application"
-    },
-    {
       "id": "workforce.contracttest.workforce.public",
       "description": "The new test-only Workforce contract root exercises retained adapter inputs and outputs; it grants no runtime or existing test package new imports.",
       "scopes": [
@@ -7077,17 +7073,6 @@
       "source_owner": "group-live-view",
       "source_role": "adapter",
       "target_owner": "people-directory",
-      "target_role": "application"
-    },
-    {
-      "id": "group-live-view.adapter.school-structure-application",
-      "description": "The live-group compatibility adapter lists tenant groups, group rooms, and the substitution overview through the retained education services (#2702).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "group-live-view",
-      "source_role": "adapter",
-      "target_owner": "school-structure",
       "target_role": "application"
     },
     {
@@ -11485,17 +11470,6 @@
       "source_owner": "facilities",
       "source_role": "compose",
       "target_owner": "settings-platform",
-      "target_role": "application"
-    },
-    {
-      "id": "facilities.compose.school-structure-application",
-      "description": "Room snapshot composition resolves supervision-group names.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "compose",
-      "target_owner": "school-structure",
       "target_role": "application"
     },
     {
@@ -17597,17 +17571,6 @@
       "target_role": "domain"
     },
     {
-      "id": "process-device-scan.compose.school-structure-application",
-      "description": "Compatibility binding (#2698): the group port resolves the child's education group through the retained education service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "process-device-scan",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "application"
-    },
-    {
       "id": "process-device-scan.compose.settings-application",
       "description": "Compatibility binding (#2698): the settings port resolves the kiosk settings through the retained settings service.",
       "scopes": [
@@ -17838,17 +17801,6 @@
       "target_role": "application"
     },
     {
-      "id": "calendar-view.adapter.school-structure-application",
-      "description": "The supervision compatibility adapter resolves education group rooms through the retained education service (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter",
-      "target_owner": "school-structure",
-      "target_role": "application"
-    },
-    {
       "id": "calendar-view.adapter-test.identity-access-adapter",
       "description": "Adapter tests place JWT claims and permissions in the context (#2703).",
       "scopes": [
@@ -17901,28 +17853,6 @@
       "source_owner": "calendar-view",
       "source_role": "adapter-test",
       "target_owner": "facilities",
-      "target_role": "application"
-    },
-    {
-      "id": "calendar-view.adapter-test.school-structure-domain",
-      "description": "Adapter tests build retained education group rows (#2703).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter-test",
-      "target_owner": "school-structure",
-      "target_role": "domain"
-    },
-    {
-      "id": "calendar-view.adapter-test.school-structure-application",
-      "description": "Adapter tests fake the retained education service (#2703).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter-test",
-      "target_owner": "school-structure",
       "target_role": "application"
     },
     {
@@ -21338,17 +21268,6 @@
       "target_role": "public"
     },
     {
-      "id": "school-structure.http.application",
-      "description": "The group routes drive the owner's group service, the inbound adapter calling its own application (#2742).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-structure",
-      "source_role": "http",
-      "target_owner": "school-structure",
-      "target_role": "application"
-    },
-    {
       "id": "school-structure.http.domain",
       "description": "The group routes read and write the owner's group rows and list query (#2742).",
       "scopes": [
@@ -22057,18 +21976,6 @@
       "target_role": "public"
     },
     {
-      "id": "shift-plan-sync.public.school-structure-application",
-      "description": "The shift-plan-sync contract serves the schedule port the retained substitution module owns until services/education dissolves (#3418).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "shift-plan-sync",
-      "source_role": "public",
-      "target_owner": "school-structure",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
-    },
-    {
       "id": "shift-plan-sync.port.workforce",
       "description": "The shift-plan-sync ports carry the public Workforce planning types (#3418).",
       "scopes": [
@@ -22145,18 +22052,6 @@
       "source_role": "application",
       "target_owner": "delivery-platform",
       "target_role": "public"
-    },
-    {
-      "id": "shift-plan-sync.application.school-structure-application",
-      "description": "The substitution moves implement the schedule port the retained substitution module owns until services/education dissolves (#3418).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "shift-plan-sync",
-      "source_role": "application",
-      "target_owner": "school-structure",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
     },
     {
       "id": "shift-plan-sync.application.tenant-runtime",
@@ -22333,18 +22228,6 @@
       "source_role": "adapter-test",
       "target_owner": "workforce",
       "target_role": "compose"
-    },
-    {
-      "id": "shift-plan-sync.adapter-test.school-structure-application",
-      "description": "The shift-plan-sync behaviour suites drive the retained substitution module.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "shift-plan-sync",
-      "source_role": "adapter-test",
-      "target_owner": "school-structure",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
     },
     {
       "id": "shift-plan-sync.adapter-test.compose",
@@ -23058,6 +22941,127 @@
       "target_role": "postgres"
     },
     {
+      "id": "school-structure.public.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "public",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "school-structure.application.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "application",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "school-structure.http.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "http",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "process-device-scan.compose.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "facilities.compose.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "calendar-view.adapter.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "group-live-view.adapter.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "shift-plan-sync.public.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "public",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "shift-plan-sync.application.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "workforce.e2e-test.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "e2e-test",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "school-structure.compose.school-structure-contract",
+      "description": "The module composition translates public catalog values (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
       "id": "inbound-common.http.identity-access-adapter",
       "description": "The standing shared HTTP runtime consumes the permanent session adapter and request identity memo (ADR 0031) (ADR 0046, #2738, #3898).",
       "scopes": [
@@ -23163,6 +23167,16 @@
       "from": "auth/jwt",
       "to": "modules/identityaccess/legacy/jwt",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3226"
+    },
+    {
+      "from": "database/repositories/education",
+      "to": "modules/schoolstructure/internal/adapters/postgres/groups",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
+    },
+    {
+      "from": "services/education",
+      "to": "modules/schoolstructure/internal/application/groups",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
     }
   ]
 }

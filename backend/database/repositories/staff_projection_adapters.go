@@ -57,9 +57,7 @@ func (f *Factory) bindStaffProjections(membership staffLookup, workTime workforc
 	// speak calendar dates and query options, which this package must not
 	// import — and take the owner lookups as injected functions instead. The
 	// group substitution adapter receives its staff resolver at construction.
-	if setter, ok := f.Group.(supervisionStaffResolverSetter); ok {
-		setter.SetSupervisionStaffResolver(supervisionStaffResolver(membership, workforceSubstitutedStaff(workTime)))
-	}
+
 	if setter, ok := f.Room.(supervisorPersonsResolverSetter); ok {
 		setter.SetSupervisorPersonsResolver(supervisorPersonsResolver(membership))
 	}

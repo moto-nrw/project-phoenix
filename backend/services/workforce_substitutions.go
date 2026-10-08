@@ -5,8 +5,8 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services/education"
 )
 
 // substitutionCodeInvalidPeriod is the registered error code of a rejected
@@ -335,13 +335,6 @@ func mapSubstitutionError(err error) error {
 }
 
 // substitutionRefusalValues keeps the values a schedule refusal names (#2516).
-func substitutionRefusalValues(details map[string]any) workforce.SubstitutionRefusalValues {
-	var values workforce.SubstitutionRefusalValues
-	if date, ok := details["date"].(string); ok {
-		values.Date = date
-	}
-	if limit, ok := details["max"].(int); ok {
-		values.Max = limit
-	}
-	return values
+func substitutionRefusalValues(details education.SubstitutionRefusalValues) workforce.SubstitutionRefusalValues {
+	return workforce.SubstitutionRefusalValues{Date: details.Date, Max: details.Max}
 }

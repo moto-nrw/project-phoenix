@@ -28,9 +28,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	educationService "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -46,7 +46,7 @@ type CallerContext interface {
 type Sources struct {
 	Presence          studentpresence.Query
 	People            userService.PersonService
-	Education         educationService.Service
+	Education         educationService.GroupOverviewQuery
 	Substitutions     educationService.SubstitutionModule
 	UserContext       CallerContext
 	Active            studentpresence.Presence
@@ -125,7 +125,7 @@ func parseDay(date grouplive.Date) (timezone.Date, error) {
 }
 
 type directory struct {
-	education   educationService.Service
+	education   educationService.GroupOverviewQuery
 	userContext CallerContext
 }
 

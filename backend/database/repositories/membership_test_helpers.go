@@ -3,9 +3,9 @@ package repositories
 import (
 	"context"
 
-	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -37,19 +37,24 @@ func NewMembershipTestRepositories(db *bun.DB) (MembershipTestRepositories, erro
 	if err != nil {
 		return MembershipTestRepositories{}, err
 	}
-	group := NewEducationGroupRepository(db)
-	group.BindRoomDirectory(educationRoomDirectory{rooms})
-	group.BindTeachingAssignments(func(ctx context.Context, groupIDs, teacherIDs []int64) ([]educationRepo.TeacherGroupID, error) {
-		assignments, err := membership.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{GroupIDs: groupIDs, TeacherIDs: teacherIDs})
-		if err != nil {
-			return nil, err
-		}
-		result := make([]educationRepo.TeacherGroupID, 0, len(assignments))
-		for _, assignment := range assignments {
-			result = append(result, educationRepo.TeacherGroupID{TeacherID: assignment.TeacherID, GroupID: assignment.GroupID})
-		}
-		return result, nil
-	})
+	workTime, err := NewWorkforce(db, membership)
+	if err != nil {
+		return MembershipTestRepositories{}, err
+	}
+	group := NewEducationGroupRepository(db, educationRepo.GroupRepositoryDependencies{Rooms: func() educationRepo.GroupRoomLookup { return educationRoomDirectory{rooms} },
+		SupervisingStaff: supervisionStaffResolver(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workforceSubstitutedStaff(workTime)),
+		TeachingAssignments: func(ctx context.Context, groupIDs, teacherIDs []int64) ([]educationRepo.TeacherGroupID, error) {
+			assignments, err := membership.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{GroupIDs: groupIDs, TeacherIDs: teacherIDs})
+			if err != nil {
+				return nil, err
+			}
+			result := make([]educationRepo.TeacherGroupID, 0, len(assignments))
+			for _, assignment := range assignments {
+				result = append(result, educationRepo.TeacherGroupID{TeacherID: assignment.TeacherID, GroupID: assignment.GroupID})
+			}
+			return result, nil
+		}})
+
 	repos := &Factory{
 		db: db, Group: group,
 		Person: NewPersonRepository(db),
@@ -57,10 +62,6 @@ func NewMembershipTestRepositories(db *bun.DB) (MembershipTestRepositories, erro
 	repos.membershipDeps = newStaffMembershipDeps(repos.Person, newIdentityAccess(db, nil), MustNewStaffEmployment(db))
 	repos.membershipDeps.groupTeachers = func() GroupTeacherRepository { return repos.GroupTeacher }
 	repos.bindStaffMembershipAdapters(membership)
-	workTime, err := NewWorkforce(db, membership)
-	if err != nil {
-		return MembershipTestRepositories{}, err
-	}
 	repos.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
 	repos.BindPeopleDirectory(persons)
 	return MembershipTestRepositories{
