@@ -151,4 +151,10 @@ describe("getAccountRoleLabel", () => {
     expect(getAccountRoleLabel([])).toBe("Betreuer");
     expect(getAccountRoleLabel(["guest"])).toBe("Gast");
   });
+
+  it("uses the role origin when a school role has a system role's name", () => {
+    expect(getAccountRoleLabel(["user"], [false])).toBe("User");
+    expect(getAccountRoleLabel(["user"], [true])).toBe("Betreuer");
+    expect(getAccountRoleLabel(["user", "user"], [true, false])).toBe("User");
+  });
 });

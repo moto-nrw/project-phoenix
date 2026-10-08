@@ -619,6 +619,14 @@ export async function fetchParentProfile(): Promise<ParentProfile> {
   return getJson<ParentProfile>("/api/parent/me/profile");
 }
 
+// The authenticated account owns this response. All parent-portal consumers
+// use the same key so the header and locale state read one SWR cache entry.
+export function parentProfileCacheKey(
+  accountID: string,
+): readonly [string, string] {
+  return ["parent-profile", accountID];
+}
+
 export async function updateParentPortalLocale(
   locale: AppLocale,
 ): Promise<ParentProfile> {

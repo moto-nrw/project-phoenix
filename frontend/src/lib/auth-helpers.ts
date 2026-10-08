@@ -282,17 +282,32 @@ const SYSTEM_ROLE_NAMES = new Set([
  * person better than the system role behind it, so the OGS lead of the demo
  * reads „OGS-Leitung", not „Betreuer".
  */
-export function getAccountRoleLabel(roleNames: readonly string[]): string {
-  const names = roleNames.map((name) => name.toLowerCase());
-  if (names.includes("admin")) return "Admin";
-  const schoolRole = names.find((name) => !SYSTEM_ROLE_NAMES.has(name));
+export function getAccountRoleLabel(
+  roleNames: readonly string[],
+  roleIsSystem?: readonly boolean[],
+): string {
+  const hasRoleOrigins = roleIsSystem?.length === roleNames.length;
+  const roles = roleNames.map((name, index) => ({
+    name: name.toLowerCase(),
+    // Sessions issued before role origins were added retain the earlier
+    // name-based display until their next refresh.
+    isSystem: hasRoleOrigins
+      ? roleIsSystem[index]!
+      : SYSTEM_ROLE_NAMES.has(name.toLowerCase()),
+  }));
+  if (roles.some((role) => role.isSystem && role.name === "admin")) {
+    return "Admin";
+  }
+  const schoolRole = roles.find((role) => !role.isSystem)?.name;
   if (schoolRole) {
     return (
       SCHOOL_ROLE_LABELS[schoolRole] ??
       schoolRole.charAt(0).toUpperCase() + schoolRole.slice(1)
     );
   }
-  const systemRole = names.find((name) => name !== "user");
+  const systemRole = roles.find(
+    (role) => role.isSystem && role.name !== "user",
+  )?.name;
   return systemRole === "teacher"
     ? "Betreuer"
     : systemRole

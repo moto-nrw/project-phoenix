@@ -1077,6 +1077,7 @@ describe("authConfig", () => {
         last_name: "Doe",
         email: "john@example.com",
         roles: ["teacher"],
+        role_is_system: [true],
         is_admin: false,
       };
 
@@ -1093,6 +1094,7 @@ describe("authConfig", () => {
       expect(user.token).toBe("access-token");
       expect(user.refreshToken).toBe("refresh-token");
       expect(user.roles).toEqual(["teacher"]);
+      expect(user.roleIsSystem).toEqual([true]);
       expect(user.isAdmin).toBe(false);
       expect(user.scope).toBeUndefined();
     });
@@ -1145,6 +1147,17 @@ describe("authConfig", () => {
       );
 
       expect(user.roles).toEqual([]);
+    });
+
+    it("preserves the system origin of each tenant role", () => {
+      const user = _testHelpers.buildAuthUser(
+        { id: 4, roles: ["user", "user"], role_is_system: [true, false] },
+        "token",
+        "refresh",
+        "test@example.com",
+      );
+
+      expect(user.roleIsSystem).toEqual([true, false]);
     });
   });
 

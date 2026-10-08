@@ -92,6 +92,7 @@ func ParseStructToMap(c any) (map[string]any, error) {
 	if appClaims, ok := c.(AppClaims); ok {
 		// Make sure roles is explicitly set
 		claims["roles"] = appClaims.Roles
+		claims["role_is_system"] = appClaims.RoleIsSystem
 
 		// Make sure permissions is explicitly set
 		claims["permissions"] = appClaims.Permissions

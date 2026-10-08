@@ -240,7 +240,7 @@ export function Header() {
         ? tParentNav("role")
         : mode === "school"
           ? "Lehrkraft"
-          : getAccountRoleLabel(userRoles);
+          : getAccountRoleLabel(userRoles, user?.roleIsSystem);
 
   // Beim Scrollen bekommt die Kopfzeile nur noch einen Schatten (Hysterese
   // gegen Flackern). Die Höhe bleibt fest: der frühere Scroll-Zustand von

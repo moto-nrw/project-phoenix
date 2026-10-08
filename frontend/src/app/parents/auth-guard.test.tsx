@@ -22,6 +22,7 @@ vi.mock("swr", () => ({ default: mockUseSWR }));
 
 vi.mock("~/lib/parent-api", () => ({
   fetchParentProfile: vi.fn(),
+  parentProfileCacheKey: (accountID: string) => ["parent-profile", accountID],
 }));
 
 vi.mock("~/lib/parent-url", () => ({
@@ -77,7 +78,7 @@ describe("ParentAuthGuard", () => {
     );
 
     expect(mockUseSWR.mock.calls.at(-1)?.[0]).toEqual([
-      "parent-shell-profile",
+      "parent-profile",
       "parent-1",
     ]);
 
@@ -92,7 +93,7 @@ describe("ParentAuthGuard", () => {
     );
 
     expect(mockUseSWR.mock.calls.at(-1)?.[0]).toEqual([
-      "parent-shell-profile",
+      "parent-profile",
       "parent-2",
     ]);
   });

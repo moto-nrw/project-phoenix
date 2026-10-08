@@ -3,7 +3,7 @@
 import { redirect, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
-import { fetchParentProfile } from "~/lib/parent-api";
+import { fetchParentProfile, parentProfileCacheKey } from "~/lib/parent-api";
 import { parentPath } from "~/lib/parent-url";
 import { ParentShellProvider } from "~/lib/shell-auth-context";
 import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
@@ -55,7 +55,7 @@ export function ParentAuthGuard({
   // Der Name der Kopfzeile kommt aus dem Elternprofil (#3891).
   const { data: profile } = useSWR(
     !isPublicPage && status === "authenticated" && session?.user?.id
-      ? ["parent-shell-profile", session.user.id]
+      ? parentProfileCacheKey(session.user.id)
       : null,
     fetchParentProfile,
   );

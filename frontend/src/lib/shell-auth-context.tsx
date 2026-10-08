@@ -28,6 +28,7 @@ interface ShellUser {
   name: string;
   email: string;
   roles: string[];
+  roleIsSystem?: boolean[];
 }
 
 interface ShellProfile {
@@ -97,6 +98,7 @@ export function TeacherShellProvider({
           name: session.user.name?.trim() || "Benutzer",
           email: session.user.email ?? "",
           roles: session.user.roles ?? [],
+          roleIsSystem: session.user.roleIsSystem ?? [],
         }
       : null;
 
@@ -198,6 +200,7 @@ export function OperatorShellProvider({
           name: session.user.name?.trim() || "Operator",
           email: session.user.email ?? "",
           roles: session.user.roles ?? ["operator"],
+          roleIsSystem: session.user.roleIsSystem ?? [true],
         }
       : null;
 
@@ -260,6 +263,7 @@ export function SchoolShellProvider({
           name: session.user.name?.trim() || "Lehrkraft",
           email: session.user.email ?? "",
           roles: session.user.roles ?? ["lehrkraft"],
+          roleIsSystem: session.user.roleIsSystem ?? [true],
         }
       : null;
 
@@ -373,6 +377,7 @@ export function ParentShellProvider({
           name: displayName || "Eltern",
           email: session.user.email ?? "",
           roles: session.user.roles ?? ["guardian"],
+          roleIsSystem: session.user.roleIsSystem ?? [true],
         }
       : null;
 

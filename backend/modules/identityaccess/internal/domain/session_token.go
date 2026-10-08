@@ -62,7 +62,7 @@ func DecodeSessionToken(wire map[string]any) (SessionClaims, error) {
 		return SessionClaims{}, err
 	}
 	return SessionClaims{
-		AccountID: id, Email: email, Roles: roles, Permissions: optionalStrings(wire["permissions"]),
+		AccountID: id, Email: email, Roles: roles, RoleIsSystem: optionalBools(wire["role_is_system"]), Permissions: optionalStrings(wire["permissions"]),
 		Username: text(wire, "username"), FirstName: text(wire, "first_name"), LastName: text(wire, "last_name"),
 		IsAdmin: flag(wire, "is_admin"), Scope: text(wire, "scope"), TenantID: number(wire, "tenant_id"), OrgID: number(wire, "org_id"),
 		FamilyID: text(wire, "family_id"), ReadOnly: flag(wire, "read_only"), ActingAdminID: number(wire, "acting_admin_id"), PreviewID: text(wire, "preview_id"),
@@ -156,6 +156,17 @@ func optionalStrings(value any) []string {
 	for _, item := range items {
 		if text, ok := item.(string); ok {
 			result = append(result, text)
+		}
+	}
+	return result
+}
+
+func optionalBools(value any) []bool {
+	items, _ := value.([]any)
+	result := make([]bool, 0, len(items))
+	for _, item := range items {
+		if flag, ok := item.(bool); ok {
+			result = append(result, flag)
 		}
 	}
 	return result

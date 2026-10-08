@@ -15,13 +15,14 @@ type CommonClaims struct {
 
 // AppClaims represent the claims parsed from JWT access token.
 type AppClaims struct {
-	ID          int      `json:"id,omitempty"`
-	Sub         string   `json:"sub,omitempty"`
-	Username    string   `json:"username,omitempty"`
-	FirstName   string   `json:"first_name,omitempty"`
-	LastName    string   `json:"last_name,omitempty"`
-	Roles       []string `json:"roles,omitempty"`
-	Permissions []string `json:"permissions,omitempty"` // Added permissions field
+	ID           int      `json:"id,omitempty"`
+	Sub          string   `json:"sub,omitempty"`
+	Username     string   `json:"username,omitempty"`
+	FirstName    string   `json:"first_name,omitempty"`
+	LastName     string   `json:"last_name,omitempty"`
+	Roles        []string `json:"roles,omitempty"`
+	RoleIsSystem []bool   `json:"role_is_system,omitempty"`
+	Permissions  []string `json:"permissions,omitempty"` // Added permissions field
 	// Static role flags for quick access
 	IsAdmin bool `json:"is_admin,omitempty"`
 	// Scope distinguishes tenant tokens from platform tokens
@@ -175,6 +176,24 @@ func getOptionalStringSlice(claims map[string]any, key string) []string {
 	return toStringSliceLenient(val)
 }
 
+func getOptionalBoolSlice(claims map[string]any, key string) []bool {
+	val, ok := claims[key]
+	if !ok || val == nil {
+		return []bool{}
+	}
+	slice, ok := val.([]any)
+	if !ok {
+		return []bool{}
+	}
+	result := make([]bool, 0, len(slice))
+	for _, value := range slice {
+		if flag, ok := value.(bool); ok {
+			result = append(result, flag)
+		}
+	}
+	return result
+}
+
 // toStringSliceStrict converts an interface slice to string slice.
 // Returns an error if any element is not a string (for required claims).
 func toStringSliceStrict(val any) ([]string, error) {
@@ -247,6 +266,7 @@ func (c *AppClaims) ParseClaims(claims map[string]any) error {
 		return err
 	}
 
+	c.RoleIsSystem = getOptionalBoolSlice(claims, "role_is_system")
 	c.Permissions = getOptionalStringSlice(claims, "permissions")
 	c.IsAdmin = getOptionalBool(claims, "is_admin")
 	c.Scope = getOptionalString(claims, "scope")
