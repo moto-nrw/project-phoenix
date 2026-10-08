@@ -502,6 +502,7 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
+import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useSession } from "next-auth/react";
 import { isHomeLocation } from "~/lib/location-helper";
 import { substitutionService } from "~/lib/substitution-api";
@@ -3390,5 +3391,60 @@ describe("RoleGuard integration", () => {
 
     expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
     expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
+  });
+});
+
+// #3890: Eine Gruppe aus „Weitere Gruppen" hieß im Titel „Meine Gruppen" und
+// stand im Breadcrumb unter „Meine Gruppe". Titel ist jetzt der Gruppenname,
+// der Breadcrumb nennt den Bereich, unter dem die Gruppe in der Leiste steht.
+describe("OGSGroupPage title and breadcrumb (#3890)", () => {
+  function renderWithGroup(group: OgsLiveViewData["groups"][number]) {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({ groups: [group], groupId: group.id }),
+      isLoading: false,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+    } as never);
+    render(<OGSGroupPage />);
+  }
+
+  it("titles a group from „Weitere Gruppen“ with its name and that section", async () => {
+    renderWithGroup({
+      id: "7",
+      name: "Mondgruppe",
+      viaSubstitution: false,
+      isPersonal: false,
+    });
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Mondgruppe" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { level: 1, name: "Meine Gruppen" }),
+    ).not.toBeInTheDocument();
+    expect(vi.mocked(useSetBreadcrumb)).toHaveBeenLastCalledWith({
+      ogsGroupName: "Mondgruppe",
+      ogsGroupSection: "other",
+      pageTitle: "Weitere Gruppen",
+    });
+  });
+
+  it("keeps „Meine Gruppen“ as the section of an own group", async () => {
+    renderWithGroup({
+      id: "1",
+      name: "Sonnengruppe",
+      viaSubstitution: false,
+      isPersonal: true,
+    });
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Sonnengruppe" }),
+    ).toBeInTheDocument();
+    expect(vi.mocked(useSetBreadcrumb)).toHaveBeenLastCalledWith({
+      ogsGroupName: "Sonnengruppe",
+      ogsGroupSection: "personal",
+      pageTitle: "Meine Gruppen",
+    });
   });
 });
