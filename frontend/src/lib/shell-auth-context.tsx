@@ -94,11 +94,13 @@ export function TeacherShellProvider({
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
       ? {
-          id: session.user.id,
+          ...(session.user.id ? { id: session.user.id } : {}),
           name: session.user.name?.trim() || "Benutzer",
           email: session.user.email ?? "",
           roles: session.user.roles ?? [],
-          roleIsSystem: session.user.roleIsSystem ?? [],
+          ...(session.user.roleIsSystem
+            ? { roleIsSystem: session.user.roleIsSystem }
+            : {}),
         }
       : null;
 
@@ -196,11 +198,10 @@ export function OperatorShellProvider({
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
       ? {
-          id: session.user.id,
+          ...(session.user.id ? { id: session.user.id } : {}),
           name: session.user.name?.trim() || "Operator",
           email: session.user.email ?? "",
           roles: session.user.roles ?? ["operator"],
-          roleIsSystem: session.user.roleIsSystem ?? [true],
         }
       : null;
 
@@ -259,11 +260,10 @@ export function SchoolShellProvider({
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
       ? {
-          id: session.user.id,
+          ...(session.user.id ? { id: session.user.id } : {}),
           name: session.user.name?.trim() || "Lehrkraft",
           email: session.user.email ?? "",
           roles: session.user.roles ?? ["lehrkraft"],
-          roleIsSystem: session.user.roleIsSystem ?? [true],
         }
       : null;
 
@@ -373,11 +373,10 @@ export function ParentShellProvider({
 
     const user: ShellUser | null = session?.user
       ? {
-          id: session.user.id,
+          ...(session.user.id ? { id: session.user.id } : {}),
           name: displayName || "Eltern",
           email: session.user.email ?? "",
           roles: session.user.roles ?? ["guardian"],
-          roleIsSystem: session.user.roleIsSystem ?? [true],
         }
       : null;
 
