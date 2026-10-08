@@ -23,7 +23,6 @@ import { SupervisionStudentGrid } from "~/components/active-supervisions/student
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
 import { useTimetableRoster } from "~/components/active-supervisions/use-timetable-roster";
-import type { TimetableRosterRow } from "~/lib/timetable-operations-types";
 import type {
   ActiveSupervisionStudent,
   OpenRoomBlockSection,
@@ -48,10 +47,10 @@ export type OpenRoomBlockContext = Omit<
   /** The school-wide overview lets the caller read every running roster. */
   readonly overviewEnabled: boolean;
   readonly onAddSupervisor: (activeGroupId: string) => void;
-  /** Makes each loaded block roster available to the page's common filters. */
-  readonly onRosterRows?: (
+  /** Makes each loaded block's groups available to the page's common filters. */
+  readonly onRosterGroups?: (
     instanceId: string,
-    rows: readonly TimetableRosterRow[],
+    groups: readonly string[],
   ) => void;
   /** The page's search and filters over each block's list (#3889). */
   readonly rosterRowFilter?: ComponentProps<
@@ -225,7 +224,7 @@ function OpenRoomBlock({
     canExcuseRestOfDay,
     overviewEnabled,
     onAddSupervisor,
-    onRosterRows,
+    onRosterGroups,
     rosterRowFilter,
     ...actionOptions
   } = context;
@@ -240,11 +239,12 @@ function OpenRoomBlock({
   });
   const currentRoster = roster.currentTimetableRoster;
   const rosterRows = currentRoster?.rows;
+  const rosterGroups = rosterRows?.map((row) => row.groupName);
   useEffect(() => {
-    if (rosterRows) {
-      onRosterRows?.(block.instanceId, rosterRows);
+    if (rosterGroups) {
+      onRosterGroups?.(block.instanceId, rosterGroups);
     }
-  }, [block.instanceId, onRosterRows, rosterRows]);
+  }, [block.instanceId, onRosterGroups, rosterGroups]);
   const actions = useTimetableActions({
     ...actionOptions,
     activeTimetableInstanceId: roster.activeTimetableInstanceId,

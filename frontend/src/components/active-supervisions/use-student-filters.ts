@@ -84,11 +84,13 @@ export interface StudentFilters {
 
 /**
  * Search / group / year filter state of the visitor list and the block list,
- * with the PageHeaderWithSearch configs derived from the children of both.
+ * with the PageHeaderWithSearch configs derived from the children, its own
+ * roster and every loaded roster in an open room.
  */
 export function useStudentFilters(
   students: readonly ActiveSupervisionStudent[],
   rosterRows: readonly TimetableRosterRow[] = [],
+  openRoomRosterGroups: readonly string[] = [],
 ): StudentFilters {
   const [searchTerm, setSearchTerm] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
@@ -117,6 +119,7 @@ export function useStudentFilters(
         [
           ...students.map((student) => student.group_name),
           ...rosterRows.map((row) => row.groupName),
+          ...openRoomRosterGroups,
         ].filter((name): name is string => !!name),
       ),
     ).sort((a, b) => a.localeCompare(b, "de"));
@@ -145,7 +148,7 @@ export function useStudentFilters(
         ],
       },
     ];
-  }, [selectedYear, groupFilter, students, rosterRows]);
+  }, [selectedYear, groupFilter, students, rosterRows, openRoomRosterGroups]);
 
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const filters: ActiveFilter[] = [];

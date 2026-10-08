@@ -79,13 +79,20 @@ import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { OpenRoomSections } from "~/components/active-supervisions/open-room-sections";
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
-import type { TimetableRosterRow } from "~/lib/timetable-operations-types";
 
 function reopenBannerMessage(title: string | null): string {
   const ended = title
     ? `„${title}“ wurde beendet.`
     : "Die Aktivität wurde beendet.";
   return `${ended} Sie können das fünf Minuten lang rückgängig machen.`;
+}
+
+function hasSameGroupNames(
+  previous: readonly string[] | undefined,
+  next: readonly string[],
+): boolean {
+  if (!previous || previous.length !== next.length) return false;
+  return previous.every((group, index) => group === next[index]);
 }
 
 function MeinRaumPageContent() {
@@ -151,32 +158,36 @@ function MeinRaumPageContent() {
   });
   const { currentTimetableRoster } = roster;
   const { overviewEnabled } = useOptionalSupervision();
-  const [openRoomRosterRows, setOpenRoomRosterRows] = useState<
-    ReadonlyMap<string, readonly TimetableRosterRow[]>
+  const [openRoomRosterGroups, setOpenRoomRosterGroups] = useState<
+    ReadonlyMap<string, readonly string[]>
   >(() => new Map());
-  const rememberOpenRoomRosterRows = useCallback(
-    (instanceId: string, rows: readonly TimetableRosterRow[]) => {
-      setOpenRoomRosterRows((current) => {
-        if (current.get(instanceId) === rows) return current;
+  const rememberOpenRoomRosterGroups = useCallback(
+    (instanceId: string, groups: readonly string[]) => {
+      setOpenRoomRosterGroups((current) => {
+        if (hasSameGroupNames(current.get(instanceId), groups)) return current;
         const next = new Map(current);
-        next.set(instanceId, rows);
+        next.set(instanceId, groups);
         return next;
       });
     },
     [],
   );
-  const filterRosterRows = useMemo(() => {
-    if (!openRoomLayout) return currentTimetableRoster?.rows;
+  const filterOpenRoomRosterGroups = useMemo(() => {
+    if (!openRoomLayout) return [];
     return openRoomLayout.flatMap((section) =>
       section.kind === "block"
-        ? (openRoomRosterRows.get(section.block.instanceId) ?? [])
+        ? (openRoomRosterGroups.get(section.block.instanceId) ?? [])
         : [],
     );
-  }, [currentTimetableRoster?.rows, openRoomLayout, openRoomRosterRows]);
+  }, [openRoomLayout, openRoomRosterGroups]);
 
   // The header search covers the block list too (#3889): expected, absent
   // and departed children, not only those checked in right now.
-  const filters = useStudentFilters(students, filterRosterRows);
+  const filters = useStudentFilters(
+    students,
+    currentTimetableRoster?.rows,
+    filterOpenRoomRosterGroups,
+  );
   const reopen = useReopenBanner();
   // The session „Betreuer hinzufügen“ was opened for: the head action or one
   // section of a released room.
@@ -619,7 +630,7 @@ function MeinRaumPageContent() {
             canExcuseRestOfDay: hasPermission(session, "users:update"),
             overviewEnabled,
             onAddSupervisor: setAddSupervisorTarget,
-            onRosterRows: rememberOpenRoomRosterRows,
+            onRosterGroups: rememberOpenRoomRosterGroups,
             rosterRowFilter: filters.rosterRowFilter,
           }}
         />

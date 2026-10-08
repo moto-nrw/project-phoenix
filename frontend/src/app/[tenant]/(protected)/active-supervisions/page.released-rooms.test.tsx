@@ -437,7 +437,7 @@ function mockDashboardAndRosters(
     return loaded(
       roster
         ? {
-          instance: { id: instanceId },
+            instance: { id: instanceId },
             rows: roster.rows ?? [],
             canOperate: roster.canOperate,
           }
@@ -1679,9 +1679,7 @@ describe("released room with running blocks (#3281)", () => {
       {
         "instance-gt2": {
           canOperate: true,
-          rows: [
-            { groupName: "Erwartete Gruppe", status: "expected" },
-          ],
+          rows: [{ groupName: "Erwartete Gruppe", status: "expected" }],
         },
         "instance-gt4": {
           canOperate: true,
@@ -1701,7 +1699,7 @@ describe("released room with running blocks (#3281)", () => {
 
     await waitFor(() => {
       const header = vi.mocked(PageHeaderWithSearch).mock.calls.at(-1)?.[0];
-      const groupFilter = header?.filters.find(
+      const groupFilter = header?.filters?.find(
         (filter) => filter.id === "group",
       );
       expect(groupFilter?.options?.map((option) => option.value)).toEqual([
