@@ -454,6 +454,7 @@ describe("SupervisionProvider", () => {
     setupFetchMock();
     const fallbackFetch = mockFetch.getMockImplementation();
     let resolveInitialSupervised: ((value: unknown) => void) | undefined;
+    let resolveFollowUpSupervised: ((value: unknown) => void) | undefined;
     let supervisedRequestCount = 0;
 
     mockFetch.mockImplementation((url: string) => {
@@ -466,7 +467,9 @@ describe("SupervisionProvider", () => {
           resolveInitialSupervised = resolve;
         });
       }
-      return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      return new Promise((resolve) => {
+        resolveFollowUpSupervised = resolve;
+      });
     });
 
     const { result } = renderHook(() => useSupervision(), {
@@ -476,8 +479,9 @@ describe("SupervisionProvider", () => {
     await waitFor(() => expect(supervisedRequestCount).toBe(1));
 
     // The own end of a block lands while the first load is still running.
-    await act(async () => {
-      await result.current.refresh({ silent: true, force: true });
+    const queuedRefresh = result.current.refresh({
+      silent: true,
+      force: true,
     });
     expect(supervisedRequestCount).toBe(1);
 
@@ -489,6 +493,22 @@ describe("SupervisionProvider", () => {
     });
 
     await waitFor(() => expect(supervisedRequestCount).toBe(2));
+
+    let refreshSettled = false;
+    void queuedRefresh.then(() => {
+      refreshSettled = true;
+    });
+    await Promise.resolve();
+    expect(refreshSettled).toBe(false);
+
+    await act(async () => {
+      resolveFollowUpSupervised?.({
+        ok: true,
+        json: async () => ({ data: [] }),
+      });
+      await queuedRefresh;
+    });
+    expect(refreshSettled).toBe(true);
   });
 
   it("stops listening for phoenix:supervision-stale after unmount", async () => {

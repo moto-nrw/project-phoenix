@@ -62,6 +62,12 @@ interface SupervisionContextType extends SupervisionState {
   }) => Promise<void>;
 }
 
+interface RefreshWaiter {
+  readonly promise: Promise<void>;
+  readonly resolve: () => void;
+  readonly reject: (reason: unknown) => void;
+}
+
 const SupervisionContext = createContext<SupervisionContextType | undefined>(
   undefined,
 );
@@ -128,6 +134,7 @@ export function SupervisionProvider({
   const lastRefreshRef = React.useRef<number>(0);
   const pendingGroupsRefreshRef = React.useRef(false);
   const pendingFullRefreshRef = React.useRef(false);
+  const pendingRefreshWaiterRef = React.useRef<RefreshWaiter | null>(null);
 
   // Store token and admin status in refs to avoid dependency loops.
   // EVERY caller with `groups:read` tries the school-wide overview endpoint
@@ -412,7 +419,20 @@ export function SupervisionProvider({
         } else if (force) {
           pendingFullRefreshRef.current = true;
         }
-        return;
+        if (!force) return;
+
+        // A lifecycle action must wait for the deliberate follow-up load,
+        // rather than only the load that started before its write (#3888).
+        if (!pendingRefreshWaiterRef.current) {
+          let resolve: () => void = () => undefined;
+          let reject: (reason: unknown) => void = () => undefined;
+          const promise = new Promise<void>((resolvePromise, rejectPromise) => {
+            resolve = resolvePromise;
+            reject = rejectPromise;
+          });
+          pendingRefreshWaiterRef.current = { promise, resolve, reject };
+        }
+        return pendingRefreshWaiterRef.current.promise;
       }
       isRefreshingRef.current = true;
 
@@ -431,17 +451,38 @@ export function SupervisionProvider({
         : [checkGroups(), checkSupervision()];
       await Promise.all(work).finally(() => {
         isRefreshingRef.current = false;
+        const waiter = pendingRefreshWaiterRef.current;
+        pendingRefreshWaiterRef.current = null;
         if (pendingFullRefreshRef.current) {
           pendingFullRefreshRef.current = false;
           pendingGroupsRefreshRef.current = false;
-          void refreshRef.current?.({ silent: true, force: true });
+          const followUp = refreshRef.current?.({
+            silent: true,
+            force: true,
+          });
+          if (waiter) {
+            if (followUp) {
+              void followUp.then(waiter.resolve, waiter.reject);
+            } else {
+              waiter.resolve();
+            }
+          }
         } else if (pendingGroupsRefreshRef.current) {
           pendingGroupsRefreshRef.current = false;
-          void refreshRef.current?.({
+          const followUp = refreshRef.current?.({
             silent: true,
             force: true,
             groupsOnly: true,
           });
+          if (waiter) {
+            if (followUp) {
+              void followUp.then(waiter.resolve, waiter.reject);
+            } else {
+              waiter.resolve();
+            }
+          }
+        } else {
+          waiter?.resolve();
         }
       });
     },
