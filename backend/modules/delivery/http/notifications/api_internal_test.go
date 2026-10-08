@@ -173,10 +173,10 @@ func TestSendTestNotificationNilService(t *testing.T) {
 func TestTestNotificationRouteAllowsStaffWithoutConfigUpdate(t *testing.T) {
 	t.Parallel()
 
-	db := testpkg.SetupTestDB(t)
+	testpkg.SetupTestDB(t)
 
 	svc := &captureService{}
-	router := NewResource(svc, nil, nil, db).Router()
+	router := NewResource(svc, nil, nil).Router()
 	claims := routetest.TeacherTestClaims(73)
 	require.NotContains(t, claims.Permissions, "config:update")
 	req := routetest.NewAuthenticatedRequest(

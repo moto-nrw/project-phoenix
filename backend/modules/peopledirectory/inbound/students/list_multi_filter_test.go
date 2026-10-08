@@ -68,7 +68,7 @@ func TestListStudents_MultiValueClassGroupAndGradeFilters(t *testing.T) {
 	tc := setupStudentsRoute(t)
 
 	// The suffix keeps the class names unique in the shared test database while
-	// the leading digit still carries the grade schoolclass.GradePrefix reads.
+	// the first digit run still carries the grade the class-label grammar reads.
 	suffix := time.Now().UnixNano()
 	classThird := fmt.Sprintf("3a-%d", suffix)
 	classFourth := fmt.Sprintf("4b-%d", suffix)

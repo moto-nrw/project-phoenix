@@ -3,7 +3,7 @@ package common
 import (
 	"context"
 
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	configSvc "github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
 // PrefetchSettings batch-resolves keys and attaches the resulting snapshot to
@@ -18,7 +18,7 @@ import (
 // settings must not prefetch the keys they write.
 func PrefetchSettings(ctx context.Context, settings any, keys ...string) context.Context {
 	batch, ok := settings.(interface {
-		ResolveMany(context.Context, []string) (*configSvc.SettingsSnapshot, error)
+		ResolveMany(context.Context, []string) (*configSvc.Snapshot, error)
 	})
 	if !ok {
 		return ctx
@@ -36,7 +36,7 @@ func PrefetchSettings(ctx context.Context, settings any, keys ...string) context
 // original context and no error.
 func PrefetchSettingsOrError(ctx context.Context, settings any, keys ...string) (context.Context, error) {
 	batch, ok := settings.(interface {
-		ResolveMany(context.Context, []string) (*configSvc.SettingsSnapshot, error)
+		ResolveMany(context.Context, []string) (*configSvc.Snapshot, error)
 	})
 	if !ok {
 		return ctx, nil

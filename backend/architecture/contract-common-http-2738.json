@@ -1,0 +1,143 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2645",
+    "#2646",
+    "#2662",
+    "#2663",
+    "#2691",
+    "#2703",
+    "#2704",
+    "#2706",
+    "#2707",
+    "#2720",
+    "#2723",
+    "#2724",
+    "#3898 (architecture decision delivered in the same cutover; ADR 0046)"
+  ],
+  "owner_and_capability": "Legacy composition / Shared HTTP Runtime: keep api/common as inbound-common/http, contract retained implementation dependencies through native owner contracts and targeted standing HTTP policy rules.",
+  "affected_packages": [
+    "api/common",
+    "api/enrollment",
+    "modules/careplan/inbound/parent",
+    "modules/settings",
+    "modules/securityruntime",
+    "auth/authorize",
+    "modules/transactionruntime",
+    "internal/storage",
+    "modules/delivery/objects",
+    "api",
+    "modules/*/http and composition callers",
+    "internal/architecture"
+  ],
+  "affected_tables": [
+    "None: code-only HTTP contract, no database tables or DDL affected."
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/services/config",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/internal/randstr",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/models/config",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/models/users",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/services/config",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|database/sql/driver",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/auth/authorize",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/auth/authorize/permissions",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/internal/randstr",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/internal/schoolclass",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/internal/sliceutil",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/internal/storage",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/models/config",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/models/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/services/config",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/uptrace/bun",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/uptrace/bun/driver/pgdriver"
+  ],
+  "atomic_cutover": "Accept ADR 0046 and policy epoch 33 in one code-only cutover. Keep common HTTP helpers. Replace retained settings/security/model/SQL/storage dependencies with public owner contracts or HTTP input values, delete internal/storage and the unused DB-bearing protected route wrappers, and update all callers in the same change. Add no relocation, temporary rule, fallback provider or capability behavior. Remove unused DB captures/forwarding parameters from HTTP callers, eight stale ORM policy rules and twelve HTTP-ORM allowlist entries. Preserve real DB query/transaction dependencies and every live collaborator guard. Delete the unreachable schoolclass.GradePrefix helper after its last production caller moved; transfer its grammar tests to the active HTTP parser and include it in the generated zero-caller inventory.",
+  "tests": [
+    "Existing common HTTP suites and object-store privacy/failure tests; settings/security contract suites and affected module/route suites.",
+    "TestFullProductionRouterGolden and unchanged tenant, permission, route and middleware assertions.",
+    "Finite selector/epoch regressions and standard byte-stream vs application CRUD CLI regression.",
+    "Full backend suite, scripts/test-changed.sh origin/development without --fast, full golangci-lint and go build ./....",
+    "Architecture check and validate-ticket --all; generated AST caller inventory; agent-context checker and its thirteen tests.",
+    "HTTP-ORM ratchet shrinks by twelve entries; all existing assertions remain. Constructor DB requirements disappear only where DB was never used after protected-route wrapper removal.",
+    "Active HTTP class-label parser preserves the retired helper grammar cases and verifies first-run extraction, ASCII-only digits and integer overflow."
+  ],
+  "runtime_evidence": {
+    "source": "Local pinned-toolchain runs on the #2738 worktree on 2026-10-08 against the localhost postgres-test server. No load benchmark or manual application smoke was performed.",
+    "sources": [
+      "docs/adr/0046-api-common-is-the-shared-http-runtime.md",
+      "backend/architecture/callers/common-http-2738.json",
+      "backend/api/common/router.go",
+      "backend/modules/delivery/objects/local_test.go",
+      "backend/api/testdata/route_table.golden",
+      "backend/test/query_budgets.go",
+      "backend/modules/peopledirectory/inbound/students/query_budget_test.go",
+      "scripts/backend-common-http-callers/main.go"
+    ],
+    "workload": "Existing common HTTP and route suites against isolated per-test tenants, original object-store behavior tests and architecture/selector regressions. Final full backend run with two package workers: 28,528 tests, two environment-dependent skips, zero failures in 101.721s. An earlier default-concurrency run had four PostgreSQL read-timeout failure records in three tests; the affected tests passed in the final lower-concurrency suite.",
+    "thresholds": "No retired caller/provider; no remaining api/common ledger key, no added key or temporary rule; same production route/middleware goldens; unchanged query budgets and tenant/permission/error/privacy assertions.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "Code-only HTTP boundary changes, no schema or data migration. Existing owner commands, SQL and relationship-level projections remain unchanged."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "Existing AssertQueryBudget scenarios in modules/peopledirectory/inbound/students passed in the full backend run against localhost PostgreSQL, including list, planning times, care withdrawals and OGS group live projections. The source-level TestQueryBudgetRatchet also passed; the register and SQL were not edited."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was run. The code-only Contract gate is zero retired callers and keys, with unchanged owner calls and behavior suites."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was run. The code-only Contract gate is zero retired callers and keys, with unchanged owner calls and behavior suites."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "Final full backend suite completed 28,528 tests with zero failures and two environment-dependent skips, including affected contract/failure and security assertions. scripts/test-changed.sh origin/development without --fast passed all 163 affected packages. Full golangci-lint: zero issues. Architecture check: ledger 265 -> 245, no added key, composition 596 -> 596; validate-ticket --all --base-ref 6f7128cff805697af1b1ac9c1e213c2e68aca03e covered all twenty retirements. Original PostgreSQL timeout tests passed in the final two-worker run. After rebasing onto development at bb700bbcf28f8985b2ea0b537be2c167dfba2e52, #3757's three calendar retirements remain intact; the architecture check passes 262 -> 242 with composition 596 -> 596, and evidence validation against that full base SHA covers exactly twenty retirements. Full lint again reports zero issues."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection, SQL, transaction or lock-order change; no runtime pool/lock benchmark was performed."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No connection, SQL, transaction or lock-order change; no runtime pool/lock benchmark was performed."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No connection, SQL, transaction or lock-order change; no runtime pool/lock benchmark was performed."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The shared HTTP runtime has no changed worker or scheduler entry point."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The shared HTTP runtime has no changed worker or scheduler entry point."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The shared HTTP runtime has no changed worker or scheduler entry point."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "Existing common HTTP error/seed/privacy tests and all twelve object-store behavior tests passed, including traversal rejection, cancellation and failed-write cleanup. Error classification implementations were preserved behind the Transaction Runtime facade."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No changed data write path or schema. Tenant transaction/rollback middleware is unchanged; reverting restores code and policy only."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "go build ./... passed; TestFullProductionRouterGolden passed with the route and middleware goldens unchanged. No manual app startup or HTTP smoke was performed."
+    }
+  },
+  "rollback_and_cleanup": "Revert the code-only change if a hidden caller appears. There is no data migration or cleanup job; the old object provider and unused wrappers are deleted atomically.",
+  "exit_criterion": "All twenty remaining api/common keys are absent; all retired wrappers/provider have zero declarations and callers; native public contracts compile; no key, temporary rule, composition target, owner/table assignment, route or behavior is added or changed."
+}

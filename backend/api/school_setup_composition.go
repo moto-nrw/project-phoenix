@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
 	schoolSetupCompose "github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
 	schoolSetupHTTP "github.com/moto-nrw/project-phoenix/modules/schoolsetup/http"
-	"github.com/uptrace/bun"
 )
 
 // moduleRoute is a tenant route group a module serves itself. Modules mount
@@ -22,33 +21,33 @@ type moduleRoute struct {
 // newSchoolSetupRoute mounts the onboarding wizard for new schools (#2832,
 // ADR 0043) at /api/school-setup. The caller supplies the retained settings
 // seams; this adds the tenant HTTP mechanics.
-func newSchoolSetupRoute(deps schoolSetupCompose.Dependencies, db *bun.DB) (moduleRoute, error) {
+func newSchoolSetupRoute(deps schoolSetupCompose.Dependencies) (moduleRoute, error) {
 	service, err := schoolSetupCompose.New(deps)
 	if err != nil {
 		return moduleRoute{}, err
 	}
-	resource := schoolSetupHTTP.NewResource(service, schoolSetupRuntime(db))
+	resource := schoolSetupHTTP.NewResource(service, schoolSetupRuntime())
 	return moduleRoute{pattern: "/school-setup", router: resource.Router()}, nil
 }
 
 // newStaffOnboardingRoute mounts the first steps of care workers (#3748) at
 // /api/staff-onboarding. The routes need no permission: each person only
 // reads and writes their own progress.
-func newStaffOnboardingRoute(db *bun.DB) (moduleRoute, error) {
+func newStaffOnboardingRoute() (moduleRoute, error) {
 	service, err := schoolSetupCompose.NewStaffOnboarding()
 	if err != nil {
 		return moduleRoute{}, err
 	}
-	resource := schoolSetupHTTP.NewStaffResource(service, schoolSetupRuntime(db))
+	resource := schoolSetupHTTP.NewStaffResource(service, schoolSetupRuntime())
 	return moduleRoute{pattern: "/staff-onboarding", router: resource.Router()}, nil
 }
 
 // schoolSetupRuntime supplies the tenant HTTP mechanics both route groups
 // share.
-func schoolSetupRuntime(db *bun.DB) schoolSetupHTTP.Runtime {
+func schoolSetupRuntime() schoolSetupHTTP.Runtime {
 	return schoolSetupHTTP.Runtime{
 		Protected: func(r chi.Router, fn func(chi.Router, schoolSetupHTTP.Middleware)) {
-			apiCommon.ProtectedTenantGroup(r, db, fn)
+			apiCommon.ProtectedTenantRoutes(r, fn)
 		},
 		RequireWrite: apiCommon.RequireConfigWrite(),
 		Actor: func(ctx context.Context) (int64, int64) {
