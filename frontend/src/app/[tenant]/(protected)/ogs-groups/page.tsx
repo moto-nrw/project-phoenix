@@ -335,6 +335,15 @@ function buildGroupTabItems(groups: readonly OGSGroup[]) {
   return groups.map(toItem);
 }
 
+function persistGroupSelection(group: OGSGroup): void {
+  localStorage.setItem("sidebar-last-group", group.id);
+  localStorage.setItem("sidebar-last-group-name", group.name);
+  localStorage.setItem(
+    LAST_GROUP_SECTION_STORAGE_KEY,
+    ogsGroupSectionOf(group.isPersonal),
+  );
+}
+
 function OGSGroupPageContent() {
   const router = useTenantRouter();
   const searchParams = useSearchParams();
@@ -554,7 +563,14 @@ function OGSGroupPageContent() {
       }
       setSelectedGroupId(dataGroupId);
       if (dataGroupId) {
-        localStorage.setItem("sidebar-last-group", dataGroupId);
+        const resolvedGroup = ogsGroups.find(
+          (group) => group.id === dataGroupId,
+        );
+        if (resolvedGroup) {
+          persistGroupSelection(resolvedGroup);
+        } else {
+          localStorage.setItem("sidebar-last-group", dataGroupId);
+        }
       }
     }
 
@@ -589,13 +605,16 @@ function OGSGroupPageContent() {
       const savedGroup = savedGroupId
         ? allGroups.find((g) => g.id === savedGroupId)
         : undefined;
-      if (savedGroup && savedGroup.id !== selectedGroupId) {
-        switchToGroup(savedGroup.id);
+      if (savedGroup) {
+        persistGroupSelection(savedGroup);
+        if (savedGroup.id !== selectedGroupId) {
+          switchToGroup(savedGroup.id);
+        }
       } else if (!savedGroup) {
         // Nothing saved or saved group no longer exists — persist first group
         const firstGroup = allGroups[0];
         if (firstGroup) {
-          localStorage.setItem("sidebar-last-group", firstGroup.id);
+          persistGroupSelection(firstGroup);
         }
       }
       // When savedGroup.id === selectedGroupId, do nothing — already in sync
@@ -1352,12 +1371,7 @@ function OGSGroupPageContent() {
                 onChange: (tabId) => {
                   const group = allGroups.find((g) => g.id === tabId);
                   if (group) {
-                    localStorage.setItem("sidebar-last-group", tabId);
-                    localStorage.setItem("sidebar-last-group-name", group.name);
-                    localStorage.setItem(
-                      LAST_GROUP_SECTION_STORAGE_KEY,
-                      ogsGroupSectionOf(group.isPersonal),
-                    );
+                    persistGroupSelection(group);
                     switchToGroup(tabId);
                   }
                 },
