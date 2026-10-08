@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   fetchChangeRequestAccess,
   fetchPendingChangeRequestCount,
+  fetchStudentRequestReviewCoverage,
 } from "./change-requests-api";
 
 const originalFetch = globalThis.fetch;
@@ -97,6 +98,46 @@ describe("fetchChangeRequestAccess", () => {
 
     await expect(fetchChangeRequestAccess()).rejects.toThrow(
       "Change request access response is invalid",
+    );
+  });
+});
+
+describe("fetchStudentRequestReviewCoverage", () => {
+  it("fragt die Abdeckung für ein Kind ab (#3886)", async () => {
+    mockFetch(async () =>
+      jsonResponse({
+        data: {
+          review_access: "group_leader",
+          student: { requests: false, absences: true },
+        },
+      }),
+    );
+
+    await expect(fetchStudentRequestReviewCoverage("42")).resolves.toEqual({
+      requests: false,
+      absences: true,
+    });
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "/api/students/change-requests/access?student_id=42",
+      expect.objectContaining({ method: "GET", cache: "no-store" }),
+    );
+  });
+
+  it("lehnt eine Antwort ohne Abdeckung ab", async () => {
+    mockFetch(async () =>
+      jsonResponse({ data: { review_access: "group_leader" } }),
+    );
+
+    await expect(fetchStudentRequestReviewCoverage("42")).rejects.toThrow(
+      "invalid",
+    );
+  });
+
+  it("wirft bei einem Fehlerstatus", async () => {
+    mockFetch(async () => jsonResponse({}, 404));
+
+    await expect(fetchStudentRequestReviewCoverage("42")).rejects.toThrow(
+      "404",
     );
   });
 });
