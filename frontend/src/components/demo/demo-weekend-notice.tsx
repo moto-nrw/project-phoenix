@@ -77,7 +77,11 @@ export function DemoWeekendNotice({ inParentsApp }: { inParentsApp: boolean }) {
         size="compact"
         className="shrink-0 text-sm"
         aria-label="Hinweis zum Wochenende"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          if (!isModalOpen) {
+            setOpen(true);
+          }
+        }}
       >
         <CalendarBlankIcon aria-hidden="true" className="size-4" />
         <span className="hidden sm:inline">Wochenende</span>

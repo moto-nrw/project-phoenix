@@ -65,6 +65,7 @@ describe("DemoWeekendNotice", () => {
 
   it("waits while another dialog is open", async () => {
     setTestClock("2026-09-26T11:00:00+02:00");
+    const user = userEvent.setup();
     let close = () => undefined as void;
     function OtherDialog() {
       const { openModal, closeModal } = useModal();
@@ -81,6 +82,10 @@ describe("DemoWeekendNotice", () => {
       </ModalProvider>,
     );
 
+    await user.click(
+      screen.getByRole("button", { name: "Hinweis zum Wochenende" }),
+    );
+    expect(screen.queryByText("Heute ist Wochenende")).not.toBeInTheDocument();
     await act(() => new Promise((resolve) => setTimeout(resolve, 2000)));
     expect(screen.queryByText("Heute ist Wochenende")).not.toBeInTheDocument();
     act(() => close());
