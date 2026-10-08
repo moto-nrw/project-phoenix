@@ -9,9 +9,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
 // StudentAccessContext caches the per-request access decision so
@@ -32,9 +31,9 @@ func (a *StudentAccessContext) HasFullAccess() bool {
 }
 
 // HasFullAccessToStudent is a nil-safe convenience wrapper for callers that
-// hold the full *users.Student.
-func (a *StudentAccessContext) HasFullAccessToStudent(student *users.Student) bool {
-	if student == nil {
+// hold a student value.
+func (a *StudentAccessContext) HasFullAccessToStudent(student interface{ IsAuthorizationStudent() bool }) bool {
+	if student == nil || !student.IsAuthorizationStudent() {
 		return false
 	}
 	return a.HasFullAccess()
@@ -57,6 +56,6 @@ func DetermineStudentAccess(r *http.Request, source StudentAccessSource) *Studen
 // staff lookup: admin status comes from the JWT permissions, and the staff
 // record is looked up only for non-admin callers.
 func DetermineStudentAccessWithStaffLookup(r *http.Request, lookup func(context.Context) (bool, error)) *StudentAccessContext {
-	admin, staff := authorize.StudentDataAccess(r.Context(), jwt.PermissionsFromCtx(r.Context()), lookup)
+	admin, staff := securityruntime.StudentDataAccess(r.Context(), jwt.PermissionsFromCtx(r.Context()), lookup)
 	return &StudentAccessContext{IsAdmin: admin, IsStaff: staff}
 }

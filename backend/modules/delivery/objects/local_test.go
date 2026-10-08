@@ -1,4 +1,4 @@
-package storage
+package objects
 
 import (
 	"bytes"
@@ -59,7 +59,7 @@ func TestLocalSaveOpenRemoveRoundTrip(t *testing.T) {
 	backend := NewLocal(t.TempDir())
 	ctx := context.Background()
 
-	written, err := backend.Save(ctx, "docs/9/file.pdf", bytes.NewReader([]byte("payload")), SaveOptions{})
+	written, err := backend.WriteObject(ctx, "docs/9/file.pdf", bytes.NewReader([]byte("payload")), SaveOptions{})
 	if err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -67,37 +67,37 @@ func TestLocalSaveOpenRemoveRoundTrip(t *testing.T) {
 		t.Fatalf("Save returned %d bytes, want %d", written, len("payload"))
 	}
 
-	size, err := backend.Stat(ctx, "docs/9/file.pdf")
+	size, err := backend.ObjectSize(ctx, "docs/9/file.pdf")
 	if err != nil || size != int64(len("payload")) {
 		t.Fatalf("Stat = %d, %v", size, err)
 	}
 
-	object, err := backend.Open(ctx, "docs/9/file.pdf")
+	object, err := backend.OpenObject(ctx, "docs/9/file.pdf")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	content, err := io.ReadAll(object)
+	content, err := io.ReadAll(object.Content)
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
-	if err := object.Close(); err != nil {
+	if err := object.Content.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
 	if string(content) != "payload" {
 		t.Fatalf("content = %q", content)
 	}
-	if object.ModTime().IsZero() {
+	if object.ModifiedAt.IsZero() {
 		t.Fatal("ModTime must be set so ServeContent can send Last-Modified")
 	}
 
-	if err := backend.Remove(ctx, "docs/9/file.pdf"); err != nil {
+	if err := backend.RemoveObject(ctx, "docs/9/file.pdf"); err != nil {
 		t.Fatalf("Remove: %v", err)
 	}
-	if _, err := backend.Open(ctx, "docs/9/file.pdf"); !errors.Is(err, ErrNotFound) {
+	if _, err := backend.OpenObject(ctx, "docs/9/file.pdf"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Open after Remove = %v, want ErrNotFound", err)
 	}
 	// Cleanup retries must converge, so removing a gone object stays success.
-	if err := backend.Remove(ctx, "docs/9/file.pdf"); err != nil {
+	if err := backend.RemoveObject(ctx, "docs/9/file.pdf"); err != nil {
 		t.Fatalf("second Remove: %v", err)
 	}
 }
@@ -108,7 +108,7 @@ func TestLocalSavePrivateUsesOwnerOnlyPermissions(t *testing.T) {
 	root := t.TempDir()
 	backend := NewLocal(root)
 
-	if _, err := backend.Save(context.Background(), "docs/1/secret.pdf", bytes.NewReader([]byte("x")), SaveOptions{Private: true}); err != nil {
+	if _, err := backend.WriteObject(context.Background(), "docs/1/secret.pdf", bytes.NewReader([]byte("x")), SaveOptions{Private: true}); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
@@ -139,10 +139,10 @@ func TestLocalRejectsEscapingKey(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 
-	if _, err := backend.Open(context.Background(), "../"+filepath.Base(outside)); !errors.Is(err, ErrInvalidKey) {
+	if _, err := backend.OpenObject(context.Background(), "../"+filepath.Base(outside)); !errors.Is(err, ErrInvalidKey) {
 		t.Fatalf("Open outside root = %v, want ErrInvalidKey", err)
 	}
-	if _, err := backend.Save(context.Background(), "../escaped.txt", bytes.NewReader([]byte("x")), SaveOptions{}); !errors.Is(err, ErrInvalidKey) {
+	if _, err := backend.WriteObject(context.Background(), "../escaped.txt", bytes.NewReader([]byte("x")), SaveOptions{}); !errors.Is(err, ErrInvalidKey) {
 		t.Fatal("Save outside root must be rejected")
 	}
 }
@@ -151,10 +151,10 @@ func TestLocalOpenMissingReturnsNotFound(t *testing.T) {
 	t.Parallel()
 
 	backend := NewLocal(t.TempDir())
-	if _, err := backend.Open(context.Background(), "nope.pdf"); !errors.Is(err, ErrNotFound) {
+	if _, err := backend.OpenObject(context.Background(), "nope.pdf"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Open missing = %v, want ErrNotFound", err)
 	}
-	if _, err := backend.Stat(context.Background(), "nope.pdf"); !errors.Is(err, ErrNotFound) {
+	if _, err := backend.ObjectSize(context.Background(), "nope.pdf"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Stat missing = %v, want ErrNotFound", err)
 	}
 }
@@ -172,7 +172,7 @@ func TestLocalSaveHonoursContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := backend.Save(ctx, "docs/1/late.pdf", bytes.NewReader([]byte("payload")), SaveOptions{Private: true})
+	_, err := backend.WriteObject(ctx, "docs/1/late.pdf", bytes.NewReader([]byte("payload")), SaveOptions{Private: true})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Save with a done context = %v, want context.Canceled", err)
 	}
@@ -199,7 +199,7 @@ func TestLocalSaveStopsMidStream(t *testing.T) {
 		cancel: cancel,
 	}
 
-	_, err := backend.Save(ctx, "docs/1/stalled.pdf", source, SaveOptions{})
+	_, err := backend.WriteObject(ctx, "docs/1/stalled.pdf", source, SaveOptions{})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Save = %v, want context.Canceled", err)
 	}
@@ -222,17 +222,17 @@ func TestLocalRefusesAFileAsADirectory(t *testing.T) {
 	backend := NewLocal(root)
 	ctx := context.Background()
 
-	if _, err := backend.Save(ctx, "blocker", bytes.NewReader([]byte("x")), SaveOptions{}); err != nil {
+	if _, err := backend.WriteObject(ctx, "blocker", bytes.NewReader([]byte("x")), SaveOptions{}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 
-	if _, err := backend.Save(ctx, "blocker/child.pdf", bytes.NewReader([]byte("x")), SaveOptions{}); err == nil {
+	if _, err := backend.WriteObject(ctx, "blocker/child.pdf", bytes.NewReader([]byte("x")), SaveOptions{}); err == nil {
 		t.Fatal("Save below a plain file must fail")
 	}
-	if _, err := backend.Open(ctx, "blocker/child.pdf"); err == nil || errors.Is(err, ErrNotFound) {
+	if _, err := backend.OpenObject(ctx, "blocker/child.pdf"); err == nil || errors.Is(err, ErrNotFound) {
 		t.Fatalf("Open below a plain file = %v, want a real failure", err)
 	}
-	if _, err := backend.Stat(ctx, "blocker/child.pdf"); err == nil || errors.Is(err, ErrNotFound) {
+	if _, err := backend.ObjectSize(ctx, "blocker/child.pdf"); err == nil || errors.Is(err, ErrNotFound) {
 		t.Fatalf("Stat below a plain file = %v, want a real failure", err)
 	}
 }
@@ -247,19 +247,19 @@ func TestLocalRefusesADirectoryAsAnObject(t *testing.T) {
 	backend := NewLocal(root)
 	ctx := context.Background()
 
-	if _, err := backend.Save(ctx, "docs/9/file.pdf", bytes.NewReader([]byte("x")), SaveOptions{}); err != nil {
+	if _, err := backend.WriteObject(ctx, "docs/9/file.pdf", bytes.NewReader([]byte("x")), SaveOptions{}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 
-	if _, err := backend.Open(ctx, "docs/9"); !errors.Is(err, ErrNotFound) {
+	if _, err := backend.OpenObject(ctx, "docs/9"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Open of a directory = %v, want ErrNotFound", err)
 	}
-	if _, err := backend.Save(ctx, "docs/9", bytes.NewReader([]byte("x")), SaveOptions{}); err == nil {
+	if _, err := backend.WriteObject(ctx, "docs/9", bytes.NewReader([]byte("x")), SaveOptions{}); err == nil {
 		t.Fatal("Save over a directory must fail")
 	}
 	// A non-empty directory cannot be unlinked, and that failure has to reach
 	// the caller: cleanup marks an object done only when Remove succeeded.
-	if err := backend.Remove(ctx, "docs/9"); err == nil {
+	if err := backend.RemoveObject(ctx, "docs/9"); err == nil {
 		t.Fatal("Remove of a non-empty directory must fail")
 	}
 }
@@ -274,7 +274,7 @@ func TestLocalSaveSurfacesReadFailure(t *testing.T) {
 	backend := NewLocal(root)
 
 	broken := errors.New("connection reset")
-	_, err := backend.Save(context.Background(), "docs/1/broken.pdf", failingReader{err: broken}, SaveOptions{})
+	_, err := backend.WriteObject(context.Background(), "docs/1/broken.pdf", failingReader{err: broken}, SaveOptions{})
 	if err == nil {
 		t.Fatal("Save with a failing source must fail")
 	}
@@ -295,10 +295,10 @@ func TestLocalRemoveAndStatRejectEscapingKey(t *testing.T) {
 	backend := NewLocal(t.TempDir())
 	ctx := context.Background()
 
-	if err := backend.Remove(ctx, "../escaped.txt"); !errors.Is(err, ErrInvalidKey) {
+	if err := backend.RemoveObject(ctx, "../escaped.txt"); !errors.Is(err, ErrInvalidKey) {
 		t.Fatalf("Remove outside root = %v, want ErrInvalidKey", err)
 	}
-	if _, err := backend.Stat(ctx, "/etc/passwd"); !errors.Is(err, ErrInvalidKey) {
+	if _, err := backend.ObjectSize(ctx, "/etc/passwd"); !errors.Is(err, ErrInvalidKey) {
 		t.Fatalf("Stat of an absolute key = %v, want ErrInvalidKey", err)
 	}
 }

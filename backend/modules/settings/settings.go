@@ -128,7 +128,10 @@ type Resolver interface {
 // ResolveBoolOrDefault returns the tenant override of a boolean setting, or
 // fallback when the tenant has none, the resolver is missing or the read
 // fails. Failures are logged, never returned.
-func ResolveBoolOrDefault(ctx context.Context, resolver Resolver, key string, fallback bool, logger *slog.Logger) bool {
+func ResolveBoolOrDefault(ctx context.Context, resolver interface {
+	HasTenantOverride(context.Context, string) (bool, error)
+	ResolveBool(context.Context, string) (bool, error)
+}, key string, fallback bool, logger *slog.Logger) bool {
 	return configSvc.ResolveBoolOrDefault(ctx, resolver, key, fallback, logger)
 }
 
@@ -187,4 +190,16 @@ type OperatorSchoolSettings interface {
 	// BookingAuthorityImpact previews enabling booking-led care for the
 	// school today.
 	BookingAuthorityImpact(ctx context.Context, schoolID int64) (*careplan.BookingAuthorityImpact, error)
+}
+
+// WithSettingsSnapshot attaches the immutable read snapshot used by this owner's
+// resolver. Writes must not prefetch the keys they change.
+func WithSettingsSnapshot(ctx context.Context, snapshot *Snapshot) context.Context {
+	return configSvc.WithSettingsSnapshot(ctx, snapshot)
+}
+
+// WithSettingsRequestCache attaches the tenant-keyed memo used by the resolver.
+// Repeated attachment keeps the same cache; successful writes evict its entries.
+func WithSettingsRequestCache(ctx context.Context) context.Context {
+	return configSvc.WithSettingsRequestCache(ctx)
 }

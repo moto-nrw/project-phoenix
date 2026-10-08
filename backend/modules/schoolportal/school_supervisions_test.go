@@ -55,7 +55,7 @@ func setupSupervisionFixture(t *testing.T) *supervisionFixture {
 	// provisioning service gives every real school.
 	testpkg.EnsureWebManualDevice(t, db)
 
-	classDayResource := classdayhttp.NewResource(resource.ClassDay.ClassDay, db, nil)
+	classDayResource := classdayhttp.NewResource(resource.ClassDay.ClassDay, nil)
 	router := schoolportal.NewResource(resource.AuthService, resource.MFAService, resource.Resets, classDayResource, newSchoolTimetableResource(db, resource, clock), nil, nil, nil).Router()
 
 	return &supervisionFixture{

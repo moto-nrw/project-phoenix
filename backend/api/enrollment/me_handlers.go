@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net/http"
 
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -37,5 +39,24 @@ func (rs *Resource) getMyProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, common.BuildGuardianProfileResponse(claims, loaded), "Profile retrieved")
+	common.Respond(w, r, http.StatusOK, common.BuildGuardianProfileResponse(claims, enrollmentProfileData(loaded)), "Profile retrieved")
+}
+
+// enrollmentProfileData maps the already-authorized loader result to HTTP values.
+func enrollmentProfileData(loaded *usersModels.GuardianProfileWithChildren) *common.GuardianProfileData {
+	if loaded == nil || loaded.Profile == nil {
+		return nil
+	}
+	data := &common.GuardianProfileData{
+		Present: true, FirstName: loaded.Profile.FirstName, LastName: loaded.Profile.LastName,
+		Email: loaded.Profile.Email, PrimaryPhone: loaded.PrimaryPhone,
+		Children: make([]common.GuardianProfileChildData, 0, len(loaded.Children)),
+	}
+	for _, child := range loaded.Children {
+		data.Children = append(data.Children, common.GuardianProfileChildData{
+			StudentID: child.StudentID, FirstName: child.FirstName, LastName: child.LastName,
+			SchoolClass: child.SchoolClass, EnrollmentSubmit: child.EnrollmentSubmit, Status: child.Status,
+		})
+	}
+	return data
 }

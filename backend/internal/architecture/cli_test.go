@@ -872,3 +872,17 @@ func packageDir(t *testing.T) string {
 		moduleRoot = parent
 	}
 }
+
+func TestStandardByteStreamsDoNotAuthorizeApplicationCRUD(t *testing.T) {
+	t.Parallel()
+	project := fixturePath(t, "semantic", "invalid")
+	output := stableFailingCheck(t, "check", "--project", project, "--policy", fixturePath(t, "semantic", "invalid", "policy.json"))
+	if strings.Contains(output, "public.OpenAttachment.Read") {
+		t.Fatalf("standard byte stream was classified as entity CRUD:\n%s", output)
+	}
+	assertContainsAll(t, output,
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.RowReader.Read",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.OpenRows.Read",
+		"production|contracts.orm-type|example.test/architecture-semantic/public|public.Service",
+	)
+}

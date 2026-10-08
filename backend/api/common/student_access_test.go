@@ -4,8 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 func TestStudentAccessContext_HasFullAccess(t *testing.T) {
@@ -53,16 +51,22 @@ func TestStudentAccessContext_HasFullAccessToStudent_NilGuards(t *testing.T) {
 	// Nil student is always denied even for admins — the caller should never
 	// reach this path with nil, but the helper must not panic.
 	assert.False(t, access.HasFullAccessToStudent(nil))
+	var absent *accessStudent
+	assert.False(t, access.HasFullAccessToStudent(absent))
 
 	groupID := int64(100)
-	student := &users.Student{GroupID: &groupID}
+	student := &accessStudent{GroupID: &groupID}
 	assert.True(t, access.HasFullAccessToStudent(student),
 		"admin always sees concrete students")
 
 	// #2329: group membership is irrelevant — staff see group-less children too.
 	staff := &StudentAccessContext{IsStaff: true}
-	assert.True(t, staff.HasFullAccessToStudent(&users.Student{}))
+	assert.True(t, staff.HasFullAccessToStudent(&accessStudent{}))
 
 	var nilAccess *StudentAccessContext
 	assert.False(t, nilAccess.HasFullAccessToStudent(student))
 }
+
+type accessStudent struct{ GroupID *int64 }
+
+func (s *accessStudent) IsAuthorizationStudent() bool { return s != nil }

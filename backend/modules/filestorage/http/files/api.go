@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/uptrace/bun"
 )
 
 const (
@@ -32,20 +31,20 @@ const (
 
 // Resource is the /api/files resource and the attachment routers.
 type Resource struct {
-	files  filestorage.Capability
-	db     *bun.DB
+	files filestorage.Capability
+
 	logger *slog.Logger
 }
 
 // NewResource wires the file storage routes over the public capability.
-func NewResource(files filestorage.Capability, db *bun.DB, logger *slog.Logger) *Resource {
+func NewResource(files filestorage.Capability, logger *slog.Logger) *Resource {
 	if files == nil {
 		panic("files HTTP: file storage capability is required")
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Resource{files: files, db: db, logger: logger}
+	return &Resource{files: files, logger: logger}
 }
 
 // Router mounts the file storage routes.
@@ -59,7 +58,7 @@ func NewResource(files filestorage.Capability, db *bun.DB, logger *slog.Logger) 
 // bun pool connection; the owner opens its own short transactions.
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
-	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
+	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		manage := common.RequiresPermission(permissions.FilesManage)
 
 		r.With(withTx).Get("/folders", rs.listFolders)

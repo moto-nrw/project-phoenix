@@ -1,4 +1,4 @@
-package storage
+package objects
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 const (
@@ -32,15 +31,6 @@ type Local struct {
 func NewLocal(root string) *Local {
 	return &Local{Root: root}
 }
-
-// localFile adapts *os.File to Object by caching the modification time
-// captured at open time.
-type localFile struct {
-	*os.File
-	modTime time.Time
-}
-
-func (f *localFile) ModTime() time.Time { return f.modTime }
 
 func (l *Local) resolve(key string) (string, error) {
 	if key == "" || strings.Contains(key, "..") || strings.HasPrefix(key, "/") {
@@ -84,7 +74,7 @@ func (c *contextReader) Read(p []byte) (int, error) {
 // cleanup window would otherwise be free to finish minutes late, re-creating
 // bytes whose cleanup intent the scheduler had already settled — leaving an
 // object no sweep can find again.
-func (l *Local) Save(ctx context.Context, key string, r io.Reader, opts SaveOptions) (int64, error) {
+func (l *Local) WriteObject(ctx context.Context, key string, r io.Reader, opts SaveOptions) (int64, error) {
 	full, err := l.resolve(key)
 	if err != nil {
 		return 0, err
@@ -134,7 +124,7 @@ func (l *Local) Save(ctx context.Context, key string, r io.Reader, opts SaveOpti
 }
 
 // Open returns the stored object, or ErrNotFound.
-func (l *Local) Open(_ context.Context, key string) (Object, error) {
+func (l *Local) OpenObject(_ context.Context, key string) (*Object, error) {
 	full, err := l.resolve(key)
 	if err != nil {
 		return nil, err
@@ -155,12 +145,12 @@ func (l *Local) Open(_ context.Context, key string) (Object, error) {
 		_ = file.Close()
 		return nil, ErrNotFound
 	}
-	return &localFile{File: file, modTime: info.ModTime()}, nil
+	return &Object{Content: file, ModifiedAt: info.ModTime()}, nil
 }
 
 // Remove deletes the object. A missing object is success so cleanup retries
 // converge instead of looping forever on an already-removed file.
-func (l *Local) Remove(_ context.Context, key string) error {
+func (l *Local) RemoveObject(_ context.Context, key string) error {
 	full, err := l.resolve(key)
 	if err != nil {
 		return err
@@ -172,7 +162,7 @@ func (l *Local) Remove(_ context.Context, key string) error {
 }
 
 // Stat returns the stored size in bytes.
-func (l *Local) Stat(_ context.Context, key string) (int64, error) {
+func (l *Local) ObjectSize(_ context.Context, key string) (int64, error) {
 	full, err := l.resolve(key)
 	if err != nil {
 		return 0, err

@@ -118,7 +118,6 @@ func newStaffAdminResource(capabilities services.WorkforceAdminCapabilities, sch
 		NotifyChanged:      notifyChanged,
 		ExportTransfer:     newExportTransferPort(exportTransfer),
 		Identity:           timeTrackingIdentity,
-		DB:                 db,
 		Logger:             logger,
 	})
 }

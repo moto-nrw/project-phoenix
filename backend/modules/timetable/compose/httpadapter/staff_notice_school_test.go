@@ -119,7 +119,7 @@ func setupStaffNoticeRoutes(t *testing.T) *staffNoticeRouteFixture {
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
 
-	rs := httpadapter.NewStaffNoticeResource(newStaffNoticeService(t, db), noticeAccountID, db)
+	rs := httpadapter.NewStaffNoticeResource(newStaffNoticeService(t, db), noticeAccountID)
 
 	suffix := time.Now().UnixNano()
 	staffLast := fmt.Sprintf("Kraft-%d", suffix)
