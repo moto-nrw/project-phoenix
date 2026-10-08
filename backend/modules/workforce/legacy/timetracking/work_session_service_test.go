@@ -3537,6 +3537,34 @@ func TestWSApplyCustomScheduleRows_StampsAnchorForFirstRotation(t *testing.T) {
 	assert.Equal(t, NewDate(2026, 8, 24), *staff.RotationAnchorDate)
 }
 
+func TestWSApplyCustomScheduleRows_UsesValidFromForFirstRotationAnchor(t *testing.T) {
+	t.Parallel()
+	svc, _, _, _, _ := wsCreateTestService()
+	staff := &StaffScheduleBinding{ID: 100}
+	validFrom := NewDate(2026, 6, 1)
+
+	var written Date
+	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
+		replaceScheduleFunc: func(_ context.Context, _ int64, _ []*WorkScheduleRow, anchor Date) error {
+			written = anchor
+			return nil
+		},
+	}
+	svc.staffRepo = &wsStaffAccessMock{
+		BindFn: func(context.Context, StaffScheduleBinding) error { return nil },
+	}
+
+	entries := []*WorkScheduleRow{
+		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 2, DayOfWeek: DayMonday, TargetMinutes: 480},
+		{StaffID: staff.ID, WeekIndex: 1, RotationLength: 2, DayOfWeek: DayMonday, TargetMinutes: 240},
+	}
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, Date(""), validFrom))
+
+	assert.Equal(t, validFrom, written)
+	require.NotNil(t, staff.RotationAnchorDate)
+	assert.Equal(t, validFrom, *staff.RotationAnchorDate)
+}
+
 // A single-week schedule has no A/B parity, so it keeps a NULL anchor.
 func TestWSApplyCustomScheduleRows_SingleWeekKeepsAnchorUnset(t *testing.T) {
 	t.Parallel()

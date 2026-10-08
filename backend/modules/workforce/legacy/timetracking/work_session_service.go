@@ -2837,13 +2837,13 @@ func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff 
 	if effective.IsZero() && staff.RotationAnchorDate != nil {
 		effective = *staff.RotationAnchorDate
 	}
-	// First rotational schedule of a staff member who has no anchor anywhere:
-	// stamp today, which is the version's valid_from. Leaving the column NULL
-	// would let a later template assignment write a staff-level anchor that
-	// these rows then fall back to, re-paritying their A/B weeks and moving a
-	// historical Saldo.
+	// First rotational schedule with no anchor uses its start day; a later
+	// template assignment would otherwise re-parity historical A/B weeks and Saldo.
 	if effective.IsZero() && isRotationalSchedule(entries) {
-		effective = timezone.DateFromTime(s.now())
+		effective = validFrom
+		if effective.IsZero() {
+			effective = timezone.DateFromTime(s.now())
+		}
 	}
 	if err := s.scheduleRepo.ReplaceScheduleWithValidFrom(ctx, staff.ID, entries, effective, validFrom); err != nil {
 		return fmt.Errorf("write custom schedule: %w", err)
