@@ -42,6 +42,10 @@ export type OpenRoomBlockContext = Omit<
   /** The school-wide overview lets the caller read every running roster. */
   readonly overviewEnabled: boolean;
   readonly onAddSupervisor: (activeGroupId: string) => void;
+  /** The page's search and filters over each block's list (#3889). */
+  readonly rosterRowFilter?: ComponentProps<
+    typeof TimetableRosterContent
+  >["rowFilter"];
 };
 
 type StudentGridProps = Omit<
@@ -210,6 +214,7 @@ function OpenRoomBlock({
     canExcuseRestOfDay,
     overviewEnabled,
     onAddSupervisor,
+    rosterRowFilter,
     ...actionOptions
   } = context;
   const [collapsed, setCollapsed] = useState(!section.isOwn);
@@ -306,6 +311,7 @@ function OpenRoomBlock({
             canExcuseRestOfDay ? actions.handleExcuseRestOfDay : undefined
           }
           onSearchChange={actions.handleAddStudentSearchChange}
+          rowFilter={rosterRowFilter}
         />
         <CompleteInstanceModal
           isOpen={actions.showCompleteConfirmation}

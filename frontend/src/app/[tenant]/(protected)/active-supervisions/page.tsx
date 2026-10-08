@@ -151,7 +151,9 @@ function MeinRaumPageContent() {
   const { currentTimetableRoster } = roster;
   const { overviewEnabled } = useOptionalSupervision();
 
-  const filters = useStudentFilters(students);
+  // The header search covers the block list too (#3889): expected, absent
+  // and departed children, not only those checked in right now.
+  const filters = useStudentFilters(students, currentTimetableRoster?.rows);
   const reopen = useReopenBanner();
   // The session „Betreuer hinzufügen“ was opened for: the head action or one
   // section of a released room.
@@ -594,6 +596,7 @@ function MeinRaumPageContent() {
             canExcuseRestOfDay: hasPermission(session, "users:update"),
             overviewEnabled,
             onAddSupervisor: setAddSupervisorTarget,
+            rosterRowFilter: filters.rosterRowFilter,
           }}
         />
       );
@@ -628,6 +631,7 @@ function MeinRaumPageContent() {
                 : undefined
             }
             onSearchChange={actions.handleAddStudentSearchChange}
+            rowFilter={filters.rosterRowFilter}
           />
         </>
       );
