@@ -403,8 +403,17 @@ export function SupervisionProvider({
       }
       lastRefreshRef.current = now;
 
-      // Already refreshing, don't start another
-      if (isRefreshingRef.current) return;
+      // Already refreshing, don't start another. A deliberate trigger runs
+      // once more afterwards: the load in flight may have started before the
+      // write it reports had committed (#3888).
+      if (isRefreshingRef.current) {
+        if (force && groupsOnly) {
+          pendingGroupsRefreshRef.current = true;
+        } else if (force) {
+          pendingFullRefreshRef.current = true;
+        }
+        return;
+      }
       isRefreshingRef.current = true;
 
       // Only show loading states if not a silent refresh
