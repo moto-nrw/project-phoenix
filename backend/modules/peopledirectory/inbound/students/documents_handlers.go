@@ -33,7 +33,7 @@ const (
 // documents. It is constructed per request rather than stored on the Resource
 // so a bare test Resource stays usable.
 func (rs *Resource) studentDocumentCoordinator() (*apiDocuments.Coordinator, error) {
-	backend, err := common.UploadsBackend()
+	backend, err := common.PrivateUploadsBackend()
 	if err != nil {
 		return nil, err
 	}
