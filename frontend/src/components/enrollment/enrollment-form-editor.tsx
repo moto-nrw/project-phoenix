@@ -1077,7 +1077,7 @@ export function EnrollmentFormEditor({
   };
 
   const loadFailed = loadError !== null;
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!onTemplateCountChange) return;
     onTemplateCountChange(
       loading || loadFailed ? null : latestByName.length,
