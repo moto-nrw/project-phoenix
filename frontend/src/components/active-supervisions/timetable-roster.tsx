@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useId, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 import { UserPlus, Users } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
@@ -11,7 +17,7 @@ import { FormModal } from "~/components/ui/form-modal";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import { Input } from "~/components/ui/input";
 import { OccupancyBadges } from "~/components/ui/occupancy-badges";
-import { PresentChildrenPicker } from "~/components/active-supervisions/present-children-picker";
+import type { PresentChildrenPickerProps } from "~/components/active-supervisions/present-children-picker";
 import { SectionCard } from "~/components/ui/section-card";
 import { overbookedHintFor, type Occupancy } from "~/lib/activity-occupancy";
 import { useNFCEnabled } from "~/lib/tenant-context";
@@ -909,6 +915,11 @@ interface TimetableRosterContentProps {
    */
   readonly onAddPresentStudents?: (studentIds: string[]) => Promise<boolean>;
   /**
+   * Der Dialog „Anwesende Kinder hinzufügen“. Die Tenant-Seiten reichen ihn
+   * herein, damit das Schulportal, das ihn nie zeigt, ihn auch nicht mitlädt.
+   */
+  readonly presentChildrenPicker?: ComponentType<PresentChildrenPickerProps>;
+  /**
    * Öffnet die Auswahl „Anwesende Kinder hinzufügen“ einmal von selbst, z. B.
    * direkt nach dem Start einer spontanen Aktivität.
    */
@@ -1021,6 +1032,7 @@ export function TimetableRosterContent({
   headerToggle,
   onAddStudent,
   onAddPresentStudents,
+  presentChildrenPicker: PresentChildrenPicker,
   presentPickerAutoOpen = false,
   onPresentPickerAutoOpened,
   onComplete,
@@ -1069,7 +1081,10 @@ export function TimetableRosterContent({
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [presentPickerOpen, setPresentPickerOpen] = useState(false);
   const presentPickerEnabled =
-    actionsEnabled && canAddUnplanned && onAddPresentStudents !== undefined;
+    actionsEnabled &&
+    canAddUnplanned &&
+    onAddPresentStudents !== undefined &&
+    PresentChildrenPicker !== undefined;
   useEffect(() => {
     if (!presentPickerAutoOpen) return;
     if (presentPickerEnabled) setPresentPickerOpen(true);

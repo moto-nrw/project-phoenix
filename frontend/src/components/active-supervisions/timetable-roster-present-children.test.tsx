@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { PresentChildrenPicker } from "./present-children-picker";
 import { TimetableRosterContent } from "./timetable-roster";
 import type { TimetableRoster } from "~/lib/timetable-operations-types";
 
@@ -48,6 +49,7 @@ function renderRoster(
       showTimetableCounts={false}
       onAddStudent={vi.fn()}
       onAddPresentStudents={vi.fn().mockResolvedValue(true)}
+      presentChildrenPicker={PresentChildrenPicker}
       onComplete={vi.fn()}
       onConfirmExpected={vi.fn()}
       onRosterAction={vi.fn()}
@@ -112,5 +114,14 @@ describe("TimetableRosterContent present children (#3824)", () => {
     expect(
       screen.queryByRole("button", { name: "Anwesende Kinder" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("offers no picker when the page passes no picker dialog", () => {
+    renderRoster({ presentChildrenPicker: undefined });
+
+    expect(
+      screen.queryByRole("button", { name: "Anwesende Kinder" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(PICKER_TITLE)).not.toBeInTheDocument();
   });
 });

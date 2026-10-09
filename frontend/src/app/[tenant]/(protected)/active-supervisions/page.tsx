@@ -59,6 +59,7 @@ import { useStudentFilters } from "~/components/active-supervisions/use-student-
 import { useReopenBanner } from "~/components/active-supervisions/use-reopen-banner";
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
 import { useSchulhofActions } from "~/components/active-supervisions/use-schulhof-actions";
+import { PresentChildrenPicker } from "~/components/active-supervisions/present-children-picker";
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
 import {
   SupervisionStudentGrid,
@@ -666,6 +667,7 @@ function MeinRaumPageContent() {
                 ? actions.handleAddPresentStudents
                 : undefined
             }
+            presentChildrenPicker={PresentChildrenPicker}
             presentPickerAutoOpen={
               actions.presentPickerAutoOpenInstanceId ===
               currentTimetableRoster.instance.id

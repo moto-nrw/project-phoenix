@@ -74,7 +74,7 @@ type LoadState =
   | { readonly kind: "failed" }
   | { readonly kind: "loaded"; readonly children: readonly PresentChild[] };
 
-interface PresentChildrenPickerProps {
+export interface PresentChildrenPickerProps {
   readonly isOpen: boolean;
   readonly instanceId: string;
   /** Kinder, die gerade schon in diesem Block sind; sie stehen nicht zur Wahl. */
