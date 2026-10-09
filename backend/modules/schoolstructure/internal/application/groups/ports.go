@@ -4,8 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
-
-	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
 // The ports of the retained School Structure services (#2742). The service
@@ -27,47 +26,47 @@ type Runtime interface {
 
 // GroupRecords is the education.groups store of the group service.
 type GroupRecords interface {
-	Create(ctx context.Context, group *education.Group) error
-	FindByID(ctx context.Context, id any) (*education.Group, error)
-	FindByIDForUpdate(ctx context.Context, id any) (*education.Group, error)
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*education.Group, error)
-	FindByIDsWithRooms(ctx context.Context, ids []int64) (map[int64]*education.Group, error)
-	FindByName(ctx context.Context, name string) (*education.Group, error)
-	FindByTeacher(ctx context.Context, teacherID int64) ([]*education.Group, error)
-	FindWithRoom(ctx context.Context, groupID int64) (*education.Group, error)
-	ListWithRooms(ctx context.Context, query *education.GroupListQuery) ([]*education.Group, error)
-	CountGroups(ctx context.Context, query *education.GroupListQuery) (int, error)
-	Update(ctx context.Context, group *education.Group) error
+	Create(ctx context.Context, group *domain.Group) error
+	FindByID(ctx context.Context, id any) (*domain.Group, error)
+	FindByIDForUpdate(ctx context.Context, id any) (*domain.Group, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*domain.Group, error)
+	FindByIDsWithRooms(ctx context.Context, ids []int64) (map[int64]*domain.Group, error)
+	FindByName(ctx context.Context, name string) (*domain.Group, error)
+	FindByTeacher(ctx context.Context, teacherID int64) ([]*domain.Group, error)
+	FindWithRoom(ctx context.Context, groupID int64) (*domain.Group, error)
+	ListWithRooms(ctx context.Context, query *domain.GroupListQuery) ([]*domain.Group, error)
+	CountGroups(ctx context.Context, query *domain.GroupListQuery) (int, error)
+	Update(ctx context.Context, group *domain.Group) error
 	Delete(ctx context.Context, id any) error
 }
 
 // GroupTeacherStore is the education.group_teacher store of the group service.
 type GroupTeacherStore interface {
-	Create(ctx context.Context, relation *education.GroupTeacher) error
+	Create(ctx context.Context, relation *domain.GroupTeacher) error
 	Delete(ctx context.Context, id any) error
-	FindByGroup(ctx context.Context, groupID int64) ([]*education.GroupTeacher, error)
-	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*education.GroupTeacher, error)
+	FindByGroup(ctx context.Context, groupID int64) ([]*domain.GroupTeacher, error)
+	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*domain.GroupTeacher, error)
 }
 
 // ClassTeacherStore is the store of the staff-to-school-class assignments
 // (#1772).
 type ClassTeacherStore interface {
-	Create(ctx context.Context, assignment *education.ClassTeacher) error
-	Update(ctx context.Context, assignment *education.ClassTeacher) error
+	Create(ctx context.Context, assignment *domain.ClassTeacher) error
+	Update(ctx context.Context, assignment *domain.ClassTeacher) error
 	Delete(ctx context.Context, id any) error
-	FindByStaff(ctx context.Context, staffID int64) ([]*education.ClassTeacher, error)
+	FindByStaff(ctx context.Context, staffID int64) ([]*domain.ClassTeacher, error)
 }
 
 // HandoverReader lists the substitutions of one group, the deletion guard's
 // read.
 type HandoverReader interface {
-	FindByGroup(ctx context.Context, groupID int64) ([]*education.GroupSubstitution, error)
+	FindByGroup(ctx context.Context, groupID int64) ([]*domain.GroupSubstitution, error)
 }
 
 // RoomDirectory resolves the room a group is assigned to. Any error means the
 // room does not exist for the caller.
 type RoomDirectory interface {
-	FindRoom(ctx context.Context, id int64) (*education.GroupRoom, error)
+	FindRoom(ctx context.Context, id int64) (*domain.GroupRoom, error)
 }
 
 // StaffDirectory answers whether a staff member exists. A missing staff
@@ -91,20 +90,20 @@ type TeacherDirectory interface {
 }
 
 // Teacher is a teacher assigned to a group, as the group reads show it.
-type Teacher = education.Teacher
+type Teacher = domain.Teacher
 
 // TeacherPerson is the name and login of a teacher's person.
-type TeacherPerson = education.TeacherPerson
+type TeacherPerson = domain.TeacherPerson
 
 // ClassAssignmentAudit appends a rewrite of a staff member's class
 // assignments to the Stammdaten audit trail (#1772).
 type ClassAssignmentAudit interface {
-	RecordSchoolClassChange(ctx context.Context, change education.SchoolClassChange) error
+	RecordSchoolClassChange(ctx context.Context, change domain.SchoolClassChange) error
 }
 
 // SubstitutionAudit appends to the responsibility trail.
 type SubstitutionAudit interface {
-	RecordSubstitutionChange(ctx context.Context, change education.SubstitutionChange) error
+	RecordSubstitutionChange(ctx context.Context, change domain.SubstitutionChange) error
 }
 
 // GroupPublisher emits lossy post-commit group-access invalidations.

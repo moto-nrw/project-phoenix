@@ -11,7 +11,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// tenantTransitionsLockKey mirrors models/education.TenantTransitionsLockKey.
+// tenantTransitionsLockKey mirrors schoolstructure.TransitionsLockKey.
 // The timetable materializer takes the same advisory key through
 // services/schedule, so a materialization pass and a grade transition never
 // run concurrently for one school; the two holders must agree on the exact

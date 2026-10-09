@@ -5,42 +5,49 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
-// GroupsByID resolves the education groups a substitution points at. The
-// group rows belong to School Structure; the adapter never joins them.
-type GroupsByID func(ctx context.Context, ids []int64) (map[int64]*educationModels.Group, error)
+// GroupSubstitution is the retained row of education.group_substitution.
+// Workforce owns the table, so the shape lives here (#3556).
+type GroupSubstitution struct {
+	ID, TenantID         int64
+	CreatedAt, UpdatedAt time.Time
+	TargetType           string
+	GroupID              int64
+	RegularStaffID       *int64
+	SubstituteStaffID    int64
+	StartDate, EndDate   timezone.Date
+	Reason               string
+}
 
-// SubstitutionStaffResolver attaches RegularStaff and SubstituteStaff to the
-// rows through School Membership, which owns users.staff.
-type SubstitutionStaffResolver func(ctx context.Context, rows []*educationModels.GroupSubstitution) error
+// GroupNames names the education groups of School Structure; an unknown ID
+// is absent. The adapter never joins the group rows.
+type GroupNames func(ctx context.Context, ids []int64) (map[int64]string, error)
 
 // groupSubstitutionRepository serves the retained education.group_substitution
-// contract from the Workforce capability.
-// Group names come from the injected group lookup, the staff behind a
-// substitution from the injected School Membership resolver.
+// contract from the Workforce capability. The blockers name their groups
+// through the injected School Structure lookup.
 type groupSubstitutionRepository struct {
 	workforce workforce.Capability
-	groups    GroupsByID
-	staff     SubstitutionStaffResolver
+	groups    GroupNames
 }
 
-// NewGroupSubstitutionRepository binds the adapter to the capability and to
-// the two owner lookups every relation-loading read needs.
-func NewGroupSubstitutionRepository(capability workforce.Capability, groups GroupsByID, staff SubstitutionStaffResolver) *groupSubstitutionRepository {
-	if capability == nil || groups == nil || staff == nil {
-		panic("group substitution repository adapter: Workforce capability, group lookup and staff resolver are required")
+// NewGroupSubstitutionRepository binds the adapter to the capability and the
+// group lookup.
+func NewGroupSubstitutionRepository(capability workforce.Capability, groups GroupNames) *groupSubstitutionRepository {
+	if capability == nil || groups == nil {
+		panic("group substitution repository adapter: Workforce capability and group lookup are required")
 	}
-	return &groupSubstitutionRepository{workforce: capability, groups: groups, staff: staff}
+	return &groupSubstitutionRepository{workforce: capability, groups: groups}
 }
 
-func (r *groupSubstitutionRepository) Create(ctx context.Context, entity *educationModels.GroupSubstitution) error {
+func (r *groupSubstitutionRepository) Create(ctx context.Context, entity *GroupSubstitution) error {
 	if entity == nil {
 		return errors.New("group_substitution cannot be nil or zero value")
 	}
@@ -52,7 +59,7 @@ func (r *groupSubstitutionRepository) Create(ctx context.Context, entity *educat
 	return nil
 }
 
-func (r *groupSubstitutionRepository) FindByID(ctx context.Context, id any) (*educationModels.GroupSubstitution, error) {
+func (r *groupSubstitutionRepository) FindByID(ctx context.Context, id any) (*GroupSubstitution, error) {
 	substitutionID, err := legacyID(id)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find by id", Err: err}
@@ -64,7 +71,7 @@ func (r *groupSubstitutionRepository) FindByID(ctx context.Context, id any) (*ed
 	return substitutionToLegacy(value), nil
 }
 
-func (r *groupSubstitutionRepository) FindByIDForUpdate(ctx context.Context, id any) (*educationModels.GroupSubstitution, error) {
+func (r *groupSubstitutionRepository) FindByIDForUpdate(ctx context.Context, id any) (*GroupSubstitution, error) {
 	substitutionID, err := legacyID(id)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find by id for update", Err: err}
@@ -76,7 +83,7 @@ func (r *groupSubstitutionRepository) FindByIDForUpdate(ctx context.Context, id 
 	return substitutionToLegacy(value), nil
 }
 
-func (r *groupSubstitutionRepository) Update(ctx context.Context, entity *educationModels.GroupSubstitution) error {
+func (r *groupSubstitutionRepository) Update(ctx context.Context, entity *GroupSubstitution) error {
 	if entity == nil {
 		return errors.New("group_substitution cannot be nil or zero value")
 	}
@@ -105,7 +112,7 @@ func (r *groupSubstitutionRepository) Delete(ctx context.Context, id any) error 
 // List applies the legacy map filters: "active" selects rows covering today,
 // "date" rows covering the day, "reason_like" a case-insensitive reason
 // match, and any other key an equality on that column.
-func (r *groupSubstitutionRepository) List(ctx context.Context, filters map[string]any) ([]*educationModels.GroupSubstitution, error) {
+func (r *groupSubstitutionRepository) List(ctx context.Context, filters map[string]any) ([]*GroupSubstitution, error) {
 	filter := workforce.GroupSubstitutionFilter{}
 	for field, value := range filters {
 		if value == nil {
@@ -133,7 +140,7 @@ func (r *groupSubstitutionRepository) List(ctx context.Context, filters map[stri
 	return r.list(ctx, "list", filter)
 }
 
-func (r *groupSubstitutionRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*educationModels.GroupSubstitution, error) {
+func (r *groupSubstitutionRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*GroupSubstitution, error) {
 	filter, err := groupSubstitutionFilterFromOptions(options)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list with options", Err: err}
@@ -141,16 +148,8 @@ func (r *groupSubstitutionRepository) ListWithOptions(ctx context.Context, optio
 	return r.list(ctx, "list with options", filter)
 }
 
-func (r *groupSubstitutionRepository) FindByGroup(ctx context.Context, groupID int64) ([]*educationModels.GroupSubstitution, error) {
+func (r *groupSubstitutionRepository) FindByGroup(ctx context.Context, groupID int64) ([]*GroupSubstitution, error) {
 	return r.list(ctx, "find by group", workforce.GroupSubstitutionFilter{GroupID: groupID})
-}
-
-func (r *groupSubstitutionRepository) ListWithRelations(ctx context.Context, options *modelBase.QueryOptions) ([]*educationModels.GroupSubstitution, error) {
-	rows, err := r.ListWithOptions(ctx, options)
-	if err != nil {
-		return nil, err
-	}
-	return rows, r.attachRelations(ctx, rows)
 }
 
 // ListActiveSubstitutionBlockers returns the staff member's current or
@@ -176,9 +175,9 @@ func (r *groupSubstitutionRepository) ListActiveSubstitutionBlockers(ctx context
 		if row.TenantID != tenantID {
 			continue
 		}
-		name := "Unbekannte Gruppe"
-		if group, found := groups[row.GroupID]; found && group != nil {
-			name = group.Name
+		name, found := groups[row.GroupID]
+		if !found {
+			name = "Unbekannte Gruppe"
 		}
 		blockers = append(blockers, userModels.BlockerSubstitution{
 			ID: row.ID, GroupName: name, StartDate: row.StartDate.String(), EndDate: row.EndDate.String(),
@@ -188,41 +187,19 @@ func (r *groupSubstitutionRepository) ListActiveSubstitutionBlockers(ctx context
 	return blockers, nil
 }
 
-func (r *groupSubstitutionRepository) list(ctx context.Context, op string, filter workforce.GroupSubstitutionFilter) ([]*educationModels.GroupSubstitution, error) {
+func (r *groupSubstitutionRepository) list(ctx context.Context, op string, filter workforce.GroupSubstitutionFilter) ([]*GroupSubstitution, error) {
 	values, err := r.workforce.ListGroupSubstitutions(ctx, filter)
 	if err != nil {
 		return nil, readError(op, err, nil)
 	}
-	result := make([]*educationModels.GroupSubstitution, 0, len(values))
+	result := make([]*GroupSubstitution, 0, len(values))
 	for _, value := range values {
 		result = append(result, substitutionToLegacy(value))
 	}
 	return result, nil
 }
 
-// attachRelations resolves Group through School Structure and the staff
-// through School Membership. It fails closed without the staff resolver:
-// nameless substitutions would be wrong data rather than an obvious outage.
-func (r *groupSubstitutionRepository) attachRelations(ctx context.Context, rows []*educationModels.GroupSubstitution) error {
-	if len(rows) == 0 {
-		return nil
-	}
-	groups, err := r.loadGroups(ctx, rows)
-	if err != nil {
-		return err
-	}
-	for _, row := range rows {
-		if group, found := groups[row.GroupID]; found {
-			row.Group = group
-		}
-	}
-	if r.staff == nil {
-		return errors.New("group substitution repository resolves staff through School Membership")
-	}
-	return r.staff(ctx, rows)
-}
-
-func (r *groupSubstitutionRepository) loadGroups(ctx context.Context, rows []*educationModels.GroupSubstitution) (map[int64]*educationModels.Group, error) {
+func (r *groupSubstitutionRepository) loadGroups(ctx context.Context, rows []*GroupSubstitution) (map[int64]string, error) {
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		if row.GroupID > 0 {
@@ -231,7 +208,7 @@ func (r *groupSubstitutionRepository) loadGroups(ctx context.Context, rows []*ed
 	}
 	ids = uniqueIDs(ids)
 	if len(ids) == 0 {
-		return map[int64]*educationModels.Group{}, nil
+		return map[int64]string{}, nil
 	}
 	groups, err := r.groups(ctx, ids)
 	if err != nil {
@@ -328,7 +305,7 @@ func applyGroupSubstitutionCondition(filter *workforce.GroupSubstitutionFilter, 
 
 // --- mapping ---
 
-func substitutionToWorkforce(entity *educationModels.GroupSubstitution) workforce.GroupSubstitution {
+func substitutionToWorkforce(entity *GroupSubstitution) workforce.GroupSubstitution {
 	return workforce.GroupSubstitution{
 		ID: entity.ID, TenantID: entity.TenantID, TargetType: entity.TargetType, GroupID: entity.GroupID,
 		RegularStaffID: entity.RegularStaffID, SubstituteStaffID: entity.SubstituteStaffID,
@@ -337,13 +314,13 @@ func substitutionToWorkforce(entity *educationModels.GroupSubstitution) workforc
 	}
 }
 
-func substitutionToLegacy(value workforce.GroupSubstitution) *educationModels.GroupSubstitution {
-	entity := &educationModels.GroupSubstitution{}
+func substitutionToLegacy(value workforce.GroupSubstitution) *GroupSubstitution {
+	entity := &GroupSubstitution{}
 	applySubstitutionToLegacy(entity, value)
 	return entity
 }
 
-func applySubstitutionToLegacy(entity *educationModels.GroupSubstitution, value workforce.GroupSubstitution) {
+func applySubstitutionToLegacy(entity *GroupSubstitution, value workforce.GroupSubstitution) {
 	entity.ID = value.ID
 	entity.CreatedAt = value.CreatedAt
 	entity.UpdatedAt = value.UpdatedAt

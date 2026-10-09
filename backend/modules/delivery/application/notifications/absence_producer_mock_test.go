@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
@@ -59,14 +58,14 @@ type fakeGroupReader struct {
 	err          error
 }
 
-func (f *fakeGroupReader) ListStaffIDsByEducationGroupIDs(_ context.Context, groupIDs []int64, _ timezone.Date) ([]educationModel.StaffGroupID, error) {
+func (f *fakeGroupReader) ListStaffIDsByEducationGroupIDs(_ context.Context, groupIDs []int64, _ timezone.Date) ([]notifications.StaffGroupPair, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-	var out []educationModel.StaffGroupID
+	var out []notifications.StaffGroupPair
 	for _, groupID := range groupIDs {
 		for _, staffID := range f.staffByGroup[groupID] {
-			out = append(out, educationModel.StaffGroupID{StaffID: staffID, GroupID: groupID})
+			out = append(out, notifications.StaffGroupPair{StaffID: staffID, GroupID: groupID})
 		}
 	}
 	return out, nil

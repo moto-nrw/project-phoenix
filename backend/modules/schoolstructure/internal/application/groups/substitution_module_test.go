@@ -679,7 +679,7 @@ func TestGroupHandoverRechecksOwnershipAfterGroupLock(t *testing.T) {
 // groupTeacherLinks is the slice of the group teacher store the ownership
 // race reads and changes.
 type groupTeacherLinks interface {
-	FindByGroup(ctx context.Context, groupID int64) ([]*testpkg.EducationGroupTeacher, error)
+	FindByGroup(ctx context.Context, groupID int64) ([]*testutil.SchoolStructureGroupTeacher, error)
 	Delete(ctx context.Context, id any) error
 }
 
@@ -689,7 +689,7 @@ type ownershipRevokingGroups struct {
 	teacherID int64
 }
 
-func (g *ownershipRevokingGroups) FindByIDForUpdate(ctx context.Context, id any) (*testpkg.EducationGroup, error) {
+func (g *ownershipRevokingGroups) FindByIDForUpdate(ctx context.Context, id any) (*testutil.SchoolStructureGroup, error) {
 	group, err := g.GroupStore.FindByIDForUpdate(ctx, id)
 	if err != nil {
 		return nil, err
@@ -711,7 +711,7 @@ func (g *ownershipRevokingGroups) FindByIDForUpdate(ctx context.Context, id any)
 
 type failingAudit struct{}
 
-func (failingAudit) RecordSubstitutionChange(context.Context, testpkg.EducationSubstitutionChange) error {
+func (failingAudit) RecordSubstitutionChange(context.Context, testutil.SchoolStructureSubstitutionChange) error {
 	return errors.New("audit unavailable")
 }
 

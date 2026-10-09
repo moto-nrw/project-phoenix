@@ -698,7 +698,7 @@ func newFactory(
 		NewEducationTeachers(repos.Teacher),
 		repositories.NewEducationStaff(repos.Staff),
 		repos.Student,
-		repos.GroupSubstitution,
+		repositories.NewEducationHandovers(repos.GroupSubstitution),
 		education.NewLegacyRepositoryRuntime(db),
 		education.GroupServiceOptions{Broadcaster: realtimeHub, Audit: repositories.NewEducationClassAssignmentAudit(repos.StaffMasterDataChange)},
 	)
@@ -2305,7 +2305,7 @@ func newFactory(
 	staffNotificationRecipients := notifications.NewStaffRecipientResolver(
 		notificationPreferencesService,
 		repos.Student,
-		repos.Group,
+		notificationGroupSupervisors{groups: repos.Group},
 		repos.Staff,
 		identityAccess,
 		settingsService,

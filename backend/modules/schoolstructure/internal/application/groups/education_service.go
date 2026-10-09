@@ -6,8 +6,8 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -75,7 +75,7 @@ func NewService(
 // Group operations
 
 // CreateGroup creates a new education group
-func (s *service) CreateGroup(ctx context.Context, group *education.Group) error {
+func (s *service) CreateGroup(ctx context.Context, group *domain.Group) error {
 	// Validate group data
 	if err := group.Validate(); err != nil {
 		return &EducationError{Op: "CreateGroup", Err: err}
@@ -106,7 +106,7 @@ func (s *service) CreateGroup(ctx context.Context, group *education.Group) error
 }
 
 // UpdateGroup updates an existing education group
-func (s *service) UpdateGroup(ctx context.Context, group *education.Group) error {
+func (s *service) UpdateGroup(ctx context.Context, group *domain.Group) error {
 	if err := group.Validate(); err != nil {
 		return &EducationError{Op: "UpdateGroup", Err: err}
 	}
@@ -132,7 +132,7 @@ func (s *service) UpdateGroup(ctx context.Context, group *education.Group) error
 }
 
 // checkGroupNameUnique checks if name changed and validates no duplicates
-func (s *service) checkGroupNameUnique(ctx context.Context, existing, updated *education.Group) error {
+func (s *service) checkGroupNameUnique(ctx context.Context, existing, updated *domain.Group) error {
 	if existing.Name == updated.Name {
 		return nil
 	}
@@ -146,7 +146,7 @@ func (s *service) checkGroupNameUnique(ctx context.Context, existing, updated *e
 }
 
 // validateAndSetRoom validates room change and sets room reference
-func (s *service) validateAndSetRoom(ctx context.Context, existing, updated *education.Group) error {
+func (s *service) validateAndSetRoom(ctx context.Context, existing, updated *domain.Group) error {
 	if !roomIDHasChanged(existing.RoomID, updated.RoomID) {
 		return nil
 	}
@@ -233,7 +233,7 @@ func (s *service) validateGroupDeletion(ctx context.Context, id int64) error {
 	}
 	today := calendar.TodayDate()
 	for _, handover := range handovers {
-		if handover.TargetType == education.GroupSubstitutionTypeGroupHandover && !handover.EndDate.Before(today) {
+		if handover.TargetType == domain.GroupSubstitutionTypeGroupHandover && !handover.EndDate.Before(today) {
 			return &EducationError{Op: "DeleteGroup", Err: ErrGroupHasHandover}
 		}
 	}
@@ -340,7 +340,7 @@ func (s *service) updateGroupTeachersInTx(ctx context.Context, groupID int64, te
 }
 
 // buildTeacherIDMaps builds maps for current and new teacher IDs
-func buildTeacherIDMaps(currentRelations []*education.GroupTeacher, teacherIDs []int64) (map[int64]int64, map[int64]bool) {
+func buildTeacherIDMaps(currentRelations []*domain.GroupTeacher, teacherIDs []int64) (map[int64]int64, map[int64]bool) {
 	currentTeacherIDs := make(map[int64]int64)
 	for _, rel := range currentRelations {
 		currentTeacherIDs[rel.TeacherID] = rel.ID
@@ -392,7 +392,7 @@ func (s *service) addTeacherToGroup(ctx context.Context, groupID, teacherID int6
 		return &EducationError{Op: "UpdateGroupTeachers", Err: ErrTeacherNotFound}
 	}
 
-	relation := &education.GroupTeacher{
+	relation := &domain.GroupTeacher{
 		GroupID:   groupID,
 		TeacherID: teacherID,
 	}
@@ -495,7 +495,7 @@ func (s *service) GetTeachersForGroups(ctx context.Context, groupIDs []int64) (m
 }
 
 // GetTeacherGroups gets all groups for a teacher
-func (s *service) GetTeacherGroups(ctx context.Context, teacherID int64) ([]*education.Group, error) {
+func (s *service) GetTeacherGroups(ctx context.Context, teacherID int64) ([]*domain.Group, error) {
 	// Verify teacher exists
 	if err := s.teachers.FindTeacher(ctx, teacherID); err != nil {
 		return nil, &EducationError{Op: "GetTeacherGroups", Err: ErrTeacherNotFound}

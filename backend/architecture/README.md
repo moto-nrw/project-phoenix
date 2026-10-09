@@ -161,6 +161,32 @@ Timetable owner's `education.class_arrival_times`. The suites compose through
 `api/testutil` and name the rows through `test`; the two policy rules that
 only those suites used are deleted.
 
+#3556 deleted `models/education`; 239 -> 236. Its values moved to
+`modules/schoolstructure/internal/domain` without an ORM mapping: the
+retained group store maps `education.groups` through a private row, and the
+not-found and store-failure shapes are `domain.RecordNotFound` and
+`domain.StoreError`. The legacy composition names the values through
+`modules/schoolstructure/compose` aliases (`Group`, `GroupTeacher`,
+`ClassTeacher`, `GroupSubstitution`, `HandoverQuery` and the other port
+values), which drops `database/repositories -> models/education` (#2743).
+Values another owner's table carries go to that owner: the Workforce
+adapter in `modules/workforce/legacy` serves its own `GroupSubstitution` row,
+and the legacy root's `groupSubstitutions` decorator attaches School
+Structure's group and School Membership's staff to the reads with relations,
+which shrinks the Workforce legacy budget (15,926 -> 15,903 LOC). The
+notification recipients read supervising staff as their own `StaffGroupPair`
+through `services.notificationGroupSupervisors`; the grade transition lock
+key is `schoolstructure.TransitionsLockKey`. `test` maps the rows its
+fixtures write itself (`test/school_structure_rows.go`), which drops
+`test -> models/education` (#2748); the People Directory suites write the
+transition history through `CreateTestGradeTransitionHistory`, which drops
+the external-test `services/users -> models/education` (#2728). The rules
+`delivery-cutover.009`, `delivery-cutover.023` and
+`workforce.adapter.school-structure-domain` allowed only those imports and
+are deleted with the package entry. `education.class_arrival_times` had no
+foreign reader left: #2742 already deleted the legacy repository, and the
+fixtures write the Timetable owner's rows directly.
+
 #3349 settles the one table two owners reached for: `users.privacy_consents`
 stays with `student-presence`. The recorded window bounds how long presence
 data is kept, and the GDPR cleanup reads it through that owner's

@@ -1,12 +1,12 @@
 package compose
 
 import (
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
-func publicGroup(row *educationModels.Group) *schoolstructure.Group {
+func publicGroup(row *domain.Group) *schoolstructure.Group {
 	if row == nil {
 		return nil
 	}
@@ -18,23 +18,23 @@ func publicGroup(row *educationModels.Group) *schoolstructure.Group {
 	return result
 }
 
-func legacyGroup(value *schoolstructure.Group) *educationModels.Group {
+func legacyGroup(value *schoolstructure.Group) *domain.Group {
 	if value == nil {
 		return nil
 	}
-	row := &educationModels.Group{Model: educationModels.Model{ID: value.ID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt}, TenantModel: educationModels.TenantModel{TenantID: value.TenantID}, Name: value.Name, RoomID: value.RoomID}
+	row := &domain.Group{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, Name: value.Name, RoomID: value.RoomID}
 	if value.Room != nil {
-		room := educationModels.GroupRoom(*value.Room)
+		room := domain.GroupRoom(*value.Room)
 		row.Room = &room
 	}
 	return row
 }
 
-func publicGroupQuery(query *schoolstructure.GroupListQuery) *educationModels.GroupListQuery {
+func publicGroupQuery(query *schoolstructure.GroupListQuery) *domain.GroupListQuery {
 	if query == nil {
 		return nil
 	}
-	result := educationModels.GroupListQuery(*query)
+	result := domain.GroupListQuery(*query)
 	return &result
 }
 
@@ -70,11 +70,11 @@ func neutralGroupError(err error) (error, bool) {
 		return &result, true
 	case *groups.EducationError:
 		return &schoolstructure.EducationError{Op: value.Op, Err: publicGroupError(value.Err)}, true
-	case *educationModels.DatabaseError:
+	case *domain.StoreError:
 		return &groupStoreError{op: value.Op, err: publicGroupError(value.Err)}, true
 	}
 	switch err {
-	case educationModels.ErrNotFound:
+	case domain.RecordNotFound:
 		return groupRecordNotFound, true
 	case groups.ErrGroupNotFound:
 		return schoolstructure.ErrEducationGroupNotFound, true

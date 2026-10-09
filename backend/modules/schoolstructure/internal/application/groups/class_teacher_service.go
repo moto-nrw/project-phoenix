@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
-	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
 // requireStaff resolves the staff existence check shared by both class
@@ -125,7 +125,7 @@ func (s *service) auditSchoolClassChange(
 		return nil
 	}
 
-	return s.masterDataAudit.RecordSchoolClassChange(ctx, education.SchoolClassChange{
+	return s.masterDataAudit.RecordSchoolClassChange(ctx, domain.SchoolClassChange{
 		StaffID:   staffID,
 		ChangedBy: changedBy,
 		OldValue:  oldValue,
@@ -158,8 +158,8 @@ func dedupeSchoolClasses(classes []string) (map[string]string, error) {
 	return wanted, nil
 }
 
-func (s *service) reconcileSchoolClasses(ctx context.Context, current []*education.ClassTeacher, wanted map[string]string) (map[string]*education.ClassTeacher, error) {
-	currentByKey := make(map[string]*education.ClassTeacher, len(current))
+func (s *service) reconcileSchoolClasses(ctx context.Context, current []*domain.ClassTeacher, wanted map[string]string) (map[string]*domain.ClassTeacher, error) {
+	currentByKey := make(map[string]*domain.ClassTeacher, len(current))
 	for _, assignment := range current {
 		currentByKey[schoolclass.Normalize(assignment.SchoolClass)] = assignment
 	}
@@ -182,12 +182,12 @@ func (s *service) reconcileSchoolClasses(ctx context.Context, current []*educati
 
 	return currentByKey, nil
 }
-func (s *service) addSchoolClasses(ctx context.Context, staffID int64, currentByKey map[string]*education.ClassTeacher, wanted map[string]string) error {
+func (s *service) addSchoolClasses(ctx context.Context, staffID int64, currentByKey map[string]*domain.ClassTeacher, wanted map[string]string) error {
 	for key, display := range wanted {
 		if _, exists := currentByKey[key]; exists {
 			continue
 		}
-		assignment := &education.ClassTeacher{StaffID: staffID, SchoolClass: display}
+		assignment := &domain.ClassTeacher{StaffID: staffID, SchoolClass: display}
 		if err := s.classTeacherRepo.Create(ctx, assignment); err != nil {
 			return err
 		}
