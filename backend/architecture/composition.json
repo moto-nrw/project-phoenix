@@ -17263,7 +17263,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 672,
+          "line": 673,
           "declaration": "type serveGraph"
         }
       ]
@@ -17298,7 +17298,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 671,
+          "line": 672,
           "declaration": "type serveGraph"
         },
         {

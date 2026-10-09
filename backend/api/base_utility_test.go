@@ -964,6 +964,15 @@ func checkTimetableConflictWiring(t *testing.T, graph *serveGraph) {
 	require.NotNil(t, timetable.ConflictDetection, "api/timetable must hold the owner's conflict detection")
 	assert.Same(t, graph.services.TimetableData.ConflictDetection, timetable.ConflictDetection,
 		"the routes and the instance lifecycle share one composed capability")
+
+	// The mounted routes reach it too: an unwired conflict probe answers 500.
+	db := testpkg.SetupTestDB(t)
+	_, staff := testpkg.CreateTestTeacherWithAccount(t, db, "Conflict", "Probe")
+	token := testutil.MintTestJWT(t, testutil.AdminTestClaimsForTenant(int(staff.ID), testpkg.Tenant(t)))
+	probe := checkpointRequest(graph, checkpointScenario{
+		Method: http.MethodGet, Path: "/api/timetable/exception-conflicts?date=2099-01-05", Authenticated: true,
+	}, token)
+	require.Equal(t, http.StatusOK, probe.Code, probe.Body.String())
 }
 
 // The demo exempts its demo process (a loopback peer) from the auth limiters;

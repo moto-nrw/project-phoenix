@@ -42,7 +42,8 @@ Before backend design, implementation, or review:
    workflows; cross-module reads use named tenant-safe projections.
 3. Treat `repositories.Factory`, `services.Factory`, scheduler setters,
    `SetupAPITest`, and broad legacy composition as shrink-only. The root
-   mounts each route resource where it builds it and keeps none (#2745).
+   mounts each route resource where it builds it; only the Worker's document
+   sweeps outlive the mount (#2745).
    Do not add fields, setters, callers, or wrappers that still build that graph.
 4. Assign new writable data objects to existing target owners in the same diff.
    A new owner requires an architecture decision linked from #2580 first.

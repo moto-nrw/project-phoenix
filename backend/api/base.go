@@ -663,8 +663,9 @@ func newFeedbackResource(module *feedbackModule.Module) *feedbackAPI.Resource {
 }
 
 // serveGraph is the composed Serve root: its router, the process-scoped pool
-// and the retained composition the embedded Worker still reads (#2749). It
-// keeps no route resource: each one is mounted where it is built (#2745).
+// and the retained composition the embedded Worker still reads (#2749). Each
+// route resource is mounted where it is built (#2745); only the two document
+// sweeps the Worker runs outlive their mount.
 type serveGraph struct {
 	router             chi.Router
 	db                 *bun.DB
