@@ -213,6 +213,7 @@ const (
 	CodeGeneralBusinessRejection                         = "general.business_rejection"
 	CodeGeneralInput                                     = "general.input"
 	CodeGeneralPermission                                = "general.permission"
+	CodeGeneralRequestTooLarge                           = "general.request_too_large"
 	CodeGeneralServer                                    = "general.server"
 	CodeGeneralUnavailable                               = "general.unavailable"
 	CodeGradeTransitionGraduatesCheckedIn                = "grade_transition.graduates_checked_in"
@@ -853,6 +854,7 @@ var errorClassByCode = map[string]string{
 	"general.business_rejection":                           "business_rejection",
 	"general.input":                                        "input",
 	"general.permission":                                   "permission",
+	"general.request_too_large":                            "input",
 	"general.server":                                       "server",
 	"general.unavailable":                                  "unavailable",
 	"grade_transition.graduates_checked_in":                "business_rejection",

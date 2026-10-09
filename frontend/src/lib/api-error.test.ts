@@ -30,6 +30,7 @@ describe("ApiError", () => {
     [403, "general.permission"],
     [409, "general.business_rejection"],
     [429, "general.unavailable"],
+    [431, "general.request_too_large"],
     [503, "general.unavailable"],
     [500, "general.server"],
   ])("uses the backend class code for uncoded HTTP %i", (status, code) => {

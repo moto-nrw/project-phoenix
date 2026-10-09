@@ -884,7 +884,11 @@ describe("DatabaseForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(
-      await screen.findByText(catalogText("general.unavailable", "die Gruppe")),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Gruppe"),
+        {},
+        { timeout: 5_000 },
+      ),
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));

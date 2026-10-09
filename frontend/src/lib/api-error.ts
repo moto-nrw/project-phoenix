@@ -45,6 +45,7 @@ export class ApiError extends Error {
 /** Mirrors backend/api/common.ErrorClassCode until generated contracts include it. */
 export function errorClassCode(status: number): ErrorCode {
   if (status === 401 || status === 403) return "general.permission";
+  if (status === 431) return "general.request_too_large";
   if (status === 409 || status === 410 || status === 422)
     return "general.business_rejection";
   if ([408, 429, 499, 502, 503, 504].includes(status))
