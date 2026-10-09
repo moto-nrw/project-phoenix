@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -42,6 +43,10 @@ func TestExistingStudentApprovalGrantsAccountBeforeClassRosterResync(t *testing.
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, env.db, "existing-student-lock-order")
 	existing := testpkg.CreateTestStudent(t, env.db, "Existing", "Child", "1a")
+	// Not cared for right now, so the approval writes the class at once; an
+	// active child would keep its class until the phase starts (#3917).
+	existing.Status = usersModels.StudentStatusInactive
+	require.NoError(t, env.repos.Student.Update(ctx, existing))
 	requestID, childID := submitOneChild(t, env, account.Email, "Existing", "Child")
 	matchChildToExistingStudent(t, env, childID, existing.ID)
 	_, err := env.db.NewRaw("UPDATE enrollment.request_children SET target_school_class = '2a' WHERE id = ? AND tenant_id = ?", childID, testpkg.Tenant(t)).Exec(ctx)
