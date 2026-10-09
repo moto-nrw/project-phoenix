@@ -65,7 +65,7 @@ func TestDeleteStudent_GraduatedBetweenSnapshotAndLock(t *testing.T) {
 		Where("id = ?", student.ID).
 		Count(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, 1, count, "a graduated child must survive a delete that lost the race")
+	assert.Equal(t, 1, int(count), "a graduated child must survive a delete that lost the race")
 
 	persons, err := tc.db.NewSelect().
 		TableExpr(`users.persons`).
@@ -73,7 +73,7 @@ func TestDeleteStudent_GraduatedBetweenSnapshotAndLock(t *testing.T) {
 		Where("deleted_at IS NULL").
 		Count(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, 1, persons, "the person record must survive too")
+	assert.Equal(t, 1, int(persons), "the person record must survive too")
 }
 
 // staleStudentDirectory answers the unlocked child read with a snapshot taken

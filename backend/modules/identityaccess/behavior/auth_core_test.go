@@ -509,7 +509,7 @@ func TestAuthService_Login_ConcurrentIssuanceKeepsFiveActiveSessions(t *testing.
 		Where("expiry > ?", time.Now()).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 5, activeCount, "concurrent issuers must not bypass the session cap")
+	assert.Equal(t, 5, int(activeCount), "concurrent issuers must not bypass the session cap")
 }
 
 // =============================================================================
@@ -725,7 +725,7 @@ func TestAuthService_RefreshToken_InterruptedRotationRecoveryAcrossMultipleHando
 		Where("generation = 2").
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, currentCount)
+	assert.Equal(t, 1, int(currentCount))
 }
 
 func TestAuthService_RefreshToken_ReplayAfterGraceCommitsFamilyRevocation(t *testing.T) {

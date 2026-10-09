@@ -241,7 +241,7 @@ func assertNamedCarePlanTableCounts(t *testing.T, db *bun.DB, ctx context.Contex
 		} {
 			count, countErr := scoped.NewSelect().TableExpr(table).Count(txCtx)
 			require.NoError(t, countErr)
-			assert.Equal(t, 1, count, "%s must expose only the active tenant's row", table)
+			assert.Equal(t, 1, int(count), "%s must expose only the active tenant's row", table)
 		}
 		return nil
 	})

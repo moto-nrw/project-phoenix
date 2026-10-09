@@ -178,11 +178,11 @@ func TestRequestService_RollsBackDurableOutboxWrite(t *testing.T) {
 			for _, table := range tables[:len(tables)-1] {
 				count, err := env.db.NewSelect().Table(table).Where("tenant_id = ?", testpkg.Tenant(t)).Count(testpkg.Ctx(t))
 				require.NoError(t, err)
-				require.Equal(t, 1, count, "retry must commit one row in %s", table)
+				require.Equal(t, 1, int(count), "retry must commit one row in %s", table)
 			}
 			count, err := env.db.NewSelect().Table("platform.email_outbox").Where("tenant_id = ?", testpkg.Tenant(t)).Count(testpkg.Ctx(t))
 			require.NoError(t, err)
-			require.Equal(t, 2, count, "retry must commit exactly one parent and one admin intent")
+			require.Equal(t, 2, int(count), "retry must commit exactly one parent and one admin intent")
 		})
 	}
 }
@@ -3394,7 +3394,7 @@ func TestRequestService_LateInviteSurvivesSubmissionRollback(t *testing.T) {
 	require.ErrorIs(t, err, enrollmentCapability.ErrLateInviteInvalid)
 	count, err := env.db.NewSelect().Table("enrollment.requests").Where("phase_id = ?", env.phaseID).Count(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 1, count, "rollback retry and consumed-token replay must not duplicate the request")
+	require.Equal(t, 1, int(count), "rollback retry and consumed-token replay must not duplicate the request")
 }
 
 func TestRequestService_SubmitRollsBackWhenEmailEnqueueFails(t *testing.T) {
@@ -3423,7 +3423,7 @@ func TestRequestService_SubmitRollsBackWhenEmailEnqueueFails(t *testing.T) {
 		for _, table := range []string{"enrollment.requests", "enrollment.request_children", "enrollment.request_guardians", "enrollment.request_child_offering_selections", "enrollment.care_offering_bookings"} {
 			rows, err := env.db.NewSelect().Table(table).Where("tenant_id = ?", testpkg.Tenant(t)).Count(testpkg.Ctx(t))
 			require.NoError(t, err)
-			require.Equal(t, expected, rows, table)
+			require.Equal(t, int64(expected), rows, table)
 		}
 	}
 	assertRows(0)

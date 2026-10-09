@@ -45,10 +45,10 @@ func (s *Store) QueryLiveGroups(ctx context.Context, filter ports.LiveGroupFilte
 		query = query.Where("end_time IS NOT NULL")
 	}
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit)
+		query = query.Limit(int64(filter.Limit))
 	}
 	if filter.Offset > 0 {
-		query = query.Offset(filter.Offset)
+		query = query.Offset(int64(filter.Offset))
 	}
 	if filter.OpenOnly {
 		query = query.Where("end_time IS NULL")
@@ -116,10 +116,10 @@ func (s *Store) QueryGroupSupervisions(ctx context.Context, filter ports.GroupSu
 		query = query.Where("end_date <= ?", *filter.EndedBy)
 	}
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit)
+		query = query.Limit(int64(filter.Limit))
 	}
 	if filter.Offset > 0 {
-		query = query.Offset(filter.Offset)
+		query = query.Offset(int64(filter.Offset))
 	}
 	if filter.StaffID != nil {
 		query = query.Where("staff_id = ?", *filter.StaffID)

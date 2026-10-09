@@ -1513,7 +1513,7 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 			Where("student_id = ?", studentID).
 			Count(ctx)
 		require.NoError(t, cErr)
-		return n
+		return int(n)
 	}
 
 	removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
@@ -1824,7 +1824,7 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen(t *te
 		Where("transition_id = ?", transition.ID).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, remaining, "obsolete ledger entries are consumed, not left behind")
+	assert.Equal(t, int64(0), remaining, "obsolete ledger entries are consumed, not left behind")
 
 	t.Run("an occurrence that fell into the past is not replayed either", func(t *testing.T) {
 		// Re-archive the row the replay just put back on the open occurrence.

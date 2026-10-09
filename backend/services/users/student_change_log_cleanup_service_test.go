@@ -48,7 +48,7 @@ func countFieldEdits(tb testing.TB, db *bun.DB, studentID int64) int {
 		Where(`student_id = ?`, studentID).
 		Count(ctx)
 	require.NoError(tb, err)
-	return count
+	return int(count)
 }
 
 func countChangeLogDeletions(tb testing.TB, db *bun.DB, studentID int64) int {
@@ -62,7 +62,7 @@ func countChangeLogDeletions(tb testing.TB, db *bun.DB, studentID int64) int {
 		Where(`deletion_type = ?`, audit.DeletionTypeStudentChangeLogRetention).
 		Count(ctx)
 	require.NoError(tb, err)
-	return count
+	return int(count)
 }
 
 func changeLogSettings(retentionDays int) *configtest.Mock {

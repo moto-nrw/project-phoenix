@@ -123,7 +123,7 @@ func (r *Store) ListChangeRequests(ctx context.Context, filters enrollment.Chang
 	}
 	q = q.OrderExpr(`"change_request".created_at DESC, "change_request".id DESC`)
 	if filters.Limit > 0 {
-		q = q.Limit(filters.Limit)
+		q = q.Limit(int64(filters.Limit))
 	}
 	if err := q.Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("failed to list enrollment change requests: %w", err)
@@ -193,7 +193,7 @@ func (r *Store) ChangeRequestsForReview(ctx context.Context, filters enrollment.
 	}
 	err = q.
 		OrderExpr(`"change_request".id DESC`).
-		Limit(filters.Limit).
+		Limit(int64(filters.Limit)).
 		Scan(ctx, &rows)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list enrollment change requests for review: %w", err)
