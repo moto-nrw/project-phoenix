@@ -16,6 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -160,8 +161,10 @@ type WorkSessionEditView struct {
 }
 
 // PlannedStartNotReachedError is returned by CheckIn when the optional
-// planned-start enforcement setting is enabled and today's work schedule has a
-// start time later than the current wall clock.
+// planned-start enforcement setting is enabled and the day's first planned
+// shift (Dienstplan) starts more than the tolerance after the current time.
+// PlannedStartTime is the earliest wall-clock time a check-in is accepted,
+// i.e. the shift start minus the tolerance — the time the person waits for.
 type PlannedStartNotReachedError struct {
 	PlannedStartTime string
 	CurrentTime      string
@@ -202,9 +205,12 @@ const (
 // consult. Each question is named rather than expressed as a registry key, so
 // this package does not carry another owner's settings vocabulary.
 type settingsResolver interface {
-	// EnforcePlannedStart reports whether a check-in outside the planned shift
-	// is refused.
+	// EnforcePlannedStart reports whether a check-in before the planned shift
+	// start (minus PlannedStartToleranceMinutes) is refused.
 	EnforcePlannedStart(ctx context.Context) (bool, error)
+	// PlannedStartToleranceMinutes is how many minutes before the planned
+	// shift start a check-in opens.
+	PlannedStartToleranceMinutes(ctx context.Context) (int, error)
 	// RequireDeviationReason reports whether a self-edit that moves recorded
 	// times must carry a reason.
 	RequireDeviationReason(ctx context.Context) (bool, error)
@@ -546,26 +552,13 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status,
 		return nil, err
 	}
 
-	// The session is created on the day of its own stamp: the schedule and
+	// The session is created on the day of its own stamp: the shift and
 	// deviation checks below have to be read on that same day, or a stamp
 	// taken just after midnight is measured against the previous day's shift.
-	if err := s.ensurePlannedStartReached(ctx, staffID, stampDay, now); err != nil {
-		return nil, err
-	}
-
-	// F9: checking in more than the tolerance before the planned shift start
-	// needs a reason ("früher kommen"). Only the day's FIRST block is gated —
-	// a later block resumes an already-started work day, exactly like the
-	// pre-#2402 reopen path, which was exempt for the same reason.
 	var deviation *plannedDeviation
-	if enforceDeviationGate && len(existingBlocks) == 0 {
-		var err error
-		deviation, err = s.detectPlannedDeviation(ctx, staffID, stampDay, now, deviationActionCheckIn)
-		if err != nil {
+	if len(existingBlocks) == 0 {
+		if deviation, err = s.gateFirstBlock(ctx, staffID, stampDay, now, reason, enforceDeviationGate); err != nil {
 			return nil, err
-		}
-		if deviation != nil && strings.TrimSpace(reason) == "" {
-			return nil, deviation.requiredError()
 		}
 	}
 
@@ -600,7 +593,35 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status,
 	return session, nil
 }
 
-func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staffID int64, today timezone.Date, now time.Time) error {
+// gateFirstBlock runs the check-in gates on the day's FIRST block only: a
+// later block resumes a work day that has already begun, exactly like the
+// pre-#2402 reopen path, which was exempt for the same reason. The returned
+// F9 deviation is recorded once the session exists.
+func (s *workSessionService) gateFirstBlock(ctx context.Context, staffID int64, day timezone.Date, now time.Time, reason string, enforceDeviationGate bool) (*plannedDeviation, error) {
+	if err := s.ensurePlannedStartReached(ctx, staffID, day, now); err != nil {
+		return nil, err
+	}
+	// F9: checking in more than the tolerance before the planned shift start
+	// needs a reason ("früher kommen").
+	if !enforceDeviationGate {
+		return nil, nil
+	}
+	deviation, err := s.detectPlannedDeviation(ctx, staffID, day, now, deviationActionCheckIn)
+	if err != nil {
+		return nil, err
+	}
+	if deviation != nil && strings.TrimSpace(reason) == "" {
+		return nil, deviation.requiredError()
+	}
+	return deviation, nil
+}
+
+// ensurePlannedStartReached implements the planned-start lock (#3825): with
+// the tenant setting on, a check-in opens at the earliest planned shift start
+// of the day minus the configured tolerance. Arriving late is never refused,
+// and a day without a shift is not locked, so stepping in on a free day works;
+// an early start outside the window is entered afterwards by the leadership.
+func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staffID int64, day timezone.Date, now time.Time) error {
 	if s.settings == nil {
 		return nil
 	}
@@ -611,40 +632,39 @@ func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staf
 	if !enabled {
 		return nil
 	}
-	if s.scheduleRepo == nil {
-		return fmt.Errorf("staff work schedule repository not configured")
+	if s.staffShiftRepo == nil {
+		return fmt.Errorf("staff shift repository not configured")
 	}
-
-	entries, err := s.scheduleRepo.GetByStaffIDAndDate(ctx, staffID, today)
+	plannedStart, _, ok, err := s.plannedDayWindow(ctx, staffID, day)
+	if err != nil || !ok {
+		return err
+	}
+	toleranceMinutes, err := s.settings.PlannedStartToleranceMinutes(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to load planned start schedule: %w", err)
+		return fmt.Errorf("failed to resolve planned-start tolerance setting: %w", err)
 	}
-	if len(entries) == 0 {
-		return nil
-	}
-
-	staff := s.resolveStaffForTargets(ctx, staffID)
-	anchor := ResolveScheduleAnchor(staffAnchorOf(staff), entries)
-	if anchor.IsZero() {
-		return nil
-	}
-	rotationWeek := ResolveRotationWeek(ScheduleRotationLength(entries), anchor.StartOfISOWeek(), today.StartOfISOWeek())
-	dayIndex := ISODayIndex(today)
-	for _, entry := range entries {
-		if entry.WeekIndex != rotationWeek || entry.DayOfWeek != dayIndex || entry.StartTime == nil {
-			continue
+	if opensAt := workforce.CheckInOpensAt(plannedStart, toleranceMinutes); now.Before(opensAt) {
+		return &PlannedStartNotReachedError{
+			PlannedStartTime: opensAt.In(timezone.Berlin).Format("15:04"),
+			CurrentTime:      now.In(timezone.Berlin).Format("15:04"),
 		}
-		plannedStart := timezone.NormalizeWallClock(*entry.StartTime)
-		currentClock := timezone.NormalizeWallClock(now.In(timezone.Berlin))
-		if currentClock.Before(plannedStart) {
-			return &PlannedStartNotReachedError{
-				PlannedStartTime: plannedStart.Format("15:04"),
-				CurrentTime:      currentClock.Format("15:04"),
-			}
-		}
-		return nil
 	}
 	return nil
+}
+
+// plannedDayWindow loads the staff member's shifts (schedule.staff_shifts) of
+// day and folds them into the window both check-in gates measure against.
+func (s *workSessionService) plannedDayWindow(ctx context.Context, staffID int64, day timezone.Date) (start, end time.Time, ok bool, err error) {
+	shifts, err := s.staffShiftRepo.FindByStaffIDsAndDate(ctx, []int64{staffID}, day)
+	if err != nil {
+		return start, end, false, fmt.Errorf("failed to load planned shifts: %w", err)
+	}
+	spans := make([]workforce.PlannedShiftSpan, len(shifts))
+	for i, shift := range shifts {
+		spans[i] = workforce.PlannedShiftSpan{Start: shift.StartInstant(), End: shift.EndInstant(), Cancelled: shift.Cancelled}
+	}
+	start, end, ok = workforce.PlannedDayWindow(spans)
+	return start, end, ok, nil
 }
 
 // CheckOut ends the running work session of the staff member, whichever day it
@@ -770,8 +790,9 @@ func (d *plannedDeviation) requiredError() *DeviationReasonRequiredError {
 // active, a check-in earlier than the earliest planned shift start minus the
 // tolerance, or a check-out later than the latest planned shift end plus the
 // tolerance, is a deviation that needs a reason. The plan source is
-// schedule.staff_shifts (real start AND end times); days without a shift
-// never deviate ("kein Plan, keine Abweichung"). Late arrivals and early
+// schedule.staff_shifts (real start AND end times); cancelled shifts do not
+// take place, and days without a shift never deviate ("kein Plan, keine
+// Abweichung"). Late arrivals and early
 // leaves are deliberately not gated — F9 targets unnoticed extra hours
 // ("früher kommen oder später gehen"), and missing time is already visible
 // in the saldo.
@@ -787,21 +808,9 @@ func (s *workSessionService) detectPlannedDeviation(ctx context.Context, staffID
 		return nil, nil
 	}
 
-	allShifts, err := s.staffShiftRepo.FindByStaffIDsAndDate(ctx, []int64{staffID}, timezone.Date(day))
-	if err != nil {
-		return nil, fmt.Errorf("failed to load planned shifts: %w", err)
-	}
-	// A cancelled shift does not take place (#1841), so it must not widen the
-	// planned window: with an active 08:00–12:00 shift and a cancelled
-	// 12:00–16:00 shift, a 15:00 checkout IS a deviation.
-	shifts := make([]*TimeTrackingShift, 0, len(allShifts))
-	for _, shift := range allShifts {
-		if !shift.Cancelled {
-			shifts = append(shifts, shift)
-		}
-	}
-	if len(shifts) == 0 {
-		return nil, nil
+	plannedStart, plannedEnd, ok, err := s.plannedDayWindow(ctx, staffID, day)
+	if err != nil || !ok {
+		return nil, err
 	}
 
 	toleranceMinutes, err := s.settings.DeviationToleranceMinutes(ctx)
@@ -813,21 +822,9 @@ func (s *workSessionService) detectPlannedDeviation(ctx context.Context, staffID
 	var delta time.Duration
 	switch action {
 	case deviationActionCheckIn:
-		planned = shifts[0].StartInstant()
-		for _, shift := range shifts[1:] {
-			if start := shift.StartInstant(); start.Before(planned) {
-				planned = start
-			}
-		}
-		delta = planned.Sub(now) // positive when arriving early
+		planned, delta = plannedStart, plannedStart.Sub(now) // positive when arriving early
 	case deviationActionCheckOut:
-		planned = shifts[0].EndInstant()
-		for _, shift := range shifts[1:] {
-			if end := shift.EndInstant(); end.After(planned) {
-				planned = end
-			}
-		}
-		delta = now.Sub(planned) // positive when leaving late
+		planned, delta = plannedEnd, now.Sub(plannedEnd) // positive when leaving late
 	default:
 		return nil, fmt.Errorf("unknown deviation action %q", action)
 	}

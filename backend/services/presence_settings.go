@@ -40,10 +40,16 @@ func (s presenceSettings) AccountStartDate(ctx context.Context) (string, error) 
 	return s.source.ResolveString(ctx, configModels.KeyTimeTrackingAccountStartDate)
 }
 
-// EnforcePlannedStart reports whether a check-in outside the planned shift is
-// refused.
+// EnforcePlannedStart reports whether a check-in before the planned shift
+// start (minus its tolerance) is refused.
 func (s presenceSettings) EnforcePlannedStart(ctx context.Context) (bool, error) {
 	return s.source.ResolveBool(ctx, configModels.KeyTimeTrackingEnforcePlannedStart)
+}
+
+// PlannedStartToleranceMinutes is how many minutes before the planned shift
+// start a check-in opens while the planned start is enforced.
+func (s presenceSettings) PlannedStartToleranceMinutes(ctx context.Context) (int, error) {
+	return s.source.ResolveInt(ctx, configModels.KeyTimeTrackingPlannedStartToleranceMinutes)
 }
 
 // RequireDeviationReason reports whether a self-edit that moves recorded times
