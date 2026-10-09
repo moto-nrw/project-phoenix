@@ -129,15 +129,18 @@ export async function getCachedSession() {
  * Fetch with automatic session auth and 401 → refresh → retry.
  * Drop-in replacement for `fetch()` that handles expired tokens transparently.
  * On unrecoverable auth failure, signs out via handleAuthFailure().
+ *
+ * The access token travels only in the session cookie: the BFF routes read it
+ * server-side via auth(). A Bearer header on top sent the same token twice and
+ * pushed large sessions past Node's header limit (HTTP 431, #3918). The
+ * session lookup stays as the signed-in gate before any request goes out.
  */
 export async function sessionFetch(
   url: string,
   init?: RequestInit,
 ): Promise<Response> {
   const session = await getSessionOrUnavailable();
-  const token = session?.user?.token;
-
-  if (!token) {
+  if (!session?.user?.token) {
     throw authenticationRequiredError();
   }
 
@@ -146,7 +149,6 @@ export async function sessionFetch(
     headers: {
       "Content-Type": "application/json",
       ...init?.headers,
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   };
 
@@ -161,17 +163,12 @@ export async function sessionFetch(
     const { handleAuthFailure } = await import("./auth-failure");
     const refreshed = await handleAuthFailure();
     if (refreshed) {
+      // The refresh does not touch the cookie (see handleAuthFailure); this
+      // session lookup persists the refreshed tokens via Set-Cookie, so the
+      // retry below goes out with the fresh cookie.
       const freshSession = await getSessionOrUnavailable();
-      const freshToken = freshSession?.user?.token;
-      if (!freshToken) throw authenticationRequiredError();
-      return transportFetch(url, {
-        ...init,
-        headers: {
-          "Content-Type": "application/json",
-          ...init?.headers,
-          ...(freshToken ? { Authorization: `Bearer ${freshToken}` } : {}),
-        },
-      });
+      if (!freshSession?.user?.token) throw authenticationRequiredError();
+      return transportFetch(url, mergedInit);
     }
     // handleAuthFailure already signed out
     throw authenticationRequiredError();

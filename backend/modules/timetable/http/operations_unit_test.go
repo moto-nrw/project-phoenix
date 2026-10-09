@@ -938,6 +938,7 @@ type fakeOperationsService struct {
 	lastInstanceID       int64
 	lastActiveGroupID    int64
 	lastStudentID        int64
+	lastStudentIDs       []int64
 	lastPatch            timetable.AttendancePatch
 	lastSpontaneousInput *timetable.SpontaneousStart
 }
@@ -1283,6 +1284,14 @@ func (s *fakeOperationsService) CheckInStudent(_ context.Context, accountID int6
 	s.lastIsAdmin = isAdmin
 	s.lastInstanceID = instanceID
 	s.lastStudentID = studentID
+	return s.roster, s.err
+}
+
+func (s *fakeOperationsService) CheckInStudents(_ context.Context, accountID int64, isAdmin bool, instanceID int64, studentIDs []int64) (*timetable.OperationRoster, error) {
+	s.lastAccountID = accountID
+	s.lastIsAdmin = isAdmin
+	s.lastInstanceID = instanceID
+	s.lastStudentIDs = studentIDs
 	return s.roster, s.err
 }
 

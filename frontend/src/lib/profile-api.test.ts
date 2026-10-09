@@ -22,7 +22,6 @@ vi.mock("./session-cache", () => {
         headers: {
           "Content-Type": "application/json",
           ...(init?.headers as Record<string, string> | undefined),
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
     }),
@@ -132,7 +131,6 @@ describe("profile-api", () => {
       expect(mockFetch).toHaveBeenCalledWith("/api/me/profile", {
         method: "GET",
         headers: {
-          Authorization: "Bearer test-token",
           "Content-Type": "application/json",
         },
       });
@@ -245,7 +243,6 @@ describe("profile-api", () => {
       expect(mockFetch).toHaveBeenCalledWith("/api/me/profile", {
         method: "PUT",
         headers: {
-          Authorization: "Bearer test-token",
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -455,7 +452,6 @@ describe("profile-api", () => {
       expect(mockFetch).toHaveBeenCalledWith("/api/me/profile/avatar", {
         method: "DELETE",
         headers: {
-          Authorization: "Bearer test-token",
           "Content-Type": "application/json",
         },
       });
