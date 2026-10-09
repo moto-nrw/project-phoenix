@@ -10,14 +10,14 @@ const MIN_HEADER_BYTES = 64 * 1024;
 
 const DOCKERFILES = ["Dockerfile", "Dockerfile.prod"];
 
-function serverCommand(dockerfile: string): string[] {
+function nodeCommand(dockerfile: string, entrypoint: string): string[] {
   const source = readFileSync(path.join(process.cwd(), dockerfile), "utf8");
   const commands = [...source.matchAll(/^CMD (\[.*\])$/gm)].map(
     (match) => JSON.parse(match[1] ?? "[]") as string[],
   );
-  const server = commands.filter((command) => command.includes("server.js"));
-  expect(server, `${dockerfile} starts server.js once`).toHaveLength(1);
-  return server[0] ?? [];
+  const matching = commands.filter((command) => command.includes(entrypoint));
+  expect(matching, `${dockerfile} starts ${entrypoint} once`).toHaveLength(1);
+  return matching[0] ?? [];
 }
 
 function headerLimit(command: string[]): number | undefined {
@@ -26,15 +26,31 @@ function headerLimit(command: string[]): number | undefined {
 }
 
 describe("frontend server header limit", () => {
-  it.each(DOCKERFILES)("%s raises the Node header limit", (dockerfile) => {
-    const command = serverCommand(dockerfile);
+  it("raises the Node header limit for the development server", () => {
+    const command = nodeCommand(
+      "Dockerfile",
+      "node_modules/next/dist/bin/next",
+    );
     expect(command[0]).toBe("node");
-    expect(command.indexOf("server.js")).toBe(command.length - 1);
+    expect(command.slice(-1)).toEqual(["dev"]);
     expect(headerLimit(command)).toBeGreaterThanOrEqual(MIN_HEADER_BYTES);
   });
 
-  it("uses the same limit in both images", () => {
-    const limits = DOCKERFILES.map((file) => headerLimit(serverCommand(file)));
+  it.each(DOCKERFILES)(
+    "%s raises the Node header limit for server.js",
+    (dockerfile) => {
+      const command = nodeCommand(dockerfile, "server.js");
+      expect(command[0]).toBe("node");
+      expect(command.indexOf("server.js")).toBe(command.length - 1);
+      expect(headerLimit(command)).toBeGreaterThanOrEqual(MIN_HEADER_BYTES);
+    },
+  );
+
+  it("uses the same limit for development and deployed servers", () => {
+    const limits = [
+      headerLimit(nodeCommand("Dockerfile", "node_modules/next/dist/bin/next")),
+      ...DOCKERFILES.map((file) => headerLimit(nodeCommand(file, "server.js"))),
+    ];
     expect(new Set(limits).size).toBe(1);
   });
 });

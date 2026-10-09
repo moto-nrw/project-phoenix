@@ -28,7 +28,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 EXPOSE 3000
 
-CMD ["pnpm", "run", "dev"]
+# Keep the development server at the same limit as the deployed server. Node
+# rejects larger requests before Next.js can turn them into a useful response.
+CMD ["node", "--max-http-header-size=65536", "node_modules/next/dist/bin/next", "dev"]
 
 # Builder stage for production
 FROM base AS builder
