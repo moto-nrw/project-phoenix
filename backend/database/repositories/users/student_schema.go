@@ -25,7 +25,7 @@ var requiredStudentColumns = []string{
 
 // VerifyStudentSchema fails fast when the connected database is missing a
 // student owner column or the users.student_companions table (1.15.209) that
-// the student repository relies on unconditionally. api.New calls it at boot,
+// the student repository relies on unconditionally. the Serve root calls it at boot,
 // so the server only starts against a fully migrated schema and a partially
 // migrated database surfaces as a clear startup error instead of per-request
 // failures (#2059).

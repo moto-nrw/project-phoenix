@@ -1,0 +1,124 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2708",
+    "#2709",
+    "#2710",
+    "#2711",
+    "#2719",
+    "#2725",
+    "#2731",
+    "#2732",
+    "#2734",
+    "#2735",
+    "#2736",
+    "#2737",
+    "#2738",
+    "#2739",
+    "#2740",
+    "#2742",
+    "#2744",
+    "#2754",
+    "#2757",
+    "#2760",
+    "#2763"
+  ],
+  "owner_and_capability": "Legacy composition — bounded contract step for #2745: the root api package deletes the API aggregate and its New constructor. Every route resource is built and mounted by a mount function in api/base.go and outlives no mount; the Serve root keeps a package-private serveGraph with only the router, the pool, the tenant runtime, the observability handles and the retained composition the embedded Worker still reads (#2749).",
+  "affected_packages": [
+    "api"
+  ],
+  "affected_tables": [
+    "None: code-only contract, no database tables or DDL affected."
+  ],
+  "exact_ratchet_keys": [
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/api/absence-types",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/api/shift-types",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/api/staff-shifts",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/api/substitutions",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/api/work-time-models"
+  ],
+  "atomic_cutover": "One code-only change in package api: type API and func New are deleted, and the api entry leaves legacy_composition in policy.json. newServeGraph composes the root in New's place; mountRoutes and its route-group functions build each resource and mount its routers at once, the tenant routes on the /api sub-router and the public and portal routers at the root. The five #2750 keys fall because the root named those workforce route packages only as field types of the aggregate; the routes still mount through modules/workforce. The Worker reads the staff and student document sweeps from the graph instead of the aggregate's resource fields. No capability behavior, fallback provider or policy rule is added, and the route builders read the composed module set instead of naming the factories, so the typed references to services.Factory stay at the eight declarations of the base and those to repositories.Factory drop from five to three.",
+  "tests": [
+    "api TestFullProductionRouterGolden: route table, IoT auth matrix, IoT error strings, school scope matrix, error envelope, core-action classification and enrollment goldens unchanged; the middleware table changes only in the first, router-wide entry of every route, where the request-ID middleware now carries its own name (api.requestIDs) instead of the deleted constructor's (api.New).",
+    "api wiring checks of the golden graph: the account routes share the operator routes' caregiver capability, the timetable routes hold the instance lifecycle's conflict detection, and the operator invitation routes stay mounted behind the rate limiters; each check composes through the builder the Serve root mounts with.",
+    "api: the full package suite, the CalDAV routing tests against serveGraph.ServeHTTP and the PWA usage route.",
+    "Generated AST caller inventory (backend/architecture/callers/api-aggregate-2745.json via scripts/backend-api-aggregate-callers): no declaration or reference of api.API or api.New in backend/**/*.go including tests; the same generator reports both declarations, 54 references of API and one of New at the base commit.",
+    "test TestCompositionInventory and internal/architecture TestCompositionLegacyCallerInventory: the constructor call of api.New is gone and type serveGraph replaces type API in the typed legacy caller inventory.",
+    "go test ./test (ratchets, hermetic and module checks) and go test ./internal/architecture, scripts/test-changed.sh origin/development without --fast, golangci-lint on the affected packages.",
+    "scripts/backend-architecture.sh check with exactly the listed keys absent from legacy.jsonl and none added, composition surface 591 -> 490; scripts/backend-architecture.sh validate-ticket --all."
+  ],
+  "runtime_evidence": {
+    "source": "Local pinned-toolchain runs on the #2745 worktree (work/2745-contract-the-api-aggregate-after-every-route-reg) on 2026-10-10 against the localhost postgres-test server. No load benchmark or manual application smoke was performed.",
+    "sources": [
+      "backend/api/base.go",
+      "backend/api/server.go",
+      "backend/api/scheduler_ports.go",
+      "backend/api/testdata/middleware_table.golden",
+      "backend/architecture/composition.json",
+      "backend/architecture/callers/api-aggregate-2745.json",
+      "scripts/backend-api-aggregate-callers/main.go"
+    ],
+    "workload": "No load run. Go suites through scripts/run-go-toolchain.sh and scripts/test-changed.sh origin/development against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "Code-only contract: no remaining declaration or reference of api.API or api.New, the same routes and middleware chains behind the production router, unchanged query budgets, and scripts/backend-architecture.sh check passing with exactly the listed keys removed, no key added and a composition surface that does not grow.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "The change only regroups how the root builds and mounts the existing route resources; every route calls the same owner capabilities with the same writes."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The query-budget tests of the api package, including the phase response budget of the golden graph, passed against test/query_budgets.go, whose register this change leaves untouched."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #2745 names zero old callers and zero listed keys as the gate for a code-only contract, and every route keeps its handler and middleware chain."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #2745 names zero old callers and zero listed keys as the gate for a code-only contract, and every route keeps its handler and middleware chain."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed with 201 remaining keys (206 -> 201) and a composition surface of 591 -> 490; validate-ticket --all covered all 5 debt retirements; golangci-lint ./... reported 0 issues; scripts/test-changed.sh origin/development reported all 70 affected packages ok."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "The root opens the same single pool with the same hooks; no connection acquisition or pool setting changed."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No statement or transaction boundary changed, so no lock behaviour can differ."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No statement or transaction boundary changed, so no lock ordering can differ."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The Worker receives the same dependencies; only the place it reads the two document sweeps from changed."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The Worker receives the same dependencies; only the place it reads the two document sweeps from changed."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The Worker receives the same dependencies; only the place it reads the two document sweeps from changed."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The Serve root still refuses missing dependencies (invalid runtime dependencies subtests), still refuses a writing route without core-action classification, and every route answers failures in the shared error envelope (error envelope on every route)."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data write path or schema change. Reverting the change restores the aggregate, its policy entry and the five baseline entries."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "go build ./... passed and TestFullProductionRouterGolden composed the production root through WithRuntime, including the embedded Worker. No manual application start or HTTP smoke run was made."
+    }
+  },
+  "rollback_and_cleanup": "Revert the code-only change if a hidden caller appears. No table, migration or configuration is touched, and nothing remains to clean up.",
+  "exit_criterion": "Package api declares neither API nor New and no Go file references them; policy.json lists no legacy composition symbol in package api; every listed key is absent from legacy.jsonl; scripts/backend-architecture.sh check passes with no key added, no policy rule added and no data-object ownership changed."
+}

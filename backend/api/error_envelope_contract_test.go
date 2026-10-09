@@ -23,12 +23,12 @@ import (
 // tenant, parent, school and operator portals, IoT, CalDAV and the public
 // routes alike. Handler-level bodies are pinned by each package's wire tests;
 // this walk proves no route leaves the router past ProblemResponseMiddleware.
-func checkErrorEnvelopeOnEveryRoute(t *testing.T, apiInstance *API) {
+func checkErrorEnvelopeOnEveryRoute(t *testing.T, apiInstance *serveGraph) {
 	t.Parallel()
 	const requestID = "2507e0e0-0000-4000-8000-000000002507"
 
 	var routes []string
-	walkErr := chi.Walk(apiInstance.Router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+	walkErr := chi.Walk(apiInstance.router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
 		routes = append(routes, method+" "+route)
 		return nil
 	})
@@ -47,7 +47,7 @@ func checkErrorEnvelopeOnEveryRoute(t *testing.T, apiInstance *API) {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set(middleware.RequestIDHeader, requestID)
 		rec := httptest.NewRecorder()
-		apiInstance.Router.ServeHTTP(rec, req)
+		apiInstance.router.ServeHTTP(rec, req)
 		cancel()
 
 		if rec.Code < http.StatusBadRequest {

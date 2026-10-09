@@ -59,7 +59,7 @@ const (
 // A Runtime may be served once.
 type Runtime struct {
 	server          *http.Server
-	api             *API
+	graph           *serveGraph
 	worker          backgroundWorker
 	listen          func(network, address string) (net.Listener, error)
 	capacityLogger  *capacityLogger
@@ -130,22 +130,22 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 
 	config.Logger.Info("initializing API server")
 
-	api, err := New(config.EnableCORS, config.PublicAPIURL, config.Logger, config.FrontendURL, config.SentryPyrePortalDSN)
+	graph, err := newServeGraph(config)
 	if err != nil {
 		return nil, err
 	}
 
 	runtime := &Runtime{
-		api:            api,
-		capacityLogger: newRuntimeCapacityLogger(api, config.Logger),
-		tracker:        api.Services.Tracker,
+		graph:          graph,
+		capacityLogger: newRuntimeCapacityLogger(graph, config.Logger),
+		tracker:        graph.services.Tracker,
 		logger:         config.Logger,
 	}
 	var worker *scheduler.Scheduler
 	if config.Process == ServeAPIOnly {
 		config.Logger.Info("embedded worker disabled; a standalone worker runs the jobs")
 	} else {
-		worker, err = newWorker(api, config.Logger)
+		worker, err = newWorker(graph, config.Logger)
 		if err != nil {
 			return nil, errors.Join(err, runtime.closeResources())
 		}
@@ -153,7 +153,7 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 	}
 	runtime.server = &http.Server{
 		Addr:    resolveListenAddr(config.Port),
-		Handler: processHandler(config.Process, runtime.Handler(), worker, api.metricsBearerToken),
+		Handler: processHandler(config.Process, runtime.Handler(), worker, graph.metricsBearerToken),
 		// ReadTimeout stays modest to protect against slowloris attacks,
 		// but WriteTimeout must be disabled to allow long-lived SSE streams.
 		ReadTimeout:  15 * time.Second,
@@ -164,9 +164,9 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 	return runtime, nil
 }
 
-func newRuntimeCapacityLogger(api *API, logger *slog.Logger) *capacityLogger {
+func newRuntimeCapacityLogger(graph *serveGraph, logger *slog.Logger) *capacityLogger {
 	return newCapacityLogger(func() dbCapacityStats {
-		stats := database.SnapshotCapacity(api.db)
+		stats := database.SnapshotCapacity(graph.db)
 		return dbCapacityStats{
 			openConnections:   stats.OpenConnections,
 			inUse:             stats.InUse,
@@ -176,12 +176,12 @@ func newRuntimeCapacityLogger(api *API, logger *slog.Logger) *capacityLogger {
 			maxIdleClosed:     stats.MaxIdleClosed,
 			maxLifetimeClosed: stats.MaxLifetimeClosed,
 		}
-	}, api.Services.RealtimeHub, api.metrics, logger.With("component", "capacity"))
+	}, graph.services.RealtimeHub, graph.metrics, logger.With("component", "capacity"))
 }
 
 // Handler returns the fully assembled production HTTP graph.
 func (runtime *Runtime) Handler() http.Handler {
-	return runtime.api
+	return runtime.graph
 }
 
 // resolveListenAddr turns a configured port into a listen address. A value
@@ -195,64 +195,64 @@ func resolveListenAddr(port string) string {
 }
 
 // newWorker assembles the embedded Worker root from one typed dependency value.
-func newWorker(api *API, logger *slog.Logger) (*scheduler.Scheduler, error) {
-	if api == nil || api.Services == nil || api.repos == nil {
-		return nil, fmt.Errorf("worker API graph is required")
+func newWorker(graph *serveGraph, logger *slog.Logger) (*scheduler.Scheduler, error) {
+	if graph == nil || graph.services == nil || graph.repos == nil {
+		return nil, fmt.Errorf("worker serve graph is required")
 	}
 	billing, err := newOperatorBilling(logger)
 	if err != nil {
 		return nil, fmt.Errorf("compose worker billing: %w", err)
 	}
-	lease, err := newWorkerLease(api.tenantRuntime)
+	lease, err := newWorkerLease(graph.tenantRuntime)
 	if err != nil {
 		return nil, fmt.Errorf("compose worker lease: %w", err)
 	}
-	runtime, err := schedulerTenantRuntime(api.tenantRuntime)
+	runtime, err := schedulerTenantRuntime(graph.tenantRuntime)
 	if err != nil {
 		return nil, fmt.Errorf("compose worker tenant runtime: %w", err)
 	}
 	if err := verifySchedulerSettingKeys(); err != nil {
 		return nil, err
 	}
-	settings, err := schedulerSettings(api)
+	settings, err := schedulerSettings(graph)
 	if err != nil {
 		return nil, err
 	}
-	deps := workerRuntimeDependencies(api, logger, billing)
+	deps := workerRuntimeDependencies(graph, logger, billing)
 	deps.TenantRuntime = runtime
 	deps.Settings = settings
 	deps.Lease = lease
-	addWorkerServiceDependencies(&deps, api)
-	addWorkerRepositoryDependencies(&deps, api)
+	addWorkerServiceDependencies(&deps, graph)
+	addWorkerRepositoryDependencies(&deps, graph)
 	return scheduler.NewWorker(deps)
 }
 
-func workerRuntimeDependencies(api *API, logger *slog.Logger, billing organizationModule.BillingReport) scheduler.WorkerDependencies {
+func workerRuntimeDependencies(graph *serveGraph, logger *slog.Logger, billing organizationModule.BillingReport) scheduler.WorkerDependencies {
 	return scheduler.WorkerDependencies{
 		Logger:                 logger.With("service", "scheduler"),
 		Getenv:                 os.Getenv,
-		SchoolRepo:             schedulerTenantDirectory{schools: api.Services.Schools, billing: billing},
+		SchoolRepo:             schedulerTenantDirectory{schools: graph.services.Schools, billing: billing},
 		TenantRuntimeObserver:  observability.RecordTenantRuntimeEvent,
 		UnitOfWorkObserver:     observability.RecordUnitOfWorkEvent,
-		Tracer:                 workerTracer(api),
-		StaffDocumentCleaner:   api.StaffAdmin,
-		StudentDocumentCleaner: api.Students,
-		FileStoreCleaner:       fileStoreCleaner(api),
+		Tracer:                 workerTracer(graph),
+		StaffDocumentCleaner:   graph.documents.staff,
+		StudentDocumentCleaner: graph.documents.student,
+		FileStoreCleaner:       fileStoreCleaner(graph),
 	}
 }
 
 // fileStoreCleaner hands the File Storage sweep to the worker only when the
 // module was composed. A nil module behind a non-nil interface would pass the
 // scheduler's nil check and fail on the first tick.
-func fileStoreCleaner(api *API) scheduler.FileStoreCleaner {
-	if api.Services.FileStore == nil {
+func fileStoreCleaner(graph *serveGraph) scheduler.FileStoreCleaner {
+	if graph.services.FileStore == nil {
 		return nil
 	}
-	return api.Services.FileStore
+	return graph.services.FileStore
 }
 
-func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, api *API) {
-	services := api.Services
+func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, graph *serveGraph) {
+	services := graph.services
 	deps.Active = services.Active
 	deps.ActiveCleanup = services.ActiveCleanup
 	deps.AuthCleanup = services.AuthMaintenanceRuntime()
@@ -262,20 +262,20 @@ func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, api *API) 
 	deps.WorkSessionCleanup = services.WorkSession
 	deps.BreakAutoEnder = services.WorkSession
 	deps.AutoCheckouter = services.WorkSession
-	deps.FeedbackCleaner = api.feedback
+	deps.FeedbackCleaner = graph.feedback
 	deps.UnregisteredScanCleaner = services.UnregisteredTagScans
 	deps.Materializer = services.Materialization
 	deps.TimetableCleanup = services.TimetableCleanup
 	deps.CalendarFeedCleanup = services.CalendarFeedCleanup
 	deps.TimeTrackingCleanup = schedulerTimeTrackingCleanupPort(services.TimeTrackingCleanup)
-	deps.StudentChangeLogCleanup = schedulerStudentChangeLogCleanup(api)
+	deps.StudentChangeLogCleanup = schedulerStudentChangeLogCleanup(graph)
 	deps.PWAUsageCleanup = services.PWAUsage
 	deps.StaffMessageCleanup = staffMessageCleanup(services.StaffMessaging)
 	deps.EnrollmentRejectedCleanup = services.EnrollmentRejectedCleanup
 	deps.AutoStart = services.AutoStart
 	deps.AutoEnd = services.AutoEnd
 	deps.TimetableBridge = services.TimetableBridge
-	deps.StudentLifecycleAudit = schedulerStudentAudit(api)
+	deps.StudentLifecycleAudit = schedulerStudentAudit(graph)
 	deps.CareExitEffector = services.CareLifecycle
 	deps.OutboxWorker = services.EmailOutboxWorker
 	deps.AppointmentReminders = services.Reminders
@@ -302,33 +302,33 @@ func staffMessageCleanup(service communication.StaffMessagingRuntime) scheduler.
 	}
 }
 
-func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, api *API) {
-	deps.BookingConsistency = schedulerBookingConsistency(api)
-	deps.InstanceRepo = schedulerDayInstances(api)
-	deps.InstanceRoomRepo = schedulerExistingRooms(api)
-	deps.InstanceStudentRepo = api.repos.InstanceStudent
-	deps.StudentStatusDayRepo = api.repos.StudentStatusDay
-	deps.OverdueBroadcaster = api.Services.RealtimeHub
-	deps.StudentLifecycleRepo = schedulerStudentLifecycle(api)
+func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, graph *serveGraph) {
+	deps.BookingConsistency = schedulerBookingConsistency(graph)
+	deps.InstanceRepo = schedulerDayInstances(graph)
+	deps.InstanceRoomRepo = schedulerExistingRooms(graph)
+	deps.InstanceStudentRepo = graph.repos.InstanceStudent
+	deps.StudentStatusDayRepo = graph.repos.StudentStatusDay
+	deps.OverdueBroadcaster = graph.services.RealtimeHub
+	deps.StudentLifecycleRepo = schedulerStudentLifecycle(graph)
 	deps.ReminderNotifications = scheduler.ReminderNotificationDeps{
-		Computer:     api.Services.Reminders,
-		Notifier:     api.Services.Notifications,
-		Preferences:  api.Services.NotificationPreferences,
-		Staff:        api.repos.Staff,
-		Accounts:     api.Services.Auth,
-		WorkSessions: api.repos.WorkSession,
+		Computer:     graph.services.Reminders,
+		Notifier:     graph.services.Notifications,
+		Preferences:  graph.services.NotificationPreferences,
+		Staff:        graph.repos.Staff,
+		Accounts:     graph.services.Auth,
+		WorkSessions: graph.repos.WorkSession,
 	}
 }
 
-func workerTracer(api *API) scheduler.WorkerTracer {
+func workerTracer(graph *serveGraph) scheduler.WorkerTracer {
 	return scheduler.WorkerTracer{
 		StartJob: func(ctx context.Context, operation string) (context.Context, error) {
-			ctx, _, err := api.tracer.StartJob(ctx, operation)
+			ctx, _, err := graph.tracer.StartJob(ctx, operation)
 			return ctx, err
 		},
-		Logger: api.tracer.Logger,
+		Logger: graph.tracer.Logger,
 		Failure: func(ctx context.Context, operation, outcome string, err error) {
-			api.tracer.Failure(ctx, "worker", operation, outcome, err)
+			graph.tracer.Failure(ctx, "worker", operation, outcome, err)
 		},
 		Run: func(jobID scheduler.JobID, outcome string, duration time.Duration) {
 			observability.RecordWorkerRunEvent(string(jobID), outcome, duration)
@@ -534,6 +534,6 @@ func (runtime *Runtime) closeResources() error {
 	if runtime.tracker != nil {
 		err = runtime.tracker.Close()
 	}
-	err = errors.Join(err, database.ClosePool(runtime.api.db))
+	err = errors.Join(err, database.ClosePool(runtime.graph.db))
 	return err
 }
