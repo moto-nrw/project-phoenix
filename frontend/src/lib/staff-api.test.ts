@@ -21,7 +21,6 @@ vi.mock("./session-cache", () => {
         headers: {
           "Content-Type": "application/json",
           ...(init?.headers as Record<string, string> | undefined),
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
     }),
@@ -138,8 +137,8 @@ describe("staff-api", () => {
       expect(mockFetch).toHaveBeenCalledWith(
         "/api/staff/documents-directory",
         expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: "Bearer test-token",
+          headers: expect.not.objectContaining({
+            Authorization: expect.anything(),
           }),
         }),
       );
@@ -180,8 +179,8 @@ describe("staff-api", () => {
       expect(mockFetch).toHaveBeenCalledWith(
         "/api/staff/documents-profile/42",
         expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: "Bearer test-token",
+          headers: expect.not.objectContaining({
+            Authorization: expect.anything(),
           }),
         }),
       );
