@@ -9,6 +9,12 @@ import { describe, expect, it } from "vitest";
 const MIN_HEADER_BYTES = 64 * 1024;
 
 const DOCKERFILES = ["Dockerfile", "Dockerfile.prod"];
+const NATIVE_DEV_SCRIPT = path.resolve(
+  process.cwd(),
+  "..",
+  "scripts",
+  "dev-native.sh",
+);
 
 function nodeCommand(dockerfile: string, entrypoint: string): string[] {
   const source = readFileSync(path.join(process.cwd(), dockerfile), "utf8");
@@ -25,12 +31,29 @@ function headerLimit(command: string[]): number | undefined {
   return flag ? Number(flag.split("=")[1]) : undefined;
 }
 
+function nativeDevCommand(): string[] {
+  const source = readFileSync(NATIVE_DEV_SCRIPT, "utf8");
+  const match = source.match(
+    /^  PORT=\$FRONTEND_HOST_PORT start_svc frontend frontend (.+)$/m,
+  );
+  const command = match?.[1];
+  expect(command, "native development starts the frontend once").toBeDefined();
+  return command?.split(" ") ?? [];
+}
+
 describe("frontend server header limit", () => {
   it("raises the Node header limit for the development server", () => {
     const command = nodeCommand(
       "Dockerfile",
       "node_modules/next/dist/bin/next",
     );
+    expect(command[0]).toBe("node");
+    expect(command.slice(-1)).toEqual(["dev"]);
+    expect(headerLimit(command)).toBeGreaterThanOrEqual(MIN_HEADER_BYTES);
+  });
+
+  it("raises the Node header limit for the native development server", () => {
+    const command = nativeDevCommand();
     expect(command[0]).toBe("node");
     expect(command.slice(-1)).toEqual(["dev"]);
     expect(headerLimit(command)).toBeGreaterThanOrEqual(MIN_HEADER_BYTES);
@@ -49,6 +72,7 @@ describe("frontend server header limit", () => {
   it("uses the same limit for development and deployed servers", () => {
     const limits = [
       headerLimit(nodeCommand("Dockerfile", "node_modules/next/dist/bin/next")),
+      headerLimit(nativeDevCommand()),
       ...DOCKERFILES.map((file) => headerLimit(nodeCommand(file, "server.js"))),
     ];
     expect(new Set(limits).size).toBe(1);
