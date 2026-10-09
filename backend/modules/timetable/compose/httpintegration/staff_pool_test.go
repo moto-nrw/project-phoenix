@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -201,6 +202,22 @@ func TestStaffPoolForInstance_NoShiftsMeansDienstplanNotInUse(t *testing.T) {
 	entry := poolEntryOf(t, pool, s.staffID)
 	assert.Equal(t, timetable.StaffPoolNotOnShift, entry.Category)
 	assert.Empty(t, entry.ShiftWindows)
+}
+
+func TestStaffPoolForInstance_LeavesExternalCaregiversOut(t *testing.T) {
+	t.Parallel()
+
+	s := makePoolSetup(t)
+	external := &usersModels.Guest{StaffID: s.otherID, ActivityExpertise: "Musik"}
+	external.SetTenantID(s.tenantID)
+	_, err := s.db.NewInsert().Model(external).ModelTableExpr(`users.guests`).Exec(s.ctx)
+	require.NoError(t, err)
+
+	pool, err := s.detection.StaffPoolForInstance(s.ctx, s.target.ID)
+	require.NoError(t, err)
+	for _, entry := range pool.Entries {
+		assert.NotEqual(t, external.StaffID, entry.StaffID)
+	}
 }
 
 // TestStaffPoolForInstance_TouchingWindowsDoNotOverlap: a block ending

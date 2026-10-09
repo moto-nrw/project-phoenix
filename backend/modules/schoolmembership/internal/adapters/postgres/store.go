@@ -551,10 +551,11 @@ func (s *Store) DeleteGuest(ctx context.Context, id int64) (domain.OperationStat
 // guest columns are correlated subqueries rather than a join, so FOR UPDATE
 // locks stay on the membership row alone.
 func staffSelect(db bun.IDB, model any) *bun.SelectQuery {
+	today := calendar.TodayDate()
 	return db.NewSelect().Model(model).ModelTableExpr(`users.staff_school_memberships AS "staff"`).
 		ColumnExpr(`"staff".*`).
-		ColumnExpr(`EXISTS (SELECT 1 FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id) AS is_guest`).
-		ColumnExpr(`COALESCE((SELECT "guest".organization FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id), '') AS guest_organization`)
+		ColumnExpr(`EXISTS (SELECT 1 FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id AND ("guest".start_date IS NULL OR "guest".start_date <= ?) AND ("guest".end_date IS NULL OR "guest".end_date >= ?)) AS is_guest`, today, today).
+		ColumnExpr(`COALESCE((SELECT "guest".organization FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id AND ("guest".start_date IS NULL OR "guest".start_date <= ?) AND ("guest".end_date IS NULL OR "guest".end_date >= ?)), '') AS guest_organization`, today, today)
 }
 
 func teacherSelect(db bun.IDB, model any) *bun.SelectQuery {
