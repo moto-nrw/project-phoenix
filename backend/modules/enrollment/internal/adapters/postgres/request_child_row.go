@@ -32,6 +32,12 @@ type requestChildRow struct {
 	SortOrder             int              `bun:"sort_order,notnull,default:0"`
 	RolloverSourceChildID *int64           `bun:"rollover_source_child_id"`
 	ReviewReason          *string          `bun:"review_reason"`
+	// The planned class switch of an approved re-enrollment (#3917). It is
+	// written and read only through the class-switch methods, never through
+	// the RequestChild record.
+	ClassSwitchFrom *string          `bun:"class_switch_from"`
+	ClassSwitchTo   *string          `bun:"class_switch_to"`
+	ClassSwitchOn   *enrollment.Date `bun:"class_switch_on,type:date"`
 }
 
 func (r requestChildRow) value() *enrollment.RequestChild {

@@ -249,24 +249,90 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 	assert.Equal(t, existing.ID, *approved[0].CreatedStudentID,
 		"auto-approved rollover must reuse the existing student, not create a duplicate")
 
-	// The existing student row was UPDATED in place: school_class
-	// bumped to the new grade, enrolled window pinned to the new
-	// phase. We re-read the student rather than trusting the in-
-	// memory copy.
+	// The existing student row was UPDATED in place, but the child is
+	// still cared for in the running year (#3917): it keeps its class
+	// and enrollment start until the new phase begins, and only the
+	// window's end reaches into the new year. We re-read the student
+	// rather than trusting the in-memory copy.
 	refreshed, err := env.repos.Student.FindByID(ctx, existing.ID)
 	require.NoError(t, err)
 	assert.Equal(t, usersModels.StudentStatusActive, refreshed.Status,
 		"already-active rollover students must stay active even for a future phase")
-	assert.Equal(t, classForGrade(2), refreshed.SchoolClass,
-		"grade was bumped 1 → 2; school_class must follow")
+	assert.Equal(t, classForGrade(1), refreshed.SchoolClass,
+		"the class must not change before the new school year starts")
 	require.NotNil(t, refreshed.EnrolledFrom)
-	assert.Equal(t, timezone.Date(result.Phase.ServiceStartDate), *refreshed.EnrolledFrom,
-		"enrolled_from must follow the new phase's service window")
+	assert.Equal(t, *existing.EnrolledFrom, *refreshed.EnrolledFrom,
+		"the running enrollment start must stay until the new school year starts")
 	require.NotNil(t, refreshed.EnrolledUntil)
-	assert.Equal(t, timezone.Date(result.Phase.ServiceEndDate), *refreshed.EnrolledUntil)
+	assert.Equal(t, timezone.Date(result.Phase.ServiceEndDate), *refreshed.EnrolledUntil,
+		"the window's end extends to the new phase so the child is never deactivated in between")
 	assert.Equal(t, enrollmentModels.ChildActivationScheduled, approved[0].ActivationMode)
 	require.NotNil(t, approved[0].ActivateOn)
 	assert.Equal(t, timezone.Date(result.Phase.ServiceStartDate).Format("2006-01-02"), string(*approved[0].ActivateOn))
+
+	// The day before the new school year nothing moves; on its first day
+	// the tick switches the class: grade bumped 1 → 2.
+	startDay := timezone.Date(result.Phase.ServiceStartDate)
+	summary, err = env.rolloverSvc.RunDeadlineWorker(ctx, startDay.AddDays(-1).BerlinMidnight())
+	require.NoError(t, err)
+	assert.Equal(t, 0, summary.ClassSwitchesApplied)
+	refreshed, err = env.repos.Student.FindByID(ctx, existing.ID)
+	require.NoError(t, err)
+	assert.Equal(t, classForGrade(1), refreshed.SchoolClass)
+
+	summary, err = env.rolloverSvc.RunDeadlineWorker(ctx, startDay.BerlinMidnight())
+	require.NoError(t, err)
+	assert.Equal(t, 1, summary.ClassSwitchesApplied)
+	refreshed, err = env.repos.Student.FindByID(ctx, existing.ID)
+	require.NoError(t, err)
+	assert.Equal(t, classForGrade(2), refreshed.SchoolClass,
+		"grade was bumped 1 → 2; school_class follows when the new school year starts")
+	require.NotNil(t, refreshed.EnrolledFrom)
+	assert.Equal(t, *existing.EnrolledFrom, *refreshed.EnrolledFrom)
+
+	// The plan is consumed: a later tick changes nothing.
+	summary, err = env.rolloverSvc.RunDeadlineWorker(ctx, startDay.AddDays(1).BerlinMidnight())
+	require.NoError(t, err)
+	assert.Equal(t, 0, summary.ClassSwitchesApplied)
+}
+
+// A class edit between approval and the new school year wins: the planned
+// switch must not overwrite it (#3917).
+func TestRolloverService_AutoApprove_ClassSwitchSkipsClassChangedSinceApproval(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	env, cleanup := setupAutoApproveIntegrationEnv(t)
+	defer cleanup()
+	ctx := testpkg.Ctx(t)
+
+	_, existing := seedApprovedChildWithStudent(
+		t, env,
+		"Berta", "Muster", "berta@example.com",
+		"Mia", "Muster",
+		int16(1),
+	)
+	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
+	req.RolloverAutoApprove = true
+	req.RolloverDeadline = time.Now().Add(-1 * time.Hour)
+	req.Name = "class-switch-skip-target"
+	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, req)
+	require.NoError(t, err)
+	summary, err := env.rolloverSvc.RunDeadlineWorker(ctx, time.Now())
+	require.NoError(t, err)
+	require.Equal(t, 1, summary.AutoRenewedToApproved)
+
+	student, err := env.repos.Student.FindByID(ctx, existing.ID)
+	require.NoError(t, err)
+	require.Equal(t, classForGrade(1), student.SchoolClass)
+	student.SchoolClass = "1b"
+	require.NoError(t, env.repos.Student.Update(ctx, student))
+
+	summary, err = env.rolloverSvc.RunDeadlineWorker(ctx, timezone.Date(result.Phase.ServiceStartDate).BerlinMidnight())
+	require.NoError(t, err)
+	assert.Equal(t, 0, summary.ClassSwitchesApplied)
+	student, err = env.repos.Student.FindByID(ctx, existing.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "1b", student.SchoolClass, "the admin's edit must survive the planned switch")
 }
 
 func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActive(t *testing.T) {
