@@ -102,6 +102,26 @@ func TestSeedPhaseSchoolYearRejectsAnOverlappingActiveYear(t *testing.T) {
 	assert.Equal(t, []string{"/api/timetable/periods/bootstrap"}, paths)
 }
 
+func TestSeedPhaseSchoolYearRejectsOverlapBesideAnExactActiveYear(t *testing.T) {
+	t.Parallel()
+
+	var paths []string
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		paths = append(paths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"status":"success","data":{"periods":[`+
+			`{"id":6,"name":"Schuljahr 2026/2027","period_type":"school_year","start_date":"2026-08-01","end_date":"2027-07-31","week_cycle_length":1,"is_active":true},`+
+			`{"id":7,"name":"Abweichendes Schuljahr","period_type":"school_year","start_date":"2026-09-01","end_date":"2027-08-31","week_cycle_length":1,"is_active":true}]}}`)
+	})
+	defer srv.Close()
+
+	rt := &Runtime{Client: newTestClient(srv.URL, false)}
+	_, err := seedPhaseSchoolYear(rt, AuthRef{Token: "admin"}, 2026)
+	require.EqualError(t, err, "active school year \"Abweichendes Schuljahr\" (2026-09-01 to 2027-08-31) overlaps requested school year 2026/2027")
+
+	assert.Equal(t, []string{"/api/timetable/periods/bootstrap"}, paths)
+}
+
 func TestSeedPhaseSchoolYearActivatesAnExactInactiveYear(t *testing.T) {
 	t.Parallel()
 

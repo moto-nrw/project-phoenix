@@ -35,7 +35,7 @@ func seedPhaseSchoolYear(rt *Runtime, auth AuthRef, startYear int) (seedCalendar
 	if err := parseJSON(raw, &response); err != nil {
 		return seedCalendarPeriod{}, fmt.Errorf("parse planning periods: %w", err)
 	}
-	var inactiveExact, activeOverlap *seedCalendarPeriod
+	var inactiveExact, activeExact, activeOverlap *seedCalendarPeriod
 	for i := range response.Data.Periods {
 		period := &response.Data.Periods[i]
 		if period.PeriodType != "school_year" {
@@ -43,7 +43,12 @@ func seedPhaseSchoolYear(rt *Runtime, auth AuthRef, startYear int) (seedCalendar
 		}
 		if period.IsActive {
 			if period.StartDate == startDate && period.EndDate == endDate {
-				return *period, nil
+				if activeExact == nil {
+					activeExact = period
+				} else {
+					activeOverlap = period
+				}
+				continue
 			}
 			if period.StartDate <= endDate && startDate <= period.EndDate {
 				activeOverlap = period
@@ -59,6 +64,9 @@ func seedPhaseSchoolYear(rt *Runtime, auth AuthRef, startYear int) (seedCalendar
 			"active school year %q (%s to %s) overlaps requested school year %d/%d",
 			activeOverlap.Name, activeOverlap.StartDate, activeOverlap.EndDate, startYear, startYear+1,
 		)
+	}
+	if activeExact != nil {
+		return *activeExact, nil
 	}
 	if inactiveExact != nil {
 		if err := activateSeedPhaseSchoolYear(rt, auth, *inactiveExact); err != nil {
