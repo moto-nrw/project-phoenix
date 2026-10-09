@@ -31,7 +31,6 @@ import (
 	educationService "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // CallerContext is the Identity & Access caller context the adapters read.
@@ -42,10 +41,17 @@ type CallerContext interface {
 	GetSubstitutedGroupIDs(context.Context) (map[int64]bool, error)
 }
 
+// People serves the roster's members from People Directory: the
+// participation candidates of a group with their person names. The root binds
+// it.
+type People interface {
+	GroupMembers(ctx context.Context, groupID int64) ([]grouplive.RosterStudent, error)
+}
+
 // Sources are the retained owner services the projection's ports adapt.
 type Sources struct {
 	Presence          studentpresence.Query
-	People            userService.PersonService
+	People            People
 	Education         educationService.GroupOverviewQuery
 	Substitutions     educationService.SubstitutionModule
 	UserContext       CallerContext
@@ -82,7 +88,7 @@ func New(sources Sources) (grouplive.Query, error) {
 	return grouplive.New(grouplive.Dependencies{
 		Access:          access{settings: sources.Settings, userContext: sources.UserContext},
 		Groups:          directory{education: sources.Education, userContext: sources.UserContext},
-		Roster:          roster{people: sources.People, careParticipation: sources.CareParticipation},
+		Roster:          roster{People: sources.People, careParticipation: sources.CareParticipation},
 		Presence:        presence{presence: sources.Presence, active: sources.Active, statusDays: sources.StatusDays},
 		Planning:        planning{arrivals: sources.Arrivals, pickups: sources.Pickups, planned: sources.PlannedStudentIDs, careDays: sources.CareDays},
 		Transfers:       transfers{substitutions: sources.Substitutions},
@@ -176,46 +182,8 @@ func (d directory) GroupRoomNames(ctx context.Context, groupIDs []int64) (map[in
 }
 
 type roster struct {
-	people            userService.PersonService
+	People
 	careParticipation careplan.CareParticipation
-}
-
-func (r roster) GroupMembers(ctx context.Context, groupID int64) ([]grouplive.RosterStudent, error) {
-	students, err := r.people.GetParticipationCandidatesByGroupIDs(ctx, []int64{groupID})
-	if err != nil {
-		return nil, err
-	}
-	if len(students) == 0 {
-		return []grouplive.RosterStudent{}, nil
-	}
-	personIDs := make([]int64, 0, len(students))
-	for _, student := range students {
-		personIDs = append(personIDs, student.PersonID)
-	}
-	persons, err := r.people.GetByIDs(ctx, personIDs)
-	if err != nil {
-		return nil, fmt.Errorf("bulk load persons: %w", err)
-	}
-	members := make([]grouplive.RosterStudent, 0, len(students))
-	for _, student := range students {
-		person := persons[student.PersonID]
-		if person == nil {
-			continue
-		}
-		member := grouplive.RosterStudent{
-			ID: student.ID, FirstName: person.FirstName, LastName: person.LastName,
-			SchoolClass: student.SchoolClass, SickSince: student.SickSince, ExcusedSince: student.ExcusedSince,
-			PhotoPath: student.PhotoPath,
-		}
-		if student.Sick != nil {
-			member.Sick = *student.Sick
-		}
-		if student.Excused != nil {
-			member.Excused = *student.Excused
-		}
-		members = append(members, member)
-	}
-	return members, nil
 }
 
 func (r roster) CareParticipants(ctx context.Context, studentIDs []int64, date grouplive.Date) (map[int64]bool, error) {

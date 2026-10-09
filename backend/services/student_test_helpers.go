@@ -378,7 +378,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	)
 	ogsGroupLiveService, err := grouplivelegacy.New(grouplivelegacy.Sources{
 		Presence:          newStudentPresence(db, logger),
-		People:            usersService,
+		People:            GroupRosterPeople(usersService),
 		Education:         educationService,
 		Substitutions:     substitutionService,
 		UserContext:       groupLiveCaller{userContextService},

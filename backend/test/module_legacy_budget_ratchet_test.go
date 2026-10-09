@@ -82,7 +82,7 @@ const moduleLegacyBudgetCheck = "legacy LOC budget"
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 19629
+const moduleLegacyBudgetTotal = 19597
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.
 // The comment on each entry names the ticket that is supposed to dissolve the
@@ -98,7 +98,7 @@ var moduleLegacyBudgets = map[string]int{
 	// No ticket today. Two lines under the first seed: #3427 removed the
 	// carelifecycle import PR #3408 (#3350) had added to legacy.go, and #3501
 	// replaced the user-context service with a local CallerContext port.
-	"modules/grouplive/legacy": 580,
+	"modules/grouplive/legacy": 548,
 	// #3226 (auth/jwt + repositories move). The usercontext read side (#2725)
 	// dissolved into the Identity & Access caller context with #3501; its
 	// request memo slot stayed in the session adapter (legacy/jwt).
