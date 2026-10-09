@@ -113,3 +113,22 @@ func TestCreateGroupSupervisor_AutoOpensWorkSession(t *testing.T) {
 	require.NotNil(t, session, "web supervision takeover must auto-open the staff work session")
 	assert.Equal(t, workforce.WorkSessionSourceApp, session.Source)
 }
+
+func TestCreateGroupSupervisor_SkipsWorkSessionForExternalCaregiver(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupActiveService(t, db)
+
+	activityGroup := testpkg.CreateTestActivityGroup(t, db, "External Activity")
+	room := testpkg.CreateTestRoom(t, db, "External Room")
+	staff := testpkg.CreateTestStaff(t, db, "External", "Caregiver")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
+
+	require.NoError(t, service.CreateGroupSupervisor(testpkg.Ctx(t), &ports.GroupSupervisor{
+		StaffID: staff.ID, GroupID: activeGroup.ID, Role: "additional_supervisor",
+		StartDate: timezone.TodayDate(), SkipPresenceStamp: true,
+	}))
+
+	assert.Nil(t, todayWorkSession(t, db, staff.ID), "external caregivers do not record working time")
+}

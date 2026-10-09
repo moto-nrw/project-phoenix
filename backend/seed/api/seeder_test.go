@@ -1091,6 +1091,10 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		w.Header().Set("Content-Type", "application/json")
 		authorization := r.Header.Get("Authorization")
 		manualAuth := authorization == "Bearer manual-admin-token"
+		if !manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/staff/" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
+			return
+		}
 
 		if r.Method == seedHTTPMethodPut && ((manualAuth && strings.HasPrefix(r.URL.Path, "/api/settings/values/")) || strings.Contains(r.URL.Path, "/operator/schools/2/settings/values/")) {
 			var body struct {

@@ -235,7 +235,10 @@ function StaffPageContent() {
     canListStaff ? "staff-list" : null,
     async () => {
       const staffData = await staffService.getAllStaff({});
-      return sortStaff(staffData);
+      // Externe Kräfte ohne Konto (#3823) stempeln nicht: hier stünden sie
+      // nur als „Abwesend“ in Status und Zählung. Geführt werden sie unter
+      // Datenverwaltung › Personal.
+      return sortStaff(staffData.filter((member) => !member.isExternal));
     },
     {
       keepPreviousData: true,

@@ -66,6 +66,10 @@ type GroupSupervision struct {
 	Role                           string
 	StartDate                      string
 	EndDate                        *string
+	// SkipPresenceStamp keeps an external caregiver out of time tracking when
+	// they are added to an already-running supervision. It is command-only and
+	// never stored with the supervision.
+	SkipPresenceStamp bool `json:"-"`
 }
 
 func (m *Module) ListGroupSupervisions(ctx context.Context, groupID int64) ([]GroupSupervision, error) {

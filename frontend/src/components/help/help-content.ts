@@ -1421,6 +1421,16 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
         ],
       },
       {
+        // #3823: externe Kräfte ohne Konto, live geprüft in beiden Dialogen.
+        title: "Weitere Betreuer eintragen",
+        steps: [
+          "Wählen Sie in der laufenden Aufsicht `Betreuer hinzufügen`.",
+          "Wählen Sie die Person unter `Betreuer auswählen` und dann `Hinzufügen`.",
+          "Hat die Person kein moto-Konto, zum Beispiel eine AG-Leitung von außen? Wählen Sie `Externe Person eintragen`, geben Sie den Namen ein und wählen Sie `Eintragen`.",
+          "Beim Start einer spontanen Aktivität geht das genauso unter `Weitere Betreuer`.",
+        ],
+      },
+      {
         title: "Die Kinderliste führen",
         steps: [
           "Suchen Sie ein Kind in der laufenden Aufsicht.",
@@ -1450,6 +1460,7 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Fehlt `Beenden`? Dann dürfen hier nur eingeplante Kräfte beenden. Ihre OGS kann das Beenden für das ganze Team freigeben.",
       "Auf dem Handy stehen die offenen Räume nicht in der Seitenleiste, sondern oben auf der Seite `Aufsicht` als Reiter.",
       "Welche Räume offen sind, legt Ihre OGS fest.",
+      "Eine externe Person steht danach unter `Personal` in der Gruppe `Extern`. In Zeiterfassung und Dienstplan erscheint sie nicht.",
       "Fehlt `Spontane Aktivität starten`? Dann hat Ihre OGS in den `Einstellungen` unter `Betrieb` den Schalter `Spontane Aktivitäten erlauben` ausgeschaltet.",
       "Fehlt ein Kind unter `Anwesende Kinder`? Ist seine Gehzeit schon erreicht, steht es nur unter `Alle anwesenden`. Ist es noch nicht angemeldet, suchen Sie es über `Kind hinzufügen`.",
     ],

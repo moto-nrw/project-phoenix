@@ -442,18 +442,24 @@ func (s *FixedSeeder) seedStaff(_ context.Context, result *FixedResult) error {
 			return fmt.Errorf("failed to create staff %s: %w", personKey, err)
 		}
 
+		// The staff id arrives as a quoted decimal string (a bigint must
+		// survive JSON.parse in the browser); json.Number also takes a number.
 		var resp struct {
 			Status string `json:"status"`
 			Data   struct {
-				ID        int64 `json:"id"`
-				TeacherID int64 `json:"teacher_id,omitempty"`
+				ID        json.Number `json:"id"`
+				TeacherID int64       `json:"teacher_id,omitempty"`
 			} `json:"data"`
 		}
 		if err := json.Unmarshal(respBody, &resp); err != nil {
 			return fmt.Errorf("failed to parse staff response: %w", err)
 		}
+		staffID, err := resp.Data.ID.Int64()
+		if err != nil {
+			return fmt.Errorf("failed to parse staff id %q: %w", resp.Data.ID, err)
+		}
 
-		s.staffIDs[personKey] = resp.Data.ID
+		s.staffIDs[personKey] = staffID
 		// Store teacher ID if this is a teacher (for group assignment)
 		if resp.Data.TeacherID > 0 {
 			s.teacherIDs[personKey] = resp.Data.TeacherID

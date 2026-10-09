@@ -775,6 +775,7 @@ POST /api/staff/
 POST /api/staff/absences/{absenceId}/approve
 POST /api/staff/absences/{absenceId}/deny
 POST /api/staff/absences/{absenceId}/question
+POST /api/staff/externals
 POST /api/staff/time-tracking/export/sftp
 POST /api/staff/time-tracking/month-close
 POST /api/staff/{id}/absences

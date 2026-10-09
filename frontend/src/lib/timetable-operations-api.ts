@@ -33,7 +33,7 @@ export interface SpontaneousStartBody {
   title: string;
   room_id: number;
   activity_group_id?: number;
-  staff_ids?: number[];
+  staff_ids?: string[];
 }
 
 export class TimetableOperationsApiError extends ApiError {

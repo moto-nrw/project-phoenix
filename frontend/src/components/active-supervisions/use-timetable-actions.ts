@@ -55,6 +55,18 @@ function noStaffProfileError(): ApiError {
   });
 }
 
+// Staff IDs are PostgreSQL int64 values. Keep them as canonical decimal
+// strings while building the request: Number() would silently change an ID
+// past 2^53 before the API can validate it.
+function normalizePositiveStaffID(value: string): string | null {
+  try {
+    const id = BigInt(value);
+    return id > 0n ? id.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 interface TimetableActionsOptions {
   readonly allRooms: readonly ActiveSupervisionRoom[];
   readonly currentStaffId: string | undefined;
@@ -356,9 +368,14 @@ export function useTimetableActions(
   const handleStartSpontaneousActivity = useCallback(
     async (payload: SpontaneousActivityStartPayload) => {
       const staffIds = currentStaffId
-        ? Array.from(new Set([currentStaffId, ...payload.additionalStaffIds]))
-            .map(Number)
-            .filter((id) => Number.isSafeInteger(id) && id > 0)
+        ? Array.from(
+            new Set(
+              [currentStaffId, ...payload.additionalStaffIds].flatMap((id) => {
+                const normalized = normalizePositiveStaffID(id);
+                return normalized === null ? [] : [normalized];
+              }),
+            ),
+          )
         : [];
       if (staffIds.length === 0) {
         logger.warn("spontaneous timetable start without staff profile");

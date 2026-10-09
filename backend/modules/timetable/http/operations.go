@@ -24,13 +24,13 @@ import (
 )
 
 type spontaneousStartRequest struct {
-	Title           string  `json:"title"`
-	Description     *string `json:"description,omitempty"`
-	Notes           *string `json:"notes,omitempty"`
-	RoomID          int64   `json:"room_id"`
-	ActivityGroupID *int64  `json:"activity_group_id,omitempty"`
-	StaffIDs        []int64 `json:"staff_ids,omitempty"`
-	StudentIDs      []int64 `json:"student_ids,omitempty"`
+	Title           string          `json:"title"`
+	Description     *string         `json:"description,omitempty"`
+	Notes           *string         `json:"notes,omitempty"`
+	RoomID          int64           `json:"room_id"`
+	ActivityGroupID *int64          `json:"activity_group_id,omitempty"`
+	StaffIDs        []common.JSONID `json:"staff_ids,omitempty"`
+	StudentIDs      []int64         `json:"student_ids,omitempty"`
 }
 
 func (req *spontaneousStartRequest) Bind(_ *http.Request) error {
@@ -217,7 +217,11 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		return
 	}
 
-	req.StaffIDs = appendUniquePositive(req.StaffIDs, currentStaffID)
+	staffIDs := make([]int64, 0, len(req.StaffIDs)+1)
+	for _, staffID := range req.StaffIDs {
+		staffIDs = append(staffIDs, staffID.Int64())
+	}
+	staffIDs = appendUniquePositive(staffIDs, currentStaffID)
 	createdBy := currentStaffID
 	// Room and caller validation can span a Berlin day boundary. Capture the
 	// authoritative start window immediately before the first write-capable
@@ -251,7 +255,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		Notes:            req.Notes,
 		RoomID:           req.RoomID,
 		ActivityGroupID:  activityGroupID,
-		StaffIDs:         req.StaffIDs,
+		StaffIDs:         staffIDs,
 		CreatedByStaffID: &createdBy,
 	})
 	if err != nil {
