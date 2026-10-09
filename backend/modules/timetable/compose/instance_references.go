@@ -13,11 +13,12 @@ import (
 // instanceReferences are the tenant-scoped foreign ids a planner write
 // supplies.
 type instanceReferences struct {
-	roomID           int64
-	activityGroupID  *int64
-	staffIDs         []int64
-	studentIDs       []int64
-	createdByStaffID *int64
+	roomID                  int64
+	activityGroupID         *int64
+	staffIDs                []int64
+	studentIDs              []int64
+	createdByStaffID        *int64
+	allowExternalCaregivers bool
 }
 
 // validateInstanceReferences checks every supplied id against the current
@@ -38,7 +39,7 @@ func (s *InstanceLifecycleService) validateInstanceReferences(ctx context.Contex
 	if err := s.validateRoomReference(ctx, refs.roomID, isDuty); err != nil {
 		return "", err
 	}
-	if err := s.validateStaffReferences(ctx, refs.staffIDs, refs.createdByStaffID); err != nil {
+	if err := s.validateStaffReferences(ctx, refs.staffIDs, refs.createdByStaffID, refs.allowExternalCaregivers); err != nil {
 		return "", err
 	}
 	return groupType, s.validateStudentReferences(ctx, date, refs.studentIDs)
@@ -82,20 +83,20 @@ func (s *InstanceLifecycleService) validateActivityGroupReference(ctx context.Co
 	return group.Type, nil
 }
 
-func (s *InstanceLifecycleService) validateStaffReferences(ctx context.Context, staffIDs []int64, createdByStaffID *int64) error {
-	if err := s.validatePlannableStaffReferences(ctx, staffIDs); err != nil {
+func (s *InstanceLifecycleService) validateStaffReferences(ctx context.Context, staffIDs []int64, createdByStaffID *int64, allowExternalCaregivers bool) error {
+	if err := s.validatePlannableStaffReferences(ctx, staffIDs, allowExternalCaregivers); err != nil {
 		return err
 	}
 	return s.validateCreatedByStaffReference(ctx, createdByStaffID)
 }
 
-func (s *InstanceLifecycleService) validatePlannableStaffReferences(ctx context.Context, staffIDs []int64) error {
+func (s *InstanceLifecycleService) validatePlannableStaffReferences(ctx context.Context, staffIDs []int64, allowExternalCaregivers bool) error {
 	uniqueStaffIDs := sliceutil.UniquePositive(staffIDs)
 	guestStaffIDs, err := s.findGuestStaffReferences(ctx, uniqueStaffIDs)
 	if err != nil {
 		return err
 	}
-	return s.rejectExternalCaregivers(ctx, guestStaffIDs)
+	return s.rejectExternalCaregivers(ctx, guestStaffIDs, allowExternalCaregivers)
 }
 
 func (s *InstanceLifecycleService) findGuestStaffReferences(ctx context.Context, staffIDs []int64) ([]int64, error) {
@@ -122,8 +123,8 @@ func (s *InstanceLifecycleService) findGuestStaffReferences(ctx context.Context,
 	return guestStaffIDs, nil
 }
 
-func (s *InstanceLifecycleService) rejectExternalCaregivers(ctx context.Context, guestStaffIDs []int64) error {
-	if len(guestStaffIDs) == 0 {
+func (s *InstanceLifecycleService) rejectExternalCaregivers(ctx context.Context, guestStaffIDs []int64, allowExternalCaregivers bool) error {
+	if allowExternalCaregivers || len(guestStaffIDs) == 0 {
 		return nil
 	}
 	staffWithPeople, err := s.deps.StaffRepo.FindWithPersonByIDs(ctx, guestStaffIDs)
