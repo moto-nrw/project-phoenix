@@ -22,9 +22,7 @@ import {
 
 const logger = createLogger({ component: "PresentChildrenPicker" });
 
-// Mehr Kinder sind nie zugleich in einer OGS; die Seite des Backends ist so
-// groß, dass die ganze Liste in einem Aufruf kommt.
-const PRESENT_PAGE_SIZE = 1000;
+const PRESENT_PAGE_SIZE = 100;
 
 const SCOPE_ITEMS = [
   { value: "stays", label: "Noch in Betreuung" },
@@ -37,6 +35,23 @@ interface PresentChild {
   readonly detail: string;
   readonly place: string | null;
   readonly pickupTime: string | null;
+}
+
+async function fetchPresentChildren(): Promise<PresentChild[]> {
+  const children: PresentChild[] = [];
+  for (let page = 1; ; page += 1) {
+    const result = await fetchStudents({
+      location_state: "present",
+      include_pickup_times: true,
+      page,
+      page_size: PRESENT_PAGE_SIZE,
+    });
+    children.push(...result.students.map(toPresentChild));
+
+    if (!result.pagination || page >= result.pagination.total_pages) {
+      return children;
+    }
+  }
 }
 
 function toPresentChild(student: Student): PresentChild {
@@ -103,17 +118,12 @@ export function PresentChildrenPicker({
     if (!isOpen) return;
     let cancelled = false;
     setLoad({ kind: "loading" });
-    fetchStudents({
-      location_state: "present",
-      include_pickup_times: true,
-      page: 1,
-      page_size: PRESENT_PAGE_SIZE,
-    })
+    fetchPresentChildren()
       .then((result) => {
         if (cancelled) return;
         setLoad({
           kind: "loaded",
-          children: result.students.map(toPresentChild),
+          children: result,
         });
       })
       .catch((err) => {
@@ -141,18 +151,10 @@ export function PresentChildrenPicker({
         child.name.toLocaleLowerCase("de").includes(term),
       )
     : candidates;
-  // Nur Kinder, die noch zur Wahl stehen, zählen. Ein Kind, das inzwischen
-  // im Block ist oder gegangen ist, fällt aus der Auswahl.
-  const offeredIds = new Set(
-    load.kind === "loaded"
-      ? presentChildCandidates(
-          load.children,
-          inBlockStudentIds,
-          now,
-          "all",
-        ).map((child) => child.id)
-      : [],
-  );
+  // Nur Kinder, die in der aktuell sichtbaren Auswahl noch zur Wahl stehen,
+  // zählen. Ein Kind, das inzwischen im Block ist oder die aktuelle
+  // Auswahlbedingung nicht mehr erfüllt, fällt aus der Auswahl.
+  const offeredIds = new Set(candidates.map((child) => child.id));
   const selectedIds = [...selected].filter((id) => offeredIds.has(id));
   const allVisibleSelected =
     visible.length > 0 && visible.every((child) => selected.has(child.id));
@@ -174,6 +176,22 @@ export function PresentChildrenPicker({
       }
       return next;
     });
+  };
+  const changeScope = (nextScope: PresentChildScope) => {
+    const nextOfferedIds = new Set(
+      load.kind === "loaded"
+        ? presentChildCandidates(
+            load.children,
+            inBlockStudentIds,
+            now,
+            nextScope,
+          ).map((child) => child.id)
+        : [],
+    );
+    setScope(nextScope);
+    setSelected(
+      (prev) => new Set([...prev].filter((id) => nextOfferedIds.has(id))),
+    );
   };
   const handleClose = () => {
     setSelected(new Set());
@@ -232,7 +250,7 @@ export function PresentChildrenPicker({
         <SegmentedControl
           items={SCOPE_ITEMS}
           value={scope}
-          onChange={setScope}
+          onChange={changeScope}
           fullWidth
           ariaLabel="Welche Kinder zeigen"
         />

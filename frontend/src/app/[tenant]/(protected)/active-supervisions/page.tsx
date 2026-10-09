@@ -627,6 +627,7 @@ function MeinRaumPageContent() {
             clearReopenable: reopen.clearReopenable,
             attendanceWebEnabled,
             showTimetableCounts,
+            canReadPresentChildren: hasPermission(session, "users:read"),
             canExcuseRestOfDay: hasPermission(session, "users:update"),
             overviewEnabled,
             onAddSupervisor: setAddSupervisorTarget,
@@ -660,7 +661,11 @@ function MeinRaumPageContent() {
             showTimetableCounts={showTimetableCounts}
             occupancy={supervisionOccupancy}
             onAddStudent={actions.handleAddUnplannedStudent}
-            onAddPresentStudents={actions.handleAddPresentStudents}
+            onAddPresentStudents={
+              hasPermission(session, "users:read")
+                ? actions.handleAddPresentStudents
+                : undefined
+            }
             presentPickerAutoOpen={
               actions.presentPickerAutoOpenInstanceId ===
               currentTimetableRoster.instance.id

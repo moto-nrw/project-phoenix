@@ -42,6 +42,8 @@ export type OpenRoomBlockContext = Omit<
 > & {
   readonly attendanceWebEnabled: boolean;
   readonly showTimetableCounts: boolean;
+  /** The present-children endpoint reads the tenant-wide student directory. */
+  readonly canReadPresentChildren: boolean;
   /** Offers „Rest des Tages“ when the caller may record partial absences. */
   readonly canExcuseRestOfDay: boolean;
   /** The school-wide overview lets the caller read every running roster. */
@@ -228,6 +230,7 @@ function OpenRoomBlock({
   const {
     attendanceWebEnabled,
     showTimetableCounts,
+    canReadPresentChildren,
     canExcuseRestOfDay,
     overviewEnabled,
     onAddSupervisor,
@@ -331,7 +334,11 @@ function OpenRoomBlock({
             />
           }
           onAddStudent={actions.handleAddUnplannedStudent}
-          onAddPresentStudents={actions.handleAddPresentStudents}
+          onAddPresentStudents={
+            canReadPresentChildren
+              ? actions.handleAddPresentStudents
+              : undefined
+          }
           presentPickerAutoOpen={
             presentPickerAutoOpenInstanceId === currentRoster.instance.id
           }

@@ -98,7 +98,7 @@ describe("PresentChildrenPicker", () => {
       location_state: "present",
       include_pickup_times: true,
       page: 1,
-      page_size: 1000,
+      page_size: 100,
     });
     expect(screen.getByText("geht 16:00")).toBeInTheDocument();
     expect(screen.getByText("ohne Gehzeit")).toBeInTheDocument();
@@ -118,6 +118,44 @@ describe("PresentChildrenPicker", () => {
 
     expect(screen.getByText("Ben Berg")).toBeInTheDocument();
     expect(screen.queryByText("Dana Dorn")).not.toBeInTheDocument();
+  });
+
+  it("loads every page of present children", async () => {
+    mocks.fetchStudents
+      .mockResolvedValueOnce({
+        students: [presentStudents[0]],
+        pagination: {
+          current_page: 1,
+          page_size: 100,
+          total_pages: 2,
+          total_records: 2,
+        },
+      })
+      .mockResolvedValueOnce({
+        students: [presentStudents[2]],
+        pagination: {
+          current_page: 2,
+          page_size: 100,
+          total_pages: 2,
+          total_records: 2,
+        },
+      });
+    renderPicker();
+
+    await screen.findByText("Anna Abel");
+    expect(await screen.findByText("Cem Celik")).toBeInTheDocument();
+    expect(mocks.fetchStudents).toHaveBeenNthCalledWith(1, {
+      location_state: "present",
+      include_pickup_times: true,
+      page: 1,
+      page_size: 100,
+    });
+    expect(mocks.fetchStudents).toHaveBeenNthCalledWith(2, {
+      location_state: "present",
+      include_pickup_times: true,
+      page: 2,
+      page_size: 100,
+    });
   });
 
   it("adds the selected children together", async () => {
@@ -153,6 +191,19 @@ describe("PresentChildrenPicker", () => {
     );
 
     await waitFor(() => expect(onAdd).toHaveBeenCalledWith(["1", "3"]));
+  });
+
+  it("removes selections that do not match the current scope", async () => {
+    const { onAdd } = renderPicker();
+
+    await screen.findByText("Anna Abel");
+    fireEvent.click(screen.getByRole("checkbox", { name: /Anna Abel/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Alle anwesenden" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ben Berg/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Noch in Betreuung" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "1 Kind hinzufügen" }));
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith(["1"]));
   });
 
   it("keeps the dialog open when adding fails", async () => {
