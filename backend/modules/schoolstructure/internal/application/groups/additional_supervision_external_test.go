@@ -56,4 +56,9 @@ func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, StaffRef{ID: external.ID, FullName: "Guest Instructor"}, created.Target)
 	require.Equal(t, "additional_supervisor", testpkg.GroupSupervisorRowByID(t, db, created.ID).Role)
+
+	overview, err = module.Overview(ctx, caller, OverviewQuery{ActiveGroupID: running.ID, IncludeTargets: true})
+	require.NoError(t, err)
+	require.Contains(t, overview.RunningSupervisions[0].Supervisors,
+		StaffRef{ID: external.ID, FullName: "Guest Instructor", IsExternal: true})
 }

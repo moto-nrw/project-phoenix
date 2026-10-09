@@ -73,21 +73,21 @@ func (s *substitutionModule) withExternalTargets(ctx context.Context, caregivers
 
 // findAndLockSupervisionTarget resolves an additional supervisor: an active
 // caregiver or, when the directory is wired, an external caregiver.
-func (s *substitutionModule) findAndLockSupervisionTarget(ctx context.Context, staffID int64) (*educationModels.Caregiver, error) {
+func (s *substitutionModule) findAndLockSupervisionTarget(ctx context.Context, staffID int64) (*educationModels.Caregiver, bool, error) {
 	target, err := s.findAndLockTarget(ctx, staffID)
 	if !errors.Is(err, ErrNotFound) || s.deps.ExternalCaregivers == nil {
-		return target, err
+		return target, false, err
 	}
 	externals, err := s.deps.ExternalCaregivers.ListExternalCaregivers(ctx)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	for _, member := range externals {
 		if member.StaffID == staffID {
-			return member, nil
+			return member, true, nil
 		}
 	}
-	return nil, ErrNotFound
+	return nil, false, ErrNotFound
 }
 
 func (s *substitutionModule) loadRunningSupervisionState(ctx context.Context) (
@@ -149,10 +149,19 @@ func projectRunningSupervision(
 			result.Name = group.Room.Name
 		}
 	}
+	externalIDs := make(map[int64]struct{}, len(caregivers))
+	for _, caregiver := range caregivers {
+		if caregiver.IsExternal {
+			externalIDs[caregiver.ID] = struct{}{}
+		}
+	}
 	participantIDs := make(map[int64]struct{}, len(supervisors)+1)
 	for _, supervisor := range supervisors {
 		participantIDs[supervisor.StaffID] = struct{}{}
-		result.Supervisors = append(result.Supervisors, supervisorRef(supervisor))
+		_, isExternal := externalIDs[supervisor.StaffID]
+		result.Supervisors = append(result.Supervisors, StaffRef{
+			ID: supervisor.StaffID, FullName: supervisor.StaffName, IsExternal: isExternal,
+		})
 	}
 	if access.actor != nil {
 		participantIDs[access.actor.StaffID] = struct{}{}
@@ -163,10 +172,6 @@ func projectRunningSupervision(
 		}
 	}
 	return result
-}
-
-func supervisorRef(supervisor *studentpresence.StaffedSupervision) StaffRef {
-	return StaffRef{ID: supervisor.StaffID, FullName: supervisor.StaffName}
 }
 
 func actorSupervises(actor *Actor, supervisors []*studentpresence.StaffedSupervision) bool {
@@ -232,13 +237,13 @@ func (s *substitutionModule) assignAdditionalSupervisionLocked(
 	if err != nil {
 		return nil, nil, err
 	}
-	target, err := s.findAndLockSupervisionTarget(ctx, request.TargetStaffID)
+	target, isExternal, err := s.findAndLockSupervisionTarget(ctx, request.TargetStaffID)
 	if err != nil {
 		return nil, nil, err
 	}
 	created := &studentpresence.GroupSupervision{
 		StaffID: target.StaffID, GroupID: group.ID, Role: additionalSupervisorRole,
-		StartDate: calendar.DateFromTime(s.deps.Now()).String(),
+		StartDate: calendar.DateFromTime(s.deps.Now()).String(), SkipPresenceStamp: isExternal,
 	}
 	if err := s.deps.ActiveSupervisorCreator.CreateGroupSupervisor(ctx, created); err != nil {
 		return nil, nil, err

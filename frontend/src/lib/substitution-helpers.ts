@@ -29,7 +29,11 @@ interface BackendRunningSupervision {
   type: "additional_supervision";
   name: string;
   room_name?: string;
-  supervisors: Array<{ id: string; full_name: string }>;
+  supervisors: Array<{
+    id: string;
+    full_name: string;
+    is_external?: boolean;
+  }>;
   available_targets: Array<{
     id: string;
     full_name: string;
@@ -49,7 +53,11 @@ export interface RunningSupervision {
   id: string;
   name: string;
   roomName?: string;
-  supervisors: Array<{ id: string; fullName: string }>;
+  supervisors: Array<{
+    id: string;
+    fullName: string;
+    isExternal?: true;
+  }>;
   /** isExternal: externe Kraft ohne moto-Konto (#3823). */
   availableTargets: Array<{ id: string; fullName: string; isExternal?: true }>;
   isCurrentUserSupervising: boolean;
@@ -174,6 +182,7 @@ export function mapRunningSupervision(
     supervisors: backend.supervisors.map((staff) => ({
       id: staff.id.toString(),
       fullName: staff.full_name,
+      ...(staff.is_external ? { isExternal: true as const } : {}),
     })),
     availableTargets: backend.available_targets.map((staff) => ({
       id: staff.id.toString(),

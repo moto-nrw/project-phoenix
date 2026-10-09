@@ -13,14 +13,16 @@ import { staffService, type Staff } from "~/lib/staff-api";
 
 const logger = createLogger({ component: "ExternalCaregiverEntry" });
 
-/** A person already in the picker, matched by name before a new entry. */
+/** A person already visible to the picker, matched by name before a new entry. */
 interface ExistingCaregiver {
   readonly id: string;
   readonly fullName: string;
+  readonly isExternal: boolean;
+  readonly isAlreadyAssigned?: boolean;
 }
 
 interface ExternalCaregiverEntryProps {
-  /** Everyone the picker already offers; a name match selects that entry. */
+  /** Everyone the picker already offers; only external entries may match. */
   readonly existing: readonly ExistingCaregiver[];
   /** Called with the new entry, or with the id of the matching entry. */
   readonly onAdded: (result: ExternalCaregiverResult) => void;
@@ -77,9 +79,14 @@ export function ExternalCaregiverEntry({
     }
     const match = existing.find(
       (person) =>
+        person.isExternal &&
         normalizeName(person.fullName) === normalizeName(`${first} ${last}`),
     );
     if (match) {
+      if (match.isAlreadyAssigned) {
+        formErrors.invalid("Diese Person ist schon eingetragen.");
+        return;
+      }
       onAdded({ kind: "existing", id: match.id });
       reset();
       return;

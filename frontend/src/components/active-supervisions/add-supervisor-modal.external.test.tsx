@@ -72,7 +72,10 @@ const overview = {
   id: "41",
   name: "Trommel-AG",
   roomName: "Musikraum",
-  supervisors: [{ id: "11", fullName: "Alex Alt" }],
+  supervisors: [
+    { id: "11", fullName: "Alex Alt" },
+    { id: "75", fullName: "Elli Extern", isExternal: true as const },
+  ],
   availableTargets: [
     { id: "73", fullName: "Toni Test" },
     { id: "74", fullName: "Jonas Becker", isExternal: true as const },
@@ -141,6 +144,26 @@ describe("AddSupervisorModal external caregivers", () => {
     fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
 
     await waitFor(() => expect(addSupervisor).toHaveBeenCalledWith("41", "88"));
+  });
+
+  it("does not duplicate an external person already assigned to the supervision", async () => {
+    renderModal();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Externe Person eintragen" }),
+    );
+    fireEvent.change(screen.getByLabelText("Vorname"), {
+      target: { value: "Elli" },
+    });
+    fireEvent.change(screen.getByLabelText("Nachname"), {
+      target: { value: "Extern" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
+
+    expect(
+      await screen.findByText("Diese Person ist schon eingetragen."),
+    ).toBeInTheDocument();
+    expect(createExternal).not.toHaveBeenCalled();
   });
 
   it("still offers a new external person when every caregiver is assigned", async () => {

@@ -273,21 +273,24 @@ func newPersonResponse(person *Person, email, avatar string) *PersonResponse {
 // single constructor every staff response goes through, so a new endpoint
 // cannot forget it.
 func buildStaffResponse(access staffFieldAccess, staff schoolmembership.Staff, person *Person, isTeacher bool, data enrichment) StaffResponse {
+	isExternal := staff.IsGuest && person != nil && person.AccountID == nil
 	response := StaffResponse{
-		ID:                   staff.ID,
-		PersonID:             staff.PersonID,
-		StaffNotes:           staff.StaffNotes,
-		IsTeacher:            isTeacher,
-		WasPresentToday:      data.present,
-		WorkStatus:           data.workStatus,
-		AbsenceType:          data.absenceType,
-		AbsenceTypeLabel:     data.absenceTypeLabel,
-		AccountRole:          data.accountRole,
-		EmploymentType:       staff.EmploymentType,
-		IsExternal:           staff.IsGuest,
-		ExternalOrganization: staff.GuestOrganization,
-		CreatedAt:            staff.CreatedAt,
-		UpdatedAt:            staff.UpdatedAt,
+		ID:               staff.ID,
+		PersonID:         staff.PersonID,
+		StaffNotes:       staff.StaffNotes,
+		IsTeacher:        isTeacher,
+		WasPresentToday:  data.present,
+		WorkStatus:       data.workStatus,
+		AbsenceType:      data.absenceType,
+		AbsenceTypeLabel: data.absenceTypeLabel,
+		AccountRole:      data.accountRole,
+		EmploymentType:   staff.EmploymentType,
+		IsExternal:       isExternal,
+		CreatedAt:        staff.CreatedAt,
+		UpdatedAt:        staff.UpdatedAt,
+	}
+	if isExternal {
+		response.ExternalOrganization = staff.GuestOrganization
 	}
 	if person != nil {
 		response.Person = newPersonResponse(person, data.email, data.avatar)

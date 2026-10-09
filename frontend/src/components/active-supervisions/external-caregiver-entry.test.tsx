@@ -84,7 +84,7 @@ describe("ExternalCaregiverEntry", () => {
     const onAdded = vi.fn();
     render(
       <ExternalCaregiverEntry
-        existing={[{ id: "5", fullName: "Lea Gast" }]}
+        existing={[{ id: "5", fullName: "Lea Gast", isExternal: true }]}
         onAdded={onAdded}
       />,
     );
@@ -95,6 +95,26 @@ describe("ExternalCaregiverEntry", () => {
 
     expect(onAdded).toHaveBeenCalledWith({ kind: "existing", id: "5" });
     expect(createExternal).not.toHaveBeenCalled();
+  });
+
+  it("does not select an internal person with the same name", async () => {
+    const onAdded = vi.fn();
+    render(
+      <ExternalCaregiverEntry
+        existing={[{ id: "5", fullName: "Lea Gast", isExternal: false }]}
+        onAdded={onAdded}
+      />,
+    );
+
+    openEntry();
+    fillName("Lea", "Gast");
+    fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
+
+    await waitFor(() => expect(createExternal).toHaveBeenCalledOnce());
+    expect(onAdded).toHaveBeenCalledWith({
+      kind: "created",
+      staff: expect.objectContaining({ id: "88" }),
+    });
   });
 
   it("keeps Enter and Escape inside the panel when the dialog is a form", async () => {

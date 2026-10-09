@@ -108,10 +108,19 @@ function SupervisionDetails({
         />
       )}
       <ExternalCaregiverEntry
-        existing={targets.map((target) => ({
-          id: target.id,
-          fullName: target.fullName,
-        }))}
+        existing={[
+          ...targets.map((target) => ({
+            id: target.id,
+            fullName: target.fullName,
+            isExternal: target.isExternal === true,
+          })),
+          ...overview.supervisors.map((supervisor) => ({
+            id: supervisor.id,
+            fullName: supervisor.fullName,
+            isExternal: supervisor.isExternal === true,
+            isAlreadyAssigned: true,
+          })),
+        ]}
         onAdded={onExternalAdded}
       />
     </div>

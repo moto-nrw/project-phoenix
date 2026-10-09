@@ -87,3 +87,26 @@ func TestExternalCaregiverRequiresBothNamesAndCreatePermission(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	assert.NotContains(t, rr.Body.String(), "Gastmann", "refused requests leave no staff entry behind")
 }
+
+func TestAccountBackedGuestIsNotAnExternalCaregiver(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupStaffCompositionRoute(t)
+	accountGuestID := ctx.createAccountGuest("Konto", "Gast")
+	betreuer := testutil.WithJWTBearer(staffCompositionToken(t, betreuerPermissions...))
+
+	rr := testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodGet, "/staff", nil, betreuer))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var listed struct {
+		Data []externalStaffWire `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &listed))
+	for _, entry := range listed.Data {
+		if entry.ID == accountGuestID {
+			assert.False(t, entry.IsExternal)
+			assert.Empty(t, entry.ExternalOrganization)
+			return
+		}
+	}
+	t.Fatalf("account-backed guest %d missing from staff directory", accountGuestID)
+}

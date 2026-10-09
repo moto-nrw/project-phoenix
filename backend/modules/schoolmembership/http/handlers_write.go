@@ -110,7 +110,7 @@ func (rs *Resource) createExternalStaff(w http.ResponseWriter, r *http.Request) 
 
 	rs.respond(w, r, http.StatusCreated,
 		buildStaffResponse(rs.fieldAccess(ctx), staff, &person, false, enrichment{}),
-		"External caregiver created successfully")
+		"Externe Betreuungskraft eingetragen")
 }
 
 // updateStaff updates a staff record and its teacher profile.

@@ -629,6 +629,7 @@ export function SpontaneousActivityStart({
                 existing={staff.map((item) => ({
                   id: item.id,
                   fullName: staffLabel(item),
+                  isExternal: item.isExternal === true,
                 }))}
                 onAdded={addExternalCaregiver}
               />
