@@ -371,6 +371,9 @@ function ParticipationWeek({
   const [participation, setParticipation] = useState<MealParticipation | null>(
     null,
   );
+  const [participationDate, setParticipationDate] = useState<string | null>(
+    null,
+  );
   const [weekdays, setWeekdays] = useState<number[]>([]);
   const [editingRegularDays, setEditingRegularDays] = useState(false);
   const [editingDate, setEditingDate] = useState<string | null>(null);
@@ -394,6 +397,7 @@ function ParticipationWeek({
     new Map<string, HTMLButtonElement | null>(),
   );
   const restoreFocusDateRef = useRef<string | null>(null);
+  const loadSequenceRef = useRef(0);
 
   const isEditing = editingRegularDays || editingDate !== null;
 
@@ -428,15 +432,20 @@ function ParticipationWeek({
   }, [today]);
 
   const load = useCallback(async (): Promise<boolean> => {
+    const loadSequence = ++loadSequenceRef.current;
     setLoading(true);
     clearLoadError();
     setParticipation(null);
+    setParticipationDate(null);
     try {
       const value = await getMealParticipation(studentId, range.from, range.to);
+      if (loadSequence !== loadSequenceRef.current) return false;
       setParticipation(value);
+      setParticipationDate(today);
       setWeekdays(value.weekdays);
       return true;
     } catch (err) {
+      if (loadSequence !== loadSequenceRef.current) return false;
       logger.error("parent_meal_participation_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -446,9 +455,17 @@ function ParticipationWeek({
       });
       return false;
     } finally {
-      setLoading(false);
+      if (loadSequence === loadSequenceRef.current) setLoading(false);
     }
-  }, [clearLoadError, range.from, range.to, showLoadError, studentId, t]);
+  }, [
+    clearLoadError,
+    range.from,
+    range.to,
+    showLoadError,
+    studentId,
+    t,
+    today,
+  ]);
 
   useEffect(() => {
     void load();
@@ -459,7 +476,11 @@ function ParticipationWeek({
   // kann die Familie noch etwas ändern (#3923).
   const weekChosenRef = useRef(false);
   useEffect(() => {
-    if (!participation || weekChosenRef.current) return;
+    weekChosenRef.current = false;
+  }, [today]);
+  useEffect(() => {
+    if (!participation || participationDate !== today || weekChosenRef.current)
+      return;
     weekChosenRef.current = true;
     if (weekOffset !== 0) return;
     const thisWeek = new Set(workWeekDates(mondayISOFromOffset(today, 0)));
@@ -472,7 +493,7 @@ function ParticipationWeek({
     ) {
       onWeekChange(1);
     }
-  }, [onWeekChange, participation, today, weekOffset]);
+  }, [onWeekChange, participation, participationDate, today, weekOffset]);
 
   function toggleWeekday(weekday: number) {
     setWeekdays((current) =>

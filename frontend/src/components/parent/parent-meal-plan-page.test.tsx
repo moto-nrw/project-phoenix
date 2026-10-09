@@ -209,6 +209,52 @@ describe("ParentMealPlanPage", () => {
       ).getByRole("status");
       expect(weekStatus).toHaveTextContent(/KW 33\s*· Diese Woche/);
     });
+
+    it("rechecks the opening week after Berlin midnight", async () => {
+      mocks.today = "2026-08-14";
+      mocks.getMealParticipation
+        .mockResolvedValueOnce({
+          weekdays: [1, 2, 3, 4],
+          effective_from: "2026-08-14",
+          cutoff_time: "09:00",
+          days: [
+            participationDay("2026-08-14", true),
+            participationDay("2026-08-17", true),
+          ],
+        })
+        .mockResolvedValueOnce({
+          weekdays: [1, 2, 3, 4],
+          effective_from: "2026-08-16",
+          cutoff_time: "09:00",
+          days: [
+            participationDay("2026-08-14", false),
+            participationDay("2026-08-17", true),
+          ],
+        });
+
+      const { rerender } = render(<ParentMealPlanPage />);
+
+      const weekStatus = within(
+        await screen.findByRole("navigation", {
+          name: "Kalenderwoche wechseln",
+        }),
+      ).getByRole("status");
+      await waitFor(() => {
+        expect(weekStatus).toHaveTextContent(/KW 33\s*· Diese Woche/);
+      });
+
+      mocks.today = "2026-08-15";
+      rerender(<ParentMealPlanPage />);
+
+      await waitFor(() => {
+        expect(mocks.getMealParticipation).toHaveBeenLastCalledWith(
+          "child-1",
+          "2026-08-10",
+          "2026-08-21",
+        );
+        expect(weekStatus).toHaveTextContent(/KW 34\s*· Nächste Woche/);
+      });
+    });
   });
 
   it("keeps the week container stable while the next week loads", async () => {
