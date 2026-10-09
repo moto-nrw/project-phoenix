@@ -15,11 +15,12 @@ var (
 	goImagePattern     = regexp.MustCompile(`(?m)^FROM golang:([^[:space:]]+)`)
 	airInstallPattern  = regexp.MustCompile(`go install github\.com/air-verse/air@v([0-9]+\.[0-9]+\.[0-9]+)`)
 	linterCIPattern    = regexp.MustCompile(`(?m)^\s+version: v([0-9]+\.[0-9]+\.[0-9]+)\s*(?:#.*)?$`)
-	// A Go patch release reaches nixpkgs days before nixhub indexes it, and
-	// devbox search only offers indexed versions. Until then Go may be pinned
-	// to the nixpkgs commit that carries the release. The commit fixes the
-	// exact patch version; this test can only check the minor line.
-	nixpkgsGoPinPattern = regexp.MustCompile(`^github:NixOS/nixpkgs/[0-9a-f]{40}#go_([0-9]+)_([0-9]+)$`)
+	// A release reaches nixpkgs days before nixhub indexes it, and devbox
+	// search only offers indexed versions. Until then Go and golangci-lint may
+	// be pinned to the nixpkgs commit that carries the release. The commit
+	// fixes the exact version, which this test cannot read: it checks Go's
+	// minor line through the attribute name and nothing for the linter.
+	nixpkgsPinPattern = regexp.MustCompile(`^github:NixOS/nixpkgs/[0-9a-f]{40}#(.+)$`)
 )
 
 var supportedToolchainSystems = []string{"aarch64-darwin", "aarch64-linux", "x86_64-linux"}
@@ -41,19 +42,27 @@ func TestToolchainPinsRatchet(t *testing.T) {
 
 	packages := readDevboxPackages(t, filepath.Join(repoRoot, "devbox.json"))
 	assertDevboxUsesDefaultGoCache(t, filepath.Join(repoRoot, "devbox.json"))
-	lockedPackages := []string{"pnpm_10", "golangci-lint", "govulncheck", "air"}
-	if goFlakePin, ok := findNixpkgsGoPin(t, filepath.Join(repoRoot, "devbox.json")); ok {
-		requireNixpkgsGoPin(t, goFlakePin, goVersion)
-		assertDevboxLockResolvesFlake(t, filepath.Join(repoRoot, "devbox.lock"), goFlakePin)
+	nixpkgsPins := readDevboxNixpkgsPins(t, filepath.Join(repoRoot, "devbox.json"))
+	lockedPackages := []string{"pnpm_10", "govulncheck", "air"}
+	major, rest, _ := strings.Cut(goVersion, ".")
+	minor, _, _ := strings.Cut(rest, ".")
+	if goPin, ok := nixpkgsPins["go_"+major+"_"+minor]; ok {
+		assertDevboxLockResolvesFlake(t, filepath.Join(repoRoot, "devbox.lock"), goPin)
 	} else {
 		requireDevboxPin(t, packages, "go", goVersion)
 		lockedPackages = append(lockedPackages, "go")
+	}
+	if linterPin, ok := nixpkgsPins["golangci-lint"]; ok {
+		assertDevboxLockResolvesFlake(t, filepath.Join(repoRoot, "devbox.lock"), linterPin)
+	} else {
+		linterVersion := requireDevboxPackageVersion(t, packages, "golangci-lint")
+		lockedPackages = append(lockedPackages, "golangci-lint")
+		assertCILinterVersion(t, filepath.Join(repoRoot, ".github/workflows/lint.yml"), linterVersion)
 	}
 	pnpmVersion := requireDevboxPackageVersion(t, packages, "pnpm_10")
 	for _, manifestPath := range []string{"package.json", "frontend/package.json"} {
 		assertPnpmPackageManagerVersion(t, filepath.Join(repoRoot, manifestPath), pnpmVersion)
 	}
-	linterVersion := requireDevboxPackageVersion(t, packages, "golangci-lint")
 	airVersion := requireDevboxPackageVersion(t, packages, "air")
 	requireDevboxPackageVersion(t, packages, "govulncheck")
 	assertDevboxLock(t, filepath.Join(repoRoot, "devbox.lock"), packages, lockedPackages)
@@ -63,7 +72,6 @@ func TestToolchainPinsRatchet(t *testing.T) {
 	}
 	assertDockerAirVersion(t, filepath.Join(repoRoot, "backend/Dockerfile.dev"), airVersion)
 
-	assertCILinterVersion(t, filepath.Join(repoRoot, ".github/workflows/lint.yml"), linterVersion)
 	assertCIUsesMainGoMod(t, filepath.Join(repoRoot, ".github/workflows"))
 	assertLocalHooksUsePinnedRunner(t, repoRoot)
 	assertRunnerResolvesExactBinary(t, filepath.Join(repoRoot, "scripts/run-go-toolchain.sh"))
@@ -198,7 +206,8 @@ func readDevboxPackages(t *testing.T, path string) map[string]string {
 	return packages
 }
 
-func findNixpkgsGoPin(t *testing.T, path string) (string, bool) {
+// readDevboxNixpkgsPins maps nixpkgs attribute names to their commit pins.
+func readDevboxNixpkgsPins(t *testing.T, path string) map[string]string {
 	t.Helper()
 	var config struct {
 		Packages []string `json:"packages"`
@@ -206,22 +215,13 @@ func findNixpkgsGoPin(t *testing.T, path string) (string, bool) {
 	if err := json.Unmarshal(readToolchainFile(t, path), &config); err != nil {
 		t.Fatalf("decode %s: %v", path, err)
 	}
+	pins := make(map[string]string)
 	for _, packageSpec := range config.Packages {
-		if nixpkgsGoPinPattern.MatchString(packageSpec) {
-			return packageSpec, true
+		if match := nixpkgsPinPattern.FindStringSubmatch(packageSpec); match != nil {
+			pins[match[1]] = packageSpec
 		}
 	}
-	return "", false
-}
-
-func requireNixpkgsGoPin(t *testing.T, packageSpec, goVersion string) {
-	t.Helper()
-	match := nixpkgsGoPinPattern.FindStringSubmatch(packageSpec)
-	major, rest, _ := strings.Cut(goVersion, ".")
-	minor, _, _ := strings.Cut(rest, ".")
-	if match[1] != major || match[2] != minor {
-		t.Errorf("devbox pins %s; want attribute go_%s_%s for Go %s from backend/go.mod", packageSpec, major, minor, goVersion)
-	}
+	return pins
 }
 
 func assertDevboxLockResolvesFlake(t *testing.T, path, packageSpec string) {

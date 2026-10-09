@@ -31,7 +31,7 @@
     "pg_activity@latest",
     "go-swag@latest",
     "govulncheck@1.7.0",
-    "golangci-lint@2.13.1",
+    "github:NixOS/nixpkgs/c1fb7e0ee8dd0c6f820e8126c9353311a8c7ba0f#golangci-lint",
     "fzf@latest",
     "sops@latest",
     "age@latest",
