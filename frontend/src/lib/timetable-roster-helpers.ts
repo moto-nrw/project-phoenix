@@ -39,3 +39,30 @@ export function rosterPickupTimeLabel(
   if (!pickupTimesLoaded) return "Nicht geladen";
   return pickupTime ?? "—";
 }
+
+/**
+ * Which present children the picker of a running block offers (#3824).
+ * `stays` keeps the children whose Gehzeit today is still ahead, plus those
+ * without a Gehzeit (nobody knows they are leaving); `all` keeps every present
+ * child. Children already in the block are never offered.
+ */
+export type PresentChildScope = "stays" | "all";
+
+export interface PresentChildCandidate {
+  readonly id: string;
+  readonly pickupTime?: string | null;
+}
+
+export function presentChildCandidates<T extends PresentChildCandidate>(
+  students: readonly T[],
+  inBlockStudentIds: ReadonlySet<string>,
+  now: Date,
+  scope: PresentChildScope,
+): T[] {
+  const nowClock = berlinTimeFormatter.format(now);
+  return students.filter((student) => {
+    if (inBlockStudentIds.has(student.id)) return false;
+    if (scope === "all") return true;
+    return !student.pickupTime || student.pickupTime > nowClock;
+  });
+}

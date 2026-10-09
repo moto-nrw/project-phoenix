@@ -249,6 +249,29 @@ describe("timetableOperationsApi", () => {
     );
   });
 
+  it("posts bulk check-in IDs as exact decimal strings", async () => {
+    const mockFetch = vi.mocked(globalThis.fetch);
+    mockFetch.mockResolvedValueOnce(jsonResponse({ data: rosterPayload(134) }));
+
+    await timetableOperationsApi.checkInMany("134", [
+      "9007199254740993",
+      "9007199254740995",
+    ]);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/timetable/operations/instances/134/students/check-in",
+      {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: '{"student_ids":["9007199254740993","9007199254740995"]}',
+      },
+    );
+  });
+
   it("maps moved_from from auto-move check-in responses (#2386)", async () => {
     const mockFetch = vi.mocked(globalThis.fetch);
     mockFetch

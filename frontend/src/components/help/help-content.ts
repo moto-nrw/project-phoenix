@@ -1417,6 +1417,7 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
           // Seite, auch ohne geplanten Block und ohne NFC.
           "Oder wählen Sie `Spontane Aktivität starten`, wenn nichts geplant ist.",
           "Prüfen Sie Raum, Aktivität und Betreuungsteam.",
+          "Nach dem Start einer spontanen Aktivität öffnet sich `Anwesende Kinder hinzufügen`. Wählen Sie dort die Kinder für die Aktivität aus.",
         ],
       },
       {
@@ -1434,6 +1435,7 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
         steps: [
           "Suchen Sie ein Kind in der laufenden Aufsicht.",
           "Wählen Sie `Hinzufügen`, wenn das Kind anwesend ist und zur Aufsicht kommen soll.",
+          "Mehrere Kinder auf einmal? Wählen Sie `Anwesende Kinder`. Dort stehen die Kinder, die gerade in der OGS sind und laut Gehzeit noch bleiben. Haken Sie die Kinder an und wählen Sie `Kinder hinzufügen`.",
           "Prüfen Sie geplante Abholzeiten und Hinweise in der Liste.",
           "Wechselt ein Kind den Raum oder geht nach Hause? Ändern Sie seinen Aufenthaltsort.",
         ],
@@ -1460,6 +1462,7 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Welche Räume offen sind, legt Ihre OGS fest.",
       "Eine externe Person steht danach unter `Personal` in der Gruppe `Extern`. In Zeiterfassung und Dienstplan erscheint sie nicht.",
       "Fehlt `Spontane Aktivität starten`? Dann hat Ihre OGS in den `Einstellungen` unter `Betrieb` den Schalter `Spontane Aktivitäten erlauben` ausgeschaltet.",
+      "Fehlt ein Kind unter `Anwesende Kinder`? Ist seine Gehzeit schon erreicht, steht es nur unter `Alle anwesenden`. Ist es noch nicht angemeldet, suchen Sie es über `Kind hinzufügen`.",
     ],
     troubleshooting: HELP_TOPICS.attendanceProblem,
     related: [HELP_TOPICS.rooms, HELP_TOPICS.ownGroups],
