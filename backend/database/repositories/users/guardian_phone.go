@@ -251,7 +251,7 @@ func (r *GuardianPhoneNumberRepository) CountByGuardianID(ctx context.Context, g
 		return 0, fmt.Errorf("failed to count guardian phone numbers: %w", err)
 	}
 
-	return count, nil
+	return int(count), nil
 }
 
 // GetNextPriority returns the next priority value for a guardian's phone numbers

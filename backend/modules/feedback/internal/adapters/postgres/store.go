@@ -176,7 +176,7 @@ func (s *Store) CountForStudent(ctx context.Context, studentID int64) (int, doma
 	if err != nil {
 		return 0, stats, fmt.Errorf("feedback postgres: count student entries: %w", err)
 	}
-	return count, stats, nil
+	return int(count), stats, nil
 }
 
 func toDomain(value row) domain.Entry {

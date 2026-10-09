@@ -25,7 +25,7 @@ func liveMemberships(t *testing.T, tc *testContext) int {
 	count, err := tc.db.NewSelect().TableExpr("users.student_school_memberships").
 		Where("tenant_id = ?", testpkg.Tenant(t)).Where("deleted_at IS NULL").Count(testpkg.Ctx(t))
 	require.NoError(t, err)
-	return count
+	return int(count)
 }
 
 type childQuotaPreview struct {

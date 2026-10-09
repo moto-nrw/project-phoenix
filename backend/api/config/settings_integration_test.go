@@ -382,7 +382,7 @@ func TestSettingsSetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 		Where("setting_key = ?", "operations.student_daily_checkout_time").
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 0, count, "failed callback should roll back the setting update")
+	assert.Equal(t, int64(0), count, "failed callback should roll back the setting update")
 }
 
 func TestSettingsSetValue_OnValueSetNotCalledOnError(t *testing.T) {
@@ -594,7 +594,7 @@ func TestSettingsResetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 		Where("setting_key = ?", "operations.student_photos_enabled").
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 1, count, "failed hook on reset must roll back the override deletion")
+	assert.Equal(t, 1, int(count), "failed hook on reset must roll back the override deletion")
 }
 
 func TestSettingsSetValue_OperatorOnlyForbidden(t *testing.T) {

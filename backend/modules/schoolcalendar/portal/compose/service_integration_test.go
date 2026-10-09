@@ -1961,7 +1961,7 @@ func TestCalendarServiceIntegration_CreateRollsBackAppointmentsWhenRecurrenceWri
 		Where(`"appointment".title = ?`, request.Title).
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 1, count, "retry creates exactly one appointment")
+	assert.Equal(t, 1, int(count), "retry creates exactly one appointment")
 }
 
 func TestCalendarServiceIntegration_UpdateRollsBackRecurrenceReplacementAndRetries(t *testing.T) {

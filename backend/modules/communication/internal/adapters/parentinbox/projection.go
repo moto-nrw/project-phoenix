@@ -396,7 +396,7 @@ func (p *Projection) UnreadMessageCountForGuardianTenants(ctx context.Context, a
 	if err != nil {
 		return 0, fmt.Errorf("count unread guardian messages cross-tenant: %w", err)
 	}
-	return count, nil
+	return int(count), nil
 }
 
 // FindThreadHeader returns only the chat-window header fields with a light

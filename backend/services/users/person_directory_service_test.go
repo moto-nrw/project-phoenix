@@ -707,7 +707,7 @@ func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
 			Where("tag_id = ?", rfidCard.ID).
 			Count(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, 0, holders, "the bracelet must stay free after a refused assignment")
+		assert.Equal(t, int64(0), holders, "the bracelet must stay free after a refused assignment")
 	})
 
 	t.Run("reports a student that no longer exists as not found", func(t *testing.T) {
@@ -1375,7 +1375,7 @@ func TestPersonService_CreateStaffWithTeacher_AdoptsLiveCaregiverProfile(t *test
 		Where(`deleted_at IS NULL`).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, count)
+	assert.Equal(t, 1, int(count))
 }
 
 // =============================================================================
@@ -1439,7 +1439,7 @@ func TestPersonService_CreateStaffWithTeacher_RefusesAdoptionWithoutUpdatePermis
 		Where(`deleted_at IS NULL`).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, count)
+	assert.Equal(t, 1, int(count))
 }
 
 // A Lehrkraft account (#1772) is provisioned with a staff record and
@@ -1477,7 +1477,7 @@ func TestPersonService_CreateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 		Where(`staff_id = ?`, staffRecord.ID).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, count, "no caregiver profile may exist for a Lehrkraft account")
+	assert.Equal(t, int64(0), count, "no caregiver profile may exist for a Lehrkraft account")
 }
 
 // The edit form must not be the way around the same rule.
@@ -1506,7 +1506,7 @@ func TestPersonService_UpdateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 		Where(`staff_id = ?`, staffRecord.ID).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, count)
+	assert.Equal(t, int64(0), count)
 }
 
 // A staff member without an account cannot be a Lehrkraft, so the guard must

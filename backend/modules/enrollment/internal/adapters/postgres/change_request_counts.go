@@ -21,5 +21,5 @@ func (r *Store) CountChangeRequestsForReview(ctx context.Context, statuses []str
 	if err != nil {
 		return 0, fmt.Errorf("failed to count enrollment change requests for review: %w", err)
 	}
-	return count, nil
+	return int(count), nil
 }

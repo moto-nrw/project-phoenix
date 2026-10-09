@@ -139,10 +139,10 @@ func (s *Store) ListStaffAbsences(ctx context.Context, filter domain.StaffAbsenc
 		}
 	}
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit)
+		query = query.Limit(int64(filter.Limit))
 	}
 	if filter.Offset > 0 {
-		query = query.Offset(filter.Offset)
+		query = query.Offset(int64(filter.Offset))
 	}
 	stats, err := scanAll(ctx, query, "list staff absences")
 	if err != nil {
@@ -167,7 +167,7 @@ func (s *Store) CountStaffAbsences(ctx context.Context, filter domain.StaffAbsen
 	if err != nil {
 		return 0, stats, fmt.Errorf("workforce postgres: count staff absences: %w", err)
 	}
-	return count, stats, nil
+	return int(count), stats, nil
 }
 
 func applyStaffAbsenceFilter(query *bun.SelectQuery, filter domain.StaffAbsenceFilter) *bun.SelectQuery {
@@ -232,7 +232,7 @@ func (s *Store) ListStaffAbsenceRequests(ctx context.Context, filter domain.Staf
 		query = query.OrderExpr(`"staff_absence".requested_at ASC, "staff_absence".id ASC`)
 	}
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit)
+		query = query.Limit(int64(filter.Limit))
 	}
 	stats, err := scanAll(ctx, query, "list staff absence requests")
 	if err != nil {

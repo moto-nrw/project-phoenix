@@ -231,7 +231,7 @@ func countInstanceStudents(t *testing.T, s *scenario, instanceID int64) int {
 		Where(`"instance_student".tenant_id = ?`, s.primaryTenant).
 		Count(s.tenantCtx())
 	require.NoError(t, err)
-	return n
+	return int(n)
 }
 
 // countAuditRows counts audit.data_deletions rows for (student, deletionType).
@@ -244,7 +244,7 @@ func countAuditRows(t *testing.T, s *scenario, studentID int64, deletionType str
 		Where(`"data_deletion".tenant_id = ?`, s.primaryTenant).
 		Count(s.tenantCtx())
 	require.NoError(t, err)
-	return n
+	return int(n)
 }
 
 // retentionAuditRow reads the retention audit row of one student: the count

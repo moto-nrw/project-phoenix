@@ -204,7 +204,7 @@ func (s *Store) CountOperatorMFAChallengesSince(ctx context.Context, operatorID 
 	if err != nil {
 		return 0, stats, fmt.Errorf("identity access postgres: count operator mfa challenges: %w", err)
 	}
-	return count, stats, nil
+	return int(count), stats, nil
 }
 
 func (s *Store) ActivateOperatorMFAChallenge(ctx context.Context, id int64) (bool, domain.OperationStats, error) {
