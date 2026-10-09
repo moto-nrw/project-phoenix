@@ -160,7 +160,7 @@ func (r *DataDeletionRepository) ListRecentRetentionSummaries(
 		Where(`"data_deletion".deleted_at >= ?`, since).
 		GroupExpr(`TO_CHAR("data_deletion".deleted_at, 'YYYY-MM-DD')`).
 		OrderExpr(`date DESC`).
-		Limit(limit)
+		Limit(int64(limit))
 	query = withDataDeletionTenant(ctx, r.runtime, query)
 	if err := query.Scan(ctx, &summaries); err != nil {
 		return nil, wrapDatabase("list recent retention deletion summaries", err)

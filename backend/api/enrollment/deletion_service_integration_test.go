@@ -133,7 +133,7 @@ func tableCount(t *testing.T, db *bun.DB, table, where string, args ...any) int 
 	t.Helper()
 	count, err := db.NewSelect().TableExpr(table).Where(where, args...).Count(context.Background())
 	require.NoError(t, err)
-	return count
+	return int(count)
 }
 
 func TestEnrollmentDeletionOwner_MismatchedRequestPreservesChildSelections(t *testing.T) {
