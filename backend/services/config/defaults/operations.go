@@ -271,15 +271,30 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyTimeTrackingEnforcePlannedStart,
-		Label:           "Einstempeln erst ab geplanter Startzeit",
-		Description:     "Mitarbeitende können erst ab der Startzeit aus ihrem Arbeitszeitmodell einstempeln. Tage ohne Startzeit sind nicht betroffen.",
+		Label:           "Einstempeln erst kurz vor Schichtbeginn",
+		Description:     "Mitarbeitende können erst kurz vor ihrer ersten Schicht im Dienstplan einstempeln. Zu spät einstempeln geht immer. Tage ohne Schicht sind nicht betroffen.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "zeiterfassung",
-		SortOrder:       2,
+		SortOrder:       4,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyTimeTrackingPlannedStartToleranceMinutes,
+		Label:           "Einstempeln so viele Minuten vor Schichtbeginn",
+		Description:     "So früh vor dem Schichtbeginn können Mitarbeitende einstempeln.",
+		Type:            config.FieldNumber,
+		Default:         5,
+		Validation:      config.Range(0, 120),
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "zeiterfassung",
+		SortOrder:       5,
+		DependsOn:       config.DependsOnEq(config.KeyTimeTrackingEnforcePlannedStart, true),
 	})
 
 	config.Register(config.Definition{
@@ -295,7 +310,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "zeiterfassung",
-		SortOrder:       3,
+		SortOrder:       6,
 	})
 
 	config.Register(config.Definition{
@@ -309,7 +324,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "zeiterfassung",
-		SortOrder:       4,
+		SortOrder:       7,
 		DependsOn:       config.DependsOnEq(config.KeyTimeTrackingRequireDeviationReason, true),
 	})
 

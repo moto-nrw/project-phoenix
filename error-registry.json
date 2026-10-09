@@ -857,6 +857,12 @@
       "legacy": "general.permission"
     },
     {
+      "code": "general.request_too_large",
+      "class": "input",
+      "parameters": [],
+      "legacy": "general.request_too_large"
+    },
+    {
       "code": "general.server",
       "class": "server",
       "parameters": [],
