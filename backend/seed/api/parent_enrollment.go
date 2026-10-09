@@ -823,7 +823,7 @@ func (s parentEnrollmentSeedStep) createEnrollmentPhase(rt *Runtime, auth AuthRe
 	startYear := seedSchoolYearStart(todaySeedDate())
 	period, err := seedPhaseSchoolYear(rt, auth, startYear)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	name := fmt.Sprintf("Demo Anmeldung %d/%d", startYear, startYear+1)
 	body := map[string]any{
