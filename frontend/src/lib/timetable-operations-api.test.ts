@@ -168,7 +168,7 @@ describe("timetableOperationsApi", () => {
     const body = {
       title: "Freispiel",
       room_id: 7,
-      staff_ids: [11, 12],
+      staff_ids: ["11", "12"],
     };
     const result = await timetableOperationsApi.createAndStartSpontaneous(body);
 

@@ -35,6 +35,8 @@ interface BackendStaffResponse {
   was_present_today?: boolean;
   work_status?: string;
   absence_type?: string;
+  is_external?: boolean;
+  external_organization?: string;
   person?: {
     id: number;
     first_name: string;
@@ -148,6 +150,8 @@ export const GET = createGetHandler(
         was_present_today: staff.was_present_today ?? false,
         work_status: staff.work_status ?? null,
         absence_type: staff.absence_type ?? null,
+        is_external: staff.is_external ?? false,
+        external_organization: staff.external_organization ?? null,
         // Include person object if available
         person: staff.person,
       };
@@ -180,6 +184,8 @@ interface TeacherResponse {
   account_id?: string;
   staff_id?: string;
   teacher_id?: string;
+  is_external?: boolean;
+  external_organization?: string | null;
   person?: {
     id: number;
     first_name: string;
@@ -234,6 +240,8 @@ function mapStaffResponse(response: BackendStaffResponse): TeacherResponse {
         ? undefined
         : toIdString(response.person.account_id),
     person_id: toIdString(response.person_id),
+    is_external: response.is_external ?? false,
+    external_organization: response.external_organization ?? null,
     person: response.person,
   };
 }

@@ -144,6 +144,12 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 		rs.runtime.WriteFailure(w, r, err)
 		return
 	}
+	// The retained update runtime projects a legacy Staff value, which knows
+	// the guest marker but not its organization. Updating ordinary staff fields
+	// cannot change the guest profile, so retain the relation loaded before the
+	// update for the response contract.
+	result.Staff.IsGuest = staff.IsGuest
+	result.Staff.GuestOrganization = staff.GuestOrganization
 
 	response, message := rs.updateResponseFor(ctx, result, person)
 	rs.respond(w, r, http.StatusOK, response, message)

@@ -15,6 +15,7 @@ vi.mock("~/lib/supervision-context", () => ({
 vi.mock("~/lib/timetable-operations-api", () => ({
   timetableOperationsApi: {
     complete: vi.fn(),
+    createAndStartSpontaneous: vi.fn(),
     reopen: vi.fn(),
     start: vi.fn(),
   },
@@ -167,6 +168,34 @@ describe("useTimetableActions lifecycle reload (#3888)", () => {
     expect(refreshSupervision).toHaveBeenCalledWith({
       silent: true,
       force: true,
+    });
+  });
+
+  it("keeps a selected external caregiver's large staff ID as a decimal string", async () => {
+    vi.mocked(
+      timetableOperationsApi.createAndStartSpontaneous,
+    ).mockResolvedValue({
+      instanceId: "88",
+      activeGroupId: "5",
+      status: "active",
+    });
+    const { result } = setup();
+
+    await act(async () => {
+      await result.current.handleStartSpontaneousActivity({
+        title: "Musik-AG",
+        roomId: "20",
+        additionalStaffIds: ["9007199254740993"],
+      });
+    });
+
+    expect(
+      timetableOperationsApi.createAndStartSpontaneous,
+    ).toHaveBeenCalledWith({
+      title: "Musik-AG",
+      room_id: 20,
+      activity_group_id: undefined,
+      staff_ids: ["1", "9007199254740993"],
     });
   });
 });

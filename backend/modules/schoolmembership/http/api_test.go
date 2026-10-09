@@ -789,6 +789,30 @@ func TestUpdateStaffGuardsPersonReassignment(t *testing.T) {
 	assert.Equal(t, "staff member not found", decodeError(t, missingStaff).Error)
 }
 
+func TestUpdateStaffKeepsExternalOrganizationInItsResponse(t *testing.T) {
+	t.Parallel()
+
+	membership := directoryFixture()
+	membership.staff[1] = schoolmembership.Staff{
+		ID: 1, PersonID: 11, IsGuest: true, GuestOrganization: "Musikschule Bergstadt",
+	}
+	h := withPersons(newHarness(t, membership))
+	// An external caregiver has no moto account.
+	h.persons[11] = staffHTTP.Person{ID: 11, FirstName: "Ada", LastName: "Lovelace"}
+	h.allow("staff:manage")
+	// The legacy update result does not carry the guest relation. The handler
+	// must retain the organization it read with the staff membership.
+	h.updateResult = staffHTTP.UpdateStaffResult{
+		Staff:  schoolmembership.Staff{ID: 1, PersonID: 11, IsGuest: true},
+		Action: staffHTTP.TeacherActionNone,
+	}
+
+	recorder := h.do(t, http.MethodPut, "/staff/1", map[string]any{"person_id": "11"})
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, string(decode(t, recorder).Data), `"is_external":true`)
+	assert.Contains(t, string(decode(t, recorder).Data), `"external_organization":"Musikschule Bergstadt"`)
+}
+
 func TestUpdateStaffMessagesFollowTheTeacherAction(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
