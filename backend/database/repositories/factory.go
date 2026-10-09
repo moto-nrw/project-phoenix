@@ -38,7 +38,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
@@ -498,7 +497,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 			}
 			return result, nil
 		},
-		SupervisingStaff: func(ctx context.Context, pairs education.GroupMembershipPairs) ([]educationModels.StaffGroupID, error) {
+		SupervisingStaff: func(ctx context.Context, pairs education.GroupMembershipPairs) ([]education.StaffGroupID, error) {
 			return supervisionStaffResolver(lazyStaffLookup{get: func() schoolmembership.Capability { return factory.schoolMembership }}, workforceSubstitutedStaff(timetableDependencies.Workforce))(ctx, pairs)
 		},
 	})
@@ -690,11 +689,14 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	// Group substitutions belong to Workforce (#2688): the retained contract
 	// is served by the adapter, which resolves groups through School
 	// Structure and staff through School Membership.
-	factory.GroupSubstitution = workforceLegacy.NewGroupSubstitutionRepository(timetableDependencies.Workforce,
-		func(ctx context.Context, ids []int64) (map[int64]*educationModels.Group, error) {
+	factory.GroupSubstitution = newGroupSubstitutions(
+		workforceLegacy.NewGroupSubstitutionRepository(timetableDependencies.Workforce, func(ctx context.Context, ids []int64) (map[int64]string, error) {
+			return NewGroupNames(factory.Group).GroupNamesByID(ctx, ids)
+		}),
+		func(ctx context.Context, ids []int64) (map[int64]*education.Group, error) {
 			return factory.Group.FindByIDs(ctx, ids)
 		},
-		substitutionStaffResolver(lazyStaffLookup{get: func() schoolmembership.Capability { return factory.schoolMembership }}),
+		lazyStaffLookup{get: func() schoolmembership.Capability { return factory.schoolMembership }},
 	)
 	factory.bindAppointments(appointmentsModule)
 	// Bind student ports while their repositories are still raw. The staff

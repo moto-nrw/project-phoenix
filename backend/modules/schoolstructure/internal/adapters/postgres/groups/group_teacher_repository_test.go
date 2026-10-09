@@ -29,7 +29,7 @@ func TestGroupTeacherRepository_Create(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GTCreate")
 		teacher := testpkg.CreateTestTeacher(t, db, "GTCreate", "Teacher")
 
-		gt := &testpkg.EducationGroupTeacher{
+		gt := &testutil.SchoolStructureGroupTeacher{
 			GroupID:   group.ID,
 			TeacherID: teacher.ID,
 		}
@@ -110,11 +110,13 @@ func TestGroupTeacherRepository_Update(t *testing.T) {
 		group1 := testpkg.CreateTestEducationGroup(t, db, "GTUpdate1")
 		group2 := testpkg.CreateTestEducationGroup(t, db, "GTUpdate2")
 		teacher := testpkg.CreateTestTeacher(t, db, "GTUpdate", "Teacher")
-		gt := testpkg.CreateTestGroupTeacher(t, db, group1.ID, teacher.ID)
+		stored := testpkg.CreateTestGroupTeacher(t, db, group1.ID, teacher.ID)
+		gt, err := repo.FindByID(ctx, stored.ID)
+		require.NoError(t, err)
 
 		// Update to different group
 		gt.GroupID = group2.ID
-		err := repo.Update(ctx, gt)
+		err = repo.Update(ctx, gt)
 		require.NoError(t, err)
 
 		found, err := repo.FindByID(ctx, gt.ID)
@@ -260,7 +262,7 @@ func TestGroupTeacherRepository_Create_Validation(t *testing.T) {
 	t.Run("returns error for zero group_id", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "ValidTeacher", "Test")
 
-		gt := &testpkg.EducationGroupTeacher{
+		gt := &testutil.SchoolStructureGroupTeacher{
 			GroupID:   0, // Invalid
 			TeacherID: teacher.ID,
 		}
@@ -272,7 +274,7 @@ func TestGroupTeacherRepository_Create_Validation(t *testing.T) {
 	t.Run("returns error for zero teacher_id", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "ValidGroup")
 
-		gt := &testpkg.EducationGroupTeacher{
+		gt := &testutil.SchoolStructureGroupTeacher{
 			GroupID:   group.ID,
 			TeacherID: 0, // Invalid
 		}

@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"time"
 
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -20,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -27,7 +26,7 @@ import (
 
 // CallerGroups resolves the educational groups of the request's caller.
 type CallerGroups interface {
-	GetMyGroups(ctx context.Context) ([]*educationModels.Group, error)
+	GetMyGroups(ctx context.Context) ([]*domain.Group, error)
 }
 
 // GroupPeople is the People Directory side of the group routes: the children

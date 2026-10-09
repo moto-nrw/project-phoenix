@@ -12,7 +12,7 @@ import (
 // reference it, and it must never surface in the student search, the parent
 // portal or any planning view. SchoolClass stores the display form as
 // entered; comparisons go through schoolclass.Normalize like every other
-// class string (see models/education.ClassTeacher).
+// class string (see the School Structure ClassTeacher).
 //
 // The rows belong to the School Membership owner (#2668): this struct is the
 // bun mapping test fixtures insert through, nothing more. Validation, the

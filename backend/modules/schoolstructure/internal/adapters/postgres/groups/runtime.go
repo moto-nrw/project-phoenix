@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 	"github.com/uptrace/bun"
 )
 
@@ -44,7 +44,7 @@ func translateNotFound(err error) error {
 	if !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
-	return errors.Join(education.ErrNotFound, err)
+	return errors.Join(domain.RecordNotFound, err)
 }
 
 // assertRowsAffected checks that a DML statement affected exactly the
@@ -55,7 +55,7 @@ func assertRowsAffected(result sql.Result, expected int64, op string) error {
 		return fmt.Errorf("%s: rows affected: %w", op, err)
 	}
 	if n != expected {
-		return &education.DatabaseError{
+		return &domain.StoreError{
 			Op:  op,
 			Err: fmt.Errorf("expected %d rows affected, got %d", expected, n),
 		}

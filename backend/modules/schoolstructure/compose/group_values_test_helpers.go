@@ -1,9 +1,9 @@
 package compose
 
 import (
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
 func legacyTeacher(value *schoolstructure.Teacher) *groups.Teacher {
@@ -30,11 +30,11 @@ func retainedGroupError(err error) (error, bool) {
 	case *schoolstructure.EducationError:
 		return &groups.EducationError{Op: value.Op, Err: legacyGroupError(value.Err)}, true
 	case *groupStoreError:
-		return &educationModels.DatabaseError{Op: value.op, Err: legacyGroupError(value.err)}, true
+		return &domain.StoreError{Op: value.op, Err: legacyGroupError(value.err)}, true
 	}
 	switch err {
 	case groupRecordNotFound:
-		return educationModels.ErrNotFound, true
+		return domain.RecordNotFound, true
 	case schoolstructure.ErrEducationGroupNotFound:
 		return groups.ErrGroupNotFound, true
 	case schoolstructure.ErrTeacherNotFound:
@@ -67,7 +67,7 @@ func retainedGroupError(err error) (error, bool) {
 	return mapGroupErrorCauses(err, retainedGroupError)
 }
 
-func legacyGroupQuery(query *educationModels.GroupListQuery) *schoolstructure.GroupListQuery {
+func legacyGroupQuery(query *domain.GroupListQuery) *schoolstructure.GroupListQuery {
 	if query == nil {
 		return nil
 	}
@@ -76,6 +76,6 @@ func legacyGroupQuery(query *educationModels.GroupListQuery) *schoolstructure.Gr
 }
 
 // Legacy storage vocabulary belongs only to the retained suite seam.
-type legacyGroupStorageTestError = educationModels.DatabaseError
+type legacyGroupStorageTestError = domain.StoreError
 
-var legacyGroupRecordTestNotFound = educationModels.ErrNotFound
+var legacyGroupRecordTestNotFound = domain.RecordNotFound

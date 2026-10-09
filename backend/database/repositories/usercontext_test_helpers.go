@@ -37,8 +37,8 @@ func NewUserContextTestRepositories(db *bun.DB) (UserContextTestRepositories, er
 		return UserContextTestRepositories{}, err
 	}
 	groups := NewEducationGroupRepository(db)
-	substitutions := workforceLegacy.NewGroupSubstitutionRepository(workTime, groups.FindByIDs,
-		substitutionStaffResolver(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}))
+	substitutions := newGroupSubstitutions(workforceLegacy.NewGroupSubstitutionRepository(workTime, NewGroupNames(groups).GroupNamesByID),
+		groups.FindByIDs, lazyStaffLookup{get: func() schoolmembership.Capability { return membership }})
 	return UserContextTestRepositories{
 		Timetable: timetable, Profile: newIdentityAccess(db, nil), Substitutions: substitutions, StaffGroups: staffGroups,
 	}, nil

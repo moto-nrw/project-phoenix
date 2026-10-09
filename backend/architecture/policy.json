@@ -1462,13 +1462,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/education",
-      "owner": "school-structure",
-      "role": "domain",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "models/enrollment",
       "owner": "enrollment",
       "role": "domain",
@@ -12822,17 +12815,6 @@
       "target_role": "domain"
     },
     {
-      "id": "delivery-cutover.009",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "application",
-      "target_owner": "school-structure",
-      "target_role": "domain"
-    },
-    {
       "id": "delivery-cutover.013",
       "description": "Allows one dependency introduced by the Delivery package cutover.",
       "scopes": [
@@ -12896,17 +12878,6 @@
       "source_owner": "delivery-platform",
       "source_role": "workflow-integration-test",
       "target_owner": "people-directory",
-      "target_role": "domain"
-    },
-    {
-      "id": "delivery-cutover.023",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "workflow-integration-test",
-      "target_owner": "school-structure",
       "target_role": "domain"
     },
     {
@@ -14896,17 +14867,6 @@
       "target_owner": "workforce",
       "target_role": "adapter",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3413"
-    },
-    {
-      "id": "workforce.adapter.school-structure-domain",
-      "description": "The Workforce compatibility adapter serves the retained models/education group substitution contract while its consumers migrate (#2688).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter",
-      "target_owner": "school-structure",
-      "target_role": "domain"
     },
     {
       "id": "workforce.adapter.people-domain",

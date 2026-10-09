@@ -13,7 +13,7 @@ import (
 // staffIDsFor collapses the flat pair list into the staff set of one group,
 // which is what a producer looking for "who is responsible for this child"
 // consumes.
-func staffIDsFor(pairs []testpkg.EducationStaffGroupID, groupID int64) map[int64]struct{} {
+func staffIDsFor(pairs []testutil.SchoolStructureStaffGroupID, groupID int64) map[int64]struct{} {
 	out := make(map[int64]struct{})
 	for _, pair := range pairs {
 		if pair.GroupID == groupID {
