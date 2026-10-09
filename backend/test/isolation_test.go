@@ -538,7 +538,9 @@ func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 
 	t.Run("education group update blocked", func(t *testing.T) {
 		repo := repositories.NewEducationGroupRepository(db)
-		err := repo.Update(ctxB, groupA)
+		stored, err := repo.FindByID(ctxA, groupA.ID)
+		require.NoError(t, err)
+		err = repo.Update(ctxB, stored)
 		require.Error(t, err, "cross-tenant group update must fail")
 		assert.Contains(t, err.Error(), "rows affected",
 			"error should mention rows affected guard")

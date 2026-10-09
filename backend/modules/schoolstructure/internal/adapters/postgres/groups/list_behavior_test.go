@@ -16,12 +16,12 @@ func TestGroupRepositoryListWithRoomsPreservesJoinSortPaginationAndEmptySlice(t 
 	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
 	ctx := testpkg.Ctx(t)
 	room := testpkg.CreateTestRoom(t, db, "Group list behavior")
-	alpha := &testpkg.EducationGroup{Name: "Group list alpha", RoomID: &room.ID}
-	beta := &testpkg.EducationGroup{Name: "Group list beta", RoomID: &room.ID}
+	alpha := &testutil.SchoolStructureGroup{Name: "Group list alpha", RoomID: &room.ID}
+	beta := &testutil.SchoolStructureGroup{Name: "Group list beta", RoomID: &room.ID}
 	require.NoError(t, repo.Create(ctx, alpha))
 	require.NoError(t, repo.Create(ctx, beta))
 
-	query := &testpkg.EducationGroupListQuery{NameContains: "Group list ", Limit: 1, SortByName: true, Descending: true}
+	query := &testutil.SchoolStructureGroupListQuery{NameContains: "Group list ", Limit: 1, SortByName: true, Descending: true}
 	rows, err := repo.ListWithRooms(ctx, query)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
@@ -33,7 +33,7 @@ func TestGroupRepositoryListWithRoomsPreservesJoinSortPaginationAndEmptySlice(t 
 	require.NoError(t, err)
 	assert.Equal(t, 2, total)
 
-	empty, err := repo.ListWithRooms(ctx, &testpkg.EducationGroupListQuery{NameContains: "missing group list behavior"})
+	empty, err := repo.ListWithRooms(ctx, &testutil.SchoolStructureGroupListQuery{NameContains: "missing group list behavior"})
 	require.NoError(t, err)
 	assert.NotNil(t, empty)
 	assert.Empty(t, empty)

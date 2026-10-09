@@ -1,4 +1,4 @@
-package education
+package domain
 
 import (
 	"errors"
@@ -7,10 +7,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The School Structure vocabulary the retained services' ports exchange
-// (#2742). The legacy composition translates the People Directory, Facilities
-// and Audit Platform rows into these shapes, so the services name none of
-// those owners' models.
+// The values the group service's and the substitution module's ports
+// exchange (#2742). The composition root translates the People Directory,
+// Facilities and Audit Platform rows into these shapes, so School Structure
+// names none of those owners' models.
 
 // ErrHandoverExists reports a group handover that duplicates a stored one.
 var ErrHandoverExists = errors.New("group handover already exists")
@@ -93,4 +93,47 @@ type SubstitutionChange struct {
 	ActorAccountID int64
 	StartDate      calendar.Date
 	EndDate        *calendar.Date
+}
+
+// RecordNotFound is the group and handover stores' result for a missing row.
+// It carries the RepositoryNotFound marker, so callers that classify a
+// missing row by that shape (api/common.IsNotFound) keep recognising it.
+var RecordNotFound error = recordNotFoundError{}
+
+type recordNotFoundError struct{}
+
+func (recordNotFoundError) Error() string { return "repository: not found" }
+
+// RepositoryNotFound marks the not-found sentinel for callers that match it
+// by shape rather than by identity.
+func (recordNotFoundError) RepositoryNotFound() {}
+
+// StoreError is the failure shape of the group and handover stores: the
+// operation that failed and the driver's error.
+type StoreError struct {
+	Op  string
+	Err error
+}
+
+func (e *StoreError) Error() string {
+	if e.Err == nil {
+		return "database error during " + e.Op
+	}
+	return "database error during " + e.Op + ": " + e.Err.Error()
+}
+
+func (e *StoreError) Unwrap() error { return e.Err }
+
+// StoreFailure marks the error as the store's failure rather than a refusal
+// of the request.
+func (e *StoreError) StoreFailure() bool { return true }
+
+// IsRecordNotFound reports whether err is a missing-row result of a School
+// Structure store, or of a store that marks it the same way.
+func IsRecordNotFound(err error) bool {
+	if errors.Is(err, RecordNotFound) {
+		return true
+	}
+	var marker interface{ RepositoryNotFound() }
+	return errors.As(err, &marker)
 }
