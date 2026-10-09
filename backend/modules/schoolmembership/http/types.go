@@ -75,7 +75,11 @@ type PersonResponse struct {
 
 // StaffResponse represents a staff response.
 type StaffResponse struct {
-	ID int64 `json:"id"`
+	// ID goes out as a decimal STRING for the same reason as PersonID: staff
+	// IDs are bigints, and the Next.js proxy parses every JSON number before
+	// the mapper can preserve it. A rounded staff ID could address a different
+	// staff record when the caller sends it back.
+	ID int64 `json:"id,string"`
 	// PersonID goes out as a decimal STRING. It is a bigint, and the staff
 	// screens send it back to identify the person they edit — as a JSON
 	// number it would be rounded past 2^53 by the JSON.parse in the Next.js

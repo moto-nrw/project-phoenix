@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -11,7 +12,7 @@ import (
 )
 
 type externalStaffWire struct {
-	ID                   int64  `json:"id"`
+	ID                   string `json:"id"`
 	IsExternal           bool   `json:"is_external"`
 	ExternalOrganization string `json:"external_organization"`
 	Person               *struct {
@@ -52,7 +53,7 @@ func TestBetreuerRecordsAnExternalCaregiver(t *testing.T) {
 		Data []externalStaffWire `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &listed))
-	external := map[int64]bool{}
+	external := map[string]bool{}
 	for _, entry := range listed.Data {
 		external[entry.ID] = entry.IsExternal
 	}
@@ -102,7 +103,7 @@ func TestAccountBackedGuestIsNotAnExternalCaregiver(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &listed))
 	for _, entry := range listed.Data {
-		if entry.ID == accountGuestID {
+		if entry.ID == strconv.FormatInt(accountGuestID, 10) {
 			assert.False(t, entry.IsExternal)
 			assert.Empty(t, entry.ExternalOrganization)
 			return

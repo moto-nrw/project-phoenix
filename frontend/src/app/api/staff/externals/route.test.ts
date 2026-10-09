@@ -38,7 +38,7 @@ describe("POST /api/staff/externals", () => {
     mockApiPost.mockResolvedValueOnce({
       status: "success",
       data: {
-        id: 33,
+        id: "9007199254740993",
         person_id: "198",
         is_teacher: false,
         is_external: true,
@@ -74,7 +74,7 @@ describe("POST /api/staff/externals", () => {
       data: { id: string; name: string; is_external: boolean };
     };
     expect(body.data).toMatchObject({
-      id: "33",
+      id: "9007199254740993",
       name: "Lea Gast",
       is_external: true,
       external_organization: "Musikschule",

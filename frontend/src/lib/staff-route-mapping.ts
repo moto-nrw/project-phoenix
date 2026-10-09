@@ -6,7 +6,9 @@ import { toIdString, toOptionalIdString } from "~/lib/wire-id";
  * Type definition for staff member response from backend
  */
 export interface BackendStaffResponse {
-  id: number;
+  // Decimal string since #3915 — a staff ID is a bigint and must not be
+  // parsed as a JavaScript number before this mapper sees it.
+  id: WireID;
   // Decimal string since #2222 — person_id is a bigint the staff screens send
   // back to identify the person they edit, so it must not pass through a JS
   // number. A number is still accepted (older server, test fixture).
@@ -45,7 +47,7 @@ export interface BackendStaffResponse {
  */
 export function mapBackendStaff(staff: BackendStaffResponse) {
   return {
-    id: String(staff.id),
+    id: toIdString(staff.id),
     name: staff.person
       ? `${staff.person.first_name} ${staff.person.last_name}`
       : "",
@@ -62,7 +64,7 @@ export function mapBackendStaff(staff: BackendStaffResponse) {
     staff_notes: staff.staff_notes ?? null,
     created_at: staff.created_at,
     updated_at: staff.updated_at,
-    staff_id: String(staff.id),
+    staff_id: toIdString(staff.id),
     teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
     // Ob ein Betreuungsprofil (users.teachers) existiert — steuert u. a.,
     // ob das Position-Feld im Edit-Formular angeboten wird (für Lehrkräfte
